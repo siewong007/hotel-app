@@ -97,7 +97,8 @@
     "perPerson": "per person",
     "fullName": "Full Name",
     "address": "Address",
-    "phoneNumber": "Phone Number"
+    "phoneNumber": "Phone Number",
+    "optional": "Optional"
   },
   "pagination": {
     "page": "Page",

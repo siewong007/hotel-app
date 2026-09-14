@@ -97,7 +97,8 @@
     "perPerson": "每人",
     "fullName": "姓名",
     "address": "地址",
-    "phoneNumber": "电话号码"
+    "phoneNumber": "电话号码",
+    "optional": "选填"
   },
   "pagination": {
     "page": "页",

@@ -49,6 +49,7 @@ import {
 } from '@mui/icons-material';
 import { Room, RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../types';
 import { errorMessage } from '../../../utils';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { emitApiNotification } from '../../../utils/apiNotifications';
@@ -169,6 +170,7 @@ const emptyRoomForm: RoomFormData = {
 };
 
 const RoomConfigurationPage: React.FC = () => {
+  const { t } = useTranslation('rooms');
   const { hasPermission } = useAuth();
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const isPhone = useIsPhone();
@@ -216,7 +218,7 @@ const RoomConfigurationPage: React.FC = () => {
       await Promise.all([roomsQuery.refetch(), roomTypesQuery.refetch()]);
       setError(null);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to load data'));
+      setError(errorMessage(err, t('errors.loadData')));
     }
   };
 
@@ -360,11 +362,11 @@ const RoomConfigurationPage: React.FC = () => {
       if (editingType) {
         const input: RoomTypeUpdateInput = { ...base, is_active: typeForm.is_active };
         await updateRoomTypeMutation.mutateAsync({ roomTypeId: editingType.id, data: input });
-        emitApiNotification({ message: 'Room type updated successfully', severity: 'success' });
+        emitApiNotification({ message: t('notifications.roomTypeUpdated'), severity: 'success' });
       } else {
         const input: RoomTypeCreateInput = base;
         await createRoomTypeMutation.mutateAsync(input);
-        emitApiNotification({ message: 'Room type created successfully', severity: 'success' });
+        emitApiNotification({ message: t('notifications.roomTypeCreated'), severity: 'success' });
       }
       setDrawerOpen(false);
       setEditingType(null);
@@ -373,55 +375,57 @@ const RoomConfigurationPage: React.FC = () => {
       const msg = errorMessage(err, '');
       if (msg.includes('duplicate key') || msg.includes('unique constraint')) {
         if (msg.includes('room_types_name_key')) {
-          emitApiNotification({ message: `A room type named "${typeForm.name}" already exists.`, severity: 'error' });
+          emitApiNotification({ message: t('notifications.duplicateName', { name: typeForm.name }), severity: 'error' });
         } else if (msg.includes('room_types_code_key')) {
-          emitApiNotification({ message: `Room type code "${typeForm.code.toUpperCase()}" already exists.`, severity: 'error' });
+          emitApiNotification({ message: t('notifications.duplicateCode', { code: typeForm.code.toUpperCase() }), severity: 'error' });
         } else {
-          emitApiNotification({ message: 'A room type with this name or code already exists.', severity: 'error' });
+          emitApiNotification({ message: t('notifications.duplicateNameOrCode'), severity: 'error' });
         }
       } else {
-        emitApiNotification({ message: msg || 'Failed to save room type', severity: 'error' });
+        emitApiNotification({ message: msg || t('errors.saveRoomType'), severity: 'error' });
       }
     } finally {
       setFormLoading(false);
     }
   };
 
-  const handleToggleTypeActive = async (t: RoomType) => {
+  const handleToggleTypeActive = async (roomType: RoomType) => {
     try {
-      await updateRoomTypeMutation.mutateAsync({ roomTypeId: t.id, data: { is_active: !t.is_active } });
+      await updateRoomTypeMutation.mutateAsync({ roomTypeId: roomType.id, data: { is_active: !roomType.is_active } });
       emitApiNotification({
-        message: `Room type ${t.is_active ? 'hidden from booking' : 'made bookable'}`,
+        message: roomType.is_active
+          ? t('notifications.roomTypeHidden')
+          : t('notifications.roomTypeBookable'),
         severity: 'success',
       });
       await loadData();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to update room type'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('errors.updateRoomType')), severity: 'error' });
     }
   };
 
-  const handleDuplicateType = async (t: RoomType) => {
+  const handleDuplicateType = async (roomType: RoomType) => {
     try {
       const input: RoomTypeCreateInput = {
-        name: `${t.name} (Copy)`,
-        code: `${t.code}2`.slice(0, 10),
-        description: t.description || undefined,
-        base_price: toMoneyNumber(t.base_price),
-        weekday_rate: t.weekday_rate ? toMoneyNumber(t.weekday_rate) : undefined,
-        weekend_rate: t.weekend_rate ? toMoneyNumber(t.weekend_rate) : undefined,
-        max_occupancy: t.max_occupancy,
-        bed_type: t.bed_type,
-        bed_count: t.bed_count,
-        allows_extra_bed: t.allows_extra_bed,
-        max_extra_beds: t.max_extra_beds,
-        extra_bed_charge: toMoneyNumber(t.extra_bed_charge),
-        sort_order: t.sort_order + 1,
+        name: `${roomType.name} (Copy)`,
+        code: `${roomType.code}2`.slice(0, 10),
+        description: roomType.description || undefined,
+        base_price: toMoneyNumber(roomType.base_price),
+        weekday_rate: roomType.weekday_rate ? toMoneyNumber(roomType.weekday_rate) : undefined,
+        weekend_rate: roomType.weekend_rate ? toMoneyNumber(roomType.weekend_rate) : undefined,
+        max_occupancy: roomType.max_occupancy,
+        bed_type: roomType.bed_type,
+        bed_count: roomType.bed_count,
+        allows_extra_bed: roomType.allows_extra_bed,
+        max_extra_beds: roomType.max_extra_beds,
+        extra_bed_charge: toMoneyNumber(roomType.extra_bed_charge),
+        sort_order: roomType.sort_order + 1,
       };
       await createRoomTypeMutation.mutateAsync(input);
-      emitApiNotification({ message: 'Room type duplicated', severity: 'success' });
+      emitApiNotification({ message: t('notifications.roomTypeDuplicated'), severity: 'success' });
       await loadData();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to duplicate'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('errors.duplicateRoomType')), severity: 'error' });
     }
   };
 
@@ -433,10 +437,10 @@ const RoomConfigurationPage: React.FC = () => {
       setPhotoBusy(true);
       const updated = await uploadRoomTypeImageMutation.mutateAsync({ roomTypeId: editingType.id, file });
       setEditingType(updated);
-      emitApiNotification({ message: 'Photo added', severity: 'success' });
+      emitApiNotification({ message: t('notifications.photoAdded'), severity: 'success' });
       await loadData();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to upload photo'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('errors.uploadPhoto')), severity: 'error' });
     } finally {
       setPhotoBusy(false);
     }
@@ -452,10 +456,10 @@ const RoomConfigurationPage: React.FC = () => {
         data: { images: remaining },
       });
       setEditingType(updated);
-      emitApiNotification({ message: 'Photo removed', severity: 'success' });
+      emitApiNotification({ message: t('notifications.photoRemoved'), severity: 'success' });
       await loadData();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to remove photo'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('errors.removePhoto')), severity: 'error' });
     } finally {
       setPhotoBusy(false);
     }
@@ -466,11 +470,11 @@ const RoomConfigurationPage: React.FC = () => {
     try {
       setFormLoading(true);
       await deleteRoomTypeMutation.mutateAsync(typeDeleteTarget.id);
-      emitApiNotification({ message: 'Room type deleted', severity: 'success' });
+      emitApiNotification({ message: t('notifications.roomTypeDeleted'), severity: 'success' });
       setTypeDeleteTarget(null);
       await loadData();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to delete room type'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('errors.deleteRoomType')), severity: 'error' });
     } finally {
       setFormLoading(false);
     }
@@ -499,26 +503,26 @@ const RoomConfigurationPage: React.FC = () => {
     if (!addingRoomFor || !roomForm.room_number.trim()) return;
     try {
       setFormLoading(true);
-      const t = addingRoomFor;
+      const roomType = addingRoomFor;
       const price =
-        roomForm.custom_price !== '' ? toMoneyNumber(roomForm.custom_price) : toMoneyNumber(t.base_price);
+        roomForm.custom_price !== '' ? toMoneyNumber(roomForm.custom_price) : toMoneyNumber(roomType.base_price);
       await createRoomMutation.mutateAsync({
         room_number: roomForm.room_number.trim(),
-        room_type: t.name,
-        room_type_id: t.id,
+        room_type: roomType.name,
+        room_type_id: roomType.id,
         price_per_night: price,
-        max_occupancy: t.max_occupancy,
+        max_occupancy: roomType.max_occupancy,
         floor: roomForm.floor === '' ? 1 : Number(roomForm.floor),
         building: roomForm.building || undefined,
         custom_price: roomForm.custom_price !== '' ? toMoneyNumber(roomForm.custom_price) : undefined,
         is_accessible: roomForm.is_accessible,
         is_smoking: roomForm.is_smoking,
       });
-      emitApiNotification({ message: 'Room created successfully', severity: 'success' });
+      emitApiNotification({ message: t('notifications.roomCreated'), severity: 'success' });
       setAddingRoomFor(null);
       await loadData();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to create room'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('errors.createRoom')), severity: 'error' });
     } finally {
       setFormLoading(false);
     }
@@ -535,11 +539,11 @@ const RoomConfigurationPage: React.FC = () => {
         available: editingRoom.available,
         is_smoking: roomForm.is_smoking,
       } });
-      emitApiNotification({ message: 'Room updated successfully', severity: 'success' });
+      emitApiNotification({ message: t('notifications.roomUpdated'), severity: 'success' });
       setEditingRoom(null);
       await loadData();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to update room'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('errors.updateRoom')), severity: 'error' });
     } finally {
       setFormLoading(false);
     }
@@ -550,7 +554,7 @@ const RoomConfigurationPage: React.FC = () => {
       await updateRoomMutation.mutateAsync({ roomId: r.id, data: { available: !r.available } });
       await loadData();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to update room'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('errors.updateRoom')), severity: 'error' });
     }
   };
 
@@ -559,11 +563,11 @@ const RoomConfigurationPage: React.FC = () => {
     try {
       setFormLoading(true);
       await deleteRoomMutation.mutateAsync(deletingRoom.id);
-      emitApiNotification({ message: 'Room deleted successfully', severity: 'success' });
+      emitApiNotification({ message: t('notifications.roomDeleted'), severity: 'success' });
       setDeletingRoom(null);
       await loadData();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to delete room'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('errors.deleteRoom')), severity: 'error' });
     } finally {
       setFormLoading(false);
     }
@@ -573,7 +577,7 @@ const RoomConfigurationPage: React.FC = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Alert severity="warning">
-          You do not have permission to access this page. Contact your administrator for access.
+          {t('config.forbidden')}
         </Alert>
       </Box>
     );
@@ -665,26 +669,26 @@ const RoomConfigurationPage: React.FC = () => {
   );
 
   const RoomCard = ({ room }: { room: Room }) => {
-    const t = typeByName[room.room_type];
+    const rt = typeByName[room.room_type];
     const st = roomStatus(room);
     const price = toMoneyNumber(room.price_per_night);
-    const isCustom = !!t && compareMoney(price, t.base_price) !== 0;
+    const isCustom = !!rt && compareMoney(price, rt.base_price) !== 0;
     const roomActions: ActionMenuItem[] = [
       {
         id: 'toggle-availability',
-        label: 'Toggle availability',
+        label: t('config.toggleAvailability'),
         icon: <ActiveIcon sx={{ fontSize: 16, color: statusColor[st] }} />,
         onClick: () => handleToggleRoomStatus(room),
       },
       {
         id: 'edit',
-        label: 'Edit room',
+        label: t('config.editRoom'),
         icon: <EditIcon sx={{ fontSize: 16 }} />,
         onClick: () => openEditRoom(room),
       },
       {
         id: 'delete',
-        label: 'Delete room',
+        label: t('config.deleteRoom'),
         icon: <DeleteIcon sx={{ fontSize: 16 }} />,
         destructive: true,
         onClick: () => setDeletingRoom(room),
@@ -720,6 +724,7 @@ const RoomConfigurationPage: React.FC = () => {
           },
         }}
       >
+
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75 }}>
           <Typography sx={{ fontSize: 17, fontWeight: 700, lineHeight: 1 }}>
             {room.room_number}
@@ -739,7 +744,7 @@ const RoomConfigurationPage: React.FC = () => {
                 border: '2px solid var(--hotel-surface)',
                 boxShadow: `0 0 0 1px color-mix(in srgb, ${statusColor[st]} 60%, transparent)`,
               }}
-              title={st}
+              title={t(`config.roomStatus.${st}`)}
             />
             {canEdit && (
               /* Persistent actions at every breakpoint — the old hover reveal
@@ -748,7 +753,7 @@ const RoomConfigurationPage: React.FC = () => {
                 trigger={
                   <IconButton
                     size="small"
-                    aria-label={`Room ${room.room_number} actions`}
+                    aria-label={t('card.openActionsAria', { room: room.room_number, status: t(`config.roomStatus.${st}`) })}
                     sx={{ width: 26, height: 26, border: `1px solid ${C.border}`, bgcolor: C.surface }}
                   >
                     <MoreVertIcon sx={{ fontSize: 15, color: C.ink3 }} />
@@ -760,11 +765,11 @@ const RoomConfigurationPage: React.FC = () => {
           </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: 11, color: C.ink3, flexWrap: 'wrap' }}>
-          <span>{t?.code || room.room_type || '—'}</span>
+          <span>{rt?.code || room.room_type || '—'}</span>
           <Box sx={{ width: 3, height: 3, borderRadius: '50%', bgcolor: C.ink3 }} />
-          <span>{bedSummary(t)}</span>
+          <span>{bedSummary(rt)}</span>
           {room.is_smoking && (
-            <Tooltip title="Designated smoking room">
+            <Tooltip title={t('card.smokingTooltip')}>
               <Box
                 component="span"
                 sx={{
@@ -790,7 +795,7 @@ const RoomConfigurationPage: React.FC = () => {
           </Typography>
           {isCustom && (
             <Chip
-              label="Custom"
+              label={t('config.customChip')}
               size="small"
               sx={{ height: 18, fontSize: 9.5, fontWeight: 700, bgcolor: C.amberSoft, color: C.amber }}
             />
@@ -810,7 +815,7 @@ const RoomConfigurationPage: React.FC = () => {
       size="small"
       value={query}
       onChange={(e) => setQuery(e.target.value)}
-      placeholder="Search room number, type or floor…"
+      placeholder={t('config.searchPlaceholder')}
       sx={{
         minWidth: { xs: 0, sm: 280 },
         width: { xs: '100%', sm: 'auto' },
@@ -831,10 +836,10 @@ const RoomConfigurationPage: React.FC = () => {
 
   const statusChips = (
     <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-      <StatusChip active={statusFilter === 'all'} label="All" count={counts.total} onClick={() => setStatusFilter('all')} />
-      <StatusChip active={statusFilter === 'available'} label="Available" count={counts.avail} onClick={() => setStatusFilter('available')} />
-      <StatusChip active={statusFilter === 'unavailable'} label="Unavailable" count={counts.unav} onClick={() => setStatusFilter('unavailable')} />
-      <StatusChip active={statusFilter === 'maintenance'} label="Maintenance" count={counts.maint} onClick={() => setStatusFilter('maintenance')} />
+      <StatusChip active={statusFilter === 'all'} label={t('filters.all')} count={counts.total} onClick={() => setStatusFilter('all')} />
+      <StatusChip active={statusFilter === 'available'} label={t('config.roomStatus.available')} count={counts.avail} onClick={() => setStatusFilter('available')} />
+      <StatusChip active={statusFilter === 'unavailable'} label={t('config.statUnavailable')} count={counts.unav} onClick={() => setStatusFilter('unavailable')} />
+      <StatusChip active={statusFilter === 'maintenance'} label={t('config.roomStatus.maintenance')} count={counts.maint} onClick={() => setStatusFilter('maintenance')} />
     </Box>
   );
 
@@ -851,10 +856,10 @@ const RoomConfigurationPage: React.FC = () => {
       }}
     >
       <ToggleButton value="type">
-        <LayersIcon sx={{ fontSize: 15 }} /> By type
+        <LayersIcon sx={{ fontSize: 15 }} /> {t('config.groupByType')}
       </ToggleButton>
       <ToggleButton value="floor">
-        <BuildingIcon sx={{ fontSize: 15 }} /> By floor
+        <BuildingIcon sx={{ fontSize: 15 }} /> {t('config.groupByFloor')}
       </ToggleButton>
     </ToggleButtonGroup>
   );
@@ -886,16 +891,16 @@ const RoomConfigurationPage: React.FC = () => {
       <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap', mb: 2.25 }}>
         <Box>
           <Box sx={{ fontSize: 11.5, color: C.ink3, fontWeight: 500, letterSpacing: '0.3px', display: 'flex', gap: 0.75, mb: 0.75 }}>
-            <span>Configuration</span>
+            <span>{t('config.breadcrumbSection')}</span>
             <span style={{ color: C.borderHi }}>›</span>
-            <span style={{ color: C.ink2, fontWeight: 600 }}>Rooms</span>
+            <span style={{ color: C.ink2, fontWeight: 600 }}>{t('title')}</span>
           </Box>
           <Typography sx={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px', display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <DoorIcon sx={{ fontSize: 24 }} />
-            Rooms
+            {t('title')}
           </Typography>
           <Typography sx={{ fontSize: 13, color: C.ink3, mt: 0.5 }}>
-            Manage room types and individual rooms in one place.
+            {t('config.subtitle')}
           </Typography>
         </Box>
         {canEdit && (
@@ -911,7 +916,7 @@ const RoomConfigurationPage: React.FC = () => {
               '&:hover': { bgcolor: C.emeraldDeep },
             }}
           >
-            New Room Type
+            {t('config.newRoomType')}
           </Button>
         )}
       </Box>
@@ -933,16 +938,16 @@ const RoomConfigurationPage: React.FC = () => {
           mb: 2.5,
         }}
       >
-        <StatCard label="Total Rooms" value={counts.total} />
+        <StatCard label={t('config.statTotal')} value={counts.total} />
         <StatCard
-          label="Available"
+          label={t('config.roomStatus.available')}
           value={counts.avail}
           color={C.emerald}
-          delta={`${counts.total ? Math.round((counts.avail / counts.total) * 100) : 0}% of stock`}
+          delta={t('config.ofStock', { percent: counts.total ? Math.round((counts.avail / counts.total) * 100) : 0 })}
         />
-        <StatCard label="Unavailable" value={counts.unav} color={C.rose} />
-        <StatCard label="Maintenance" value={counts.maint} color={C.amber} />
-        <StatCard label="Room Types" value={counts.types} color={C.blue} />
+        <StatCard label={t('config.statUnavailable')} value={counts.unav} color={C.rose} />
+        <StatCard label={t('config.roomStatus.maintenance')} value={counts.maint} color={C.amber} />
+        <StatCard label={t('config.statTypes')} value={counts.types} color={C.blue} />
       </Box>
       {/* Toolbar: phone → search + badged filter sheet via SearchAndFilters;
           desktop → the same controls in the original inline row. */}
@@ -960,14 +965,14 @@ const RoomConfigurationPage: React.FC = () => {
             search={searchField}
             activeFilterCount={activeFilterCount}
             onReset={handleResetFilters}
-            sheetTitle="Room filters"
+            sheetTitle={t('header.filtersTitle')}
           >
             <Box>
-              {sheetSectionLabel('Status')}
+              {sheetSectionLabel(t('header.sectionStatus'))}
               {statusChips}
             </Box>
             <Box>
-              {sheetSectionLabel('Group by')}
+              {sheetSectionLabel(t('header.sectionGroupBy'))}
               {groupByToggle}
             </Box>
           </SearchAndFilters>
@@ -993,12 +998,12 @@ const RoomConfigurationPage: React.FC = () => {
           }}
         >
           <SearchIcon sx={{ fontSize: 22 }} />
-          <Typography sx={{ mt: 1 }}>No rooms match the current filter.</Typography>
+          <Typography sx={{ mt: 1 }}>{t('config.noMatch')}</Typography>
         </Box>
       )}
       {groups.map((g) => {
         const isType = g.kind === 'type';
-        const t = isType ? g.type : null;
+        const rt = isType ? g.type : null;
         const total = g.items.length;
         const avail = g.items.filter((r) => roomStatus(r) === 'available').length;
         const ratio = total ? (avail / total) * 100 : 0;
@@ -1007,40 +1012,40 @@ const RoomConfigurationPage: React.FC = () => {
           g.kind === 'type'
             ? g.type.name
             : g.kind === 'floor'
-            ? `Floor ${g.floor}`
-            : 'Unassigned type';
+            ? t('header.floorN', { floor: g.floor })
+            : t('config.unassignedType');
         // Same four type-level actions as the desktop icon cluster —
         // surfaced through ActionsMenu on phone where space is tight.
-        const typeActions: ActionMenuItem[] = t
+        const typeActions: ActionMenuItem[] = rt
           ? [
               {
                 id: 'toggle-active',
-                label: t.is_active ? 'Hide from booking' : 'Show in booking',
-                icon: t.is_active ? (
+                label: rt.is_active ? t('config.hideFromBooking') : t('config.showInBooking'),
+                icon: rt.is_active ? (
                   <ActiveIcon sx={{ fontSize: 16, color: C.emerald }} />
                 ) : (
                   <InactiveIcon sx={{ fontSize: 16, color: C.amber }} />
                 ),
-                onClick: () => handleToggleTypeActive(t),
+                onClick: () => handleToggleTypeActive(rt),
               },
               {
                 id: 'duplicate',
-                label: 'Duplicate',
+                label: t('common:actions.duplicate'),
                 icon: <CopyIcon sx={{ fontSize: 16 }} />,
-                onClick: () => handleDuplicateType(t),
+                onClick: () => handleDuplicateType(rt),
               },
               {
                 id: 'edit',
-                label: 'Edit',
+                label: t('common:actions.edit'),
                 icon: <EditIcon sx={{ fontSize: 16 }} />,
-                onClick: () => openEditType(t),
+                onClick: () => openEditType(rt),
               },
               {
                 id: 'delete',
-                label: 'Delete',
+                label: t('common:actions.delete'),
                 icon: <DeleteIcon sx={{ fontSize: 16 }} />,
                 destructive: true,
-                onClick: () => setTypeDeleteTarget(t),
+                onClick: () => setTypeDeleteTarget(rt),
               },
             ]
           : [];
@@ -1093,17 +1098,17 @@ const RoomConfigurationPage: React.FC = () => {
                     <Typography sx={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {title}
                     </Typography>
-                    {t && (
+                    {rt && (
                       <Box component="span" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, fontWeight: 700, bgcolor: C.surface3, color: C.ink2, px: 0.875, py: 0.25, borderRadius: '5px' }}>
-                        {t.code}
+                        {rt.code}
                       </Box>
                     )}
-                    {t && !t.is_active && (
+                    {rt && !rt.is_active && (
                       <Box component="span" sx={{ fontSize: 10.5, fontWeight: 700, bgcolor: C.amberSoft, color: C.amber, px: 0.875, py: 0.25, borderRadius: '5px' }}>
-                        HIDDEN
+                        {t('config.hiddenBadge')}
                       </Box>
                     )}
-                    {t && (
+                    {rt && (
                       <Box
                         component="span"
                         sx={{
@@ -1120,32 +1125,31 @@ const RoomConfigurationPage: React.FC = () => {
                           fontWeight: 700,
                         }}
                       >
-                        {formatCurrency(toMoneyNumber(t.base_price))}
+                        {formatCurrency(toMoneyNumber(rt.base_price))}
                         <Box component="span" sx={{ color: C.ink3, fontWeight: 500, ml: 0.25 }}>
-                          /night
+                          {t('config.perNight')}
                         </Box>
                       </Box>
                     )}
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, fontSize: 12, color: C.ink3, mt: 0.5, flexWrap: 'wrap' }}>
-                    {t ? (
+                    {rt ? (
                       <>
                         <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.625 }}>
                           <BedIcon sx={{ fontSize: 13 }} />
-                          <Box component="span" sx={{ color: C.ink2, fontWeight: 600 }}>{bedSummary(t)}</Box>
+                          <Box component="span" sx={{ color: C.ink2, fontWeight: 600 }}>{bedSummary(rt)}</Box>
                         </Box>
                         <span style={{ color: C.borderHi }}>·</span>
                         <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.625 }}>
-                          <PeopleIcon sx={{ fontSize: 13 }} /> Sleeps{' '}
-                          <Box component="span" sx={{ color: C.ink2, fontWeight: 600 }}>{t.max_occupancy}</Box>
+                          <PeopleIcon sx={{ fontSize: 13 }} /> {t('config.sleepsCount', { count: rt.max_occupancy })}
                         </Box>
-                        {t.allows_extra_bed && (
+                        {rt.allows_extra_bed && (
                           <>
                             <span style={{ color: C.borderHi }}>·</span>
                             <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.625 }}>
-                              <AddIcon sx={{ fontSize: 12 }} /> Extra bed{' '}
+                              <AddIcon sx={{ fontSize: 12 }} /> {t('config.extraBed')}{' '}
                               <Box component="span" sx={{ color: C.ink2, fontWeight: 600 }}>
-                                {formatCurrency(toMoneyNumber(t.extra_bed_charge))}
+                                {formatCurrency(toMoneyNumber(rt.extra_bed_charge))}
                               </Box>
                             </Box>
                           </>
@@ -1153,7 +1157,7 @@ const RoomConfigurationPage: React.FC = () => {
                       </>
                     ) : (
                       <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.625 }}>
-                        <Box component="span" sx={{ color: C.ink2, fontWeight: 600 }}>{total}</Box> rooms
+                        <Box component="span" sx={{ color: C.ink2, fontWeight: 600 }}>{total}</Box> {t('config.roomsLabel')}
                       </Box>
                     )}
                   </Box>
@@ -1168,8 +1172,8 @@ const RoomConfigurationPage: React.FC = () => {
                       <Box component="span" sx={{ color: C.emerald }}>{avail}</Box>
                       <Box component="span" sx={{ color: C.ink3, fontWeight: 500 }}>/{total}</Box>
                     </Box>
-                    {isType && t && canEdit && (
-                      <ActionsMenu triggerLabel={`Actions for ${t.name}`} actions={typeActions} />
+                    {isType && rt && canEdit && (
+                      <ActionsMenu triggerLabel={t('card.moreActions')} actions={typeActions} />
                     )}
                   </>
                 ) : (
@@ -1180,7 +1184,7 @@ const RoomConfigurationPage: React.FC = () => {
                         <Box component="span" sx={{ color: C.ink3, fontWeight: 500 }}>/{total}</Box>
                       </Box>
                       <Typography sx={{ fontSize: 10.5, color: C.ink3, fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase', mt: 0.5 }}>
-                        Available
+                        {t('config.roomStatus.available')}
                       </Typography>
                       <LinearProgress
                         variant="determinate"
@@ -1195,25 +1199,25 @@ const RoomConfigurationPage: React.FC = () => {
                         }}
                       />
                     </Box>
-                    {isType && t && canEdit && (
+                    {isType && rt && canEdit && (
                       <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
-                        <Tooltip title={t.is_active ? 'Hide from booking' : 'Show in booking'}>
-                          <IconButton size="small" onClick={() => handleToggleTypeActive(t)}>
-                            {t.is_active ? <ActiveIcon sx={{ fontSize: 16, color: C.emerald }} /> : <InactiveIcon sx={{ fontSize: 16, color: C.amber }} />}
+                        <Tooltip title={rt.is_active ? t('config.hideFromBooking') : t('config.showInBooking')}>
+                          <IconButton size="small" onClick={() => handleToggleTypeActive(rt)}>
+                            {rt.is_active ? <ActiveIcon sx={{ fontSize: 16, color: C.emerald }} /> : <InactiveIcon sx={{ fontSize: 16, color: C.amber }} />}
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Duplicate">
-                          <IconButton size="small" onClick={() => handleDuplicateType(t)}>
+                        <Tooltip title={t('common:actions.duplicate')}>
+                          <IconButton size="small" onClick={() => handleDuplicateType(rt)}>
                             <CopyIcon sx={{ fontSize: 15, color: C.ink3 }} />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => openEditType(t)}>
+                        <Tooltip title={t('common:actions.edit')}>
+                          <IconButton size="small" onClick={() => openEditType(rt)}>
                             <EditIcon sx={{ fontSize: 15, color: C.ink3 }} />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => setTypeDeleteTarget(t)}>
+                        <Tooltip title={t('common:actions.delete')}>
+                          <IconButton size="small" onClick={() => setTypeDeleteTarget(rt)}>
                             <DeleteIcon sx={{ fontSize: 15, color: C.rose }} />
                           </IconButton>
                         </Tooltip>
@@ -1228,7 +1232,7 @@ const RoomConfigurationPage: React.FC = () => {
               <Box sx={{ p: '16px 18px 18px', bgcolor: C.surface2 }}>
                 {total === 0 && !isType && (
                   <Box sx={{ p: 3, textAlign: 'center', color: C.ink3, bgcolor: C.surface, border: `1.5px dashed ${C.borderHi}`, borderRadius: '11px' }}>
-                    No rooms in this {g.kind === 'floor' ? 'floor' : 'group'} yet.
+                    {g.kind === 'floor' ? t('config.noRoomsInFloor') : t('config.noRoomsInGroup')}
                   </Box>
                 )}
                 {(total > 0 || isType) && (
@@ -1242,9 +1246,9 @@ const RoomConfigurationPage: React.FC = () => {
                     {g.items.map((r) => (
                       <RoomCard key={r.id} room={r} />
                     ))}
-                    {isType && t && canEdit && (
+                    {isType && rt && canEdit && (
                       <Box
-                        onClick={() => openAddRoom(t)}
+                        onClick={() => openAddRoom(rt)}
                         sx={{
                           border: `1.5px dashed ${C.borderHi}`,
                           borderRadius: '11px',
@@ -1261,7 +1265,7 @@ const RoomConfigurationPage: React.FC = () => {
                           '&:hover': { borderColor: C.emerald, color: C.emerald, bgcolor: C.emeraldSoft },
                         }}
                       >
-                        <AddIcon sx={{ fontSize: 16 }} /> Add room
+                        <AddIcon sx={{ fontSize: 16 }} /> {t('config.addRoom')}
                       </Box>
                     )}
                   </Box>
@@ -1286,13 +1290,13 @@ const RoomConfigurationPage: React.FC = () => {
           </Box>
           <Box>
             <Typography sx={{ fontSize: 16, fontWeight: 700 }}>
-              {editingType ? 'Edit Room Type' : 'New Room Type'}
+              {editingType ? t('config.drawerEditTitle') : t('config.newRoomType')}
             </Typography>
             <Typography sx={{ fontSize: 11.5, color: C.ink3 }}>
-              {editingType ? `Editing ${typeForm.name}` : 'Define a reusable room template'}
+              {editingType ? t('config.drawerEditing', { name: typeForm.name }) : t('config.drawerNewSubtitle')}
             </Typography>
           </Box>
-          <IconButton sx={{ ml: 'auto' }} onClick={() => setDrawerOpen(false)} aria-label="Close">
+          <IconButton sx={{ ml: 'auto' }} onClick={() => setDrawerOpen(false)} aria-label={t('common:actions.close')}>
             <CloseIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Box>
@@ -1301,7 +1305,7 @@ const RoomConfigurationPage: React.FC = () => {
           {/* Preview */}
           <Box sx={{ bgcolor: C.surface2, border: `1px solid ${C.border}`, borderRadius: '10px', p: '12px 14px', mb: 2 }}>
             <Typography sx={{ fontSize: 10.5, color: C.ink3, fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', mb: 1 }}>
-              Preview
+              {t('config.preview')}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
               <Box sx={{ width: 38, height: 38, borderRadius: '9px', bgcolor: C.emeraldSoft, color: C.emeraldDeep, display: 'grid', placeItems: 'center', border: `1px solid color-mix(in srgb, ${C.emerald} 18%, transparent)` }}>
@@ -1309,7 +1313,7 @@ const RoomConfigurationPage: React.FC = () => {
               </Box>
               <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
-                  {typeForm.name || 'Room Type Name'}
+                  {typeForm.name || t('config.previewNamePlaceholder')}
                   {typeForm.code && (
                     <Box component="span" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700, bgcolor: C.surface3, color: C.ink2, px: 0.75, py: 0.125, borderRadius: '5px', ml: 0.75 }}>
                       {typeForm.code.toUpperCase()}
@@ -1317,8 +1321,8 @@ const RoomConfigurationPage: React.FC = () => {
                   )}
                 </Typography>
                 <Typography sx={{ fontSize: 11.5, color: C.ink3, mt: 0.25 }}>
-                  {typeForm.bed_count}× {typeForm.bed_type} · Sleeps {typeForm.max_occupancy}
-                  {typeForm.allows_extra_bed ? ' + extra bed' : ''}
+                  {t('config.previewSummary', { beds: typeForm.bed_count, bedType: typeForm.bed_type, occupancy: typeForm.max_occupancy })}
+                  {typeForm.allows_extra_bed ? t('config.previewExtraBed') : ''}
                 </Typography>
               </Box>
               <Typography sx={{ fontSize: 16, fontWeight: 700 }}>
@@ -1327,24 +1331,24 @@ const RoomConfigurationPage: React.FC = () => {
             </Box>
           </Box>
 
-          <SectionHeader>Basics</SectionHeader>
+          <SectionHeader>{t('config.secBasics')}</SectionHeader>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25 }}>
             <TextField
               size="small"
-              label="Name"
+              label={t('common:field.name')}
               required
               value={typeForm.name}
               onChange={(e) => setTF({ name: e.target.value })}
-              placeholder="e.g. Deluxe King"
+              placeholder={t('config.namePlaceholder')}
             />
             <TextField
               size="small"
-              label="Short Code"
+              label={t('config.shortCode')}
               required
               value={typeForm.code}
               onChange={(e) => setTF({ code: e.target.value.toUpperCase() })}
               placeholder="DLX"
-              helperText="2–10 letters, used in reports"
+              helperText={t('config.shortCodeHelper')}
               slotProps={{
                 htmlInput: { maxLength: 10, style: { textTransform: 'uppercase' } }
               }}
@@ -1353,23 +1357,23 @@ const RoomConfigurationPage: React.FC = () => {
           <TextField
             size="small"
             fullWidth
-            label="Description"
+            label={t('common:field.description')}
             multiline
             rows={2}
             value={typeForm.description}
             onChange={(e) => setTF({ description: e.target.value })}
-            placeholder="One-liner for staff and guests…"
+            placeholder={t('config.descPlaceholder')}
             sx={{ mt: 1.5 }}
           />
 
-          <SectionHeader>Bed Setup</SectionHeader>
+          <SectionHeader>{t('config.secBedSetup')}</SectionHeader>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.borderHi}`, borderRadius: '8px', overflow: 'hidden' }}>
-              <IconButton size="small" onClick={() => setTF({ bed_count: Math.max(1, typeForm.bed_count - 1) })} aria-label="Decrease bed count">
+              <IconButton size="small" onClick={() => setTF({ bed_count: Math.max(1, typeForm.bed_count - 1) })} aria-label={t('config.decreaseBeds')}>
                 <MinusIcon sx={{ fontSize: 18 }} />
               </IconButton>
               <Box sx={{ minWidth: 36, textAlign: 'center', fontWeight: 700, fontSize: 13 }}>{typeForm.bed_count}</Box>
-              <IconButton size="small" onClick={() => setTF({ bed_count: typeForm.bed_count + 1 })} aria-label="Increase bed count">
+              <IconButton size="small" onClick={() => setTF({ bed_count: typeForm.bed_count + 1 })} aria-label={t('config.increaseBeds')}>
                 <PlusIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Box>
@@ -1377,7 +1381,7 @@ const RoomConfigurationPage: React.FC = () => {
               size="small"
               select
               fullWidth
-              label="Bed Type"
+              label={t('fields.bedType')}
               value={typeForm.bed_type}
               onChange={(e) => setTF({ bed_type: e.target.value })}
             >
@@ -1389,13 +1393,13 @@ const RoomConfigurationPage: React.FC = () => {
             </TextField>
           </Box>
 
-          <SectionHeader>Capacity</SectionHeader>
+          <SectionHeader>{t('config.secCapacity')}</SectionHeader>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25, alignItems: 'start' }}>
             <Box>
               <TextField
                 size="small"
                 fullWidth
-                label="Max Occupancy"
+                label={t('fields.maxOccupancy')}
                 type="number"
                 value={typeForm.max_occupancy}
                 onChange={(e) => setTF({ max_occupancy: Number(e.target.value) || 1 })}
@@ -1404,10 +1408,10 @@ const RoomConfigurationPage: React.FC = () => {
                 }}
               />
               <Typography sx={{ fontSize: 11, color: C.ink3, mt: 0.5 }}>
-                Suggested from beds: <b>{occupancySuggested}</b>{' '}
+                {t('config.suggestedFromBeds')} <b>{occupancySuggested}</b>{' '}
                 {Number(typeForm.max_occupancy) !== occupancySuggested && occupancySuggested > 0 && (
                   <Button size="small" sx={{ minWidth: 0, py: 0, fontSize: 11 }} onClick={() => setTF({ max_occupancy: occupancySuggested })}>
-                    Use
+                    {t('config.use')}
                   </Button>
                 )}
               </Typography>
@@ -1424,14 +1428,14 @@ const RoomConfigurationPage: React.FC = () => {
                   }
                 />
               }
-              label="Extra bed allowed"
+              label={t('config.extraBedAllowed')}
             />
           </Box>
           {typeForm.allows_extra_bed && (
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25, mt: 1.5 }}>
               <TextField
                 size="small"
-                label="Max Extra Beds"
+                label={t('config.maxExtraBeds')}
                 type="number"
                 value={typeForm.max_extra_beds}
                 onChange={(e) => setTF({ max_extra_beds: Number(e.target.value) || 0 })}
@@ -1441,7 +1445,7 @@ const RoomConfigurationPage: React.FC = () => {
               />
               <TextField
                 size="small"
-                label="Extra Bed Fee / Night"
+                label={t('config.extraBedFee')}
                 type="number"
                 value={typeForm.extra_bed_charge}
                 onChange={(e) => setTF({ extra_bed_charge: e.target.value ? toMoneyNumber(e.target.value) : '' })}
@@ -1452,11 +1456,11 @@ const RoomConfigurationPage: React.FC = () => {
             </Box>
           )}
 
-          <SectionHeader>Pricing</SectionHeader>
+          <SectionHeader>{t('config.secPricing')}</SectionHeader>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.25 }}>
             <TextField
               size="small"
-              label="Base"
+              label={t('config.rateBase')}
               required
               type="number"
               value={typeForm.base_price}
@@ -1467,45 +1471,45 @@ const RoomConfigurationPage: React.FC = () => {
             />
             <TextField
               size="small"
-              label="Weekday"
+              label={t('config.rateWeekday')}
               type="number"
               value={typeForm.weekday_rate}
               onChange={(e) => setTF({ weekday_rate: e.target.value ? toMoneyNumber(e.target.value) : '' })}
-              placeholder="Base"
+              placeholder={t('config.rateBase')}
               slotProps={{
                 input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }
               }}
             />
             <TextField
               size="small"
-              label="Weekend"
+              label={t('config.rateWeekend')}
               type="number"
               value={typeForm.weekend_rate}
               onChange={(e) => setTF({ weekend_rate: e.target.value ? toMoneyNumber(e.target.value) : '' })}
-              placeholder="Base"
+              placeholder={t('config.rateBase')}
               slotProps={{
                 input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }
               }}
             />
           </Box>
 
-          <SectionHeader>Status</SectionHeader>
+          <SectionHeader>{t('common:field.status')}</SectionHeader>
           <FormControlLabel
             control={<Switch checked={typeForm.is_active} onChange={(e) => setTF({ is_active: e.target.checked })} />}
-            label={typeForm.is_active ? 'Bookable — visible in booking flow' : 'Hidden — not shown to staff or guests'}
+            label={typeForm.is_active ? t('config.bookableLabel') : t('config.hiddenLabel')}
           />
           <TextField
             size="small"
             fullWidth
-            label="Sort Order"
+            label={t('config.sortOrder')}
             type="number"
             value={typeForm.sort_order}
             onChange={(e) => setTF({ sort_order: Number(e.target.value) || 0 })}
-            helperText="Lower numbers appear first"
+            helperText={t('config.sortOrderHelper')}
             sx={{ mt: 1.5 }}
           />
 
-          <SectionHeader>Photos</SectionHeader>
+          <SectionHeader>{t('config.secPhotos')}</SectionHeader>
           {editingType ? (
             <>
               {(editingType.images ?? []).length > 0 && (
@@ -1525,7 +1529,7 @@ const RoomConfigurationPage: React.FC = () => {
                       <Box
                         component="img"
                         src={url.startsWith('/') ? apiUrl(url) : url}
-                        alt={`${typeForm.name || 'Room type'} photo ${index + 1}`}
+                        alt={t('config.photoAlt', { name: typeForm.name || t('config.previewNamePlaceholder'), index: index + 1 })}
                         sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                       />
                       {index === 0 && (
@@ -1545,12 +1549,12 @@ const RoomConfigurationPage: React.FC = () => {
                             borderRadius: '5px',
                           }}
                         >
-                          COVER
+                          {t('config.coverBadge')}
                         </Box>
                       )}
                       <IconButton
                         size="small"
-                        aria-label={`Remove photo ${index + 1}`}
+                        aria-label={t('config.removePhotoAria', { index: index + 1 })}
                         disabled={photoBusy}
                         onClick={() => handleRemoveTypePhoto(url)}
                         sx={{
@@ -1578,7 +1582,7 @@ const RoomConfigurationPage: React.FC = () => {
                 startIcon={photoBusy ? <CircularProgress size={14} /> : <AddPhotoIcon />}
                 sx={{ mt: 1.25, textTransform: 'none', borderColor: C.borderHi, color: C.ink2 }}
               >
-                {photoBusy ? 'Uploading…' : 'Upload photo'}
+                {photoBusy ? t('config.uploading') : t('config.uploadPhoto')}
                 <input
                   type="file"
                   hidden
@@ -1587,12 +1591,12 @@ const RoomConfigurationPage: React.FC = () => {
                 />
               </Button>
               <Typography sx={{ fontSize: 11, color: C.ink3, mt: 0.75 }}>
-                The first photo is the cover shown on the landing page and guest booking portal. JPEG, PNG or WebP, up to 10 MB.
+                {t('config.photoHint')}
               </Typography>
             </>
           ) : (
             <Alert severity="info" sx={{ fontSize: 12 }}>
-              Save the room type first, then add photos here. Photos appear on the landing page gallery and the guest booking portal.
+              {t('config.photoSaveFirst')}
             </Alert>
           )}
         </Box>
@@ -1608,12 +1612,12 @@ const RoomConfigurationPage: React.FC = () => {
               }}
               sx={{ textTransform: 'none' }}
             >
-              Delete
+              {t('common:actions.delete')}
             </Button>
           )}
           <Box sx={{ flex: 1 }} />
           <Button onClick={() => setDrawerOpen(false)} sx={{ textTransform: 'none' }}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             variant="contained"
@@ -1622,26 +1626,26 @@ const RoomConfigurationPage: React.FC = () => {
             startIcon={formLoading ? <CircularProgress size={16} /> : <CheckIcon />}
             sx={{ bgcolor: C.emerald, textTransform: 'none', '&:hover': { bgcolor: C.emeraldDeep } }}
           >
-            {editingType ? 'Save Changes' : 'Create Room Type'}
+            {editingType ? t('config.saveChanges') : t('config.createRoomType')}
           </Button>
         </Box>
       </Drawer>
       {/* ---------- Add Room dialog ---------- */}
       <Dialog open={!!addingRoomFor} onClose={() => setAddingRoomFor(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Add Room — {addingRoomFor?.name}</DialogTitle>
+        <DialogTitle>{t('config.addRoomTitle', { name: addingRoomFor?.name ?? '' })}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'grid', gap: 2, mt: 1 }}>
             <TextField
               autoFocus
-              label="Room Number"
+              label={t('fields.roomNumber')}
               required
               value={roomForm.room_number}
               onChange={(e) => setRoomForm({ ...roomForm, room_number: e.target.value })}
-              helperText="e.g. 215"
+              helperText={t('config.roomNumberHelper')}
             />
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
               <TextField
-                label="Floor"
+                label={t('fields.floor')}
                 type="number"
                 value={roomForm.floor}
                 onChange={(e) => setRoomForm({ ...roomForm, floor: e.target.value ? Number(e.target.value) : '' })}
@@ -1650,21 +1654,21 @@ const RoomConfigurationPage: React.FC = () => {
                 }}
               />
               <TextField
-                label={`Custom Price`}
+                label={t('fields.customPrice')}
                 type="number"
                 value={roomForm.custom_price}
                 onChange={(e) => setRoomForm({ ...roomForm, custom_price: e.target.value ? toMoneyNumber(e.target.value) : '' })}
-                helperText={addingRoomFor ? `Base ${formatCurrency(toMoneyNumber(addingRoomFor.base_price))}` : ''}
+                helperText={addingRoomFor ? t('config.basePriceHelper', { price: formatCurrency(toMoneyNumber(addingRoomFor.base_price)) }) : ''}
                 slotProps={{
                   input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }
                 }}
               />
             </Box>
             <TextField
-              label="Building"
+              label={t('fields.building')}
               value={roomForm.building}
               onChange={(e) => setRoomForm({ ...roomForm, building: e.target.value })}
-              helperText="Optional"
+              helperText={t('common:field.optional')}
             />
             <FormControlLabel
               control={
@@ -1673,7 +1677,7 @@ const RoomConfigurationPage: React.FC = () => {
                   onChange={(e) => setRoomForm({ ...roomForm, is_accessible: e.target.checked })}
                 />
               }
-              label="Wheelchair accessible"
+              label={t('config.wheelchair')}
             />
             <FormControlLabel
               control={
@@ -1682,38 +1686,38 @@ const RoomConfigurationPage: React.FC = () => {
                   onChange={(e) => setRoomForm({ ...roomForm, is_smoking: e.target.checked })}
                 />
               }
-              label="Smoking room"
+              label={t('config.smokingRoom')}
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddingRoomFor(null)}>Cancel</Button>
+          <Button onClick={() => setAddingRoomFor(null)}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             onClick={handleCreateRoom}
             disabled={!roomForm.room_number.trim() || formLoading}
             sx={{ bgcolor: C.emerald, '&:hover': { bgcolor: C.emeraldDeep } }}
           >
-            {formLoading ? <CircularProgress size={20} /> : 'Add Room'}
+            {formLoading ? <CircularProgress size={20} /> : t('config.addRoomSubmit')}
           </Button>
         </DialogActions>
       </Dialog>
       {/* ---------- Edit Room dialog ---------- */}
       <Dialog open={!!editingRoom} onClose={() => setEditingRoom(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Edit Room {editingRoom?.room_number}</DialogTitle>
+        <DialogTitle>{t('config.editRoomTitle', { room: editingRoom?.room_number ?? '' })}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'grid', gap: 2, mt: 1 }}>
             <TextField
-              label="Room Number"
+              label={t('fields.roomNumber')}
               value={roomForm.room_number}
               onChange={(e) => setRoomForm({ ...roomForm, room_number: e.target.value })}
             />
             <TextField
-              label="Custom Price"
+              label={t('fields.customPrice')}
               type="number"
               value={roomForm.custom_price}
               onChange={(e) => setRoomForm({ ...roomForm, custom_price: e.target.value ? toMoneyNumber(e.target.value) : '' })}
-              helperText="Leave empty to use room type base price"
+              helperText={t('config.customPriceHelper')}
               slotProps={{
                 input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }
               }}
@@ -1725,51 +1729,51 @@ const RoomConfigurationPage: React.FC = () => {
                   onChange={(e) => setRoomForm({ ...roomForm, is_smoking: e.target.checked })}
                 />
               }
-              label="Smoking room"
+              label={t('config.smokingRoom')}
             />
             <Alert severity="info">
-              Room type, floor, and building cannot be changed after creation. Delete and recreate the room to change these.
+              {t('config.immutableHint')}
             </Alert>
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditingRoom(null)}>Cancel</Button>
+          <Button onClick={() => setEditingRoom(null)}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             onClick={handleUpdateRoom}
             disabled={formLoading}
             sx={{ bgcolor: C.emerald, '&:hover': { bgcolor: C.emeraldDeep } }}
           >
-            {formLoading ? <CircularProgress size={20} /> : 'Save Changes'}
+            {formLoading ? <CircularProgress size={20} /> : t('config.saveChanges')}
           </Button>
         </DialogActions>
       </Dialog>
       {/* ---------- Delete Room ---------- */}
       <Dialog open={!!deletingRoom} onClose={() => setDeletingRoom(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete Room</DialogTitle>
+        <DialogTitle>{t('config.deleteRoomTitle')}</DialogTitle>
         <DialogContent>
           <Alert severity="warning" sx={{ mb: 2 }}>
-            Are you sure you want to delete room <strong>{deletingRoom?.room_number}</strong>?
+            {t('config.deleteRoomConfirmPre')}<strong>{deletingRoom?.room_number}</strong>{t('config.deleteRoomConfirmPost')}
           </Alert>
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            This cannot be undone. The room can only be deleted if it has no existing bookings.
+            {t('config.deleteRoomBody')}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeletingRoom(null)}>Cancel</Button>
+          <Button onClick={() => setDeletingRoom(null)}>{t('common:actions.cancel')}</Button>
           <Button variant="contained" color="error" onClick={handleDeleteRoom} disabled={formLoading}>
-            {formLoading ? <CircularProgress size={20} /> : 'Delete Room'}
+            {formLoading ? <CircularProgress size={20} /> : t('config.deleteRoomTitle')}
           </Button>
         </DialogActions>
       </Dialog>
       {/* ---------- Delete Room Type ---------- */}
       <Dialog open={!!typeDeleteTarget} onClose={() => setTypeDeleteTarget(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete Room Type</DialogTitle>
+        <DialogTitle>{t('config.deleteTypeTitle')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete <strong>{typeDeleteTarget?.name}</strong>?
+            {t('config.deleteTypeConfirmPre')}<strong>{typeDeleteTarget?.name}</strong>{t('config.deleteTypeConfirmPost')}
           </Typography>
           <Typography
             variant="body2"
@@ -1777,13 +1781,13 @@ const RoomConfigurationPage: React.FC = () => {
               color: "text.secondary",
               mt: 1
             }}>
-            This cannot be undone. If rooms still use this type, deactivate it instead.
+            {t('config.deleteTypeBody')}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTypeDeleteTarget(null)}>Cancel</Button>
+          <Button onClick={() => setTypeDeleteTarget(null)}>{t('common:actions.cancel')}</Button>
           <Button variant="contained" color="error" onClick={handleDeleteType} disabled={formLoading}>
-            {formLoading ? <CircularProgress size={20} /> : 'Delete'}
+            {formLoading ? <CircularProgress size={20} /> : t('common:actions.delete')}
           </Button>
         </DialogActions>
       </Dialog>

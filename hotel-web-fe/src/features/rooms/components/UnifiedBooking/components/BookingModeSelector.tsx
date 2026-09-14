@@ -4,6 +4,7 @@ import { PersonAdd as PersonAddIcon, EventAvailable as BookingIcon } from '@mui/
 import { BookingTokens } from '../bookingTokens';
 import { BookingMode } from '../bookingTypes';
 import CollapsibleSection from '../../../../../components/common/CollapsibleSection';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 
 interface BookingModeSelectorProps {
   D: BookingTokens;
@@ -12,14 +13,17 @@ interface BookingModeSelectorProps {
   onSelect: (mode: BookingMode) => void;
 }
 
-const MODE_OPTIONS: Array<{ k: BookingMode; label: string; desc: string; icon: React.ReactNode }> = [
-  { k: 'direct',      label: 'Direct booking', desc: 'Check guest in immediately', icon: <PersonAddIcon sx={{ fontSize: 16 }} /> },
-  { k: 'reservation', label: 'Reservation',    desc: 'Reserve for a future date', icon: <BookingIcon sx={{ fontSize: 16 }} /> },
-];
-
 /** Segmented control choosing between direct booking and a reservation. */
-const BookingModeSelector: React.FC<BookingModeSelectorProps> = ({ D, glyph, bookingMode, onSelect }) => (
-  <CollapsibleSection title={`${glyph} Mode`} sx={{ mb: 2.75 }}>
+const BookingModeSelector: React.FC<BookingModeSelectorProps> = ({ D, glyph, bookingMode, onSelect }) => {
+  const { t } = useTranslation('rooms');
+
+  const MODE_OPTIONS: Array<{ k: BookingMode; label: string; desc: string; icon: React.ReactNode }> = [
+    { k: 'direct',      label: t('unified.modeDirect'),      desc: t('unified.modeDirectDesc'),      icon: <PersonAddIcon sx={{ fontSize: 16 }} /> },
+    { k: 'reservation', label: t('unified.modeReservation'), desc: t('unified.modeReservationDesc'), icon: <BookingIcon sx={{ fontSize: 16 }} /> },
+  ];
+
+  return (
+  <CollapsibleSection title={`${glyph} ${t('unified.secMode')}`} sx={{ mb: 2.75 }}>
     <Box sx={{
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
@@ -73,6 +77,7 @@ const BookingModeSelector: React.FC<BookingModeSelectorProps> = ({ D, glyph, boo
       })}
     </Box>
   </CollapsibleSection>
-);
+  );
+};
 
 export default BookingModeSelector;

@@ -97,7 +97,8 @@
     "perPerson": "setiap orang",
     "fullName": "Nama penuh",
     "address": "Alamat",
-    "phoneNumber": "Nombor Telefon"
+    "phoneNumber": "Nombor Telefon",
+    "optional": "Pilihan"
   },
   "pagination": {
     "page": "Halaman",
