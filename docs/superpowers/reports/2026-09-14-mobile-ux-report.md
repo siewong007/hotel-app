@@ -165,7 +165,7 @@ available" (same handler); comment "Same gate the card used" overstates the
 
 ## Follow-up pass 2 — bookings list + online inventory (same-day)
 
-Commits `d72f60a00..d3e1656b8` on `mobile-ux/2026-09-14`. Spec:
+Commits `d72f60a00..b3c719f66` on `mobile-ux/2026-09-14`. Spec:
 `docs/superpowers/specs/2026-09-14-bookings-inventory-mobile-design.md`; plan:
 `docs/superpowers/plans/2026-09-14-bookings-inventory-mobile.md`.
 
