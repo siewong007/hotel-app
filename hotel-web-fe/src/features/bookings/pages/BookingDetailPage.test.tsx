@@ -257,6 +257,32 @@ describe('BookingDetailPage', () => {
     expect(screen.getByText('Void')).toBeDefined();
   });
 
+  it('renders the secondary metadata chips (channel, billing, night audit) below the folio line', async () => {
+    // source 'website' resolves through the default configured channels to
+    // 'Direct Website' (abbreviation 'DW'); is_posted marks the booking as
+    // night-audit touched. The chips moved off the phone list rows live here.
+    mocks.getBookingById.mockResolvedValue(buildBooking({
+      source: 'website',
+      guest_type: 'non_member',
+      is_posted: true,
+    }));
+    renderPage('42');
+
+    expect(await screen.findByText('DW')).toBeDefined();
+    expect(screen.getByText('Non-member')).toBeDefined();
+    expect(screen.getByText('Night audit')).toBeDefined();
+  });
+
+  it('renders no secondary metadata chips when the booking carries none of those fields', async () => {
+    // Default fixture: walk_in source, no guest_type, not posted.
+    renderPage('42');
+
+    await screen.findAllByText('Jane Doe');
+    expect(screen.queryByText('DW')).toBeNull();
+    expect(screen.queryByText('Non-member')).toBeNull();
+    expect(screen.queryByText('Night audit')).toBeNull();
+  });
+
   // ---------------------------------------------------------------------
   // Booking-action dialog coverage. These used to be driven through
   // BookingsPage's auto-opened inline details panel; the panel lives on this

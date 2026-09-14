@@ -9,6 +9,7 @@ import {
   Stack,
   Tooltip,
   Typography,
+  alpha,
 } from '@mui/material';
 import {
   ExitToApp as CheckOutIcon,
@@ -24,6 +25,7 @@ import {
   Close as CloseIcon,
   MeetingRoom as RoomIcon,
   MoreVert as MoreVertIcon,
+  Public as PublicIcon,
 } from '@mui/icons-material';
 import type { BookingWithDetails } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
@@ -34,7 +36,7 @@ import { getBookingStatusText, getPaymentStatusText } from '../../../../utils/bo
 import { formatStatusLabel } from '../../../../utils/formatters';
 import { isPositiveMoney, toMoneyNumber } from '../../../../utils/money';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
-import { getBookedViaText } from '../../utils/bookingChannel';
+import { getBookedViaText, getBookingChannelInfo } from '../../utils/bookingChannel';
 import {
   canCheckIn,
   canCheckOut,
@@ -42,11 +44,13 @@ import {
   canRelease,
   canVoid,
   formatShortDate,
+  getBillingChipLabel,
   getBookingBalance,
   getBookingTotal,
   getGuestInitials,
   getNights,
   isEarlyCheckIn,
+  isNightAuditInvolved,
   statusDotColor,
 } from '../../utils/bookingPageUtils';
 
@@ -98,6 +102,13 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
   const showRelease = canRelease(booking);
   const showVoid = canVoid(booking);
   const showReactivate = canReactivate(booking);
+
+  // Secondary metadata chips under the folio line — the channel / billing /
+  // night-audit markers the phone list rows dropped stay reachable here, on
+  // the detail page, at every viewport width.
+  const channelInfo = getBookingChannelInfo(booking);
+  const billingChipLabel = getBillingChipLabel(booking);
+  const nightAuditInvolved = isNightAuditInvolved(booking);
 
   // Phone overflow menu: everything past the lifecycle CTA + Payment/Edit.
   const menuActions: ActionMenuItem[] = [
@@ -180,6 +191,56 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 }}>
                 {booking.invoice_number || booking.folio_number || booking.booking_number || `#${booking.id}`}
               </Typography>
+              {(channelInfo || billingChipLabel || nightAuditInvolved) && (
+                <Stack
+                  direction="row"
+                  spacing={0.75}
+                  useFlexGap
+                  sx={{
+                    flexWrap: "wrap",
+                    mt: 0.75
+                  }}>
+                  {channelInfo && (
+                    <Tooltip title={`Online booking via ${channelInfo.name}`} arrow>
+                      <Chip
+                        size="small"
+                        icon={<PublicIcon />}
+                        label={channelInfo.abbreviation}
+                        sx={{
+                          height: 22,
+                          minWidth: 60,
+                          maxWidth: 'none',
+                          flexShrink: 0,
+                          fontWeight: 900,
+                          bgcolor: channelInfo.background,
+                          color: channelInfo.color,
+                          border: `1px solid ${alpha(channelInfo.color, 0.2)}`,
+                          '& .MuiChip-icon': {
+                            color: channelInfo.color,
+                            fontSize: 14,
+                            ml: 0.65,
+                            mr: -0.35,
+                          },
+                          '& .MuiChip-label': {
+                            px: 0.8,
+                            overflow: 'visible',
+                          },
+                        }}
+                      />
+                    </Tooltip>
+                  )}
+                  {billingChipLabel && (
+                    <Chip
+                      size="small"
+                      label={billingChipLabel}
+                      sx={{ height: 22, fontWeight: 800 }}
+                    />
+                  )}
+                  {nightAuditInvolved && (
+                    <Chip size="small" label="Night audit" variant="outlined" sx={{ height: 22, fontWeight: 900 }} />
+                  )}
+                </Stack>
+              )}
             </Box>
           </Stack>
         </Box>
