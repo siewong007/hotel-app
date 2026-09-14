@@ -10,18 +10,22 @@ use axum::{
 };
 use serde_json::Value;
 
-/// Export all booking-related data
+/// Export all booking-related data as a `hotel-backup` v3 file
 pub async fn export_booking_data_handler(
     State(pool): State<DbPool>,
     user_id: i64,
 ) -> Result<Response, ApiError> {
     let body = data_transfer_service::export_booking_data_body(&pool, user_id).await?;
+    let filename = format!(
+        "saliminn-backup-{}.json",
+        chrono::Utc::now().format("%Y%m%dT%H%M%SZ")
+    );
     Ok(Response::builder()
         .status(axum::http::StatusCode::OK)
         .header("Content-Type", "application/json")
         .header(
             "Content-Disposition",
-            "attachment; filename=\"hotel-data-export.json\"",
+            format!("attachment; filename=\"{filename}\""),
         )
         .body(body)
         .unwrap())

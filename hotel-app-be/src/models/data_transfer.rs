@@ -137,12 +137,16 @@ pub enum TransferPayload {
 }
 
 /// Count preview for all transferable tables before generating an export file.
+/// `entities`/`exclusions` mirror the v3 manifest embedded in every export, so
+/// the preview shows exactly what a backup would declare.
 #[derive(Debug, Serialize)]
 pub struct ExportPreview {
     pub generated_at: String,
     pub counts: HashMap<String, i64>,
     pub total_records: i64,
     pub tables: Vec<TransferTablePreview>,
+    pub entities: Vec<BackupEntityDescriptor>,
+    pub exclusions: Vec<BackupExclusion>,
 }
 
 #[derive(Debug, Serialize)]
@@ -163,13 +167,12 @@ pub struct ImportRequest {
 
 // ----- `hotel-backup` v3 file format + upload/preview/execute/job API. -----
 // The JSON format is camelCase; legacy structs above keep their snake_case
-// fields untouched. Every item below is wired to the export/import endpoints
-// landing in the next tasks, so each carries `#[allow(dead_code)]` (the bin
-// target re-declares these modules and would otherwise warn).
+// fields untouched. The export-writer types are live; the upload/import DTOs
+// below land with the import task, so they keep `#[allow(dead_code)]` (the
+// bin target re-declares these modules and would otherwise warn).
 
 /// Where a backup file was produced. `environment` is the lowercased
 /// `config::Environment`; `database_provider` is always `"postgresql"`.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupSource {
@@ -179,7 +182,6 @@ pub struct BackupSource {
 
 /// One transferable entity's identity in the backup manifest — name,
 /// primary-key columns and the exported column list, in schema order.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupEntityDescriptor {
@@ -190,7 +192,6 @@ pub struct BackupEntityDescriptor {
 
 /// One schema table deliberately left out of a backup. `reason` is one of the
 /// reason codes in [`crate::services::data_transfer::EXCLUDED_TABLES`].
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupExclusion {
@@ -201,7 +202,6 @@ pub struct BackupExclusion {
 /// Coverage declaration embedded in every v3 file: what was exported and what
 /// was intentionally left behind, so a restore can see the difference between
 /// "absent" and "excluded".
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupManifest {
@@ -212,7 +212,6 @@ pub struct BackupManifest {
 /// Trailer written after the last table: the entity count and row counts
 /// actually streamed. A download missing this block (or the closing brace) is
 /// truncated and must not be trusted.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupIntegrity {

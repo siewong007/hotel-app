@@ -20,6 +20,10 @@ pub struct TransferTable {
     pub table: QualifiedTable,
     pub is_partitioned: bool,
     pub columns: HashSet<String>,
+    /// Column names in `information_schema` ordinal order — the order
+    /// `SELECT` projects them and therefore the key order of every exported
+    /// row. The manifest reports this list (minus credential columns).
+    pub ordered_columns: Vec<String>,
     pub generated_columns: HashSet<String>,
     pub primary_key_columns: Vec<String>,
     pub dependencies: HashSet<String>,
@@ -322,14 +326,13 @@ impl DataTransferRepository {
             .into_iter()
             .map(|(table, is_partitioned)| {
                 let key = table.key();
-                let (columns, generated_columns) = columns
-                    .get(&key)
-                    .cloned()
-                    .unwrap_or_else(|| (HashSet::new(), HashSet::new()));
+                let (ordered_columns, generated_columns) =
+                    columns.get(&key).cloned().unwrap_or_default();
                 TransferTable {
                     table,
                     is_partitioned,
-                    columns,
+                    columns: ordered_columns.iter().cloned().collect(),
+                    ordered_columns,
                     generated_columns,
                     primary_key_columns: primary_keys.get(&key).cloned().unwrap_or_default(),
                     dependencies: dependencies.get(&key).cloned().unwrap_or_default(),
@@ -338,14 +341,17 @@ impl DataTransferRepository {
             .collect())
     }
 
+    /// Per-table `(columns in ordinal order, generated columns)` — the
+    /// ordinal list preserves the projection order of `SELECT <cols>` so the
+    /// export manifest can describe row shape exactly.
     async fn transfer_columns(
         pool: &DbPool,
         tables: &[QualifiedTable],
-    ) -> Result<HashMap<String, (HashSet<String>, HashSet<String>)>, ApiError> {
+    ) -> Result<HashMap<String, (Vec<String>, HashSet<String>)>, ApiError> {
         let mut metadata = HashMap::new();
         for table in tables {
             let rows: Vec<(String, String)> = sqlx::query_as(
-                "SELECT column_name, is_generated FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2",
+                "SELECT column_name, is_generated FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position",
             )
             .bind(&table.schema)
             .bind(&table.name)
@@ -461,16 +467,36 @@ impl DataTransferRepository {
     pub async fn export_transfer_table(
         pool: &DbPool,
         table: &TransferTable,
+        columns: &[String],
     ) -> Result<Vec<Value>, ApiError> {
         Self::export_query(
             pool,
             &format!(
-                "SELECT * FROM {}{}",
+                "SELECT {} FROM {}{}",
+                Self::export_column_list(table, columns)?,
                 table.source(),
                 Self::export_order_by(table)
             ),
         )
         .await
+    }
+
+    /// The quoted, comma-joined column list every export read projects.
+    /// Column names come from catalog introspection (never request data), so
+    /// quoting them is sufficient — the service's credential exclusions have
+    /// already been applied by the caller.
+    fn export_column_list(table: &TransferTable, columns: &[String]) -> Result<String, ApiError> {
+        if columns.is_empty() {
+            return Err(ApiError::Internal(format!(
+                "{} has no exportable columns",
+                table.table.key()
+            )));
+        }
+        Ok(columns
+            .iter()
+            .map(|column| quote_identifier(column))
+            .collect::<Vec<_>>()
+            .join(", "))
     }
 
     /// Open a SQL cursor over one transferable table's `row_to_json` payload.
@@ -483,12 +509,18 @@ impl DataTransferRepository {
     /// flat, and each `FETCH` is its own statement under the 120s
     /// `statement_timeout`. The cursor lives inside `tx` — the caller's
     /// transaction gives the whole export one consistent snapshot.
+    ///
+    /// `columns` is the projection — the service passes its exportable-column
+    /// list so credential material (for example `bookings.pre_checkin_token`)
+    /// never enters the payload at all.
     pub async fn declare_export_cursor(
         tx: &mut DbTransaction<'_>,
         table: &TransferTable,
+        columns: &[String],
     ) -> Result<(), ApiError> {
         sqlx::query(sqlx::AssertSqlSafe(format!(
-            "DECLARE data_transfer_export_cursor NO SCROLL CURSOR FOR SELECT row_to_json(t)::text FROM (SELECT * FROM {}{}) t",
+            "DECLARE data_transfer_export_cursor NO SCROLL CURSOR FOR SELECT row_to_json(t)::text FROM (SELECT {} FROM {}{}) t",
+            Self::export_column_list(table, columns)?,
             table.source(),
             Self::export_order_by(table)
         )))
@@ -1375,6 +1407,7 @@ mod tests {
             table: QualifiedTable::parse("public.audit_logs").unwrap(),
             is_partitioned: true,
             columns: HashSet::new(),
+            ordered_columns: Vec::new(),
             generated_columns: HashSet::new(),
             primary_key_columns: vec!["id".to_string()],
             dependencies: HashSet::new(),
