@@ -1832,6 +1832,15 @@ impl PaymentRepository {
                 "A refunded or void payment cannot be modified".to_string(),
             ));
         }
+        if request
+            .payment_method
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty())
+        {
+            return Err(ApiError::BadRequest(
+                "payment_method must not be blank".to_string(),
+            ));
+        }
 
         let mut updates = Vec::new();
         let mut param_index = 1;

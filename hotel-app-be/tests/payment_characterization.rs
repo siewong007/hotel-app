@@ -1438,6 +1438,21 @@ async fn completed_deposit_method_is_correctable_amount_is_not() {
     )
     .await;
 
+    // A blank method is not a correction — the hatch never writes one
+    let update_blank_method = payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: None,
+            payment_method: Some("   ".to_string()),
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+        },
+    )
+    .await;
+
     // deposit_forfeited rows get the same method hatch
     let forfeit_id =
         insert_completed_payment(&pool, booking_id, "deposit_forfeited", d("10.00"), actor_id)
@@ -1462,6 +1477,7 @@ async fn completed_deposit_method_is_correctable_amount_is_not() {
     assert_eq!(stored, "Cash");
     assert!(matches!(update_amount, Err(ApiError::BadRequest(_))));
     assert!(matches!(update_date, Err(ApiError::BadRequest(_))));
+    assert!(matches!(update_blank_method, Err(ApiError::BadRequest(_))));
     update_forfeit_method.expect("method edit on a completed forfeiture should succeed");
 }
 

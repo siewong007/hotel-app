@@ -346,7 +346,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const handleStartEdit = (payment: CheckoutPaymentRecord) => {
     setEditingPayment(payment);
     setEditAmount(toMoneyNumber(payment.total_amount));
-    setEditMethod(formatStatusLabel(payment.payment_method, 'Cash'));
+    const storedMethod = payment.payment_method || '';
+    const matchedMethod = hotelSettings.payment_methods.find(
+      (method) => method.toLowerCase() === storedMethod.toLowerCase(),
+    );
+    setEditMethod(matchedMethod || storedMethod || 'Cash');
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
     setEditDate(formatPaymentDateForInput(payment));
@@ -1503,7 +1507,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
                   Payments
                 </Typography>
-                {hasBalanceDue && !editingPayment && (
+                {!readOnly && hasBalanceDue && !editingPayment && (
                   <Button
                     size="small"
                     variant="outlined"
@@ -1632,7 +1636,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={2}>
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                            {!readOnly && (<Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
                               <Button
                                 size="small"
                                 sx={{ minWidth: 'auto', p: 0.5 }}
@@ -1654,7 +1658,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                   <DeleteIcon fontSize="small" />
                                 )}
                               </Button>
-                            </Box>
+                            </Box>)}
                           </Grid>
                         </Grid>)
                       )}
@@ -1756,7 +1760,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               </Typography>
                             </Grid>
                             <Grid sx={{ textAlign: 'right' }} size={1}>
-                              <Button
+                              {!readOnly && (<Button
                                 size="small"
                                 sx={{ minWidth: 'auto', p: 0.5 }}
                                 onClick={() => handleStartEdit(p)}
@@ -1764,7 +1768,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 aria-label="Edit deposit payment method"
                               >
                                 <EditIcon fontSize="small" />
-                              </Button>
+                              </Button>)}
                             </Grid>
                           </Grid>
                         )}
@@ -1884,7 +1888,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={2}>
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                            {!readOnly && (<Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
                               <Button
                                 size="small"
                                 sx={{ minWidth: 'auto', p: 0.5 }}
@@ -1906,7 +1910,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                   <DeleteIcon fontSize="small" />
                                 )}
                               </Button>
-                            </Box>
+                            </Box>)}
                           </Grid>
                         </Grid>
                       )}

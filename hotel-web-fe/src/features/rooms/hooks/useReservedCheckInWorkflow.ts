@@ -21,8 +21,6 @@ export function useReservedCheckInWorkflow({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [booking, setBooking] = useState<BookingWithDetails | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [collectingDeposit, setCollectingDeposit] = useState(false);
-  const [depositPaymentMethod, setDepositPaymentMethod] = useState('');
   const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>('pay_later');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [amountPaid, setAmountPaid] = useState(0);
@@ -36,11 +34,6 @@ export function useReservedCheckInWorkflow({
   const [icNumber, setIcNumber] = useState('');
   const [phone, setPhone] = useState('');
 
-  const resetDepositState = useCallback(() => {
-    setCollectingDeposit(false);
-    setDepositPaymentMethod('');
-  }, []);
-
   const openWithBooking = useCallback((
     nextBooking: BookingWithDetails,
     fallbackPaymentMethod = 'Cash',
@@ -49,7 +42,6 @@ export function useReservedCheckInWorkflow({
     const totalAmount = toMoneyNumber(nextBooking.total_amount);
 
     setBooking(nextBooking);
-    resetDepositState();
     setPaymentChoice(nextBooking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
     setPaymentMethod(nextBooking.payment_method || fallbackPaymentMethod);
     setAmountPaid(totalAmount);
@@ -75,7 +67,7 @@ export function useReservedCheckInWorkflow({
           /* leave fields empty for manual entry */
         });
     }
-  }, [resetDepositState]);
+  }, []);
 
   const close = useCallback(() => {
     if (processing) return;
@@ -84,16 +76,14 @@ export function useReservedCheckInWorkflow({
     setBooking(null);
     setIcNumber('');
     setPhone('');
-    resetDepositState();
-  }, [processing, resetDepositState]);
+  }, [processing]);
 
   const cancel = useCallback(() => {
     setDialogOpen(false);
     setBooking(null);
     setIcNumber('');
     setPhone('');
-    resetDepositState();
-  }, [resetDepositState]);
+  }, []);
 
   const checkIn = useCallback(async () => {
     if (!booking) {
@@ -156,7 +146,6 @@ export function useReservedCheckInWorkflow({
       setBooking(null);
       setIcNumber('');
       setPhone('');
-      resetDepositState();
       await reload();
     } catch (error) {
       showSnackbar(errorMessage(error, 'Failed to check in guest'), 'error');
@@ -174,7 +163,6 @@ export function useReservedCheckInWorkflow({
     paymentMethod,
     phone,
     reload,
-    resetDepositState,
     showSnackbar,
     waiveReason,
   ]);
@@ -183,8 +171,6 @@ export function useReservedCheckInWorkflow({
     dialogOpen,
     booking,
     processing,
-    collectingDeposit,
-    depositPaymentMethod,
     paymentChoice,
     setPaymentChoice,
     paymentMethod,

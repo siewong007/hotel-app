@@ -109,8 +109,17 @@ const GUEST_IDS: [i64; 15] = [
 
 const ROOM_TYPE_ID: i64 = 986_301;
 const ROOM_ID: i64 = 986_302;
+/// Second fixture room: the staying guest's booking needs a far-past check-in
+/// to top the `check_in_date`-ordered `in_house`/`departures` previews over
+/// real rows, which would overlap the other fixtures on ROOM_ID.
+const ROOM_ID_LONG: i64 = 986_303;
+const ROOM_IDS: [i64; 2] = [ROOM_ID, ROOM_ID_LONG];
 const BOOKING_MAIN: i64 = 986_501;
 const BOOKING_PLAIN: i64 = 986_502;
+/// The arrival fixture takes a negative id so it wins the `arrivals` /
+/// `vip_arrivals` preview tiebreak (`ORDER BY check_in_date, b.id` — every
+/// arrival shares today's date and real booking ids are all positive).
+const BOOKING_ARRIVING: i64 = -986_512;
 const PROMOTION_ID: i64 = 986_401;
 
 const BOUNCE_EMAIL: &str = "grt986.bounce@hotel.local";
@@ -443,6 +452,15 @@ impl Fixture {
         .execute(pool)
         .await
         .expect("room fixture must be inserted");
+        sqlx::query(
+            "INSERT INTO rooms (id, room_number, room_type_id, status) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, 'GRT986-2', $2, 'available')",
+        )
+        .bind(ROOM_ID_LONG)
+        .bind(ROOM_TYPE_ID)
+        .execute(pool)
+        .await
+        .expect("long-stay room fixture must be inserted");
 
         // Distinct date ranges — `bookings_no_room_date_overlap` forbids two
         // rows on the same room over the same stay window.
@@ -659,20 +677,21 @@ impl Fixture {
         }
 
         // Phase 2 bookings — windows are hotel-day relative so the overview
-        // sections and segment clauses see them on every run. They share
-        // ROOM_ID without overlapping: [today-1, today) for the staying guest
-        // vs [today, today+1) for the arrival only touch at the boundary,
-        // which `bookings_no_room_date_overlap` permits.
+        // sections and segment clauses see them on every run. The staying
+        // guest's window reaches far into the past on its own room so it tops
+        // the `check_in_date`-ordered `in_house`/`departures` previews over
+        // real rows; the other fixtures share ROOM_ID on non-overlapping
+        // windows, which `bookings_no_room_date_overlap` permits.
         let today = core::db::hotel_today(pool)
             .await
             .expect("hotel_today must resolve for P2 booking fixtures");
-        for (booking_id, guest_id, number, in_offset, out_offset, status) in [
-            (986_511_i64, GUEST_STAYING, "BK-GRT986-P2-1", -1, 0, "checked_in"),
-            (986_512, GUEST_ARRIVING, "BK-GRT986-P2-2", 0, 1, "confirmed"),
-            (986_513, GUEST_FUTURE, "BK-GRT986-P2-3", 7, 8, "confirmed"),
-            (986_514, GUEST_RETURNING, "BK-GRT986-P2-4", -60, -59, "checked_out"),
-            (986_515, GUEST_RETURNING, "BK-GRT986-P2-5", -30, -29, "checked_out"),
-            (986_516, GUEST_INACTIVE, "BK-GRT986-P2-6", -400, -399, "checked_out"),
+        for (booking_id, guest_id, number, in_offset, out_offset, status, room_id) in [
+            (986_511_i64, GUEST_STAYING, "BK-GRT986-P2-1", -800, 0, "checked_in", ROOM_ID_LONG),
+            (BOOKING_ARRIVING, GUEST_ARRIVING, "BK-GRT986-P2-2", 0, 1, "confirmed", ROOM_ID),
+            (986_513, GUEST_FUTURE, "BK-GRT986-P2-3", 7, 8, "confirmed", ROOM_ID),
+            (986_514, GUEST_RETURNING, "BK-GRT986-P2-4", -60, -59, "checked_out", ROOM_ID),
+            (986_515, GUEST_RETURNING, "BK-GRT986-P2-5", -30, -29, "checked_out", ROOM_ID),
+            (986_516, GUEST_INACTIVE, "BK-GRT986-P2-6", -400, -399, "checked_out", ROOM_ID),
         ] {
             sqlx::query(
                 "INSERT INTO bookings \
@@ -688,7 +707,7 @@ impl Fixture {
             .bind(booking_id)
             .bind(number)
             .bind(guest_id)
-            .bind(ROOM_ID)
+            .bind(room_id)
             .bind(today + Duration::days(in_offset))
             .bind(today + Duration::days(out_offset))
             .bind(status)
@@ -700,8 +719,11 @@ impl Fixture {
         // Phase 2 follow-up queue fixtures on GUEST_FOLLOWUP — a dedicated
         // guest because Phase 1 tests assert exact interaction totals on
         // GUEST_MAIN. Distinct subjects double as lookup keys in assertions.
+        // The overdue row's follow_up_at is far in the past so it tops the
+        // `follow_up_at ASC`-ordered due-now preview even when real overdue
+        // notes exist on the shared dev database.
         for (subject, follow_up, completed, private) in [
-            ("Grt986 P2 overdue", "-1 day", false, false),
+            ("Grt986 P2 overdue", "-3650 days", false, false),
             ("Grt986 P2 today", "0 hours", false, false),
             ("Grt986 P2 upcoming", "+1 day", false, false),
             ("Grt986 P2 done", "-1 day", true, false),
@@ -822,13 +844,13 @@ impl Fixture {
             .execute(pool)
             .await
             .expect("promotion cleanup");
-        sqlx::query("DELETE FROM room_status_change_log WHERE room_id = $1")
-            .bind(ROOM_ID)
+        sqlx::query("DELETE FROM room_status_change_log WHERE room_id = ANY($1)")
+            .bind(&ROOM_IDS[..])
             .execute(pool)
             .await
             .expect("room status log cleanup");
-        sqlx::query("DELETE FROM rooms WHERE id = $1")
-            .bind(ROOM_ID)
+        sqlx::query("DELETE FROM rooms WHERE id = ANY($1)")
+            .bind(&ROOM_IDS[..])
             .execute(pool)
             .await
             .expect("room cleanup");
@@ -894,6 +916,41 @@ impl Fixture {
 
     fn guest_uri(&self, guest_id: i64, suffix: &str) -> String {
         format!("/api/guests/{guest_id}{suffix}")
+    }
+}
+
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        // `Fixture::new` cleans before seeding, but without teardown the rows
+        // seeded by the last test outlive this binary — the suites share one
+        // dev database and global assertions elsewhere (e.g. the delivery-feed
+        // counts in `admin_communications_api`) trip on leftovers such as
+        // `grt986-delivery-1`. Rust has no async Drop, `#[tokio::test]` runtimes
+        // are current-thread (no `block_in_place`), and this pool's connections
+        // are bound to the test reactor — so teardown runs on a throwaway
+        // thread with its own runtime and a fresh pool.
+        let Ok(database_url) = std::env::var("DATABASE_URL") else {
+            return;
+        };
+        let teardown = std::thread::spawn(move || {
+            let Ok(rt) = tokio::runtime::Runtime::new() else {
+                eprintln!("guest relations teardown: runtime init failed");
+                return;
+            };
+            rt.block_on(async move {
+                match PgPoolOptions::new()
+                    .max_connections(2)
+                    .connect(&database_url)
+                    .await
+                {
+                    Ok(pool) => Self::cleanup(&pool).await,
+                    Err(e) => eprintln!("guest relations teardown: connect failed: {e}"),
+                }
+            });
+        });
+        if let Err(e) = teardown.join() {
+            eprintln!("guest relations teardown panicked: {e:?}");
+        }
     }
 }
 
@@ -1953,12 +2010,12 @@ async fn overview_returns_counts_and_previews() {
         body["arrivals"]["count"].as_i64().unwrap_or(0) >= 1,
         "arrivals count empty: {body}"
     );
-    assert!(booking_ids(&body["arrivals"]).contains(&986_512));
+    assert!(booking_ids(&body["arrivals"]).contains(&BOOKING_ARRIVING));
     let arrival_row = body["arrivals"]["items"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|row| row["booking_id"].as_i64() == Some(986_512))
+        .find(|row| row["booking_id"].as_i64() == Some(BOOKING_ARRIVING))
         .expect("arrival fixture row must be present")
         .clone();
     assert_eq!(arrival_row["guest_id"].as_i64(), Some(GUEST_ARRIVING));
@@ -1968,10 +2025,10 @@ async fn overview_returns_counts_and_previews() {
     // The checked_in fixture is in-house AND departs today.
     assert!(booking_ids(&body["in_house"]).contains(&986_511));
     assert!(booking_ids(&body["departures"]).contains(&986_511));
-    assert!(booking_ids(&body["vip_arrivals"]).contains(&986_512));
+    assert!(booking_ids(&body["vip_arrivals"]).contains(&BOOKING_ARRIVING));
     // The future stay is not an arrival, and the completed stays are nowhere.
     assert!(!booking_ids(&body["arrivals"]).contains(&986_513));
-    assert!(!booking_ids(&body["departures"]).contains(&986_512));
+    assert!(!booking_ids(&body["departures"]).contains(&BOOKING_ARRIVING));
 
     // Manager holds support:read — open counts decode as i64 and the seeded
     // waiting_for_staff conversation surfaces in the preview.
@@ -2255,8 +2312,10 @@ async fn guest_list_segment_filters() {
         async move { fx.call("GET", uri, Some(&fx.reader), None).await }
     };
 
-    // returning = >= 2 checked_out/completed stays.
-    let (status, returning) = get("/api/guests?segment=returning&page_size=100").await;
+    // returning = >= 2 checked_out/completed stays. `search` scopes every
+    // list to the fixture guests so real dev-DB rows can't paginate them out.
+    let (status, returning) =
+        get("/api/guests?segment=returning&page_size=100&search=Grt986").await;
     assert_eq!(
         status,
         StatusCode::OK,
@@ -2271,7 +2330,8 @@ async fn guest_list_segment_filters() {
     );
 
     // in_house = a checked_in/auto_checked_in booking exists.
-    let (status, in_house) = get("/api/guests?segment=in_house&page_size=100").await;
+    let (status, in_house) =
+        get("/api/guests?segment=in_house&page_size=100&search=Grt986").await;
     assert_eq!(
         status,
         StatusCode::OK,
@@ -2282,7 +2342,8 @@ async fn guest_list_segment_filters() {
     assert!(!ids.contains(&GUEST_RETURNING));
 
     // upcoming = confirmed/pending_confirmation with check_in >= today.
-    let (status, upcoming) = get("/api/guests?segment=upcoming&page_size=100").await;
+    let (status, upcoming) =
+        get("/api/guests?segment=upcoming&page_size=100&search=Grt986").await;
     assert_eq!(
         status,
         StatusCode::OK,
@@ -2294,7 +2355,8 @@ async fn guest_list_segment_filters() {
     assert!(!ids.contains(&GUEST_RETURNING));
 
     // inactive = no checked_out/completed stay within 365 days.
-    let (status, inactive) = get("/api/guests?segment=inactive&page_size=100").await;
+    let (status, inactive) =
+        get("/api/guests?segment=inactive&page_size=100&search=Grt986").await;
     assert_eq!(
         status,
         StatusCode::OK,
@@ -2308,7 +2370,8 @@ async fn guest_list_segment_filters() {
     );
 
     // Unknown segment values are ignored (same convention as other filters).
-    let (status, bogus) = get("/api/guests?segment=nonsense&page_size=100").await;
+    let (status, bogus) =
+        get("/api/guests?segment=nonsense&page_size=100&search=Grt986").await;
     assert_eq!(
         status,
         StatusCode::OK,
@@ -2318,7 +2381,8 @@ async fn guest_list_segment_filters() {
 
     // The EXISTS projection lands on list rows: true on the open-case guest,
     // false on the guest whose only conversation is closed.
-    let (status, open) = get("/api/guests?has_open_support=true&page_size=100").await;
+    let (status, open) =
+        get("/api/guests?has_open_support=true&page_size=100&search=Grt986").await;
     assert_eq!(status, StatusCode::OK, "open-support list failed: {open}");
     let open_row = open["data"]
         .as_array()
@@ -2329,7 +2393,7 @@ async fn guest_list_segment_filters() {
         .clone();
     assert_eq!(open_row["has_open_support"], true);
 
-    let (status, all) = get("/api/guests?page_size=100").await;
+    let (status, all) = get("/api/guests?page_size=100&search=Grt986").await;
     assert_eq!(status, StatusCode::OK, "guest list failed: {all}");
     let closed_row = all["data"]
         .as_array()

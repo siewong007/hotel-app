@@ -1727,6 +1727,100 @@ mod postgres_creation_tests {
 
         cleanup(&pool, room_id, guest_id, actor_id).await;
     }
+
+    /// The desk picks the deposit's tender at booking time — `deposit_payment_method`
+    /// lands on the deposit row, not the booking-level bill `payment_method`.
+    /// A blank/absent deposit method falls back to the bill's method.
+    #[tokio::test]
+    async fn postgres_creation_records_deposit_tender_separately() {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 960_003;
+        let guest_id = 960_203;
+        let room_id = 960_303;
+
+        cleanup(&pool, room_id, guest_id, actor_id).await;
+        seed_data(&pool, room_id, guest_id, actor_id).await;
+
+        let make_input = |check_in: &str,
+                          check_out: &str,
+                          booking_number: &str,
+                          deposit_method: Option<&str>| BookingInput {
+            guest_id,
+            room_id,
+            check_in_date: check_in.to_string(),
+            check_out_date: check_out.to_string(),
+            post_type: None,
+            rate_code: None,
+            booking_remarks: None,
+            is_tourist: None,
+            tourism_tax_amount: None,
+            extra_bed_count: None,
+            extra_bed_charge: None,
+            late_checkout_penalty: None,
+            payment_method: Some("Debit Card".to_string()),
+            payment_status: None,
+            amount_paid: Some(50.0),
+            source: None,
+            booking_channel_id: None,
+            ota_reference: None,
+            booking_number: Some(booking_number.to_string()),
+            deposit_paid: None,
+            deposit_amount: None,
+            deposit_payment_method: deposit_method.map(str::to_string),
+            room_rate_override: None,
+            special_requests: None,
+            daily_rates: None,
+            cleaning_preference: None,
+            company_id: None,
+            company_name: None,
+        };
+
+        let _ = create_booking_handler(
+            State(pool.clone()),
+            Extension(actor_id),
+            Json(make_input(
+                "2027-05-01",
+                "2027-05-03",
+                "BK-DPM-A-BLANK-960",
+                Some("   "),
+            )),
+        )
+        .await
+        .expect("blank deposit-method booking should be created");
+        let _ = create_booking_handler(
+            State(pool.clone()),
+            Extension(actor_id),
+            Json(make_input(
+                "2027-06-01",
+                "2027-06-03",
+                "BK-DPM-B-EXPLICIT-960",
+                Some("E-Wallet"),
+            )),
+        )
+        .await
+        .expect("explicit deposit-method booking should be created");
+
+        let methods: Vec<String> = sqlx::query_scalar(
+            "SELECT p.payment_method FROM payments p \
+             JOIN bookings b ON b.id = p.booking_id \
+             WHERE b.room_id = $1 AND p.payment_type = 'deposit' \
+             ORDER BY b.booking_number",
+        )
+        .bind(room_id)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(
+            methods,
+            vec!["Debit Card".to_string(), "E-Wallet".to_string()],
+            "deposit rows carry the desk-chosen tender, falling back to the bill method when blank"
+        );
+
+        cleanup(&pool, room_id, guest_id, actor_id).await;
+    }
 }
 
 // ---------------------------------------------------------------------------
