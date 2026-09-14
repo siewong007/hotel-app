@@ -160,3 +160,55 @@ available" (same handler); comment "Same gate the card used" overstates the
   instance on :3100 serves the worktree for screenshot verification.
 - No new dependencies; no seed/policy/route-registry changes; backend and
   desktop untouched.
+
+---
+
+## Follow-up pass 2 — bookings list + online inventory (same-day)
+
+Commits `d72f60a00..b3c719f66` on `mobile-ux/2026-09-14`. Spec:
+`docs/superpowers/specs/2026-09-14-bookings-inventory-mobile-design.md`; plan:
+`docs/superpowers/plans/2026-09-14-bookings-inventory-mobile.md`.
+
+### What changed
+
+- **Online inventory (phone, `<sm`):** the desktop ARIA matrix is replaced by
+  room-type cards, each with a horizontally scroll-snap 14-day strip (day /
+  date / availability-or-Closed, override+staged dots identical to the grid).
+  Tap a day → `BottomSheet` hosting the extracted `CellEditorForm` (same
+  bookable toggle / walk-in hold / custom price / reset / validation). A
+  toolbar "Select" toggle enters multi-select: tap cells across cards →
+  `StickyActionBar` ("N selected · Edit selected · Done") → bulk sheet hosting
+  `BulkEditFields` (weekday limit, hold, price, ±%, ±amount) → same
+  `stageMany` → review → save pipeline. New files: `PhoneInventoryView`,
+  `CellEditorSheet`, extracted `CellEditorForm` + `BulkEditFields`.
+- **Bookings (phone):** the 230px summary-card strip compresses to a
+  count-chip row (same `summaryStatCards`, same `onSelectView`); list rows
+  slim to ~2 lines (avatar, name+status, room/dates/nights, total+due/paid);
+  channel/billing/night-audit/folio moved off the row — now reachable on the
+  detail page via a new metadata chip line under the folio number (all sizes).
+  Sort button's misleading filter icon → `SwapVert`.
+- **Fix found by review:** the staged-changes bar was fully occluded on phones
+  by `MobileNavBar` (bar `bottom:16` z-1099 vs nav `bottom:0` z-1100,
+  ~60px+safe-area tall) — raised above the nav on `xs` (and above the
+  `StickyActionBar` during select mode). Pre-existing; without it the phone
+  edit flow could stage but never save.
+
+### Evidence
+
+- `bun run typecheck` ✅ `bun run lint` ✅ `bun run test` ✅ 225 files /
+  1786 tests, zero flakes.
+- 18 authenticated headless-Chrome shots (`/bookings`, `/bookings/$id`,
+  `/online-inventory` × widths 320–430) → `/tmp/hotel-mobile-shots-out2/`:
+  no document-level horizontal overflow, all routes load.
+
+### Ranked backlog (updated)
+
+Resolved by this pass: ~~OnlineInventory mouse-only editor~~, ~~bookings row
+density~~. Remaining, unchanged priority order:
+
+1. `/housekeeping` 320px: "+ New task" CTA clipped (pre-existing).
+2. `GuestProfilePage` — 5 inner tables still desktop-dense.
+3. `DataTransferPage` ~50 always-expanded cards; `RBACManagementPage`
+   accordions; `AuditLogPage` stream cards.
+4. `/help/$slug` never mounts (`help.tsx` lacks `<Outlet/>`) — pre-existing.
+5. Staged-changes bar still occluded on 600–899px tablets (sm–md range).

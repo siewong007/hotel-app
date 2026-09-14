@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, CardContent, Grid, Typography } from '@mui/material';
+import { Box, Card, CardContent, Chip, Grid, Typography } from '@mui/material';
 import {
   EventAvailable as BookIcon,
   ArrowForward as ArrowForwardIcon,
@@ -9,6 +9,7 @@ import {
   Bed as BedIcon,
 } from '@mui/icons-material';
 import { useCurrency } from '../../../../hooks/useCurrency';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
 import { isPositiveMoney } from '../../../../utils/money';
 import type { BookingView, SummaryStatCard } from '../../utils/bookingPageUtils';
 
@@ -43,10 +44,12 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
   onTakePayment,
 }) => {
   const { format: formatCurrency } = useCurrency();
+  const isPhone = useIsPhone();
 
   const summaryStatCards: SummaryStatCard[] = [
     {
       title: 'Arrivals / Check-in',
+      shortTitle: 'Arriving',
       value: stats.arrivingCount,
       detail: `${stats.readyToCheckInCount} ready to check in`,
       subValue: stats.arrivingCount || stats.todayCheckIns || 1,
@@ -56,6 +59,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
     },
     {
       title: 'In-house guests',
+      shortTitle: 'In-house',
       value: stats.totalGuestsInHouse,
       detail: `across ${stats.inHouseCount} rooms`,
       subValue: Math.max(stats.totalGuestsInHouse, stats.roomCount || 1),
@@ -65,6 +69,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
     },
     {
       title: 'Departures / Check-out',
+      shortTitle: 'Departing',
       value: stats.departingCount,
       detail: `${stats.departingCount} ready to check out`,
       subValue: stats.departingCount || 1,
@@ -74,6 +79,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
     },
     {
       title: 'Upcoming bookings',
+      shortTitle: 'Upcoming',
       value: stats.upcomingCount,
       detail: `${stats.upcomingCount} future reservations`,
       subValue: stats.upcomingCount || 1,
@@ -84,6 +90,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
     ...(isPositiveMoney(stats.normalOutstandingDue)
       ? [{
         title: 'Normal outstanding',
+        shortTitle: 'Due',
         value: formatCurrency(stats.normalOutstandingDue),
         detail: `${stats.normalDueCount} ${stats.normalBalanceScope}`,
         color: 'var(--hotel-danger)',
@@ -95,6 +102,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
     ...(isPositiveMoney(stats.companyOutstandingDue)
       ? [{
         title: 'Company outstanding',
+        shortTitle: 'Company',
         value: formatCurrency(stats.companyOutstandingDue),
         detail: `${stats.companyDueCount} ${stats.companyBalanceScope}`,
         color: 'var(--hotel-chart-4)',
@@ -108,8 +116,37 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
 
   return (
     <>
-      {/* On phones the strip scrolls horizontally so the booking list — the
-          actionable content — is not buried under six stacked stat cards. */}
+      {/* On phones the stats compress into a horizontally scrolling chip row so
+          the booking list — the actionable content — is not buried under six
+          stacked stat cards. Wider viewports keep the full card grid. */}
+      {isPhone ? (
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 1,
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+            '&::-webkit-scrollbar': { display: 'none' },
+            mb: 2,
+            pb: 0.5,
+          }}
+        >
+          {summaryStatCards.map((stat) => (
+            <Chip
+              key={stat.title}
+              label={`${stat.shortTitle} ${stat.value}`}
+              onClick={() => onSelectView(stat.view)}
+              variant={activeView === stat.view ? 'filled' : 'outlined'}
+              color={activeView === stat.view ? 'primary' : 'default'}
+              sx={{
+                flexShrink: 0,
+                fontWeight: 800,
+                ...(stat.alert && { border: `1px solid ${stat.color}` }),
+              }}
+            />
+          ))}
+        </Box>
+      ) : (
       <Box
         sx={{
           display: 'grid',
@@ -160,6 +197,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
           </Card>
         ))}
       </Box>
+      )}
       {isPositiveMoney(stats.normalOutstandingDue) && (
         <Grid container spacing={2} sx={{
           mb: 2.5

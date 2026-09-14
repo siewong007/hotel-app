@@ -1,21 +1,8 @@
 import { useEffect, useState } from 'react';
-import {
-  Box,
-  Button,
-  Divider,
-  IconButton,
-  InputAdornment,
-  Popover,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import RemoveIcon from '@mui/icons-material/Remove';
+import { Box, Button, Popover, Stack, Typography } from '@mui/material';
 
 import type { CellKey, EditableCell, GridCellView, StagedEdit } from '../types';
-import { useCurrency } from '../../../hooks/useCurrency';
+import { CellEditorForm } from './CellEditorForm';
 
 const FULL_DATE = new Intl.DateTimeFormat(undefined, {
   weekday: 'long',
@@ -40,7 +27,6 @@ export const CellEditorPopover = ({
   onApply,
   formatPrice,
 }: CellEditorPopoverProps) => {
-  const { symbol } = useCurrency();
   const [draft, setDraft] = useState<EditableCell>({
     walk_in_reserved_rooms: 0,
     online_booking_enabled: true,
@@ -82,91 +68,13 @@ export const CellEditorPopover = ({
           </Typography>
         </Box>
 
-        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box>
-            <Typography sx={{ fontWeight: 700 }}>Bookable online</Typography>
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {draft.online_booking_enabled ? 'Guests can book this date' : 'Hidden from online booking'}
-            </Typography>
-          </Box>
-          <Switch
-            checked={draft.online_booking_enabled}
-            onChange={(event) =>
-              setDraft((d) => ({ ...d, online_booking_enabled: event.target.checked }))
-            }
-            color="success"
-            slotProps={{ input: { 'aria-label': 'Bookable online' } }}
-          />
-        </Stack>
-
-        <Divider />
-
-        <Box>
-          <Typography sx={{ fontWeight: 700, mb: 0.75 }}>Hold for walk-ins</Typography>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <IconButton
-              aria-label="Decrease walk-in hold"
-              size="small"
-              sx={{ border: 1, borderColor: 'divider' }}
-              disabled={draft.walk_in_reserved_rooms <= 0}
-              onClick={() =>
-                setDraft((d) => ({ ...d, walk_in_reserved_rooms: Math.max(0, d.walk_in_reserved_rooms - 1) }))
-              }
-            >
-              <RemoveIcon fontSize="small" />
-            </IconButton>
-            <TextField
-              type="number"
-              size="small"
-              value={draft.walk_in_reserved_rooms}
-              onChange={(event) =>
-                setDraft((d) => ({
-                  ...d,
-                  walk_in_reserved_rooms: Math.max(0, Math.trunc(Number(event.target.value) || 0)),
-                }))
-              }
-              sx={{ width: 84, '& input': { textAlign: 'center', fontWeight: 800 } }}
-              slotProps={{ htmlInput: { min: 0, 'aria-label': 'Walk-in hold' } }}
-            />
-            <IconButton
-              aria-label="Increase walk-in hold"
-              size="small"
-              sx={{ border: 1, borderColor: 'divider' }}
-              onClick={() =>
-                setDraft((d) => ({ ...d, walk_in_reserved_rooms: d.walk_in_reserved_rooms + 1 }))
-              }
-            >
-              <AddIcon fontSize="small" />
-            </IconButton>
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              of {view.physical} free
-            </Typography>
-          </Stack>
-          {overHeld && (
-            <Typography variant="caption" sx={{ color: 'error.main', display: 'block', mt: 0.5 }}>
-              Higher than the physical availability for this date.
-            </Typography>
-          )}
-        </Box>
-
-        <TextField
-          type="number"
-          size="small"
-          label="Custom online price"
-          value={draft.custom_price ?? ''}
-          onChange={(event) =>
-            setDraft((d) => ({ ...d, custom_price: event.target.value || null }))
-          }
-          error={priceInvalid}
-          helperText={
-            priceInvalid
-              ? 'Enter a price greater than zero.'
-              : `Standard rate for this date: ${formatPrice(view.standard_price)} — leave blank to use it.`
-          }
-          slotProps={{
-            input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> },
-            htmlInput: { min: 0.01, step: 0.01, 'aria-label': 'Custom online price' },
-          }}
+        <CellEditorForm
+          view={view}
+          draft={draft}
+          onDraftChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+          priceInvalid={priceInvalid}
+          overHeld={overHeld}
+          formatPrice={formatPrice}
         />
 
         <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>

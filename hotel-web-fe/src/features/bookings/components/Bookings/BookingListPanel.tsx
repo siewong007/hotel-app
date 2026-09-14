@@ -12,12 +12,13 @@ import {
   alpha,
 } from '@mui/material';
 import {
-  FilterList as FilterIcon,
+  SwapVert as SwapVertIcon,
   Bed as BedIcon,
   Public as PublicIcon,
 } from '@mui/icons-material';
 import type { BookingWithDetails } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
 import { getBookingStatusText, getPaymentStatusText } from '../../../../utils/bookingUtils';
 import { isPositiveMoney } from '../../../../utils/money';
 import { getBookingChannelInfo } from '../../utils/bookingChannel';
@@ -56,6 +57,69 @@ interface BookingListPanelProps {
   onPageChange: (page: number) => void;
 }
 
+interface PhoneBookingRowProps {
+  booking: BookingWithDetails;
+  balance: number;
+  isPaid: boolean;
+  formatCurrency: (value: number) => string;
+  onOpenBooking: (booking: BookingWithDetails) => void;
+}
+
+/**
+ * Compact two-line row for phone widths: identity + status on line 1, stay
+ * facts on line 2, money on the right. Channel/billing/night-audit chips and
+ * the folio reference are intentionally dropped — they stay reachable on the
+ * booking detail page. The whole row is the single tap target.
+ */
+const PhoneBookingRow: React.FC<PhoneBookingRowProps> = ({
+  booking,
+  balance,
+  isPaid,
+  formatCurrency,
+  onOpenBooking,
+}) => (
+  <Box
+    onClick={() => onOpenBooking(booking)}
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 1.5,
+      px: 2,
+      py: 1.25,
+      cursor: 'pointer',
+      bgcolor: 'background.paper',
+      opacity: booking.status === 'voided' ? 0.55 : 1,
+      '&:hover': { bgcolor: 'action.hover' },
+      '&:active': { bgcolor: 'action.selected' },
+    }}
+  >
+    <Box sx={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, bgcolor: 'var(--hotel-primary-subtle)', color: 'var(--hotel-primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>
+      {getGuestInitials(booking.guest_name)}
+    </Box>
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0 }}>
+        <Typography variant="subtitle2" noWrap sx={{ fontWeight: 800, lineHeight: 1.3, minWidth: 0 }}>
+          {booking.guest_name}
+        </Typography>
+        <Typography component="span" variant="caption" noWrap sx={{ color: statusDotColor(booking.status), fontWeight: 800, flexShrink: 0 }}>
+          • {getBookingStatusText(booking.status)}
+        </Typography>
+      </Box>
+      <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>
+        Room {booking.room_number || '-'} · {booking.room_type || 'Room'} · {formatShortDate(booking.check_in_date)} → {formatShortDate(booking.check_out_date)} · {getNights(booking)}N
+      </Typography>
+    </Box>
+    <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
+      {isPositiveMoney(balance) ? (
+        <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 800 }}>Due {formatCurrency(balance)}</Typography>
+      ) : (
+        <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 800 }}>✓ {isPaid ? 'Paid' : getPaymentStatusText(booking.payment_status)}</Typography>
+      )}
+    </Box>
+  </Box>
+);
+
 const BookingListPanel: React.FC<BookingListPanelProps> = ({
   bookings,
   loading,
@@ -68,6 +132,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
   onPageChange,
 }) => {
   const { format: formatCurrency } = useCurrency();
+  const isPhone = useIsPhone();
 
   return (
     <>
@@ -80,7 +145,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
           }}>
           {bookings.length} bookings
         </Typography>
-        <Button size="small" endIcon={<FilterIcon />} onClick={onToggleSort} sx={{ color: 'text.primary' }}>
+        <Button size="small" endIcon={<SwapVertIcon />} onClick={onToggleSort} sx={{ color: 'text.primary' }}>
           Sort: {sortField === 'guest_name' ? 'Guest' : 'Priority'}
         </Button>
       </Box>
@@ -139,6 +204,20 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
           {bookings.map((booking) => {
             const balance = getBookingBalance(booking);
             const isPaid = !isPositiveMoney(balance) && ['paid', 'paid_rate'].includes(String(booking.payment_status || '').toLowerCase());
+
+            if (isPhone) {
+              return (
+                <PhoneBookingRow
+                  key={booking.id}
+                  booking={booking}
+                  balance={balance}
+                  isPaid={isPaid}
+                  formatCurrency={formatCurrency}
+                  onOpenBooking={onOpenBooking}
+                />
+              );
+            }
+
             const channelInfo = getBookingChannelInfo(booking);
             const billingChipLabel = getBillingChipLabel(booking);
 

@@ -17,6 +17,8 @@ export type BookingCompanyOption = Partial<Company> & { company_name: string; id
 
 export type SummaryStatCard = {
   title: string;
+  /** Compact label for the phone chip strip, e.g. `Arriving`, `Due`. */
+  shortTitle: string;
   value: string | number;
   detail: string;
   subValue?: number;
