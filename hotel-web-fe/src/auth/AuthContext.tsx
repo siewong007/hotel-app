@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api, refreshAccessToken, APIError, readErrorData } from '../api/client';
 import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import { HTTPError } from 'ky';
-import { TWO_FACTOR_ENROLLMENT_REQUIRED_CODE } from '../features/auth/twoFactorEnrollment';
 import { errorMessage } from '../utils';
 import { AuthService } from '../api/auth.service';
 import { UsersService } from '../api/users.service';
@@ -273,6 +272,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await AuthService.register(data, turnstileToken);
     } catch (error) {
       console.error('Registration error:', error);
+      // AuthService.register already wraps failures in APIError — the server's
+      // message when the body carried one, the service fallback otherwise.
+      // Rethrow it untouched so the page keeps statusCode/details alongside
+      // the message instead of a flattened string.
+      if (error instanceof APIError) {
+        throw error;
+      }
       throw new Error(await extractHttpErrorMessage(error, 'Registration failed'));
     }
   }, []);
@@ -388,16 +394,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return applyAuthSession(data);
     } catch (error) {
       console.error('Login error:', error);
-      // An overdue two-factor enrolment is refused with a stable body code.
-      // Preserve it as APIError.details so the sign-in page can route to
-      // enrolment instead of matching translated message text — the same
-      // reasoning as loginWithGoogle preserving `statusCode` below.
+      // Every HTTP failure rethrows as APIError carrying status + parsed body.
+      // An overdue two-factor enrolment is refused with a stable body code on
+      // `details`, so the sign-in page routes to enrolment instead of matching
+      // translated message text — the same reasoning as loginWithGoogle
+      // preserving `statusCode` below. Other failures keep the server's own
+      // message readable via guestErrorMessage/errorMessage either way.
       const message = await extractHttpErrorMessage(error, 'Login failed');
       if (error instanceof HTTPError) {
-        const body = readErrorData(error);
-        if (body.code === TWO_FACTOR_ENROLLMENT_REQUIRED_CODE) {
-          throw new APIError(message, error.response?.status, body);
-        }
+        throw new APIError(message, error.response?.status, readErrorData(error));
       }
       throw new Error(message);
     }

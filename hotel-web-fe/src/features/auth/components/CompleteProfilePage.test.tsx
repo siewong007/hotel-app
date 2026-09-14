@@ -121,6 +121,26 @@ describe('CompleteProfilePage', () => {
     });
   });
 
+  it('flags a missing first name on the field itself, not the form alert', async () => {
+    renderPage();
+
+    await waitFor(() =>
+      expect((screen.getByLabelText(/First Name/) as HTMLInputElement).value).toBe('Jane')
+    );
+
+    fireEvent.change(screen.getByLabelText(/First Name/), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+
+    // Field-level helper text owns validation failures; the form-level alert
+    // is reserved for submit failures.
+    const helper = await screen.findByText('First name is required');
+    expect(helper.className).toContain('MuiFormHelperText');
+    expect(
+      (screen.getByLabelText(/First Name/) as HTMLInputElement).getAttribute('aria-invalid')
+    ).toBe('true');
+    expect(mocks.completeGuestProfile).not.toHaveBeenCalled();
+  });
+
   it('rejects submission when the phone number is missing', async () => {
     renderPage();
 

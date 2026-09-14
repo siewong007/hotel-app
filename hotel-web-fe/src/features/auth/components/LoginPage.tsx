@@ -46,6 +46,7 @@ import {
 } from '../utils/twoFactorCode';
 import { AuthService } from '../../../api';
 import { errorMessage } from '../../../utils/errorMessage';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import {
   isTwoFactorEnrollmentRequired,
   TWO_FACTOR_ENROLLMENT_PATH,
@@ -196,7 +197,6 @@ const LoginPage: React.FC = () => {
     } catch (err) {
       // Spent on the way out regardless of the outcome.
       turnstile.reset();
-      const loginError = errorMessage(err, t('login.failed'));
 
       // Enrolment is overdue, so the backend refused this sign-in outright.
       // Matched on the stable body code, never the message: that copy is
@@ -209,8 +209,11 @@ const LoginPage: React.FC = () => {
 
       // The password was right and this account carries a second factor. Ask
       // how the user wants to satisfy it rather than assuming an authenticator
-      // app they may no longer have.
-      if (loginError.includes('2FA required') || loginError.includes('TOTP code')) {
+      // app they may no longer have. Sniff the raw error — the display message
+      // is guest-safe (a transport failure collapses to the fallback), while
+      // the server's "2FA required" text lives on the error itself either way.
+      const serverMessage = errorMessage(err, '');
+      if (serverMessage.includes('2FA required') || serverMessage.includes('TOTP code')) {
         setShow2FAPrompt(true);
         setTwoFactorMethod(null);
         setTotpCode('');
@@ -219,7 +222,7 @@ const LoginPage: React.FC = () => {
         return;
       }
 
-      setError(loginError);
+      setError(guestErrorMessage(err, t('login.failed')));
       setLoading(false);
     }
   };
@@ -246,7 +249,7 @@ const LoginPage: React.FC = () => {
     try {
       ({ exists } = await AuthService.lookupLoginIdentifier(identifier));
     } catch (err) {
-      setError(errorMessage(err, t('login.lookupFailed')));
+      setError(guestErrorMessage(err, t('login.lookupFailed')));
       setLoading(false);
       return;
     }
@@ -366,7 +369,7 @@ const LoginPage: React.FC = () => {
               </Box>
 
               <Collapse in={!!error}>
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+                <Alert severity="error" role="alert" sx={{ mb: 2 }} onClose={() => setError('')}>
                   {error}
                 </Alert>
               </Collapse>
@@ -527,13 +530,13 @@ const LoginPage: React.FC = () => {
             {/* A ProtectedRoute bounced the reader here carrying ?redirect= —
                 say why they're signing in, and that they'll land back there. */}
             {interruptedDestination && (
-              <Alert severity="info" sx={{ mb: 2 }}>
+              <Alert severity="info" role="alert" sx={{ mb: 2 }}>
                 {t('login.sessionNotice')}
               </Alert>
             )}
 
             <Collapse in={!!error}>
-              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+              <Alert severity="error" role="alert" sx={{ mb: 2 }} onClose={() => setError('')}>
                 {error}
               </Alert>
             </Collapse>
