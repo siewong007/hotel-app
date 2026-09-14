@@ -190,6 +190,8 @@ const RoomReservationTimeline: React.FC = () => {
 
   const [error, setError] = useState<string | null>(null);
   const [daysToShow, setDaysToShow] = useState(() => (isPhone ? 7 : 14));
+  // Phone defaults to a day-agenda list; the grid stays one tap away.
+  const [view, setView] = useState<'grid' | 'agenda'>(isPhone ? 'agenda' : 'grid');
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -291,6 +293,51 @@ const RoomReservationTimeline: React.FC = () => {
     return [...relevantBookings, ...syntheticBookings];
   }, [bookingsQuery.data, daysToShow, roomsQuery.data, startDate]);
 
+  const showAgenda = isPhone && view === 'agenda';
+
+  const roomsById = useMemo(() => new Map(rooms.map((r) => [String(r.id), r])), [rooms]);
+
+  // Day-agenda bucketing for the selected day (startDate). A booking occupies
+  // the night starting `day` when check_in <= day < check_out; departure-day
+  // rooms count as vacant (they turn over that day).
+  const agenda = useMemo(() => {
+    const day = new Date(startDate);
+    day.setHours(0, 0, 0, 0);
+    const t = day.getTime();
+    const dayTime = (v: string) => {
+      const d = new Date(v);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    };
+    const arriving: TimelineBooking[] = [];
+    const departing: TimelineBooking[] = [];
+    const staying: TimelineBooking[] = [];
+    const occupiedIds = new Set<string>();
+    for (const b of bookings) {
+      const ci = dayTime(b.check_in_date);
+      const co = dayTime(b.check_out_date);
+      // In-house statuses mark the room occupied even when the stored
+      // checkout date has already passed (overdue departure).
+      const isInHouse = ['checked_in', 'auto_checked_in', 'occupied'].includes(b.status);
+      const occupies = isInHouse || (ci <= t && t < co);
+      if (occupies) occupiedIds.add(String(b.room_id));
+      if (ci === t) arriving.push(b);
+      else if (co === t) departing.push(b);
+      else if (occupies) staying.push(b);
+    }
+    const byRoom = (a: TimelineBooking, b: TimelineBooking) =>
+      String(roomsById.get(String(a.room_id))?.room_number ?? a.room_number ?? '').localeCompare(
+        String(roomsById.get(String(b.room_id))?.room_number ?? b.room_number ?? ''),
+        undefined,
+        { numeric: true },
+      );
+    arriving.sort(byRoom);
+    departing.sort(byRoom);
+    staying.sort(byRoom);
+    const vacant = rooms.filter((r) => !occupiedIds.has(String(r.id)));
+    return { arriving, departing, staying, vacant };
+  }, [bookings, rooms, roomsById, startDate]);
+
   const loading = roomsQuery.isPending || bookingsQuery.isPending;
   const queryError = roomsQuery.error || bookingsQuery.error;
   const effectiveError = error || (queryError instanceof Error ? queryError.message : null);
@@ -307,12 +354,12 @@ const RoomReservationTimeline: React.FC = () => {
 
   const goToPreviousWeek = () => {
     const d = new Date(startDate);
-    d.setDate(d.getDate() - 7);
+    d.setDate(d.getDate() - (showAgenda ? 1 : 7));
     setStartDate(d);
   };
   const goToNextWeek = () => {
     const d = new Date(startDate);
-    d.setDate(d.getDate() + 7);
+    d.setDate(d.getDate() + (showAgenda ? 1 : 7));
     setStartDate(d);
   };
   const goToToday = () => {
@@ -362,6 +409,12 @@ const RoomReservationTimeline: React.FC = () => {
     const right = last.toLocaleDateString('en-US', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
     return `${left} – ${right}, ${last.getFullYear()}`;
   })();
+
+  const agendaLabel = startDate.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
 
   // Status pill colors for legend (matches statusBarColors above).
   const LEGEND: Array<{ label: string; color: string }> = [
@@ -414,6 +467,12 @@ const RoomReservationTimeline: React.FC = () => {
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            {isPhone && (
+              <>
+                <SketchyBtn filled={view === 'agenda'} onClick={() => setView('agenda')}>List</SketchyBtn>
+                <SketchyBtn filled={view === 'grid'} onClick={() => setView('grid')}>Grid</SketchyBtn>
+              </>
+            )}
             <SketchyBtn onClick={goToPreviousWeek}>‹</SketchyBtn>
             <Box
               sx={{
@@ -427,29 +486,31 @@ const RoomReservationTimeline: React.FC = () => {
                 whiteSpace: 'nowrap',
               }}
             >
-              {rangeLabel}
+              {showAgenda ? agendaLabel : rangeLabel}
             </Box>
             <SketchyBtn onClick={goToNextWeek}>›</SketchyBtn>
             <SketchyBtn filled onClick={goToToday}>Today</SketchyBtn>
 
-            <FormControl size="small" sx={{ minWidth: 96 }}>
-              <Select
-                value={daysToShow}
-                onChange={(e) => setDaysToShow(Number(e.target.value))}
-                sx={{
-                  fontFamily: "'Caveat', cursive",
-                  fontSize: 16,
-                  bgcolor: PALETTE.panelBg,
-                  borderRadius: '4px',
-                  '& .MuiOutlinedInput-notchedOutline': { borderColor: PALETTE.ink, borderWidth: 1.5 },
-                }}
-              >
-                <MenuItem value={7}>7 Days</MenuItem>
-                <MenuItem value={14}>14 Days</MenuItem>
-                <MenuItem value={30}>30 Days</MenuItem>
-                <MenuItem value={60}>60 Days</MenuItem>
-              </Select>
-            </FormControl>
+            {!showAgenda && (
+              <FormControl size="small" sx={{ minWidth: 96 }}>
+                <Select
+                  value={daysToShow}
+                  onChange={(e) => setDaysToShow(Number(e.target.value))}
+                  sx={{
+                    fontFamily: "'Caveat', cursive",
+                    fontSize: 16,
+                    bgcolor: PALETTE.panelBg,
+                    borderRadius: '4px',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: PALETTE.ink, borderWidth: 1.5 },
+                  }}
+                >
+                  <MenuItem value={7}>7 Days</MenuItem>
+                  <MenuItem value={14}>14 Days</MenuItem>
+                  <MenuItem value={30}>30 Days</MenuItem>
+                  <MenuItem value={60}>60 Days</MenuItem>
+                </Select>
+              </FormControl>
+            )}
 
             <IconButton
               onClick={loadData}
@@ -460,25 +521,27 @@ const RoomReservationTimeline: React.FC = () => {
               <Refresh fontSize="small" />
             </IconButton>
 
-            <Box sx={{ display: 'flex', gap: 0.75, ml: 1, flexWrap: 'wrap' }}>
-              {LEGEND.map(({ label, color }) => (
-                <Box
-                  key={label}
-                  sx={{
-                    fontFamily: 'inherit',
-                    fontSize: 14,
-                    px: 1.25,
-                    py: 0.25,
-                    borderRadius: '20px',
-                    border: `1.5px solid ${PALETTE.ink}`,
-                    bgcolor: color,
-                    color: PALETTE.ink,
-                  }}
-                >
-                  {label}
-                </Box>
-              ))}
-            </Box>
+            {!showAgenda && (
+              <Box sx={{ display: 'flex', gap: 0.75, ml: 1, flexWrap: 'wrap' }}>
+                {LEGEND.map(({ label, color }) => (
+                  <Box
+                    key={label}
+                    sx={{
+                      fontFamily: 'inherit',
+                      fontSize: 14,
+                      px: 1.25,
+                      py: 0.25,
+                      borderRadius: '20px',
+                      border: `1.5px solid ${PALETTE.ink}`,
+                      bgcolor: color,
+                      color: PALETTE.ink,
+                    }}
+                  >
+                    {label}
+                  </Box>
+                ))}
+              </Box>
+            )}
           </Box>
         </Box>
 
@@ -492,6 +555,161 @@ const RoomReservationTimeline: React.FC = () => {
         {loading && rooms.length === 0 ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
             <CircularProgress />
+          </Box>
+        ) : showAgenda ? (
+          <Box sx={{ maxHeight: 'calc(100vh - 240px)', overflow: 'auto' }}>
+            {(
+              [
+                ['Arriving', agenda.arriving],
+                ['Departing', agenda.departing],
+                ['In-house', agenda.staying],
+              ] as const
+            ).map(
+              ([label, list]) =>
+                list.length > 0 && (
+                  <Box key={label}>
+                    <Typography
+                      sx={{
+                        fontFamily: 'inherit',
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: PALETTE.inkMuted,
+                        px: 2,
+                        pt: 1.5,
+                        pb: 0.5,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      {label} · {list.length}
+                    </Typography>
+                    {list.map((b) => {
+                      const room = roomsById.get(String(b.room_id));
+                      const sc = statusBarColors(b.status, b.is_complimentary);
+                      return (
+                        <Box
+                          key={`${label}-${b.id}`}
+                          onClick={(e) => handleBarClick(e, b)}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1.5,
+                            px: 2,
+                            py: 1.1,
+                            borderBottom: `1px solid ${PALETTE.rowDivider}`,
+                            cursor: 'pointer',
+                            '&:hover': { bgcolor: PALETTE.inkHover },
+                          }}
+                        >
+                          <Typography
+                            sx={{
+                              fontFamily: 'inherit',
+                              fontWeight: 700,
+                              fontSize: 22,
+                              color: PALETTE.ink,
+                              minWidth: 46,
+                            }}
+                          >
+                            {room?.room_number ?? b.room_number ?? '—'}
+                          </Typography>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography
+                              sx={{
+                                fontFamily: 'inherit',
+                                fontSize: 18,
+                                fontWeight: 600,
+                                color: PALETTE.ink,
+                                lineHeight: 1.1,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {b.guest_name}
+                            </Typography>
+                            <Typography
+                              sx={{
+                                fontFamily: 'inherit',
+                                fontSize: 14,
+                                color: PALETTE.inkSubtle,
+                                lineHeight: 1.15,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {new Date(b.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {' → '}
+                              {new Date(b.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {b.number_of_guests ? ` · ${b.number_of_guests} guest${b.number_of_guests > 1 ? 's' : ''}` : ''}
+                            </Typography>
+                          </Box>
+                          <Chip
+                            label={b.is_complimentary ? 'Complimentary' : getUnifiedStatusLabel(b.status)}
+                            size="small"
+                            sx={{
+                              fontFamily: "'Caveat', cursive",
+                              fontSize: 14,
+                              height: 24,
+                              bgcolor: sc.bg,
+                              color: PALETTE.ink,
+                              border: `1.5px solid ${sc.border}`,
+                            }}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                ),
+            )}
+            {agenda.arriving.length + agenda.departing.length + agenda.staying.length === 0 && (
+              <Typography
+                sx={{
+                  fontFamily: 'inherit',
+                  fontSize: 20,
+                  color: PALETTE.inkMuted,
+                  textAlign: 'center',
+                  py: 4,
+                }}
+              >
+                No bookings on this day
+              </Typography>
+            )}
+            {agenda.vacant.length > 0 && (
+              <Box sx={{ px: 2, pt: 1.5, pb: 2 }}>
+                <Typography
+                  sx={{
+                    fontFamily: 'inherit',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: PALETTE.inkMuted,
+                    pb: 0.75,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  Vacant · {agenda.vacant.length}
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                  {agenda.vacant.map((r) => (
+                    <Box
+                      key={r.id}
+                      sx={{
+                        fontFamily: 'inherit',
+                        fontSize: 16,
+                        px: 1.25,
+                        py: 0.25,
+                        border: `1.5px solid ${PALETTE.rowDivider}`,
+                        borderRadius: '20px',
+                        color: PALETTE.inkMuted,
+                      }}
+                    >
+                      {r.room_number}
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
           </Box>
         ) : (
           <Box sx={{ position: 'relative', overflow: 'auto', maxHeight: 'calc(100vh - 240px)' }}>
