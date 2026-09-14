@@ -15,6 +15,10 @@ export interface AuthUserShape {
   // business seeing.
   profile_complete: boolean;
   missing_profile_fields: Array<'first_name' | 'last_name' | 'phone'>;
+  // Mirrors `users.is_super_admin` from the login payload (`UserResponse`).
+  // Drives UI gating only — the backend re-checks the flag on every call, so a
+  // stale `false` on a cached session at worst hides a feature until re-login.
+  is_super_admin: boolean;
 }
 
 type UserLike = Partial<Omit<AuthUserShape, 'user_type' | 'missing_profile_fields'>> & {
@@ -48,5 +52,6 @@ export function normalizeAuthUser(user: UserLike, roles: string[] = []): AuthUse
     missing_profile_fields: (user.missing_profile_fields ?? []) as Array<
       'first_name' | 'last_name' | 'phone'
     >,
+    is_super_admin: user.is_super_admin ?? false,
   };
 }

@@ -6,6 +6,7 @@ use serde_json::Value;
 
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
+use crate::models::ConflictPolicy;
 
 pub struct DataTransferRepository;
 
@@ -20,6 +21,10 @@ pub struct TransferTable {
     pub table: QualifiedTable,
     pub is_partitioned: bool,
     pub columns: HashSet<String>,
+    /// Column names in `information_schema` ordinal order — the order
+    /// `SELECT` projects them and therefore the key order of every exported
+    /// row. The manifest reports this list (minus credential columns).
+    pub ordered_columns: Vec<String>,
     pub generated_columns: HashSet<String>,
     pub primary_key_columns: Vec<String>,
     pub dependencies: HashSet<String>,
@@ -33,8 +38,44 @@ pub struct RelaxedForeignKey {
     constraint: String,
 }
 
+/// One column of a foreign-key constraint: `child.column -> parent.parent_column`.
+/// The service layer filters these (transferable child, non-transferable parent)
+/// to find the references a backup file can dangle.
+#[derive(Debug, Clone)]
+pub struct ForeignKeyRef {
+    pub child: QualifiedTable,
+    pub column: String,
+    pub parent: QualifiedTable,
+    pub parent_column: String,
+}
+
+/// What happened to one row under the import's conflict policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InsertRowOutcome {
+    /// A new row landed.
+    Inserted,
+    /// `on_conflict = update` overwrote the existing row.
+    Updated,
+    /// The row was not applied (empty payload or `on_conflict = skip` hit an
+    /// existing row).
+    Skipped,
+}
+
+/// Which Rust value type the preview binds for a batched
+/// `WHERE pk = ANY($1)` existence check. `Text` falls back to a `::text`
+/// comparison for keys that do not share a single typed form.
+#[derive(Debug)]
+pub enum PkLookup {
+    Int(Vec<i64>),
+    Uuid(Vec<uuid::Uuid>),
+    Text(Vec<String>),
+}
+
 impl TransferTable {
-    fn source(&self) -> String {
+    /// The `FROM` target for reads and deletes: partitioned parents route
+    /// through the parent, ordinary tables are pinned with `ONLY` so
+    /// inheritance children never leak into a backup or an overwrite clear.
+    pub(crate) fn source(&self) -> String {
         if self.is_partitioned {
             self.table.quoted()
         } else {
@@ -185,7 +226,10 @@ pub fn transfer_order(
 /// literal table names from that fixed list, so this check is a no-op in
 /// normal operation; it exists so a future caller that sources a table name
 /// from request data can't reopen SQL injection via table interpolation.
-const KNOWN_TABLES: &[&str] = &[
+///
+/// `pub(crate)` so the service-layer unit tests can assert the two lists stay
+/// identical — drift here is a silent transfer gap, not a compile error.
+pub(crate) const KNOWN_TABLES: &[&str] = &[
     "amenities",
     "booking_channels",
     "companies",
@@ -193,14 +237,23 @@ const KNOWN_TABLES: &[&str] = &[
     "corporate_account_contacts",
     "email_templates",
     "guests",
+    "guest_segments",
+    "email_suppressions",
+    "notification_subscriptions",
+    "notification_consent_events",
+    "staff_notifications",
+    "staff_notification_reads",
     "promotions",
     "vouchers",
+    "promotion_channels",
+    "email_campaigns",
     "guest_documents",
     "guest_notes",
     "guest_preferences",
     "loyalty_programs",
     "loyalty_program_rules",
     "loyalty_tiers",
+    "promotion_loyalty_tiers",
     "loyalty_memberships",
     "loyalty_members",
     "loyalty_accounts",
@@ -213,16 +266,22 @@ const KNOWN_TABLES: &[&str] = &[
     "room_status_transitions",
     "room_types",
     "promotion_room_types",
+    "online_inventory_allocations",
     "guest_complimentary_credits",
     "room_rates",
     "room_type_amenities",
     "rooms",
+    "room_events",
     "bookings",
     "voucher_redemptions",
     "voucher_redemption_allocations",
     "booking_guests",
     "booking_history",
     "booking_modifications",
+    "support_conversations",
+    "support_messages",
+    "support_events",
+    "consent_records",
     "customer_ledgers",
     "customer_ledger_payments",
     "guest_reviews",
@@ -231,6 +290,7 @@ const KNOWN_TABLES: &[&str] = &[
     "maintenance_tickets",
     "night_audit_posted_nights",
     "payments",
+    "payment_receipt_requests",
     "loyalty_transactions",
     "reward_redemptions",
     "loyalty_redemptions",
@@ -241,7 +301,21 @@ const KNOWN_TABLES: &[&str] = &[
     "services",
     "booking_services",
     "system_settings",
+    "teams",
+    "team_members",
+    "team_roles",
     "user_guests",
+];
+
+/// Columns inside transferable tables that carry live credential material and
+/// must never travel in either direction: the export cursor omits them from
+/// the projection, and every import path drops the keys here so a crafted file
+/// cannot write them either. `bookings.pre_checkin_token` is the guest
+/// portal's bearer token — a leaked or hostile file carrying it would hand out
+/// working pre-check-in links (the token alone authenticates the lookup).
+pub(crate) const NEVER_TRANSFERRED_COLUMNS: &[(&str, &str)] = &[
+    ("bookings", "pre_checkin_token"),
+    ("bookings", "pre_checkin_token_expires_at"),
 ];
 
 fn ensure_known_table(table: &str) -> Result<(), ApiError> {
@@ -263,6 +337,10 @@ pub struct ImportRowPolicy<'a> {
     pub audit_user_fk_columns: &'a [&'a str],
     pub existing_user_ids: &'a HashSet<i64>,
     pub fallback_user_id: i64,
+    /// Primary-key columns of the target table — needed to build the
+    /// `ON CONFLICT (pk) DO UPDATE` clause when `conflict_policy` is `Update`.
+    /// The V1 caller passes an empty slice with `Skip`.
+    pub primary_key_columns: &'a [String],
 }
 
 impl DataTransferRepository {
@@ -300,14 +378,13 @@ impl DataTransferRepository {
             .into_iter()
             .map(|(table, is_partitioned)| {
                 let key = table.key();
-                let (columns, generated_columns) = columns
-                    .get(&key)
-                    .cloned()
-                    .unwrap_or_else(|| (HashSet::new(), HashSet::new()));
+                let (ordered_columns, generated_columns) =
+                    columns.get(&key).cloned().unwrap_or_default();
                 TransferTable {
                     table,
                     is_partitioned,
-                    columns,
+                    columns: ordered_columns.iter().cloned().collect(),
+                    ordered_columns,
                     generated_columns,
                     primary_key_columns: primary_keys.get(&key).cloned().unwrap_or_default(),
                     dependencies: dependencies.get(&key).cloned().unwrap_or_default(),
@@ -316,14 +393,17 @@ impl DataTransferRepository {
             .collect())
     }
 
+    /// Per-table `(columns in ordinal order, generated columns)` — the
+    /// ordinal list preserves the projection order of `SELECT <cols>` so the
+    /// export manifest can describe row shape exactly.
     async fn transfer_columns(
         pool: &DbPool,
         tables: &[QualifiedTable],
-    ) -> Result<HashMap<String, (HashSet<String>, HashSet<String>)>, ApiError> {
+    ) -> Result<HashMap<String, (Vec<String>, HashSet<String>)>, ApiError> {
         let mut metadata = HashMap::new();
         for table in tables {
             let rows: Vec<(String, String)> = sqlx::query_as(
-                "SELECT column_name, is_generated FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2",
+                "SELECT column_name, is_generated FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position",
             )
             .bind(&table.schema)
             .bind(&table.name)
@@ -439,16 +519,36 @@ impl DataTransferRepository {
     pub async fn export_transfer_table(
         pool: &DbPool,
         table: &TransferTable,
+        columns: &[String],
     ) -> Result<Vec<Value>, ApiError> {
         Self::export_query(
             pool,
             &format!(
-                "SELECT * FROM {}{}",
+                "SELECT {} FROM {}{}",
+                Self::export_column_list(table, columns)?,
                 table.source(),
                 Self::export_order_by(table)
             ),
         )
         .await
+    }
+
+    /// The quoted, comma-joined column list every export read projects.
+    /// Column names come from catalog introspection (never request data), so
+    /// quoting them is sufficient — the service's credential exclusions have
+    /// already been applied by the caller.
+    fn export_column_list(table: &TransferTable, columns: &[String]) -> Result<String, ApiError> {
+        if columns.is_empty() {
+            return Err(ApiError::Internal(format!(
+                "{} has no exportable columns",
+                table.table.key()
+            )));
+        }
+        Ok(columns
+            .iter()
+            .map(|column| quote_identifier(column))
+            .collect::<Vec<_>>()
+            .join(", "))
     }
 
     /// Open a SQL cursor over one transferable table's `row_to_json` payload.
@@ -461,12 +561,18 @@ impl DataTransferRepository {
     /// flat, and each `FETCH` is its own statement under the 120s
     /// `statement_timeout`. The cursor lives inside `tx` — the caller's
     /// transaction gives the whole export one consistent snapshot.
+    ///
+    /// `columns` is the projection — the service passes its exportable-column
+    /// list so credential material (for example `bookings.pre_checkin_token`)
+    /// never enters the payload at all.
     pub async fn declare_export_cursor(
         tx: &mut DbTransaction<'_>,
         table: &TransferTable,
+        columns: &[String],
     ) -> Result<(), ApiError> {
         sqlx::query(sqlx::AssertSqlSafe(format!(
-            "DECLARE data_transfer_export_cursor NO SCROLL CURSOR FOR SELECT row_to_json(t)::text FROM (SELECT * FROM {}{}) t",
+            "DECLARE data_transfer_export_cursor NO SCROLL CURSOR FOR SELECT row_to_json(t)::text FROM (SELECT {} FROM {}{}) t",
+            Self::export_column_list(table, columns)?,
             table.source(),
             Self::export_order_by(table)
         )))
@@ -515,11 +621,20 @@ impl DataTransferRepository {
         Ok(())
     }
 
+    /// Insert one file row into `table` under `conflict_policy`:
+    /// `Skip` keeps the existing row (`ON CONFLICT DO NOTHING`), `Fail` issues
+    /// a plain `INSERT` so the first duplicate aborts the transaction, and
+    /// `Update` rewrites every non-key column present in the row
+    /// (`ON CONFLICT (pk) DO UPDATE SET col = EXCLUDED.col`). Tables without a
+    /// primary key — or a row carrying only key columns — have nothing to
+    /// update, so `Update` degrades to `DO NOTHING` there; a non-PK unique
+    /// violation still aborts the import, which is what `update` should do.
     pub async fn insert_transfer_row(
         tx: &mut DbTransaction<'_>,
         table: &TransferTable,
         row: &serde_json::Map<String, Value>,
-    ) -> Result<u64, ApiError> {
+        conflict_policy: ConflictPolicy,
+    ) -> Result<InsertRowOutcome, ApiError> {
         if let Some(column) = row.keys().find(|column| !table.columns.contains(*column)) {
             return Err(ApiError::BadRequest(format!(
                 "{}.{} does not exist in the destination schema",
@@ -530,12 +645,15 @@ impl DataTransferRepository {
         let values: serde_json::Map<String, Value> = row
             .iter()
             .filter(|(column, _)| {
-                table.columns.contains(*column) && !table.generated_columns.contains(*column)
+                table.columns.contains(*column)
+                    && !table.generated_columns.contains(*column)
+                    && !NEVER_TRANSFERRED_COLUMNS
+                        .contains(&(table.table.name.as_str(), column.as_str()))
             })
             .map(|(column, value)| (column.clone(), value.clone()))
             .collect();
         if values.is_empty() {
-            return Ok(0);
+            return Ok(InsertRowOutcome::Skipped);
         }
         let columns = values
             .keys()
@@ -543,15 +661,69 @@ impl DataTransferRepository {
             .collect::<Vec<_>>()
             .join(", ");
         let quoted = table.table.quoted();
-        let sql = format!(
-            "INSERT INTO {quoted} ({columns}) OVERRIDING SYSTEM VALUE SELECT {columns} FROM jsonb_populate_record(NULL::{quoted}, $1::jsonb) ON CONFLICT DO NOTHING"
+        let insert = format!(
+            "INSERT INTO {quoted} ({columns}) OVERRIDING SYSTEM VALUE SELECT {columns} FROM jsonb_populate_record(NULL::{quoted}, $1::jsonb)"
         );
-        sqlx::query(sqlx::AssertSqlSafe(&*sql))
+
+        // `xmax = 0` on the returned row is the standard "this was an insert,
+        // not an update" discriminator for `ON CONFLICT DO UPDATE` — a fresh
+        // tuple has no lock/version marker, a conflicted update carries the
+        // transaction's.
+        let set_columns: Vec<&String> = values
+            .keys()
+            .filter(|column| {
+                !table.primary_key_columns.contains(*column)
+                    && !table.generated_columns.contains(*column)
+            })
+            .collect();
+        if conflict_policy == ConflictPolicy::Update
+            && !table.primary_key_columns.is_empty()
+            && !set_columns.is_empty()
+        {
+            let target = table
+                .primary_key_columns
+                .iter()
+                .map(|column| quote_identifier(column))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let set_list = set_columns
+                .iter()
+                .map(|column| {
+                    let quoted_column = quote_identifier(column);
+                    format!("{quoted_column} = EXCLUDED.{quoted_column}")
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            let sql = format!(
+                "{insert} ON CONFLICT ({target}) DO UPDATE SET {set_list} RETURNING (xmax = 0)"
+            );
+            let inserted: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(&*sql))
+                .bind(Value::Object(values))
+                .fetch_one(&mut **tx)
+                .await
+                .map_err(import_write_error)?;
+            return Ok(if inserted {
+                InsertRowOutcome::Inserted
+            } else {
+                InsertRowOutcome::Updated
+            });
+        }
+
+        let sql = match conflict_policy {
+            ConflictPolicy::Fail => insert,
+            _ => format!("{insert} ON CONFLICT DO NOTHING"),
+        };
+        let affected = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(Value::Object(values))
             .execute(&mut **tx)
             .await
-            .map(|result| result.rows_affected())
-            .map_err(ApiError::from)
+            .map_err(import_write_error)?
+            .rows_affected();
+        Ok(if affected > 0 {
+            InsertRowOutcome::Inserted
+        } else {
+            InsertRowOutcome::Skipped
+        })
     }
 
     pub async fn set_transfer_triggers(
@@ -899,11 +1071,16 @@ impl DataTransferRepository {
             "ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check",
             "UPDATE bookings SET status = 'voided' WHERE status = 'cancelled'",
             "UPDATE bookings SET status = 'comp_void' WHERE status = 'comp_cancelled'",
+            // Must mirror the live `bookings_status_check` exactly — the
+            // constraint list predates the online-booking statuses and would
+            // otherwise fail the whole import on any database containing a
+            // `pending_payment`/`pending_confirmation` row.
             r#"
             ALTER TABLE bookings
                 ADD CONSTRAINT bookings_status_check
                 CHECK (status IN (
-                    'pending', 'confirmed', 'checked_in', 'auto_checked_in', 'checked_out',
+                    'pending', 'pending_payment', 'pending_confirmation', 'confirmed',
+                    'checked_in', 'auto_checked_in', 'checked_out',
                     'no_show', 'completed', 'comp_void',
                     'partial_complimentary', 'fully_complimentary', 'voided'
                 ))
@@ -956,6 +1133,7 @@ impl DataTransferRepository {
         table: &str,
         row: &serde_json::Map<String, Value>,
         policy: ImportRowPolicy<'_>,
+        conflict_policy: ConflictPolicy,
     ) -> Result<u64, ApiError> {
         let prepared = prepare_import_row(table, row, &policy)?;
 
@@ -971,16 +1149,45 @@ impl DataTransferRepository {
             .join(", ");
         let quoted_table = quote_identifier(table);
 
-        let insert_sql = format!(
-            "INSERT INTO {quoted_table} ({column_list}) OVERRIDING SYSTEM VALUE SELECT {column_list} FROM jsonb_populate_record(NULL::{quoted_table}, $1::jsonb) ON CONFLICT DO NOTHING"
+        let insert = format!(
+            "INSERT INTO {quoted_table} ({column_list}) OVERRIDING SYSTEM VALUE SELECT {column_list} FROM jsonb_populate_record(NULL::{quoted_table}, $1::jsonb)"
         );
+        let insert_sql = match conflict_policy {
+            ConflictPolicy::Fail => insert,
+            ConflictPolicy::Update
+                if !policy.primary_key_columns.is_empty()
+                    && prepared
+                        .columns
+                        .iter()
+                        .any(|column| !policy.primary_key_columns.contains(column)) =>
+            {
+                let target = policy
+                    .primary_key_columns
+                    .iter()
+                    .map(|column| quote_identifier(column))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let set_list = prepared
+                    .columns
+                    .iter()
+                    .filter(|column| !policy.primary_key_columns.contains(column))
+                    .map(|column| {
+                        let quoted_column = quote_identifier(column);
+                        format!("{quoted_column} = EXCLUDED.{quoted_column}")
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{insert} ON CONFLICT ({target}) DO UPDATE SET {set_list}")
+            }
+            _ => format!("{insert} ON CONFLICT DO NOTHING"),
+        };
 
         sqlx::query(sqlx::AssertSqlSafe(&*insert_sql))
             .bind(Value::Object(prepared.values))
             .execute(&mut **tx)
             .await
             .map(|result| result.rows_affected())
-            .map_err(ApiError::from)
+            .map_err(import_write_error)
     }
 
     pub async fn reset_sequences(
@@ -996,6 +1203,215 @@ impl DataTransferRepository {
         }
 
         Ok(())
+    }
+
+    /// Every foreign-key column declared on the given child tables, resolved
+    /// to its parent table and column. Unfiltered by parent: the service
+    /// decides which parents sit outside the transferable set.
+    pub async fn foreign_key_refs(
+        pool: &DbPool,
+        children: &[QualifiedTable],
+    ) -> Result<Vec<ForeignKeyRef>, ApiError> {
+        let keys: Vec<String> = children.iter().map(QualifiedTable::key).collect();
+        let rows: Vec<(String, String, String, String, String, String)> = sqlx::query_as(
+            r#"
+            SELECT child_namespace.nspname, child.relname, child_attribute.attname,
+                   parent_namespace.nspname, parent.relname, parent_attribute.attname
+            FROM pg_constraint foreign_key
+            JOIN pg_class child ON child.oid = foreign_key.conrelid
+            JOIN pg_namespace child_namespace ON child_namespace.oid = child.relnamespace
+            JOIN pg_class parent ON parent.oid = foreign_key.confrelid
+            JOIN pg_namespace parent_namespace ON parent_namespace.oid = parent.relnamespace
+            JOIN unnest(foreign_key.conkey) WITH ORDINALITY child_key(attnum, position) ON true
+            JOIN pg_attribute child_attribute
+              ON child_attribute.attrelid = child.oid AND child_attribute.attnum = child_key.attnum
+            JOIN unnest(foreign_key.confkey) WITH ORDINALITY parent_key(attnum, position)
+              ON parent_key.position = child_key.position
+            JOIN pg_attribute parent_attribute
+              ON parent_attribute.attrelid = parent.oid AND parent_attribute.attnum = parent_key.attnum
+            WHERE foreign_key.contype = 'f'
+              AND child_namespace.nspname || '.' || child.relname = ANY($1)
+            ORDER BY 1, 2, 3
+            "#,
+        )
+        .bind(&keys)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+
+        Ok(rows
+            .into_iter()
+            .map(
+                |(child_schema, child, column, parent_schema, parent, parent_column)| {
+                    ForeignKeyRef {
+                        child: QualifiedTable {
+                            schema: child_schema,
+                            name: child,
+                        },
+                        column,
+                        parent: QualifiedTable {
+                            schema: parent_schema,
+                            name: parent,
+                        },
+                        parent_column,
+                    }
+                },
+            )
+            .collect())
+    }
+
+    /// The `information_schema.columns.udt_name` of one column — the import
+    /// preview picks its batched `PkLookup` binding type from this declared
+    /// type, never from the file's value shapes (a `varchar` key column
+    /// holding all-numeric ids must still bind `text[]`).
+    pub async fn column_udt_name(
+        pool: &DbPool,
+        table: &QualifiedTable,
+        column: &str,
+    ) -> Result<Option<String>, ApiError> {
+        sqlx::query_scalar::<_, String>(
+            "SELECT udt_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3",
+        )
+        .bind(&table.schema)
+        .bind(&table.name)
+        .bind(column)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)
+    }
+
+    /// The existing values of `column` on `table`, rendered as text so the
+    /// service can compare them against JSON row values of any type.
+    /// Identifiers come from catalog introspection, never request data.
+    pub async fn existing_key_values(
+        pool: &DbPool,
+        table: &QualifiedTable,
+        column: &str,
+    ) -> Result<HashSet<String>, ApiError> {
+        let values: Vec<Option<String>> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT {}::text FROM {}",
+            quote_identifier(column),
+            table.quoted()
+        )))
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(values.into_iter().flatten().collect())
+    }
+
+    /// Which of `values` currently exist in `table.column`, compared as
+    /// `::text` so JSON-normalized keys match any column type. Unlike
+    /// [`Self::existing_key_values`] this probes only the given candidates —
+    /// the preview's transferable-parent check uses it in chunks. The parent
+    /// is queried without `ONLY` so references to partitioned parents see
+    /// rows living in partitions, exactly like the foreign key itself does.
+    pub async fn existing_values_any(
+        pool: &DbPool,
+        table: &QualifiedTable,
+        column: &str,
+        values: &[String],
+    ) -> Result<HashSet<String>, ApiError> {
+        if values.is_empty() {
+            return Ok(HashSet::new());
+        }
+        let quoted_column = quote_identifier(column);
+        let found: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT {quoted_column}::text FROM {} WHERE {quoted_column}::text = ANY($1)",
+            table.quoted()
+        )))
+        .bind(values)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(found.into_iter().collect())
+    }
+
+    /// Batched primary-key existence check for the import-preview diff.
+    /// Returns the matched keys as canonical text (`5`, lowercase uuid…) so
+    /// the caller can compare them against normalized file values. Only
+    /// single-column primary keys take this path; composite keys go through
+    /// [`Self::row_exists_by_columns`].
+    pub async fn existing_pk_values(
+        pool: &DbPool,
+        table: &TransferTable,
+        lookup: &PkLookup,
+    ) -> Result<HashSet<String>, ApiError> {
+        let Some(column) = table.primary_key_columns.first() else {
+            return Ok(HashSet::new());
+        };
+        let quoted_column = quote_identifier(column);
+        let source = table.source();
+        match lookup {
+            PkLookup::Int(ids) => {
+                if ids.is_empty() {
+                    return Ok(HashSet::new());
+                }
+                let found: Vec<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                    "SELECT {quoted_column} FROM {source} WHERE {quoted_column} = ANY($1)"
+                )))
+                .bind(ids)
+                .fetch_all(pool)
+                .await
+                .map_err(ApiError::from)?;
+                Ok(found.into_iter().map(|id| id.to_string()).collect())
+            }
+            PkLookup::Uuid(ids) => {
+                if ids.is_empty() {
+                    return Ok(HashSet::new());
+                }
+                let found: Vec<uuid::Uuid> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                    "SELECT {quoted_column} FROM {source} WHERE {quoted_column} = ANY($1)"
+                )))
+                .bind(ids)
+                .fetch_all(pool)
+                .await
+                .map_err(ApiError::from)?;
+                Ok(found.into_iter().map(|id| id.to_string()).collect())
+            }
+            PkLookup::Text(keys) => {
+                if keys.is_empty() {
+                    return Ok(HashSet::new());
+                }
+                let found: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                    "SELECT {quoted_column}::text FROM {source} WHERE {quoted_column}::text = ANY($1)"
+                )))
+                .bind(keys)
+                .fetch_all(pool)
+                .await
+                .map_err(ApiError::from)?;
+                Ok(found.into_iter().collect())
+            }
+        }
+    }
+
+    /// Per-row existence probe for composite primary keys (small tables, so a
+    /// query per row is affordable). Every value binds as text and compares
+    /// through `::text` — the columns are a varchar/bigid mix the service
+    /// cannot type reliably without a second catalog pass.
+    pub async fn row_exists_by_columns(
+        pool: &DbPool,
+        table: &TransferTable,
+        keys: &[(String, String)],
+    ) -> Result<bool, ApiError> {
+        if keys.is_empty() {
+            return Ok(false);
+        }
+        let predicates = keys
+            .iter()
+            .enumerate()
+            .map(|(index, (column, _))| {
+                format!("{}::text = ${}", quote_identifier(column), index + 1)
+            })
+            .collect::<Vec<_>>()
+            .join(" AND ");
+        let mut query = sqlx::query_scalar::<_, bool>(sqlx::AssertSqlSafe(format!(
+            "SELECT EXISTS(SELECT 1 FROM {} WHERE {predicates})",
+            table.source()
+        )));
+        for (_, value) in keys {
+            query = query.bind(value);
+        }
+        query.fetch_one(pool).await.map_err(ApiError::from)
     }
 }
 
@@ -1015,6 +1431,7 @@ fn prepare_import_row(
     for (key, value) in row {
         if policy.skip_columns.contains(key)
             || policy.valid_columns.is_some_and(|cols| !cols.contains(key))
+            || NEVER_TRANSFERRED_COLUMNS.contains(&(table, key.as_str()))
         {
             continue;
         }
@@ -1079,6 +1496,21 @@ fn value_as_i64(value: &Value) -> Option<i64> {
     }
 }
 
+/// Map a failed import write to the structured error surface: a uniqueness
+/// violation (the `fail` conflict policy, or a non-PK unique index under
+/// `skip`/`update`) is a client-visible conflict, not an opaque 500.
+fn import_write_error(error: sqlx::Error) -> ApiError {
+    if let sqlx::Error::Database(db_error) = &error
+        && db_error.code().as_deref() == Some("23505")
+    {
+        return ApiError::Conflict(format!(
+            "A row in the import conflicts with existing data ({})",
+            db_error.constraint().unwrap_or("unique constraint")
+        ));
+    }
+    ApiError::from(error)
+}
+
 fn quote_identifier(identifier: &str) -> String {
     format!("\"{}\"", identifier.replace('"', "\"\""))
 }
@@ -1100,6 +1532,20 @@ fn reset_sequence_sql(table: &str) -> String {
             sequence_name text;
             max_id bigint;
         BEGIN
+            -- `pg_get_serial_sequence` raises (rather than returning NULL)
+            -- when the column does not exist, so the existence check has to
+            -- come first — e.g. `payment_receipt_requests` keys on
+            -- `payment_id`, not `id`.
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = {table_name}
+                  AND column_name = 'id'
+            ) THEN
+                RETURN;
+            END IF;
+
             SELECT COALESCE(
                 pg_get_serial_sequence({table_regclass}, 'id'),
                 (
@@ -1151,6 +1597,7 @@ mod tests {
             audit_user_fk_columns: &[],
             existing_user_ids: &existing_user_ids,
             fallback_user_id: 42,
+            primary_key_columns: &[],
         };
         let prepared = prepare_import_row("bookings", &row, &policy).expect("row should prepare");
 
@@ -1190,6 +1637,7 @@ mod tests {
             audit_user_fk_columns: &["created_by"],
             existing_user_ids: &existing_user_ids,
             fallback_user_id: 7,
+            primary_key_columns: &[],
         };
         let prepared = prepare_import_row("guests", &row, &policy)
             .expect("nullable user reference should be nulled");
@@ -1212,6 +1660,7 @@ mod tests {
             audit_user_fk_columns: &["modified_by"],
             existing_user_ids: &existing_user_ids,
             fallback_user_id: 7,
+            primary_key_columns: &[],
         };
         let prepared = prepare_import_row("booking_modifications", &row, &policy)
             .expect("required audit user reference should be remapped");
@@ -1234,6 +1683,7 @@ mod tests {
             audit_user_fk_columns: &["created_by"],
             existing_user_ids: &existing_user_ids,
             fallback_user_id: 7,
+            primary_key_columns: &[],
         };
         let result = prepare_import_row("user_guests", &row, &policy);
 
@@ -1353,6 +1803,7 @@ mod tests {
             table: QualifiedTable::parse("public.audit_logs").unwrap(),
             is_partitioned: true,
             columns: HashSet::new(),
+            ordered_columns: Vec::new(),
             generated_columns: HashSet::new(),
             primary_key_columns: vec!["id".to_string()],
             dependencies: HashSet::new(),

@@ -54,6 +54,8 @@ logs/
 *.log
 hotel-app-be/uploads/
 uploads/
+# Staged backup-import uploads — transient, swept after 24h
+hotel-app-be/private_uploads/data-transfer/
 
 # Local database files
 *.db

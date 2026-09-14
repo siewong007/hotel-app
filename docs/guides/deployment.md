@@ -319,14 +319,21 @@ any more; `hotel-app-be/database/postgres/patches/manifest.tsv` is the catalog,
 and [`hotel-app-be/database/README.md`](../../hotel-app-be/database/README.md)
 is the canonical reference for how it works.
 
-**The catalog is currently empty.** The original 22-patch lineage (revisions
-1.2–1.23) was folded into the V1 baseline, so `manifest.tsv` carries no rows
-and a fresh install needs no convergence step. `make db-patch` still runs —
-it validates the catalog and exits clean. Databases that recorded pre-reset
-revisions do **not** converge through this catalog anymore; rebuild them from
-the baseline (export → `make db-baseline` → re-import) as with any legacy
-layout. Future additive schema changes resume the same mechanism: baseline
-for fresh installs plus a new manifest row for installed databases.
+**The catalog was reset, then reopened.** The original 22-patch lineage
+(revisions 1.2–1.23) was folded into the V1 baseline and `manifest.tsv` was
+reset to empty; generation 1 then reopened at version 2 — the catalog currently
+publishes `1.2 deposit-forfeited` and `1.3 guest-relations-phase2`, both
+converge-style (idempotent over a database that already carries the baseline
+objects). A fresh install needs no convergence step, and a database that
+recorded the post-reset lineage skips both as already applied.
+
+A database that recorded **pre-reset** revisions (`1.2`/`1.3` under the old
+names and checksums, e.g. `1.2 google-subject`) no longer converges silently —
+it collides with the republished catalog and aborts on `patch 1.N checksum
+mismatch`. The one-time fix is the lineage reset below, not an edit to the
+patches. Databases older than V1 (unversioned or a wrong baseline checksum) are
+still refused outright and converge by rebuild — export → `make db-baseline` →
+re-import — as with any legacy layout.
 
 What it guarantees:
 
@@ -371,7 +378,108 @@ psql "$DATABASE_URL" -X -At -v ON_ERROR_STOP=1 -c \
 ```
 
 Expect `1.1` (the baseline) through the highest version in the manifest —
-just `1.1` while the catalog is empty.
+currently `1.1`–`1.3`.
+
+#### One-time reset: stale pre-fold patch lineage
+
+*Already executed on staging and production (2026-09-14). Keep this procedure
+for any other database that still records pre-reset revisions — dev databases,
+desktop installs, or a dump restored from before the reset.*
+
+A database installed before the catalog fold recorded rows such as
+`1.2 google-subject` (`sha256:25db31d1…`) and `1.3 payment-idempotency`
+(`sha256:4e3e3641…`). The current manifest republishes generation-1 versions
+2 and 3 under new names and checksums (`deposit-forfeited`,
+`guest-relations-phase2`), and `_begin.sql`'s guard treats the recorded rows
+as a different build of the same version — every patch run then dies with
+`patch 1.2 checksum mismatch`, and `deploy.sh` aborts **before** activating the
+new release. The fix deletes the stale bookkeeping rows only; the schema
+objects those patches created are already part of the baseline, and the
+republished patches are converge-style, so they re-record cleanly.
+
+Production commands (for staging, substitute `saliminn-staging-db` and
+`/opt/saliminn-staging`):
+
+1. **Verify the recorded lineage** — proceed only if generation 1 shows the
+   old names/checksums:
+
+   ```bash
+   docker exec saliminn-db psql -U hotel_admin -d hotel_management -X -c \
+     "SELECT version, name, checksum FROM public.hotel_schema_revisions \
+      WHERE generation = 1 ORDER BY version;"
+   ```
+
+   Pre-reset rows look like `1.2 google-subject`, `1.3 payment-idempotency`,
+   … up to `1.23`. If the database already shows `1.2 deposit-forfeited` and
+   `1.3 guest-relations-phase2`, it is post-reset — **do not run the DELETE.**
+
+2. **Take a verified backup** — the same `pg_dump` + `pg_restore --list` pair
+   as [Take a verified backup first](#take-a-verified-backup-first). Do not
+   proceed on a dump that cannot be listed.
+
+3. **Delete the stale lineage rows:**
+
+   ```bash
+   docker exec saliminn-db psql -U hotel_admin -d hotel_management \
+     -X -v ON_ERROR_STOP=1 -c \
+     "DELETE FROM public.hotel_schema_revisions WHERE generation = 1 AND version > 1;"
+   ```
+
+   Never touch the `version = 1` row — it is the frozen lineage token every
+   patch run checks first.
+
+4. **Deploy** (`deploy/deploy.sh`, or for a local database
+   `make db-patch DATABASE_URL=…`). Patches 0002/0003 apply converge-style and
+   record their rows.
+
+5. **Verify the new lineage** — re-run the SELECT from step 1 and expect
+   `1.1`, `1.2 deposit-forfeited`, `1.3 guest-relations-phase2` with checksums
+   matching `patches/manifest.tsv`.
+
+6. **Smoke the public path.** The failure this reset unblocks surfaced through
+   Cloudflare as 502s on `GET /api/data-transfer/export`, so that endpoint is
+   the check:
+
+   ```bash
+   curl -fsS -o /dev/null -w '%{http_code}\n' https://saliminn.my/health
+   # With a bearer token for a settings:manage account:
+   curl -fsS -H "Authorization: Bearer $TOKEN" \
+     -o /tmp/export.json -w '%{http_code} %{size_download}\n' \
+     https://saliminn.my/api/data-transfer/export
+   tail -c 200 /tmp/export.json   # must end with the "integrity" trailer
+   journalctl -u caddy --since -15m | grep -E '"status":(502|5..)|connection refused|EOF' || echo clean
+   docker logs saliminn-backend --since 15m 2>&1 | grep -iE 'error|panic' || echo clean
+   ```
+
+   Expect `200` from both endpoints and `clean` from both log greps.
+
+**Desktop databases** record the same `hotel_schema_revisions` lineage and the
+desktop launcher applies the same catalog through the bundled `psql`
+(`src-tauri/src/postgres/patches.rs` → `apply_catalog`) — it *converges* a
+database; it does not silently rebuild one. A desktop install that recorded
+pre-reset revisions therefore hits the identical `patch 1.2 checksum mismatch`
+at startup, surfaced as `Failed to run database setup: …`. Two ways out:
+
+- **Same reset.** While the app's embedded PostgreSQL is running, use the
+  bundled `psql` (under the app's `pgsql/bin` resource dir) against
+  `localhost:5433`, user `hotel_admin`, database `hotel_management` — password
+  in `<app-data>/HotelApp/postgres-password.txt`:
+
+  ```bash
+  PGPASSWORD="$(cat ~/Library/Application\ Support/HotelApp/postgres-password.txt)" \
+    psql -h localhost -p 5433 -U hotel_admin -d hotel_management -X \
+    -v ON_ERROR_STOP=1 -c \
+    "DELETE FROM public.hotel_schema_revisions WHERE generation = 1 AND version > 1;"
+  ```
+
+  (macOS path shown; `postgres-password.txt` sits in the platform's
+  `HotelApp` data-local directory.) Restart the app — the catalog then applies
+  1.2/1.3 normally.
+- **Rebuild.** The app's doctrine for a database the catalog cannot converge —
+  also the only path for one it classifies as *unversioned* — is to export the
+  data (a `hotel-backup` export, or the app's `pg_dump` backup), delete or
+  recreate the database so the bundled baseline + seed install fresh, then
+  re-import.
 
 #### In production deployment
 
@@ -379,8 +487,9 @@ just `1.1` while the catalog is empty.
 alone is brought up and confirmed to carry the final TCP V1 baseline, then a
 verified backup is taken, then patches run, and only then are the application
 containers activated. A patch failure therefore aborts the release **before**
-any new application code serves traffic against an unconverged schema. While
-the catalog is empty that step is a verified no-op.
+any new application code serves traffic against an unconverged schema — which
+is exactly what a stale pre-fold lineage triggers; see the reset procedure
+above.
 
 ### Read-only schema drift reporting
 

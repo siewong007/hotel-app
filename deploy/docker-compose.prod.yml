@@ -139,7 +139,10 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
-    mem_limit: 192m
+    # Backup imports stream rows through a per-row insert transaction (a 256 MB
+    # file parses at roughly 1x its byte size plus the in-flight row batch), so
+    # the API needs headroom the old buffered-export 192m cap did not.
+    mem_limit: 384m
     cpus: 0.45
     pids_limit: 256
     security_opt:

@@ -102,7 +102,27 @@ export type {
 export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from './company.types';
 
 // Data transfer types
-export type { BookingDataExport, ExportPreview, ImportMode, ImportResult } from './dataTransfer.types';
+export type {
+  BackupDetectedFormat,
+  BackupEntityDescriptor,
+  BackupExclusion,
+  BackupImportMode,
+  ConflictPolicy,
+  ExportPreview,
+  ImportEntityOutcome,
+  ImportExecuteRequest,
+  ImportExecuteResponse,
+  ImportJobReport,
+  ImportJobResult,
+  ImportJobState,
+  ImportJobStatus,
+  ImportPreview,
+  ImportPreviewEntity,
+  ImportRelationshipProblem,
+  JobProgress,
+  TransferTablePreview,
+  UploadResponse,
+} from './dataTransfer.types';
 
 // Housekeeping types
 export type {

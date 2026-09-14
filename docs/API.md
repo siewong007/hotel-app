@@ -11,7 +11,7 @@ cd hotel-app-be
 HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift
 ```
 
-The OpenAPI document is a method+path index (366 operations across ~300
+The OpenAPI document is a method+path index (423 operations across ~350
 paths). This page documents the cross-cutting contract every endpoint shares;
 for per-endpoint request/response shapes read the handler and model files —
 `src/handlers/<domain>.rs` and `src/models/<domain>.rs` are the source of
@@ -87,8 +87,26 @@ Grouped by path prefix (counts from `openapi.json`):
 | `/api/ledgers*`, `/api/payments*`, `/api/invoices*` | ~21 | Money |
 | `/api/promotions*`, `/api/loyalty*` | ~7 | Marketing |
 | `/api/night-audit*`, `/api/audit-logs*`, `/api/analytics*`, `/api/reports*` | ~17 | Ops intelligence |
-| `/api/{housekeeping,maintenance,support,teams,communications,data-transfer,settings,booking-channels,companies,search,users,system,updates}*` | rest | Assorted domains |
+| `/api/data-transfer/*` | 7 | `hotel-backup` JSON export + staged import pipeline — see below |
+| `/api/{housekeeping,maintenance,support,teams,communications,settings,booking-channels,companies,search,users,system,updates}*` | rest | Assorted domains |
 | `/webhooks/paypal` | 1 | PayPal signature-verified events |
+
+### Data transfer
+
+`GET /api/data-transfer/export` and `GET /api/data-transfer/export/preview` run
+under `settings:manage`; the five import endpoints are super-admin only
+(`users.is_super_admin`):
+
+- `POST /api/data-transfer/import/uploads` — stream the backup file (≤256 MB)
+  to a staged upload; returns `{uploadId, bytes, detectedFormat}`.
+- `POST /api/data-transfer/import/preview` — `{uploadId}` → pre-flight diff.
+- `POST /api/data-transfer/import/execute` — `{uploadId, mode, onConflict?,
+  tables?, confirm: true}` → `202 {jobId}`.
+- `GET /api/data-transfer/import/jobs/{jobId}` — poll job status/result.
+- `DELETE /api/data-transfer/import/uploads/{uploadId}` — discard a staged file.
+
+The file format, entity coverage, and semantics are documented in
+[`guides/data-transfer.md`](guides/data-transfer.md).
 
 ## Realtime
 

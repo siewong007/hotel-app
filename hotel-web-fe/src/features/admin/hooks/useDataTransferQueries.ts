@@ -1,8 +1,7 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { DataTransferService } from '../../../api';
-import { invalidateImportedData } from '../../../api/queryInvalidation';
 import { queryKeys } from '../../../api/queryKeys';
-import type { BookingDataExport, ImportMode } from '../../../types';
+import type { BackupImportMode, ConflictPolicy } from '../../../types';
 
 export function useExportPreviewMutation() {
   return useMutation({
@@ -18,11 +17,48 @@ export function useExportDataMutation() {
   });
 }
 
-export function useImportDataMutation() {
-  const queryClient = useQueryClient();
+export function useUploadBackupMutation() {
   return useMutation({
-    mutationFn: ({ mode, data, tables }: { mode: ImportMode; data: BookingDataExport; tables: string[] }) =>
-      DataTransferService.importData(mode, data, tables),
-    onSuccess: () => invalidateImportedData(queryClient),
+    mutationFn: (file: File) => DataTransferService.uploadBackup(file),
+  });
+}
+
+export function useImportPreviewMutation() {
+  return useMutation({
+    mutationFn: (uploadId: string) => DataTransferService.previewImport(uploadId),
+  });
+}
+
+export function useExecuteImportMutation() {
+  return useMutation({
+    mutationFn: (input: {
+      uploadId: string;
+      mode: BackupImportMode;
+      onConflict?: ConflictPolicy;
+      tables?: string[];
+    }) => DataTransferService.executeImport(input),
+  });
+}
+
+/**
+ * Poll an import job until it leaves `running`. `refetchInterval` reads the
+ * cached status, so polling stops itself the moment a terminal state
+ * (`succeeded`/`failed`) lands — no effect cleanup needed in the wizard.
+ */
+export function useImportJob(jobId: string | null, refetchIntervalMs = 1500) {
+  return useQuery({
+    queryKey: queryKeys.dataTransfer.importJob(jobId ?? 'none'),
+    queryFn: () => DataTransferService.getImportJob(jobId as string),
+    enabled: jobId !== null,
+    refetchInterval: (query) =>
+      query.state.data == null || query.state.data.status === 'running'
+        ? refetchIntervalMs
+        : false,
+  });
+}
+
+export function useDeleteUploadMutation() {
+  return useMutation({
+    mutationFn: (uploadId: string) => DataTransferService.deleteUpload(uploadId),
   });
 }
