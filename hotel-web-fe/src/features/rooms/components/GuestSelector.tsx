@@ -22,6 +22,7 @@ import {
   Star as MemberIcon,
 } from '@mui/icons-material';
 import { Guest, GuestType, TourismType, TOURISM_TYPE_CONFIG, GUEST_TYPE_CONFIG } from '../../../types';
+import CollapsibleSection from '../../../components/common/CollapsibleSection';
 
 export interface NewGuestForm {
   first_name: string;
@@ -358,15 +359,6 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              fullWidth
-              label="Company Name"
-              value={newGuestForm.company_name}
-              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, company_name: e.target.value })}
-              placeholder="e.g. Acme Corporation"
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
             <FormControl fullWidth required error={!newGuestForm.tourism_type}>
               <InputLabel>Tourism Type</InputLabel>
               <Select
@@ -442,45 +434,63 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               </Alert>
             </Grid>
           )}
+          {/* Non-required detail fields — collapsed behind a header tap on
+              phones to keep the new-guest form short. Values are controlled
+              via newGuestForm, so unmounting the body loses nothing. */}
           <Grid size={12}>
-            <TextField
-              fullWidth
-              label="Address"
-              value={newGuestForm.address_line1}
-              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, address_line1: e.target.value })}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              fullWidth
-              label="City"
-              value={newGuestForm.city}
-              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, city: e.target.value })}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              fullWidth
-              label="State/Province"
-              value={newGuestForm.state_province}
-              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, state_province: e.target.value })}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              fullWidth
-              label="Postal Code"
-              value={newGuestForm.postal_code}
-              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, postal_code: e.target.value })}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              fullWidth
-              label="Country"
-              value={newGuestForm.country}
-              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, country: e.target.value })}
-            />
+            <CollapsibleSection title="Additional details" collapseOnPhone>
+              <Grid container spacing={2} sx={{ pt: 1 }}>
+                <Grid size={12}>
+                  <TextField
+                    fullWidth
+                    label="Address"
+                    value={newGuestForm.address_line1}
+                    onChange={(e) => onNewGuestFormChange({ ...newGuestForm, address_line1: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="City"
+                    value={newGuestForm.city}
+                    onChange={(e) => onNewGuestFormChange({ ...newGuestForm, city: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="State/Province"
+                    value={newGuestForm.state_province}
+                    onChange={(e) => onNewGuestFormChange({ ...newGuestForm, state_province: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Postal Code"
+                    value={newGuestForm.postal_code}
+                    onChange={(e) => onNewGuestFormChange({ ...newGuestForm, postal_code: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Country"
+                    value={newGuestForm.country}
+                    onChange={(e) => onNewGuestFormChange({ ...newGuestForm, country: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Company Name"
+                    value={newGuestForm.company_name}
+                    onChange={(e) => onNewGuestFormChange({ ...newGuestForm, company_name: e.target.value })}
+                    placeholder="e.g. Acme Corporation"
+                  />
+                </Grid>
+              </Grid>
+            </CollapsibleSection>
           </Grid>
         </Grid>
       )}

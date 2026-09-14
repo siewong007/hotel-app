@@ -23,7 +23,7 @@ import ReservationTypeSection from './components/ReservationTypeSection';
 import StaySection from './components/StaySection';
 import RatePaymentSection from './components/RatePaymentSection';
 import NotesSection from './components/NotesSection';
-import SectionHeader from './components/SectionHeader';
+import CollapsibleSection from '../../../../components/common/CollapsibleSection';
 
 import type { BookingType, BookingMode, ReservationType } from './bookingTypes';
 import { errorMessage } from '../../../../utils/errorMessage';
@@ -1041,13 +1041,18 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       slotProps={{
         paper: {
           sx: {
-            width: 'min(1040px, 100%)',
-            maxWidth: 'calc(100vw - 48px)',
-            maxHeight: 'calc(100vh - 48px)',
-            borderRadius: 2,
             overflow: 'hidden',
-            border: `1px solid ${D.border}`,
             boxShadow: 'var(--hotel-shadow-lg)',
+            // Floating card only at `sm` and up — below that the theme's
+            // full-screen sheet rule (MuiDialog paper override) owns the
+            // paper: 100dvh, no margin, no border radius.
+            [theme.breakpoints.up('sm')]: {
+              width: 'min(1040px, 100%)',
+              maxWidth: 'calc(100vw - 48px)',
+              maxHeight: 'calc(100vh - 48px)',
+              borderRadius: 2,
+              border: `1px solid ${D.border}`,
+            },
           },
         }
       }}
@@ -1125,9 +1130,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             />
           )}
 
-          {/* Guest */}
-          <Box sx={{ mb: 2.75 }}>
-            <SectionHeader D={D} number={step(3)} label="Guest" />
+          {/* Guest — expanded always; the header doubles as a collapse
+             toggle so a phone user can fold a finished section away. */}
+          <CollapsibleSection title={`${step(3)} Guest`} sx={{ mb: 2.75 }}>
             <GuestSelector
               guests={guests}
               selectedGuest={selectedGuest}
@@ -1189,7 +1194,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                 </Alert>
               )
             )}
-          </Box>
+          </CollapsibleSection>
 
           {/* Stay */}
           <StaySection
@@ -1266,6 +1271,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         submitLabel={submitLabel}
         onClose={onClose}
         onSubmit={handleSubmit}
+        total={total}
+        billableNights={billableNights}
+        formatCurrency={formatCurrency}
       />
     </Dialog>
   );

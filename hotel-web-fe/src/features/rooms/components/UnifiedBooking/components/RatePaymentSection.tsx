@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, TextField, Checkbox } from '@mui/material';
 import { Room } from '../../../../../types';
 import { BookingTokens } from '../bookingTokens';
-import SectionHeader from './SectionHeader';
+import CollapsibleSection from '../../../../../components/common/CollapsibleSection';
 import { toMoneyNumber } from '../../../../../utils/money';
 
 interface RatePaymentSectionProps {
@@ -39,8 +39,7 @@ const RatePaymentSection: React.FC<RatePaymentSectionProps> = ({
   formatCurrency,
   hideTourismStatus = false,
 }) => (
-  <Box sx={{ mb: 2.75 }}>
-    <SectionHeader D={D} number={glyph} label="Rate & payment" />
+  <CollapsibleSection title={`${glyph} Rate & payment`} collapseOnPhone sx={{ mb: 2.75 }}>
     <Box sx={{ display: 'grid', gridTemplateColumns: hideTourismStatus ? '1fr' : '1fr 1fr', gap: 1.5 }}>
       <Box>
         <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Rate per night</Typography>
@@ -100,7 +99,7 @@ const RatePaymentSection: React.FC<RatePaymentSectionProps> = ({
         </Typography>
       </Box>
     </Box>
-  </Box>
+  </CollapsibleSection>
 );
 
 export default RatePaymentSection;

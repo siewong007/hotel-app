@@ -3,7 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { PersonAdd as PersonAddIcon, EventAvailable as BookingIcon } from '@mui/icons-material';
 import { BookingTokens } from '../bookingTokens';
 import { BookingMode } from '../bookingTypes';
-import SectionHeader from './SectionHeader';
+import CollapsibleSection from '../../../../../components/common/CollapsibleSection';
 
 interface BookingModeSelectorProps {
   D: BookingTokens;
@@ -19,8 +19,7 @@ const MODE_OPTIONS: Array<{ k: BookingMode; label: string; desc: string; icon: R
 
 /** Segmented control choosing between direct booking and a reservation. */
 const BookingModeSelector: React.FC<BookingModeSelectorProps> = ({ D, glyph, bookingMode, onSelect }) => (
-  <Box sx={{ mb: 2.75 }}>
-    <SectionHeader D={D} number={glyph} label="Mode" />
+  <CollapsibleSection title={`${glyph} Mode`} sx={{ mb: 2.75 }}>
     <Box sx={{
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
@@ -73,7 +72,7 @@ const BookingModeSelector: React.FC<BookingModeSelectorProps> = ({ D, glyph, boo
         );
       })}
     </Box>
-  </Box>
+  </CollapsibleSection>
 );
 
 export default BookingModeSelector;

@@ -8,7 +8,7 @@ import {
 } from '@mui/icons-material';
 import { BookingTokens } from '../bookingTokens';
 import { ReservationType } from '../bookingTypes';
-import SectionHeader from './SectionHeader';
+import CollapsibleSection from '../../../../../components/common/CollapsibleSection';
 
 interface BookingChannel {
   name: string;
@@ -69,8 +69,12 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
   ];
 
   return (
-    <Box sx={{ mb: 2.75 }}>
-      <SectionHeader D={D} number={glyph} label="Reservation type" />
+    <CollapsibleSection
+      title={`${glyph} Reservation type`}
+      subtitle={reservationType ? typeTiles.find((tile) => tile.k === reservationType)?.label : undefined}
+      collapseOnPhone
+      sx={{ mb: 2.75 }}
+    >
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.25 }}>
         {typeTiles.map((t) => {
           const on = reservationType === t.k;
@@ -191,7 +195,7 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
           </Box>
         </Box>
       )}
-    </Box>
+    </CollapsibleSection>
   );
 };
 

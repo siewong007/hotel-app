@@ -1,6 +1,7 @@
 import React from 'react';
-import { Box, Typography, TextField } from '@mui/material';
+import { TextField } from '@mui/material';
 import { BookingTokens } from '../bookingTokens';
+import CollapsibleSection from '../../../../../components/common/CollapsibleSection';
 
 interface NotesSectionProps {
   D: BookingTokens;
@@ -10,16 +11,12 @@ interface NotesSectionProps {
 }
 
 const NotesSection: React.FC<NotesSectionProps> = ({ D, glyph, bookingNotes, onNotesChange }) => (
-  <Box sx={{ mb: 1 }}>
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
-      <Typography sx={{ m: 0, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: D.ink3, textTransform: 'uppercase' }}>
-        {glyph} Notes
-      </Typography>
-      <Typography sx={{ fontSize: 11, color: D.ink3, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
-        · optional
-      </Typography>
-      <Box sx={{ flex: 1, height: 1, bgcolor: D.border }} />
-    </Box>
+  <CollapsibleSection
+    title={`${glyph} Notes`}
+    subtitle="optional"
+    collapseOnPhone
+    sx={{ mb: 1 }}
+  >
     <TextField
       fullWidth
       multiline
@@ -30,7 +27,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ D, glyph, bookingNotes, onN
       onChange={(e) => onNotesChange(e.target.value)}
       sx={{ bgcolor: D.surface }}
     />
-  </Box>
+  </CollapsibleSection>
 );
 
 export default NotesSection;

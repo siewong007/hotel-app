@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, TextField, FormControlLabel, Checkbox } from '@mui/material';
 import { ArrowForward as ArrowForwardIcon, Bedtime as MoonIcon } from '@mui/icons-material';
 import { BookingTokens } from '../bookingTokens';
-import SectionHeader from './SectionHeader';
+import CollapsibleSection from '../../../../../components/common/CollapsibleSection';
 
 interface StaySectionProps {
   D: BookingTokens;
@@ -36,8 +36,7 @@ const StaySection: React.FC<StaySectionProps> = ({
   onQuickSetNights,
   formatHumanDate,
 }) => (
-  <Box sx={{ mb: 2.75 }}>
-    <SectionHeader D={D} number={glyph} label="Stay" />
+  <CollapsibleSection title={`${glyph} Stay`} sx={{ mb: 2.75 }}>
     <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 1.5, alignItems: 'flex-end' }}>
       <Box>
         <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Check-in</Typography>
@@ -125,7 +124,7 @@ const StaySection: React.FC<StaySectionProps> = ({
         />
       </Box>
     </Box>
-  </Box>
+  </CollapsibleSection>
 );
 
 export default StaySection;
