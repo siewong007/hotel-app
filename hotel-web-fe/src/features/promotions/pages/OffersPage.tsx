@@ -50,7 +50,7 @@ export default function OffersPage() {
               variant="contained"
               color="inherit"
               onClick={() => navigate('/login')}
-              sx={{ color: 'primary.main', flexShrink: 0 }}
+              sx={{ color: 'primary.contrastText', flexShrink: 0 }}
             >
               Guest portal
             </Button>
