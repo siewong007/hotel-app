@@ -1,5 +1,6 @@
 import { api } from '../../../api/client';
 import { apiUrl } from '../../../desktop/runtimeApi';
+import { SKIP_API_NOTIFICATION_HEADER } from '../../../utils/apiNotifications';
 import { getPortalToken } from '../api/portalTokenStore';
 import type {
   CreateAnonymousBookingRequest,
@@ -17,7 +18,12 @@ function authHeaders(token?: string): Record<string, string> {
   if (!portalToken) {
     throw new Error('Sign in to the guest portal to continue');
   }
-  return { Authorization: `Bearer ${portalToken}` };
+  // Guest surfaces render every failure inline — the shared client's
+  // global toast would repeat the same message.
+  return {
+    Authorization: `Bearer ${portalToken}`,
+    [SKIP_API_NOTIFICATION_HEADER]: 'true',
+  };
 }
 
 export const GuestBookingApi = {
@@ -80,6 +86,9 @@ export const PublicBookingApi = {
   search(input: GuestBookingSearch): Promise<GuestBookingOffer[]> {
     return api
       .get('booking/offers', {
+        // Anonymous booking failures render inline on PortalBookingPage —
+        // suppress the shared client's duplicate global toast.
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
         searchParams: Object.fromEntries(
           Object.entries(input).map(([key, value]) => [key, String(value)]),
         ),
@@ -88,12 +97,20 @@ export const PublicBookingApi = {
   },
 
   quote(input: GuestBookingQuoteRequest): Promise<GuestBookingQuote> {
-    return api.post('booking/quote', { json: input }).json<GuestBookingQuote>();
+    return api
+      .post('booking/quote', {
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        json: input,
+      })
+      .json<GuestBookingQuote>();
   },
 
   create(input: CreateAnonymousBookingRequest): Promise<GuestBookingConfirmation> {
     return api
-      .post('booking/reservations', { json: input })
+      .post('booking/reservations', {
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        json: input,
+      })
       .json<GuestBookingConfirmation>();
   },
 };

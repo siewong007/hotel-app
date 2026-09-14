@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, refreshAccessToken, APIError, readErrorData } from '../api/client';
+import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import { HTTPError } from 'ky';
-import { TWO_FACTOR_ENROLLMENT_REQUIRED_CODE } from '../features/auth/twoFactorEnrollment';
 import { errorMessage } from '../utils';
 import { AuthService } from '../api/auth.service';
 import { UsersService } from '../api/users.service';
@@ -272,6 +272,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await AuthService.register(data, turnstileToken);
     } catch (error) {
       console.error('Registration error:', error);
+      // AuthService.register already wraps failures in APIError — the server's
+      // message when the body carried one, the service fallback otherwise.
+      // Rethrow it untouched so the page keeps statusCode/details alongside
+      // the message instead of a flattened string.
+      if (error instanceof APIError) {
+        throw error;
+      }
       throw new Error(await extractHttpErrorMessage(error, 'Registration failed'));
     }
   }, []);
@@ -374,24 +381,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const data = await api.post('auth/login', {
         json: { username, password, totp_code: totpCode },
-        // Cloudflare Turnstile token, when this build challenges. Single-use:
-        // the 2FA leg calls login() a second time and must carry a fresh one.
-        ...(turnstileToken ? { headers: { 'cf-turnstile-response': turnstileToken } } : {}),
+        headers: {
+          // Cloudflare Turnstile token, when this build challenges. Single-use:
+          // the 2FA leg calls login() a second time and must carry a fresh one.
+          ...(turnstileToken ? { 'cf-turnstile-response': turnstileToken } : {}),
+          // The sign-in page renders the failure inline; the client's global
+          // toast would be a second notification for one error.
+          [SKIP_API_NOTIFICATION_HEADER]: 'true',
+        },
       }).json<AuthLoginResponse>();
 
       return applyAuthSession(data);
     } catch (error) {
       console.error('Login error:', error);
-      // An overdue two-factor enrolment is refused with a stable body code.
-      // Preserve it as APIError.details so the sign-in page can route to
-      // enrolment instead of matching translated message text — the same
-      // reasoning as loginWithGoogle preserving `statusCode` below.
+      // Every HTTP failure rethrows as APIError carrying status + parsed body.
+      // An overdue two-factor enrolment is refused with a stable body code on
+      // `details`, so the sign-in page routes to enrolment instead of matching
+      // translated message text — the same reasoning as loginWithGoogle
+      // preserving `statusCode` below. Other failures keep the server's own
+      // message readable via guestErrorMessage/errorMessage either way.
       const message = await extractHttpErrorMessage(error, 'Login failed');
       if (error instanceof HTTPError) {
-        const body = readErrorData(error);
-        if (body.code === TWO_FACTOR_ENROLLMENT_REQUIRED_CODE) {
-          throw new APIError(message, error.response?.status, body);
-        }
+        throw new APIError(message, error.response?.status, readErrorData(error));
       }
       throw new Error(message);
     }
@@ -520,6 +531,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           ...(stepUp?.password ? { password: stepUp.password } : {}),
           ...(stepUp?.totpCode ? { totp_code: stepUp.totpCode } : {}),
         },
+        // Every caller (UserProfilePage, SecuritySection, FirstLoginPasskeyPrompt)
+        // surfaces the failure itself; suppress the duplicate global toast.
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
       }).json<{
         challenge: string;
         rp: { name: string; id: string };
@@ -583,6 +597,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           credential: JSON.stringify(credentialJson),
           challenge,
         },
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
       });
 
       // After successful registration, login the user
@@ -613,6 +628,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Start passkey authentication
       const startResponse = await api.post('auth/passkey/login/start', {
         json: { username },
+        // Callers own the failure feedback; suppress the duplicate global toast.
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
       }).json<{ challenge: string; allowCredentials: { id: string; type?: string }[] }>();
 
       const { challenge, allowCredentials } = startResponse;
@@ -681,6 +698,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           signature: btoa(String.fromCharCode(...assertionJson.response.signature)),
           challenge,
         },
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
       }).json<AuthLoginResponse>();
 
       // Shares the session write-through with the password and Google doors.

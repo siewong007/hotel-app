@@ -2,46 +2,47 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import { AuthService } from '../../../api';
+import type { ApiRequestOptions } from '../../../api/auth.service';
 
-export function useTwoFactorStatus() {
+export function useTwoFactorStatus(options?: ApiRequestOptions) {
   return useQuery({
     queryKey: queryKeys.twoFactor.status(),
-    queryFn: () => AuthService.getTwoFactorStatus(),
+    queryFn: () => AuthService.getTwoFactorStatus(options),
     staleTime: queryStaleTime.standard,
   });
 }
 
-export function useSetupTwoFactor() {
+export function useSetupTwoFactor(options?: ApiRequestOptions) {
   return useMutation({
-    mutationFn: () => AuthService.setupTwoFactor(),
+    mutationFn: () => AuthService.setupTwoFactor(options),
   });
 }
 
-export function useEnableTwoFactor() {
+export function useEnableTwoFactor(options?: ApiRequestOptions) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ code, challengeCode }: { code: string; challengeCode: string }) =>
-      AuthService.enableTwoFactor(code, challengeCode),
+      AuthService.enableTwoFactor(code, challengeCode, options),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },
   });
 }
 
-export function useDisableTwoFactor() {
+export function useDisableTwoFactor(options?: ApiRequestOptions) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (code: string) => AuthService.disableTwoFactor(code),
+    mutationFn: (code: string) => AuthService.disableTwoFactor(code, options),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },
   });
 }
 
-export function useRegenerateBackupCodes() {
+export function useRegenerateBackupCodes(options?: ApiRequestOptions) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (code: string) => AuthService.regenerateBackupCodes(code),
+    mutationFn: (code: string) => AuthService.regenerateBackupCodes(code, options),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },

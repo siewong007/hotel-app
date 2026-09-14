@@ -8,10 +8,12 @@ import { ProfileSection } from './dashboard/ProfileSection';
 import { SecuritySection } from './dashboard/SecuritySection';
 import { DevicesSection } from './dashboard/DevicesSection';
 import { parsePortalSection, type PortalSection } from './dashboard/dashboardUtils';
+import { useTranslation } from '../../../i18n';
 
 // Navigation and account chrome (profile, sign out) live in GuestPortalShell.
 // Each section renders its own SectionHeading — the page adds no second title.
 export const PortalDashboardPage: React.FC = () => {
+  const { t } = useTranslation('guestPortal');
   const navigate = useNavigate();
   const {
     token,
@@ -38,13 +40,14 @@ export const PortalDashboardPage: React.FC = () => {
         {sessionError ? (
           <Alert
             severity="error"
+            role="alert"
             action={(
               <Button
                 color="inherit"
                 size="small"
                 onClick={canRetry ? retry : restartSignIn}
               >
-                {canRetry ? 'Retry' : 'Sign in again'}
+                {canRetry ? t('book.retry') : t('book.signInAgain')}
               </Button>
             )}
           >
@@ -55,8 +58,8 @@ export const PortalDashboardPage: React.FC = () => {
             <CircularProgress size={24} />
             <Typography>
               {sessionStatus === 'checking-account'
-                ? 'Checking your account session…'
-                : 'Opening your guest portal…'}
+                ? t('book.checkingAccount')
+                : t('book.openingPortal')}
             </Typography>
           </Box>
         )}

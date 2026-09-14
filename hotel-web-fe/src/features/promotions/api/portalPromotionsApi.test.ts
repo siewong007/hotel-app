@@ -42,7 +42,10 @@ describe('PortalPromotionsApi', () => {
     );
 
     expect(get).toHaveBeenCalledWith('guest-portal/me/promotions', {
-      headers: { Authorization: 'Bearer guest-token-a' },
+      headers: {
+        Authorization: 'Bearer guest-token-a',
+        'x-skip-api-notification': 'true',
+      },
       searchParams: expect.any(URLSearchParams),
     });
     expect(Object.fromEntries(latestSearchParams())).toEqual({
@@ -61,7 +64,10 @@ describe('PortalPromotionsApi', () => {
     await PortalPromotionsApi.listVouchers({ page: 1, page_size: 50, search: '', status: undefined });
 
     expect(get).toHaveBeenCalledWith('guest-portal/me/vouchers', {
-      headers: { Authorization: 'Bearer stored-guest-token' },
+      headers: {
+        Authorization: 'Bearer stored-guest-token',
+        'x-skip-api-notification': 'true',
+      },
       searchParams: expect.any(URLSearchParams),
     });
     expect(Object.fromEntries(latestSearchParams())).toEqual({ page: '1', page_size: '50' });
@@ -82,7 +88,10 @@ describe('PortalPromotionsApi', () => {
     await PortalPromotionsApi.claim(31, { client_request_id: 'claim-31' }, 'guest-token-a');
 
     expect(post).toHaveBeenCalledWith('guest-portal/me/promotions/31/claim', {
-      headers: { Authorization: 'Bearer guest-token-a' },
+      headers: {
+        Authorization: 'Bearer guest-token-a',
+        'x-skip-api-notification': 'true',
+      },
       json: { client_request_id: 'claim-31' },
     });
   });

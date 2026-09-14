@@ -14,10 +14,12 @@ import {
 import { format } from 'date-fns';
 import { GuestPortalService } from '../../../api';
 import { Booking, Guest } from '../../../types';
-import { errorMessage } from '../../../utils/errorMessage';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { captureBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
+import { useTranslation } from '../../../i18n';
 
 export const GuestCheckInVerify: React.FC = () => {
+  const { t } = useTranslation('guestPortal');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const token = captureBookingAccessToken(searchParams);
@@ -33,11 +35,11 @@ export const GuestCheckInVerify: React.FC = () => {
       setBooking(response.booking);
       setGuest(response.guest);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to load booking information'));
+      setError(guestErrorMessage(err, t('checkin.verify.errors.loadFailed')));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     if (searchParams.has('token')) {
@@ -49,13 +51,13 @@ export const GuestCheckInVerify: React.FC = () => {
 
   useEffect(() => {
     if (!token) {
-      setError('Invalid or missing verification token');
+      setError(t('checkin.verify.errors.missingToken'));
       setLoading(false);
       return;
     }
 
     loadBookingData();
-  }, [token, loadBookingData]);
+  }, [token, loadBookingData, t]);
 
   const handleContinue = () => {
     navigate('/guest-checkin/form');
@@ -65,7 +67,7 @@ export const GuestCheckInVerify: React.FC = () => {
     return (
       <Container maxWidth="sm" sx={{ mt: 8, textAlign: 'center' }}>
         <CircularProgress />
-        <Typography sx={{ mt: 2 }}>Loading your booking...</Typography>
+        <Typography sx={{ mt: 2 }}>{t('checkin.verify.loading')}</Typography>
       </Container>
     );
   }
@@ -74,14 +76,16 @@ export const GuestCheckInVerify: React.FC = () => {
     return (
       <Container maxWidth="sm" sx={{ mt: 8 }}>
         <Paper elevation={3} sx={{ p: 4 }}>
-          <Alert severity="error">{error || 'Booking not found'}</Alert>
+          <Alert severity="error" role="alert">
+            {error || t('checkin.verify.errors.notFound')}
+          </Alert>
           <Button
             variant="outlined"
             fullWidth
             sx={{ mt: 3 }}
             onClick={() => navigate('/guest-checkin')}
           >
-            Back to Start
+            {t('checkin.backToStart')}
           </Button>
         </Paper>
       </Container>
@@ -108,18 +112,18 @@ export const GuestCheckInVerify: React.FC = () => {
       <Paper elevation={3} sx={{ p: 4 }}>
         <Box sx={{ textAlign: 'center', mb: 4 }}>
           <Typography variant="h4" component="h1" gutterBottom>
-            Your Booking Details
+            {t('checkin.verify.title')}
           </Typography>
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            Please review your booking information before continuing
+            {t('checkin.verify.subtitle')}
           </Typography>
         </Box>
 
         <Box sx={{ mb: 4 }}>
           <Typography variant="h6" color="primary" gutterBottom>
-            Guest Information
+            {t('checkin.verify.guestInfo')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
@@ -127,7 +131,7 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Name:
+                {t('checkin.verify.fields.name')}
               </Typography>
             </Grid>
             <Grid size={6}>
@@ -141,7 +145,7 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Email:
+                {t('checkin.verify.fields.email')}
               </Typography>
             </Grid>
             <Grid size={6}>
@@ -151,18 +155,18 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Phone:
+                {t('checkin.verify.fields.phone')}
               </Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2">{guest.phone || 'Not provided'}</Typography>
+              <Typography variant="body2">{guest.phone || t('checkin.verify.notProvided')}</Typography>
             </Grid>
           </Grid>
         </Box>
 
         <Box sx={{ mb: 4 }}>
           <Typography variant="h6" color="primary" gutterBottom>
-            Stay Information
+            {t('checkin.verify.stayInfo')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
@@ -170,7 +174,7 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Booking Number:
+                {t('checkin.verify.fields.bookingNumber')}
               </Typography>
             </Grid>
             <Grid size={6}>
@@ -184,7 +188,7 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Check-in:
+                {t('checkin.verify.fields.checkIn')}
               </Typography>
             </Grid>
             <Grid size={6}>
@@ -194,7 +198,7 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Check-out:
+                {t('checkin.verify.fields.checkOut')}
               </Typography>
             </Grid>
             <Grid size={6}>
@@ -204,7 +208,7 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Nights:
+                {t('checkin.verify.fields.nights')}
               </Typography>
             </Grid>
             <Grid size={6}>
@@ -214,28 +218,30 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Room Type:
+                {t('checkin.verify.fields.roomType')}
               </Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2">{booking.room_type || 'Standard'}</Typography>
+              <Typography variant="body2">{booking.room_type || t('checkin.verify.standardRoom')}</Typography>
             </Grid>
             <Grid size={6}>
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Guests:
+                {t('checkin.verify.fields.guests')}
               </Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2">{booking.number_of_guests || 1} Adult(s)</Typography>
+              <Typography variant="body2">
+                {t('checkin.verify.adults', { count: booking.number_of_guests || 1 })}
+              </Typography>
             </Grid>
           </Grid>
         </Box>
 
         {booking.pre_checkin_completed && (
-          <Alert severity="success" sx={{ mb: 3 }}>
-            You have already completed pre-check-in for this booking.
+          <Alert severity="success" role="alert" sx={{ mb: 3 }}>
+            {t('checkin.verify.alreadyCompleted')}
           </Alert>
         )}
 
@@ -245,7 +251,7 @@ export const GuestCheckInVerify: React.FC = () => {
             onClick={() => navigate('/guest-checkin')}
             sx={{ flex: 1 }}
           >
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             variant="contained"
@@ -253,7 +259,7 @@ export const GuestCheckInVerify: React.FC = () => {
             sx={{ flex: 1 }}
             size="large"
           >
-            Continue to Update Information
+            {t('checkin.verify.continue')}
           </Button>
         </Box>
       </Paper>

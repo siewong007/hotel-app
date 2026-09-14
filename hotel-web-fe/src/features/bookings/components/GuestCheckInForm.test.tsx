@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildKyHttpError } from '../../../api/testSupport/httpError';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -204,7 +205,7 @@ describe('GuestCheckInForm', () => {
 
     // Submitting without ticking the boxes must not reach the API at all.
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-    await screen.findByText(/Please accept the booking terms/);
+    await screen.findByText(/Please review and accept the required agreements/);
     expect(mocks.claimAccount).not.toHaveBeenCalled();
 
     const [terms, privacy] = screen.getAllByRole('checkbox');
@@ -222,6 +223,39 @@ describe('GuestCheckInForm', () => {
         expect.objectContaining({ document: 'privacy_notice', granted: true }),
       ]),
     );
+  });
+
+  it('points the guest at sign-in when the booking already has an account (409)', async () => {
+    mocks.getBooking.mockResolvedValue(PAID_BOOKING);
+    mocks.claimAccount.mockRejectedValue(
+      buildKyHttpError(409, { error: 'Username or email already registered.' }),
+    );
+
+    render(<GuestCheckInForm />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Skip for now' }));
+    await screen.findByRole('heading', { name: 'Create your account' });
+
+    fireEvent.change(screen.getByLabelText(/Username/), { target: { value: 'paidguest' } });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'Sup3rSecret!' } });
+    fireEvent.change(screen.getByLabelText(/Confirm password/), {
+      target: { value: 'Sup3rSecret!' },
+    });
+    const [terms, privacy] = screen.getAllByRole('checkbox');
+    fireEvent.click(terms);
+    fireEvent.click(privacy);
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+
+    await waitFor(() => {
+      expect(mocks.claimAccount).toHaveBeenCalled();
+    });
+    // The 409 is detected by status, not by parsing the server's wording — the
+    // body above deliberately never says "already exists".
+    expect(
+      await screen.findByText(
+        'An account already exists for this booking. Sign in to continue.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Sign in instead' })).toBeTruthy();
   });
 
   it('skips the account step for a guest who already has a portal session', async () => {
@@ -327,7 +361,13 @@ describe('GuestCheckInForm', () => {
       .mockResolvedValueOnce({ ...PAID_BOOKING, ekyc_summary: eligible })
       .mockResolvedValueOnce({ ...PAID_BOOKING, ekyc_summary: eligible })
       .mockResolvedValue({ ...PAID_BOOKING, ekyc_summary: blocked });
-    mocks.autoCheckin.mockRejectedValue(new Error('Cannot auto check-in - the room must be cleaned before check-in.'));
+    // A real refusal arrives as a ky HTTPError carrying the server's
+    // {"error": ...} body — a plain Error would only exercise the fallback.
+    mocks.autoCheckin.mockRejectedValue(
+      buildKyHttpError(400, {
+        error: 'Cannot auto check-in - the room must be cleaned before check-in.',
+      }),
+    );
 
     render(<GuestCheckInForm />);
     fireEvent.click(await screen.findByRole('button', { name: 'Skip for now' }));

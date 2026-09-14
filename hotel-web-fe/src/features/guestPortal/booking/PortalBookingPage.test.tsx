@@ -197,9 +197,19 @@ describe('PortalBookingPage voucher eligibility', () => {
       quote,
       eligible_voucher_ids: [31],
     });
-    mocks.quote.mockRejectedValue(
-      new Error('This voucher is not eligible for the selected stay.'),
+    // Mirror what the client's beforeError hook hands the page: ky pre-parses
+    // the body onto `error.data` and rewrites `error.message` to the server's
+    // own message, which is both what `isVoucherEligibilityError` matches and
+    // what `guestErrorMessage` displays.
+    const eligibilityBody = { error: 'This voucher is not eligible for the selected stay.' };
+    const eligibilityError = new HTTPError(
+      new Response(JSON.stringify(eligibilityBody), { status: 422, statusText: 'Unprocessable Entity' }),
+      new Request('http://localhost/api/portal/bookings/quote', { method: 'POST' }),
+      {} as never,
     );
+    (eligibilityError as unknown as { data: unknown }).data = eligibilityBody;
+    eligibilityError.message = eligibilityBody.error;
+    mocks.quote.mockRejectedValue(eligibilityError);
 
     render(<PortalBookingPage />);
 
@@ -217,6 +227,81 @@ describe('PortalBookingPage voucher eligibility', () => {
       name: 'Summer Saver (SAVE-10) — Not eligible for this stay',
     });
     expect(disabledVoucher.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('blocks a second voucher change while a re-quote is still in flight', async () => {
+    mocks.voucherOptions.mockResolvedValue({
+      quote,
+      eligible_voucher_ids: [31],
+    });
+    let release!: (nextQuote: unknown) => void;
+    mocks.quote.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Voucher' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Summer Saver (SAVE-10)' }));
+    await waitFor(() => expect(mocks.quote).toHaveBeenCalledTimes(1));
+
+    // The picker disables while the re-price runs, so no overlapping quote can
+    // start and resolve out of order over the newer one.
+    const voucherPicker = screen.getByRole('combobox', { name: 'Voucher' });
+    expect(voucherPicker.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.mouseDown(voucherPicker);
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(mocks.quote).toHaveBeenCalledTimes(1);
+
+    release(quote);
+    await waitFor(() =>
+      expect(voucherPicker.getAttribute('aria-disabled')).not.toBe('true'),
+    );
+  });
+
+  it('warns at the voucher picker when vouchers fail to load, without masking the quote flow', async () => {
+    mocks.listVouchers.mockReset().mockRejectedValue(new Error('Network down'));
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+
+    expect(
+      await screen.findByText(
+        'We could not load your vouchers. You can still book without one.',
+      ),
+    ).toBeTruthy();
+    // The quote/search flow is untouched: the picker renders empty and the
+    // guest can still proceed to payment.
+    expect(screen.getByRole('combobox', { name: 'Voucher' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Continue to payment' })).toBeTruthy();
+
+    mocks.listVouchers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100 });
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(mocks.listVouchers).toHaveBeenCalledTimes(2));
+  });
+
+  it('moves focus to the form-level alert when booking creation fails', async () => {
+    mocks.createBooking.mockRejectedValue(new Error('Server unavailable'));
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+    acceptRequiredConsents();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+
+    // The Collapse keeps the alert hidden until it finishes opening, so grab
+    // the message and check where focus actually landed.
+    const message = await screen.findByText('Unable to create the booking.');
+    const alert = message.closest('[role="alert"]');
+    expect(alert).not.toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(alert));
   });
 
   it('continues to payment without asking for a payment choice during review', async () => {
@@ -444,6 +529,29 @@ describe('PortalBookingPage complimentary nights', () => {
     expect(await screen.findByText('Complimentary nights (1)')).toBeTruthy();
   });
 
+  it('ignores complimentary-night toggles while a re-quote is in flight', async () => {
+    let release!: (nextQuote: unknown) => void;
+    mocks.quote.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+
+    render(<PortalBookingPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Use your complimentary nights');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /2026-07-17/ }));
+    await waitFor(() => expect(mocks.quote).toHaveBeenCalledTimes(1));
+
+    // Disabled while the re-price runs: a second toggle would otherwise fire an
+    // overlapping quote that could resolve last and overwrite the newer one.
+    const otherNight = screen.getByRole('checkbox', { name: /2026-07-18/ }) as HTMLInputElement;
+    expect(otherNight.disabled).toBe(true);
+    fireEvent.click(otherNight);
+    expect(mocks.quote).toHaveBeenCalledTimes(1);
+
+    release(twoNightQuote);
+    await waitFor(() => expect(otherNight.disabled).toBe(false));
+  });
+
   it('stops the guest selecting more nights than they hold credits for', async () => {
     mocks.quote.mockResolvedValue({
       ...twoNightQuote,
@@ -542,5 +650,66 @@ describe('PortalBookingPage complimentary nights', () => {
         { document: 'privacy_notice', granted: true, locale: 'en' },
       ],
     });
+  });
+});
+
+describe('PortalBookingPage pending states', () => {
+  beforeEach(() => {
+    mocks.createBooking.mockReset();
+    mocks.createSession.mockReset();
+    mocks.listVouchers.mockReset().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100 });
+    mocks.me.mockReset().mockResolvedValue({ guest: {}, profile_complete: true });
+    mocks.navigate.mockReset();
+    mocks.paymentConfig.mockReset();
+    mocks.search.mockReset().mockResolvedValue([offer]);
+    mocks.quote.mockReset();
+    mocks.voucherOptions.mockReset().mockResolvedValue({ quote, eligible_voucher_ids: [] });
+  });
+
+  afterEach(cleanup);
+
+  it('disables the search button while a search is in flight', async () => {
+    let release!: (offers: unknown[]) => void;
+    mocks.search.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+
+    render(<PortalBookingPage />);
+    const searchButton = screen.getByRole('button', { name: 'Search' }) as HTMLButtonElement;
+    fireEvent.click(searchButton);
+
+    await waitFor(() => expect(searchButton.disabled).toBe(true));
+    release([offer]);
+    await screen.findByRole('button', { name: 'Select' });
+  });
+
+  it('disables the confirm button while the booking request is in flight', async () => {
+    let release!: (confirmation: unknown) => void;
+    mocks.createBooking.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+
+    render(<PortalBookingPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+    acceptRequiredConsents();
+
+    const confirm = screen.getByRole('button', { name: 'Continue to payment' }) as HTMLButtonElement;
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(confirm.disabled).toBe(true));
+    release({
+      booking_id: 42,
+      booking_number: 'WEB-42',
+      room_type_name: 'Deluxe Room',
+      check_in_date: '2026-07-17',
+      check_out_date: '2026-07-18',
+      status: 'pending',
+      payment_status: 'unpaid',
+      currency: 'MYR',
+      subtotal: '250.00',
+      discount_amount: '0.00',
+      tax_amount: '0.00',
+      total_amount: '250.00',
+      created_at: '2026-07-01T00:00:00Z',
+    });
+    await screen.findByRole('heading', { name: 'Complete your payment' });
   });
 });

@@ -12,12 +12,16 @@
  */
 import React, { useState } from 'react';
 import { Alert, Box, Button, Grid, Link, Stack, TextField, Typography } from '@mui/material';
+import { isHTTPError } from 'ky';
 
 import { GuestPortalService } from '../../../../api';
+import { APIError } from '../../../../api/client';
 import type { Booking, Guest } from '../../../../types';
-import { errorMessage } from '../../../../utils/errorMessage';
+import { guestErrorMessage } from '../../../guestPortal/utils/feedback';
 import { ConsentBlock, REGISTRATION_CONSENTS, useConsent, useLegalLocale } from '../../../legal';
 import { setPortalToken } from '../../../guestPortal/api/portalTokenStore';
+import { useTranslation } from '../../../../i18n';
+import { useAutoFocusError } from '../../../../hooks/useAutoFocusError';
 
 export interface ClaimAccountStepProps {
   token: string;
@@ -36,6 +40,7 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
   onSkip,
   onBack,
 }) => {
+  const { t } = useTranslation('guestPortal');
   const { locale: legalLocale } = useLegalLocale();
   const consent = useConsent(REGISTRATION_CONSENTS);
 
@@ -46,28 +51,31 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [alreadyClaimed, setAlreadyClaimed] = useState(false);
+  const errorRef = useAutoFocusError(error);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
     if (username.trim().length < 3) {
-      setError('Please choose a username of at least 3 characters.');
+      setError(t('checkin.account.errors.username'));
       return;
     }
     if (password.length < 8) {
-      setError('Your password must be at least 8 characters long.');
+      setError(t('checkin.account.errors.password'));
       return;
     }
     if (password !== confirmPassword) {
-      setError('The two passwords do not match.');
+      setError(t('checkin.account.errors.passwordMismatch'));
       return;
     }
     // Checked here as well as on the server. The server is what makes it
-    // binding; this is so the guest sees which box they missed.
+    // binding; this is so the guest sees which box they missed. The form-level
+    // alert stays a single concise line — ConsentBlock's per-item helper text
+    // names the specific agreement.
     if (!consent.allRequiredGranted) {
       consent.setShowErrors(true);
-      setError('Please accept the booking terms and the privacy notice to continue.');
+      setError(t('checkin.account.errors.consentRequired'));
       return;
     }
 
@@ -90,11 +98,20 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
         emailVerificationRequired: response.email_verification_required,
       });
     } catch (err) {
-      const message = errorMessage(err, 'We could not create your account. Please try again.');
-      // The backend conflicts when this guest already has a real login, which
-      // is a dead end here rather than an error to retry: they need to sign in.
-      setAlreadyClaimed(message.toLowerCase().includes('already exists'));
-      setError(message);
+      // The backend answers 409 when this guest already has a real login —
+      // a dead end here rather than an error to retry: they need to sign in.
+      // Match on the status, never on the wording of the server's message.
+      const status = isHTTPError(err)
+        ? err.response.status
+        : err instanceof APIError
+          ? err.statusCode
+          : undefined;
+      setAlreadyClaimed(status === 409);
+      setError(
+        status === 409
+          ? t('checkin.account.errors.alreadyClaimed')
+          : guestErrorMessage(err, t('checkin.account.errors.claimFailed')),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -103,27 +120,25 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
   return (
     <Box component="form" onSubmit={handleSubmit} noValidate>
       <Typography variant="h6" gutterBottom>
-        Create your account
+        {t('checkin.account.title')}
       </Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-        An account lets you verify your identity before you arrive, so check-in
-        takes moments instead of minutes. You can also skip this and check in at
-        the front desk as usual.
+        {t('checkin.account.subtitle')}
       </Typography>
 
       {booking?.booking_number && (
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-          Creating an account for booking <strong>{booking.booking_number}</strong>
-          {guest?.nick_name ? ` · ${guest.nick_name}` : ''}
+          {t('checkin.account.forBooking')} <strong>{booking.booking_number}</strong>
+          {guest?.nick_name ? t('checkin.account.nameSuffix', { name: guest.nick_name }) : ''}
         </Typography>
       )}
 
       {error && (
-        <Alert severity={alreadyClaimed ? 'info' : 'error'} sx={{ mb: 2 }}>
+        <Alert severity={alreadyClaimed ? 'info' : 'error'} role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }}>
           {error}
           {alreadyClaimed && (
             <Box sx={{ mt: 1 }}>
-              <Link href="/login">Sign in instead</Link>
+              <Link href="/login">{t('checkin.account.signInInstead')}</Link>
             </Box>
           )}
         </Alert>
@@ -134,7 +149,7 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
           <TextField
             fullWidth
             required
-            label="Username"
+            label={t('checkin.account.username')}
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             autoComplete="username"
@@ -145,12 +160,12 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
           <TextField
             fullWidth
             type="email"
-            label="Email"
+            label={t('checkin.account.email')}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
             disabled={submitting}
-            helperText="We will send a link to confirm this address."
+            helperText={t('checkin.account.emailHint')}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -158,12 +173,12 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
             fullWidth
             required
             type="password"
-            label="Password"
+            label={t('checkin.account.password')}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="new-password"
             disabled={submitting}
-            helperText="At least 8 characters."
+            helperText={t('checkin.account.passwordHint')}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -171,7 +186,7 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
             fullWidth
             required
             type="password"
-            label="Confirm password"
+            label={t('checkin.account.confirmPassword')}
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             autoComplete="new-password"
@@ -185,15 +200,15 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 3 }}>
         {onBack && (
           <Button variant="text" onClick={onBack} disabled={submitting}>
-            Back
+            {t('common:actions.back')}
           </Button>
         )}
         <Box sx={{ flexGrow: 1 }} />
         <Button variant="text" onClick={onSkip} disabled={submitting}>
-          Skip for now
+          {t('checkin.skipForNow')}
         </Button>
         <Button type="submit" variant="contained" disabled={submitting}>
-          {submitting ? 'Creating…' : 'Create account'}
+          {submitting ? t('checkin.account.creating') : t('checkin.account.submit')}
         </Button>
       </Stack>
     </Box>

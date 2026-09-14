@@ -1,5 +1,6 @@
 import { api } from '../../../api/client';
 import { apiUrl } from '../../../desktop/runtimeApi';
+import { SKIP_API_NOTIFICATION_HEADER } from '../../../utils/apiNotifications';
 import { getPortalToken } from './portalTokenStore';
 import type {
   CreatePortalSupportConversationRequest,
@@ -23,7 +24,12 @@ function authHeaders(token?: string): Record<string, string> {
     throw new Error('Not signed in to the guest portal');
   }
 
-  return { Authorization: `Bearer ${guestToken}` };
+  // Guest surfaces render every failure inline — the shared client's
+  // global toast would repeat the same message.
+  return {
+    Authorization: `Bearer ${guestToken}`,
+    [SKIP_API_NOTIFICATION_HEADER]: 'true',
+  };
 }
 
 /**

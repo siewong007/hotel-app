@@ -33,7 +33,8 @@ import { useAuth } from '../../../../auth/AuthContext';
 import { useConfirm } from '../../../../components/common/ConfirmProvider';
 import type { PasskeyInfo } from '../../../../types';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
-import { errorMessage } from '../../../../utils/errorMessage';
+import { guestErrorMessage } from '../../utils/feedback';
+import { useTranslation } from '../../../../i18n';
 import {
   useDisableTwoFactor,
   useEnableTwoFactor,
@@ -50,6 +51,7 @@ import {
 import { formatHotelDate } from '../../../../utils/date';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 import { formatPortalDate } from './dashboardUtils';
+import { useAutoFocusError } from '../../../../hooks/useAutoFocusError';
 
 
 /** Matches `services::passkey`, which refuses an eleventh passkey per user. */
@@ -64,12 +66,12 @@ function notify(message: string, severity: 'success' | 'error' | 'warning' | 'in
   emitApiNotification({ message, severity });
 }
 
-async function copyToClipboard(text: string, successMessage: string) {
+async function copyToClipboard(text: string, successMessage: string, failureMessage: string) {
   try {
     await navigator.clipboard.writeText(text);
     notify(successMessage, 'success');
   } catch {
-    notify('Your browser would not let us copy that. Please select and copy it by hand.', 'warning');
+    notify(failureMessage, 'warning');
   }
 }
 
@@ -140,13 +142,13 @@ function RecoveryCodesDialog({
   codes: string[];
   onClose: () => void;
 }) {
+  const { t } = useTranslation('guestPortal');
   return (
     <Dialog open={codes.length > 0} maxWidth="sm" fullWidth>
-      <DialogTitle>Save your recovery codes</DialogTitle>
+      <DialogTitle>{t('dashboard.security.recoveryDialog.title')}</DialogTitle>
       <DialogContent>
         <Typography sx={{ mb: 2 }}>
-          These are the only way back into your account if you lose your phone. Each code works
-          once, and we cannot show them again.
+          {t('dashboard.security.recoveryDialog.body')}
         </Typography>
         <Paper variant="outlined" sx={{ p: 2, bgcolor: 'var(--hotel-warning-bg)' }}>
           <Box
@@ -167,14 +169,20 @@ function RecoveryCodesDialog({
           size="small"
           startIcon={<ContentCopyOutlinedIcon />}
           sx={{ mt: 2 }}
-          onClick={() => void copyToClipboard(codes.join('\n'), 'Recovery codes copied')}
+          onClick={() =>
+            void copyToClipboard(
+              codes.join('\n'),
+              t('dashboard.security.recoveryDialog.copied'),
+              t('dashboard.security.copyBlocked'),
+            )
+          }
         >
-          Copy all codes
+          {t('dashboard.security.recoveryDialog.copyAll')}
         </Button>
       </DialogContent>
       <DialogActions>
         <Button variant="contained" onClick={onClose}>
-          I have saved them
+          {t('dashboard.security.recoveryDialog.done')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -190,12 +198,15 @@ function RecoveryCodesDialog({
  * the list rather than behind a separate screen.
  */
 function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
+  const { t } = useTranslation('guestPortal');
   const confirm = useConfirm();
   const { registerPasskey, user } = useAuth();
-  const passkeysQuery = usePasskeysQuery();
+  // The card renders its own ErrorState + retry, so a failed load should not
+  // ALSO raise the client's global toast.
+  const passkeysQuery = usePasskeysQuery({ suppressApiNotification: true });
   const addPasskey = useRegisterPasskeyMutation(registerPasskey);
-  const deletePasskey = useDeletePasskeyMutation();
-  const renamePasskey = useRenamePasskeyMutation();
+  const deletePasskey = useDeletePasskeyMutation({ suppressApiNotification: true });
+  const renamePasskey = useRenamePasskeyMutation({ suppressApiNotification: true });
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
@@ -203,6 +214,7 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
   const [stepUpPassword, setStepUpPassword] = useState('');
   const [stepUpCode, setStepUpCode] = useState('');
   const [stepUpError, setStepUpError] = useState<string | null>(null);
+  const stepUpErrorRef = useAutoFocusError(stepUpError);
 
   const passkeys: PasskeyInfo[] = passkeysQuery.data ?? [];
   const atLimit = passkeys.length >= MAX_PASSKEYS;
@@ -218,7 +230,7 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
 
   const handleAdd = () => {
     if (!username) {
-      notify('We could not read your account name. Please sign in again.', 'error');
+      notify(t('dashboard.security.passkeys.accountNameMissing'), 'error');
       return;
     }
     setStepUpError(null);
@@ -241,52 +253,59 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
         stepUp: { password: stepUpPassword || undefined, totpCode: stepUpCode || undefined },
       });
       closeStepUp();
-      notify('Passkey added. You can now sign in with this device.', 'success');
+      notify(t('dashboard.security.passkeys.added'), 'success');
     } catch (error) {
-      setStepUpError(errorMessage(error, 'We could not add that passkey.'));
+      setStepUpError(guestErrorMessage(error, t('dashboard.security.passkeys.addFailed')));
     }
   };
 
   const handleDelete = async (passkey: PasskeyInfo) => {
     const accepted = await confirm({
-      title: 'Remove this passkey?',
-      message: `You will no longer be able to sign in with ${passkey.device_name || 'this device'}. You can add it again at any time.`,
-      confirmText: 'Remove passkey',
+      title: t('dashboard.security.passkeys.confirmRemoveTitle'),
+      message: t('dashboard.security.passkeys.confirmRemoveBody', {
+        name: passkey.device_name || t('dashboard.security.passkeys.thisDevice'),
+      }),
+      confirmText: t('dashboard.security.passkeys.confirmRemoveButton'),
+      cancelText: t('common:actions.cancel'),
       severity: 'error',
     });
     if (!accepted) return;
     try {
       await deletePasskey.mutateAsync(passkey.id);
-      notify('Passkey removed.', 'success');
+      notify(t('dashboard.security.passkeys.removed'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'We could not remove that passkey.'), 'error');
+      notify(guestErrorMessage(error, t('dashboard.security.passkeys.removeFailed')), 'error');
     }
   };
 
   const handleRename = async (id: string) => {
     const name = draftName.trim();
     if (!name) {
-      notify('Please give this passkey a name.', 'warning');
+      notify(t('dashboard.security.passkeys.nameRequired'), 'warning');
       return;
     }
     try {
       await renamePasskey.mutateAsync({ id, deviceName: name });
       setEditingId(null);
       setDraftName('');
-      notify('Passkey renamed.', 'success');
+      notify(t('dashboard.security.passkeys.renamed'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'We could not rename that passkey.'), 'error');
+      notify(guestErrorMessage(error, t('dashboard.security.passkeys.renameFailed')), 'error');
     }
   };
 
   return (
     <CredentialCard
       icon={<FingerprintOutlinedIcon />}
-      title="Passkeys"
-      description="Sign in with your fingerprint, face, or screen lock instead of a password."
+      title={t('dashboard.security.passkeys.title')}
+      description={t('dashboard.security.passkeys.description')}
       status={
         <Chip
-          label={passkeys.length > 0 ? `${passkeys.length} saved` : 'None yet'}
+          label={
+            passkeys.length > 0
+              ? t('dashboard.security.passkeys.saved', { count: passkeys.length })
+              : t('dashboard.security.passkeys.none')
+          }
           color={passkeys.length > 0 ? 'success' : 'default'}
           variant={passkeys.length > 0 ? 'filled' : 'outlined'}
         />
@@ -294,22 +313,20 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
     >
       {!browserSupported ? (
         <Alert severity="info" sx={{ mb: 2 }}>
-          This browser does not support passkeys. Open the portal in a recent version of Chrome,
-          Safari, Edge or Firefox to add one.
+          {t('dashboard.security.passkeys.unsupported')}
         </Alert>
       ) : null}
 
       {passkeysQuery.isPending ? (
-        <LoadingState label="Loading your passkeys…" />
+        <LoadingState label={t('dashboard.security.passkeys.loading')} />
       ) : passkeysQuery.isError ? (
         <ErrorState
-          message="We could not load your passkeys."
+          message={t('dashboard.security.passkeys.loadFailed')}
           retry={() => void passkeysQuery.refetch()}
         />
       ) : passkeys.length === 0 ? (
         <Typography sx={{ color: 'text.secondary', mb: 2 }}>
-          You have not added a passkey yet. A passkey never leaves your device, so there is nothing
-          for anyone else to steal or guess.
+          {t('dashboard.security.passkeys.empty')}
         </Typography>
       ) : (
         <List disablePadding sx={{ mb: 2 }}>
@@ -328,20 +345,20 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
                       size="small"
                       autoFocus
                       fullWidth
-                      label="Passkey name"
-                      placeholder="My iPhone"
+                      label={t('dashboard.security.passkeys.nameLabel')}
+                      placeholder={t('dashboard.security.passkeys.namePlaceholder')}
                       value={draftName}
                       onChange={(event) => setDraftName(event.target.value)}
                     />
                     <IconButton
-                      aria-label="Save passkey name"
+                      aria-label={t('dashboard.security.passkeys.saveNameAria')}
                       color="primary"
                       onClick={() => void handleRename(passkey.id)}
                     >
                       <CheckOutlinedIcon />
                     </IconButton>
                     <IconButton
-                      aria-label="Cancel renaming"
+                      aria-label={t('dashboard.security.passkeys.cancelRenameAria')}
                       onClick={() => {
                         setEditingId(null);
                         setDraftName('');
@@ -353,11 +370,16 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
                 ) : (
                   <>
                     <ListItemText
-                      primary={passkey.device_name || 'Unnamed device'}
+                      primary={passkey.device_name || t('dashboard.security.passkeys.unnamed')}
                       secondary={
                         passkey.last_used_at
-                          ? `Added ${formatPortalDate(passkey.created_at)} · last used ${formatPortalDate(passkey.last_used_at)}`
-                          : `Added ${formatPortalDate(passkey.created_at)} · never used`
+                          ? t('dashboard.security.passkeys.addedLastUsed', {
+                              added: formatPortalDate(passkey.created_at),
+                              used: formatPortalDate(passkey.last_used_at),
+                            })
+                          : t('dashboard.security.passkeys.addedNeverUsed', {
+                              added: formatPortalDate(passkey.created_at),
+                            })
                       }
                       sx={{ flex: '1 1 12rem', minWidth: 0, my: 0 }}
                       slotProps={{
@@ -370,7 +392,9 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
                         the buttons. Here they wrap below it instead. */}
                     <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0, ml: 'auto' }}>
                       <IconButton
-                        aria-label={`Rename ${passkey.device_name || 'passkey'}`}
+                        aria-label={t('dashboard.security.passkeys.renameAria', {
+                          name: passkey.device_name || t('dashboard.security.passkeys.defaultName'),
+                        })}
                         onClick={() => {
                           setEditingId(passkey.id);
                           setDraftName(passkey.device_name || '');
@@ -379,7 +403,9 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
                         <EditOutlinedIcon />
                       </IconButton>
                       <IconButton
-                        aria-label={`Remove ${passkey.device_name || 'passkey'}`}
+                        aria-label={t('dashboard.security.passkeys.removeAria', {
+                          name: passkey.device_name || t('dashboard.security.passkeys.defaultName'),
+                        })}
                         color="error"
                         onClick={() => void handleDelete(passkey)}
                       >
@@ -396,7 +422,7 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
 
       {atLimit ? (
         <Alert severity="info" sx={{ mb: 2 }}>
-          You have saved the maximum of {MAX_PASSKEYS} passkeys. Remove one to add another.
+          {t('dashboard.security.passkeys.atLimit', { max: MAX_PASSKEYS })}
         </Alert>
       ) : null}
 
@@ -406,18 +432,19 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
         disabled={atLimit || !browserSupported || addPasskey.isPending}
         onClick={handleAdd}
       >
-        {addPasskey.isPending ? 'Waiting for your device…' : 'Add a passkey'}
+        {addPasskey.isPending
+          ? t('dashboard.security.passkeys.waiting')
+          : t('dashboard.security.passkeys.add')}
       </Button>
 
       <Dialog open={stepUpOpen} onClose={closeStepUp} maxWidth="xs" fullWidth>
-        <DialogTitle>Confirm it is you</DialogTitle>
+        <DialogTitle>{t('dashboard.security.passkeys.stepUpTitle')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            A passkey is a permanent way into your account, so we ask you to confirm before adding
-            one.
+            {t('dashboard.security.passkeys.stepUpBody')}
           </Typography>
           {stepUpError ? (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" role="alert" ref={stepUpErrorRef} tabIndex={-1} sx={{ mb: 2 }}>
               {stepUpError}
             </Alert>
           ) : null}
@@ -425,7 +452,7 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
             fullWidth
             autoFocus
             type="password"
-            label="Your password"
+            label={t('dashboard.security.passkeys.passwordLabel')}
             autoComplete="current-password"
             value={stepUpPassword}
             onChange={(event) => setStepUpPassword(event.target.value)}
@@ -436,11 +463,11 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
           {twoFactorEnabled ? (
             <>
               <Typography variant="body2" sx={{ color: 'text.secondary', my: 1.5 }}>
-                or use a code from your authenticator app
+                {t('dashboard.security.passkeys.orAuthenticator')}
               </Typography>
               <TextField
                 fullWidth
-                label="6-digit code"
+                label={t('dashboard.security.passkeys.codeLabel')}
                 value={stepUpCode}
                 onChange={(event) =>
                   setStepUpCode(event.target.value.replace(/\D/g, '').slice(0, TOTP_CODE_LENGTH))
@@ -451,13 +478,15 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
           ) : null}
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeStepUp}>Cancel</Button>
+          <Button onClick={closeStepUp}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             disabled={(!stepUpPassword && !stepUpCode) || addPasskey.isPending}
             onClick={() => void submitStepUp()}
           >
-            {addPasskey.isPending ? 'Waiting for your device…' : 'Continue'}
+            {addPasskey.isPending
+              ? t('dashboard.security.passkeys.waiting')
+              : t('dashboard.security.passkeys.continue')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -478,9 +507,10 @@ function AuthenticatorCard({
   enabled: boolean;
   onCodesIssued: (codes: string[]) => void;
 }) {
-  const setupTwoFactor = useSetupTwoFactor();
-  const enableTwoFactor = useEnableTwoFactor();
-  const disableTwoFactor = useDisableTwoFactor();
+  const { t } = useTranslation('guestPortal');
+  const setupTwoFactor = useSetupTwoFactor({ suppressApiNotification: true });
+  const enableTwoFactor = useEnableTwoFactor({ suppressApiNotification: true });
+  const disableTwoFactor = useDisableTwoFactor({ suppressApiNotification: true });
 
   const [setupData, setSetupData] = useState<{
     secret: string;
@@ -501,7 +531,7 @@ function AuthenticatorCard({
       setSetupData(await setupTwoFactor.mutateAsync());
       setVerificationCode('');
     } catch (error) {
-      notify(errorMessage(error, 'We could not start the setup. Please try again.'), 'error');
+      notify(guestErrorMessage(error, t('dashboard.security.authenticator.setupFailed')), 'error');
     }
   };
 
@@ -514,9 +544,9 @@ function AuthenticatorCard({
       });
       closeSetup();
       onCodesIssued(result.backup_codes);
-      notify('Your authenticator app is now set up.', 'success');
+      notify(t('dashboard.security.authenticator.enabled'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'That code did not match. Please try again.'), 'error');
+      notify(guestErrorMessage(error, t('dashboard.security.authenticator.codeMismatch')), 'error');
     }
   };
 
@@ -525,20 +555,20 @@ function AuthenticatorCard({
       await disableTwoFactor.mutateAsync(disableCode.trim());
       setDisableOpen(false);
       setDisableCode('');
-      notify('Your authenticator app has been turned off.', 'success');
+      notify(t('dashboard.security.authenticator.disabled'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'That code did not match. Please try again.'), 'error');
+      notify(guestErrorMessage(error, t('dashboard.security.authenticator.codeMismatch')), 'error');
     }
   };
 
   return (
     <CredentialCard
       icon={<PhonelinkLockOutlinedIcon />}
-      title="Authenticator app"
-      description="Ask for a 6-digit code from your phone whenever you sign in."
+      title={t('dashboard.security.authenticator.title')}
+      description={t('dashboard.security.authenticator.description')}
       status={
         <Chip
-          label={enabled ? 'On' : 'Off'}
+          label={enabled ? t('dashboard.security.authenticator.on') : t('dashboard.security.authenticator.off')}
           color={enabled ? 'success' : 'default'}
           variant={enabled ? 'filled' : 'outlined'}
         />
@@ -547,35 +577,36 @@ function AuthenticatorCard({
       {enabled ? (
         <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
           <Typography sx={{ color: 'text.secondary' }}>
-            You are asked for a code from your authenticator app each time you sign in.
+            {t('dashboard.security.authenticator.enabledBody')}
           </Typography>
           <Button color="error" variant="outlined" onClick={() => setDisableOpen(true)}>
-            Turn off
+            {t('dashboard.security.authenticator.turnOff')}
           </Button>
         </Stack>
       ) : (
         <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
           <Typography sx={{ color: 'text.secondary' }}>
-            Use Google Authenticator, Authy, or any app that generates 6-digit codes. Setting this
-            up also gives you a set of recovery codes.
+            {t('dashboard.security.authenticator.setupHint')}
           </Typography>
           <Button
             variant="contained"
             disabled={setupTwoFactor.isPending}
             onClick={() => void handleStartSetup()}
           >
-            {setupTwoFactor.isPending ? 'Preparing…' : 'Set up authenticator app'}
+            {setupTwoFactor.isPending
+              ? t('dashboard.security.authenticator.preparing')
+              : t('dashboard.security.authenticator.setup')}
           </Button>
         </Stack>
       )}
 
       <Dialog open={setupData !== null} onClose={closeSetup} maxWidth="sm" fullWidth>
-        <DialogTitle>Set up your authenticator app</DialogTitle>
+        <DialogTitle>{t('dashboard.security.authenticator.setupTitle')}</DialogTitle>
         <DialogContent>
           {setupData ? (
             <Box sx={{ mt: 1 }}>
               <Typography sx={{ mb: 2 }}>
-                1. Open your authenticator app and scan this code.
+                {t('dashboard.security.authenticator.scanStep')}
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
                 {/* Rendered locally: the otpauth URI contains the shared secret
@@ -585,31 +616,37 @@ function AuthenticatorCard({
                     value={setupData.qr_code_url}
                     size={200}
                     marginSize={4}
-                    title="Authenticator setup QR code"
+                    title={t('dashboard.security.authenticator.qrTitle')}
                   />
                 </Box>
               </Box>
-              <Typography sx={{ mb: 1 }}>Or type this key in by hand:</Typography>
+              <Typography sx={{ mb: 1 }}>{t('dashboard.security.authenticator.manualKey')}</Typography>
               <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography sx={{ fontFamily: 'monospace', flexGrow: 1, wordBreak: 'break-all' }}>
                     {setupData.secret}
                   </Typography>
                   <IconButton
-                    aria-label="Copy setup key"
+                    aria-label={t('dashboard.security.authenticator.copyKeyAria')}
                     size="small"
-                    onClick={() => void copyToClipboard(setupData.secret, 'Setup key copied')}
+                    onClick={() =>
+                      void copyToClipboard(
+                        setupData.secret,
+                        t('dashboard.security.authenticator.keyCopied'),
+                        t('dashboard.security.copyBlocked'),
+                      )
+                    }
                   >
                     <ContentCopyOutlinedIcon fontSize="small" />
                   </IconButton>
                 </Box>
               </Paper>
               <Typography sx={{ mb: 2 }}>
-                2. Enter the {TOTP_CODE_LENGTH}-digit code your app shows.
+                {t('dashboard.security.authenticator.codeStep', { count: TOTP_CODE_LENGTH })}
               </Typography>
               <TextField
                 fullWidth
-                label="6-digit code"
+                label={t('dashboard.security.authenticator.codeLabel')}
                 value={verificationCode}
                 onChange={(event) =>
                   setVerificationCode(
@@ -619,46 +656,51 @@ function AuthenticatorCard({
                 slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: TOTP_CODE_LENGTH } }}
               />
               <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
-                Your recovery codes are shown once, right after this step.
+                {t('dashboard.security.authenticator.recoveryNote')}
               </Typography>
             </Box>
           ) : null}
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeSetup}>Cancel</Button>
+          <Button onClick={closeSetup}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             disabled={verificationCode.length !== TOTP_CODE_LENGTH || enableTwoFactor.isPending}
             onClick={() => void handleEnable()}
           >
-            {enableTwoFactor.isPending ? 'Checking…' : 'Turn on'}
+            {enableTwoFactor.isPending
+              ? t('dashboard.security.authenticator.checking')
+              : t('dashboard.security.authenticator.turnOn')}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={disableOpen} onClose={() => setDisableOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Turn off your authenticator app?</DialogTitle>
+        <DialogTitle>{t('dashboard.security.authenticator.disableTitle')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            Your account will be protected by your password alone. Your recovery codes stop working
-            too.
+            {t('dashboard.security.authenticator.disableBody')}
           </Typography>
           <TextField
             fullWidth
-            label="Code from your app, or a recovery code"
+            label={t('dashboard.security.authenticator.disableCodeLabel')}
             value={disableCode}
             onChange={(event) => setDisableCode(event.target.value)}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDisableOpen(false)}>Keep it on</Button>
+          <Button onClick={() => setDisableOpen(false)}>
+            {t('dashboard.security.authenticator.keepOn')}
+          </Button>
           <Button
             color="error"
             variant="contained"
             disabled={!disableCode.trim() || disableTwoFactor.isPending}
             onClick={() => void handleDisable()}
           >
-            {disableTwoFactor.isPending ? 'Checking…' : 'Turn off'}
+            {disableTwoFactor.isPending
+              ? t('dashboard.security.authenticator.checking')
+              : t('dashboard.security.authenticator.turnOff')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -684,7 +726,8 @@ function RecoveryCodesCard({
   generatedAt: string | null;
   onCodesIssued: (codes: string[]) => void;
 }) {
-  const regenerate = useRegenerateBackupCodes();
+  const { t } = useTranslation('guestPortal');
+  const regenerate = useRegenerateBackupCodes({ suppressApiNotification: true });
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState('');
 
@@ -694,44 +737,42 @@ function RecoveryCodesCard({
       setOpen(false);
       setCode('');
       onCodesIssued(result.backup_codes);
-      notify('New recovery codes issued. Your old ones no longer work.', 'success');
+      notify(t('dashboard.security.recovery.issued'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'That code did not match. Please try again.'), 'error');
+      notify(guestErrorMessage(error, t('dashboard.security.recovery.codeMismatch')), 'error');
     }
   };
 
   return (
     <CredentialCard
       icon={<KeyOutlinedIcon />}
-      title="Recovery codes"
-      description="One-time codes that get you back in if you lose your phone."
+      title={t('dashboard.security.recovery.title')}
+      description={t('dashboard.security.recovery.description')}
       status={
         enabled ? (
           <Chip
-            label={`${remaining} left`}
+            label={t('dashboard.security.recovery.left', { count: remaining })}
             color={remaining < LOW_RECOVERY_CODES ? 'warning' : 'success'}
             variant="filled"
           />
         ) : (
-          <Chip label="Not set up" variant="outlined" />
+          <Chip label={t('dashboard.security.recovery.notSetUp')} variant="outlined" />
         )
       }
     >
       {!enabled ? (
         <Typography sx={{ color: 'text.secondary' }}>
-          You get a set of recovery codes when you set up an authenticator app above.
+          {t('dashboard.security.recovery.notEnabledBody')}
         </Typography>
       ) : (
         <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
           {remaining === 0 ? (
-            <Alert severity="error" sx={{ width: '100%' }}>
-              You have used every recovery code. Generate a new set now — without one, losing your
-              phone means losing access to your account.
+            <Alert severity="error" role="alert" sx={{ width: '100%' }}>
+              {t('dashboard.security.recovery.allUsed')}
             </Alert>
           ) : remaining < LOW_RECOVERY_CODES ? (
-            <Alert severity="warning" sx={{ width: '100%' }}>
-              Only {remaining} recovery {remaining === 1 ? 'code' : 'codes'} left. Generating a new
-              set is a good idea.
+            <Alert severity="warning" role="alert" sx={{ width: '100%' }}>
+              {t('dashboard.security.recovery.low', { count: remaining })}
             </Alert>
           ) : null}
           {/* Which set these are. A guest with codes saved in two places needs
@@ -741,31 +782,29 @@ function RecoveryCodesCard({
               zoned timestamp, not a business date. */}
           <Typography sx={{ color: 'text.secondary' }}>
             {generatedAt
-              ? `This set was issued on ${formatHotelDate(generatedAt)}. Each code works once, and generating a new set replaces every code you have now.`
-              : 'Each code works once. Generating a new set replaces every code you have now.'}
+              ? t('dashboard.security.recovery.issuedOn', { date: formatHotelDate(generatedAt) })
+              : t('dashboard.security.recovery.issuedUnknown')}
           </Typography>
           {enabled && !generatedAt ? (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              We no longer have a record of when this set was issued. If you are unsure the codes
-              you saved are still the current ones, generate a new set.
+              {t('dashboard.security.recovery.issueDateMissing')}
             </Typography>
           ) : null}
           <Button variant="outlined" onClick={() => setOpen(true)}>
-            Generate new codes
+            {t('dashboard.security.recovery.generate')}
           </Button>
         </Stack>
       )}
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Generate new recovery codes?</DialogTitle>
+        <DialogTitle>{t('dashboard.security.recovery.dialogTitle')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            Your current codes stop working straight away. Confirm with a code from your
-            authenticator app.
+            {t('dashboard.security.recovery.dialogBody')}
           </Typography>
           <TextField
             fullWidth
-            label="6-digit code"
+            label={t('dashboard.security.recovery.codeLabel')}
             value={code}
             onChange={(event) =>
               setCode(event.target.value.replace(/\D/g, '').slice(0, TOTP_CODE_LENGTH))
@@ -774,13 +813,15 @@ function RecoveryCodesCard({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={() => setOpen(false)}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             disabled={code.length !== TOTP_CODE_LENGTH || regenerate.isPending}
             onClick={() => void handleRegenerate()}
           >
-            {regenerate.isPending ? 'Generating…' : 'Generate'}
+            {regenerate.isPending
+              ? t('dashboard.security.recovery.generating')
+              : t('dashboard.security.recovery.generateButton')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -798,7 +839,10 @@ function RecoveryCodesCard({
  * token is scoped to `/api/guest-portal/me*` and would not be accepted here.
  */
 export function SecuritySection() {
-  const statusQuery = useTwoFactorStatus();
+  const { t } = useTranslation('guestPortal');
+  // The section renders its own ErrorState + retry, so a failed load should
+  // not ALSO raise the client's global toast.
+  const statusQuery = useTwoFactorStatus({ suppressApiNotification: true });
   const [issuedCodes, setIssuedCodes] = useState<string[]>([]);
 
   const enabled = statusQuery.data?.enabled ?? false;
@@ -807,9 +851,9 @@ export function SecuritySection() {
   return (
     <Box>
       <SectionHeading
-        eyebrow="Your account"
-        title="Sign-in & security"
-        description="Choose how you prove it is you: a passkey on your device, a code from an authenticator app, or a recovery code when neither is to hand."
+        eyebrow={t('dashboard.security.eyebrow')}
+        title={t('dashboard.security.title')}
+        description={t('dashboard.security.description')}
       />
 
       <Stack spacing={3}>
@@ -819,12 +863,12 @@ export function SecuritySection() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 4 }}>
             <CircularProgress size={22} />
             <Typography sx={{ color: 'text.secondary' }}>
-              Loading your security settings…
+              {t('dashboard.security.loading')}
             </Typography>
           </Box>
         ) : statusQuery.isError ? (
           <ErrorState
-            message="We could not load your two-factor settings."
+            message={t('dashboard.security.loadFailed')}
             retry={() => void statusQuery.refetch()}
           />
         ) : (

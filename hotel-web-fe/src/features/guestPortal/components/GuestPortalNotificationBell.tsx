@@ -20,6 +20,8 @@ import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNone
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { GUEST_BRAND } from '../theme/guestPortalTheme';
+import { guestErrorMessage } from '../utils/feedback';
+import { useTranslation } from '../../../i18n';
 import type { GuestPortalBookingSummary } from '../../../types';
 
 const URGENT = 'var(--hotel-danger)';
@@ -36,6 +38,7 @@ interface GuestPortalNotificationBellProps {
 export function GuestPortalNotificationBell({
   token,
 }: GuestPortalNotificationBellProps) {
+  const { t } = useTranslation('guestPortal');
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [bookings, setBookings] = useState<GuestPortalBookingSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -116,7 +119,7 @@ export function GuestPortalNotificationBell({
 
     if (file.size > 10 * 1024 * 1024) {
       setReceiptFile(null);
-      setUploadError('The receipt must be 10 MB or smaller.');
+      setUploadError(t('notifications.receiptTooLarge'));
       return;
     }
 
@@ -138,7 +141,7 @@ export function GuestPortalNotificationBell({
       setUploadSucceeded(true);
       await loadNotifications();
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : 'Unable to upload your receipt.');
+      setUploadError(guestErrorMessage(error, t('notifications.uploadFailed')));
     } finally {
       setIsUploading(false);
     }
@@ -146,12 +149,12 @@ export function GuestPortalNotificationBell({
 
   const pendingCount = receiptRequests.length;
   const buttonLabel = pendingCount > 0
-    ? `Notifications; ${pendingCount} receipt ${pendingCount === 1 ? 'needs' : 'need'} your attention`
-    : 'Notifications';
+    ? t('notifications.badgeLabel', { count: pendingCount })
+    : t('shell.notifications');
 
   return (
     <>
-      <Tooltip title={pendingCount > 0 ? 'Receipt action needed' : 'Notifications'}>
+      <Tooltip title={pendingCount > 0 ? t('notifications.actionNeededTooltip') : t('shell.notifications')}>
         <IconButton
           onClick={handleOpen}
           aria-label={buttonLabel}
@@ -202,14 +205,14 @@ export function GuestPortalNotificationBell({
             {pendingCount > 0 ? <ErrorOutlineIcon sx={{ color: URGENT }} aria-hidden="true" /> : null}
             <Box>
               <Typography variant="subtitle1" sx={{ color: 'var(--hotel-text)', fontWeight: 800 }}>
-                {pendingCount > 0 ? 'Action needed' : 'Notifications'}
+                {pendingCount > 0 ? t('notifications.actionNeeded') : t('shell.notifications')}
               </Typography>
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
                 {pendingCount > 0
-                  ? `${pendingCount} receipt ${pendingCount === 1 ? 'request needs' : 'requests need'} a response.`
-                  : 'You are all caught up.'}
+                  ? t('notifications.pendingSummary', { count: pendingCount })
+                  : t('notifications.caughtUp')}
               </Typography>
             </Box>
           </Stack>
@@ -221,14 +224,14 @@ export function GuestPortalNotificationBell({
               <CircularProgress size={24} />
             </Box>
           ) : loadError ? (
-            <Box sx={{ px: 2.25, py: 3 }}>
+            <Box sx={{ px: 2.25, py: 3 }} role="alert">
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                We could not refresh your notifications. Please try again shortly.
+                {t('notifications.refreshFailed')}
               </Typography>
               <Button size="small" onClick={() => void loadNotifications()} sx={{ mt: 1, px: 0 }}>
-                Try again
+                {t('common:actions.retry')}
               </Button>
             </Box>
           ) : pendingCount > 0 ? receiptRequests.map((booking) => (
@@ -250,10 +253,10 @@ export function GuestPortalNotificationBell({
                 <ReceiptLongOutlinedIcon sx={{ color: URGENT, mt: 0.25 }} aria-hidden="true" />
                 <Box sx={{ minWidth: 0, flex: 1 }}>
                   <Typography variant="subtitle2" sx={{ color: 'var(--hotel-text)', fontWeight: 800 }}>
-                    Receipt required
+                    {t('notifications.receiptRequired')}
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 0.5, color: 'var(--hotel-text)' }}>
-                    Upload the bank-transfer receipt for booking {booking.booking_number} within 24 hours to avoid automatic rejection.
+                    {t('notifications.receiptBody', { number: booking.booking_number })}
                   </Typography>
                   {booking.receipt_request_message ? (
                     <Typography variant="body2" sx={{ mt: 0.75, color: 'var(--hotel-text-secondary)', fontStyle: 'italic' }}>
@@ -266,7 +269,7 @@ export function GuestPortalNotificationBell({
                     onClick={() => handleReviewReceipt(booking)}
                     sx={{ mt: 1.5, minHeight: 40, fontWeight: 800 }}
                   >
-                    View request
+                    {t('notifications.viewRequest')}
                   </Button>
                 </Box>
               </Stack>
@@ -276,7 +279,7 @@ export function GuestPortalNotificationBell({
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                There are no actions waiting for you.
+                {t('notifications.empty')}
               </Typography>
             </Box>
           )}
@@ -289,18 +292,18 @@ export function GuestPortalNotificationBell({
         maxWidth="xs"
         aria-labelledby="receipt-upload-request-title"
       >
-        <DialogTitle id="receipt-upload-request-title">Upload payment receipt</DialogTitle>
+        <DialogTitle id="receipt-upload-request-title">{t('notifications.uploadTitle')}</DialogTitle>
         <DialogContent dividers>
           {uploadSucceeded ? (
             <Typography sx={{
               color: "success.main"
             }}>
-              Your receipt has been submitted and is pending confirmation from our team.
+              {t('notifications.uploadedBody')}
             </Typography>
           ) : (
             <Stack spacing={1.5}>
               <Typography>
-                Upload the bank-transfer receipt for booking <strong>{receiptRequest?.booking_number}</strong>.
+                {t('notifications.uploadLeadPre')} <strong>{receiptRequest?.booking_number}</strong>.
               </Typography>
               {receiptRequest?.receipt_request_message ? (
                 <Typography variant="body2" sx={{
@@ -312,15 +315,15 @@ export function GuestPortalNotificationBell({
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Accepted files: JPG, PNG, WebP, or PDF — maximum 10 MB.
+                {t('notifications.uploadHint')}
               </Typography>
               <Button component="label" variant="outlined" disabled={isUploading}>
-                {receiptFile ? receiptFile.name : 'Choose receipt file'}
+                {receiptFile ? receiptFile.name : t('notifications.uploadChoose')}
                 <input
                   hidden
                   type="file"
                   accept="image/jpeg,image/png,image/webp,application/pdf"
-                  aria-label="Select receipt file"
+                  aria-label={t('notifications.uploadSelectAria')}
                   onChange={(event) => handleReceiptFileChange(event.target.files?.[0] ?? null)}
                 />
               </Button>
@@ -330,7 +333,7 @@ export function GuestPortalNotificationBell({
         </DialogContent>
         <DialogActions>
           <Button onClick={closeReceiptRequest} disabled={isUploading}>
-            {uploadSucceeded ? 'Done' : 'Cancel'}
+            {uploadSucceeded ? t('notifications.done') : t('common:actions.cancel')}
           </Button>
           {!uploadSucceeded ? (
             <Button
@@ -338,7 +341,7 @@ export function GuestPortalNotificationBell({
               onClick={() => void uploadReceipt()}
               disabled={!receiptFile || isUploading}
             >
-              {isUploading ? 'Uploading…' : 'Upload receipt'}
+              {isUploading ? t('notifications.uploading') : t('notifications.uploadButton')}
             </Button>
           ) : null}
         </DialogActions>

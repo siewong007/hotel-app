@@ -21,6 +21,12 @@ vi.mock('./client', async () => {
 
 import { AuthService } from './auth.service';
 import { APIError } from './client';
+import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
+
+/** The auth pages own their failure feedback (inline alerts / their own
+ *  toasts), so every request below must carry the header that opts out of the
+ *  client's global toast — otherwise one failure shows twice. */
+const SKIP_NOTIFICATION_HEADERS = { [SKIP_API_NOTIFICATION_HEADER]: 'true' };
 
 /** The two consents the API requires on every registration. */
 const REQUIRED_CONSENTS = [
@@ -64,7 +70,10 @@ describe('AuthService', () => {
 
       const result = await AuthService.lookupLoginIdentifier('admin');
 
-      expect(post).toHaveBeenCalledWith('auth/login/lookup', { json: { username: 'admin' } });
+      expect(post).toHaveBeenCalledWith('auth/login/lookup', {
+        json: { username: 'admin' },
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
       expect(result).toEqual({ exists: true });
     });
 
@@ -100,7 +109,33 @@ describe('AuthService', () => {
 
       await AuthService.register(data);
 
-      expect(post).toHaveBeenCalledWith('auth/register', { json: data });
+      expect(post).toHaveBeenCalledWith('auth/register', {
+        json: data,
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
+    });
+
+    it('merges the Turnstile token and the skip-notification header when challenged', async () => {
+      const data = {
+        username: 'newuser',
+        password: 'hunter22',
+        first_name: 'New',
+        last_name: 'User',
+        phone: '0123456789',
+        consents: REQUIRED_CONSENTS,
+        marketing_opt_in: false,
+      };
+      post.mockReturnValue(Promise.resolve(undefined));
+
+      await AuthService.register(data, 'turnstile-token-123');
+
+      expect(post).toHaveBeenCalledWith('auth/register', {
+        json: data,
+        headers: {
+          'cf-turnstile-response': 'turnstile-token-123',
+          [SKIP_API_NOTIFICATION_HEADER]: 'true',
+        },
+      });
     });
 
     it('wraps an HTTPError response into an APIError with the server message', async () => {
@@ -156,7 +191,10 @@ describe('AuthService', () => {
 
       const result = await AuthService.loginWithGoogle('google-id-token');
 
-      expect(post).toHaveBeenCalledWith('auth/google', { json: { credential: 'google-id-token' } });
+      expect(post).toHaveBeenCalledWith('auth/google', {
+        json: { credential: 'google-id-token' },
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
       expect(result).toEqual(authResponse);
     });
 
@@ -184,6 +222,7 @@ describe('AuthService', () => {
           consents: REQUIRED_CONSENTS,
           marketing_opt_in: false,
         },
+        headers: SKIP_NOTIFICATION_HEADERS,
       });
     });
 
@@ -220,7 +259,10 @@ describe('AuthService', () => {
 
       const result = await AuthService.completeGuestProfile(input);
 
-      expect(post).toHaveBeenCalledWith('profile/complete', { json: input });
+      expect(post).toHaveBeenCalledWith('profile/complete', {
+        json: input,
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
       expect(result).toEqual(profile);
     });
 
@@ -239,7 +281,10 @@ describe('AuthService', () => {
 
       await AuthService.verifyEmail('tok_123');
 
-      expect(post).toHaveBeenCalledWith('auth/verify-email', { json: { token: 'tok_123' } });
+      expect(post).toHaveBeenCalledWith('auth/verify-email', {
+        json: { token: 'tok_123' },
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
     });
 
     it('wraps an HTTPError into an APIError', async () => {
@@ -299,8 +344,20 @@ describe('AuthService', () => {
 
       const result = await AuthService.listPasskeys();
 
-      expect(get).toHaveBeenCalledWith('profile/passkeys');
+      expect(get).toHaveBeenCalledWith('profile/passkeys', undefined);
       expect(result).toEqual(passkeys);
+    });
+
+    // Callers that render the failure inline (guest SecuritySection) opt out
+    // of the client's global toast; staff callers keep it.
+    it('opts out of the global error toast only when the caller asks for it', async () => {
+      get.mockReturnValue(mockJsonResponse([]));
+
+      await AuthService.listPasskeys({ suppressApiNotification: true });
+
+      expect(get).toHaveBeenCalledWith('profile/passkeys', {
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
     });
   });
 
@@ -320,7 +377,16 @@ describe('AuthService', () => {
 
       await AuthService.deletePasskey('pk1');
 
-      expect(del).toHaveBeenCalledWith('profile/passkeys/pk1');
+      expect(del).toHaveBeenCalledWith('profile/passkeys/pk1', undefined);
+    });
+
+    it('sends the skip-notification header only when asked', async () => {
+      del.mockReturnValue(Promise.resolve(undefined));
+
+      await AuthService.deletePasskey('pk1', { suppressApiNotification: true });
+      expect(del).toHaveBeenCalledWith('profile/passkeys/pk1', {
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
     });
   });
 
@@ -331,8 +397,23 @@ describe('AuthService', () => {
 
       const result = await AuthService.listSessions();
 
-      expect(get).toHaveBeenCalledWith('profile/sessions');
+      expect(get).toHaveBeenCalledWith('profile/sessions', undefined);
       expect(result).toEqual(sessions);
+    });
+
+    // The suppression is opt-in per call: staff UserProfilePage calls with no
+    // options and must keep the global toast.
+    it('sends the skip-notification header only when asked', async () => {
+      get.mockReturnValue(mockJsonResponse([]));
+
+      await AuthService.listSessions({ suppressApiNotification: true });
+      expect(get).toHaveBeenCalledWith('profile/sessions', {
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
+
+      get.mockClear();
+      await AuthService.listSessions();
+      expect(get).toHaveBeenCalledWith('profile/sessions', undefined);
     });
   });
 
@@ -342,7 +423,16 @@ describe('AuthService', () => {
 
       await AuthService.revokeSession('s1');
 
-      expect(del).toHaveBeenCalledWith('profile/sessions/s1');
+      expect(del).toHaveBeenCalledWith('profile/sessions/s1', undefined);
+    });
+
+    it('sends the skip-notification header only when asked', async () => {
+      del.mockReturnValue(Promise.resolve(undefined));
+
+      await AuthService.revokeSession('s1', { suppressApiNotification: true });
+      expect(del).toHaveBeenCalledWith('profile/sessions/s1', {
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
     });
   });
 
@@ -394,8 +484,18 @@ describe('AuthService', () => {
 
       const result = await AuthService.getTwoFactorStatus();
 
-      expect(get).toHaveBeenCalledWith('auth/2fa/status');
+      expect(get).toHaveBeenCalledWith('auth/2fa/status', undefined);
       expect(result).toEqual(status);
+    });
+
+    it('opts out of the global error toast only when the caller asks for it', async () => {
+      get.mockReturnValue(mockJsonResponse({ enabled: false, backup_codes_remaining: 0 }));
+
+      await AuthService.getTwoFactorStatus({ suppressApiNotification: true });
+
+      expect(get).toHaveBeenCalledWith('auth/2fa/status', {
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
     });
   });
 

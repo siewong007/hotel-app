@@ -1,6 +1,13 @@
 import { api } from '../../api/client';
+import { SKIP_API_NOTIFICATION_HEADER } from '../../utils/apiNotifications';
 import type { PaymentActionResponse, PaypalCreateOrderResponse } from '../../types';
 import type { PaymentRecoveryView } from './types';
+
+// Every failure on this page is owned by an inline/focused alert; suppress the
+// client's global toast so one failure does not render twice.
+const NO_GLOBAL_TOAST = {
+  headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+} as const;
 
 /**
  * Public payment-recovery endpoints, authenticated solely by the capability in
@@ -18,13 +25,16 @@ export const PaymentRecoveryApi = {
    */
   view(token: string): Promise<PaymentRecoveryView> {
     return api
-      .get(`/booking/recover-payment/${encodeURIComponent(token)}`)
+      .get(`/booking/recover-payment/${encodeURIComponent(token)}`, NO_GLOBAL_TOAST)
       .json<PaymentRecoveryView>();
   },
 
   bankTransfer(token: string): Promise<PaymentActionResponse> {
     return api
-      .post(`/booking/recover-payment/${encodeURIComponent(token)}/bank-transfer`)
+      .post(
+        `/booking/recover-payment/${encodeURIComponent(token)}/bank-transfer`,
+        NO_GLOBAL_TOAST,
+      )
       .json<PaymentActionResponse>();
   },
 
@@ -34,7 +44,10 @@ export const PaymentRecoveryApi = {
    */
   paypalCreateOrder(token: string): Promise<PaypalCreateOrderResponse> {
     return api
-      .post(`/booking/recover-payment/${encodeURIComponent(token)}/paypal/create-order`)
+      .post(
+        `/booking/recover-payment/${encodeURIComponent(token)}/paypal/create-order`,
+        NO_GLOBAL_TOAST,
+      )
       .json<PaypalCreateOrderResponse>();
   },
 
@@ -51,6 +64,7 @@ export const PaymentRecoveryApi = {
     return api
       .post(`/booking/recover-payment/${encodeURIComponent(token)}/paypal/capture`, {
         json: { order_id: orderId, payment_id: paymentId },
+        ...NO_GLOBAL_TOAST,
       })
       .json<PaymentActionResponse>();
   },
@@ -66,7 +80,7 @@ export const PaymentRecoveryApi = {
     return api
       .post(
         `/booking/recover-payment/${encodeURIComponent(token)}/payments/${paymentId}/receipt`,
-        { body: form },
+        { body: form, ...NO_GLOBAL_TOAST },
       )
       .json<void>();
   },

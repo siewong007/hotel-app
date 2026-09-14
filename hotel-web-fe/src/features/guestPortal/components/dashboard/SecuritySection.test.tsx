@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { APIError } from '../../../../api/client';
 
 const mocks = vi.hoisted(() => ({
   listPasskeys: vi.fn(),
@@ -79,6 +80,17 @@ describe('SecuritySection', () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+  });
+
+  // Both loads render their own ErrorState + retry, so each must opt out of
+  // the client's global toast or one failure would notify twice.
+  it('asks the service to skip the global toast for the loads it renders itself', async () => {
+    renderSection();
+
+    await waitFor(() => {
+      expect(mocks.listPasskeys).toHaveBeenCalledWith({ suppressApiNotification: true });
+      expect(mocks.getTwoFactorStatus).toHaveBeenCalledWith({ suppressApiNotification: true });
+    });
   });
 
   it('shows all three credentials the guest can control', async () => {
@@ -192,7 +204,7 @@ describe('SecuritySection', () => {
   // so the failure belongs there, not in a toast behind a closed dialog.
   it('keeps the dialog open and shows why, when the confirmation is rejected', async () => {
     mocks.registerPasskey.mockRejectedValue(
-      new Error('Re-enter your password (or a two-factor code) to register a passkey.'),
+      new APIError('Re-enter your password (or a two-factor code) to register a passkey.', 401),
     );
 
     renderSection();
@@ -287,7 +299,9 @@ describe('SecuritySection', () => {
     expect(await screen.findByText('AAAA-1111')).toBeTruthy();
     expect(screen.getByText('BBBB-2222')).toBeTruthy();
     await waitFor(() =>
-      expect(mocks.enableTwoFactor).toHaveBeenCalledWith('123456', 'challenge-1'),
+      expect(mocks.enableTwoFactor).toHaveBeenCalledWith('123456', 'challenge-1', {
+        suppressApiNotification: true,
+      }),
     );
   });
 
@@ -323,7 +337,11 @@ describe('SecuritySection', () => {
     fireEvent.change(screen.getByLabelText('6-digit code'), { target: { value: '654321' } });
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
-    await waitFor(() => expect(mocks.regenerateBackupCodes).toHaveBeenCalledWith('654321'));
+    await waitFor(() =>
+      expect(mocks.regenerateBackupCodes).toHaveBeenCalledWith('654321', {
+        suppressApiNotification: true,
+      }),
+    );
     expect(await screen.findByText('CCCC-3333')).toBeTruthy();
   });
 

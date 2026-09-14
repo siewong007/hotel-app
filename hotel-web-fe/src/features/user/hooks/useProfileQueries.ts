@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AuthService } from '../../../api/auth.service';
+import { AuthService, type ApiRequestOptions } from '../../../api/auth.service';
 import { UsersService } from '../../../api/users.service';
 import { queryKeys } from '../../../api/queryKeys';
 import type { PasskeyStepUp } from '../../../auth/AuthContext';
@@ -12,17 +12,17 @@ export function useProfileQuery() {
   });
 }
 
-export function usePasskeysQuery() {
+export function usePasskeysQuery(options?: ApiRequestOptions) {
   return useQuery<PasskeyInfo[]>({
     queryKey: queryKeys.profile.passkeys(),
-    queryFn: () => AuthService.listPasskeys(),
+    queryFn: () => AuthService.listPasskeys(options),
   });
 }
 
-export function useSessionsQuery() {
+export function useSessionsQuery(options?: ApiRequestOptions) {
   return useQuery<UserSessionInfo[]>({
     queryKey: queryKeys.profile.sessions(),
-    queryFn: () => AuthService.listSessions(),
+    queryFn: () => AuthService.listSessions(options),
   });
 }
 
@@ -53,13 +53,13 @@ function usePasskeyMutation<TArgs>(mutationFn: (args: TArgs) => Promise<unknown>
   });
 }
 
-export function useDeletePasskeyMutation() {
-  return usePasskeyMutation((id: string) => AuthService.deletePasskey(id));
+export function useDeletePasskeyMutation(options?: ApiRequestOptions) {
+  return usePasskeyMutation((id: string) => AuthService.deletePasskey(id, options));
 }
 
-export function useRenamePasskeyMutation() {
+export function useRenamePasskeyMutation(options?: ApiRequestOptions) {
   return usePasskeyMutation(({ id, deviceName }: { id: string; deviceName: string }) =>
-    AuthService.updatePasskey(id, { device_name: deviceName })
+    AuthService.updatePasskey(id, { device_name: deviceName }, options)
   );
 }
 
@@ -85,10 +85,10 @@ export function useRegisterPasskeyMutation(
   );
 }
 
-export function useRevokeSessionMutation() {
+export function useRevokeSessionMutation(options?: ApiRequestOptions) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (sessionId: string) => AuthService.revokeSession(sessionId),
+    mutationFn: (sessionId: string) => AuthService.revokeSession(sessionId, options),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.profile.sessions() });
     },

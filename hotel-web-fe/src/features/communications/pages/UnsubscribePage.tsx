@@ -14,15 +14,26 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PublicCommunicationsApi } from '../api';
 import { TOPIC_LABELS, type NotificationTopic } from '../types';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
+import { useTranslation } from '../../../i18n';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
+
+const TOPIC_KEYS: Record<NotificationTopic, string> = {
+  announcement: 'preferences.topics.announcement',
+  promotion: 'preferences.topics.promotion',
+  birthday_voucher: 'preferences.topics.birthday_voucher',
+};
 
 /**
  * Public email-preferences page reached from the unsubscribe link in every
  * outgoing email. Authenticated solely by the signed token in the URL.
  */
 export default function UnsubscribePage({ token }: { token: string }) {
+  const { t } = useTranslation('guestPortal');
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const errorRef = useAutoFocusError(error);
 
   const prefs = useQuery({
     queryKey: ['unsubscribe', token],
@@ -35,11 +46,15 @@ export default function UnsubscribePage({ token }: { token: string }) {
       arg.global
         ? PublicCommunicationsApi.unsubscribeAll(token)
         : PublicCommunicationsApi.unsubscribeTopic(token, arg.topic!),
+    onMutate: () => {
+      setError(null);
+      setDone(false);
+    },
     onSuccess: (data) => {
       queryClient.setQueryData(['unsubscribe', token], data);
       setDone(true);
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Request failed'),
+    onError: (e) => setError(guestErrorMessage(e, t('unsubscribe.saveFailed'))),
   });
 
   if (prefs.isLoading) {
@@ -52,9 +67,8 @@ export default function UnsubscribePage({ token }: { token: string }) {
   if (prefs.isError) {
     return (
       <Box sx={{ maxWidth: 480, mx: 'auto', mt: 8, px: 2 }}>
-        <Alert severity="error">
-          This unsubscribe link is invalid or no longer available. If you keep receiving
-          unwanted email, please contact the hotel directly.
+        <Alert severity="error" role="alert">
+          {t('unsubscribe.invalidLink')}
         </Alert>
       </Box>
     );
@@ -67,7 +81,7 @@ export default function UnsubscribePage({ token }: { token: string }) {
       <Card>
         <CardContent>
           <Typography variant="h5" gutterBottom>
-            Email preferences
+            {t('unsubscribe.title')}
           </Typography>
           <Typography
             variant="body2"
@@ -75,16 +89,16 @@ export default function UnsubscribePage({ token }: { token: string }) {
               color: "text.secondary",
               mb: 2
             }}>
-            Choose which emails you would like to receive from us.
+            {t('unsubscribe.subtitle')}
           </Typography>
           {error && (
-            <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
+            <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} onClose={() => setError(null)} sx={{ mb: 2 }}>
               {error}
             </Alert>
           )}
           {done && (
-            <Alert severity="success" sx={{ mb: 2 }}>
-              Your preferences were updated.
+            <Alert severity="success" role="alert" sx={{ mb: 2 }}>
+              {t('unsubscribe.saved')}
             </Alert>
           )}
           <Stack spacing={1}>
@@ -96,13 +110,17 @@ export default function UnsubscribePage({ token }: { token: string }) {
                   justifyContent: "space-between",
                   alignItems: "center"
                 }}>
-                <Typography>{TOPIC_LABELS[s.topic] ?? s.topic}</Typography>
+                <Typography>{TOPIC_KEYS[s.topic] ? t(TOPIC_KEYS[s.topic]) : (TOPIC_LABELS[s.topic] ?? s.topic)}</Typography>
                 <Switch
                   checked={s.subscribed}
                   disabled={!s.subscribed || apply.isPending}
                   onChange={() => apply.mutate({ topic: s.topic })}
                   slotProps={{
-                    input: { 'aria-label': `unsubscribe from ${s.topic}` }
+                    input: {
+                      'aria-label': t('unsubscribe.toggleAria', {
+                        topic: TOPIC_KEYS[s.topic] ? t(TOPIC_KEYS[s.topic]) : (TOPIC_LABELS[s.topic] ?? s.topic),
+                      }),
+                    }
                   }}
                 />
               </Stack>
@@ -111,8 +129,7 @@ export default function UnsubscribePage({ token }: { token: string }) {
           <Typography variant="caption" sx={{
             color: "text.secondary"
           }}>
-            Turning a topic off takes effect immediately. To subscribe again, sign in to the
-            guest portal.
+            {t('unsubscribe.note')}
           </Typography>
           <Divider sx={{ my: 2 }} />
           <Button
@@ -122,7 +139,7 @@ export default function UnsubscribePage({ token }: { token: string }) {
             disabled={apply.isPending}
             onClick={() => apply.mutate({ global: true })}
           >
-            Unsubscribe from all emails
+            {t('unsubscribe.allButton')}
           </Button>
         </CardContent>
       </Card>

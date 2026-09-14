@@ -23,25 +23,26 @@ import {
   validateEkycFields,
   type EkycFieldValues,
 } from '../../../ekyc/utils/ekycFieldRules';
+import { guestErrorMessage } from '../../utils/feedback';
+import { useTranslation } from '../../../../i18n';
+import { useAutoFocusError } from '../../../../hooks/useAutoFocusError';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 import { formatPortalDate } from './dashboardUtils';
 
 
 /** Document slots the guest uploads. `id_back` is conditional on the ID type. */
 const DOCUMENT_SLOTS = [
-  { key: 'id_front', label: 'ID front', required: true },
-  { key: 'id_back', label: 'ID back', required: false },
-  { key: 'selfie', label: 'Selfie holding your ID', required: true },
-  { key: 'proof', label: 'Proof of address (optional)', required: false },
+  { key: 'id_front', required: true },
+  { key: 'id_back', required: false },
+  { key: 'selfie', required: true },
+  { key: 'proof', required: false },
 ] as const;
 
 type DocumentKey = (typeof DOCUMENT_SLOTS)[number]['key'];
 
-const ID_TYPES = [
-  { value: 'passport', label: 'Passport' },
-  { value: 'national_id', label: 'National ID' },
-  { value: 'driving_license', label: "Driver's licence" },
-];
+const ID_TYPES = ['passport', 'national_id', 'driving_license'] as const;
+
+type Tone = 'success' | 'warning' | 'error' | 'info';
 
 /**
  * How each backend status reads to the guest, and whether it leaves them able
@@ -49,30 +50,26 @@ const ID_TYPES = [
  * the backend still considers open means a new submission would be rejected,
  * so we show the status instead of a form the guest cannot use.
  */
-const STATUS_PRESENTATION: Record<
-  string,
-  { label: string; tone: 'success' | 'warning' | 'error' | 'info'; blocking: boolean; help: string }
-> = {
-  approved: { label: 'Verified', tone: 'success', blocking: true, help: 'Your identity is verified. You can check in faster on arrival.' },
-  verified: { label: 'Verified', tone: 'success', blocking: true, help: 'Your identity is verified. You can check in faster on arrival.' },
+const STATUS_PRESENTATION: Record<string, { tone: Tone; blocking: boolean }> = {
+  approved: { tone: 'success', blocking: true },
+  verified: { tone: 'success', blocking: true },
   // Not blocking: `exists_open_for_guest` excludes 'rejected', so the API
   // accepts a fresh submission. Hiding the form here would leave the guest
   // staring at a dead end that the backend would in fact have allowed.
-  rejected: { label: 'Not accepted', tone: 'error', blocking: false, help: 'We could not accept this verification. You can submit a new set of documents below, or contact the front desk if you are unsure why.' },
-  additional_information_required: { label: 'More information needed', tone: 'warning', blocking: false, help: 'Please review the note below and send us a new set of documents.' },
-  expired: { label: 'Expired', tone: 'warning', blocking: false, help: 'This verification has expired. You can submit a new one.' },
-  void: { label: 'Cancelled', tone: 'info', blocking: false, help: 'This verification was cancelled. You can submit a new one.' },
+  rejected: { tone: 'error', blocking: false },
+  additional_information_required: { tone: 'warning', blocking: false },
+  expired: { tone: 'warning', blocking: false },
+  void: { tone: 'info', blocking: false },
 };
 
-function presentationFor(status: string) {
-  return (
-    STATUS_PRESENTATION[status] ?? {
-      label: 'Under review',
-      tone: 'info' as const,
-      blocking: true,
-      help: 'Our team is reviewing your documents. We will update you shortly.',
-    }
-  );
+function presentationFor(status: string, t: (key: string) => string) {
+  const presentation = STATUS_PRESENTATION[status] ?? { tone: 'info' as const, blocking: true };
+  const key = STATUS_PRESENTATION[status] ? status : 'default';
+  return {
+    ...presentation,
+    label: t(`dashboard.identity.status.${key}.label`),
+    help: t(`dashboard.identity.status.${key}.help`),
+  };
 }
 
 const EMPTY_FIELDS: EkycFieldValues = {
@@ -100,6 +97,7 @@ const EMPTY_FIELDS: EkycFieldValues = {
  * body-capped upload endpoint.
  */
 export function IdentitySection({ token }: { token: string }) {
+  const { t } = useTranslation('guestPortal');
   const [status, setStatus] = useState<GuestPortalEkycStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -110,6 +108,7 @@ export function IdentitySection({ token }: { token: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
+  const formErrorRef = useAutoFocusError(formError);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,11 +116,11 @@ export function IdentitySection({ token }: { token: string }) {
     try {
       setStatus(await GuestPortalDashboardService.getEkycStatus(token));
     } catch {
-      setLoadError('Unable to load your verification status right now.');
+      setLoadError(t('dashboard.identity.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [t, token]);
 
   useEffect(() => {
     void load();
@@ -144,8 +143,17 @@ export function IdentitySection({ token }: { token: string }) {
     () => validateEkycFields(valuesForValidation),
     [valuesForValidation],
   );
-  const errorFor = (field: string) =>
-    showErrors ? errors.find((e) => e.field === field)?.message : undefined;
+  const errorFor = (field: string) => {
+    if (!showErrors) return undefined;
+    const error = errors.find((e) => e.field === field);
+    if (!error) return undefined;
+    // `key` may carry an `auth:` prefix; `labelKey` feeds {{field}} on the
+    // shared "is required" message. An unmapped field falls back to its raw
+    // name rather than a broken key.
+    return t(error.key, {
+      field: error.labelKey ? t(error.labelKey) : error.field,
+    });
+  };
 
   const setField = (key: keyof EkycFieldValues) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setFields((prev) => ({ ...prev, [key]: event.target.value }));
@@ -162,8 +170,14 @@ export function IdentitySection({ token }: { token: string }) {
       // Surface what the server actually said. A rate-limit (429), a
       // deactivated account (403) and an oversized photo all reach here, and
       // "try a different photo" is wrong — and unactionable — for the first two.
-      const fallback = `We could not upload your ${key.replace('_', ' ')}. Please try a different photo.`;
-      setFormError(error instanceof Error && error.message ? error.message : fallback);
+      setFormError(
+        guestErrorMessage(
+          error,
+          t('dashboard.identity.uploadFailed', {
+            slot: t(`dashboard.identity.documents.${key}`),
+          }),
+        ),
+      );
     } finally {
       setUploading(null);
     }
@@ -172,7 +186,7 @@ export function IdentitySection({ token }: { token: string }) {
   const handleSubmit = async () => {
     setShowErrors(true);
     if (errors.length > 0) {
-      setFormError('Please complete the highlighted fields before submitting.');
+      setFormError(t('dashboard.identity.incompleteFields'));
       return;
     }
     setSubmitting(true);
@@ -200,27 +214,23 @@ export function IdentitySection({ token }: { token: string }) {
       setPaths({});
       setShowErrors(false);
     } catch (error) {
-      setFormError(
-        error instanceof Error && error.message
-          ? error.message
-          : 'We could not submit your verification. Please try again.',
-      );
+      setFormError(guestErrorMessage(error, t('dashboard.identity.submitFailed')));
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <LoadingState label="Loading your verification status…" />;
+  if (loading) return <LoadingState label={t('dashboard.identity.loading')} />;
   if (loadError) return <ErrorState message={loadError} retry={() => void load()} />;
 
-  const presentation = status ? presentationFor(status.status) : null;
+  const presentation = status ? presentationFor(status.status, t) : null;
 
   return (
     <>
       <SectionHeading
-        eyebrow="Identity"
-        title="Identity verification"
-        description="Verify your identity before you arrive so check-in takes moments instead of minutes. Your documents are encrypted and only seen by our front-desk team."
+        eyebrow={t('dashboard.identity.eyebrow')}
+        title={t('dashboard.identity.title')}
+        description={t('dashboard.identity.description')}
       />
       {status && presentation ? (
         <Card sx={{ mb: 3, border: '1px solid var(--hotel-border)' }}>
@@ -242,7 +252,9 @@ export function IdentitySection({ token }: { token: string }) {
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
                 }}>
-                  Submitted {formatPortalDate(status.submitted_at)}
+                  {t('dashboard.identity.submittedAt', {
+                    date: formatPortalDate(status.submitted_at),
+                  })}
                 </Typography>
               ) : null}
             </Stack>
@@ -259,12 +271,12 @@ export function IdentitySection({ token }: { token: string }) {
         <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }}>
           {status ? (
             <Typography variant="h6" sx={{ color: 'var(--hotel-text)', fontWeight: 700, mb: 2 }}>
-              Send us a new set of documents
+              {t('dashboard.identity.resubmitTitle')}
             </Typography>
           ) : null}
 
           {formError ? (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" role="alert" ref={formErrorRef} tabIndex={-1} sx={{ mb: 2 }}>
               {formError}
             </Alert>
           ) : null}
@@ -272,14 +284,14 @@ export function IdentitySection({ token }: { token: string }) {
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth required label="Full name (as on your ID)"
+                fullWidth required label={t('dashboard.identity.fields.fullName')}
                 value={fields.fullName} onChange={setField('fullName')}
                 error={Boolean(errorFor('fullName'))} helperText={errorFor('fullName')}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth required type="date" label="Date of birth"
+                fullWidth required type="date" label={t('dashboard.identity.fields.dateOfBirth')}
                 value={fields.dateOfBirth}
                 onChange={setField('dateOfBirth')} error={Boolean(errorFor('dateOfBirth'))}
                 helperText={errorFor('dateOfBirth')} slotProps={{
@@ -289,31 +301,33 @@ export function IdentitySection({ token }: { token: string }) {
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth required label="Nationality"
+                fullWidth required label={t('dashboard.identity.fields.nationality')}
                 value={fields.nationality} onChange={setField('nationality')}
                 error={Boolean(errorFor('nationality'))} helperText={errorFor('nationality')}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                select fullWidth required label="ID type"
+                select fullWidth required label={t('dashboard.identity.fields.idType')}
                 value={fields.idType} onChange={setField('idType')}
               >
-                {ID_TYPES.map((t) => (
-                  <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>
+                {ID_TYPES.map((idType) => (
+                  <MenuItem key={idType} value={idType}>
+                    {t(`dashboard.identity.idTypes.${idType}`)}
+                  </MenuItem>
                 ))}
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth required label="ID number"
+                fullWidth required label={t('dashboard.identity.fields.idNumber')}
                 value={fields.idNumber} onChange={setField('idNumber')}
                 error={Boolean(errorFor('idNumber'))} helperText={errorFor('idNumber')}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth required type="date" label="ID expiry date"
+                fullWidth required type="date" label={t('dashboard.identity.fields.idExpiryDate')}
                 value={fields.idExpiryDate}
                 onChange={setField('idExpiryDate')} error={Boolean(errorFor('idExpiryDate'))}
                 helperText={errorFor('idExpiryDate')} slotProps={{
@@ -323,28 +337,28 @@ export function IdentitySection({ token }: { token: string }) {
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth required label="Issuing country"
+                fullWidth required label={t('dashboard.identity.fields.idIssuingCountry')}
                 value={fields.idIssuingCountry} onChange={setField('idIssuingCountry')}
                 error={Boolean(errorFor('idIssuingCountry'))} helperText={errorFor('idIssuingCountry')}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth required type="tel" label="Phone"
+                fullWidth required type="tel" label={t('dashboard.identity.fields.phone')}
                 value={fields.phone} onChange={setField('phone')}
                 error={Boolean(errorFor('phone'))} helperText={errorFor('phone')}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth required type="email" label="Email"
+                fullWidth required type="email" label={t('dashboard.identity.fields.email')}
                 value={fields.email} onChange={setField('email')}
                 error={Boolean(errorFor('email'))} helperText={errorFor('email')}
               />
             </Grid>
             <Grid size={12}>
               <TextField
-                fullWidth required multiline minRows={2} label="Current address"
+                fullWidth required multiline minRows={2} label={t('dashboard.identity.fields.currentAddress')}
                 value={fields.currentAddress} onChange={setField('currentAddress')}
                 error={Boolean(errorFor('currentAddress'))} helperText={errorFor('currentAddress')}
               />
@@ -352,7 +366,7 @@ export function IdentitySection({ token }: { token: string }) {
           </Grid>
 
           <Typography variant="h6" sx={{ color: 'var(--hotel-text)', fontWeight: 700, mt: 4, mb: 1 }}>
-            Documents
+            {t('dashboard.identity.documentsTitle')}
           </Typography>
           <Typography
             variant="body2"
@@ -360,7 +374,7 @@ export function IdentitySection({ token }: { token: string }) {
               color: "text.secondary",
               mb: 2
             }}>
-            Clear photos, JPEG/PNG/WebP, up to 10MB each.
+            {t('dashboard.identity.documentsHint')}
           </Typography>
 
           <Stack spacing={1.5} sx={{
@@ -385,7 +399,7 @@ export function IdentitySection({ token }: { token: string }) {
                     startIcon={uploading === slot.key ? <CircularProgress size={16} /> : <UploadFileOutlinedIcon />}
                     disabled={uploading !== null}
                   >
-                    {slot.label}{required ? ' *' : ''}
+                    {t(`dashboard.identity.documents.${slot.key}`)}{required ? ' *' : ''}
                     <input
                       hidden
                       type="file"
@@ -394,7 +408,7 @@ export function IdentitySection({ token }: { token: string }) {
                     />
                   </Button>
                   {stored ? (
-                    <Chip size="small" color="success" icon={<CheckCircleOutlineIcon />} label="Uploaded" />
+                    <Chip size="small" color="success" icon={<CheckCircleOutlineIcon />} label={t('dashboard.identity.uploaded')} />
                   ) : null}
                 </Stack>
               );
@@ -414,7 +428,7 @@ export function IdentitySection({ token }: { token: string }) {
             disabled={submitting || uploading !== null}
             startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : undefined}
           >
-            {submitting ? 'Submitting…' : 'Submit for verification'}
+            {submitting ? t('dashboard.identity.submitting') : t('dashboard.identity.submit')}
           </Button>
         </Box>
       )}

@@ -28,19 +28,23 @@ function addCalendarMonthsClamped(date: Date, months: number): Date {
 }
 
 /** Returns a guest-friendly validation message, or null when the search is valid. */
-export function validateGuestBookingSearch(search: GuestBookingSearch, today = new Date()): string | null {
+export function validateGuestBookingSearch(
+  search: GuestBookingSearch,
+  t: (key: string) => string,
+  today = new Date(),
+): string | null {
   const checkIn = parseCalendarDate(search.check_in_date);
   const checkOut = parseCalendarDate(search.check_out_date);
   const todayAtNoon = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
-  if (!checkIn || !checkOut) return 'Enter valid check-in and check-out dates.';
-  if (checkIn < todayAtNoon) return 'Check-in must be today or later.';
-  if (checkOut <= checkIn) return 'Check-out must be later than check-in.';
+  if (!checkIn || !checkOut) return t('book.errors.invalidDates');
+  if (checkIn < todayAtNoon) return t('book.errors.checkInPast');
+  if (checkOut <= checkIn) return t('book.errors.checkOutOrder');
   const nights = Math.round((checkOut.getTime() - checkIn.getTime()) / DAY_MS);
-  if (nights < 1 || nights > 30) return 'Stays must be between 1 and 30 nights.';
+  if (nights < 1 || nights > 30) return t('book.errors.stayLength');
   const latestCheckIn = addCalendarMonthsClamped(todayAtNoon, 3);
-  if (checkIn > latestCheckIn) return 'Choose a check-in date within the next three calendar months.';
-  if (!Number.isInteger(search.adults) || search.adults < 1 || search.adults > 20) return 'Adults must be between 1 and 20.';
-  if (!Number.isInteger(search.children) || search.children < 0 || search.children > 20) return 'Children must be between 0 and 20.';
+  if (checkIn > latestCheckIn) return t('book.errors.checkInHorizon');
+  if (!Number.isInteger(search.adults) || search.adults < 1 || search.adults > 20) return t('book.errors.adultsRange');
+  if (!Number.isInteger(search.children) || search.children < 0 || search.children > 20) return t('book.errors.childrenRange');
   return null;
 }
 

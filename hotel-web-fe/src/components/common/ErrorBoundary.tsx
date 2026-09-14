@@ -7,9 +7,10 @@ import BugReportIcon from '@mui/icons-material/BugReport';
 
 interface ErrorFallbackProps extends FallbackProps {
   title?: string;
+  detailMessage?: string;
 }
 
-function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wrong' }: ErrorFallbackProps) {
+function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wrong', detailMessage }: ErrorFallbackProps) {
   const isDevelopment = import.meta.env.DEV;
   // react-error-boundary 6 types the thrown value as `unknown` (anything can
   // be thrown), so narrow it before reading Error fields.
@@ -44,7 +45,7 @@ function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wron
 
         <Alert severity="error" sx={{ mt: 2, mb: 3, textAlign: 'left' }}>
           <AlertTitle>Error Details</AlertTitle>
-          {errorMessage || 'An unexpected error occurred'}
+          {detailMessage ?? (errorMessage || 'An unexpected error occurred')}
         </Alert>
 
         {isDevelopment && errorStack && (
@@ -100,11 +101,17 @@ function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wron
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   title?: string;
+  /**
+   * Guest-facing replacement for the raw `error.message` in the fallback's
+   * "Error Details" alert. Leave unset on staff/dev boundaries so the real
+   * exception text keeps showing there.
+   */
+  detailMessage?: string;
   onError?: (error: unknown, errorInfo: React.ErrorInfo) => void;
   onReset?: () => void;
 }
 
-export function ErrorBoundary({ children, title, onError, onReset }: ErrorBoundaryProps) {
+export function ErrorBoundary({ children, title, detailMessage, onError, onReset }: ErrorBoundaryProps) {
   const handleError = (error: unknown, errorInfo: React.ErrorInfo) => {
     // Log error to console in development
     if (import.meta.env.DEV) {
@@ -129,7 +136,7 @@ export function ErrorBoundary({ children, title, onError, onReset }: ErrorBounda
 
   return (
     <ReactErrorBoundary
-      FallbackComponent={(props) => <ErrorFallback {...props} title={title} />}
+      FallbackComponent={(props) => <ErrorFallback {...props} title={title} detailMessage={detailMessage} />}
       onError={handleError}
       onReset={handleReset}
     >

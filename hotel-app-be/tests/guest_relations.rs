@@ -253,24 +253,24 @@ impl Fixture {
                     .fetch_one(pool)
                     .await
                     .unwrap_or_else(|e| panic!("seeded permission '{permission}' must exist: {e}"));
-            sqlx::query(
-                "INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)",
-            )
-            .bind(id)
-            .bind(permission_id)
-            .execute(pool)
-            .await
-            .expect("role permission fixture must be inserted");
+            sqlx::query("INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)")
+                .bind(id)
+                .bind(permission_id)
+                .execute(pool)
+                .await
+                .expect("role permission fixture must be inserted");
         }
     }
 
     async fn assign_role(pool: &PgPool, user_id: i64, role_id: i64) {
-        sqlx::query("INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
-            .bind(user_id)
-            .bind(role_id)
-            .execute(pool)
-            .await
-            .expect("role assignment must be inserted");
+        sqlx::query(
+            "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        )
+        .bind(user_id)
+        .bind(role_id)
+        .execute(pool)
+        .await
+        .expect("role assignment must be inserted");
     }
 
     async fn seed_users_and_roles(pool: &PgPool) {
@@ -288,8 +288,13 @@ impl Fixture {
             Self::upsert_user(pool, id, username).await;
         }
 
-        Self::upsert_role(pool, ROLE_EDITOR, "grt986_editor", &["guests:read", "guests:update"])
-            .await;
+        Self::upsert_role(
+            pool,
+            ROLE_EDITOR,
+            "grt986_editor",
+            &["guests:read", "guests:update"],
+        )
+        .await;
         Self::upsert_role(pool, ROLE_READER, "grt986_reader", &["guests:read"]).await;
         // support:read + reviews:read join guests:manage so the manager token
         // exercises the overview's permission-gated sections positively.
@@ -353,17 +358,34 @@ impl Fixture {
     }
 
     async fn seed_guests(pool: &PgPool) {
-        Self::upsert_guest(pool, GUEST_MAIN, "Grt986 Main", Some("grt986.main@hotel.local")).await;
+        Self::upsert_guest(
+            pool,
+            GUEST_MAIN,
+            "Grt986 Main",
+            Some("grt986.main@hotel.local"),
+        )
+        .await;
         // `vip_status = ''` pins the `vip_status <> ''` half of the vip filter.
-        Self::upsert_guest(pool, GUEST_PLAIN, "Grt986 Plain", Some("grt986.plain@hotel.local"))
-            .await;
+        Self::upsert_guest(
+            pool,
+            GUEST_PLAIN,
+            "Grt986 Plain",
+            Some("grt986.plain@hotel.local"),
+        )
+        .await;
         sqlx::query("UPDATE guests SET vip_status = '' WHERE id = $1")
             .bind(GUEST_PLAIN)
             .execute(pool)
             .await
             .unwrap();
 
-        Self::upsert_guest(pool, GUEST_VIP, "Grt986 Vip", Some("grt986.vip@hotel.local")).await;
+        Self::upsert_guest(
+            pool,
+            GUEST_VIP,
+            "Grt986 Vip",
+            Some("grt986.vip@hotel.local"),
+        )
+        .await;
         sqlx::query(
             "UPDATE guests SET vip_status = 'gold', tags = ARRAY['vip','returning']::text[], \
                  id_type = 'passport'::identificationtype, id_number = 'P123456X', \
@@ -465,8 +487,20 @@ impl Fixture {
         // Distinct date ranges — `bookings_no_room_date_overlap` forbids two
         // rows on the same room over the same stay window.
         for (booking_id, guest_id, number, check_in, check_out) in [
-            (BOOKING_MAIN, GUEST_MAIN, "BK-GRT986-501", "2030-01-01", "2030-01-02"),
-            (BOOKING_PLAIN, GUEST_PLAIN, "BK-GRT986-502", "2030-02-01", "2030-02-02"),
+            (
+                BOOKING_MAIN,
+                GUEST_MAIN,
+                "BK-GRT986-501",
+                "2030-01-01",
+                "2030-01-02",
+            ),
+            (
+                BOOKING_PLAIN,
+                GUEST_PLAIN,
+                "BK-GRT986-502",
+                "2030-02-01",
+                "2030-02-02",
+            ),
         ] {
             sqlx::query(
                 "INSERT INTO bookings \
@@ -592,14 +626,12 @@ impl Fixture {
         .fetch_one(pool)
         .await
         .expect("tierless loyalty member fixture must be inserted");
-        sqlx::query(
-            "INSERT INTO loyalty_accounts (member_id, current_tier_id) VALUES ($1, $2)",
-        )
-        .bind(tierless_member)
-        .bind(tierless_tier)
-        .execute(pool)
-        .await
-        .expect("tierless loyalty account fixture must be inserted");
+        sqlx::query("INSERT INTO loyalty_accounts (member_id, current_tier_id) VALUES ($1, $2)")
+            .bind(tierless_member)
+            .bind(tierless_tier)
+            .execute(pool)
+            .await
+            .expect("tierless loyalty account fixture must be inserted");
 
         // Promotion + voucher join fixture.
         sqlx::query(
@@ -686,12 +718,60 @@ impl Fixture {
             .await
             .expect("hotel_today must resolve for P2 booking fixtures");
         for (booking_id, guest_id, number, in_offset, out_offset, status, room_id) in [
-            (986_511_i64, GUEST_STAYING, "BK-GRT986-P2-1", -800, 0, "checked_in", ROOM_ID_LONG),
-            (BOOKING_ARRIVING, GUEST_ARRIVING, "BK-GRT986-P2-2", 0, 1, "confirmed", ROOM_ID),
-            (986_513, GUEST_FUTURE, "BK-GRT986-P2-3", 7, 8, "confirmed", ROOM_ID),
-            (986_514, GUEST_RETURNING, "BK-GRT986-P2-4", -60, -59, "checked_out", ROOM_ID),
-            (986_515, GUEST_RETURNING, "BK-GRT986-P2-5", -30, -29, "checked_out", ROOM_ID),
-            (986_516, GUEST_INACTIVE, "BK-GRT986-P2-6", -400, -399, "checked_out", ROOM_ID),
+            (
+                986_511_i64,
+                GUEST_STAYING,
+                "BK-GRT986-P2-1",
+                -800,
+                0,
+                "checked_in",
+                ROOM_ID_LONG,
+            ),
+            (
+                BOOKING_ARRIVING,
+                GUEST_ARRIVING,
+                "BK-GRT986-P2-2",
+                0,
+                1,
+                "confirmed",
+                ROOM_ID,
+            ),
+            (
+                986_513,
+                GUEST_FUTURE,
+                "BK-GRT986-P2-3",
+                7,
+                8,
+                "confirmed",
+                ROOM_ID,
+            ),
+            (
+                986_514,
+                GUEST_RETURNING,
+                "BK-GRT986-P2-4",
+                -60,
+                -59,
+                "checked_out",
+                ROOM_ID,
+            ),
+            (
+                986_515,
+                GUEST_RETURNING,
+                "BK-GRT986-P2-5",
+                -30,
+                -29,
+                "checked_out",
+                ROOM_ID,
+            ),
+            (
+                986_516,
+                GUEST_INACTIVE,
+                "BK-GRT986-P2-6",
+                -400,
+                -399,
+                "checked_out",
+                ROOM_ID,
+            ),
         ] {
             sqlx::query(
                 "INSERT INTO bookings \
@@ -995,8 +1075,14 @@ async fn interactions_crud_lifecycle() {
             })),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "create interaction failed: {created}");
-    let note_id = created["id"].as_i64().expect("interaction id must serialize");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "create interaction failed: {created}"
+    );
+    let note_id = created["id"]
+        .as_i64()
+        .expect("interaction id must serialize");
     assert_eq!(created["guest_id"].as_i64(), Some(GUEST_MAIN));
     assert_eq!(created["interaction_type"], "call");
     assert_eq!(created["subject"], "Welcome call");
@@ -1033,18 +1119,34 @@ async fn interactions_crud_lifecycle() {
             })),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "update interaction failed: {updated}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "update interaction failed: {updated}"
+    );
     assert_eq!(updated["subject"], "Updated subject");
     assert_eq!(updated["content"], "Called again, left voicemail");
     assert_eq!(updated["is_alert"], false);
-    assert_eq!(updated["interaction_type"], "call", "unpatched fields must persist");
+    assert_eq!(
+        updated["interaction_type"], "call",
+        "unpatched fields must persist"
+    );
     assert_eq!(updated["assigned_to"].as_i64(), Some(USER_COLLEAGUE));
 
     // Delete — hard delete; the row is gone from the list and 404s on fetch.
     let (status, deleted) = fx
-        .call("DELETE", &format!("{base}/{note_id}"), Some(&fx.author), None)
+        .call(
+            "DELETE",
+            &format!("{base}/{note_id}"),
+            Some(&fx.author),
+            None,
+        )
         .await;
-    assert_eq!(status, StatusCode::OK, "delete interaction failed: {deleted}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "delete interaction failed: {deleted}"
+    );
     assert_eq!(deleted["success"], true);
 
     let (_, listed) = fx.call("GET", &base, Some(&fx.reader), None).await;
@@ -1057,7 +1159,11 @@ async fn interactions_crud_lifecycle() {
             Some(json!({"subject": "post-delete"})),
         )
         .await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "deleted note must 404: {gone}");
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "deleted note must 404: {gone}"
+    );
 
     // A booking link that belongs to another guest is rejected.
     let (status, bad_link) = fx
@@ -1068,14 +1174,22 @@ async fn interactions_crud_lifecycle() {
             Some(json!({"content": "wrong booking", "booking_id": BOOKING_PLAIN})),
         )
         .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "cross-guest booking link: {bad_link}");
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "cross-guest booking link: {bad_link}"
+    );
 
     // Unknown guests 404 and the permission gate is live on both verbs.
     let missing = fx.guest_uri(999_999_999, "/interactions");
     let (status, _) = fx.call("GET", &missing, Some(&fx.reader), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (status, denied) = fx.call("GET", &base, Some(&fx.noperm), None).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "guests:read gate broken: {denied}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "guests:read gate broken: {denied}"
+    );
     let (status, denied) = fx
         .call(
             "POST",
@@ -1084,7 +1198,11 @@ async fn interactions_crud_lifecycle() {
             Some(json!({"content": "reader cannot write"})),
         )
         .await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "guests:update gate broken: {denied}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "guests:update gate broken: {denied}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1149,7 +1267,11 @@ async fn interaction_type_validation_accepts_allowed_and_rejects_unknown() {
             Some(json!({"interaction_type": "follow-up", "content": "call them back"})),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "hyphen normalization failed: {hyphenated}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "hyphen normalization failed: {hyphenated}"
+    );
     assert_eq!(hyphenated["interaction_type"], "follow_up");
 
     // The same allowlist guards PATCH.
@@ -1161,7 +1283,11 @@ async fn interaction_type_validation_accepts_allowed_and_rejects_unknown() {
             Some(json!({"interaction_type": "carrier_pigeon"})),
         )
         .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "invalid patch type: {bad_patch}");
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "invalid patch type: {bad_patch}"
+    );
     let (status, good_patch) = fx
         .call(
             "PATCH",
@@ -1170,7 +1296,11 @@ async fn interaction_type_validation_accepts_allowed_and_rejects_unknown() {
             Some(json!({"interaction_type": "EMAIL"})),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "patch normalization failed: {good_patch}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "patch normalization failed: {good_patch}"
+    );
     assert_eq!(good_patch["interaction_type"], "email");
 
     // Omitted type falls back to the `note` column vocabulary.
@@ -1249,11 +1379,24 @@ async fn private_interaction_visibility_requires_author_or_manage() {
             Some(json!({"content": "colleague overwrite"})),
         )
         .await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "colleague patch: {denied_patch}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "colleague patch: {denied_patch}"
+    );
     let (status, denied_delete) = fx
-        .call("DELETE", &format!("{base}/{note_id}"), Some(&fx.colleague), None)
+        .call(
+            "DELETE",
+            &format!("{base}/{note_id}"),
+            Some(&fx.colleague),
+            None,
+        )
         .await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "colleague delete: {denied_delete}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "colleague delete: {denied_delete}"
+    );
 
     // A guests:read-only viewer is filtered the same way.
     let (_, reader_list) = fx.call("GET", &base, Some(&fx.reader), None).await;
@@ -1302,7 +1445,10 @@ async fn follow_up_completion_stamps_clears_and_filters() {
         .await;
     assert_eq!(status, StatusCode::OK, "follow-up create failed: {created}");
     let note_id = created["id"].as_i64().unwrap();
-    assert!(created["follow_up_at"].is_string(), "follow_up_at must round-trip");
+    assert!(
+        created["follow_up_at"].is_string(),
+        "follow_up_at must round-trip"
+    );
     assert!(created["follow_up_completed_at"].is_null());
 
     // Open follow-ups are always visible, even with completed rows hidden.
@@ -1420,7 +1566,9 @@ async fn preferences_upsert_and_replace_categories() {
 
     let (status, listed) = fx.call("GET", &uri, Some(&fx.reader), None).await;
     assert_eq!(status, StatusCode::OK, "preferences list failed: {listed}");
-    let rows = listed.as_array().expect("preferences must serialize as an array");
+    let rows = listed
+        .as_array()
+        .expect("preferences must serialize as an array");
     let find = |category: &str, key: &str| {
         rows.iter()
             .find(|row| row["category"] == category && row["preference_key"] == key)
@@ -1431,8 +1579,14 @@ async fn preferences_upsert_and_replace_categories() {
         find("room", "view").is_none(),
         "absent key in a replaced category must be deleted: {listed}"
     );
-    assert_eq!(find("dietary", "allergy").unwrap()["preference_value"], "nuts");
-    assert_eq!(find("occasion", "anniversary").unwrap()["preference_value"], "flowers");
+    assert_eq!(
+        find("dietary", "allergy").unwrap()["preference_value"],
+        "nuts"
+    );
+    assert_eq!(
+        find("occasion", "anniversary").unwrap()["preference_value"],
+        "flowers"
+    );
     assert!(rows.iter().all(|row| row["updated_at"].is_string()));
 
     // Category allowlist is enforced at the API boundary.
@@ -1446,7 +1600,11 @@ async fn preferences_upsert_and_replace_categories() {
             })),
         )
         .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "invalid category: {bad_category}");
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "invalid category: {bad_category}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1474,7 +1632,11 @@ async fn reviews_list_decode_and_staff_response() {
 
     // The route-level gate: reviews:read and reviews:update are separate.
     let (status, denied) = fx.call("GET", &uri, Some(&fx.noperm), None).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "reviews:read gate broken: {denied}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "reviews:read gate broken: {denied}"
+    );
 
     let response_uri = format!("{}/{}/response", uri, fx.review_id);
     let (status, denied) = fx
@@ -1485,7 +1647,11 @@ async fn reviews_list_decode_and_staff_response() {
             Some(json!({"response": "nope"})),
         )
         .await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "reviews:update gate broken: {denied}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "reviews:update gate broken: {denied}"
+    );
 
     let (status, responded) = fx
         .call(
@@ -1495,18 +1661,24 @@ async fn reviews_list_decode_and_staff_response() {
             Some(json!({"response": "Thank you for staying with us"})),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "review response failed: {responded}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "review response failed: {responded}"
+    );
     assert_eq!(responded["response"], "Thank you for staying with us");
-    assert!(responded["response_at"].is_string(), "response_at must be stamped");
+    assert!(
+        responded["response_at"].is_string(),
+        "response_at must be stamped"
+    );
     assert_eq!(responded["overall_rating"].as_f64(), Some(4.5));
 
     // `response_by` persists the staff member who wrote it.
-    let responder: i64 =
-        sqlx::query_scalar("SELECT response_by FROM guest_reviews WHERE id = $1")
-            .bind(fx.review_id)
-            .fetch_one(&fx.pool)
-            .await
-            .expect("review row must still exist");
+    let responder: i64 = sqlx::query_scalar("SELECT response_by FROM guest_reviews WHERE id = $1")
+        .bind(fx.review_id)
+        .fetch_one(&fx.pool)
+        .await
+        .expect("review row must still exist");
     assert_eq!(responder, USER_REVIEWER);
 
     // Responses for another guest's review 404 (scoped to guest_id).
@@ -1519,7 +1691,11 @@ async fn reviews_list_decode_and_staff_response() {
             Some(json!({"response": "cross-guest"})),
         )
         .await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "cross-guest review: {not_found}");
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "cross-guest review: {not_found}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1548,7 +1724,11 @@ async fn loyalty_summary_member_nullable_tier_and_non_member() {
     assert_eq!(member["lifetime_points"].as_i64(), Some(1200));
     assert_eq!(member["qualifying_nights"].as_i64(), Some(7));
     let redemptions = member["recent_redemptions"].as_array().unwrap();
-    assert_eq!(redemptions.len(), 1, "seeded redemption must appear: {member}");
+    assert_eq!(
+        redemptions.len(),
+        1,
+        "seeded redemption must appear: {member}"
+    );
     assert_eq!(redemptions[0]["reward_name"], "Grt986 Reward");
     assert_eq!(redemptions[0]["points"].as_i64(), Some(100));
     assert_eq!(redemptions[0]["status"], "approved");
@@ -1564,7 +1744,10 @@ async fn loyalty_summary_member_nullable_tier_and_non_member() {
         .await;
     assert_eq!(status, StatusCode::OK, "tierless member failed: {tierless}");
     assert_eq!(tierless["member_number"], "GRT986-M2");
-    assert_eq!(tierless["tier_code"], "", "NULL tier code must coalesce to empty");
+    assert_eq!(
+        tierless["tier_code"], "",
+        "NULL tier code must coalesce to empty"
+    );
     assert_eq!(tierless["tier_name"], "Grt986 Tierless");
     assert_eq!(tierless["available_points"].as_i64(), Some(0));
 
@@ -1658,9 +1841,11 @@ async fn communications_summary_covers_subscriptions_suppression_and_opt_in() {
     );
     let deliveries = summary["recent_deliveries"].as_array().unwrap();
     assert!(
-        deliveries.iter().any(|d| d["kind"] == "booking_confirmation"
-            && d["subject"] == "Grt986 booking confirmation"
-            && d["status"] == "sent"),
+        deliveries
+            .iter()
+            .any(|d| d["kind"] == "booking_confirmation"
+                && d["subject"] == "Grt986 booking confirmation"
+                && d["status"] == "sent"),
         "seeded delivery must appear: {summary}"
     );
 
@@ -1686,7 +1871,11 @@ async fn communications_summary_covers_subscriptions_suppression_and_opt_in() {
             None,
         )
         .await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "communications:read gate: {denied}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "communications:read gate: {denied}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1708,7 +1897,11 @@ async fn support_guest_list_and_staff_conversation_create() {
             None,
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "guest support list failed: {listed}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "guest support list failed: {listed}"
+    );
     let rows = listed.as_array().unwrap();
     let conversation = rows
         .iter()
@@ -1749,12 +1942,13 @@ async fn support_guest_list_and_staff_conversation_create() {
     let messages = created["messages"].as_array().unwrap();
     assert_eq!(messages[0]["author_type"], "staff");
     assert_eq!(messages[0]["author_user_id"].as_i64(), Some(USER_AGENT));
-    assert_eq!(messages[0]["body"], "Guest asked for extra towels at the desk");
+    assert_eq!(
+        messages[0]["body"],
+        "Guest asked for extra towels at the desk"
+    );
     let events = created["events"].as_array().unwrap();
     assert!(
-        events
-            .iter()
-            .any(|event| event["event_type"] == "created"),
+        events.iter().any(|event| event["event_type"] == "created"),
         "a 'created' event row must be written: {created}"
     );
 
@@ -1771,7 +1965,11 @@ async fn support_guest_list_and_staff_conversation_create() {
             })),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "complaint create failed: {complaint}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "complaint create failed: {complaint}"
+    );
     assert_eq!(complaint["conversation"]["category"], "complaint");
     assert_eq!(complaint["conversation"]["status"], "waiting_for_staff");
 
@@ -1830,7 +2028,11 @@ async fn support_guest_list_and_staff_conversation_create() {
             })),
         )
         .await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "support:write gate: {denied}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "support:write gate: {denied}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1896,7 +2098,11 @@ async fn reveal_gating_on_profile_and_guest_patch() {
             Some(json!({"vip_status": "platinum"})),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "non-sensitive PATCH failed: {updated}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "non-sensitive PATCH failed: {updated}"
+    );
     assert_eq!(updated["vip_status"], "platinum");
 
     // A guests:manage caller (implied reveal) may update sensitive fields.
@@ -1908,7 +2114,11 @@ async fn reveal_gating_on_profile_and_guest_patch() {
             Some(json!({"id_number": "X999999"})),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "manager sensitive PATCH failed: {updated}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "manager sensitive PATCH failed: {updated}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1934,7 +2144,10 @@ async fn guest_list_filters_vip_blacklisted_open_support() {
     assert_eq!(status, StatusCode::OK, "vip filter failed: {vip}");
     let ids = list_ids(&vip);
     assert!(ids.contains(&GUEST_VIP), "vip guest missing: {vip}");
-    assert!(!ids.contains(&GUEST_PLAIN), "empty vip_status must not match");
+    assert!(
+        !ids.contains(&GUEST_PLAIN),
+        "empty vip_status must not match"
+    );
     assert!(!ids.contains(&GUEST_MAIN), "NULL vip_status must not match");
     let vip_row = vip["data"]
         .as_array()
@@ -1948,12 +2161,24 @@ async fn guest_list_filters_vip_blacklisted_open_support() {
 
     // blacklisted=true matches only is_blacklisted = true.
     let (status, blacklisted) = fx
-        .call("GET", "/api/guests?blacklisted=true", Some(&fx.reader), None)
+        .call(
+            "GET",
+            "/api/guests?blacklisted=true",
+            Some(&fx.reader),
+            None,
+        )
         .await;
-    assert_eq!(status, StatusCode::OK, "blacklist filter failed: {blacklisted}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "blacklist filter failed: {blacklisted}"
+    );
     let ids = list_ids(&blacklisted);
     assert!(ids.contains(&GUEST_BLACK), "blacklisted guest missing");
-    assert!(!ids.contains(&GUEST_VIP), "non-blacklisted guest must not match");
+    assert!(
+        !ids.contains(&GUEST_VIP),
+        "non-blacklisted guest must not match"
+    );
 
     // has_open_support=true follows the inbox definition: any status other
     // than 'closed' counts as open.
@@ -1965,14 +2190,21 @@ async fn guest_list_filters_vip_blacklisted_open_support() {
             None,
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "open-support filter failed: {open_support}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "open-support filter failed: {open_support}"
+    );
     let ids = list_ids(&open_support);
     assert!(ids.contains(&GUEST_OPEN_SUPPORT), "open case guest missing");
     assert!(
         !ids.contains(&GUEST_CLOSED_SUPPORT),
         "a closed conversation must not satisfy the filter"
     );
-    assert!(!ids.contains(&GUEST_MAIN), "guest with no cases must not match");
+    assert!(
+        !ids.contains(&GUEST_MAIN),
+        "guest with no cases must not match"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -2330,8 +2562,7 @@ async fn guest_list_segment_filters() {
     );
 
     // in_house = a checked_in/auto_checked_in booking exists.
-    let (status, in_house) =
-        get("/api/guests?segment=in_house&page_size=100&search=Grt986").await;
+    let (status, in_house) = get("/api/guests?segment=in_house&page_size=100&search=Grt986").await;
     assert_eq!(
         status,
         StatusCode::OK,
@@ -2342,8 +2573,7 @@ async fn guest_list_segment_filters() {
     assert!(!ids.contains(&GUEST_RETURNING));
 
     // upcoming = confirmed/pending_confirmation with check_in >= today.
-    let (status, upcoming) =
-        get("/api/guests?segment=upcoming&page_size=100&search=Grt986").await;
+    let (status, upcoming) = get("/api/guests?segment=upcoming&page_size=100&search=Grt986").await;
     assert_eq!(
         status,
         StatusCode::OK,
@@ -2355,8 +2585,7 @@ async fn guest_list_segment_filters() {
     assert!(!ids.contains(&GUEST_RETURNING));
 
     // inactive = no checked_out/completed stay within 365 days.
-    let (status, inactive) =
-        get("/api/guests?segment=inactive&page_size=100&search=Grt986").await;
+    let (status, inactive) = get("/api/guests?segment=inactive&page_size=100&search=Grt986").await;
     assert_eq!(
         status,
         StatusCode::OK,
@@ -2370,8 +2599,7 @@ async fn guest_list_segment_filters() {
     );
 
     // Unknown segment values are ignored (same convention as other filters).
-    let (status, bogus) =
-        get("/api/guests?segment=nonsense&page_size=100&search=Grt986").await;
+    let (status, bogus) = get("/api/guests?segment=nonsense&page_size=100&search=Grt986").await;
     assert_eq!(
         status,
         StatusCode::OK,
@@ -2381,8 +2609,7 @@ async fn guest_list_segment_filters() {
 
     // The EXISTS projection lands on list rows: true on the open-case guest,
     // false on the guest whose only conversation is closed.
-    let (status, open) =
-        get("/api/guests?has_open_support=true&page_size=100&search=Grt986").await;
+    let (status, open) = get("/api/guests?has_open_support=true&page_size=100&search=Grt986").await;
     assert_eq!(status, StatusCode::OK, "open-support list failed: {open}");
     let open_row = open["data"]
         .as_array()

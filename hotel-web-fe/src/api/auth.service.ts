@@ -1,4 +1,5 @@
 import { api, toApiError } from './client';
+import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import {
   UserProfile,
   UserProfileUpdate,
@@ -11,12 +12,32 @@ import {
 } from '../types';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
 
+/**
+ * Per-call request options shared by the profile/security reads. Callers that
+ * render a failure themselves (an inline error state with retry) opt out of
+ * the client's global error toast; everyone else keeps it.
+ */
+export interface ApiRequestOptions {
+  /** The caller renders this failure itself — skip the global toast. */
+  suppressApiNotification?: boolean;
+}
+
+function apiRequestOptions(options?: ApiRequestOptions) {
+  return options?.suppressApiNotification
+    ? { headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' } }
+    : undefined;
+}
+
 export class AuthService {
   /** First-step login: confirm username/email maps to an active account. */
   static async lookupLoginIdentifier(username: string): Promise<{ exists: boolean }> {
     try {
       return await api
-        .post('auth/login/lookup', { json: { username } })
+        .post('auth/login/lookup', {
+          json: { username },
+          // LoginPage renders the failure inline; the global toast would duplicate it.
+          headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        })
         .json<{ exists: boolean }>();
     } catch (error) {
       throw toApiError(error, 'Unable to verify username');
@@ -41,8 +62,12 @@ export class AuthService {
     try {
       await api.post('auth/register', {
         json: data,
-        // Cloudflare Turnstile token, when this build challenges.
-        ...(turnstileToken ? { headers: { 'cf-turnstile-response': turnstileToken } } : {}),
+        headers: {
+          // Cloudflare Turnstile token, when this build challenges.
+          ...(turnstileToken ? { 'cf-turnstile-response': turnstileToken } : {}),
+          // RegisterPage renders the failure inline; the global toast would duplicate it.
+          [SKIP_API_NOTIFICATION_HEADER]: 'true',
+        },
       });
     } catch (error) {
       throw toApiError(error, 'Registration failed');
@@ -63,6 +88,10 @@ export class AuthService {
               ? { consents: options.consents, marketing_opt_in: options.marketing_opt_in }
               : {}),
           },
+          // Both callers (LoginPage's inline alert, useGoogleOneTap's own
+          // translated toast) already surface the failure — the client's
+          // global toast would be a second notification for one error.
+          headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
         })
         .json<AuthResponse>();
     } catch (error) {
@@ -77,7 +106,13 @@ export class AuthService {
     address_line1?: string;
   }): Promise<UserProfile> {
     try {
-      return await api.post('profile/complete', { json: input }).json<UserProfile>();
+      return await api
+        .post('profile/complete', {
+          json: input,
+          // CompleteProfilePage renders the failure inline.
+          headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        })
+        .json<UserProfile>();
     } catch (error) {
       throw toApiError(error, 'Profile completion failed');
     }
@@ -85,7 +120,11 @@ export class AuthService {
 
   static async verifyEmail(token: string): Promise<void> {
     try {
-      await api.post('auth/verify-email', { json: { token } });
+      await api.post('auth/verify-email', {
+        json: { token },
+        // EmailVerificationPage renders the failure as page-level state.
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+      });
     } catch (error) {
       throw toApiError(error, 'Email verification failed');
     }
@@ -105,59 +144,72 @@ export class AuthService {
   }
 
   // Passkey Management
-  static async listPasskeys(): Promise<PasskeyInfo[]> {
-    return await api.get('profile/passkeys').json<PasskeyInfo[]>();
+  static async listPasskeys(options?: ApiRequestOptions): Promise<PasskeyInfo[]> {
+    return await api.get('profile/passkeys', apiRequestOptions(options)).json<PasskeyInfo[]>();
   }
 
-  static async updatePasskey(passkeyId: string, data: PasskeyUpdateInput): Promise<void> {
-    await api.patch(`profile/passkeys/${passkeyId}`, { json: data });
+  static async updatePasskey(
+    passkeyId: string,
+    data: PasskeyUpdateInput,
+    options?: ApiRequestOptions
+  ): Promise<void> {
+    await api.patch(`profile/passkeys/${passkeyId}`, { json: data, ...apiRequestOptions(options) });
   }
 
-  static async deletePasskey(passkeyId: string): Promise<void> {
-    await api.delete(`profile/passkeys/${passkeyId}`);
+  static async deletePasskey(passkeyId: string, options?: ApiRequestOptions): Promise<void> {
+    await api.delete(`profile/passkeys/${passkeyId}`, apiRequestOptions(options));
   }
 
-  static async listSessions(): Promise<UserSessionInfo[]> {
-    return await api.get('profile/sessions').json<UserSessionInfo[]>();
+  static async listSessions(options?: ApiRequestOptions): Promise<UserSessionInfo[]> {
+    return await api.get('profile/sessions', apiRequestOptions(options)).json<UserSessionInfo[]>();
   }
 
-  static async revokeSession(sessionId: string): Promise<void> {
-    await api.delete(`profile/sessions/${sessionId}`);
+  static async revokeSession(sessionId: string, options?: ApiRequestOptions): Promise<void> {
+    await api.delete(`profile/sessions/${sessionId}`, apiRequestOptions(options));
   }
 
   // 2FA Management
-  static async setupTwoFactor(): Promise<{
+  static async setupTwoFactor(options?: ApiRequestOptions): Promise<{
     secret: string;
     qr_code_url: string;
     challenge_code: string;
   }> {
-    return await api.post('profile/2fa/setup', { json: {} }).json();
+    return await api.post('profile/2fa/setup', { json: {}, ...apiRequestOptions(options) }).json();
   }
 
   static async enableTwoFactor(
     code: string,
-    challengeCode: string
+    challengeCode: string,
+    options?: ApiRequestOptions
   ): Promise<{ message: string; backup_codes: string[] }> {
     return await api
-      .post('profile/2fa/enable', { json: { code, challenge_code: challengeCode } })
+      .post('profile/2fa/enable', {
+        json: { code, challenge_code: challengeCode },
+        ...apiRequestOptions(options),
+      })
       .json();
   }
 
-  static async disableTwoFactor(code: string): Promise<void> {
-    await api.post('profile/2fa/disable', { json: { code } });
+  static async disableTwoFactor(code: string, options?: ApiRequestOptions): Promise<void> {
+    await api.post('profile/2fa/disable', { json: { code }, ...apiRequestOptions(options) });
   }
 
-  static async getTwoFactorStatus(): Promise<{
+  static async getTwoFactorStatus(options?: ApiRequestOptions): Promise<{
     enabled: boolean;
     backup_codes_remaining: number;
     /** When the current set of recovery codes was issued. Null when 2FA is
      *  off, or when the issuing event has aged out of the audit partitions. */
     backup_codes_generated_at?: string | null;
   }> {
-    return await api.get('auth/2fa/status').json();
+    return await api.get('auth/2fa/status', apiRequestOptions(options)).json();
   }
 
-  static async regenerateBackupCodes(code: string): Promise<{ backup_codes: string[] }> {
-    return await api.post('auth/2fa/regenerate-backup-codes', { json: { code } }).json();
+  static async regenerateBackupCodes(
+    code: string,
+    options?: ApiRequestOptions
+  ): Promise<{ backup_codes: string[] }> {
+    return await api
+      .post('auth/2fa/regenerate-backup-codes', { json: { code }, ...apiRequestOptions(options) })
+      .json();
   }
 }

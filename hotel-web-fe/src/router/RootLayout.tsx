@@ -14,6 +14,7 @@ import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
 import { ErrorBoundary, PageErrorBoundary } from '../components';
 import { GuestPortalShell } from '../features/guestPortal/components/GuestPortalShell';
 import { getHotelSettings } from '../utils/hotelSettings';
+import { useTranslation } from '../i18n';
 
 // Used only if `hotel_name` is configured empty; the settings themselves carry
 // a default, so this is a last resort rather than the normal title.
@@ -22,6 +23,7 @@ const ADMIN_FAVICON = '/favicon.ico';
 const GUEST_FAVICON = '/salim-inn/salim-inn-icon.svg';
 
 export const RootLayout: React.FC = () => {
+  const { t } = useTranslation('guestPortal');
   const { isAuthenticated, isLoading, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -96,7 +98,7 @@ export const RootLayout: React.FC = () => {
 
     return (
       <GuestPortalShell showAccountNav={isAuthenticated}>
-        <ErrorBoundary title="Guest Experience Error">
+        <ErrorBoundary title="Guest Experience Error" detailMessage={t('errorBoundary.detail')}>
           <Suspense fallback={<LoadingFallback />}>
             <Outlet />
           </Suspense>
@@ -116,7 +118,7 @@ export const RootLayout: React.FC = () => {
   // the operational staff shell.
   if (publicGuestPath) {
     return (
-      <ErrorBoundary title="Guest Experience Error">
+      <ErrorBoundary title="Guest Experience Error" detailMessage={t('errorBoundary.detail')}>
         <Suspense fallback={null}>
           <Outlet />
         </Suspense>
@@ -126,7 +128,7 @@ export const RootLayout: React.FC = () => {
 
   if (isOffersPage || isGuestModelHome) {
     return (
-      <ErrorBoundary title="Guest Experience Error">
+      <ErrorBoundary title="Guest Experience Error" detailMessage={t('errorBoundary.detail')}>
         <Suspense fallback={<LoadingFallback />}>
           <Outlet />
         </Suspense>

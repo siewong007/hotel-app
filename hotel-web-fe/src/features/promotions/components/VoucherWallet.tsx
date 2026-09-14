@@ -8,7 +8,8 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { getQueryErrorMessage } from '../../../api/queryConfig';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
+import { useTranslation } from '../../../i18n';
 import { useVoucherWallet } from '../hooks/useVoucherWallet';
 import { VoucherCard } from './VoucherCard';
 
@@ -17,11 +18,12 @@ interface VoucherWalletProps {
 }
 
 export function VoucherWallet({ token }: VoucherWalletProps) {
+  const { t } = useTranslation('guestPortal');
   const vouchersQuery = useVoucherWallet(token, { page: 1, page_size: 50 });
 
   if (vouchersQuery.isLoading) {
     return (
-      <Stack spacing={2} aria-label="Loading vouchers">
+      <Stack spacing={2} aria-label={t('vouchers.loadingAria')}>
         <Skeleton variant="rounded" height={40} sx={{ maxWidth: 280 }} />
         <Skeleton variant="rounded" height={250} sx={{ borderRadius: 3 }} />
         <Skeleton variant="rounded" height={250} sx={{ borderRadius: 3 }} />
@@ -33,13 +35,14 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
     return (
       <Alert
         severity="error"
+        role="alert"
         action={
           <Button color="inherit" size="small" onClick={() => void vouchersQuery.refetch()}>
-            Try again
+            {t('common:actions.retry')}
           </Button>
         }
       >
-        {getQueryErrorMessage(vouchersQuery.error, 'Unable to load your vouchers')}
+        {guestErrorMessage(vouchersQuery.error, t('vouchers.loadFailed'))}
       </Alert>
     );
   }
@@ -73,7 +76,7 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
           <ConfirmationNumberOutlinedIcon />
         </Box>
         <Typography variant="h6" sx={{ color: 'var(--hotel-text)', fontWeight: 750 }}>
-          Your voucher wallet is empty
+          {t('vouchers.emptyTitle')}
         </Typography>
         <Typography
           variant="body2"
@@ -81,7 +84,7 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
             color: "text.secondary",
             mt: 0.75
           }}>
-          Claim an eligible offer and your voucher will appear here, ready for your next stay.
+          {t('vouchers.emptyBody')}
         </Typography>
       </Box>
     );
@@ -106,17 +109,17 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
         <Box>
           <Typography sx={{ color: 'var(--hotel-text)', fontWeight: 750 }}>
             {readyCount > 0
-              ? `${readyCount} voucher${readyCount === 1 ? '' : 's'} ready to use`
-              : 'Your saved vouchers'}
+              ? t('vouchers.ready', { count: readyCount })
+              : t('vouchers.savedTitle')}
           </Typography>
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            Copy a code now, or choose the voucher when you book.
+            {t('vouchers.subtitle')}
           </Typography>
         </Box>
         <Chip
-          label={`${vouchers.length} total`}
+          label={t('vouchers.totalCount', { count: vouchers.length })}
           size="small"
           variant="outlined"
           sx={{ borderColor: 'var(--hotel-border-strong)', color: 'var(--hotel-text-secondary)', fontWeight: 700 }}

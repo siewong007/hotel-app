@@ -8,7 +8,7 @@
 //
 // Pure TypeScript only: no React, no MUI, no network/localStorage access.
 
-import { validateEmail } from '../../../utils/validation';
+import { validateEmailKey } from '../../../utils/validation';
 
 export interface EkycPersonalFields {
   fullName: string;
@@ -50,24 +50,29 @@ export const REQUIRED_DOCUMENT_FIELDS: (keyof EkycDocumentFields)[] = [
   'idExpiryDate',
 ];
 
-const FIELD_LABELS: Record<string, string> = {
-  fullName: 'Full name',
-  dateOfBirth: 'Date of birth',
-  nationality: 'Nationality',
-  phone: 'Phone number',
-  email: 'Email',
-  currentAddress: 'Current address',
-  idType: 'ID type',
-  idNumber: 'ID number',
-  idIssuingCountry: 'ID issuing country',
-  idExpiryDate: 'ID expiry date',
-  idFront: 'ID front photo',
-  idBack: 'ID back photo',
-  selfie: 'Selfie photo',
+/**
+ * guestPortal-bundle keys for the short label each field carries inside an
+ * error message ("ID back photo is required."). IdentitySection resolves them
+ * through `t()` — the keys mirror `dashboard.identity.errorLabels.*`.
+ */
+export const EKYC_FIELD_LABEL_KEYS: Record<string, string> = {
+  fullName: 'dashboard.identity.errorLabels.fullName',
+  dateOfBirth: 'dashboard.identity.errorLabels.dateOfBirth',
+  nationality: 'dashboard.identity.errorLabels.nationality',
+  phone: 'dashboard.identity.errorLabels.phone',
+  email: 'dashboard.identity.errorLabels.email',
+  currentAddress: 'dashboard.identity.errorLabels.currentAddress',
+  idType: 'dashboard.identity.errorLabels.idType',
+  idNumber: 'dashboard.identity.errorLabels.idNumber',
+  idIssuingCountry: 'dashboard.identity.errorLabels.idIssuingCountry',
+  idExpiryDate: 'dashboard.identity.errorLabels.idExpiryDate',
+  idFront: 'dashboard.identity.errorLabels.idFront',
+  idBack: 'dashboard.identity.errorLabels.idBack',
+  selfie: 'dashboard.identity.errorLabels.selfie',
 };
 
-function labelFor(field: string): string {
-  return FIELD_LABELS[field] ?? field;
+function labelKeyFor(field: string): string {
+  return EKYC_FIELD_LABEL_KEYS[field] ?? '';
 }
 
 /** Every ID type except passport requires a photo of the back of the document. */
@@ -89,7 +94,14 @@ export function isExpiryDateValid(value: string, today: Date = new Date()): bool
 
 export interface EkycFieldError {
   field: string;
-  message: string;
+  /**
+   * i18n key rather than rendered English — IdentitySection resolves it
+   * through `t()` (same pattern as `validatePhoneKey`/`validateEmailKey`).
+   * `key` is guestPortal-namespaced unless it carries an explicit `ns:` prefix;
+   * `labelKey` is the `{{field}}` placeholder value for `required` errors.
+   */
+  key: string;
+  labelKey?: string;
 }
 
 /**
@@ -102,21 +114,22 @@ export function validateEkycFields(
   today: Date = new Date(),
 ): EkycFieldError[] {
   const errors: EkycFieldError[] = [];
+  const requiredKey = 'dashboard.identity.errors.required';
 
   for (const field of REQUIRED_PERSONAL_FIELDS) {
     if (!values[field] || !String(values[field]).trim()) {
-      errors.push({ field, message: `${labelFor(field)} is required.` });
+      errors.push({ field, key: requiredKey, labelKey: labelKeyFor(field) });
     }
   }
 
   for (const field of REQUIRED_DOCUMENT_FIELDS) {
     if (!values[field] || !String(values[field]).trim()) {
-      errors.push({ field, message: `${labelFor(field)} is required.` });
+      errors.push({ field, key: requiredKey, labelKey: labelKeyFor(field) });
     }
   }
 
   if (values.idExpiryDate && !isExpiryDateValid(values.idExpiryDate, today)) {
-    errors.push({ field: 'idExpiryDate', message: 'ID expiry date must be in the future.' });
+    errors.push({ field: 'idExpiryDate', key: 'dashboard.identity.errors.expiryFuture' });
   }
 
   // Format-check the email once it is non-empty. The backend only lowercases
@@ -124,20 +137,20 @@ export function validateEkycFields(
   // type="email" check never runs) — without this, "not-an-email" reaches the
   // compliance record unchallenged.
   if (values.email && values.email.trim()) {
-    const emailError = validateEmail(values.email);
-    if (emailError) {
-      errors.push({ field: 'email', message: emailError });
+    const emailKey = validateEmailKey(values.email);
+    if (emailKey) {
+      errors.push({ field: 'email', key: `auth:${emailKey}` });
     }
   }
 
   if (!values.idFront) {
-    errors.push({ field: 'idFront', message: `${labelFor('idFront')} is required.` });
+    errors.push({ field: 'idFront', key: requiredKey, labelKey: labelKeyFor('idFront') });
   }
   if (!values.selfie) {
-    errors.push({ field: 'selfie', message: `${labelFor('selfie')} is required.` });
+    errors.push({ field: 'selfie', key: requiredKey, labelKey: labelKeyFor('selfie') });
   }
   if (isIdBackRequired(values.idType) && !values.idBack) {
-    errors.push({ field: 'idBack', message: `${labelFor('idBack')} is required.` });
+    errors.push({ field: 'idBack', key: requiredKey, labelKey: labelKeyFor('idBack') });
   }
 
   return errors;

@@ -15,12 +15,14 @@ import {
 import { PersonAdd as ProfileIcon } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { AuthService } from '../../../api/auth.service';
-import { validatePhone } from '../../../utils/validation';
+import { validatePhoneKey } from '../../../utils/validation';
 import { useProfileQuery } from '../../user/hooks/useProfileQueries';
 import { queryKeys } from '../../../api/queryKeys';
 import { LoadingSpinner } from '../../../components';
-import { errorMessage } from '../../../utils/errorMessage';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
+import { useTranslation } from '../../../i18n';
 import { safeGuestRedirect } from '../guestRedirect';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 // A Google account only ever supplies one combined name; split it into the
 // first/last fields this form (and the backend contract) expect.
@@ -35,6 +37,7 @@ function splitFullName(fullName: string | undefined): { firstName: string; lastN
 
 const CompleteProfilePage: React.FC = () => {
   const { isAuthenticated, isLoading, user, applyProfileUpdate } = useAuth();
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -44,10 +47,13 @@ const CompleteProfilePage: React.FC = () => {
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
+  const [firstNameError, setFirstNameError] = useState('');
+  const [lastNameError, setLastNameError] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
+  const errorRef = useAutoFocusError(error);
 
   useEffect(() => {
     if (prefilled || !profile) {
@@ -83,18 +89,27 @@ const CompleteProfilePage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFirstNameError('');
+    setLastNameError('');
 
+    // Name failures are field-level: the helper text under the empty field is
+    // where the eye already is, and the form alert stays reserved for submit
+    // failures so the two never duplicate the same complaint.
+    let nameInvalid = false;
     if (!firstName.trim()) {
-      setError('First name is required');
-      return;
+      setFirstNameError(t('validation.firstNameRequired'));
+      nameInvalid = true;
     }
     if (!lastName.trim()) {
-      setError('Last name is required');
+      setLastNameError(t('validation.lastNameRequired'));
+      nameInvalid = true;
+    }
+    if (nameInvalid) {
       return;
     }
-    const phoneValidationError = validatePhone(phone);
-    if (phoneValidationError) {
-      setPhoneError(phoneValidationError);
+    const phoneKey = validatePhoneKey(phone);
+    if (phoneKey) {
+      setPhoneError(t(phoneKey));
       return;
     }
     setPhoneError('');
@@ -119,7 +134,7 @@ const CompleteProfilePage: React.FC = () => {
       const redirectTarget = safeGuestRedirect(searchParams.get('redirect'));
       navigate(redirectTarget ?? '/guest-portal', { replace: true });
     } catch (err) {
-      setError(errorMessage(err, 'Could not save your profile. Please try again.'));
+      setError(guestErrorMessage(err, t('completeProfile.saveFailed')));
     } finally {
       setSubmitting(false);
     }
@@ -140,15 +155,15 @@ const CompleteProfilePage: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
             <ProfileIcon sx={{ color: 'var(--hotel-primary)', fontSize: 32 }} />
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              Finish setting up your account
+              {t('completeProfile.title')}
             </Typography>
           </Box>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
-            We just need a few more details before you can book or manage your stay.
+            {t('completeProfile.subtitle')}
           </Typography>
 
           <Collapse in={!!error}>
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+            <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }} onClose={() => setError('')}>
               {error}
             </Alert>
           </Collapse>
@@ -158,10 +173,15 @@ const CompleteProfilePage: React.FC = () => {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
-                  label="First Name"
+                  label={t('completeProfile.firstNameLabel')}
                   name="firstName"
                   value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
+                  onChange={(e) => {
+                    setFirstName(e.target.value);
+                    if (firstNameError) setFirstNameError('');
+                  }}
+                  error={!!firstNameError}
+                  helperText={firstNameError}
                   required
                   autoFocus
                 />
@@ -169,10 +189,15 @@ const CompleteProfilePage: React.FC = () => {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
-                  label="Last Name"
+                  label={t('completeProfile.lastNameLabel')}
                   name="lastName"
                   value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
+                  onChange={(e) => {
+                    setLastName(e.target.value);
+                    if (lastNameError) setLastNameError('');
+                  }}
+                  error={!!lastNameError}
+                  helperText={lastNameError}
                   required
                 />
               </Grid>
@@ -180,7 +205,7 @@ const CompleteProfilePage: React.FC = () => {
                 <TextField
                   fullWidth
                   type="tel"
-                  label="Phone Number"
+                  label={t('completeProfile.phoneLabel')}
                   name="phone"
                   value={phone}
                   onChange={(e) => {
@@ -195,7 +220,7 @@ const CompleteProfilePage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Address (optional)"
+                  label={t('completeProfile.addressLabel')}
                   name="addressLine1"
                   value={addressLine1}
                   onChange={(e) => setAddressLine1(e.target.value)}
@@ -215,7 +240,7 @@ const CompleteProfilePage: React.FC = () => {
               }}
               disabled={submitting}
             >
-              {submitting ? <LoadingSpinner size={24} /> : 'Continue'}
+              {submitting ? <LoadingSpinner size={24} /> : t('completeProfile.continue')}
             </Button>
           </form>
         </Paper>

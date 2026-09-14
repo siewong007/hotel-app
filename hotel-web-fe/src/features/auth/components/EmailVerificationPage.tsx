@@ -11,11 +11,13 @@ import {
 } from '@mui/material';
 import { CheckCircle as CheckCircleIcon, Error as ErrorIcon, Email as EmailIcon } from '@mui/icons-material';
 import { AuthService } from '../../../api';
-import { errorMessage } from '../../../utils/errorMessage';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
+import { useTranslation } from '../../../i18n';
 
 const EmailVerificationPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { t } = useTranslation('auth');
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [countdown, setCountdown] = useState(5);
@@ -29,7 +31,7 @@ const EmailVerificationPage: React.FC = () => {
 
     if (!token) {
       setStatus('error');
-      setMessage('Invalid verification link. No token provided.');
+      setMessage(t('verifyEmail.noToken'));
       return;
     }
 
@@ -39,7 +41,7 @@ const EmailVerificationPage: React.FC = () => {
         if (!isMountedRef.current) return;
 
         setStatus('success');
-        setMessage('Email verified successfully!');
+        setMessage(t('verifyEmail.success'));
 
         // Auto redirect after 5 seconds
         timerRef.current = setInterval(() => {
@@ -56,7 +58,7 @@ const EmailVerificationPage: React.FC = () => {
       } catch (error) {
         if (!isMountedRef.current) return;
         setStatus('error');
-        setMessage(errorMessage(error, 'Email verification failed. The link may be expired or invalid.'));
+        setMessage(guestErrorMessage(error, t('verifyEmail.failedFallback')));
       }
     };
 
@@ -68,7 +70,7 @@ const EmailVerificationPage: React.FC = () => {
         clearInterval(timerRef.current);
       }
     };
-  }, [token, navigate]);
+  }, [token, navigate, t]);
 
   const handleLoginRedirect = () => {
     navigate('/login');
@@ -120,7 +122,7 @@ const EmailVerificationPage: React.FC = () => {
               <EmailIcon sx={{ fontSize: 48, color: 'var(--hotel-primary)' }} />
             </Box>
             <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'text.primary' }}>
-              Email Verification
+              {t('verifyEmail.title')}
             </Typography>
           </Box>
 
@@ -128,12 +130,12 @@ const EmailVerificationPage: React.FC = () => {
             <Box sx={{ py: 4 }}>
               <CircularProgress size={60} sx={{ mb: 2 }} />
               <Typography variant="h6" gutterBottom>
-                Verifying your email...
+                {t('verifyEmail.verifying')}
               </Typography>
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Please wait while we verify your email address.
+                {t('verifyEmail.verifyingSubtitle')}
               </Typography>
             </Box>
           )}
@@ -150,10 +152,10 @@ const EmailVerificationPage: React.FC = () => {
                   color: "text.secondary",
                   mb: 3
                 }}>
-                You can now log in to your account.
+                {t('verifyEmail.successNext')}
               </Typography>
-              <Alert severity="info" sx={{ mb: 3 }}>
-                Redirecting to login page in {countdown} seconds...
+              <Alert severity="info" role="alert" sx={{ mb: 3 }}>
+                {t('verifyEmail.redirecting', { count: countdown })}
               </Alert>
               <Button
                 variant="contained"
@@ -166,7 +168,7 @@ const EmailVerificationPage: React.FC = () => {
                   },
                 }}
               >
-                Go to Login
+                {t('verifyEmail.goToLogin')}
               </Button>
             </Box>
           )}
@@ -175,7 +177,7 @@ const EmailVerificationPage: React.FC = () => {
             <Box sx={{ py: 4 }}>
               <ErrorIcon sx={{ fontSize: 60, color: 'error.main', mb: 2 }} />
               <Typography variant="h6" gutterBottom sx={{ color: 'error.main' }}>
-                Verification Failed
+                {t('verifyEmail.failedTitle')}
               </Typography>
               <Typography
                 variant="body2"
@@ -185,8 +187,11 @@ const EmailVerificationPage: React.FC = () => {
                 }}>
                 {message}
               </Typography>
-              <Alert severity="warning" sx={{ mb: 3 }}>
-                If you need a new verification link, please contact support.
+              {/* No resend flow exists on the public routes — the actionable
+                  step that does exist is signing in: a verified account goes
+                  straight through, and one still pending is told so. */}
+              <Alert severity="warning" role="alert" sx={{ mb: 3 }}>
+                {t('verifyEmail.failedHint')}
               </Alert>
               <Button
                 variant="contained"
@@ -199,7 +204,7 @@ const EmailVerificationPage: React.FC = () => {
                   },
                 }}
               >
-                Back to Login
+                {t('verifyEmail.backToLogin')}
               </Button>
             </Box>
           )}

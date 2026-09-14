@@ -22,14 +22,15 @@ import {
   VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
-import { validateEmail, validatePhone } from '../../../utils/validation';
+import { validateEmailKey, validatePhoneKey } from '../../../utils/validation';
 import { LoadingSpinner } from '../../../components';
-import { errorMessage } from '../../../utils/errorMessage';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { returnFromAuthPage, safeGuestRedirect } from '../guestRedirect';
 import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 import { useTranslation } from '../../../i18n';
 import { useTurnstile } from '../turnstile/useTurnstile';
 import { turnstileErrorMessage } from '../turnstile/turnstileError';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 import { ConsentNotice } from '../../legal/components/ConsentNotice';
 import { REGISTRATION_NOTICE } from '../../legal/content';
 import { buildNoticeConsentPayload } from '../../legal/noticeConsent';
@@ -64,6 +65,7 @@ const RegisterPage: React.FC = () => {
   const turnstile = useTurnstile();
   // See LoginPage: hold the button while the inline widget is still verifying.
   const awaitingTurnstile = turnstile.enabled && !turnstile.token && !turnstile.error;
+  const errorRef = useAutoFocusError(error);
 
   useEffect(() => {
     if (redirectCountdown === null) {
@@ -110,37 +112,41 @@ const RegisterPage: React.FC = () => {
 
   const handleBlur = (field: string) => {
     if (field === 'email') {
-      setEmailError(formData.email.trim() ? validateEmail(formData.email) : '');
+      const key = formData.email.trim() ? validateEmailKey(formData.email) : '';
+      setEmailError(key ? t(key) : '');
     } else if (field === 'phone') {
-      setPhoneError(validatePhone(formData.phone));
+      const key = validatePhoneKey(formData.phone);
+      setPhoneError(key ? t(key) : '');
     }
   };
 
   const validateForm = () => {
     if (!formData.username || !formData.firstName || !formData.lastName || !formData.phone || !formData.password || !formData.confirmPassword) {
-      return 'Username, name, phone, and password are required';
+      return t('validation.requiredFields');
     }
 
     if (formData.email.trim()) {
-      const emailValidation = validateEmail(formData.email);
-      if (emailValidation) {
-        setEmailError(emailValidation);
-        return emailValidation;
+      const emailKey = validateEmailKey(formData.email);
+      if (emailKey) {
+        const message = t(emailKey);
+        setEmailError(message);
+        return message;
       }
     }
 
-    const phoneValidation = validatePhone(formData.phone);
-    if (phoneValidation) {
-      setPhoneError(phoneValidation);
-      return phoneValidation;
+    const phoneKey = validatePhoneKey(formData.phone);
+    if (phoneKey) {
+      const message = t(phoneKey);
+      setPhoneError(message);
+      return message;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      return 'Passwords do not match';
+      return t('validation.passwordMismatch');
     }
 
     if (formData.password.length < 8) {
-      return 'Password must be at least 8 characters long';
+      return t('validation.passwordTooShort');
     }
 
     return null;
@@ -193,15 +199,15 @@ const RegisterPage: React.FC = () => {
 
       const requiresEmailVerification = Boolean(formData.email.trim());
       setSuccess(requiresEmailVerification
-        ? 'Registration successful! Please check your email to verify your account before logging in.'
-        : 'Registration successful! You can now log in with your username.');
+        ? t('register.successVerifyEmail')
+        : t('register.success'));
 
       if (!requiresEmailVerification) {
         setRedirectCountdown(GUEST_LOGIN_REDIRECT_SECONDS);
       }
     } catch (err) {
       turnstile.reset();
-      setError(errorMessage(err, 'Registration failed'));
+      setError(guestErrorMessage(err, t('register.failed')));
     } finally {
       setLoading(false);
     }
@@ -240,7 +246,7 @@ const RegisterPage: React.FC = () => {
 
             {/* Error Alert */}
             <Collapse in={!!error}>
-              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+              <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }} onClose={() => setError('')}>
                 {error}
               </Alert>
             </Collapse>
@@ -249,6 +255,7 @@ const RegisterPage: React.FC = () => {
             <Collapse in={!!success}>
               <Alert
                 severity="success"
+                role="alert"
                 sx={{
                   mb: 2,
                   alignItems: 'center',
@@ -264,8 +271,7 @@ const RegisterPage: React.FC = () => {
                     </Typography>
                     {redirectCountdown !== null && (
                       <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
-                        Redirecting to the Guest portal in {redirectCountdown}{' '}
-                        {redirectCountdown === 1 ? 'second' : 'seconds'}…
+                        {t('register.redirecting', { count: redirectCountdown })}
                       </Typography>
                     )}
                   </Box>
@@ -312,7 +318,7 @@ const RegisterPage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Username"
+                  label={t('register.usernameLabel')}
                   name="username"
                   value={formData.username}
                   onChange={handleInputChange}
@@ -324,7 +330,7 @@ const RegisterPage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Email (optional)"
+                  label={t('register.emailLabel')}
                   name="email"
                   type="email"
                   value={formData.email}
@@ -338,7 +344,7 @@ const RegisterPage: React.FC = () => {
               <Grid size={6}>
                 <TextField
                   fullWidth
-                  label="First Name"
+                  label={t('register.firstNameLabel')}
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleInputChange}
@@ -349,7 +355,7 @@ const RegisterPage: React.FC = () => {
               <Grid size={6}>
                 <TextField
                   fullWidth
-                  label="Last Name"
+                  label={t('register.lastNameLabel')}
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleInputChange}
@@ -361,7 +367,7 @@ const RegisterPage: React.FC = () => {
                 <TextField
                   fullWidth
                   type="tel"
-                  label="Phone"
+                  label={t('register.phoneLabel')}
                   name="phone"
                   value={formData.phone}
                   onChange={handleInputChange}
@@ -375,7 +381,7 @@ const RegisterPage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Address (optional)"
+                  label={t('register.addressLabel')}
                   name="addressLine1"
                   value={formData.addressLine1}
                   onChange={handleInputChange}
@@ -390,7 +396,7 @@ const RegisterPage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Password"
+                  label={t('register.passwordLabel')}
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
@@ -401,7 +407,7 @@ const RegisterPage: React.FC = () => {
                       endAdornment: (
                         <InputAdornment position="end">
                           <IconButton
-                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
                             onClick={() => setShowPassword((prev) => !prev)}
                             onMouseDown={(e) => e.preventDefault()}
                             edge="end"
@@ -419,7 +425,7 @@ const RegisterPage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Confirm Password"
+                  label={t('register.confirmPasswordLabel')}
                   name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={formData.confirmPassword}
@@ -430,7 +436,7 @@ const RegisterPage: React.FC = () => {
                       endAdornment: (
                         <InputAdornment position="end">
                           <IconButton
-                            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                            aria-label={showConfirmPassword ? t('login.hidePassword') : t('login.showPassword')}
                             onClick={() => setShowConfirmPassword((prev) => !prev)}
                             onMouseDown={(e) => e.preventDefault()}
                             edge="end"

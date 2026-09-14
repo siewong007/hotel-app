@@ -37,12 +37,15 @@ import {
 } from '@paypal/react-paypal-js';
 import { GuestPortalService } from '../../../api/guestPortal.service';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
+import { guestErrorMessage } from '../utils/feedback';
+import { useTranslation } from '../../../i18n';
 import { formatCurrency, getCurrentCurrency } from '../../../utils/currency';
 import type { GuestPaymentConfig, PaymentActionResponse } from '../../../types';
 import { ConsentBlock } from '../../legal/components/ConsentBlock';
 import { PAYMENT_CONSENTS, PAYMENT_KEY_POINTS } from '../../legal/content';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
 import { useConsent } from '../../legal/useConsent';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 export interface GuestPaymentPanelProps {
   amount?: string | number | null;
@@ -73,19 +76,16 @@ function formatAmount(amount: string | number | null | undefined, currency?: str
   }
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
 function PayPalButtonContent(
   props: Pick<PayPalButtonsComponentProps, 'createOrder' | 'onApprove' | 'onError' | 'onCancel'>,
 ) {
+  const { t } = useTranslation('guestPortal');
   const [{ isRejected }] = usePayPalScriptReducer();
 
   if (isRejected) {
     return (
-      <Alert severity="error">
-        PayPal could not load. Please disable content blockers and try again.
+      <Alert severity="error" role="alert">
+        {t('recoverPayment.paypalUnavailable')}
       </Alert>
     );
   }
@@ -103,6 +103,7 @@ export function GuestPaymentPanel({
   paymentMethodName = 'guest-payment-method',
   onPaid,
 }: GuestPaymentPanelProps) {
+  const { t } = useTranslation('guestPortal');
   const [config, setConfig] = useState<GuestPaymentConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -113,6 +114,8 @@ export function GuestPaymentPanel({
   const [pendingPaypalPaymentId, setPendingPaypalPaymentId] = useState<number | null>(null);
   const [result, setResult] = useState<PaymentActionResponse | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'paypal' | null>(null);
+  const bankErrorRef = useAutoFocusError(bankError);
+  const paypalErrorRef = useAutoFocusError(paypalError);
   const consent = useConsent(PAYMENT_CONSENTS);
   const { locale: legalLocale } = useLegalLocale();
   // React state updates are asynchronous, so it cannot by itself prevent two
@@ -121,7 +124,7 @@ export function GuestPaymentPanel({
 
   const loadConfig = useCallback(async () => {
     if (!token) {
-      setConfigError('Unable to load payment options right now.');
+      setConfigError(t('payment.configLoadFailed'));
       setConfigLoading(false);
       return;
     }
@@ -134,11 +137,11 @@ export function GuestPaymentPanel({
           : await GuestPortalService.paymentConfig(token),
       );
     } catch (error) {
-      setConfigError(errorMessage(error, 'Unable to load payment options right now.'));
+      setConfigError(guestErrorMessage(error, t('payment.configLoadFailed')));
     } finally {
       setConfigLoading(false);
     }
-  }, [mode, token]);
+  }, [mode, t, token]);
 
   useEffect(() => {
     void loadConfig();
@@ -167,16 +170,16 @@ export function GuestPaymentPanel({
       setResult(response);
       onPaid?.(response);
     } catch (error) {
-      setBankError(errorMessage(error, 'Unable to submit your bank transfer claim.'));
+      setBankError(guestErrorMessage(error, t('payment.bankSubmitFailed')));
     } finally {
       paymentAttemptInFlight.current = false;
       setBankSubmitting(false);
     }
-  }, [bankSubmitting, result, mode, bookingId, token, onPaid, receiptFile, consent, legalLocale]);
+  }, [bankSubmitting, result, mode, bookingId, token, onPaid, receiptFile, consent, legalLocale, t]);
 
   const createOrder = useCallback(async (): Promise<string> => {
     if (paymentAttemptInFlight.current) {
-      throw new Error('A payment request is already in progress.');
+      throw new Error(t('payment.inFlight'));
     }
     paymentAttemptInFlight.current = true;
     setPaypalError(null);
@@ -189,16 +192,16 @@ export function GuestPaymentPanel({
       setPendingPaypalPaymentId(response.payment_id);
       return response.order_id;
     } catch (error) {
-      setPaypalError(errorMessage(error, 'Unable to start your PayPal payment.'));
+      setPaypalError(guestErrorMessage(error, t('payment.paypalStartFailed')));
       paymentAttemptInFlight.current = false;
       throw error;
     }
-  }, [mode, bookingId, token, consent, legalLocale]);
+  }, [mode, bookingId, token, consent, legalLocale, t]);
 
   const onApprove = useCallback(
     async (data: { orderID: string }): Promise<void> => {
       if (pendingPaypalPaymentId == null) {
-        setPaypalError('Something went wrong starting the PayPal order. Please try again.');
+        setPaypalError(t('payment.paypalOrderMissing'));
         return;
       }
       try {
@@ -218,18 +221,18 @@ export function GuestPaymentPanel({
         setResult(response);
         onPaid?.(response);
       } catch (error) {
-        setPaypalError(errorMessage(error, 'Unable to confirm your PayPal payment.'));
+        setPaypalError(guestErrorMessage(error, t('payment.paypalCaptureFailed')));
       } finally {
         paymentAttemptInFlight.current = false;
       }
     },
-    [mode, bookingId, token, pendingPaypalPaymentId, onPaid],
+    [mode, bookingId, token, pendingPaypalPaymentId, onPaid, t],
   );
 
   const onPaypalError = useCallback(() => {
     paymentAttemptInFlight.current = false;
-    setPaypalError('PayPal was unable to process this payment. Please try again.');
-  }, []);
+    setPaypalError(t('payment.paypalProcessFailed'));
+  }, [t]);
 
   const onPaypalCancel = useCallback(() => {
     paymentAttemptInFlight.current = false;
@@ -245,7 +248,7 @@ export function GuestPaymentPanel({
         <Typography variant="body2" sx={{
           color: "text.secondary"
         }}>
-          Loading payment options…
+          {t('payment.loading')}
         </Typography>
       </Box>
     );
@@ -255,13 +258,14 @@ export function GuestPaymentPanel({
     return (
       <Alert
         severity="error"
+        role="alert"
         action={
           <Button color="inherit" size="small" onClick={() => void loadConfig()}>
-            Retry
+            {t('common:actions.retry')}
           </Button>
         }
       >
-        {configError || 'Unable to load payment options right now.'}
+        {configError || t('payment.configLoadFailed')}
       </Alert>
     );
   }
@@ -269,10 +273,10 @@ export function GuestPaymentPanel({
   if (result) {
     const isConfirmed = result.status === 'completed';
     return (
-      <Alert severity="success">
+      <Alert severity="success" role="alert">
         {isConfirmed
-          ? 'Payment received — your booking is confirmed.'
-          : 'Pending payment confirmation by our team.'}
+          ? t('payment.successConfirmed')
+          : t('payment.successPending')}
       </Alert>
     );
   }
@@ -287,12 +291,12 @@ export function GuestPaymentPanel({
     <Box>
       {formattedAmount ? (
         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
-          Amount due: {formattedAmount}
+          {t('payment.amountDue', { amount: formattedAmount })}
         </Typography>
       ) : null}
       <FormControl component="fieldset" fullWidth>
         <Typography component="legend" variant="subtitle2" sx={{ mb: 1 }}>
-          Choose a payment method
+          {t('payment.chooseMethod')}
         </Typography>
         <RadioGroup
           name={paymentMethodName}
@@ -307,14 +311,14 @@ export function GuestPaymentPanel({
             <FormControlLabel
               value="bank_transfer"
               control={<Radio />}
-              label="Offline banking (bank transfer)"
+              label={t('payment.bankTransferLabel')}
             />
           ) : null}
           {paypalReady ? (
             <FormControlLabel
               value="paypal"
               control={<Radio />}
-              label="PayPal or debit / credit card"
+              label={t('payment.paypalLabel')}
             />
           ) : null}
         </RadioGroup>
@@ -335,33 +339,33 @@ export function GuestPaymentPanel({
 
       {paymentMethod === 'bank_transfer' && showBankTransfer ? <Box sx={{ mt: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Bank transfer details
+          {t('payment.bankDetailsHeading')}
         </Typography>
         {hasBankDetails ? (
         <Stack spacing={0.5} sx={{ mb: 1.5 }}>
           {bankDetails.bank_name ? (
             <Typography variant="body2">
-              <strong>Bank:</strong> {bankDetails.bank_name}
+              <strong>{t('payment.bankFieldBank')}</strong> {bankDetails.bank_name}
             </Typography>
           ) : null}
           {bankDetails.account_name ? (
             <Typography variant="body2">
-              <strong>Account name:</strong> {bankDetails.account_name}
+              <strong>{t('payment.bankFieldAccountName')}</strong> {bankDetails.account_name}
             </Typography>
           ) : null}
           {bankDetails.account_number ? (
             <Typography variant="body2">
-              <strong>Account number:</strong> {bankDetails.account_number}
+              <strong>{t('payment.bankFieldAccountNumber')}</strong> {bankDetails.account_number}
             </Typography>
           ) : null}
         </Stack>
       ) : (
-        <Alert severity="info" sx={{ mb: 1.5 }}>
-          Bank transfer details are not currently available. Please contact the hotel directly.
+        <Alert severity="info" role="alert" sx={{ mb: 1.5 }}>
+          {t('payment.bankDetailsUnavailable')}
         </Alert>
       )}
       {bankError ? (
-        <Alert severity="error" sx={{ mb: 1.5 }}>
+        <Alert severity="error" role="alert" ref={bankErrorRef} tabIndex={-1} sx={{ mb: 1.5 }}>
           {bankError}
         </Alert>
       ) : null}
@@ -370,7 +374,7 @@ export function GuestPaymentPanel({
           alignItems: "flex-start"
         }}>
           <Button component="label" size="small" startIcon={<UploadFileOutlinedIcon />}>
-            {receiptFile ? `Receipt selected: ${receiptFile.name}` : 'Attach receipt (optional)'}
+            {receiptFile ? t('payment.receiptSelected', { name: receiptFile.name }) : t('payment.attachReceipt')}
             <input
               hidden
               type="file"
@@ -381,14 +385,14 @@ export function GuestPaymentPanel({
           <Typography variant="caption" sx={{
             color: "text.secondary"
           }}>
-            Optional JPEG, PNG, WebP, or PDF proof of payment (up to 10MB).
+            {t('payment.receiptHint')}
           </Typography>
           <Button
             variant="outlined"
             disabled={!canPay || bankSubmitting || !consent.allRequiredGranted}
             onClick={() => void submitBankTransfer()}
           >
-            {bankSubmitting ? <CircularProgress size={20} /> : "I've paid via bank transfer"}
+            {bankSubmitting ? <CircularProgress size={20} /> : t('payment.paidViaBank')}
           </Button>
         </Stack>
       ) : null}
@@ -396,10 +400,10 @@ export function GuestPaymentPanel({
       {paymentMethod === 'paypal' && paypalReady ? (
         <Box sx={{ mt: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
-            Pay with PayPal or card
+            {t('recoverPayment.paypal')}
           </Typography>
           {paypalError ? (
-            <Alert severity="error" sx={{ mb: 1.5 }}>
+            <Alert severity="error" role="alert" ref={paypalErrorRef} tabIndex={-1} sx={{ mb: 1.5 }}>
               {paypalError}
             </Alert>
           ) : null}
@@ -418,8 +422,8 @@ export function GuestPaymentPanel({
                 onCancel={onPaypalCancel}
               />
             ) : (
-              <Alert severity="info">
-                Please accept the Payment Terms above to continue to PayPal.
+              <Alert severity="info" role="alert">
+                {t('payment.acceptTermsFirst')}
               </Alert>
             )}
           </PayPalScriptProvider>

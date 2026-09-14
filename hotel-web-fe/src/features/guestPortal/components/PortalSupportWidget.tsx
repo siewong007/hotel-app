@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import { Box, Fab, IconButton, Paper, Portal, Slide, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { useTranslation } from '../../../i18n';
 import { PortalSupportTab } from './PortalSupportTab';
 import { GUEST_BRAND } from '../theme/guestPortalTheme';
 
@@ -24,6 +25,7 @@ interface PortalSupportWidgetProps {
  * the page content. From tablet up it becomes a docked bottom-right card.
  */
 export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupportWidgetProps) {
+  const { t } = useTranslation('guestPortal');
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -46,7 +48,7 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
     <Portal>
       <Fab
         variant={isPhone ? 'circular' : 'extended'}
-        aria-label="Open support chat"
+        aria-label={t('support.widgetOpen')}
         aria-expanded={open}
         onClick={() => onOpenChange(true)}
         sx={{
@@ -65,7 +67,7 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
         }}
       >
         <SupportAgentOutlinedIcon sx={{ mr: isPhone ? 0 : 1 }} />
-        {isPhone ? null : 'Support'}
+        {isPhone ? null : t('support.widgetTitle')}
       </Fab>
       <Slide
         in={open}
@@ -80,7 +82,7 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
           elevation={12}
           role="dialog"
           aria-modal={isPhone ? true : false}
-          aria-label="Hotel support"
+          aria-label={t('support.dialogAria')}
           sx={{
             position: 'fixed',
             zIndex: WIDGET_Z_INDEX,
@@ -116,13 +118,13 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <SupportAgentOutlinedIcon fontSize="small" />
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                Support
+                {t('support.widgetTitle')}
               </Typography>
             </Box>
             <IconButton
               ref={closeButtonRef}
               onClick={() => onOpenChange(false)}
-              aria-label="Close support"
+              aria-label={t('support.widgetClose')}
               size="small"
               sx={{ color: GUEST_BRAND.text, '&:hover': { bgcolor: GUEST_BRAND.hover } }}
             >

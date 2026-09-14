@@ -4077,18 +4077,20 @@ async fn delete_completed_deposit_voidable_in_house_refused_after_checkout() {
             insert_completed_payment(&pool, booking_id, "deposit", d("100.00"), actor_id).await;
         let voided = payments::delete_payment(&pool, actor_id, deposit_id).await;
         let row_status = fetch_payment_status(&pool, deposit_id).await;
-        let mirror: bool = sqlx::query_scalar(
-            "SELECT COALESCE(deposit_paid, false) FROM bookings WHERE id = $1",
-        )
-        .bind(booking_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let mirror: bool =
+            sqlx::query_scalar("SELECT COALESCE(deposit_paid, false) FROM bookings WHERE id = $1")
+                .bind(booking_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert!(
             voided.is_ok(),
             "in-house deposit void must succeed on {status}: {voided:?}"
         );
-        assert_eq!(row_status, "void", "the row must be kept as void on {status}");
+        assert_eq!(
+            row_status, "void",
+            "the row must be kept as void on {status}"
+        );
         assert!(!mirror, "the mirror must drop after the void on {status}");
     }
 
@@ -4949,10 +4951,8 @@ async fn revert_deposit_void_restores_the_newest_voided_row() {
     )
     .await;
 
-    let older =
-        insert_completed_payment(&pool, booking_id, "deposit", d("50.00"), actor_id).await;
-    let newer =
-        insert_completed_payment(&pool, booking_id, "deposit", d("25.00"), actor_id).await;
+    let older = insert_completed_payment(&pool, booking_id, "deposit", d("50.00"), actor_id).await;
+    let newer = insert_completed_payment(&pool, booking_id, "deposit", d("25.00"), actor_id).await;
     for id in [older, newer] {
         sqlx::query("UPDATE payments SET status = 'void' WHERE id = $1")
             .bind(id)
@@ -5035,5 +5035,8 @@ async fn revert_deposit_void_restores_the_newest_voided_row() {
         matches!(drained, Err(ApiError::BadRequest(_))),
         "reverting with nothing voided must fail: {drained:?}"
     );
-    assert!(audit, "the revert must write a deposit_void_reverted audit row");
+    assert!(
+        audit,
+        "the revert must write a deposit_void_reverted audit row"
+    );
 }

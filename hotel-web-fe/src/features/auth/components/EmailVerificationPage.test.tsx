@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -18,6 +18,7 @@ vi.mock('../../../api', () => ({
 
 import EmailVerificationPage from './EmailVerificationPage';
 import { expectNoCriticalAxeViolations } from '../../../test/axe';
+import { buildKyHttpError } from '../../../api/testSupport/httpError';
 
 describe('EmailVerificationPage', () => {
   beforeEach(() => {
@@ -46,9 +47,28 @@ describe('EmailVerificationPage', () => {
   });
 
   it('surfaces a failure when verification rejects', async () => {
-    mocks.verifyEmail.mockRejectedValue(new Error('expired'));
+    // The page reads the server's {"error"} body via guestErrorMessage — a
+    // plain Error would only ever exercise the friendly fallback.
+    mocks.verifyEmail.mockRejectedValue(
+      buildKyHttpError(400, { error: 'This verification link has expired.' })
+    );
     render(<EmailVerificationPage />);
-    await waitFor(() => expect(screen.getByText(/expired/i)).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText('This verification link has expired.')).toBeTruthy(),
+    );
+  });
+
+  it('points a failed verification at sign-in instead of a dead end', async () => {
+    mocks.verifyEmail.mockRejectedValue(
+      buildKyHttpError(400, { error: 'expired' })
+    );
+    render(<EmailVerificationPage />);
+
+    const backToLogin = await screen.findByRole('button', { name: /back to login/i });
+    expect(screen.queryByText(/contact support/i)).toBeNull();
+
+    fireEvent.click(backToLogin);
+    expect(mocks.navigate).toHaveBeenCalledWith('/login');
   });
 
   it('reports no critical axe violations', async () => {
