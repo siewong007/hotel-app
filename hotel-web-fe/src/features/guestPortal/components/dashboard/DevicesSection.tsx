@@ -114,6 +114,7 @@ export function DevicesSection() {
       title: t('dashboard.devices.confirmTitle'),
       message: t('dashboard.devices.confirmBody'),
       confirmText: t('dashboard.devices.confirmButton'),
+      cancelText: t('common:actions.cancel'),
       severity: 'warning',
     });
     if (!accepted) return;

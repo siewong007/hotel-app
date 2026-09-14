@@ -430,6 +430,25 @@
           "label": "Dalam semakan",
           "help": "Pasukan kami sedang menyemak dokumen anda. Kami akan memaklumkan anda tidak lama lagi."
         }
+      },
+      "errors": {
+        "required": "{{field}} diperlukan.",
+        "expiryFuture": "Tarikh luput ID mestilah pada masa hadapan."
+      },
+      "errorLabels": {
+        "fullName": "Nama penuh",
+        "dateOfBirth": "Tarikh lahir",
+        "nationality": "Kewarganegaraan",
+        "phone": "Nombor telefon",
+        "email": "E-mel",
+        "currentAddress": "Alamat semasa",
+        "idType": "Jenis ID",
+        "idNumber": "Nombor ID",
+        "idIssuingCountry": "Negara pengeluar ID",
+        "idExpiryDate": "Tarikh luput ID",
+        "idFront": "Foto hadapan ID",
+        "idBack": "Foto belakang ID",
+        "selfie": "Foto swafoto"
       }
     },
     "profile": {

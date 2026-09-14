@@ -266,6 +266,7 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
         name: passkey.device_name || t('dashboard.security.passkeys.thisDevice'),
       }),
       confirmText: t('dashboard.security.passkeys.confirmRemoveButton'),
+      cancelText: t('common:actions.cancel'),
       severity: 'error',
     });
     if (!accepted) return;

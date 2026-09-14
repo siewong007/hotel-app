@@ -21,7 +21,7 @@ import type {
   GuestPortalProfileUpdate,
 } from '../../../../types';
 import { guestErrorMessage } from '../../utils/feedback';
-import { validatePhone } from '../../../../utils/validation';
+import { validatePhoneKey } from '../../../../utils/validation';
 import { useTranslation } from '../../../../i18n';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 
@@ -181,12 +181,12 @@ export function ProfileSection({ token }: { token: string }) {
     const errors: Partial<Record<EditableKey, string>> = {};
     if (!values.first_name.trim()) errors.first_name = t('dashboard.profile.errors.firstNameRequired');
     if (!values.last_name.trim()) errors.last_name = t('dashboard.profile.errors.lastNameRequired');
-    const phoneError = validatePhone(values.phone);
-    if (phoneError) errors.phone = phoneError;
+    const phoneKey = validatePhoneKey(values.phone);
+    if (phoneKey) errors.phone = t(`auth:${phoneKey}`);
     // Blank is allowed and clears the field; anything typed must be a real number.
     if (values.alt_phone.trim()) {
-      const altError = validatePhone(values.alt_phone);
-      if (altError) errors.alt_phone = altError;
+      const altKey = validatePhoneKey(values.alt_phone);
+      if (altKey) errors.alt_phone = t(`auth:${altKey}`);
     }
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);

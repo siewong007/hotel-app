@@ -62,7 +62,11 @@ describe('validateEkycFields', () => {
 
   it('requires id_back when the id type is not passport', () => {
     const errors = validateEkycFields({ ...valid(), idType: 'national_id', idBack: null });
-    expect(errors).toContainEqual({ field: 'idBack', message: expect.stringMatching(/back/i) });
+    expect(errors).toContainEqual({
+      field: 'idBack',
+      key: 'dashboard.identity.errors.required',
+      labelKey: 'dashboard.identity.errorLabels.idBack',
+    });
   });
 
   it('does not require id_back for a passport', () => {
@@ -74,7 +78,7 @@ describe('validateEkycFields', () => {
     const errors = validateEkycFields({ ...valid(), idExpiryDate: '2000-01-01' });
     expect(errors).toContainEqual({
       field: 'idExpiryDate',
-      message: expect.stringMatching(/future/i),
+      key: 'dashboard.identity.errors.expiryFuture',
     });
   });
 
@@ -133,7 +137,7 @@ describe('email format', () => {
 
   it('rejects a malformed email', () => {
     const errors = validateEkycFields({ ...base, email: 'not-an-email' });
-    expect(errors.some((e) => e.field === 'email')).toBe(true);
+    expect(errors).toContainEqual({ field: 'email', key: 'auth:validation.emailInvalid' });
   });
 
   it('accepts a well-formed email', () => {

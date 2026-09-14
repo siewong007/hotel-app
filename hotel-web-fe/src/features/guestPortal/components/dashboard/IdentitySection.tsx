@@ -21,6 +21,7 @@ import type { GuestPortalEkycStatus, GuestPortalEkycSubmission } from '../../../
 import {
   isIdBackRequired,
   validateEkycFields,
+  EKYC_FIELD_LABEL_KEYS,
   type EkycFieldValues,
 } from '../../../ekyc/utils/ekycFieldRules';
 import { guestErrorMessage } from '../../utils/feedback';
@@ -142,8 +143,17 @@ export function IdentitySection({ token }: { token: string }) {
     () => validateEkycFields(valuesForValidation),
     [valuesForValidation],
   );
-  const errorFor = (field: string) =>
-    showErrors ? errors.find((e) => e.field === field)?.message : undefined;
+  const errorFor = (field: string) => {
+    if (!showErrors) return undefined;
+    const error = errors.find((e) => e.field === field);
+    if (!error) return undefined;
+    // `key` may carry an `auth:` prefix; `labelKey` feeds {{field}} on the
+    // shared "is required" message. An unmapped field falls back to its raw
+    // name rather than a broken key.
+    return t(error.key, {
+      field: error.labelKey ? t(error.labelKey) : error.field,
+    });
+  };
 
   const setField = (key: keyof EkycFieldValues) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setFields((prev) => ({ ...prev, [key]: event.target.value }));
@@ -266,7 +276,7 @@ export function IdentitySection({ token }: { token: string }) {
           ) : null}
 
           {formError ? (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" role="alert" sx={{ mb: 2 }}>
               {formError}
             </Alert>
           ) : null}

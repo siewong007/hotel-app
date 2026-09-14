@@ -95,6 +95,9 @@ describe('IdentitySection', () => {
     await waitFor(() => {
       expect(screen.getByText('Please complete the highlighted fields before submitting.')).toBeTruthy();
     });
+    // Field-level errors render as resolved translations, not raw keys.
+    expect(await screen.findByText('ID front photo is required.')).toBeTruthy();
+    expect(screen.getByText('Full name is required.')).toBeTruthy();
     expect(screen.queryByText('ID back photo is required.')).toBeNull();
     expect(mocks.submitEkycVerification).not.toHaveBeenCalled();
   });

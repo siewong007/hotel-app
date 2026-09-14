@@ -435,6 +435,25 @@
           "label": "Under review",
           "help": "Our team is reviewing your documents. We will update you shortly."
         }
+      },
+      "errors": {
+        "required": "{{field}} is required.",
+        "expiryFuture": "ID expiry date must be in the future."
+      },
+      "errorLabels": {
+        "fullName": "Full name",
+        "dateOfBirth": "Date of birth",
+        "nationality": "Nationality",
+        "phone": "Phone number",
+        "email": "Email",
+        "currentAddress": "Current address",
+        "idType": "ID type",
+        "idNumber": "ID number",
+        "idIssuingCountry": "ID issuing country",
+        "idExpiryDate": "ID expiry date",
+        "idFront": "ID front photo",
+        "idBack": "ID back photo",
+        "selfie": "Selfie photo"
       }
     },
     "profile": {
