@@ -9,8 +9,10 @@ import {
   Alert,
 } from '@mui/material';
 import { CheckCircle as CheckCircleIcon } from '@mui/icons-material';
+import { useTranslation } from '../../../i18n';
 
 export const GuestCheckInConfirmation: React.FC = () => {
+  const { t } = useTranslation('guestPortal');
   const navigate = useNavigate();
 
   return (
@@ -25,22 +27,22 @@ export const GuestCheckInConfirmation: React.FC = () => {
         <Typography variant="h4" component="h1" gutterBottom sx={{
           color: "success.main"
         }}>
-          Pre-Check-In Complete!
+          {t('checkin.confirmation.title')}
         </Typography>
 
         <Typography variant="body1" sx={{ mb: 3 }}>
-          Thank you for completing your pre-check-in. Your information has been successfully submitted.
+          {t('checkin.confirmation.body')}
         </Typography>
 
         <Alert severity="info" sx={{ mb: 3, textAlign: 'left' }}>
           <Typography variant="body2" gutterBottom>
-            <strong>Next Steps:</strong>
+            <strong>{t('checkin.confirmation.nextSteps')}</strong>
           </Typography>
           <Typography variant="body2" component="ul" sx={{ pl: 2, mb: 0 }}>
-            <li>You will receive a confirmation email shortly</li>
-            <li>Please arrive at the hotel during your scheduled check-in time</li>
-            <li>Present your ID at the front desk for verification</li>
-            <li>Your room will be ready for you</li>
+            <li>{t('checkin.confirmation.steps.email')}</li>
+            <li>{t('checkin.confirmation.steps.arrive')}</li>
+            <li>{t('checkin.confirmation.steps.id')}</li>
+            <li>{t('checkin.confirmation.steps.room')}</li>
           </Typography>
         </Alert>
 
@@ -48,7 +50,7 @@ export const GuestCheckInConfirmation: React.FC = () => {
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            If you need to make any changes to your booking or have questions, please contact us directly.
+            {t('checkin.confirmation.contactNote')}
           </Typography>
         </Box>
 
@@ -58,7 +60,7 @@ export const GuestCheckInConfirmation: React.FC = () => {
           size="large"
           onClick={() => window.close()}
         >
-          Close
+          {t('common:actions.close')}
         </Button>
 
         <Button
@@ -67,7 +69,7 @@ export const GuestCheckInConfirmation: React.FC = () => {
           sx={{ mt: 1 }}
           onClick={() => navigate('/guest-checkin')}
         >
-          Start New Pre-Check-In
+          {t('checkin.confirmation.startNew')}
         </Button>
       </Paper>
     </Container>

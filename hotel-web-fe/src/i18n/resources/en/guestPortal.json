@@ -425,5 +425,156 @@
     "uploading": "Uploading…",
     "uploaded": "Receipt received. Thank you — we will confirm your payment shortly.",
     "uploadFailed": "We could not accept that file. Please send a JPEG, PNG, WebP or PDF under 10MB."
+  },
+  "checkin": {
+    "backToStart": "Back to Start",
+    "skipForNow": "Skip for now",
+    "continue": "Continue",
+    "landing": {
+      "title": "Online Pre-Check-In",
+      "subtitle": "Complete your check-in before arrival",
+      "bookingNumber": "Booking Number",
+      "bookingNumberPlaceholder": "Enter your booking/folio number",
+      "guestName": "Guest Name",
+      "guestNamePlaceholder": "Enter the name on the booking",
+      "verifying": "Verifying...",
+      "availabilityNote": "Pre-check-in is available 7 days before your arrival date",
+      "errors": {
+        "missingFields": "Please enter both booking number and name",
+        "verifyFailed": "We could not verify your booking. Please check your details."
+      }
+    },
+    "verify": {
+      "loading": "Loading your booking...",
+      "title": "Your Booking Details",
+      "subtitle": "Please review your booking information before continuing",
+      "guestInfo": "Guest Information",
+      "stayInfo": "Stay Information",
+      "fields": {
+        "name": "Name:",
+        "email": "Email:",
+        "phone": "Phone:",
+        "bookingNumber": "Booking Number:",
+        "checkIn": "Check-in:",
+        "checkOut": "Check-out:",
+        "nights": "Nights:",
+        "roomType": "Room Type:",
+        "guests": "Guests:"
+      },
+      "notProvided": "Not provided",
+      "standardRoom": "Standard",
+      "adults_one": "{{count}} Adult",
+      "adults_other": "{{count}} Adults",
+      "alreadyCompleted": "You have already completed pre-check-in for this booking.",
+      "continue": "Continue to Update Information",
+      "errors": {
+        "missingToken": "Invalid or missing verification token",
+        "loadFailed": "We could not load your booking information.",
+        "notFound": "Booking not found"
+      }
+    },
+    "form": {
+      "title": "Online pre-check-in",
+      "subtitle": "A few minutes now, and there is far less to do when you arrive.",
+      "loading": "Loading...",
+      "bookingLabel": "Booking",
+      "stayDates": "{{checkIn}} to {{checkOut}}",
+      "steps": {
+        "payment": "Payment",
+        "details": "Your details",
+        "account": "Your account",
+        "identity": "Identity check",
+        "done": "Done"
+      },
+      "payment": {
+        "payTitle": "Complete your payment",
+        "paySubtitle": "Pay securely to confirm your reservation. No extra personal details are required.",
+        "receiptTitle": "Upload your receipt",
+        "receiptSubtitle": "Our team has requested your bank-transfer receipt. Please submit it within 24 hours to avoid automatic rejection of this payment.",
+        "notRequiredSubtitle": "Payment is not required for this booking right now.",
+        "uploadTitle": "Upload payment receipt",
+        "uploadHint": "Accepted files: JPG, PNG, WebP, or PDF — maximum 10 MB.",
+        "uploadChoose": "Choose receipt file",
+        "uploadSelectAria": "Select receipt file",
+        "uploading": "Uploading…",
+        "uploadButton": "Upload receipt",
+        "receiptSubmitted": "Your receipt has been submitted and is pending confirmation from our team.",
+        "uploadFailed": "Unable to upload your receipt."
+      },
+      "identityNeedsAccount": "Verifying your identity before arrival needs an account. You can still check in at the front desk.",
+      "accountReady": "Your account is ready.",
+      "accountReadyVerify": "Your account is ready. Check your email for a link to confirm your address before you sign in with your password next time.",
+      "done": {
+        "title": "You are all set",
+        "detailsSaved": "Your details are saved — that is one less form at the front desk.",
+        "checkedIn": "Checked in — room {{room}}",
+        "eligible": "Your identity is verified and check-in is open for this booking.",
+        "checkingIn": "Checking you in…",
+        "checkInNow": "Check in now",
+        "updateDetails": "Update details",
+        "bringId": "Please bring the ID you booked with. Our team will have everything else ready for your arrival."
+      },
+      "errors": {
+        "missingToken": "Invalid or missing token",
+        "loadFailed": "We could not load your booking.",
+        "checkinFailed": "We could not check you in just yet."
+      }
+    },
+    "account": {
+      "title": "Create your account",
+      "subtitle": "An account lets you verify your identity before you arrive, so check-in takes moments instead of minutes. You can also skip this and check in at the front desk as usual.",
+      "forBooking": "Creating an account for booking",
+      "nameSuffix": " · {{name}}",
+      "signInInstead": "Sign in instead",
+      "username": "Username",
+      "email": "Email",
+      "emailHint": "We will send a link to confirm this address.",
+      "password": "Password",
+      "passwordHint": "At least 8 characters.",
+      "confirmPassword": "Confirm password",
+      "creating": "Creating…",
+      "submit": "Create account",
+      "errors": {
+        "username": "Please choose a username of at least 3 characters.",
+        "password": "Your password must be at least 8 characters long.",
+        "passwordMismatch": "The two passwords do not match.",
+        "consentRequired": "Please review and accept the required agreements.",
+        "alreadyClaimed": "An account already exists for this booking. Sign in to continue.",
+        "claimFailed": "We could not create your account. Please try again."
+      }
+    },
+    "details": {
+      "title": "Your details",
+      "subtitle": "Confirming these now means less to fill in at the front desk. Everything here is optional — leave anything blank and we will ask on arrival.",
+      "fields": {
+        "email": "Email",
+        "phone": "Phone",
+        "icNumber": "IC / Passport number",
+        "nationality": "Nationality",
+        "address": "Address",
+        "city": "City",
+        "postcode": "Postcode",
+        "country": "Country",
+        "specialRequests": "Special requests"
+      },
+      "saving": "Saving…",
+      "submit": "Save and continue",
+      "errors": {
+        "saveFailed": "We could not save your details. Please try again."
+      }
+    },
+    "confirmation": {
+      "title": "Pre-Check-In Complete!",
+      "body": "Thank you for completing your pre-check-in. Your information has been successfully submitted.",
+      "nextSteps": "Next Steps:",
+      "steps": {
+        "email": "You will receive a confirmation email shortly",
+        "arrive": "Please arrive at the hotel during your scheduled check-in time",
+        "id": "Present your ID at the front desk for verification",
+        "room": "Your room will be ready for you"
+      },
+      "contactNote": "If you need to make any changes to your booking or have questions, please contact us directly.",
+      "startNew": "Start New Pre-Check-In"
+    }
   }
 }

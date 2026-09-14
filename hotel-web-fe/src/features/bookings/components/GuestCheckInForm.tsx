@@ -35,7 +35,8 @@ import {
 } from '../../../types';
 import { GuestPaymentPanel } from '../../guestPortal/components/GuestPaymentPanel';
 import { IdentitySection } from '../../guestPortal/components/dashboard/IdentitySection';
-import { errorMessage } from '../../../utils/errorMessage';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
+import { useTranslation } from '../../../i18n';
 import { captureBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
 import { getValidPortalToken } from '../../guestPortal/api/portalTokenStore';
 import { ClaimAccountStep } from './guestCheckIn/ClaimAccountStep';
@@ -48,6 +49,7 @@ function needsOnlinePayment(status: string | undefined): boolean {
 type StepId = 'payment' | 'details' | 'account' | 'identity' | 'done';
 
 export const GuestCheckInForm: React.FC = () => {
+  const { t } = useTranslation('guestPortal');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const token = captureBookingAccessToken(searchParams);
@@ -93,12 +95,12 @@ export const GuestCheckInForm: React.FC = () => {
           setActiveStep(paymentOutstanding ? 'payment' : 'details');
         }
       } catch (err) {
-        setError(errorMessage(err, 'Failed to load booking'));
+        setError(guestErrorMessage(err, t('checkin.form.errors.loadFailed')));
       } finally {
         setLoading(false);
       }
     },
-    [token],
+    [token, t],
   );
 
   useEffect(() => {
@@ -111,13 +113,13 @@ export const GuestCheckInForm: React.FC = () => {
 
   useEffect(() => {
     if (!token) {
-      setError('Invalid or missing token');
+      setError(t('checkin.form.errors.missingToken'));
       setLoading(false);
       return;
     }
 
     void loadBookingData();
-  }, [token, loadBookingData]);
+  }, [token, loadBookingData, t]);
 
   const needsReceipt =
     Boolean(receiptRequestPaymentId) && !receiptAlreadyUploaded && !receiptSubmitted;
@@ -130,13 +132,13 @@ export const GuestCheckInForm: React.FC = () => {
 
   const steps = useMemo(() => {
     const list: { id: StepId; label: string }[] = [];
-    if (paymentStepRelevant) list.push({ id: 'payment', label: 'Payment' });
-    list.push({ id: 'details', label: 'Your details' });
-    if (!portalToken) list.push({ id: 'account', label: 'Your account' });
-    list.push({ id: 'identity', label: 'Identity check' });
-    list.push({ id: 'done', label: 'Done' });
+    if (paymentStepRelevant) list.push({ id: 'payment', label: t('checkin.form.steps.payment') });
+    list.push({ id: 'details', label: t('checkin.form.steps.details') });
+    if (!portalToken) list.push({ id: 'account', label: t('checkin.form.steps.account') });
+    list.push({ id: 'identity', label: t('checkin.form.steps.identity') });
+    list.push({ id: 'done', label: t('checkin.form.steps.done') });
     return list;
-  }, [paymentStepRelevant, portalToken]);
+  }, [paymentStepRelevant, portalToken, t]);
 
   const stepIndex = steps.findIndex((step) => step.id === activeStep);
 
@@ -183,7 +185,7 @@ export const GuestCheckInForm: React.FC = () => {
       // The backend owns every gate, so a refusal here is authoritative and its
       // message is the reason. Re-read the booking so the panel below agrees
       // with it rather than still offering the button.
-      setCheckinError(errorMessage(err, 'We could not check you in just yet.'));
+      setCheckinError(guestErrorMessage(err, t('checkin.form.errors.checkinFailed')));
       void loadBookingData({ keepStep: true });
     } finally {
       setCheckingIn(false);
@@ -199,7 +201,7 @@ export const GuestCheckInForm: React.FC = () => {
       setReceiptSubmitted(true);
       setReceiptFile(null);
     } catch (err) {
-      setReceiptUploadError(errorMessage(err, 'Unable to upload your receipt.'));
+      setReceiptUploadError(guestErrorMessage(err, t('checkin.form.payment.uploadFailed')));
     } finally {
       setReceiptUploading(false);
     }
@@ -209,7 +211,7 @@ export const GuestCheckInForm: React.FC = () => {
     return (
       <Container maxWidth="sm" sx={{ mt: { xs: 3, sm: 8 }, textAlign: 'center' }}>
         <CircularProgress />
-        <Typography sx={{ mt: 2 }}>Loading...</Typography>
+        <Typography sx={{ mt: 2 }}>{t('checkin.form.loading')}</Typography>
       </Container>
     );
   }
@@ -218,36 +220,38 @@ export const GuestCheckInForm: React.FC = () => {
     return (
       <Container maxWidth="sm" sx={{ mt: { xs: 3, sm: 8 } }}>
         <Paper elevation={3} sx={{ p: 4 }}>
-          <Alert severity="error">{error}</Alert>
+          <Alert severity="error" role="alert">{error}</Alert>
           <Button
             variant="outlined"
             fullWidth
             sx={{ mt: 3 }}
             onClick={() => navigate('/guest-checkin')}
           >
-            Back to Start
+            {t('checkin.backToStart')}
           </Button>
         </Paper>
       </Container>
     );
   }
 
-  const paymentHeading = needsReceipt ? 'Upload your receipt' : 'Complete your payment';
+  const paymentHeading = needsReceipt
+    ? t('checkin.form.payment.receiptTitle')
+    : t('checkin.form.payment.payTitle');
   const paymentSubtitle = needsReceipt
-    ? 'Our team has requested your bank-transfer receipt. Please submit it within 24 hours to avoid automatic rejection of this payment.'
+    ? t('checkin.form.payment.receiptSubtitle')
     : showPayment
-      ? 'Pay securely to confirm your reservation. No extra personal details are required.'
-      : 'Payment is not required for this booking right now.';
+      ? t('checkin.form.payment.paySubtitle')
+      : t('checkin.form.payment.notRequiredSubtitle');
 
   return (
     <Container maxWidth="md" sx={{ mt: { xs: 3, sm: 8 }, mb: 4 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" component="h1" gutterBottom>
-            Online pre-check-in
+            {t('checkin.form.title')}
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            A few minutes now, and there is far less to do when you arrive.
+            {t('checkin.form.subtitle')}
           </Typography>
         </Box>
 
@@ -262,7 +266,7 @@ export const GuestCheckInForm: React.FC = () => {
         )}
 
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          <Alert severity="error" role="alert" sx={{ mb: 3 }} onClose={() => setError(null)}>
             {error}
           </Alert>
         )}
@@ -271,12 +275,15 @@ export const GuestCheckInForm: React.FC = () => {
           <Box sx={{ mb: 3 }}>
             {booking?.booking_number && (
               <Typography variant="body1">
-                Booking <strong>{booking.booking_number}</strong>
+                {t('checkin.form.bookingLabel')} <strong>{booking.booking_number}</strong>
               </Typography>
             )}
             {booking?.check_in_date && booking?.check_out_date && (
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {booking.check_in_date} to {booking.check_out_date}
+                {t('checkin.form.stayDates', {
+                  checkIn: booking.check_in_date,
+                  checkOut: booking.check_out_date,
+                })}
               </Typography>
             )}
             {guest?.nick_name && (
@@ -320,15 +327,15 @@ export const GuestCheckInForm: React.FC = () => {
             {needsReceipt ? (
               <Box sx={{ mb: 3 }}>
                 {receiptRequestMessage ? (
-                  <Alert severity="error" sx={{ mb: 2 }}>
+                  <Alert severity="error" role="alert" sx={{ mb: 2 }}>
                     {receiptRequestMessage}
                   </Alert>
                 ) : null}
                 <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                  Upload payment receipt
+                  {t('checkin.form.payment.uploadTitle')}
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-                  Accepted files: JPG, PNG, WebP, or PDF — maximum 10 MB.
+                  {t('checkin.form.payment.uploadHint')}
                 </Typography>
                 <Stack
                   direction={{ xs: 'column', sm: 'row' }}
@@ -336,12 +343,12 @@ export const GuestCheckInForm: React.FC = () => {
                   sx={{ alignItems: { sm: 'center' } }}
                 >
                   <Button component="label" variant="outlined" disabled={receiptUploading}>
-                    {receiptFile ? receiptFile.name : 'Choose receipt file'}
+                    {receiptFile ? receiptFile.name : t('checkin.form.payment.uploadChoose')}
                     <input
                       hidden
                       type="file"
                       accept="image/jpeg,image/png,image/webp,application/pdf"
-                      aria-label="Select receipt file"
+                      aria-label={t('checkin.form.payment.uploadSelectAria')}
                       onChange={(event) => {
                         setReceiptUploadError(null);
                         setReceiptFile(event.target.files?.[0] ?? null);
@@ -353,11 +360,13 @@ export const GuestCheckInForm: React.FC = () => {
                     disabled={!receiptFile || receiptUploading}
                     onClick={() => void handleReceiptUpload()}
                   >
-                    {receiptUploading ? 'Uploading…' : 'Upload receipt'}
+                    {receiptUploading
+                      ? t('checkin.form.payment.uploading')
+                      : t('checkin.form.payment.uploadButton')}
                   </Button>
                 </Stack>
                 {receiptUploadError ? (
-                  <Alert severity="error" sx={{ mt: 1 }}>
+                  <Alert severity="error" role="alert" sx={{ mt: 1 }}>
                     {receiptUploadError}
                   </Alert>
                 ) : null}
@@ -365,15 +374,15 @@ export const GuestCheckInForm: React.FC = () => {
             ) : null}
 
             {receiptSubmitted || receiptAlreadyUploaded ? (
-              <Alert severity="success" sx={{ mb: 3 }}>
-                Your receipt has been submitted and is pending confirmation from our team.
+              <Alert severity="success" role="alert" sx={{ mb: 3 }}>
+                {t('checkin.form.payment.receiptSubmitted')}
               </Alert>
             ) : null}
 
             <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
               <Box sx={{ flexGrow: 1 }} />
               <Button variant="contained" onClick={() => advanceFrom('payment')}>
-                Continue
+                {t('checkin.continue')}
               </Button>
             </Stack>
           </Box>
@@ -404,8 +413,8 @@ export const GuestCheckInForm: React.FC = () => {
               setPortalTokenState(newToken);
               setAccountNotice(
                 emailVerificationRequired
-                  ? 'Your account is ready. Check your email for a link to confirm your address before you sign in with your password next time.'
-                  : 'Your account is ready.',
+                  ? t('checkin.form.accountReadyVerify')
+                  : t('checkin.form.accountReady'),
               );
               goToStep('identity');
             }}
@@ -417,7 +426,7 @@ export const GuestCheckInForm: React.FC = () => {
         {activeStep === 'identity' && (
           <Box>
             {accountNotice && (
-              <Alert severity="success" sx={{ mb: 2 }}>
+              <Alert severity="success" role="alert" sx={{ mb: 2 }}>
                 {accountNotice}
               </Alert>
             )}
@@ -427,14 +436,13 @@ export const GuestCheckInForm: React.FC = () => {
                 <Stack direction="row" spacing={1} sx={{ mt: 3 }}>
                   <Box sx={{ flexGrow: 1 }} />
                   <Button variant="contained" onClick={() => goToStep('done')}>
-                    Continue
+                    {t('checkin.continue')}
                   </Button>
                 </Stack>
               </>
             ) : (
-              <Alert severity="info">
-                Verifying your identity before arrival needs an account. You can
-                still check in at the front desk.
+              <Alert severity="info" role="alert">
+                {t('checkin.form.identityNeedsAccount')}
               </Alert>
             )}
           </Box>
@@ -443,71 +451,86 @@ export const GuestCheckInForm: React.FC = () => {
         {activeStep === 'done' && (
           <Box>
             <Typography variant="h6" gutterBottom>
-              You are all set
+              {t('checkin.form.done.title')}
             </Typography>
-            {accountNotice && (
-              <Alert severity="success" sx={{ mb: 2 }}>
-                {accountNotice}
-              </Alert>
-            )}
-            {detailsSaved && (
-              <Alert severity="success" sx={{ mb: 2 }}>
-                Your details are saved — that is one less form at the front desk.
-              </Alert>
-            )}
-            {checkinResult ? (
-              <Alert severity="success" sx={{ mb: 2 }}>
-                <Typography variant="subtitle2">
-                  Checked in — room {checkinResult.room_number}
-                </Typography>
-                <Typography variant="body2">{checkinResult.message}</Typography>
-              </Alert>
-            ) : (
-              <>
-                {checkinError && (
-                  <Alert severity="warning" sx={{ mb: 2 }}>
-                    {checkinError}
+            {/*
+              One summary container for every fact the guest needs on the way
+              out — account notice, saved details, the check-in verdict, and
+              the identity status. Each fact stays its own line; they just no
+              longer arrive as scattered standalone alerts.
+            */}
+            <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
+              <Stack spacing={2}>
+                {accountNotice && (
+                  <Alert severity="success" role="alert">
+                    {accountNotice}
                   </Alert>
                 )}
-                {ekycSummary?.can_auto_checkin ? (
-                  <Box sx={{ mb: 2 }}>
-                    <Alert severity="success" sx={{ mb: 2 }}>
-                      Your identity is verified and check-in is open for this booking.
-                    </Alert>
-                    <Button
-                      variant="contained"
-                      size="large"
-                      fullWidth
-                      disabled={checkingIn}
-                      onClick={() => void handleCheckIn()}
-                    >
-                      {checkingIn ? 'Checking you in…' : 'Check in now'}
-                    </Button>
-                  </Box>
-                ) : ekycSummary?.auto_checkin_block_reason ? (
-                  <Alert
-                    severity="info"
-                    sx={{ mb: 2 }}
-                    action={
-                      // Some reasons are the guest's to fix (a missing IC or
-                      // passport); the rest are ours (a room still being
-                      // cleaned, eKYC in review). Only offer the way back when
-                      // going back would actually change the verdict.
-                      ekycSummary.auto_checkin_block_reason.includes('details') ? (
-                        <Button color="inherit" size="small" onClick={() => goToStep('details')}>
-                          Update details
-                        </Button>
-                      ) : undefined
-                    }
-                  >
-                    {ekycSummary.auto_checkin_block_reason}
+                {detailsSaved && (
+                  <Alert severity="success" role="alert">
+                    {t('checkin.form.done.detailsSaved')}
                   </Alert>
-                ) : null}
-              </>
-            )}
+                )}
+                {checkinResult ? (
+                  <Alert severity="success" role="alert">
+                    <Typography variant="subtitle2">
+                      {t('checkin.form.done.checkedIn', { room: checkinResult.room_number })}
+                    </Typography>
+                    <Typography variant="body2">{checkinResult.message}</Typography>
+                  </Alert>
+                ) : (
+                  <>
+                    {checkinError && (
+                      <Alert severity="warning" role="alert">
+                        {checkinError}
+                      </Alert>
+                    )}
+                    {ekycSummary?.can_auto_checkin ? (
+                      <>
+                        <Alert severity="success" role="alert">
+                          {t('checkin.form.done.eligible')}
+                        </Alert>
+                        <Button
+                          variant="contained"
+                          size="large"
+                          fullWidth
+                          disabled={checkingIn}
+                          onClick={() => void handleCheckIn()}
+                        >
+                          {checkingIn
+                            ? t('checkin.form.done.checkingIn')
+                            : t('checkin.form.done.checkInNow')}
+                        </Button>
+                      </>
+                    ) : ekycSummary?.auto_checkin_block_reason ? (
+                      <Alert
+                        severity="info"
+                        role="alert"
+                        action={
+                          // Some reasons are the guest's to fix (a missing IC or
+                          // passport); the rest are ours (a room still being
+                          // cleaned, eKYC in review). Only offer the way back when
+                          // going back would actually change the verdict.
+                          ekycSummary.auto_checkin_block_reason.includes('details') ? (
+                            <Button
+                              color="inherit"
+                              size="small"
+                              onClick={() => goToStep('details')}
+                            >
+                              {t('checkin.form.done.updateDetails')}
+                            </Button>
+                          ) : undefined
+                        }
+                      >
+                        {ekycSummary.auto_checkin_block_reason}
+                      </Alert>
+                    ) : null}
+                  </>
+                )}
+              </Stack>
+            </Paper>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
-              Please bring the ID you booked with. Our team will have everything
-              else ready for your arrival.
+              {t('checkin.form.done.bringId')}
             </Typography>
           </Box>
         )}
@@ -518,7 +541,7 @@ export const GuestCheckInForm: React.FC = () => {
           sx={{ mt: 3 }}
           onClick={() => navigate('/guest-checkin')}
         >
-          Back
+          {t('common:actions.back')}
         </Button>
       </Paper>
     </Container>

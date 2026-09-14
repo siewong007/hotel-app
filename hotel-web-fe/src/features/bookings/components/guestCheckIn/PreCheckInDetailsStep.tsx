@@ -12,7 +12,8 @@ import { Alert, Box, Button, Grid, Stack, TextField, Typography } from '@mui/mat
 
 import { GuestPortalService } from '../../../../api';
 import type { Booking, Guest, GuestUpdateRequest } from '../../../../types';
-import { errorMessage } from '../../../../utils/errorMessage';
+import { guestErrorMessage } from '../../../guestPortal/utils/feedback';
+import { useTranslation } from '../../../../i18n';
 
 export interface PreCheckInDetailsStepProps {
   token: string;
@@ -37,6 +38,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
   onSkip,
   onBack,
 }) => {
+  const { t } = useTranslation('guestPortal');
   const [email, setEmail] = useState(guest?.email ?? '');
   const [phone, setPhone] = useState(guest?.phone ?? '');
   const [icNumber, setIcNumber] = useState(guest?.ic_number ?? '');
@@ -73,7 +75,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
       });
       onSaved(result);
     } catch (err) {
-      setError(errorMessage(err, 'We could not save your details. Please try again.'));
+      setError(guestErrorMessage(err, t('checkin.details.errors.saveFailed')));
     } finally {
       setSaving(false);
     }
@@ -82,11 +84,10 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
   return (
     <Box component="form" onSubmit={handleSubmit} noValidate>
       <Typography variant="h6" gutterBottom>
-        Your details
+        {t('checkin.details.title')}
       </Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-        Confirming these now means less to fill in at the front desk. Everything
-        here is optional — leave anything blank and we will ask on arrival.
+        {t('checkin.details.subtitle')}
       </Typography>
       {/*
         No name field: the token endpoint returns the guest-safe view
@@ -97,7 +98,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
       */}
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+        <Alert severity="error" role="alert" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
@@ -107,7 +108,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
           <TextField
             fullWidth
             type="email"
-            label="Email"
+            label={t('checkin.details.fields.email')}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             disabled={saving}
@@ -117,7 +118,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
           <TextField
             fullWidth
             type="tel"
-            label="Phone"
+            label={t('checkin.details.fields.phone')}
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             disabled={saving}
@@ -126,7 +127,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="IC / Passport number"
+            label={t('checkin.details.fields.icNumber')}
             value={icNumber}
             onChange={(event) => setIcNumber(event.target.value)}
             disabled={saving}
@@ -135,7 +136,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Nationality"
+            label={t('checkin.details.fields.nationality')}
             value={nationality}
             onChange={(event) => setNationality(event.target.value)}
             disabled={saving}
@@ -144,7 +145,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
         <Grid size={12}>
           <TextField
             fullWidth
-            label="Address"
+            label={t('checkin.details.fields.address')}
             value={addressLine1}
             onChange={(event) => setAddressLine1(event.target.value)}
             disabled={saving}
@@ -153,7 +154,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
         <Grid size={{ xs: 12, sm: 5 }}>
           <TextField
             fullWidth
-            label="City"
+            label={t('checkin.details.fields.city')}
             value={city}
             onChange={(event) => setCity(event.target.value)}
             disabled={saving}
@@ -162,7 +163,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
         <Grid size={{ xs: 12, sm: 3 }}>
           <TextField
             fullWidth
-            label="Postcode"
+            label={t('checkin.details.fields.postcode')}
             value={postalCode}
             onChange={(event) => setPostalCode(event.target.value)}
             disabled={saving}
@@ -171,7 +172,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Country"
+            label={t('checkin.details.fields.country')}
             value={country}
             onChange={(event) => setCountry(event.target.value)}
             disabled={saving}
@@ -182,7 +183,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
             fullWidth
             multiline
             minRows={2}
-            label="Special requests"
+            label={t('checkin.details.fields.specialRequests')}
             value={specialRequests}
             onChange={(event) => setSpecialRequests(event.target.value)}
             disabled={saving}
@@ -193,15 +194,15 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 3 }}>
         {onBack && (
           <Button variant="text" onClick={onBack} disabled={saving}>
-            Back
+            {t('common:actions.back')}
           </Button>
         )}
         <Box sx={{ flexGrow: 1 }} />
         <Button variant="text" onClick={onSkip} disabled={saving}>
-          Skip for now
+          {t('checkin.skipForNow')}
         </Button>
         <Button type="submit" variant="contained" disabled={saving}>
-          {saving ? 'Saving…' : 'Save and continue'}
+          {saving ? t('checkin.details.saving') : t('checkin.details.submit')}
         </Button>
       </Stack>
     </Box>

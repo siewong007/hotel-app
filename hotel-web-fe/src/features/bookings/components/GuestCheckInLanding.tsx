@@ -12,9 +12,11 @@ import {
 } from '@mui/material';
 import { GuestPortalService } from '../../../api';
 import { setBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
-import { errorMessage } from '../../../utils/errorMessage';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
+import { useTranslation } from '../../../i18n';
 
 export const GuestCheckInLanding: React.FC = () => {
+  const { t } = useTranslation('guestPortal');
   const navigate = useNavigate();
   const [bookingNumber, setBookingNumber] = useState('');
   const [name, setName] = useState('');
@@ -25,7 +27,7 @@ export const GuestCheckInLanding: React.FC = () => {
     e.preventDefault();
 
     if (!bookingNumber.trim() || !name.trim()) {
-      setError('Please enter both booking number and name');
+      setError(t('checkin.landing.errors.missingFields'));
       return;
     }
 
@@ -41,7 +43,7 @@ export const GuestCheckInLanding: React.FC = () => {
       setBookingAccessToken(response.token);
       navigate('/guest-checkin/verify');
     } catch (err) {
-      setError(errorMessage(err, 'Failed to verify booking. Please check your details.'));
+      setError(guestErrorMessage(err, t('checkin.landing.errors.verifyFailed')));
     } finally {
       setLoading(false);
     }
@@ -52,17 +54,17 @@ export const GuestCheckInLanding: React.FC = () => {
       <Paper elevation={3} sx={{ p: 4 }}>
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" component="h1" gutterBottom>
-            Online Pre-Check-In
+            {t('checkin.landing.title')}
           </Typography>
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            Complete your check-in before arrival
+            {t('checkin.landing.subtitle')}
           </Typography>
         </Box>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          <Alert severity="error" role="alert" sx={{ mb: 3 }} onClose={() => setError(null)}>
             {error}
           </Alert>
         )}
@@ -70,23 +72,23 @@ export const GuestCheckInLanding: React.FC = () => {
         <form onSubmit={handleSubmit}>
           <TextField
             fullWidth
-            label="Booking Number"
+            label={t('checkin.landing.bookingNumber')}
             value={bookingNumber}
             onChange={(e) => setBookingNumber(e.target.value)}
             margin="normal"
             required
-            placeholder="Enter your booking/folio number"
+            placeholder={t('checkin.landing.bookingNumberPlaceholder')}
             disabled={loading}
           />
 
           <TextField
             fullWidth
-            label="Guest Name"
+            label={t('checkin.landing.guestName')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             margin="normal"
             required
-            placeholder="Enter the name on the booking"
+            placeholder={t('checkin.landing.guestNamePlaceholder')}
             autoComplete="name"
             disabled={loading}
           />
@@ -100,7 +102,7 @@ export const GuestCheckInLanding: React.FC = () => {
             sx={{ mt: 3 }}
             startIcon={loading && <CircularProgress size={20} />}
           >
-            {loading ? 'Verifying...' : 'Continue'}
+            {loading ? t('checkin.landing.verifying') : t('checkin.continue')}
           </Button>
         </form>
 
@@ -108,7 +110,7 @@ export const GuestCheckInLanding: React.FC = () => {
           <Typography variant="caption" sx={{
             color: "text.secondary"
           }}>
-            Pre-check-in is available 7 days before your arrival date
+            {t('checkin.landing.availabilityNote')}
           </Typography>
         </Box>
       </Paper>

@@ -418,5 +418,155 @@
     "uploading": "Memuat naik…",
     "uploaded": "Resit diterima. Terima kasih — kami akan mengesahkan pembayaran anda tidak lama lagi.",
     "uploadFailed": "Kami tidak dapat menerima fail itu. Sila hantar JPEG, PNG, WebP atau PDF di bawah 10MB."
+  },
+  "checkin": {
+    "backToStart": "Kembali ke Mula",
+    "skipForNow": "Langkau buat masa ini",
+    "continue": "Teruskan",
+    "landing": {
+      "title": "Pra-Daftar Masuk Dalam Talian",
+      "subtitle": "Lengkapkan daftar masuk anda sebelum ketibaan",
+      "bookingNumber": "Nombor Tempahan",
+      "bookingNumberPlaceholder": "Masukkan nombor tempahan/folio anda",
+      "guestName": "Nama Tetamu",
+      "guestNamePlaceholder": "Masukkan nama pada tempahan",
+      "verifying": "Mengesahkan...",
+      "availabilityNote": "Pra-daftar masuk tersedia 7 hari sebelum tarikh ketibaan anda",
+      "errors": {
+        "missingFields": "Sila masukkan nombor tempahan dan nama",
+        "verifyFailed": "Kami tidak dapat mengesahkan tempahan anda. Sila semak butiran anda."
+      }
+    },
+    "verify": {
+      "loading": "Memuatkan tempahan anda...",
+      "title": "Butiran Tempahan Anda",
+      "subtitle": "Sila semak maklumat tempahan anda sebelum meneruskan",
+      "guestInfo": "Maklumat Tetamu",
+      "stayInfo": "Maklumat Penginapan",
+      "fields": {
+        "name": "Nama:",
+        "email": "E-mel:",
+        "phone": "Telefon:",
+        "bookingNumber": "Nombor Tempahan:",
+        "checkIn": "Daftar masuk:",
+        "checkOut": "Daftar keluar:",
+        "nights": "Malam:",
+        "roomType": "Jenis bilik:",
+        "guests": "Tetamu:"
+      },
+      "notProvided": "Tidak diberikan",
+      "standardRoom": "Standard",
+      "adults_other": "{{count}} dewasa",
+      "alreadyCompleted": "Anda telah melengkapkan pra-daftar masuk untuk tempahan ini.",
+      "continue": "Teruskan untuk Mengemas Kini Maklumat",
+      "errors": {
+        "missingToken": "Token pengesahan tidak sah atau tiada",
+        "loadFailed": "Kami tidak dapat memuatkan maklumat tempahan anda.",
+        "notFound": "Tempahan tidak dijumpai"
+      }
+    },
+    "form": {
+      "title": "Pra-daftar masuk dalam talian",
+      "subtitle": "Beberapa minit sekarang, dan jauh lebih sedikit yang perlu dilakukan apabila anda tiba.",
+      "loading": "Memuatkan...",
+      "bookingLabel": "Tempahan",
+      "stayDates": "{{checkIn}} hingga {{checkOut}}",
+      "steps": {
+        "payment": "Bayaran",
+        "details": "Butiran anda",
+        "account": "Akaun anda",
+        "identity": "Semakan identiti",
+        "done": "Selesai"
+      },
+      "payment": {
+        "payTitle": "Lengkapkan pembayaran anda",
+        "paySubtitle": "Bayar dengan selamat untuk mengesahkan tempahan anda. Tiada butiran peribadi tambahan diperlukan.",
+        "receiptTitle": "Muat naik resit anda",
+        "receiptSubtitle": "Pasukan kami telah meminta resit pemindahan bank anda. Sila hantarnya dalam masa 24 jam untuk mengelakkan penolakan automatik pembayaran ini.",
+        "notRequiredSubtitle": "Pembayaran tidak diperlukan untuk tempahan ini sekarang.",
+        "uploadTitle": "Muat naik resit pembayaran",
+        "uploadHint": "Fail diterima: JPG, PNG, WebP, atau PDF — maksimum 10 MB.",
+        "uploadChoose": "Pilih fail resit",
+        "uploadSelectAria": "Pilih fail resit",
+        "uploading": "Memuat naik…",
+        "uploadButton": "Muat naik resit",
+        "receiptSubmitted": "Resit anda telah dihantar dan sedang menunggu pengesahan daripada pasukan kami.",
+        "uploadFailed": "Tidak dapat memuat naik resit anda."
+      },
+      "identityNeedsAccount": "Mengesahkan identiti anda sebelum ketibaan memerlukan akaun. Anda masih boleh mendaftar masuk di kaunter hadapan.",
+      "accountReady": "Akaun anda sudah sedia.",
+      "accountReadyVerify": "Akaun anda sudah sedia. Semak e-mel anda untuk pautan mengesahkan alamat anda sebelum anda log masuk dengan kata laluan pada masa hadapan.",
+      "done": {
+        "title": "Anda sudah bersedia",
+        "detailsSaved": "Butiran anda disimpan — satu borang lagi yang tidak perlu diisi di kaunter hadapan.",
+        "checkedIn": "Telah daftar masuk — bilik {{room}}",
+        "eligible": "Identiti anda telah disahkan dan daftar masuk dibuka untuk tempahan ini.",
+        "checkingIn": "Mendaftarkan anda masuk…",
+        "checkInNow": "Daftar masuk sekarang",
+        "updateDetails": "Kemas kini butiran",
+        "bringId": "Sila bawa ID yang anda gunakan semasa menempah. Pasukan kami akan menyediakan segala yang lain untuk ketibaan anda."
+      },
+      "errors": {
+        "missingToken": "Token tidak sah atau tiada",
+        "loadFailed": "Kami tidak dapat memuatkan tempahan anda.",
+        "checkinFailed": "Kami belum dapat mendaftarkan anda masuk."
+      }
+    },
+    "account": {
+      "title": "Cipta akaun anda",
+      "subtitle": "Akaun membolehkan anda mengesahkan identiti sebelum tiba, supaya daftar masuk mengambil masa beberapa saat sahaja dan bukan beberapa minit. Anda juga boleh melangkau langkah ini dan mendaftar masuk di kaunter hadapan seperti biasa.",
+      "forBooking": "Mencipta akaun untuk tempahan",
+      "nameSuffix": " · {{name}}",
+      "signInInstead": "Log masuk sebaliknya",
+      "username": "Nama pengguna",
+      "email": "E-mel",
+      "emailHint": "Kami akan menghantar pautan untuk mengesahkan alamat ini.",
+      "password": "Kata laluan",
+      "passwordHint": "Sekurang-kurangnya 8 aksara.",
+      "confirmPassword": "Sahkan kata laluan",
+      "creating": "Mencipta…",
+      "submit": "Cipta akaun",
+      "errors": {
+        "username": "Sila pilih nama pengguna sekurang-kurangnya 3 aksara.",
+        "password": "Kata laluan anda mestilah sekurang-kurangnya 8 aksara.",
+        "passwordMismatch": "Kedua-dua kata laluan tidak sepadan.",
+        "consentRequired": "Sila semak dan terima persetujuan yang diperlukan.",
+        "alreadyClaimed": "Akaun sudah wujud untuk tempahan ini. Log masuk untuk meneruskan.",
+        "claimFailed": "Kami tidak dapat mencipta akaun anda. Sila cuba lagi."
+      }
+    },
+    "details": {
+      "title": "Butiran anda",
+      "subtitle": "Mengesahkannya sekarang bermakna kurang yang perlu diisi di kaunter hadapan. Semua di sini adalah pilihan — biarkan kosong dan kami akan bertanya semasa ketibaan.",
+      "fields": {
+        "email": "E-mel",
+        "phone": "Telefon",
+        "icNumber": "Nombor IC / Pasport",
+        "nationality": "Kewarganegaraan",
+        "address": "Alamat",
+        "city": "Bandar",
+        "postcode": "Poskod",
+        "country": "Negara",
+        "specialRequests": "Permintaan khas"
+      },
+      "saving": "Menyimpan…",
+      "submit": "Simpan dan teruskan",
+      "errors": {
+        "saveFailed": "Kami tidak dapat menyimpan butiran anda. Sila cuba lagi."
+      }
+    },
+    "confirmation": {
+      "title": "Pra-Daftar Masuk Selesai!",
+      "body": "Terima kasih kerana melengkapkan pra-daftar masuk anda. Maklumat anda telah berjaya dihantar.",
+      "nextSteps": "Langkah seterusnya:",
+      "steps": {
+        "email": "Anda akan menerima e-mel pengesahan tidak lama lagi",
+        "arrive": "Sila tiba di hotel pada waktu daftar masuk yang dijadualkan",
+        "id": "Kemukakan ID anda di kaunter hadapan untuk pengesahan",
+        "room": "Bilik anda akan sedia untuk anda"
+      },
+      "contactNote": "Jika anda perlu membuat sebarang perubahan pada tempahan anda atau mempunyai pertanyaan, sila hubungi kami secara langsung.",
+      "startNew": "Mulakan Pra-Daftar Masuk Baharu"
+    }
   }
 }
