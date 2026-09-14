@@ -14,7 +14,7 @@ use axum::{
 use serde_json::json;
 
 use super::models::{
-    FollowUpQueueItem, FollowUpQueueQuery, GuestCommunicationsSummary, GuestInteraction,
+    FollowUpQueueQuery, FollowUpQueueResponse, GuestCommunicationsSummary, GuestInteraction,
     GuestInteractionInput, GuestInteractionUpdate, GuestLoyaltySummary, GuestPreference,
     GuestPreferencesPut, GuestReviewResponseInput, GuestReviewRow, GuestVoucherRow,
     InteractionListQuery, InteractionListResponse, OverviewResponse,
@@ -166,22 +166,28 @@ pub async fn overview_handler(
     Ok(Json(service::overview(&pool, actor_id).await?))
 }
 
-/// `GET /guest-relations/follow-ups` — paginated open follow-up queue;
-/// serializes as `(total, items)`.
+/// `GET /guest-relations/follow-ups` — paginated open follow-up queue in the
+/// shared `{ data, total, page, page_size }` envelope.
 pub async fn follow_ups_handler(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     Query(query): Query<FollowUpQueueQuery>,
-) -> Result<Json<(i64, Vec<FollowUpQueueItem>)>, ApiError> {
+) -> Result<Json<FollowUpQueueResponse>, ApiError> {
     let actor_id = require_permission_helper(&pool, &headers, "guests:read").await?;
-    Ok(Json(
-        service::list_follow_ups(
-            &pool,
-            actor_id,
-            query.due.as_deref().unwrap_or("all"),
-            query.page.unwrap_or(1),
-            query.page_size.unwrap_or(20),
-        )
-        .await?,
-    ))
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20);
+    let (total, data) = service::list_follow_ups(
+        &pool,
+        actor_id,
+        query.due.as_deref().unwrap_or("all"),
+        page,
+        page_size,
+    )
+    .await?;
+    Ok(Json(FollowUpQueueResponse {
+        data,
+        total,
+        page,
+        page_size,
+    }))
 }

@@ -79,6 +79,16 @@ pub struct InteractionListResponse {
     pub page_size: i64,
 }
 
+/// Paged envelope for the cross-guest follow-up queue — same shape as
+/// `InteractionListResponse`.
+#[derive(Debug, Serialize)]
+pub struct FollowUpQueueResponse {
+    pub data: Vec<FollowUpQueueItem>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct GuestPreference {
     pub id: i64,
