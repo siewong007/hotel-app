@@ -18,6 +18,12 @@
     "held": "Held",
     "expired": "Expired"
   },
+  "booking_service": {
+    "pending": "Pending",
+    "in_progress": "In progress",
+    "completed": "Completed",
+    "void": "Void"
+  },
   "payment": {
     "pending": "Pending",
     "processing": "Processing",
@@ -181,9 +187,8 @@
     "reversed": "Reversed"
   },
   "night_audit": {
-    "running": "Running",
-    "completed": "Completed",
-    "failed": "Failed"
+    "in_progress": "In progress",
+    "completed": "Completed"
   },
   "generic": {
     "active": "Active",

@@ -18,6 +18,12 @@
     "held": "已保留",
     "expired": "已过期"
   },
+  "booking_service": {
+    "pending": "待处理",
+    "in_progress": "进行中",
+    "completed": "已完成",
+    "void": "已作废"
+  },
   "payment": {
     "pending": "待处理",
     "processing": "处理中",
@@ -181,9 +187,8 @@
     "reversed": "已撤销"
   },
   "night_audit": {
-    "running": "运行中",
-    "completed": "已完成",
-    "failed": "失败"
+    "in_progress": "进行中",
+    "completed": "已完成"
   },
   "generic": {
     "active": "启用",

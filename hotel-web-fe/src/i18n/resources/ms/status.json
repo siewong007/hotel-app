@@ -18,6 +18,12 @@
     "held": "Ditahan",
     "expired": "Tamat tempoh"
   },
+  "booking_service": {
+    "pending": "Menunggu",
+    "in_progress": "Dalam proses",
+    "completed": "Selesai",
+    "void": "Terbatal"
+  },
   "payment": {
     "pending": "Menunggu",
     "processing": "Diproses",
@@ -181,9 +187,8 @@
     "reversed": "Dibalikkan"
   },
   "night_audit": {
-    "running": "Sedang berjalan",
-    "completed": "Selesai",
-    "failed": "Gagal"
+    "in_progress": "Dalam proses",
+    "completed": "Selesai"
   },
   "generic": {
     "active": "Aktif",
