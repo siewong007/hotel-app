@@ -3,7 +3,7 @@ import { GuestsService } from '../../../api';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { invalidateGuestDependencies } from '../../../api/queryInvalidation';
 import { queryKeys } from '../../../api/queryKeys';
-import type { GuestCreateRequest, GuestUpdateRequest, GuestType, TourismType } from '../../../types';
+import type { GuestCreateRequest, GuestListSegment, GuestUpdateRequest, GuestType, TourismType } from '../../../types';
 
 type GuestListParams = {
   search?: string;
@@ -23,6 +23,9 @@ type GuestPageParams = {
   vip?: boolean;
   blacklisted?: boolean;
   has_open_support?: boolean;
+  // Booking-derived segment (returning/in_house/upcoming/inactive) — a
+  // single-select filter applied server-side.
+  segment?: GuestListSegment;
 };
 
 export function useGuests(params?: GuestListParams, enabled = true) {

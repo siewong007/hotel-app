@@ -59,6 +59,7 @@ import { Route as GuestCheckinConfirmRouteImport } from './routes/guest-checkin/
 import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
 import { Route as GuestCheckinVerifyRouteImport } from './routes/guest-checkin/verify'
 import { Route as GuestRelationsIndexRouteImport } from './routes/guest-relations/index'
+import { Route as GuestRelationsFollowUpsRouteImport } from './routes/guest-relations/follow-ups'
 import { Route as HelpSlugRouteImport } from './routes/help.$slug'
 import { Route as LegalIdentityVerificationRouteImport } from './routes/legal/identity-verification'
 import { Route as LegalPaymentTermsRouteImport } from './routes/legal/payment-terms'
@@ -321,6 +322,11 @@ const GuestRelationsIndexRoute = GuestRelationsIndexRouteImport.update({
   path: '/guest-relations/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuestRelationsFollowUpsRoute = GuestRelationsFollowUpsRouteImport.update({
+  id: '/guest-relations/follow-ups',
+  path: '/guest-relations/follow-ups',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HelpSlugRoute = HelpSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -430,6 +436,7 @@ export interface FileRoutesByFullPath {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/guest-relations/follow-ups': typeof GuestRelationsFollowUpsRoute
   '/help/$slug': typeof HelpSlugRoute
   '/legal/identity-verification': typeof LegalIdentityVerificationRoute
   '/legal/payment-terms': typeof LegalPaymentTermsRoute
@@ -493,6 +500,7 @@ export interface FileRoutesByTo {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/guest-relations/follow-ups': typeof GuestRelationsFollowUpsRoute
   '/help/$slug': typeof HelpSlugRoute
   '/legal/identity-verification': typeof LegalIdentityVerificationRoute
   '/legal/payment-terms': typeof LegalPaymentTermsRoute
@@ -557,6 +565,7 @@ export interface FileRoutesById {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/guest-relations/follow-ups': typeof GuestRelationsFollowUpsRoute
   '/help/$slug': typeof HelpSlugRoute
   '/legal/identity-verification': typeof LegalIdentityVerificationRoute
   '/legal/payment-terms': typeof LegalPaymentTermsRoute
@@ -622,6 +631,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/guest-relations/follow-ups'
     | '/help/$slug'
     | '/legal/identity-verification'
     | '/legal/payment-terms'
@@ -685,6 +695,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/guest-relations/follow-ups'
     | '/help/$slug'
     | '/legal/identity-verification'
     | '/legal/payment-terms'
@@ -748,6 +759,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/guest-relations/follow-ups'
     | '/help/$slug'
     | '/legal/identity-verification'
     | '/legal/payment-terms'
@@ -812,6 +824,7 @@ export interface RootRouteChildren {
   GuestCheckinConfirmRoute: typeof GuestCheckinConfirmRoute
   GuestCheckinFormRoute: typeof GuestCheckinFormRoute
   GuestCheckinVerifyRoute: typeof GuestCheckinVerifyRoute
+  GuestRelationsFollowUpsRoute: typeof GuestRelationsFollowUpsRoute
   LegalIdentityVerificationRoute: typeof LegalIdentityVerificationRoute
   LegalPaymentTermsRoute: typeof LegalPaymentTermsRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
@@ -1178,6 +1191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestRelationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guest-relations/follow-ups': {
+      id: '/guest-relations/follow-ups'
+      path: '/guest-relations/follow-ups'
+      fullPath: '/guest-relations/follow-ups'
+      preLoaderRoute: typeof GuestRelationsFollowUpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/help/$slug': {
       id: '/help/$slug'
       path: '/$slug'
@@ -1317,6 +1337,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuestCheckinConfirmRoute: GuestCheckinConfirmRoute,
   GuestCheckinFormRoute: GuestCheckinFormRoute,
   GuestCheckinVerifyRoute: GuestCheckinVerifyRoute,
+  GuestRelationsFollowUpsRoute: GuestRelationsFollowUpsRoute,
   LegalIdentityVerificationRoute: LegalIdentityVerificationRoute,
   LegalPaymentTermsRoute: LegalPaymentTermsRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,

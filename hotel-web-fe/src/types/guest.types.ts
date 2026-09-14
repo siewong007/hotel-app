@@ -8,6 +8,17 @@ export type GuestType = 'member' | 'non_member';
 // Foreign: Tourism tax charged per night
 export type TourismType = 'local' | 'foreign';
 
+/**
+ * Derived guest-list segments the backend computes from booking history
+ * (`GET /guests?segment=`). Unknown values are ignored server-side; this
+ * union is the set the UI can request.
+ * - `returning`: ≥2 completed/checked-out stays
+ * - `in_house`: an active checked-in booking
+ * - `upcoming`: a confirmed/pending booking with check-in today or later
+ * - `inactive`: no completed stay in the last 365 days
+ */
+export type GuestListSegment = 'returning' | 'in_house' | 'upcoming' | 'inactive';
+
 export interface Guest {
   id: number;
   /** Unique display name the guest booked under. For an anonymous booking this
@@ -62,6 +73,12 @@ export interface Guest {
   bookings_count?: number;
   /** ISO date (YYYY-MM-DD) of the most recent checked-in/-out stay. */
   last_stay_date?: string;
+  /**
+   * `true` when the guest has any support conversation with
+   * `status <> 'closed'` — populated by the list endpoint's subquery, so it
+   * is absent on detail/profile payloads.
+   */
+  has_open_support?: boolean;
 }
 
 export interface GuestSummary {

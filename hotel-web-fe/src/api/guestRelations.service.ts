@@ -2,6 +2,8 @@ import { HTTPError } from 'ky';
 import { api, APIError, readErrorData, toApiError } from './client';
 import type {
   CreateStaffSupportConversationRequest,
+  FollowUpQueueParams,
+  FollowUpQueueResponse,
   GuestCommunicationsSummary,
   GuestInteraction,
   GuestInteractionInput,
@@ -11,6 +13,7 @@ import type {
   GuestLoyaltySummary,
   GuestPreference,
   GuestPreferencesPutRequest,
+  GuestRelationsOverview,
   GuestReview,
   GuestReviewResponseInput,
   GuestSupportConversationDetail,
@@ -234,6 +237,48 @@ export class GuestRelationsService {
         .json<GuestSupportConversationDetail>();
     } catch (error) {
       throw await toGuestRelationsApiError(error, 'Failed to create support conversation');
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Phase 2 — cross-guest operational layer (not guest-scoped)
+  // ------------------------------------------------------------------
+
+  /**
+   * `GET /guest-relations/overview` — dashboard aggregate. `support` /
+   * `reviews` sections are absent unless the caller holds those read
+   * permissions; the other sections always come back.
+   */
+  static async getOverview(): Promise<GuestRelationsOverview> {
+    try {
+      return await withRetry(
+        () => api.get('guest-relations/overview').json<GuestRelationsOverview>(),
+        { maxAttempts: 3, initialDelay: 1000 }
+      );
+    } catch (error) {
+      throw await toGuestRelationsApiError(error, 'Failed to fetch guest relations overview');
+    }
+  }
+
+  /**
+   * `GET /guest-relations/follow-ups` — paginated open follow-up queue.
+   * `due` is sent only when set (the backend defaults to `all`).
+   */
+  static async listFollowUps(
+    params: FollowUpQueueParams = {},
+  ): Promise<FollowUpQueueResponse> {
+    const searchParams: Record<string, any> = {};
+    if (params.due != null) searchParams.due = params.due;
+    if (params.page != null) searchParams.page = params.page;
+    if (params.page_size != null) searchParams.page_size = params.page_size;
+
+    try {
+      return await withRetry(
+        () => api.get('guest-relations/follow-ups', { searchParams }).json<FollowUpQueueResponse>(),
+        { maxAttempts: 3, initialDelay: 1000 }
+      );
+    } catch (error) {
+      throw await toGuestRelationsApiError(error, 'Failed to fetch follow-up queue');
     }
   }
 }

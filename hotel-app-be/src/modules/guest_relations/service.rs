@@ -10,14 +10,17 @@ use chrono::Utc;
 use serde_json::json;
 
 use super::models::{
-    GuestCommunicationsSummary, GuestInteraction, GuestInteractionInput, GuestInteractionUpdate,
-    GuestPreference, GuestPreferencesPut, GuestReviewResponseInput, GuestReviewRow,
-    GuestVoucherRow, InteractionListQuery, InteractionListResponse,
+    FollowUpQueueItem, GuestCommunicationsSummary, GuestInteraction, GuestInteractionInput,
+    GuestInteractionUpdate, GuestPreference, GuestPreferencesPut, GuestReviewResponseInput,
+    GuestReviewRow, GuestVoucherRow, InteractionListQuery, InteractionListResponse,
+    OverviewResponse,
 };
-use super::repository::{GuestRelationsRepository, InteractionUpdateValues, NewInteraction};
+use super::repository::{
+    GuestRelationsRepository, InteractionUpdateValues, NewInteraction, OverviewCaps,
+};
 use super::validation;
 use crate::core::auth::AuthService;
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::modules::support::models::SupportConversationSummary;
@@ -424,4 +427,50 @@ pub async fn list_support_conversations(
 ) -> Result<Vec<SupportConversationSummary>, ApiError> {
     require_guest(pool, guest_id).await?;
     GuestRelationsRepository::list_support_for_guest(pool, guest_id, SUPPORT_LIST_LIMIT).await
+}
+
+// ---------------------------------------------------------------------
+// Phase 2 — cross-guest operational layer (not guest-scoped)
+// ---------------------------------------------------------------------
+
+/// Aggregate payload for the `/guest-relations` dashboard. `guests:read`
+/// gates the route in the handler; here the caller's permissions only decide
+/// which optional sections run — `support` needs `support:read`, `reviews`
+/// needs `reviews:read`, and the repository omits (not nulls) a section
+/// entirely when its flag is false.
+pub async fn overview(pool: &DbPool, user_id: i64) -> Result<OverviewResponse, ApiError> {
+    let today = hotel_today(pool).await?;
+    let caps = OverviewCaps {
+        include_support: AuthService::check_permission(pool, user_id, "support:read")
+            .await
+            .unwrap_or(false),
+        include_reviews: AuthService::check_permission(pool, user_id, "reviews:read")
+            .await
+            .unwrap_or(false),
+    };
+    GuestRelationsRepository::overview(pool, today, caps).await
+}
+
+/// Paginated cross-guest queue of open follow-ups. Private notes are visible
+/// to their author or a `guests:manage` holder — the same rule
+/// `list_interactions` applies via `can_manage_guests`. Pagination bounds
+/// match the interactions list (default 20, cap 100).
+pub async fn list_follow_ups(
+    pool: &DbPool,
+    viewer_id: i64,
+    due: &str,
+    page: i64,
+    page_size: i64,
+) -> Result<(i64, Vec<FollowUpQueueItem>), ApiError> {
+    let pagination = normalize_pagination(Some(page), Some(page_size), 20, 100);
+    let include_private = can_manage_guests(pool, viewer_id).await;
+    GuestRelationsRepository::list_follow_up_queue(
+        pool,
+        due,
+        include_private,
+        viewer_id,
+        pagination.page,
+        pagination.page_size,
+    )
+    .await
 }

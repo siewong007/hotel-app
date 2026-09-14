@@ -180,6 +180,16 @@ describe('GuestsService', () => {
       });
     });
 
+    it('forwards the derived segment filter as a plain string param', async () => {
+      get.mockReturnValue(mockJsonResponse({ data: [], total: 0 }));
+
+      await GuestsService.getGuestsPage({ page: 1, page_size: 1, segment: 'in_house' });
+
+      expect(get).toHaveBeenCalledWith('guests', {
+        searchParams: { page: 1, page_size: 1, segment: 'in_house' },
+      });
+    });
+
     it('defaults total/page/page_size from the returned data when the response omits them', async () => {
       const guests = [buildGuest()];
       get.mockReturnValue(mockJsonResponse(guests));

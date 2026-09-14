@@ -1068,6 +1068,7 @@ mod tests {
             account_is_active: None,
             bookings_count: None,
             last_stay_date: None,
+            has_open_support: None,
             ekyc_summary: GuestEkycStatusSummary::not_submitted(id),
         }
     }

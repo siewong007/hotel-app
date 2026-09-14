@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Navigate } from '../../router';
+import { RouteById } from '../../router/renderRouteFromRegistry';
 
-// `/guest-relations` on its own has no page — the workspace lives one level
-// down at /guest-relations/guests (same redirect shape as routes/portal/).
+// `/guest-relations` is the workspace landing — the overview dashboard that
+// replaced the old redirect to /guest-relations/guests.
 export const Route = createFileRoute('/guest-relations/')({
-  component: () => <Navigate to="/guest-relations/guests" replace />,
+  component: () => <RouteById id="guest-relations" />,
 });
