@@ -128,6 +128,10 @@
     "nickname": "Nickname",
     "nicknameHint": "Any name you like — it holds the room and must not already be taken."
   },
+  "errorBoundary": {
+    "title": "We hit a problem",
+    "detail": "Something went wrong while loading this page. Please try again."
+  },
   "payments": {
     "pendingLoadFailed": "We could not load your bookings awaiting payment. Your transaction history is shown below."
   },

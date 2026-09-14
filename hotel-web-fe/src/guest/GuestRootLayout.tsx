@@ -7,6 +7,7 @@ import { BootSplash, LoadingFallback } from '../router/RouteFallbacks';
 import { isPublicGuestPath } from './guestDocumentPaths';
 import { GuestOneTap } from '../features/auth/google/GuestOneTap';
 import { CrossAppRedirect } from './CrossAppRedirect';
+import { useTranslation } from '../i18n';
 
 const GuestPortalShell = lazy(
   () => import('../features/guestPortal/components/GuestPortalShell').then(module => ({
@@ -18,6 +19,7 @@ const FALLBACK_APP_TITLE = 'Hotel ERP System';
 const GUEST_FAVICON = '/salim-inn/salim-inn-icon.svg';
 
 export function GuestRootLayout() {
+  const { t } = useTranslation('guestPortal');
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
   const pathname = location.pathname;
@@ -49,7 +51,10 @@ export function GuestRootLayout() {
   }, [hotelName]);
 
   const page = (
-    <ErrorBoundary title="Guest Experience Error">
+    <ErrorBoundary
+      title={t('errorBoundary.title')}
+      detailMessage={t('errorBoundary.detail')}
+    >
       <Suspense fallback={publicPath ? null : <LoadingFallback />}>
         <Outlet />
       </Suspense>

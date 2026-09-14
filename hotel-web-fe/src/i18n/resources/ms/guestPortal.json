@@ -126,6 +126,10 @@
     "nickname": "Nama samaran",
     "nicknameHint": "Apa-apa nama yang anda suka — ia menahan bilik dan tidak boleh sudah digunakan."
   },
+  "errorBoundary": {
+    "title": "Kami menghadapi masalah",
+    "detail": "Sesuatu telah berlaku semasa memuatkan halaman ini. Sila cuba lagi."
+  },
   "payments": {
     "pendingLoadFailed": "Kami tidak dapat memuatkan tempahan anda yang menunggu pembayaran. Sejarah transaksi anda ditunjukkan di bawah."
   },
