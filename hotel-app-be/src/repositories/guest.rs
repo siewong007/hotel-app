@@ -151,7 +151,9 @@ impl GuestRepository {
             (SELECT MAX(b.check_in_date) FROM bookings b
                 WHERE b.guest_id = guests.id
                   AND b.status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed')
-            ) AS last_stay_date"#;
+            ) AS last_stay_date,
+            (EXISTS (SELECT 1 FROM support_conversations sc
+                WHERE sc.guest_id = guests.id AND sc.status <> 'closed')) AS has_open_support"#;
 
         if let Some(q) = search {
             let pattern = format!("%{}%", q.trim());
@@ -1370,6 +1372,31 @@ fn list_filter_clause(params: &GuestPaginationParams) -> String {
              WHERE sc.guest_id = guests.id AND sc.status <> 'closed')",
         );
     }
+    match params.segment.as_deref() {
+        Some("returning") => filter_clause.push_str(
+            " AND (SELECT COUNT(*) FROM bookings b \
+             WHERE b.guest_id = guests.id \
+               AND b.status IN ('checked_out', 'completed')) >= 2",
+        ),
+        Some("in_house") => filter_clause.push_str(
+            " AND EXISTS (SELECT 1 FROM bookings b \
+             WHERE b.guest_id = guests.id \
+               AND b.status IN ('checked_in', 'auto_checked_in'))",
+        ),
+        Some("upcoming") => filter_clause.push_str(
+            " AND EXISTS (SELECT 1 FROM bookings b \
+             WHERE b.guest_id = guests.id \
+               AND b.status IN ('confirmed', 'pending_confirmation') \
+               AND b.check_in_date >= CURRENT_DATE)",
+        ),
+        Some("inactive") => filter_clause.push_str(
+            " AND NOT EXISTS (SELECT 1 FROM bookings b \
+             WHERE b.guest_id = guests.id \
+               AND b.status IN ('checked_out', 'completed') \
+               AND b.check_out_date >= CURRENT_DATE - INTERVAL '365 days')",
+        ),
+        _ => {}
+    }
     filter_clause
 }
 
@@ -1403,6 +1430,7 @@ mod list_filter_clause_tests {
             vip: None,
             blacklisted: None,
             has_open_support: None,
+            segment: None,
         }
     }
 
@@ -1446,6 +1474,31 @@ mod list_filter_clause_tests {
             " AND EXISTS (SELECT 1 FROM support_conversations sc \
              WHERE sc.guest_id = guests.id AND sc.status <> 'closed')"
         );
+    }
+
+    #[test]
+    fn segment_returning_adds_two_completed_stays_clause() {
+        let mut p = params();
+        p.segment = Some("returning".into());
+        let clause = list_filter_clause(&p);
+        assert!(clause.contains("checked_out"));
+        assert!(clause.contains("completed"));
+        assert!(clause.contains(">= 2") || clause.contains(">=2"));
+    }
+
+    #[test]
+    fn segment_in_house_uses_checked_in_statuses() {
+        let mut p = params();
+        p.segment = Some("in_house".into());
+        let clause = list_filter_clause(&p);
+        assert!(clause.contains("checked_in"));
+    }
+
+    #[test]
+    fn segment_unknown_value_is_ignored() {
+        let mut p = params();
+        p.segment = Some("nonsense".into());
+        assert_eq!(list_filter_clause(&p), "");
     }
 
     #[test]

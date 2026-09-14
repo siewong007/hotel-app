@@ -117,6 +117,12 @@ pub struct Guest {
     pub bookings_count: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_stay_date: Option<chrono::NaiveDate>,
+    /// List-only flag over `support_conversations` (`status <> 'closed'`), so
+    /// the guest list can badge rows with an open issue. `#[sqlx(default)]`
+    /// because only `find_paginated` selects it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub has_open_support: Option<bool>,
     /// Computed from `ekyc_verifications.guest_id`; never stored on guests.
     #[serde(default)]
     #[sqlx(skip)]
@@ -521,6 +527,8 @@ pub struct GuestPaginationParams {
     pub blacklisted: Option<bool>,
     /// Filter to guests with a support conversation that is not closed.
     pub has_open_support: Option<bool>,
+    /// Derived segment: "returning" | "in_house" | "upcoming" | "inactive".
+    pub segment: Option<String>,
 }
 
 /// Paginated guest list response.
