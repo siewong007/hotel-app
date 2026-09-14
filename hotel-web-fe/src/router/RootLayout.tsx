@@ -6,6 +6,8 @@ import { isPublicGuestPath } from '../guest/guestDocumentPaths';
 import { CrossAppRedirect } from '../guest/CrossAppRedirect';
 import { AppSidebar } from '../components/layout/sidebar/AppSidebar';
 import { AppTopbar } from '../components/layout/AppTopbar';
+import { MobileNavBar } from '../components/layout/MobileNavBar';
+import { MobileQuickActions } from '../components/layout/MobileQuickActions';
 import { CommandPaletteProvider } from '../components/layout/CommandPalette';
 import { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
@@ -42,13 +44,6 @@ export const RootLayout: React.FC = () => {
   const [navDrawerOpen, setNavDrawerOpen] = useState(false);
   const theme = useTheme();
   const isNarrow = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
-
-  useEffect(() => {
-    document.body.classList.toggle('hotel-board-skin-active', boardSkinActive);
-    return () => {
-      document.body.classList.remove('hotel-board-skin-active');
-    };
-  }, [boardSkinActive]);
 
   // The tab title is the configured hotel name for both the guest and staff
   // experiences; only the favicon distinguishes them. `hotelSettingsChange`
@@ -157,7 +152,6 @@ export const RootLayout: React.FC = () => {
 
   return (
     <Box
-      className={boardSkinActive ? 'hotel-board-shell' : undefined}
       sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}
     >
       <CommandPaletteProvider>
@@ -173,8 +167,16 @@ export const RootLayout: React.FC = () => {
           <Container
             component="main"
             maxWidth="xl"
-            className={boardSkinActive ? 'hotel-board-skin' : undefined}
-            sx={{ mt: boardSkinActive ? 3 : 4, mb: 4, px: { xs: 2, sm: 3 }, flex: 1, contain: 'layout style', isolation: 'isolate' }}
+            sx={{
+              mt: boardSkinActive ? 3 : 4,
+              mb: 4,
+              px: { xs: 2, sm: 3 },
+              // Keep the page end clear of the fixed bottom nav (<md).
+              pb: { xs: 'calc(84px + var(--sab))', md: 0 },
+              flex: 1,
+              contain: 'layout style',
+              isolation: 'isolate',
+            }}
           >
             <PageErrorBoundary>
               <Suspense fallback={<LoadingFallback />}>
@@ -183,6 +185,9 @@ export const RootLayout: React.FC = () => {
             </PageErrorBoundary>
           </Container>
         </Box>
+
+        <MobileNavBar />
+        <MobileQuickActions />
 
         <Suspense fallback={<MinimalLoadingFallback />}>
           <FirstLoginPasskeyPrompt

@@ -264,7 +264,7 @@ export function StayInfoTab({
         </Grid>
 
         <Grid size={12}>
-          <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+          <Paper sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)' }}>
             <Typography variant="subtitle2" gutterBottom>
               Room Charge Summary
             </Typography>

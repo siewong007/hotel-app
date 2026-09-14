@@ -11,5 +11,5 @@ export const getRoomStatusColor = (room: Room): string => getUnifiedStatusColor(
 export const getRoomStatusLabel = (room: Room): string =>
   getUnifiedStatusShortLabel(room.status || 'available').toUpperCase();
 
-export const getRoomCardFill = (status: string, isDarkMode: boolean): string =>
-  getStatusCardFill(status as RoomStatusType, isDarkMode);
+export const getRoomCardFill = (status: string): string =>
+  getStatusCardFill(status as RoomStatusType);

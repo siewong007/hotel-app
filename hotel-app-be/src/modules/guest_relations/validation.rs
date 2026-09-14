@@ -7,7 +7,7 @@ use super::models::{GuestPreferenceEntry, GuestPreferencesPut};
 
 /// Allowed `guest_notes.interaction_type` values — mirrors the
 /// `guest_notes_interaction_type_check` constraint added by patch
-/// `0019_guest_relations.sql`. Keep in sync with the CHECK expression.
+/// `0023_guest_relations.sql`. Keep in sync with the CHECK expression.
 pub const INTERACTION_TYPES: &[&str] = &["note", "call", "email", "in_person", "follow_up"];
 pub const DEFAULT_INTERACTION_TYPE: &str = "note";
 

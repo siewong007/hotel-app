@@ -30,6 +30,8 @@ import type { EntryStatusFilter } from '../types';
 import { formatDateForDisplay, getLedgerUiStatus, isLedgerVoided } from '../helpers';
 import { LedgerStatusBadge } from '../StatusPill';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
+import { useIsPhone } from '../../../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../../../components/data-table/MobileCardRow';
 
 interface LedgerEntriesTabProps {
   search: string;
@@ -91,6 +93,48 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
   onVoid,
   formatCurrency,
 }) => {
+  const isPhone = useIsPhone();
+  const entryActions = (entry: CustomerLedger, busy: boolean) => (
+    <>
+      {canRecordPayment(entry) && (
+        <IconButton size="small" aria-label="Record payment" title="Record payment" onClick={() => onRecordPayment(entry)}>
+          <PaymentIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      )}
+      {canViewInvoice(entry) && (
+        <IconButton size="small" aria-label="View invoice" title="View invoice" onClick={() => onViewInvoice(entry)} disabled={busy}>
+          <OpenInNewIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      )}
+      <IconButton size="small" aria-label="Edit entry" title="Edit entry" onClick={() => onEdit(entry)}>
+        <EditIcon sx={{ fontSize: 18 }} />
+      </IconButton>
+      <IconButton size="small" aria-label="Print receipt" title="Print receipt" onClick={() => onPrintReceipt(entry)}>
+        <PrintIcon sx={{ fontSize: 18 }} />
+      </IconButton>
+      {canVoid(entry) && (
+        <IconButton size="small" aria-label="Void entry" title="Void entry" color="error" onClick={() => onVoid(entry)}>
+          <VoidIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      )}
+    </>
+  );
+
+  const paginationEl = (
+    <TablePagination
+      component="div"
+      count={total}
+      page={page}
+      onPageChange={(_, nextPage) => onPageChange(nextPage)}
+      rowsPerPage={pageSize}
+      rowsPerPageOptions={[10, 25, 50, 100]}
+      onRowsPerPageChange={(event) => {
+        onPageSizeChange(parseInt(event.target.value, 10));
+      }}
+      labelRowsPerPage="Entries per page"
+    />
+  );
+
   return (
     <>
       {/* Toolbar: search + status segment */}
@@ -170,6 +214,27 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
               ? 'No ledger entries for this company yet.'
               : 'No entries match this filter.'}
           </Typography>
+        </Box>
+      ) : isPhone ? (
+        <Box>
+          {entries.map((entry) => {
+            const balance = toMoneyNumber(entry.balance_due);
+            const paid = toMoneyNumber(entry.paid_amount);
+            const voided = isLedgerVoided(entry);
+            const uiStatus = getLedgerUiStatus(entry);
+            return (
+              <Box key={entry.id} sx={{ opacity: voided ? 0.6 : 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <MobileCardRow
+                  title={entry.description}
+                  subtitle={`${entry.folio_number || `#${entry.id}`}${entry.room_number ? ` · Room ${entry.room_number}` : ''} · ${formatDateForDisplay(entry.posting_date || entry.created_at)}`}
+                  meta={`${entry.invoice_number || 'Not invoiced'} · ${isPositiveMoney(balance) ? `Due ${formatCurrency(balance)}` : `Paid ${formatCurrency(paid)}`}`}
+                  status={<LedgerStatusBadge status={uiStatus} />}
+                  footer={<Box sx={{ display: 'flex', gap: 0.25 }}>{entryActions(entry, loadingInvoice)}</Box>}
+                />
+              </Box>
+            );
+          })}
+          {paginationEl}
         </Box>
       ) : (
         <TableContainer sx={{ overflowX: 'auto' }}>
@@ -341,18 +406,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
               })}
             </TableBody>
           </Table>
-          <TablePagination
-            component="div"
-            count={total}
-            page={page}
-            onPageChange={(_, nextPage) => onPageChange(nextPage)}
-            rowsPerPage={pageSize}
-            rowsPerPageOptions={[10, 25, 50, 100]}
-            onRowsPerPageChange={(event) => {
-              onPageSizeChange(parseInt(event.target.value, 10));
-            }}
-            labelRowsPerPage="Entries per page"
-          />
+          {paginationEl}
         </TableContainer>
       )}
     </>

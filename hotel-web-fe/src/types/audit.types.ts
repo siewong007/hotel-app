@@ -62,10 +62,10 @@ export interface AuditUser {
 
 // Helper function to get action label
 export function getActionLabel(action: string): { label: string; color: string } {
-  return AUDIT_ACTION_LABELS[action] || { label: formatStatusLabel(action), color: '#757575' };
+  return AUDIT_ACTION_LABELS[action] || { label: formatStatusLabel(action), color: 'var(--hotel-neutral)' };
 }
 
 // Helper function to get resource label
 export function getResourceLabel(resourceType: string): { label: string; color: string } {
-  return AUDIT_RESOURCE_LABELS[resourceType] || { label: formatStatusLabel(resourceType), color: '#757575' };
+  return AUDIT_RESOURCE_LABELS[resourceType] || { label: formatStatusLabel(resourceType), color: 'var(--hotel-neutral)' };
 }

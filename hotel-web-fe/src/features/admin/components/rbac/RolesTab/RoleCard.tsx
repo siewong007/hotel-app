@@ -8,7 +8,6 @@ import {
   IconButton,
   Chip,
   Stack,
-  alpha,
   Tooltip,
 } from '@mui/material';
 import {
@@ -50,8 +49,8 @@ const RoleCard: React.FC<RoleCardProps> = ({ role, onEdit, onDelete }) => {
         borderRadius: 2,
         transition: 'all 0.2s ease-in-out',
         '&:hover': {
-          borderColor: alpha(color, 0.5),
-          boxShadow: `0 4px 12px ${alpha(color, 0.15)}`,
+          borderColor: `color-mix(in srgb, ${color} 50%, transparent)`,
+          boxShadow: `0 4px 12px color-mix(in srgb, ${color} 15%, transparent)`,
         },
       }}
     >
@@ -67,7 +66,7 @@ const RoleCard: React.FC<RoleCardProps> = ({ role, onEdit, onDelete }) => {
                 width: 48,
                 height: 48,
                 borderRadius: 2,
-                backgroundColor: alpha(color, 0.1),
+                backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`,
                 color: color,
               }}
             >
@@ -102,8 +101,8 @@ const RoleCard: React.FC<RoleCardProps> = ({ role, onEdit, onDelete }) => {
                   label={`${role.navigationCount} tabs`}
                   size="small"
                   sx={{
-                    backgroundColor: alpha('#9c27b0', 0.1),
-                    color: '#9c27b0',
+                    backgroundColor: 'var(--hotel-info-bg)',
+                    color: 'var(--hotel-info)',
                     fontWeight: 500,
                     '& .MuiChip-icon': { color: 'inherit' },
                   }}
@@ -113,8 +112,8 @@ const RoleCard: React.FC<RoleCardProps> = ({ role, onEdit, onDelete }) => {
                   label={`${role.permissionCount} permissions`}
                   size="small"
                   sx={{
-                    backgroundColor: alpha('#1976d2', 0.1),
-                    color: '#1976d2',
+                    backgroundColor: 'var(--hotel-neutral-bg)',
+                    color: 'var(--hotel-neutral)',
                     fontWeight: 500,
                     '& .MuiChip-icon': { color: 'inherit' },
                   }}

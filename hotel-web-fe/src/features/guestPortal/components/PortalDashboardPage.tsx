@@ -101,12 +101,12 @@ const AuthenticatedDashboard: React.FC<{
 
   return (
     <Container maxWidth="lg" sx={{ mt: { xs: 2, sm: 4 }, mb: 7, px: { xs: 2, sm: 3 } }}>
-      <Paper elevation={0} sx={{ overflow: 'hidden', border: '1px solid rgba(6,17,14,.12)', borderRadius: 3 }}>
-        <Box sx={{ p: { xs: 2.5, sm: 4 }, bgcolor: '#fffdf9', borderBottom: '1px solid rgba(6,17,14,.1)' }}>
+      <Paper elevation={0} sx={{ overflow: 'hidden', border: '1px solid var(--hotel-border)', borderRadius: 3 }}>
+        <Box sx={{ p: { xs: 2.5, sm: 4 }, bgcolor: 'var(--hotel-surface-raised)', borderBottom: '1px solid var(--hotel-border-subtle)' }}>
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, gap: 2 }}>
           {/* No hotel name here: GuestPortalShell's sticky header already shows
               it as the logo wordmark directly above this card. */}
-          <Box><Typography variant="h4" component="h1" sx={{ color: '#06110e', fontWeight: 700 }}>{SECTION_TITLES[displaySection]}</Typography></Box>
+          <Box><Typography variant="h4" component="h1" sx={{ color: 'var(--hotel-text)', fontWeight: 700 }}>{SECTION_TITLES[displaySection]}</Typography></Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button variant="outlined" onClick={signOut} sx={{ width: { xs: '100%', sm: 'auto' } }}>
               Sign Out

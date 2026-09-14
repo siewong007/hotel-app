@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   hasPermission: true,
   serverUnread: 3,
+  staffUnread: 0,
+  staffItems: [] as Array<Record<string, unknown>>,
   items: [] as Array<Record<string, unknown>>,
 }));
 
@@ -81,12 +83,22 @@ vi.mock('../../utils/notificationStore', () => ({
   removeNotification: vi.fn(),
 }));
 
+vi.mock('../../features/admin/system/hooks', () => ({
+  useStaffNotifications: () => ({
+    data: { unread: mocks.staffUnread, items: mocks.staffItems },
+    isPending: false,
+  }),
+  useMarkAllStaffNotificationsRead: () => ({ mutate: vi.fn() }),
+}));
+
 import { NotificationCenter } from './NotificationCenter';
 
 describe('NotificationCenter', () => {
   beforeEach(() => {
     mocks.hasPermission = true;
     mocks.serverUnread = 3;
+    mocks.staffUnread = 0;
+    mocks.staffItems = [];
   });
 
   afterEach(cleanup);
@@ -125,5 +137,30 @@ describe('NotificationCenter', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Marketing' }));
     expect(screen.getByText('Summer promo')).toBeTruthy();
     expect(screen.queryByText(/receipt for booking/)).toBeNull();
+  });
+
+  it('shows persisted staff alerts on the System tab and counts them in the badge', () => {
+    mocks.staffUnread = 1;
+    mocks.staffItems = [
+      {
+        id: 1,
+        kind: 'job_failure',
+        subject: 'night_audit',
+        title: 'Background job failed: night_audit',
+        body: 'db timeout',
+        created_at: new Date().toISOString(),
+        read_at: null,
+      },
+    ];
+
+    render(<NotificationCenter />);
+
+    // Badge = in-app unread (0) + feed unread (3) + staff unread (1).
+    expect(screen.getByLabelText('Notifications (4 unread)')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Notifications/ }));
+    fireEvent.click(screen.getByRole('tab', { name: 'System' }));
+    expect(screen.getByText('Background job failed: night_audit')).toBeTruthy();
+    expect(screen.getByText('db timeout')).toBeTruthy();
   });
 });

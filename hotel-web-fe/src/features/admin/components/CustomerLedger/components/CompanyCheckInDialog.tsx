@@ -306,6 +306,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
+                    type="tel"
                     label="Phone"
                     value={newCheckInGuestForm.phone}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, phone: e.target.value })}

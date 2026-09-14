@@ -173,7 +173,7 @@ export function DataTable<TData extends RowData>({
       <Table aria-busy={loading || undefined}>
         <TableHead>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} sx={{ bgcolor: 'grey.50' }}>
+            <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
                 const canSort = header.column.getCanSort();
                 const sortDir = header.column.getIsSorted();
@@ -262,7 +262,7 @@ export function DataTable<TData extends RowData>({
             aria-label="Previous page"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            sx={{ px: 1, py: 0.5, cursor: 'pointer', border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper', '&:disabled': { opacity: 0.4, cursor: 'default' } }}
+            sx={{ minWidth: 40, minHeight: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', px: 1, py: 0.5, cursor: 'pointer', border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper', '&:disabled': { opacity: 0.4, cursor: 'default' } }}
           >
             ‹
           </Box>
@@ -271,7 +271,7 @@ export function DataTable<TData extends RowData>({
             aria-label="Next page"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            sx={{ px: 1, py: 0.5, cursor: 'pointer', border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper', '&:disabled': { opacity: 0.4, cursor: 'default' } }}
+            sx={{ minWidth: 40, minHeight: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', px: 1, py: 0.5, cursor: 'pointer', border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper', '&:disabled': { opacity: 0.4, cursor: 'default' } }}
           >
             ›
           </Box>

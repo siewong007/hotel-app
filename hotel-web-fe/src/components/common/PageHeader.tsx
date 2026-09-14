@@ -45,7 +45,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
           {kicker}
         </Typography>
       )}
-      <Typography variant="h5" component="h1" sx={{ fontWeight: 900, lineHeight: 1.25 }}>
+      <Typography variant="h5" component="h1" sx={{ fontWeight: 700, lineHeight: 1.25 }}>
         {title}
       </Typography>
       {subtitle && (

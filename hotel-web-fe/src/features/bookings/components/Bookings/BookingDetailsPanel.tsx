@@ -9,7 +9,6 @@ import {
   Stack,
   Tooltip,
   Typography,
-  alpha,
 } from '@mui/material';
 import {
   ExitToApp as CheckOutIcon,
@@ -92,7 +91,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
             <Chip
               size="small"
               label={getBookingStatusText(booking.status)}
-              sx={{ bgcolor: alpha(statusDotColor(booking.status), 0.12), color: statusDotColor(booking.status), fontWeight: 900 }}
+              sx={{ bgcolor: `color-mix(in srgb, ${statusDotColor(booking.status)} 12%, transparent)`, color: statusDotColor(booking.status), fontWeight: 900 }}
             />
             <Tooltip title="Close details" arrow>
               <IconButton size="small" onClick={onClose}>
@@ -107,7 +106,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               alignItems: "center",
               mt: 3
             }}>
-            <Box sx={{ width: 58, height: 58, borderRadius: '50%', bgcolor: alpha('#2f6f52', 0.14), color: '#245a42', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.1rem' }}>
+            <Box sx={{ width: 58, height: 58, borderRadius: '50%', bgcolor: 'var(--hotel-primary-subtle)', color: 'var(--hotel-primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.1rem' }}>
               {getGuestInitials(booking.guest_name)}
             </Box>
             <Box sx={{ minWidth: 0 }}>
@@ -186,7 +185,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 <Typography variant="subtitle1">Total</Typography>
                 <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
               </Stack>
-              <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: isPositiveMoney(getBookingBalance(booking)) ? alpha('#c43d32', 0.08) : alpha('#2f6f52', 0.1), color: isPositiveMoney(getBookingBalance(booking)) ? '#c43d32' : '#2f6f52', fontWeight: 900 }}>
+              <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: isPositiveMoney(getBookingBalance(booking)) ? 'var(--hotel-danger-bg)' : 'var(--hotel-selected)', color: isPositiveMoney(getBookingBalance(booking)) ? 'var(--hotel-danger)' : 'var(--hotel-success)', fontWeight: 900 }}>
                 {isPositiveMoney(getBookingBalance(booking))
                   ? `Due ${formatCurrency(getBookingBalance(booking))}`
                   : `✓ Fully paid${booking.payment_method ? ` via ${formatStatusLabel(booking.payment_method)}` : ''}`}

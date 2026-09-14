@@ -28,10 +28,11 @@ const BookingModalHeader: React.FC<BookingModalHeaderProps> = ({
       width: 40,
       height: 40,
       borderRadius: 1.25,
-      background: `linear-gradient(135deg, ${D.emerald}, ${D.emeraldDeep})`,
+      background: 'var(--hotel-primary-subtle)',
+      border: '1px solid var(--hotel-primary-border)',
       display: 'grid',
       placeItems: 'center',
-      color: '#fff',
+      color: 'var(--hotel-primary-text)',
     }}>
       <HotelIcon sx={{ fontSize: 22 }} />
     </Box>

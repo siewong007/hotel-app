@@ -6,6 +6,7 @@ PostgreSQL is the application's only database engine.
 database/postgres/
 ├── migrations/0001_v1_baseline.sql     # fresh install: schema
 ├── seed.sql                            # fresh install: system/bootstrap records
+├── staging.sql                         # optional: rerunnable staging/demo dataset
 ├── patches/manifest.tsv                # ordered, checksummed patch catalog
 ├── patches/_begin.sql                  # shared control: lock, guard, skip
 ├── patches/_end.sql                    # shared control: record, commit
@@ -25,12 +26,13 @@ the desktop Rust patch executor applies the same bundled catalog. Dropping a
 ## V1 lifecycle
 
 Baseline → seed → patches. The ordered patch catalog is
-`patches/manifest.tsv`. From the repository root, one command runs all three
-against a new PostgreSQL database:
+`patches/manifest.tsv`. From the repository root, the canonical command is:
 
 ```bash
-make db-setup DATABASE_URL="$DATABASE_URL"
+make db-baseline DATABASE_URL="$DATABASE_URL"
 ```
+
+(`make db-setup` remains as a deprecated alias for `db-baseline`.)
 
 The equivalent by hand, once and in this order:
 
@@ -41,19 +43,22 @@ make db-patch DATABASE_URL="$DATABASE_URL"
 ```
 
 The final `make db-patch` step reads `patches/manifest.tsv` and applies its
-catalog in order.
+catalog in order. The original V1 convergence catalog (versions 2 through 23)
+has been folded into the baseline, so the catalog currently lists no patches:
+the step prints `patch catalog is empty; nothing to apply` and a fresh install
+records revision 1 only. The next same-generation change re-opens the catalog
+at version 2.
 
 `seed.sql` creates all required system/reference records and fresh-install
 bootstrap records, then records the completed V1 revision. It is not a startup
 task and is not safe to rerun against an existing V1 database.
 
-The patch step is what makes the two paths converge. A fresh install already has
-every patched object from the baseline, so each patch's DDL is a no-op — but the
-patch still runs and records its revision row. That recorded patch level gives
-fresh and patched-forward databases the same supported revision and compatible
-schema.
-So a fresh install reports `applied patch 1.2 …` and so on; `skipped` appears
-only when the revision is already recorded, which is what makes a rerun a no-op.
+While the catalog is non-empty it is also what makes the two paths converge:
+a fresh install already has every patched object from the baseline, so each
+patch's DDL is a no-op — but the patch still runs and records its revision row.
+That recorded patch level gives fresh and patched-forward databases the same
+supported revision and compatible schema, and `skipped` appears when the
+revision is already recorded, which is what makes a rerun a no-op.
 Ordinary backend startup never applies patches — it validates the schema and
 refuses layouts it does not recognize.
 
@@ -86,7 +91,70 @@ be empty — and check the dumps are non-trivial first, because two failed dumps
 also diff to zero. Declare a new column in the position `ALTER TABLE ADD COLUMN`
 produces (last in the table body) or fresh and patched schemas diverge forever.
 
+## Staging dataset (`staging.sql`)
+
+`staging.sql` is the canonical staging/demo dataset: a comprehensive,
+deterministic, **re-runnable** population of every application module on top of
+a completed V1 lifecycle. It never ships to production and is not part of
+`db-baseline`.
+
+```bash
+make db-baseline DATABASE_URL="$DATABASE_URL"   # once per fresh database
+make db-seed     DATABASE_URL="$DATABASE_URL"   # apply; safe to rerun
+```
+
+Rerun semantics: the script opens one transaction, takes an advisory lock,
+guards on the recorded V1 revision, deletes every staging-owned row
+(child-first) inside the fixed id band **800000-899999** (plus generated-id
+children and marker-tagged `job_runs`), then reinserts. A rerun therefore
+yields identical counts — it is a reset of the staging dataset, never an
+append. It never touches bootstrap rows or ids outside the band.
+
+Reference date: every stay/schedule date derives from the connection's
+`CURRENT_DATE`, so the dataset never goes stale. Pin it for reproducible runs:
+
+```bash
+PGOPTIONS='-c staging.ref_date=2026-01-15' psql "$DATABASE_URL" -f hotel-app-be/database/postgres/staging.sql
+```
+
+Auth fixtures: every staging user shares the staging-only password
+`HotelStaging2026!` (`*.stg` / `*_stg` accounts such as `manager_stg`,
+`frontdesk_amy`, `finance_mei`, `marketing_nadia`, `hk_siti`, plus a
+`guest_portal` portal login, an inactive and a locked account). Never reuse
+these credentials outside staging.
+
+Coverage highlights: 50 guests (VIP, corporate, foreign/local for tourism tax,
+blacklisted, duplicate-name, long-name, minimal-profile, bulk filler for
+pagination), 24 rooms across all statuses including maintenance/out-of-order,
+~77 bookings covering every status (in-house, arriving, departing, no-show,
+voided+refunded, comp, partial-comp, 30-night long stay, same-day walk-in,
+aging unpaid holds, adjacent same-room windows), payments/invoices/ledgers in
+every state, housekeeping & maintenance boards, 14 days of night-audit history,
+promotions in every claim state (draft, paused, archived, claim-window-closed,
+claim-limit-reached, private) plus vouchers in every lifecycle (available,
+redeemed, revoked, reversed, expired) with booking-backed redemptions,
+permission-scoped voucher users (`voucher_audit` read-only, `voucher_noperm`),
+campaigns + deliveries + suppressions,
+loyalty members/points/redemptions, portal sessions (incl. one known-token
+session, Bearer `stg-portal-token-a`), staff notifications, and
+an append-only audit trail.
+
+Limitations: there are no payroll/HR tables — only `teams`/`team_members` are
+seeded. The exclusion constraint makes double-booked rooms DB-impossible, so
+overlap rejection is exercised through API tests, not fixtures. `audit_logs`
+is append-only: staging audit rows are id-guarded inserts that survive reruns
+and always attribute the bootstrap admin (the real actor is recorded inside
+`details`).
+
 ## Compatible V1 patching
+
+The catalog is currently empty: every V1 convergence patch shipped to date was
+folded into `migrations/0001_v1_baseline.sql` and `seed.sql`, so a new install
+needs nothing beyond the baseline, the seed, and this (no-op) step. Databases
+installed before the fold stay on their recorded revisions; they converge by
+rebuild, not by patching — the published patch files were retired because a
+fresh baseline already contains every object they created. Future additive
+changes re-open the catalog at version 2 exactly as described below.
 
 `patches/manifest.tsv` is the catalog. Each row is five tab-separated fields —
 generation, version, name, `sha256:` checksum, file — and the runner rejects a
@@ -123,7 +191,7 @@ Where it is applied:
 
 | Context | Application point |
 |---|---|
-| Server / local | `make db-patch DATABASE_URL="…"` (also the last step of `make db-setup`) |
+| Server / local | `make db-patch DATABASE_URL="…"` (also the last step of `make db-baseline`) |
 | Production deploy | `deploy/deploy.sh` — after the verified backup, after PostgreSQL alone is up, before the application containers are activated |
 | Desktop | the Tauri launcher, after it recognizes a fresh or V1 database and before it starts the backend sidecar, streaming the bundled catalog to the bundled `psql` |
 | Backend startup | never — it validates and refuses, it does not patch |
@@ -159,7 +227,7 @@ make db-schema-drift \
 ```
 
 The two URLs must be distinct — point `BASELINE_DATABASE_URL` at a scratch
-database freshly built by `make db-setup`. Exit `0` means no drift, `2` means
+database freshly built by `make db-baseline`. Exit `0` means no drift, `2` means
 drift was reported as a unified diff, and any other nonzero code is a connection
 or query failure. It never prints either URL, and it reports differences only —
 resolving them is a human decision.

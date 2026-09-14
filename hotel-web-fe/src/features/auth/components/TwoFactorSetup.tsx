@@ -290,7 +290,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
               <Typography variant="body1" sx={{ mb: 1 }}>
                 Or manually enter this code:
               </Typography>
-              <Paper sx={{ p: 2, bgcolor: 'grey.100', mb: 3 }}>
+              <Paper sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)', mb: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', flexGrow: 1 }}>
                     {setupData.secret}

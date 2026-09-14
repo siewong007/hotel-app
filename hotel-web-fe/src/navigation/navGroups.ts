@@ -2,8 +2,8 @@ import type { AppRouteDefinition, NavGroup } from './routeRegistry';
 
 /** Sidebar section order. Single-item groups render without a heading. */
 export const NAV_GROUP_ORDER: readonly NavGroup[] = [
-  'overview', 'operations', 'finance', 'engagement',
-  'property', 'insights', 'administration', 'utility',
+  'overview', 'front_office', 'guests', 'revenue', 'finance',
+  'insights', 'administration', 'utility',
 ];
 
 /** Groups rendered as bare items (no uppercase heading). */

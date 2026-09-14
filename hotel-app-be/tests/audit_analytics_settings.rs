@@ -57,6 +57,16 @@ mod postgres_tests {
 
         let pool = PgPoolOptions::new()
             .max_connections(5)
+            // The baseline's append-only trigger on audit_logs forbids the fixture
+            // cleanups below; test pools opt out session-locally.
+            .after_connect(|conn, _| {
+                Box::pin(async move {
+                    sqlx::query("SET app.allow_audit_mutation = 'on'")
+                        .execute(conn)
+                        .await
+                        .map(|_| ())
+                })
+            })
             .connect(&database_url)
             .await
             .expect("failed to connect to PostgreSQL test database");
@@ -1056,6 +1066,144 @@ mod postgres_tests {
             after_cleanup.is_none(),
             "the scratch setting must not outlive the test"
         );
+    }
+
+    // -----------------------------------------------------------------
+    // 5b. Settings reset restores the recorded default and the `security`
+    //     category requires settings:manage over plain settings:update.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn settings_reset_and_security_category_guard() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let user_id = 990_004;
+        let scratch_key = "aud990_reset_setting";
+        let security_key = "aud990_security_setting";
+
+        async fn cleanup(pool: &PgPool, user_id: i64) {
+            sqlx::query(
+                "DELETE FROM system_settings WHERE key IN \
+                 ('aud990_reset_setting', 'aud990_security_setting')",
+            )
+            .execute(pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "DELETE FROM audit_logs WHERE user_id = $1 AND resource_type = 'system_setting'",
+            )
+            .bind(user_id)
+            .execute(pool)
+            .await
+            .unwrap();
+            sqlx::query("DELETE FROM users WHERE id = $1")
+                .bind(user_id)
+                .execute(pool)
+                .await
+                .unwrap();
+        }
+
+        cleanup(&pool, user_id).await;
+        upsert_actor(&pool, user_id, "aud990_reset_actor").await;
+        SettingsRepository::upsert(
+            &pool,
+            scratch_key,
+            "current-value",
+            Some("aud990 scratch reset setting -- safe to delete"),
+            Some("aud990"),
+        )
+        .await
+        .expect("creating the scratch setting must succeed");
+        SettingsRepository::upsert(
+            &pool,
+            security_key,
+            "5",
+            Some("aud990 scratch security-category setting -- safe to delete"),
+            Some("security"),
+        )
+        .await
+        .expect("creating the security scratch setting must succeed");
+
+        // The full projection now includes metadata columns.
+        let loaded = SettingsRepository::find_by_key(&pool, scratch_key)
+            .await
+            .expect("find_by_key must succeed")
+            .expect("the scratch setting must exist");
+        assert_eq!(loaded.value_type.as_deref(), Some("string"));
+        assert!(!loaded.is_public);
+
+        // Reset of a missing key is a NotFound, not a silent no-op.
+        let missing =
+            settings_service::reset_system_setting(&pool, "aud990_missing", user_id).await;
+        assert!(matches!(missing, Err(ApiError::NotFound(_))));
+
+        // `security` keys require settings:manage; this actor holds nothing, so
+        // the category check alone must deny. Non-security keys only need the
+        // route-level settings:update the service does not re-check.
+        let denied = settings_service::update_system_setting(
+            &pool,
+            security_key,
+            SystemSettingUpdate {
+                value: "9".to_string(),
+            },
+            user_id,
+        )
+        .await;
+        assert!(matches!(denied, Err(ApiError::Forbidden(_))));
+        let denied_reset =
+            settings_service::reset_system_setting(&pool, security_key, user_id).await;
+        assert!(matches!(denied_reset, Err(ApiError::Forbidden(_))));
+
+        // Happy path depends on whether this database has default_value
+        // (baseline-only change until its patch is registered). Both branches
+        // are the honest contract: reset restores the default, or refuses
+        // cleanly when no default was recorded.
+        let has_default_column: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns \
+             WHERE table_name = 'system_settings' AND column_name = 'default_value')",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("the column check must succeed");
+        if has_default_column {
+            sqlx::query(
+                "UPDATE system_settings SET default_value = 'seeded-default' WHERE key = $1",
+            )
+            .bind(scratch_key)
+            .execute(&pool)
+            .await
+            .unwrap();
+            settings_service::update_system_setting(
+                &pool,
+                scratch_key,
+                SystemSettingUpdate {
+                    value: "changed-again".to_string(),
+                },
+                user_id,
+            )
+            .await
+            .expect("updating a non-security setting must succeed");
+
+            let reset = settings_service::reset_system_setting(&pool, scratch_key, user_id)
+                .await
+                .expect("resetting a key with a recorded default must succeed");
+            assert_eq!(reset.value, "seeded-default");
+
+            let action: String = sqlx::query_scalar(
+                "SELECT action FROM audit_logs WHERE user_id = $1 \
+                 AND resource_type = 'system_setting' ORDER BY created_at DESC LIMIT 1",
+            )
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("a reset must write an audit row");
+            assert_eq!(action, "settings_reset");
+        } else {
+            let refused = settings_service::reset_system_setting(&pool, scratch_key, user_id).await;
+            assert!(matches!(refused, Err(ApiError::BadRequest(_))));
+        }
+
+        cleanup(&pool, user_id).await;
     }
 
     // -----------------------------------------------------------------

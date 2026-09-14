@@ -8,10 +8,10 @@ use axum::{
 use std::net::SocketAddr;
 
 use super::models::{
-    ClaimPromotionInput, GuestPromotionListResponse, Promotion, PromotionActionInput,
-    PromotionInput, PromotionListQuery, PromotionListResponse, PublicPromotion,
-    PublicPromotionListResponse, Voucher, VoucherIssueInput, VoucherListResponse,
-    VoucherRevokeInput, VoucherSummary,
+    CampaignPerformance, ClaimPromotionInput, GuestPromotionListResponse, Promotion,
+    PromotionActionInput, PromotionInput, PromotionListQuery, PromotionListResponse,
+    PublicPromotion, PublicPromotionListResponse, TargetingOptionsResponse, Voucher,
+    VoucherIssueInput, VoucherListResponse, VoucherRevokeInput, VoucherSummary,
 };
 use super::service;
 use crate::core::db::DbPool;
@@ -160,13 +160,15 @@ pub async fn publish_admin_promotion_handler(
     Path(promotion_id): Path<i64>,
     Json(input): Json<PromotionActionInput>,
 ) -> Result<Json<Promotion>, ApiError> {
-    let actor_id = require_permission_helper(&pool, &headers, "promotions:manage").await?;
+    // Publish is the approval step: `promotions:approve` (implied by
+    // `promotions:manage`) is the gate, not manage itself.
+    let actor_id = require_permission_helper(&pool, &headers, "promotions:approve").await?;
     Ok(Json(
         service::publish_admin_promotion(
             &pool,
             actor_id,
             promotion_id,
-            input.expected_version,
+            input,
             client_ip(&headers, peer_addr),
             user_agent(&headers),
         )
@@ -187,11 +189,51 @@ pub async fn pause_admin_promotion_handler(
             &pool,
             actor_id,
             promotion_id,
-            input.expected_version,
+            input,
             client_ip(&headers, peer_addr),
             user_agent(&headers),
         )
         .await?,
+    ))
+}
+
+pub async fn cancel_admin_promotion_handler(
+    State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Path(promotion_id): Path<i64>,
+    Json(input): Json<PromotionActionInput>,
+) -> Result<Json<Promotion>, ApiError> {
+    let actor_id = require_permission_helper(&pool, &headers, "promotions:manage").await?;
+    Ok(Json(
+        service::cancel_admin_promotion(
+            &pool,
+            actor_id,
+            promotion_id,
+            input,
+            client_ip(&headers, peer_addr),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
+}
+
+pub async fn targeting_options_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<TargetingOptionsResponse>, ApiError> {
+    require_permission_helper(&pool, &headers, "promotions:read").await?;
+    Ok(Json(service::targeting_options(&pool).await?))
+}
+
+pub async fn campaign_performance_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(promotion_id): Path<i64>,
+) -> Result<Json<CampaignPerformance>, ApiError> {
+    require_permission_helper(&pool, &headers, "promotions:read").await?;
+    Ok(Json(
+        service::campaign_performance(&pool, promotion_id).await?,
     ))
 }
 
@@ -208,7 +250,7 @@ pub async fn archive_admin_promotion_handler(
             &pool,
             actor_id,
             promotion_id,
-            input.expected_version,
+            input,
             client_ip(&headers, peer_addr),
             user_agent(&headers),
         )

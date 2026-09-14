@@ -49,6 +49,22 @@ tree and removed per convention.
   testing, not a lockfile bump.
 - Notifications v2 remaining: SMS channel (separate spec), DB-editable
   transactional templates, PDF receipts.
+- UI/UX consolidation follow-ups (audit: docs/superpowers/specs/2026-09-13-ui-ux-consolidation-audit.md;
+  this session shipped dead-code removal, task-based nav regroup, /reports→/insights,
+  ledger payment-dialog merge on branch ui-ux-consolidation/2026-09-13):
+  1. converge GuestProfileDialog + GuestDetailsDialog into the guest-relations workspace;
+  2. one room-status update dialog shared by rooms + housekeeping (after the
+     in-flight room-card work lands — rooms/config.ts was dirty);
+  3. unify the three staff check-in dialogs (bookings CheckInDialog, rooms
+     ReservedCheckInDialog, EnhancedCheckInModal inside UnifiedBookingModal);
+  4. when modules/admin staff notifications land, split "delivery feed" vs
+     "staff inbox" labeling (/notifications currently renders the outbound
+     delivery log);
+  5. shared-primitive adoption sweep (DataTable has 3 users vs ~30 raw MUI
+     tables; PageHeader ~7; EmptyState ~12; parallel status chips: StatusPill,
+     VoucherStatusChip, SupportStatusChip, EkycStatusCard, RoomStatusChip/Badge);
+  6. ReportsAnalytics bespoke CSS (--ink-* vars, .kpi/.cpanel classes) vs the
+     --hotel-* token system — reconcile or document the boundary.
 
 ## Decisions needed (user)
 

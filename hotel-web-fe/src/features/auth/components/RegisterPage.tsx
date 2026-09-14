@@ -360,6 +360,7 @@ const RegisterPage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
+                  type="tel"
                   label="Phone"
                   name="phone"
                   value={formData.phone}
@@ -480,7 +481,7 @@ const RegisterPage: React.FC = () => {
                   '&:hover': {
                     background: 'transparent',
                     textDecoration: 'underline',
-                    color: 'var(--hotel-primary-light)',
+                    color: 'var(--hotel-primary-text)',
                   },
                 }}
                 onClick={() => navigate('/login')}

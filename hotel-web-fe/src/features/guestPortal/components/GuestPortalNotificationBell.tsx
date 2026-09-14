@@ -21,8 +21,8 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import type { GuestPortalBookingSummary } from '../../../types';
 
-const FOREST = '#082B22';
-const URGENT = '#A6422B';
+const FOREST = 'var(--hotel-surface)';
+const URGENT = 'var(--hotel-danger)';
 
 interface GuestPortalNotificationBellProps {
   token: string | null;
@@ -161,15 +161,15 @@ export function GuestPortalNotificationBell({
             flexShrink: 0,
             width: 44,
             height: 44,
-            color: '#FFFFFF',
-            border: pendingCount > 0 ? '1px solid rgba(255, 206, 196, 0.72)' : '1px solid rgba(255,255,255,0.22)',
-            bgcolor: pendingCount > 0 ? 'rgba(166,66,43,0.36)' : 'rgba(255,255,255,0.06)',
-            '&:hover': { bgcolor: pendingCount > 0 ? 'rgba(166,66,43,0.54)' : 'rgba(255,255,255,0.14)' },
+            color: 'var(--hotel-text)',
+            border: pendingCount > 0 ? '1px solid var(--hotel-danger-border)' : '1px solid var(--hotel-border-strong)',
+            bgcolor: pendingCount > 0 ? 'var(--hotel-danger-bg)' : 'var(--hotel-hover)',
+            '&:hover': { bgcolor: pendingCount > 0 ? 'color-mix(in srgb, var(--hotel-danger) 24%, transparent)' : 'var(--hotel-active)' },
             '@media (prefers-reduced-motion: no-preference)': pendingCount > 0 ? {
               animation: 'guest-notification-pulse 2.4s ease-in-out infinite',
               '@keyframes guest-notification-pulse': {
-                '0%, 100%': { boxShadow: '0 0 0 0 rgba(198, 84, 59, 0)' },
-                '50%': { boxShadow: '0 0 0 5px rgba(198, 84, 59, 0.25)' },
+                '0%, 100%': { boxShadow: '0 0 0 0 color-mix(in srgb, var(--hotel-danger) 0%, transparent)' },
+                '50%': { boxShadow: '0 0 0 5px color-mix(in srgb, var(--hotel-danger) 28%, transparent)' },
               },
             } : undefined,
           }}
@@ -195,13 +195,13 @@ export function GuestPortalNotificationBell({
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{ paper: { sx: { mt: 1, width: 'min(390px, calc(100vw - 24px))', borderRadius: 2.5, overflow: 'hidden' } } }}
       >
-        <Box sx={{ px: 2.25, py: 1.75, bgcolor: pendingCount > 0 ? '#FFF3F0' : '#FFFCF6', borderBottom: '1px solid', borderColor: pendingCount > 0 ? '#E6B7AD' : 'divider' }}>
+        <Box sx={{ px: 2.25, py: 1.75, bgcolor: pendingCount > 0 ? 'var(--hotel-danger-bg)' : 'var(--hotel-surface-overlay)', borderBottom: '1px solid', borderColor: pendingCount > 0 ? 'var(--hotel-danger-border)' : 'divider' }}>
           <Stack direction="row" spacing={1} sx={{
             alignItems: "center"
           }}>
             {pendingCount > 0 ? <ErrorOutlineIcon sx={{ color: URGENT }} aria-hidden="true" /> : null}
             <Box>
-              <Typography variant="subtitle1" sx={{ color: FOREST, fontWeight: 800 }}>
+              <Typography variant="subtitle1" sx={{ color: 'var(--hotel-text)', fontWeight: 800 }}>
                 {pendingCount > 0 ? 'Action needed' : 'Notifications'}
               </Typography>
               <Typography variant="body2" sx={{
@@ -237,8 +237,8 @@ export function GuestPortalNotificationBell({
               role="alert"
               sx={{
                 p: 2,
-                bgcolor: '#FFF8F6',
-                border: '1px solid #E6B7AD',
+                bgcolor: 'var(--hotel-danger-bg)',
+                border: '1px solid var(--hotel-danger-border)',
                 borderLeft: `4px solid ${URGENT}`,
                 borderRadius: 1.5,
                 '& + &': { mt: 1.25 },
@@ -249,14 +249,14 @@ export function GuestPortalNotificationBell({
               }}>
                 <ReceiptLongOutlinedIcon sx={{ color: URGENT, mt: 0.25 }} aria-hidden="true" />
                 <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography variant="subtitle2" sx={{ color: FOREST, fontWeight: 800 }}>
+                  <Typography variant="subtitle2" sx={{ color: 'var(--hotel-text)', fontWeight: 800 }}>
                     Receipt required
                   </Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5, color: '#3C2722' }}>
+                  <Typography variant="body2" sx={{ mt: 0.5, color: 'var(--hotel-text)' }}>
                     Upload the bank-transfer receipt for booking {booking.booking_number} within 24 hours to avoid automatic rejection.
                   </Typography>
                   {booking.receipt_request_message ? (
-                    <Typography variant="body2" sx={{ mt: 0.75, color: '#5B4039', fontStyle: 'italic' }}>
+                    <Typography variant="body2" sx={{ mt: 0.75, color: 'var(--hotel-text-secondary)', fontStyle: 'italic' }}>
                       {booking.receipt_request_message}
                     </Typography>
                   ) : null}

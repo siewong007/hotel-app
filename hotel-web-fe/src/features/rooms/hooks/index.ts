@@ -23,4 +23,5 @@ export {
   useUpdateRoom,
   useUpdateRoomStatus,
   useUpdateRoomType,
+  useUploadRoomTypeImage,
 } from './useRoomQueries';

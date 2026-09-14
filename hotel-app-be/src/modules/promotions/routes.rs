@@ -31,6 +31,10 @@ pub fn routes() -> Router<DbPool> {
                 .post(handlers::create_admin_promotion_handler),
         )
         .route(
+            "/admin/promotions/targeting-options",
+            get(handlers::targeting_options_handler),
+        )
+        .route(
             "/admin/promotions/{id}",
             get(handlers::get_admin_promotion_handler)
                 .put(handlers::update_admin_promotion_handler),
@@ -46,6 +50,14 @@ pub fn routes() -> Router<DbPool> {
         .route(
             "/admin/promotions/{id}/archive",
             post(handlers::archive_admin_promotion_handler),
+        )
+        .route(
+            "/admin/promotions/{id}/cancel",
+            post(handlers::cancel_admin_promotion_handler),
+        )
+        .route(
+            "/admin/promotions/{id}/performance",
+            get(handlers::campaign_performance_handler),
         )
         .route(
             "/admin/vouchers",

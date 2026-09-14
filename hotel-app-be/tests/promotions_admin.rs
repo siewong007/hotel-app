@@ -204,16 +204,10 @@ mod postgres_tests {
         let base = 992_100;
         seed_fixtures(&pool, base).await;
 
-        let (total, items) = PromotionRepository::list_admin_vouchers(
-            &pool,
-            None,
-            None,
-            Some(base),
-            50,
-            0,
-        )
-        .await
-        .expect("admin voucher list must decode");
+        let (total, items) =
+            PromotionRepository::list_admin_vouchers(&pool, None, None, Some(base), 50, 0)
+                .await
+                .expect("admin voucher list must decode");
 
         assert_eq!(total, 4);
         assert_eq!(items.len(), 4);
@@ -221,7 +215,10 @@ mod postgres_tests {
 
         let available = by_id(base + 1);
         let expected_guest = format!("Vch992 Guest {base}-1");
-        assert_eq!(available.guest_name.as_deref(), Some(expected_guest.as_str()));
+        assert_eq!(
+            available.guest_name.as_deref(),
+            Some(expected_guest.as_str())
+        );
         assert_eq!(available.promotion_name, "Vch992 Offer");
         // Staff rows never carry the raw code — masked only.
         assert_eq!(available.code, None);

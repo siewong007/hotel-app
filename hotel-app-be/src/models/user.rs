@@ -27,6 +27,16 @@ pub struct User {
     pub two_factor_recovery_codes: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub last_login_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub is_locked: bool,
+    #[sqlx(default)]
+    pub locked_until: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub failed_login_attempts: i32,
+    #[sqlx(default)]
+    pub is_super_admin: bool,
 }
 
 // Manual impl so 2FA secrets can never reach logs via `{:?}`.
@@ -113,6 +123,14 @@ pub struct UserResponse {
     pub permissions: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub last_login_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub is_locked: bool,
+    #[serde(default)]
+    pub is_verified: bool,
+    #[serde(default)]
+    pub is_super_admin: bool,
 }
 
 impl From<User> for UserResponse {
@@ -128,8 +146,94 @@ impl From<User> for UserResponse {
             permissions: vec![],
             created_at: user.created_at,
             updated_at: user.updated_at,
+            last_login_at: user.last_login_at,
+            is_locked: user.is_locked,
+            is_verified: user.is_verified,
+            is_super_admin: user.is_super_admin,
         }
     }
+}
+
+/// Server-side filters for the staff directory (`GET /users/directory`).
+/// `status` is one of `active`, `suspended`, `locked`; `role` matches a role
+/// name. All filters are optional and combine with AND.
+#[derive(Debug, Deserialize)]
+pub struct StaffDirectoryQuery {
+    pub search: Option<String>,
+    pub status: Option<String>,
+    pub role: Option<String>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    pub sort_by: Option<String>,
+    pub sort_order: Option<String>,
+}
+
+/// One staff directory row: account + status + assigned role names.
+#[derive(Debug, Serialize, FromRow)]
+pub struct StaffDirectoryEntry {
+    pub id: i64,
+    pub username: String,
+    pub email: String,
+    pub full_name: Option<String>,
+    pub phone: Option<String>,
+    pub is_active: bool,
+    pub is_verified: bool,
+    pub is_locked: bool,
+    pub is_super_admin: bool,
+    pub last_login_at: Option<DateTime<Utc>>,
+    pub roles: Vec<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StaffDirectoryResponse {
+    pub data: Vec<StaffDirectoryEntry>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+    pub total_pages: i64,
+}
+
+/// Invite a staff member: creates the account without a password and returns a
+/// one-time acceptance link for the administrator to deliver out of band.
+#[derive(Debug, Deserialize, Validate)]
+pub struct InviteUserInput {
+    #[validate(length(
+        min = 3,
+        max = 50,
+        message = "Username must be between 3 and 50 characters"
+    ))]
+    pub username: String,
+    #[validate(email(message = "Invalid email format"))]
+    pub email: String,
+    #[validate(length(max = 100, message = "Full name is too long"))]
+    pub full_name: Option<String>,
+    #[validate(length(max = 30, message = "Phone number is too long"))]
+    pub phone: Option<String>,
+    pub role_ids: Option<Vec<i64>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InviteUserResponse {
+    pub user: UserResponse,
+    pub invite_url: String,
+    pub expires_at: DateTime<Utc>,
+}
+
+/// Public invite acceptance: the token proves the invite, the password becomes
+/// the account's first credential. Only accounts created by `invite` (password
+/// still NULL) qualify.
+#[derive(Debug, Deserialize, Validate)]
+pub struct AcceptInviteInput {
+    #[validate(length(min = 32, max = 255, message = "Invalid invite token"))]
+    pub token: String,
+    #[validate(length(
+        min = 8,
+        max = 128,
+        message = "Password must be between 8 and 128 characters"
+    ))]
+    pub password: String,
 }
 
 /// User profile for display

@@ -1,5 +1,6 @@
 import { api } from '../../../api/client';
 import type {
+  CampaignPerformance,
   Promotion,
   PromotionInput,
   PromotionLifecycleAction,
@@ -7,6 +8,7 @@ import type {
   PromotionListParams,
   PromotionListResponse,
   PromotionUpdateInput,
+  TargetingOptionsResponse,
   Voucher,
   VoucherIssueInput,
   VoucherListParams,
@@ -63,6 +65,16 @@ export const PromotionsApi = {
 
   getAdminPromotion(promotionId: number): Promise<Promotion> {
     return api.get(`admin/promotions/${promotionId}`).json<Promotion>();
+  },
+
+  getTargetingOptions(): Promise<TargetingOptionsResponse> {
+    return api.get('admin/promotions/targeting-options').json<TargetingOptionsResponse>();
+  },
+
+  getCampaignPerformance(promotionId: number): Promise<CampaignPerformance> {
+    return api
+      .get(`admin/promotions/${promotionId}/performance`)
+      .json<CampaignPerformance>();
   },
 
   listVouchers(params?: VoucherListParams): Promise<VoucherListResponse> {

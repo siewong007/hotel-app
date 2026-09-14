@@ -313,7 +313,7 @@ pub async fn complete_guest_profile(
 /// Deliberately coarse. The zone is the only location signal stored (see
 /// `refresh_tokens.client_timezone`), so the label is an approximation of where
 /// the device was, not a position — callers must present it as such.
-fn location_from_timezone(timezone: &str) -> Option<String> {
+pub(crate) fn location_from_timezone(timezone: &str) -> Option<String> {
     let city = timezone.rsplit('/').next()?.trim();
     if city.is_empty() {
         return None;
@@ -326,7 +326,7 @@ fn location_from_timezone(timezone: &str) -> Option<String> {
     Some(city.replace('_', " "))
 }
 
-fn mask_ip_address(ip: String) -> String {
+pub(crate) fn mask_ip_address(ip: String) -> String {
     if let Some((prefix, _)) = ip.rsplit_once('.') {
         return format!("{prefix}.•••");
     }

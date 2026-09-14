@@ -51,8 +51,8 @@ import { formatHotelDate } from '../../../../utils/date';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 import { formatPortalDate } from './dashboardUtils';
 
-const FOREST = '#06110e';
-const GOLD_TEXT = '#8d6b30';
+const FOREST = 'var(--hotel-text)';
+const GOLD_TEXT = 'var(--hotel-primary-text)';
 
 /** Matches `services::passkey`, which refuses an eleventh passkey per user. */
 export const MAX_PASSKEYS = 10;
@@ -98,7 +98,7 @@ function CredentialCard({
       component="section"
       aria-label={title}
       variant="outlined"
-      sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: '#fffdf9' }}
+      sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: 'var(--hotel-surface-raised)' }}
     >
       <Box
         sx={{
@@ -150,7 +150,7 @@ function RecoveryCodesDialog({
           These are the only way back into your account if you lose your phone. Each code works
           once, and we cannot show them again.
         </Typography>
-        <Paper variant="outlined" sx={{ p: 2, bgcolor: '#FFF8E7' }}>
+        <Paper variant="outlined" sx={{ p: 2, bgcolor: 'var(--hotel-warning-bg)' }}>
           <Box
             sx={{
               display: 'grid',

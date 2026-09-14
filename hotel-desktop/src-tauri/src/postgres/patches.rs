@@ -194,48 +194,6 @@ fn parse_manifest(contents: &str) -> Result<Vec<PatchManifestEntry>, PostgresErr
         });
     }
 
-    let required_prefix = [
-        (
-            2,
-            "google-subject",
-            "sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650",
-            "0002_google_subject.sql",
-        ),
-        (
-            3,
-            "payment-idempotency",
-            "sha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36",
-            "0003_payment_idempotency.sql",
-        ),
-        (
-            4,
-            "booking-status-vocabulary",
-            "sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7",
-            "0004_booking_status_vocabulary.sql",
-        ),
-        (
-            5,
-            "booking-status-enforcement",
-            "sha256:a9ea019977a421f15bf923e074384ecaf88e458af85b3f15c6bc6b3aa66a08e3",
-            "0005_booking_status_enforcement.sql",
-        ),
-    ];
-    if entries.len() < required_prefix.len()
-        || entries
-            .iter()
-            .zip(required_prefix)
-            .any(|(entry, (version, name, checksum, file))| {
-                entry.version != version
-                    || entry.name != name
-                    || entry.checksum != checksum
-                    || entry.file != file
-            })
-    {
-        return Err(catalog_error(
-            "manifest must begin with the committed V1 patch versions 2, 3, 4, and 5",
-        ));
-    }
-
     Ok(entries)
 }
 
@@ -874,54 +832,57 @@ mod tests {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../hotel-app-be/database/postgres/patches")
     }
 
-    /// Copies the controls plus every patch the committed manifest lists.
-    ///
-    /// Derived from the manifest rather than hardcoded: a hardcoded list
-    /// silently stops copying the newest patch the moment one is added, and the
-    /// resulting failure surfaces as an unrelated assertion about some earlier
-    /// patch's diagnostics rather than as "the catalog is incomplete".
-    fn copy_committed_catalog(destination: &TestPatchDir) {
-        let mut files = vec![
-            "manifest.tsv".to_string(),
-            "_begin.sql".to_string(),
-            "_end.sql".to_string(),
-        ];
-        files.extend(
-            committed_manifest_entries()
-                .into_iter()
-                .map(|(_, _, _, file)| file),
-        );
-        for file in files {
-            let bytes = std::fs::read(committed_patch_dir().join(&file))
-                .expect("committed patch catalog must be readable");
-            destination.write(&file, &bytes);
-        }
+    /// The synthetic catalog's `(name, file)` fixture rows, versions 2..=7.
+    const SYNTHETIC_PATCHES: &[(&str, &str)] = &[
+        ("google-subject", "0002_google_subject.sql"),
+        ("payment-idempotency", "0003_payment_idempotency.sql"),
+        (
+            "booking-status-vocabulary",
+            "0004_booking_status_vocabulary.sql",
+        ),
+        (
+            "booking-status-enforcement",
+            "0005_booking_status_enforcement.sql",
+        ),
+        ("guest-role-isolation", "0006_guest_role_isolation.sql"),
+        ("manager-audit-read", "0007_manager_audit_read.sql"),
+    ];
+
+    fn synthetic_patch_bytes(name: &str, version: i32) -> Vec<u8> {
+        format!("-- synthetic {name}\nSELECT {version};\n").into_bytes()
     }
 
-    /// The committed manifest's `(version, name, checksum, file)` rows, in order.
-    fn committed_manifest_entries() -> Vec<(i32, String, String, String)> {
-        let manifest = std::fs::read_to_string(committed_patch_dir().join("manifest.tsv"))
-            .expect("committed manifest must be readable");
-        manifest
-            .lines()
-            .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
-            .map(|line| {
-                let fields: Vec<&str> = line.split('\t').collect();
-                assert_eq!(
-                    fields.len(),
-                    5,
-                    "manifest row must have five fields: {line}"
+    /// The synthetic catalog's `(version, name, checksum, file)` rows.
+    fn synthetic_catalog_entries() -> Vec<(i32, String, String, String)> {
+        SYNTHETIC_PATCHES
+            .iter()
+            .enumerate()
+            .map(|(index, (name, file))| {
+                let version = index as i32 + 2;
+                let checksum = format!(
+                    "sha256:{}",
+                    hex::encode(<sha2::Sha256 as sha2::Digest>::digest(
+                        &synthetic_patch_bytes(name, version)
+                    ))
                 );
-                (
-                    fields[1]
-                        .parse()
-                        .expect("manifest version must be an integer"),
-                    fields[2].to_string(),
-                    fields[3].to_string(),
-                    fields[4].to_string(),
-                )
+                (version, name.to_string(), checksum, file.to_string())
             })
             .collect()
+    }
+
+    /// Writes the synthetic catalog into `destination`: controls, patch files,
+    /// and a manifest whose checksums match the written bytes.
+    fn write_synthetic_catalog(destination: &TestPatchDir) -> Vec<(i32, String, String, String)> {
+        destination.write("_begin.sql", b"BEGIN;\n");
+        destination.write("_end.sql", b"COMMIT;\n");
+        let entries = synthetic_catalog_entries();
+        let mut manifest = String::from("# generation\tversion\tname\tchecksum\tfile\n");
+        for (version, name, checksum, file) in &entries {
+            destination.write(file, &synthetic_patch_bytes(name, *version));
+            manifest.push_str(&format!("1\t{version}\t{name}\t{checksum}\t{file}\n"));
+        }
+        destination.write("manifest.tsv", manifest.as_bytes());
+        entries
     }
 
     fn add_future_patch(directory: &TestPatchDir, file: &str, name: &str, bytes: &[u8]) {
@@ -932,12 +893,15 @@ mod tests {
         directory.write(file, bytes);
         let mut manifest = std::fs::read_to_string(directory.path().join("manifest.tsv"))
             .expect("manifest must be readable");
-        // The next contiguous version after whatever the committed catalog ends
-        // on, so adding a real patch cannot turn this fixture into a duplicate.
-        let next_version = committed_manifest_entries()
+        // The next contiguous version after whatever the catalog in
+        // `directory` ends on, so the appended row cannot duplicate a version.
+        let next_version = manifest
+            .lines()
+            .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
+            .filter_map(|line| line.split('\t').nth(1)?.parse::<i32>().ok())
             .last()
-            .map(|(version, _, _, _)| version + 1)
-            .expect("committed manifest must list at least one patch");
+            .map(|version| version + 1)
+            .unwrap_or(2);
         manifest.push_str(&format!("1\t{next_version}\t{name}\t{checksum}\t{file}\n"));
         directory.write("manifest.tsv", manifest.as_bytes());
     }
@@ -1020,7 +984,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_the_exact_committed_catalog_prefix() {
+    fn parses_the_manifest_fixture() {
         let entries = parse_manifest(MANIFEST).expect("committed manifest must parse");
 
         assert_eq!(
@@ -1084,27 +1048,31 @@ mod tests {
         );
     }
 
-    /// MANIFEST is a literal mirror of the committed catalog, so it can drift
-    /// from it silently. Every parser test above is only meaningful while the
-    /// two are the same bytes.
+    /// The committed catalog may be empty (all V1 convergence patches were
+    /// folded into the baseline), but whatever it lists must still parse under
+    /// the same rules a future patch is validated by.
     #[test]
-    fn manifest_fixture_mirrors_the_committed_catalog() {
+    fn committed_manifest_is_well_formed() {
         let committed = std::fs::read_to_string(committed_patch_dir().join("manifest.tsv"))
             .expect("committed manifest must be readable");
-        assert_eq!(
-            MANIFEST, committed,
-            "the MANIFEST test fixture must be updated whenever the committed catalog changes"
+        let entries = parse_manifest(&committed).expect("committed manifest must parse");
+        assert!(
+            entries
+                .iter()
+                .enumerate()
+                .all(|(index, entry)| entry.version == index as i32 + 2)
         );
     }
 
     #[test]
     fn accepts_contiguous_future_v1_patches() {
-        // One past whatever the committed catalog ends on, so this stays a
-        // future patch rather than colliding with a real one.
-        let next_version = committed_manifest_entries()
+        // One past whatever the fixture catalog ends on, so this stays a
+        // future patch rather than colliding with a fixture row.
+        let next_version = parse_manifest(MANIFEST)
+            .expect("manifest fixture must parse")
             .last()
-            .map(|(version, _, _, _)| version + 1)
-            .expect("committed manifest must list at least one patch");
+            .map(|entry| entry.version + 1)
+            .unwrap_or(2);
         let manifest = format!(
             "{MANIFEST}1\t{next_version}\tfuture-patch\tsha256:{}\t{next_version:04}_future_patch.sql\n",
             "0".repeat(64)
@@ -1117,22 +1085,6 @@ mod tests {
                 .map(|entry| entry.version),
             Some(next_version)
         );
-    }
-
-    #[test]
-    fn rejects_a_changed_committed_catalog_prefix() {
-        for (from, to) in [
-            ("google-subject", "changed-name"),
-            ("0002_google_subject.sql", "0002_changed.sql"),
-            (
-                "sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650",
-                "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-            ),
-        ] {
-            let error = parse_manifest(&manifest_with(&[(from, to)]))
-                .expect_err("the committed prefix must remain exact");
-            assert!(error.to_string().contains("committed V1 patch"));
-        }
     }
 
     #[test]
@@ -1163,10 +1115,11 @@ mod tests {
     }
 
     #[test]
-    fn rejects_empty_comment_only_and_whitespace_prefixed_comment_catalogs() {
+    fn accepts_empty_and_comment_only_catalogs() {
         for manifest in ["", "# comment only\n"] {
-            let error = parse_manifest(manifest).expect_err("an empty catalog must be rejected");
-            assert!(error.to_string().contains("committed V1 patch"));
+            let entries =
+                parse_manifest(manifest).expect("an empty catalog must parse to no patches");
+            assert!(entries.is_empty());
         }
 
         let error = parse_manifest("  # not a manifest comment\n")
@@ -1279,7 +1232,7 @@ mod tests {
             "0005_booking_status_enforcement.sql",
         ] {
             let patch_dir = TestPatchDir::new();
-            copy_committed_catalog(&patch_dir);
+            write_synthetic_catalog(&patch_dir);
             std::fs::remove_file(patch_dir.path().join(missing_file))
                 .expect("test catalog file must be removable");
 
@@ -1299,11 +1252,9 @@ mod tests {
     #[tokio::test]
     async fn rejects_patch_byte_mismatches_before_starting_psql() {
         let patch_dir = TestPatchDir::new();
-        patch_dir.write("manifest.tsv", MANIFEST.as_bytes());
-        patch_dir.write("_begin.sql", b"BEGIN;\n");
-        patch_dir.write("_end.sql", b"COMMIT;\n");
-        for (_, _, _, file) in committed_manifest_entries() {
-            patch_dir.write(&file, b"wrong bytes\n");
+        let entries = write_synthetic_catalog(&patch_dir);
+        for (_, _, _, file) in &entries {
+            patch_dir.write(file, b"wrong bytes\n");
         }
 
         let error = apply_catalog(
@@ -1322,7 +1273,7 @@ mod tests {
     #[tokio::test]
     async fn validates_the_complete_catalog_before_starting_psql() {
         let patch_dir = TestPatchDir::new();
-        copy_committed_catalog(&patch_dir);
+        write_synthetic_catalog(&patch_dir);
         patch_dir.write(
             "0004_booking_status_vocabulary.sql",
             b"corrupted final patch\n",
@@ -1349,7 +1300,7 @@ mod tests {
     #[tokio::test]
     async fn streams_each_verified_patch_once_with_metadata_and_password_env() {
         let patch_dir = TestPatchDir::new();
-        copy_committed_catalog(&patch_dir);
+        write_synthetic_catalog(&patch_dir);
         let capture_dir = TestPatchDir::new();
         let psql_path = fake_psql(
             &capture_dir,
@@ -1361,7 +1312,7 @@ mod tests {
             .expect("begin control must be readable");
         let end =
             std::fs::read(patch_dir.path().join("_end.sql")).expect("end control must be readable");
-        let committed_catalog = committed_manifest_entries();
+        let committed_catalog = synthetic_catalog_entries();
         let original_patch_bytes: Vec<Vec<u8>> = committed_catalog
             .iter()
             .map(|(_, _, _, file)| {
@@ -1431,7 +1382,7 @@ mod tests {
     #[tokio::test]
     async fn failed_psql_names_the_patch_and_redacts_the_password() {
         let patch_dir = TestPatchDir::new();
-        copy_committed_catalog(&patch_dir);
+        write_synthetic_catalog(&patch_dir);
         let fake_dir = TestPatchDir::new();
         let psql_path = fake_psql(
             &fake_dir,
@@ -1482,7 +1433,7 @@ mod tests {
     #[tokio::test]
     async fn bounds_and_marks_large_psql_failure_output() {
         let patch_dir = TestPatchDir::new();
-        copy_committed_catalog(&patch_dir);
+        write_synthetic_catalog(&patch_dir);
         let fake_dir = TestPatchDir::new();
         let psql_path = fake_psql(
             &fake_dir,
@@ -1546,7 +1497,7 @@ mod tests {
     #[tokio::test]
     async fn streams_stdin_while_draining_large_psql_output() {
         let patch_dir = TestPatchDir::new();
-        copy_committed_catalog(&patch_dir);
+        write_synthetic_catalog(&patch_dir);
         let large_patch = vec![b'-'; 4 * 1024 * 1024];
         add_future_patch(
             &patch_dir,
@@ -1573,7 +1524,7 @@ mod tests {
     #[tokio::test]
     async fn bounds_drain_completion_when_a_descendant_inherits_the_pipes() {
         let patch_dir = TestPatchDir::new();
-        copy_committed_catalog(&patch_dir);
+        write_synthetic_catalog(&patch_dir);
         let fake_dir = TestPatchDir::new();
         let psql_path = fake_psql(
             &fake_dir,
@@ -1687,14 +1638,27 @@ mod tests {
             .await
             .expect("second V1 catalog application must succeed");
 
+        let expected_revisions = {
+            let manifest = std::fs::read_to_string(patch_dir.join("manifest.tsv"))
+                .expect("applied manifest must be readable");
+            manifest
+                .lines()
+                .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
+                .map(|line| {
+                    let fields: Vec<&str> = line.split('\t').collect();
+                    format!("{}:{}:{}", fields[1], fields[2], fields[3])
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
         assert_eq!(
             scalar(
                 &psql_path,
                 &connection,
-                "SELECT string_agg(version::text || ':' || name || ':' || checksum, E'\\n' ORDER BY version) FROM public.hotel_schema_revisions WHERE generation = 1 AND version BETWEEN 2 AND 5;",
+                "SELECT COALESCE(string_agg(version::text || ':' || name || ':' || checksum, E'\\n' ORDER BY version), '') FROM public.hotel_schema_revisions WHERE generation = 1 AND version > 1;",
             )
             .await,
-            "2:google-subject:sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650\n3:payment-idempotency:sha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36\n4:booking-status-vocabulary:sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7\n5:booking-status-enforcement:sha256:a9ea019977a421f15bf923e074384ecaf88e458af85b3f15c6bc6b3aa66a08e3"
+            expected_revisions
         );
         assert_eq!(
             scalar(
@@ -1726,11 +1690,8 @@ mod tests {
             return;
         };
 
-        let error = apply_catalog(&psql_path, &connection, &live_patch_dir())
+        apply_catalog(&psql_path, &connection, &live_patch_dir())
             .await
-            .expect_err("an empty database must not hide failed V1 patch SQL");
-        let message = error.to_string();
-        assert!(message.contains("patch 1.2 google-subject"));
-        assert!(message.contains("hotel_schema_revisions"));
+            .expect("an empty catalog must be a no-op even on an empty database");
     }
 }

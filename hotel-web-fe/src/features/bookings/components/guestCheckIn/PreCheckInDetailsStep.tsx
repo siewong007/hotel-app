@@ -116,6 +116,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
+            type="tel"
             label="Phone"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}

@@ -21,6 +21,7 @@ export interface EmailCampaign {
   body_text: string | null;
   template_id: number | null;
   promotion_id: number | null;
+  segment_id: number | null;
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -50,6 +51,7 @@ export interface CampaignInput {
   body_text?: string | null;
   template_id?: number | null;
   promotion_id?: number | null;
+  segment_id?: number | null;
 }
 
 export interface CampaignListParams {
@@ -65,6 +67,7 @@ export interface AudienceCount {
   excluded_inactive: number;
   excluded_unsubscribed: number;
   excluded_suppressed: number;
+  excluded_segment: number;
 }
 
 export interface PreviewResponse {

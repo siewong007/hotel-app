@@ -20,7 +20,16 @@ pub fn spawn(pool: DbPool) {
             POLL_INTERVAL.as_secs()
         );
         loop {
-            if let Err(error) = tick(&pool).await {
+            let started = std::time::Instant::now();
+            let outcome = tick(&pool).await;
+            crate::core::job_runs::record_outcome(
+                &pool,
+                "unpaid_hold_release",
+                &outcome,
+                started.elapsed(),
+            )
+            .await;
+            if let Err(error) = &outcome {
                 log::warn!("Unpaid hold scheduler tick failed: {error}");
             }
             tokio::time::sleep(POLL_INTERVAL).await;
@@ -28,10 +37,10 @@ pub fn spawn(pool: DbPool) {
     });
 }
 
-async fn tick(pool: &DbPool) -> Result<(), crate::core::error::ApiError> {
+async fn tick(pool: &DbPool) -> Result<serde_json::Value, crate::core::error::ApiError> {
     let released = bookings::release_stale_unpaid_holds(pool).await?;
     if released > 0 {
         log::info!("Automatically released {released} stale unpaid booking hold(s)");
     }
-    Ok(())
+    Ok(serde_json::json!({ "released": released }))
 }

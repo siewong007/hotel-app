@@ -1,4 +1,4 @@
-import { Box, Paper, Stack, Typography, alpha, useTheme } from '@mui/material';
+import { Box, Paper, Stack, Typography, useTheme } from '@mui/material';
 import BedOutlinedIcon from '@mui/icons-material/BedOutlined';
 import DoorFrontOutlinedIcon from '@mui/icons-material/DoorFrontOutlined';
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined';
@@ -35,7 +35,7 @@ const SummaryItem = ({
         height: 42,
         borderRadius: 2.5,
         color,
-        bgcolor: alpha(color, 0.1),
+        bgcolor: `color-mix(in srgb, ${color} 10%, transparent)`,
         flex: '0 0 auto',
       }}
     >

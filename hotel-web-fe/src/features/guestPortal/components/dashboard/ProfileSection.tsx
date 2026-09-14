@@ -24,8 +24,8 @@ import { errorMessage } from '../../../../utils/errorMessage';
 import { validatePhone } from '../../../../utils/validation';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 
-const FOREST = '#06110e';
-const GOLD_TEXT = '#8d6b30';
+const FOREST = 'var(--hotel-text)';
+const GOLD_TEXT = 'var(--hotel-primary-text)';
 
 /**
  * How the backend's `missing_profile_fields` entries read to a guest.
@@ -252,7 +252,7 @@ export function ProfileSection({ token }: { token: string }) {
           component="section"
           aria-label="Contact details"
           variant="outlined"
-          sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: '#fffdf9' }}
+          sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: 'var(--hotel-surface-raised)' }}
         >
           <Box
             sx={{
@@ -333,7 +333,7 @@ export function ProfileSection({ token }: { token: string }) {
           component="section"
           aria-label="Identity details"
           variant="outlined"
-          sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: '#fffdf9' }}
+          sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: 'var(--hotel-surface-raised)' }}
         >
           <Typography variant="h6" component="h3" sx={{ color: FOREST, fontWeight: 700 }}>
             Identity
@@ -350,7 +350,7 @@ export function ProfileSection({ token }: { token: string }) {
               <Chip
                 size="small"
                 label={`Display name: ${guest.nick_name}`}
-                sx={{ bgcolor: 'rgba(141,107,48,0.12)', color: GOLD_TEXT, fontWeight: 600 }}
+                sx={{ bgcolor: 'var(--hotel-primary-subtle)', color: GOLD_TEXT, fontWeight: 600 }}
               />
             </Grid>
           </Grid>

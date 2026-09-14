@@ -179,6 +179,7 @@ const CompleteProfilePage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
+                  type="tel"
                   label="Phone Number"
                   name="phone"
                   value={phone}
@@ -209,7 +210,7 @@ const CompleteProfilePage: React.FC = () => {
               sx={{
                 mt: 3,
                 py: 1.5,
-                background: 'var(--hotel-action-gradient)',
+                background: 'var(--hotel-primary)',
                 fontWeight: 600,
               }}
               disabled={submitting}

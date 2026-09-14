@@ -14,6 +14,7 @@ import {
   Chip,
   Checkbox,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -31,6 +32,8 @@ import type { HotelSettings } from '../../../../../utils/hotelSettings';
 import { formatDateForDisplay, getLedgerUiStatus } from '../helpers';
 import { LedgerStatusBadge } from '../StatusPill';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
+import { useIsPhone } from '../../../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../../../components/data-table/MobileCardRow';
 
 type InvoiceListFilter = 'billable' | 'all' | 'invoiced';
 
@@ -107,7 +110,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
   onPrint,
   onDownload,
   formatCurrency,
-}) => (
+}) => {
+  const isPhone = useIsPhone();
+  return (
   <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
     <DialogTitle>
       <Box
@@ -207,7 +212,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                                 px: 0.6,
                                 py: 0.05,
                                 borderRadius: '999px',
-                                bgcolor: on ? 'rgba(255,255,255,0.25)' : 'action.selected',
+                                bgcolor: on ? 'color-mix(in srgb, var(--hotel-bg) 30%, transparent)' : 'action.selected',
                               }}
                             >
                               {f.count}
@@ -260,6 +265,47 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               </Grid>
             ) : (
               <Grid size={12}>
+                {isPhone ? (
+                  <Paper variant="outlined" sx={{ maxHeight: 320, overflowY: 'auto' }}>
+                    {visibleInvoiceLedgerEntries.map((ledger) => {
+                      const amount = toMoneyNumber(ledger.amount);
+                      const balanceDue = toMoneyNumber(ledger.balance_due);
+                      const eligible = isInvoiceEligible(ledger);
+                      return (
+                        <Box
+                          key={ledger.id}
+                          sx={{
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                            opacity: eligible ? 1 : 0.62,
+                            '&:last-child': { borderBottom: 0 },
+                          }}
+                        >
+                          <MobileCardRow
+                            selected={selectedInvoiceLedgers.includes(ledger.id)}
+                            title={ledger.description}
+                            subtitle={`${formatDateForDisplay(ledger.created_at)}${ledger.invoice_number ? ` · Already invoiced: ${ledger.invoice_number}` : ''}`}
+                            meta={`${formatCurrency(amount)} · balance ${formatCurrency(balanceDue)}`}
+                            status={
+                              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                <LedgerStatusBadge status={getLedgerUiStatus(ledger)} />
+                                <Checkbox
+                                  checked={selectedInvoiceLedgers.includes(ledger.id)}
+                                  disabled={!eligible}
+                                  onClick={(event) => event.stopPropagation()}
+                                  onKeyDown={(event) => event.stopPropagation()}
+                                  onChange={() => onToggleLedgerSelection(ledger.id)}
+                                  slotProps={{ input: { 'aria-label': `Select ${ledger.description}` } }}
+                                />
+                              </Stack>
+                            }
+                            onClick={eligible ? () => onToggleLedgerSelection(ledger.id) : undefined}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Paper>
+                ) : (
                 <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
                   <Table size="small" stickyHeader>
                     <TableHead>
@@ -325,9 +371,10 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                     </TableBody>
                   </Table>
                 </TableContainer>
+                )}
 
                 {/* Summary */}
-                <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'grey.50' }}>
+                <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 6, sm: 3 }}>
                       <Typography variant="caption" sx={{
@@ -394,9 +441,10 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
         </>
       )}
 
-      {/* Invoice Preview */}
+      {/* Invoice Preview — renders the paper document on a paper surface
+          (print identity is intentionally light; see docs/DESIGN_SYSTEM.md). */}
       {invoiceCompany && showInvoicePreview && (
-        <Box id="company-invoice-content">
+        <Box id="company-invoice-content" sx={{ bgcolor: '#FFFFFF', color: '#1C1E24', p: 3, borderRadius: 1 }}>
           {/* Invoice Header */}
           <Box
             className="invoice-header"
@@ -659,6 +707,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
       )}
     </DialogActions>
   </Dialog>
-);
+  );
+};
 
 export default CompanyInvoiceDialog;

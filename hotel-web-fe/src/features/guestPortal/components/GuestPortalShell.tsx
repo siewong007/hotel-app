@@ -51,9 +51,9 @@ interface GuestPortalShellProps {
   showAccountNav?: boolean;
 }
 
-const FOREST = '#082B22';
-const LINEN = '#F5F0E6';
-const GOLD = '#C7A45B';
+const FOREST = 'var(--hotel-surface)';
+const LINEN = 'var(--hotel-bg)';
+const GOLD = 'var(--hotel-primary)';
 
 const DASHBOARD_LINK = '/guest-portal?section=overview';
 const BOOKING_LINK = '/guest-portal?view=booking';
@@ -174,8 +174,8 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
             px: 2,
             py: 1,
             borderRadius: 1,
-            bgcolor: '#FFFCF6',
-            color: FOREST,
+            bgcolor: 'var(--hotel-surface-overlay)',
+            color: 'var(--hotel-text)',
             fontWeight: 800,
             textDecoration: 'none',
             transform: 'translateY(-160%)',
@@ -191,9 +191,9 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
           position="sticky"
           elevation={0}
           sx={{
-            bgcolor: FOREST,
-            borderBottom: '1px solid rgba(199, 164, 91, 0.34)',
-            boxShadow: '0 1px 0 rgba(255,255,255,0.06)',
+            bgcolor: 'var(--hotel-text)',
+            borderBottom: '1px solid color-mix(in srgb, var(--hotel-primary) 30%, transparent)',
+            
           }}
         >
           <Container maxWidth="xl" disableGutters>
@@ -232,16 +232,16 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                       flexShrink: 0,
                       minHeight: 44,
                       px: 1.5,
-                      color: activeSection === link.section ? '#FFFFFF' : 'rgba(255,255,255,0.78)',
+                      color: activeSection === link.section ? 'var(--hotel-text)' : 'var(--hotel-text-secondary)',
                       fontSize: '0.8125rem',
-                      '&:hover': { bgcolor: 'rgba(255,255,255,0.09)', color: '#FFFFFF', transform: 'translateY(-1px)' },
+                      '&:hover': { bgcolor: 'var(--hotel-hover)', color: 'var(--hotel-text)', transform: 'translateY(-1px)' },
                       '&:focus-visible': { outline: `3px solid ${GOLD}`, outlineOffset: 3 },
                     }}
                   >
                     {tOr(`nav.${link.section}`, link.label)}
                   </Button>
                 ))}
-                <Button component="a" href={HOTEL_INDEX_LINK} color="inherit" sx={{ flexShrink: 0, minHeight: 44, px: 1.5, color: 'rgba(255,255,255,0.72)', fontSize: '0.8125rem', '&:hover': { bgcolor: 'rgba(255,255,255,0.09)', color: '#FFFFFF', transform: 'translateY(-1px)' } }}>
+                <Button component="a" href={HOTEL_INDEX_LINK} color="inherit" sx={{ flexShrink: 0, minHeight: 44, px: 1.5, color: 'var(--hotel-text-secondary)', fontSize: '0.8125rem', '&:hover': { bgcolor: 'var(--hotel-hover)', color: 'var(--hotel-text)', transform: 'translateY(-1px)' } }}>
                   {tOr('actions.exploreHotel', 'Explore hotel')}
                 </Button>
               </Stack>
@@ -258,10 +258,10 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                     sx={{
                       minHeight: 44,
                       px: 1.5,
-                      color: 'rgba(255,255,255,0.86)',
+                      color: 'var(--hotel-text)',
                       fontSize: '0.8125rem',
                       whiteSpace: 'nowrap',
-                      '&:hover': { bgcolor: 'rgba(255,255,255,0.09)', color: '#FFFFFF' },
+                      '&:hover': { bgcolor: 'var(--hotel-hover)', color: 'var(--hotel-text)' },
                       '&:focus-visible': { outline: `3px solid ${GOLD}`, outlineOffset: 3 },
                     }}
                   >
@@ -287,11 +287,11 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                   minHeight: 44,
                   px: 2,
                   bgcolor: GOLD,
-                  color: '#1E2119',
+                  color: 'var(--hotel-on-primary)',
                   fontSize: '0.8125rem',
                   whiteSpace: 'nowrap',
-                  '&:hover': { bgcolor: '#D8B76F', transform: 'translateY(-1px)' },
-                  '&:focus-visible': { outline: '3px solid #FFFFFF', outlineOffset: 3 },
+                  '&:hover': { bgcolor: 'var(--hotel-primary-hover)', transform: 'translateY(-1px)' },
+                  '&:focus-visible': { outline: '3px solid var(--hotel-focus-ring)', outlineOffset: 3 },
                 }}
               >
                 {tOr('actions.bookStay', 'Book a stay')}
@@ -304,8 +304,8 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
           {children}
         </Box>
 
-        <Box component="nav" aria-label="Guest portal mobile navigation" sx={{ display: { xs: showAccountNav ? 'block' : 'none', md: 'none' }, position: 'fixed', inset: 'auto 0 0', zIndex: theme => theme.zIndex.appBar, px: 1, pb: 'max(8px, env(safe-area-inset-bottom))', pt: 1, bgcolor: 'rgba(245,240,230,0.94)', backdropFilter: 'blur(14px)', borderTop: '1px solid rgba(23,33,29,0.12)' }}>
-          <BottomNavigation showLabels value={mobileValue} sx={{ height: 64, borderRadius: 2, bgcolor: '#FFFCF6', boxShadow: '0 8px 24px rgba(24,35,29,0.12)', overflow: 'hidden', '& .MuiBottomNavigationAction-root': { minWidth: 0, maxWidth: 'none', color: '#56625B', transition: 'color 200ms ease, transform 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }, '& .MuiBottomNavigationAction-root.Mui-selected': { color: FOREST }, '& .MuiBottomNavigationAction-label': { fontSize: '0.625rem', fontWeight: 700, mt: 0.25 }, '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: '0.625rem' } }}>
+        <Box component="nav" aria-label="Guest portal mobile navigation" sx={{ display: { xs: showAccountNav ? 'block' : 'none', md: 'none' }, position: 'fixed', inset: 'auto 0 0', zIndex: theme => theme.zIndex.appBar, px: 1, pb: 'max(8px, env(safe-area-inset-bottom))', pt: 1, bgcolor: 'color-mix(in srgb, var(--hotel-bg) 92%, transparent)', backdropFilter: 'blur(14px)', borderTop: '1px solid var(--hotel-border)' }}>
+          <BottomNavigation showLabels value={mobileValue} sx={{ height: 64, borderRadius: 2, bgcolor: 'var(--hotel-surface-overlay)', boxShadow: 'var(--hotel-shadow-md)', overflow: 'hidden', '& .MuiBottomNavigationAction-root': { minWidth: 0, maxWidth: 'none', color: 'var(--hotel-text-muted)', transition: 'color 200ms ease, transform 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }, '& .MuiBottomNavigationAction-root.Mui-selected': { color: 'var(--hotel-primary)' }, '& .MuiBottomNavigationAction-label': { fontSize: '0.625rem', fontWeight: 700, mt: 0.25 }, '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: '0.625rem' } }}>
             {primarySections.map(link => (
               <BottomNavigationAction key={link.label} component={Link} to={link.to} value={link.to} label={tOr(`nav.${link.section}`, link.label)} icon={link.icon} aria-current={activeSection === link.section ? 'page' : undefined} />
             ))}
@@ -333,11 +333,11 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
           open={moreOpen}
           onClose={() => setMoreOpen(false)}
           sx={{ display: { xs: showAccountNav ? 'block' : 'none', md: 'none' } }}
-          slotProps={{ paper: { sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, bgcolor: '#FFFCF6', pb: 'max(8px, env(safe-area-inset-bottom))' } } }}
+          slotProps={{ paper: { sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, bgcolor: 'var(--hotel-surface-overlay)', pb: 'max(8px, env(safe-area-inset-bottom))' } } }}
         >
           <Box sx={{ px: 2, pt: 2, pb: 1 }}>
-            <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'rgba(23,33,29,0.18)', mx: 'auto', mb: 1.5 }} />
-            <Typography variant="overline" sx={{ color: '#8d6b30', fontWeight: 700, letterSpacing: '.12em' }}>
+            <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'var(--hotel-border-strong)', mx: 'auto', mb: 1.5 }} />
+            <Typography variant="overline" sx={{ color: 'var(--hotel-primary-text)', fontWeight: 700, letterSpacing: '.12em' }}>
               {tOr('actions.more', 'More')}
             </Typography>
           </Box>
@@ -351,7 +351,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                 aria-current={activeSection === link.section ? 'page' : undefined}
                 sx={{ minHeight: 52 }}
               >
-                <ListItemIcon sx={{ minWidth: 40, color: FOREST }}>{link.icon}</ListItemIcon>
+                <ListItemIcon sx={{ minWidth: 40, color: 'var(--hotel-primary)' }}>{link.icon}</ListItemIcon>
               <ListItemText primary={tOr(`nav.${link.section}`, link.label)} slotProps={{
                   primary: { sx: { fontWeight: 600 } }
                 }} />
@@ -359,7 +359,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
             ))}
             <Divider component="li" sx={{ my: 1 }} />
             <ListItemButton component="a" href={HOTEL_INDEX_LINK} sx={{ minHeight: 52 }}>
-              <ListItemIcon sx={{ minWidth: 40, color: FOREST }}><OpenInNewOutlinedIcon /></ListItemIcon>
+              <ListItemIcon sx={{ minWidth: 40, color: 'var(--hotel-primary)' }}><OpenInNewOutlinedIcon /></ListItemIcon>
               <ListItemText primary={tOr('actions.exploreHotel', 'Explore hotel')} slotProps={{
                 primary: { sx: { fontWeight: 600 } }
               }} />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, CardContent, Grid, Typography, alpha } from '@mui/material';
+import { Box, Card, CardContent, Grid, Typography } from '@mui/material';
 import {
   EventAvailable as BookIcon,
   ArrowForward as ArrowForwardIcon,
@@ -50,7 +50,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
       value: stats.arrivingCount,
       detail: `${stats.readyToCheckInCount} ready to check in`,
       subValue: stats.arrivingCount || stats.todayCheckIns || 1,
-      color: '#2f6f52',
+      color: 'var(--hotel-primary)',
       icon: <ArrowForwardIcon fontSize="small" />,
       view: 'arriving',
     },
@@ -59,7 +59,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
       value: stats.totalGuestsInHouse,
       detail: `across ${stats.inHouseCount} rooms`,
       subValue: Math.max(stats.totalGuestsInHouse, stats.roomCount || 1),
-      color: '#2f64b3',
+      color: 'var(--hotel-info)',
       icon: <BedIcon fontSize="small" />,
       view: 'in_house',
     },
@@ -68,7 +68,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
       value: stats.departingCount,
       detail: `${stats.departingCount} ready to check out`,
       subValue: stats.departingCount || 1,
-      color: '#c47b1e',
+      color: 'var(--hotel-warning)',
       icon: <ArrowBackIcon fontSize="small" />,
       view: 'departing',
     },
@@ -77,7 +77,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
       value: stats.upcomingCount,
       detail: `${stats.upcomingCount} future reservations`,
       subValue: stats.upcomingCount || 1,
-      color: '#7c4dff',
+      color: 'var(--hotel-chart-4)',
       icon: <BookIcon fontSize="small" />,
       view: 'upcoming',
     },
@@ -86,7 +86,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
         title: 'Normal outstanding',
         value: formatCurrency(stats.normalOutstandingDue),
         detail: `${stats.normalDueCount} ${stats.normalBalanceScope}`,
-        color: '#c43d32',
+        color: 'var(--hotel-danger)',
         icon: <PaymentIcon fontSize="small" />,
         view: 'normal_balance' as BookingView,
         alert: true,
@@ -97,7 +97,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
         title: 'Company outstanding',
         value: formatCurrency(stats.companyOutstandingDue),
         detail: `${stats.companyDueCount} ${stats.companyBalanceScope}`,
-        color: '#8f3d5f',
+        color: 'var(--hotel-chart-4)',
         icon: <ReceiptIcon fontSize="small" />,
         view: 'company_balance' as BookingView,
         alert: true,
@@ -137,13 +137,13 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
               scrollSnapAlign: 'start',
               borderLeft: stat.alert ? `4px solid ${stat.color}` : '1px solid',
               borderColor: stat.alert ? stat.color : 'divider',
-              bgcolor: activeView === stat.view ? alpha(stat.color, 0.08) : 'background.paper',
+              bgcolor: activeView === stat.view ? `color-mix(in srgb, ${stat.color} 8%, transparent)` : 'background.paper',
             }}
           >
             <CardContent sx={{ p: 2.25, '&:last-child': { pb: 2.25 } }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 800, color: 'text.secondary' }}>{stat.title}</Typography>
-                <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: alpha(stat.color, 0.12), color: stat.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: `color-mix(in srgb, ${stat.color} 12%, transparent)`, color: stat.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {stat.icon}
                 </Box>
               </Box>
@@ -168,29 +168,26 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
             <Card
               elevation={0}
               onClick={onTakePayment}
-              // Use `&.MuiCard-root` to match the specificity of the global
-              // `.hotel-board-skin .MuiCard-root` theme rule; without this the
-              // primary background gets overridden back to plain paper white.
               sx={{
                 cursor: 'pointer',
-                color: 'white',
+                color: 'var(--hotel-danger)',
                 '&.MuiCard-root': {
-                  bgcolor: '#c43d32',
-                  borderColor: '#c43d32',
+                  bgcolor: 'var(--hotel-danger-bg)',
+                  borderColor: 'var(--hotel-danger-border)',
                 },
               }}
             >
               <CardContent sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, '&:last-child': { pb: 2 } }}>
-                <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: 'var(--hotel-danger)', color: 'var(--hotel-on-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <PaymentIcon />
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.1, color: 'inherit' }}>Take payment</Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.85)' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.1, color: 'inherit' }}>Take payment</Typography>
+                  <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>
                     {formatCurrency(stats.normalOutstandingDue)} normal outstanding
                   </Typography>
                 </Box>
-                <ArrowForwardIcon sx={{ color: 'white' }} />
+                <ArrowForwardIcon sx={{ color: 'inherit' }} />
               </CardContent>
             </Card>
           </Grid>

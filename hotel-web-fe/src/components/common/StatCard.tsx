@@ -64,10 +64,14 @@ export const StatCard = React.memo(function StatCard({
   sx,
   ...cardProps
 }: StatCardProps) {
+  // `appearance="gradient"` is a legacy flag kept for API compatibility — it
+  // renders the standard surface now; full-bleed color washes are retired.
   const isGradient = appearance === 'gradient';
-  const cardBackground = gradient || `linear-gradient(135deg, ${color} 0%, ${color}dd 100%)`;
+  const cardBackground = 'var(--hotel-surface-raised)';
   const valueColor = color.includes('gradient') ? 'text.primary' : color;
-  const defaultIconBackground = color.startsWith('#') ? `${color}15` : 'action.hover';
+  const defaultIconBackground = color.startsWith('#')
+    ? `${color}15`
+    : `color-mix(in srgb, ${color} 8%, transparent)`;
   const trendColor = trend && trend.value >= 0 ? 'success.main' : 'error.main';
   const trendValue = trend
     ? `${showPositiveTrendSign && trend.value >= 0 ? '+' : ''}${showPositiveTrendSign ? trend.value : Math.abs(trend.value)}%`
@@ -104,17 +108,7 @@ export const StatCard = React.memo(function StatCard({
           }),
           ...(isGradient && {
             background: cardBackground,
-            color: 'white',
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              top: -50,
-              right: -50,
-              width: 150,
-              height: 150,
-              borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.1)',
-            },
+            borderColor: 'var(--hotel-border)',
           }),
         },
         ...toSxArray(sx),
@@ -138,16 +132,10 @@ export const StatCard = React.memo(function StatCard({
           <Box>
             {titlePlacement === 'top' && (
               <Typography
-                color={isGradient ? undefined : 'text.secondary'}
+                color="text.secondary"
                 gutterBottom
                 variant="body2"
-                sx={[
-                  {
-                    color: isGradient ? 'rgba(255, 255, 255, 0.9)' : undefined,
-                    fontWeight: isGradient ? 500 : undefined,
-                  },
-                  ...toSxArray(titleSx),
-                ]}
+                sx={[...toSxArray(titleSx)]}
               >
                 {title}
               </Typography>
@@ -157,8 +145,8 @@ export const StatCard = React.memo(function StatCard({
               component="div"
               sx={[
                 {
-                  fontWeight: isGradient ? 700 : 600,
-                  color: isGradient ? 'white' : valueColor,
+                  fontWeight: 600,
+                  color: valueColor,
                   mb: 0.5,
                 },
                 ...toSxArray(valueSx),
@@ -171,8 +159,7 @@ export const StatCard = React.memo(function StatCard({
                 variant="body2"
                 sx={[
                   {
-                    color: isGradient ? 'rgba(255, 255, 255, 0.9)' : 'text.secondary',
-                    fontWeight: isGradient ? 500 : undefined,
+                    color: 'text.secondary',
                   },
                   ...toSxArray(titleSx),
                 ]}
@@ -183,13 +170,8 @@ export const StatCard = React.memo(function StatCard({
             {subtitle && (
               <Typography
                 variant={subtitleVariant}
-                color={isGradient ? undefined : 'text.secondary'}
-                sx={[
-                  {
-                    color: isGradient ? 'rgba(255, 255, 255, 0.9)' : undefined,
-                  },
-                  ...toSxArray(subtitleSx),
-                ]}
+                color="text.secondary"
+                sx={[...toSxArray(subtitleSx)]}
               >
                 {subtitle}
               </Typography>
@@ -219,14 +201,14 @@ export const StatCard = React.memo(function StatCard({
             <Box
               sx={[
                 {
-                  background: isGradient ? 'rgba(255, 255, 255, 0.2)' : iconBackground || defaultIconBackground,
+                  background: iconBackground || defaultIconBackground,
                   borderRadius: 2,
                   p: 1.5,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: isGradient ? 'white' : valueColor,
-                  '& svg': { fontSize: isGradient ? 32 : 28 },
+                  color: valueColor,
+                  '& svg': { fontSize: 28 },
                 },
                 ...toSxArray(iconSx),
               ]}

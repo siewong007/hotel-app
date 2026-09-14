@@ -9,7 +9,6 @@ import {
   Divider,
   CircularProgress,
   Alert,
-  alpha,
 } from '@mui/material';
 import { Close as CloseIcon, Save as SaveIcon } from '@mui/icons-material';
 import type { Permission, Role, RouteAccessPolicy, RoleInput } from '../../../../../types';
@@ -134,7 +133,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
     }
   };
 
-  const color = role ? getRoleColor(role.name) : '#9e9e9e';
+  const color = role ? getRoleColor(role.name) : 'var(--hotel-neutral)';
 
   return (
     <Drawer
@@ -160,7 +159,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
           py: 2,
           borderBottom: '1px solid',
           borderColor: 'divider',
-          backgroundColor: alpha(color, 0.05),
+          backgroundColor: `color-mix(in srgb, ${color} 5%, transparent)`,
         }}
       >
         <Typography variant="h6" sx={{

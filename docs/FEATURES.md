@@ -17,7 +17,8 @@ shipped), **Experimental**, **Deprecated**.
 | Maintenance | Delivered | ✓ | ✓ `routes/maintenance.rs` | |
 | Bookings (create/check-in/checkout/void) | Delivered | ✓ `features/bookings` | ✓ `routes/bookings.rs` | Deposits, folio, transfers; allocation race-safe |
 | Online inventory / availability grid | Delivered | ✓ `features/onlineInventory` | ✓ | |
-| Rates, rate plans, rate codes | Delivered | ✓ | ✓ `routes/rates.rs` | market/rate codes, channel net revenue |
+| Revenue overview | Delivered | ✓ `features/revenue` | ✓ `modules/revenue` | ADR/RevPAR, occupancy, channel mix, period comparison |
+| Rates, rate plans, rate codes | Delivered | ✓ `features/rates` | ✓ `routes/rates.rs` | Plan CRUD, rate calendar, bulk bands; market/rate codes, channel net revenue |
 | Booking channels | Delivered | ✓ | ✓ `routes/booking_channels.rs` | |
 | Guests & companies | Delivered | ✓ `features/guests` | ✓ `routes/{guests,companies}.rs` | |
 | Invoices & folio | Delivered | ✓ `features/invoices` | ✓ (`services/invoice_numbers.rs`) | Numbered invoices, checkout receipts |
@@ -27,7 +28,7 @@ shipped), **Experimental**, **Deprecated**.
 | Customer / city ledgers | Delivered | ✓ `features/customer-ledger` | ✓ `routes/ledgers.rs` | Company payment allocation across entries in one tx |
 | Deposit refunds | Delivered | ✓ | ✓ | Bounded by held deposit; one-refund-per-booking + partial refunds |
 | Payment retry / recovery | Delivered | ✓ `features/paymentRecovery` | ✓ `routes/payment_retry.rs` | |
-| Promotions | Delivered | ✓ `features/promotions` | ✓ `modules/promotions` | Publish/pause/archive lifecycle |
+| Campaigns (deals + vouchers) | Delivered | ✓ `features/promotions` (`/campaigns`) | ✓ `modules/promotions` | Derived lifecycle (scheduled/live/expired/cancelled), channel + loyalty-tier targeting, `promotions:approve` publish gate, performance report |
 | Vouchers | Delivered | ✓ (via promotions) | ✓ `/api/admin/vouchers*`, guest endpoints | Issue/revoke, summary, portal claim/options |
 | Loyalty | Delivered | ✓ `features/loyalty` | ✓ `modules/loyalty` | Member portal + admin |
 | Night audit | Delivered | ✓ `features/night-audit` | ✓ `routes/night_audit.rs` | Scheduler loop in `main.rs` |
@@ -35,7 +36,8 @@ shipped), **Experimental**, **Deprecated**.
 | Audit log viewer | Delivered | ✓ `features/audit-log` | ✓ `routes/audit.rs` | Partitioned append-only store |
 | eKYC | Delivered | ✓ `features/ekyc` | ✓ `modules/ekyc` | Submission + staff review queue |
 | Guest portal (booking, pre-check-in, docs) | Delivered | ✓ `guest/`, `features/guestPortal` | ✓ `routes/guest_portal.rs`, `modules/guest_booking` | Booking access tokens, consent gate |
-| Communications (email campaigns) | Delivered | ✓ `features/communications` | ✓ `modules/communications` | lettre SMTP worker; per-guest preferences; transactional sends |
+| Guest segments | Delivered | ✓ `features/segments` (`/segments`) | ✓ `modules/segments` | JSONB rules compiled to bound-parameter SQL; dynamic evaluation — membership never materialized |
+| Communications (email campaigns) | Delivered | ✓ `features/communications` | ✓ `modules/communications` | lettre SMTP worker; per-guest preferences; transactional sends; optional `segment_id` audience intersection |
 | SMS channel | Not delivered | — | — | Open item; no implementation |
 | Support tickets | Delivered | ✓ `features/support` | ✓ `modules/support` | Incl. guest-portal support widget |
 | Notifications (in-app + email triggers) | Delivered | ✓ `features/notifications` | ✓ | Checkout receipt + pre-arrival reminder (patch 0008) |

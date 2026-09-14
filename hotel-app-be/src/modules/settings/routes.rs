@@ -21,6 +21,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/settings", get(get_settings))
         .route("/settings/public", get(get_public_settings))
         .route("/settings/{key}", patch(update_setting))
+        .route("/settings/{key}/reset", post(reset_setting))
         .route("/system/process-checkins", post(process_checkins))
 }
 
@@ -38,9 +39,10 @@ async fn get_public_settings(
 async fn get_settings(
     State(pool): State<DbPool>,
     headers: HeaderMap,
+    query: axum::extract::Query<models::SettingsListQuery>,
 ) -> Result<Json<Vec<models::SystemSetting>>, ApiError> {
     require_permission_helper(&pool, &headers, "settings:read").await?;
-    handlers::get_system_settings_handler(State(pool)).await
+    handlers::get_system_settings_handler(State(pool), query).await
 }
 
 async fn update_setting(
@@ -51,6 +53,15 @@ async fn update_setting(
 ) -> Result<Json<models::SystemSetting>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "settings:update").await?;
     handlers::update_system_setting_handler(State(pool), path, user_id, Json(input)).await
+}
+
+async fn reset_setting(
+    State(pool): State<DbPool>,
+    path: Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<models::SystemSetting>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "settings:update").await?;
+    handlers::reset_system_setting_handler(State(pool), path, user_id).await
 }
 
 async fn process_checkins(

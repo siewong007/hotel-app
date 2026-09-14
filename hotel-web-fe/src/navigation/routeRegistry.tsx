@@ -14,23 +14,28 @@ import Inventory2Icon from '@mui/icons-material/Inventory2';
 import KingBedIcon from '@mui/icons-material/KingBed';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import LoyaltyIcon from '@mui/icons-material/Loyalty';
+import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import NightsStayIcon from '@mui/icons-material/NightsStay';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PeopleIcon from '@mui/icons-material/People';
+import PriceChangeIcon from '@mui/icons-material/PriceChange';
 import PersonIcon from '@mui/icons-material/Person';
+import GroupWorkIcon from '@mui/icons-material/GroupWork';
 import SecurityIcon from '@mui/icons-material/Security';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import SyncAltIcon from '@mui/icons-material/SyncAlt';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 import { lazyRoute, type PreloadableRouteComponent } from './lazyRoute';
 import type { RouteAccessPolicy } from '../types';
 
 export type RouteAnimation = 'fade' | 'slide' | 'grow';
 export type NavGroup =
-  | 'overview' | 'operations' | 'finance' | 'engagement'
-  | 'property' | 'insights' | 'administration' | 'utility';
+  | 'overview' | 'front_office' | 'guests' | 'revenue' | 'finance'
+  | 'insights' | 'administration' | 'utility';
 
 interface AccessChecker {
   hasPermission: (permission: string) => boolean;
@@ -59,7 +64,7 @@ export interface AppRouteDefinition {
 const LandingPage = lazyRoute(() => import('../components/layout/LandingPage'));
 const DashboardRouter = lazyRoute(() => import('../features/dashboard/components/DashboardRouter'));
 const BookingsPage = lazyRoute(() => import('../features/bookings/components/Bookings'));
-const ModernReportsPage = lazyRoute(() => import('../features/reports/components/ModernReportsPage'));
+const ReportLibraryPage = lazyRoute(() => import('../features/insights/pages/ReportLibraryPage'));
 const LoyaltyPortal = lazyRoute(() => import('../features/loyalty/components/LoyaltyPortal'));
 const LoyaltyDashboard = lazyRoute(() => import('../features/loyalty/components/LoyaltyDashboard'));
 const UserProfilePage = lazyRoute(() => import('../features/user/components/UserProfilePage'));
@@ -96,7 +101,12 @@ const OffersPage = lazyRoute(() => import('../features/promotions/pages/OffersPa
 const PromotionManagementPage = lazyRoute(() => import('../features/promotions/pages/PromotionManagementPage'));
 const CommunicationsPage = lazyRoute(() => import('../features/communications/pages/CommunicationsPage'));
 const NotificationsPage = lazyRoute(() => import('../features/notifications/pages/NotificationsPage'));
+const SystemHealthPage = lazyRoute(() => import('../features/admin/system/SystemHealthPage'));
+const JobsPage = lazyRoute(() => import('../features/admin/system/JobsPage'));
 const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/pages/OnlineInventoryPage'));
+const RevenueOverviewPage = lazyRoute(() => import('../features/revenue/pages/RevenueOverviewPage'));
+const RatesPage = lazyRoute(() => import('../features/rates/pages/RatesPage'));
+const SegmentsPage = lazyRoute(() => import('../features/segments/pages/SegmentsPage'));
 const LegalTermsPage = lazyRoute(() => import('../features/legal/pages/TermsPage'));
 const LegalPrivacyPage = lazyRoute(() => import('../features/legal/pages/PrivacyPage'));
 const LegalPaymentTermsPage = lazyRoute(() => import('../features/legal/pages/PaymentTermsPage'));
@@ -133,7 +143,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     navGroup: 'overview',
     accessControlled: false,
   },
-  // ── operations ──────────────────────────────────────────────────────────
+  // ── front office ────────────────────────────────────────────────────────
   {
     id: 'bookings',
     path: '/bookings',
@@ -143,7 +153,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: EventNoteIcon,
     breadcrumbLabel: 'Bookings',
     navLabel: 'Bookings',
-    navGroup: 'operations',
+    navGroup: 'front_office',
     accessControlled: true,
   },
   {
@@ -155,19 +165,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: CalendarMonthIcon,
     breadcrumbLabel: 'Reservation Timeline',
     navLabel: 'Timeline',
-    navGroup: 'operations',
-    accessControlled: true,
-  },
-  {
-    id: 'guest-relations',
-    path: '/guest-relations/guests',
-    component: GuestRelationsPage,
-    animationType: 'slide',
-    visibility: 'auth',
-    icon: PeopleIcon,
-    breadcrumbLabel: 'Guest Relations',
-    navLabel: 'Guest Relations',
-    navGroup: 'operations',
+    navGroup: 'front_office',
     accessControlled: true,
   },
   {
@@ -179,7 +177,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: HomeWorkIcon,
     breadcrumbLabel: 'Room Management',
     navLabel: 'Rooms',
-    navGroup: 'operations',
+    navGroup: 'front_office',
     accessControlled: true,
   },
   {
@@ -191,7 +189,20 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: CleaningServicesIcon,
     breadcrumbLabel: 'Housekeeping',
     navLabel: 'Housekeeping',
-    navGroup: 'operations',
+    navGroup: 'front_office',
+    accessControlled: true,
+  },
+  // ── guests ──────────────────────────────────────────────────────────────
+  {
+    id: 'guest-relations',
+    path: '/guest-relations/guests',
+    component: GuestRelationsPage,
+    animationType: 'slide',
+    visibility: 'auth',
+    icon: PeopleIcon,
+    breadcrumbLabel: 'Guest Relations',
+    navLabel: 'Guest Relations',
+    navGroup: 'guests',
     accessControlled: true,
   },
   {
@@ -203,7 +214,92 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: SupportAgentIcon,
     breadcrumbLabel: 'Guest Support',
     navLabel: 'Support',
-    navGroup: 'operations',
+    navGroup: 'guests',
+    accessControlled: true,
+  },
+  {
+    id: 'loyalty',
+    path: '/loyalty',
+    component: LoyaltyPortal,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: LoyaltyIcon,
+    breadcrumbLabel: 'Loyalty',
+    navLabel: 'Loyalty',
+    navGroup: 'guests',
+    accessControlled: true,
+  },
+  // ── revenue & marketing ─────────────────────────────────────────────────
+  {
+    id: 'revenue',
+    path: '/revenue',
+    component: RevenueOverviewPage,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: TrendingUpIcon,
+    breadcrumbLabel: 'Revenue',
+    navLabel: 'Revenue',
+    navGroup: 'revenue',
+    accessControlled: true,
+  },
+  {
+    id: 'rates',
+    path: '/rates',
+    component: RatesPage,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: PriceChangeIcon,
+    breadcrumbLabel: 'Rates',
+    navLabel: 'Rates',
+    navGroup: 'revenue',
+    accessControlled: true,
+  },
+  {
+    id: 'campaigns',
+    path: '/campaigns',
+    component: PromotionManagementPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    icon: LocalOfferIcon,
+    breadcrumbLabel: 'Campaigns',
+    navLabel: 'Campaigns',
+    navGroup: 'revenue',
+    accessControlled: true,
+  },
+  {
+    id: 'segments',
+    path: '/segments',
+    component: SegmentsPage,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: GroupWorkIcon,
+    breadcrumbLabel: 'Segments',
+    navLabel: 'Segments',
+    navGroup: 'revenue',
+    accessControlled: true,
+  },
+  {
+    id: 'communications',
+    path: '/communications',
+    component: CommunicationsPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    icon: CampaignIcon,
+    breadcrumbLabel: 'Communications',
+    navLabel: 'Communications',
+    navGroup: 'revenue',
+    accessControlled: true,
+  },
+  {
+    id: 'online-inventory',
+    path: '/online-inventory',
+    component: OnlineInventoryPage,
+    animationType: 'slide',
+    visibility: 'auth',
+    icon: Inventory2Icon,
+    breadcrumbLabel: 'Online Inventory Control',
+    navLabel: 'Online Inventory',
+    navGroup: 'revenue',
     accessControlled: true,
   },
   // ── finance ─────────────────────────────────────────────────────────────
@@ -215,7 +311,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     visibility: 'auth',
     icon: AccountBalanceIcon,
     breadcrumbLabel: 'Company Ledger',
-    navLabel: 'Ledger',
+    navLabel: 'Company Ledger',
     navGroup: 'finance',
     accessControlled: true,
   },
@@ -255,78 +351,16 @@ const routeDefinitions: AppRouteDefinition[] = [
     navGroup: 'finance',
     accessControlled: true,
   },
-  // ── engagement ──────────────────────────────────────────────────────────
-  {
-    id: 'loyalty',
-    path: '/loyalty',
-    component: LoyaltyPortal,
-    animationType: 'grow',
-    visibility: 'auth',
-    icon: LoyaltyIcon,
-    breadcrumbLabel: 'Loyalty',
-    navLabel: 'Loyalty',
-    navGroup: 'engagement',
-    accessControlled: true,
-  },
-  {
-    id: 'promotions',
-    path: '/promotions',
-    component: PromotionManagementPage,
-    animationType: 'fade',
-    visibility: 'auth',
-    icon: LocalOfferIcon,
-    breadcrumbLabel: 'Promotions & Vouchers',
-    navLabel: 'Promotions',
-    navGroup: 'engagement',
-    accessControlled: true,
-  },
-  {
-    id: 'communications',
-    path: '/communications',
-    component: CommunicationsPage,
-    animationType: 'fade',
-    visibility: 'auth',
-    icon: CampaignIcon,
-    breadcrumbLabel: 'Communications',
-    navLabel: 'Communications',
-    navGroup: 'engagement',
-    accessControlled: true,
-  },
-  // ── property ────────────────────────────────────────────────────────────
-  {
-    id: 'online-inventory',
-    path: '/online-inventory',
-    component: OnlineInventoryPage,
-    animationType: 'slide',
-    visibility: 'auth',
-    icon: Inventory2Icon,
-    breadcrumbLabel: 'Online Inventory Control',
-    navLabel: 'Online Inventory',
-    navGroup: 'property',
-    accessControlled: true,
-  },
-  {
-    id: 'room-config',
-    path: '/room-config',
-    component: RoomConfigurationPage,
-    animationType: 'fade',
-    visibility: 'auth',
-    icon: KingBedIcon,
-    breadcrumbLabel: 'Room Configuration',
-    navLabel: 'Room Configuration',
-    navGroup: 'property',
-    accessControlled: true,
-  },
   // ── insights ────────────────────────────────────────────────────────────
   {
-    id: 'reports',
-    path: '/reports',
-    component: ModernReportsPage,
+    id: 'insights',
+    path: '/insights',
+    component: ReportLibraryPage,
     animationType: 'grow',
     visibility: 'auth',
     icon: AssessmentIcon,
-    breadcrumbLabel: 'Reports',
-    navLabel: 'Reports',
+    breadcrumbLabel: 'Insights',
+    navLabel: 'Insights',
     navGroup: 'insights',
     accessControlled: true,
   },
@@ -356,6 +390,30 @@ const routeDefinitions: AppRouteDefinition[] = [
     accessControlled: true,
   },
   {
+    id: 'settings',
+    path: '/settings',
+    component: SettingsPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    icon: SettingsIcon,
+    breadcrumbLabel: 'Hotel Settings',
+    navLabel: 'Hotel Settings',
+    navGroup: 'administration',
+    accessControlled: true,
+  },
+  {
+    id: 'room-config',
+    path: '/room-config',
+    component: RoomConfigurationPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    icon: KingBedIcon,
+    breadcrumbLabel: 'Room Configuration',
+    navLabel: 'Room Configuration',
+    navGroup: 'administration',
+    accessControlled: true,
+  },
+  {
     id: 'audit-log',
     path: '/audit-log',
     component: AuditLogPage,
@@ -379,19 +437,31 @@ const routeDefinitions: AppRouteDefinition[] = [
     navGroup: 'administration',
     accessControlled: true,
   },
-  // ── utility ─────────────────────────────────────────────────────────────
   {
-    id: 'settings',
-    path: '/settings',
-    component: SettingsPage,
+    id: 'system-health',
+    path: '/system-health',
+    component: SystemHealthPage,
     animationType: 'fade',
     visibility: 'auth',
-    icon: SettingsIcon,
-    breadcrumbLabel: 'Hotel Settings',
-    navLabel: 'Hotel Settings',
-    navGroup: 'utility',
+    icon: MonitorHeartIcon,
+    breadcrumbLabel: 'System Health',
+    navLabel: 'System Health',
+    navGroup: 'administration',
     accessControlled: true,
   },
+  {
+    id: 'jobs',
+    path: '/jobs',
+    component: JobsPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    icon: WorkHistoryIcon,
+    breadcrumbLabel: 'Jobs',
+    navLabel: 'Jobs',
+    navGroup: 'administration',
+    accessControlled: true,
+  },
+  // ── utility ─────────────────────────────────────────────────────────────
   {
     id: 'notifications',
     path: '/notifications',

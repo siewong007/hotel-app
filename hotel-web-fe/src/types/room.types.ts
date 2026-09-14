@@ -19,6 +19,8 @@ export interface RoomType {
   extra_bed_charge: number | string;
   is_active: boolean;
   sort_order: number;
+  /** Public photo URLs (`/uploads/room-types/...` or bundled `/salim-inn/...`); first is the cover. */
+  images?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -54,6 +56,8 @@ export interface RoomTypeUpdateInput {
   extra_bed_charge?: number;
   is_active?: boolean;
   sort_order?: number;
+  /** Replaces the whole images list when present; omit to leave it untouched. */
+  images?: string[];
 }
 
 // ==================== ROOM ====================

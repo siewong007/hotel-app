@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   REPORT_TYPOGRAPHY_PRESETS,
   getReportTypographyPreset,
-} from '../../../reports/utils/reportTypography';
+} from '../../../insights/utils/reportTypography';
 import ReportSettingsCard from './ReportSettingsCard';
 
 const mocks = vi.hoisted(() => ({

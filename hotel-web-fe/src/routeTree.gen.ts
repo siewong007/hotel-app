@@ -16,6 +16,7 @@ import { Route as R423RouteImport } from './routes/423'
 import { Route as AdminPortalRouteImport } from './routes/admin-portal'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as BookingsRouteImport } from './routes/bookings'
+import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as CommunicationsRouteImport } from './routes/communications'
 import { Route as CompanyLedgerRouteImport } from './routes/company-ledger'
 import { Route as CompleteProfileRouteImport } from './routes/complete-profile'
@@ -28,6 +29,8 @@ import { Route as GuestConfigRouteImport } from './routes/guest-config'
 import { Route as GuestPortalRouteImport } from './routes/guest-portal'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as HousekeepingRouteImport } from './routes/housekeeping'
+import { Route as InsightsRouteImport } from './routes/insights'
+import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LoyaltyRouteImport } from './routes/loyalty'
 import { Route as MyRewardsRouteImport } from './routes/my-rewards'
@@ -38,13 +41,17 @@ import { Route as OnlineInventoryRouteImport } from './routes/online-inventory'
 import { Route as PaymentApprovalsRouteImport } from './routes/payment-approvals'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PromotionsRouteImport } from './routes/promotions'
+import { Route as RatesRouteImport } from './routes/rates'
 import { Route as RbacRouteImport } from './routes/rbac'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as RevenueRouteImport } from './routes/revenue'
 import { Route as RoomConfigRouteImport } from './routes/room-config'
 import { Route as RoomManagementRouteImport } from './routes/room-management'
+import { Route as SegmentsRouteImport } from './routes/segments'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SupportRouteImport } from './routes/support'
+import { Route as SystemHealthRouteImport } from './routes/system-health'
 import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/index'
@@ -97,6 +104,11 @@ const AuditLogRoute = AuditLogRouteImport.update({
 const BookingsRoute = BookingsRouteImport.update({
   id: '/bookings',
   path: '/bookings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsRoute = CampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommunicationsRoute = CommunicationsRouteImport.update({
@@ -159,6 +171,16 @@ const HousekeepingRoute = HousekeepingRouteImport.update({
   path: '/housekeeping',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InsightsRoute = InsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsRoute = JobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -209,6 +231,11 @@ const PromotionsRoute = PromotionsRouteImport.update({
   path: '/promotions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RatesRoute = RatesRouteImport.update({
+  id: '/rates',
+  path: '/rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RbacRoute = RbacRouteImport.update({
   id: '/rbac',
   path: '/rbac',
@@ -224,6 +251,11 @@ const ReportsRoute = ReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RevenueRoute = RevenueRouteImport.update({
+  id: '/revenue',
+  path: '/revenue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RoomConfigRoute = RoomConfigRouteImport.update({
   id: '/room-config',
   path: '/room-config',
@@ -234,6 +266,11 @@ const RoomManagementRoute = RoomManagementRouteImport.update({
   path: '/room-management',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SegmentsRoute = SegmentsRouteImport.update({
+  id: '/segments',
+  path: '/segments',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -242,6 +279,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SupportRoute = SupportRouteImport.update({
   id: '/support',
   path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemHealthRoute = SystemHealthRouteImport.update({
+  id: '/system-health',
+  path: '/system-health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TimelineRoute = TimelineRouteImport.update({
@@ -347,6 +389,7 @@ export interface FileRoutesByFullPath {
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -359,6 +402,8 @@ export interface FileRoutesByFullPath {
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
+  '/insights': typeof InsightsRoute
+  '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
   '/my-rewards': typeof MyRewardsRoute
@@ -369,13 +414,17 @@ export interface FileRoutesByFullPath {
   '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
+  '/rates': typeof RatesRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
+  '/segments': typeof SegmentsRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/system-health': typeof SystemHealthRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
@@ -403,6 +452,7 @@ export interface FileRoutesByTo {
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -415,6 +465,8 @@ export interface FileRoutesByTo {
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
+  '/insights': typeof InsightsRoute
+  '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
   '/my-rewards': typeof MyRewardsRoute
@@ -425,13 +477,17 @@ export interface FileRoutesByTo {
   '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
+  '/rates': typeof RatesRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
+  '/segments': typeof SegmentsRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/system-health': typeof SystemHealthRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
@@ -460,6 +516,7 @@ export interface FileRoutesById {
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -472,6 +529,8 @@ export interface FileRoutesById {
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
+  '/insights': typeof InsightsRoute
+  '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
   '/my-rewards': typeof MyRewardsRoute
@@ -482,13 +541,17 @@ export interface FileRoutesById {
   '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
+  '/rates': typeof RatesRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
+  '/segments': typeof SegmentsRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/system-health': typeof SystemHealthRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
@@ -518,6 +581,7 @@ export interface FileRouteTypes {
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
+    | '/campaigns'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -530,6 +594,8 @@ export interface FileRouteTypes {
     | '/guest-portal'
     | '/help'
     | '/housekeeping'
+    | '/insights'
+    | '/jobs'
     | '/login'
     | '/loyalty'
     | '/my-rewards'
@@ -540,13 +606,17 @@ export interface FileRouteTypes {
     | '/payment-approvals'
     | '/profile'
     | '/promotions'
+    | '/rates'
     | '/rbac'
     | '/register'
     | '/reports'
+    | '/revenue'
     | '/room-config'
     | '/room-management'
+    | '/segments'
     | '/settings'
     | '/support'
+    | '/system-health'
     | '/timeline'
     | '/verify-email'
     | '/guest-checkin/confirm'
@@ -574,6 +644,7 @@ export interface FileRouteTypes {
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
+    | '/campaigns'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -586,6 +657,8 @@ export interface FileRouteTypes {
     | '/guest-portal'
     | '/help'
     | '/housekeeping'
+    | '/insights'
+    | '/jobs'
     | '/login'
     | '/loyalty'
     | '/my-rewards'
@@ -596,13 +669,17 @@ export interface FileRouteTypes {
     | '/payment-approvals'
     | '/profile'
     | '/promotions'
+    | '/rates'
     | '/rbac'
     | '/register'
     | '/reports'
+    | '/revenue'
     | '/room-config'
     | '/room-management'
+    | '/segments'
     | '/settings'
     | '/support'
+    | '/system-health'
     | '/timeline'
     | '/verify-email'
     | '/guest-checkin/confirm'
@@ -630,6 +707,7 @@ export interface FileRouteTypes {
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
+    | '/campaigns'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -642,6 +720,8 @@ export interface FileRouteTypes {
     | '/guest-portal'
     | '/help'
     | '/housekeeping'
+    | '/insights'
+    | '/jobs'
     | '/login'
     | '/loyalty'
     | '/my-rewards'
@@ -652,13 +732,17 @@ export interface FileRouteTypes {
     | '/payment-approvals'
     | '/profile'
     | '/promotions'
+    | '/rates'
     | '/rbac'
     | '/register'
     | '/reports'
+    | '/revenue'
     | '/room-config'
     | '/room-management'
+    | '/segments'
     | '/settings'
     | '/support'
+    | '/system-health'
     | '/timeline'
     | '/verify-email'
     | '/guest-checkin/confirm'
@@ -687,6 +771,7 @@ export interface RootRouteChildren {
   AdminPortalRoute: typeof AdminPortalRoute
   AuditLogRoute: typeof AuditLogRoute
   BookingsRoute: typeof BookingsRoute
+  CampaignsRoute: typeof CampaignsRoute
   CommunicationsRoute: typeof CommunicationsRoute
   CompanyLedgerRoute: typeof CompanyLedgerRoute
   CompleteProfileRoute: typeof CompleteProfileRoute
@@ -699,6 +784,8 @@ export interface RootRouteChildren {
   GuestPortalRoute: typeof GuestPortalRoute
   HelpRoute: typeof HelpRouteWithChildren
   HousekeepingRoute: typeof HousekeepingRoute
+  InsightsRoute: typeof InsightsRoute
+  JobsRoute: typeof JobsRoute
   LoginRoute: typeof LoginRoute
   LoyaltyRoute: typeof LoyaltyRoute
   MyRewardsRoute: typeof MyRewardsRoute
@@ -709,13 +796,17 @@ export interface RootRouteChildren {
   PaymentApprovalsRoute: typeof PaymentApprovalsRoute
   ProfileRoute: typeof ProfileRoute
   PromotionsRoute: typeof PromotionsRoute
+  RatesRoute: typeof RatesRoute
   RbacRoute: typeof RbacRoute
   RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
+  RevenueRoute: typeof RevenueRoute
   RoomConfigRoute: typeof RoomConfigRoute
   RoomManagementRoute: typeof RoomManagementRoute
+  SegmentsRoute: typeof SegmentsRoute
   SettingsRoute: typeof SettingsRoute
   SupportRoute: typeof SupportRoute
+  SystemHealthRoute: typeof SystemHealthRoute
   TimelineRoute: typeof TimelineRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   GuestCheckinConfirmRoute: typeof GuestCheckinConfirmRoute
@@ -784,6 +875,13 @@ declare module '@tanstack/react-router' {
       path: '/bookings'
       fullPath: '/bookings'
       preLoaderRoute: typeof BookingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns': {
+      id: '/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof CampaignsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/communications': {
@@ -870,6 +968,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HousekeepingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/insights': {
+      id: '/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof InsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs': {
+      id: '/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof JobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -940,6 +1052,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PromotionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rates': {
+      id: '/rates'
+      path: '/rates'
+      fullPath: '/rates'
+      preLoaderRoute: typeof RatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rbac': {
       id: '/rbac'
       path: '/rbac'
@@ -961,6 +1080,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/revenue': {
+      id: '/revenue'
+      path: '/revenue'
+      fullPath: '/revenue'
+      preLoaderRoute: typeof RevenueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/room-config': {
       id: '/room-config'
       path: '/room-config'
@@ -975,6 +1101,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoomManagementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/segments': {
+      id: '/segments'
+      path: '/segments'
+      fullPath: '/segments'
+      preLoaderRoute: typeof SegmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -987,6 +1120,13 @@ declare module '@tanstack/react-router' {
       path: '/support'
       fullPath: '/support'
       preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system-health': {
+      id: '/system-health'
+      path: '/system-health'
+      fullPath: '/system-health'
+      preLoaderRoute: typeof SystemHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/timeline': {
@@ -1136,6 +1276,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminPortalRoute: AdminPortalRoute,
   AuditLogRoute: AuditLogRoute,
   BookingsRoute: BookingsRoute,
+  CampaignsRoute: CampaignsRoute,
   CommunicationsRoute: CommunicationsRoute,
   CompanyLedgerRoute: CompanyLedgerRoute,
   CompleteProfileRoute: CompleteProfileRoute,
@@ -1148,6 +1289,8 @@ const rootRouteChildren: RootRouteChildren = {
   GuestPortalRoute: GuestPortalRoute,
   HelpRoute: HelpRouteWithChildren,
   HousekeepingRoute: HousekeepingRoute,
+  InsightsRoute: InsightsRoute,
+  JobsRoute: JobsRoute,
   LoginRoute: LoginRoute,
   LoyaltyRoute: LoyaltyRoute,
   MyRewardsRoute: MyRewardsRoute,
@@ -1158,13 +1301,17 @@ const rootRouteChildren: RootRouteChildren = {
   PaymentApprovalsRoute: PaymentApprovalsRoute,
   ProfileRoute: ProfileRoute,
   PromotionsRoute: PromotionsRoute,
+  RatesRoute: RatesRoute,
   RbacRoute: RbacRoute,
   RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,
+  RevenueRoute: RevenueRoute,
   RoomConfigRoute: RoomConfigRoute,
   RoomManagementRoute: RoomManagementRoute,
+  SegmentsRoute: SegmentsRoute,
   SettingsRoute: SettingsRoute,
   SupportRoute: SupportRoute,
+  SystemHealthRoute: SystemHealthRoute,
   TimelineRoute: TimelineRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   GuestCheckinConfirmRoute: GuestCheckinConfirmRoute,

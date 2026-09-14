@@ -1,7 +1,9 @@
 import type {
+  CampaignObjective,
   PromotionDiscountType,
   PromotionInput,
   PromotionKind,
+  PromotionLifecycle,
   PromotionStatus,
   VoucherDisplayStatus,
   VoucherStatus,
@@ -12,8 +14,34 @@ export const PROMOTION_STATUS_LABELS: Record<PromotionStatus, string> = {
   draft: 'Draft',
   published: 'Published',
   paused: 'Paused',
+  cancelled: 'Cancelled',
   archived: 'Archived',
 };
+
+/** Operator-facing lifecycle labels — what the campaigns list filters and
+ *  status chips display. `scheduled`/`live`/`expired` are derived, never
+ *  stored. */
+export const CAMPAIGN_LIFECYCLE_LABELS: Record<PromotionLifecycle, string> = {
+  draft: 'Draft',
+  scheduled: 'Scheduled',
+  live: 'Live',
+  paused: 'Paused',
+  expired: 'Expired',
+  cancelled: 'Cancelled',
+  archived: 'Archived',
+};
+
+export const CAMPAIGN_OBJECTIVE_OPTIONS: Array<{
+  value: CampaignObjective;
+  label: string;
+}> = [
+  { value: 'occupancy', label: 'Fill occupancy' },
+  { value: 'acquisition', label: 'Acquire guests' },
+  { value: 'retention', label: 'Retain guests' },
+  { value: 'upsell', label: 'Upsell' },
+  { value: 'loyalty', label: 'Loyalty' },
+  { value: 'other', label: 'Other' },
+];
 
 export const VOUCHER_STATUS_LABELS: Record<VoucherStatus, string> = {
   available: 'Available',
@@ -68,4 +96,8 @@ export const EMPTY_PROMOTION_INPUT: PromotionInput = {
   is_public: true,
   is_cancellable: true,
   room_type_ids: [],
+  internal_code: null,
+  objective: null,
+  booking_channel_ids: [],
+  loyalty_tier_ids: [],
 };

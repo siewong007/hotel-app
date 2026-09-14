@@ -106,6 +106,8 @@ VALUES
     ('maintenance:write'),
     ('navigation_housekeeping:read'),
     ('navigation_promotions:read'),
+    ('navigation_revenue:read'),
+    ('navigation_segments:read'),
     ('night_audit:execute'),
     ('night_audit:read'),
     ('payments:approve'),
@@ -120,6 +122,7 @@ VALUES
     ('permissions:manage'),
     ('permissions:read'),
     ('permissions:update'),
+    ('promotions:approve'),
     ('promotions:manage'),
     ('promotions:read'),
     ('communications:read'),
@@ -129,6 +132,7 @@ VALUES
     ('navigation_communications:read'),
     ('reports:execute'),
     ('reports:read'),
+    ('revenue:read'),
     ('reviews:create'),
     ('reviews:delete'),
     ('reviews:manage'),
@@ -145,6 +149,8 @@ VALUES
     ('rooms:read'),
     ('rooms:update'),
     ('rooms:write'),
+    ('segments:manage'),
+    ('segments:read'),
     ('services:create'),
     ('services:delete'),
     ('services:manage'),
@@ -235,6 +241,7 @@ INSERT INTO expected_route_access_policies (route_id)
 VALUES
     ('audit-log'),
     ('bookings'),
+    ('campaigns'),
     ('communications'),
     ('company-ledger'),
     ('complimentary'),
@@ -247,18 +254,23 @@ VALUES
     ('guest-relations-detail'),
     ('help'),
     ('housekeeping'),
+    ('insights'),
+    ('jobs'),
     ('loyalty'),
     ('night-audit'),
     ('online-inventory'),
     ('payment-approvals'),
     ('profile'),
-    ('promotions'),
+    ('rates'),
     ('rbac'),
     ('reports'),
+    ('revenue'),
     ('room-config'),
     ('room-management'),
     ('settings'),
+    ('segments'),
     ('support'),
+    ('system-health'),
     ('teams'),
     ('timeline');
 
@@ -459,6 +471,7 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('navigation_support:read', 'navigation:support', 'read', 'Show Support navigation', true),
 ('promotions:read', 'promotions', 'read', 'View promotions and promotion performance', true),
 ('promotions:manage', 'promotions', 'manage', 'Create and manage promotions', true),
+('promotions:approve', 'promotions', 'approve', 'Approve and publish campaigns', true),
 ('vouchers:read', 'vouchers', 'read', 'View issued vouchers and redemptions', true),
 ('vouchers:manage', 'vouchers', 'manage', 'Issue, revoke, and manage vouchers', true),
 ('navigation_promotions:read', 'navigation:promotions', 'read', 'Show Promotions navigation', true),
@@ -467,6 +480,11 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('communications:send', 'communications', 'execute', 'Schedule, test-send, and send email campaigns', true),
 ('communications:manage', 'communications', 'manage', 'Full communications management including automation and suppressions', true),
 ('navigation_communications:read', 'navigation:communications', 'read', 'Show Communications navigation', true),
+('segments:read', 'segments', 'read', 'View guest segments and segment previews', true),
+('segments:manage', 'segments', 'manage', 'Create and manage guest segments', true),
+('navigation_segments:read', 'navigation:segments', 'read', 'Show Segments navigation', true),
+('revenue:read', 'revenue', 'read', 'View revenue performance, pricing, and occupancy analytics', true),
+('navigation_revenue:read', 'navigation:revenue', 'read', 'Show Revenue navigation', true),
 ('bookings:create', 'bookings', 'create', 'Create new bookings', true),
 ('bookings:read', 'bookings', 'read', 'View bookings', true),
 ('bookings:update', 'bookings', 'update', 'Update bookings', true),
@@ -572,6 +590,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
     'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
     'companies:read', 'companies:create', 'companies:update', 'companies:delete', 'companies:manage',
     'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read',
+    'revenue:read', 'navigation_revenue:read',
     'teams:read', 'teams:assign', 'loyalty:read', 'loyalty:manage'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
@@ -744,10 +763,10 @@ INSERT INTO route_access_policies (
     is_system_policy
 )
 VALUES (
-    'promotions',
-    '/promotions',
-    'Promotions',
-    'admin',
+    'campaigns',
+    '/campaigns',
+    'Campaigns',
+    'revenue',
     '["promotions:read"]'::jsonb,
     '[]'::jsonb,
     '[]'::jsonb,
@@ -1084,6 +1103,14 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
         'Days a member of a role listed in require_two_factor_roles may sign in before two-factor enrolment is enforced. 0 enforces immediately.', false)
 ON CONFLICT (key) DO NOTHING;
 
+-- Record the seeded value as the default for every setting that does not
+-- already carry one. This runs inside the same transaction as the INSERTs, so
+-- on a fresh install `value` IS the seeded default. On desktop re-runs the
+-- IS NULL guard keeps a previously recorded default even when the hotel has
+-- since edited the live value. Changing a key's default later is deliberate
+-- work: update this seed and write a patch, exactly like changing the value.
+UPDATE system_settings SET default_value = value WHERE default_value IS NULL;
+
 -- This policy is part of the required route-policy set, so it must be present
 -- before the integrity checks below.
 INSERT INTO route_access_policies (
@@ -1122,6 +1149,10 @@ VALUES
     ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('reports', '/reports', 'Reports', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('insights', '/insights', 'Insights', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('revenue', '/revenue', 'Revenue', 'revenue', '["revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_revenue:read","revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('rates', '/rates', 'Rates', 'revenue', '["revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_revenue:read","revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('segments', '/segments', 'Segments', 'revenue', '["segments:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_segments:read","segments:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('company-ledger', '/company-ledger', 'Ledger', 'operations', '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('room-config', '/room-config', 'Room Configuration', 'config', '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('settings', '/settings', 'Settings', 'config', '["settings:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:read","settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
@@ -1132,6 +1163,8 @@ VALUES
     ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('loyalty', '/loyalty', 'Loyalty', 'admin', '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('system-health', '/system-health', 'System Health', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('jobs', '/jobs', 'Jobs', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('ekyc-admin', '/ekyc-admin', 'eKYC Admin', 'admin', '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('dashboard', '/', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('profile', '/profile', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),

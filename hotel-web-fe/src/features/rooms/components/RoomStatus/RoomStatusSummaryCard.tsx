@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardContent, Box, Typography, alpha } from '@mui/material';
+import { Card, CardContent, Box, Typography } from '@mui/material';
 import { RoomStatusType, getStatusConfig } from '../../config';
 
 interface RoomStatusSummaryCardProps {
@@ -35,16 +35,14 @@ const RoomStatusSummaryCard: React.FC<RoomStatusSummaryCardProps> = ({
       onClick={onClick}
       sx={{
         cursor: onClick ? 'pointer' : 'default',
-        background: `linear-gradient(135deg, ${config.bgColor} 0%, ${alpha(config.bgColor, 0.8)} 100%)`,
+        background: config.bgColor,
         color: config.textColor,
-        transition: 'all 0.3s ease-in-out',
+        border: `1px solid ${config.borderColor}`,
+        transition: 'background-color 0.2s ease-in-out, border-color 0.2s ease-in-out',
         position: 'relative',
         overflow: 'hidden',
         '&:hover': onClick
-          ? {
-              transform: 'translateY(-4px)',
-              boxShadow: 4,
-            }
+          ? { boxShadow: 2 }
           : {},
         // Animated pulsing effect for statuses that require action
         ...(animated && config.requiresAction && count > 0 && {
@@ -141,7 +139,7 @@ const RoomStatusSummaryCard: React.FC<RoomStatusSummaryCardProps> = ({
               mt: 1.5,
               height: 4,
               borderRadius: 2,
-              backgroundColor: alpha(config.textColor, 0.2),
+              backgroundColor: `color-mix(in srgb, ${config.textColor} 22%, transparent)`,
               overflow: 'hidden',
             }}
           >

@@ -16,7 +16,7 @@ export TARGET_DATABASE_URL
         lint-be lint-fe lint-desktop lint-all \
         test-be test-fe \
         docker-up docker-up-pg19-tuned docker-down docker-build \
-        db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
+        db-baseline db-seed db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
         db-schema-drift require-schema-drift-urls \
         db-repack db-repack-full \
         prepare-desktop docs \
@@ -140,10 +140,16 @@ require-schema-drift-urls:
 	@case "$$TARGET_DATABASE_URL" in *[![:space:]]*) ;; *) printf '%s\n' 'TARGET_DATABASE_URL is required' >&2; exit 1 ;; esac
 	@test "$$BASELINE_DATABASE_URL" != "$$TARGET_DATABASE_URL" || { printf '%s\n' 'baseline and target database URLs must be distinct' >&2; exit 1; }
 
-db-setup: require-database-url ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)
+db-baseline: require-database-url ## Canonical: create schema + system bootstrap on an empty DB (requires DATABASE_URL)
 	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
 	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/seed.sql
 	$(MAKE) db-patch
+
+db-seed: require-database-url ## Canonical: populate comprehensive deterministic staging data (requires DATABASE_URL)
+	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/staging.sql
+
+db-setup: db-baseline ## DEPRECATED alias for db-baseline (kept for compatibility)
+	@printf '%s\n' 'warning: `db-setup` is deprecated — use `db-baseline` (structure) + `db-seed` (staging data)' >&2
 
 db-patch: require-database-url ## Apply verified V1 compatibility patches (requires DATABASE_URL)
 	hotel-app-be/database/postgres/apply-patches.sh
@@ -151,9 +157,9 @@ db-patch: require-database-url ## Apply verified V1 compatibility patches (requi
 db-schema-drift: require-schema-drift-urls ## Compare target schema with a current-baseline database (read-only)
 	hotel-app-be/database/postgres/report-schema-drift.sh
 
-db-reset: ## Reset and re-create PostgreSQL database
+db-reset: ## Reset and re-create PostgreSQL database structure only (no staging data)
 	psql "$$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-	$(MAKE) db-setup
+	$(MAKE) db-baseline
 
 db-pg19-tune: ## Apply opt-in PostgreSQL 19 Beta 2 physical/planner tuning
 	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/optimization/pg19_beta2.sql

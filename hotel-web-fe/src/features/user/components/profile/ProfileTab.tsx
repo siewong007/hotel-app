@@ -228,6 +228,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
+                type="tel"
                 label="Phone"
                 value={formData.phone}
                 onChange={e => {

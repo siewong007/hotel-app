@@ -332,6 +332,7 @@ const EkycRegistrationPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
+                type="tel"
                 label="Phone Number"
                 required
                 value={personalInfo.phone}

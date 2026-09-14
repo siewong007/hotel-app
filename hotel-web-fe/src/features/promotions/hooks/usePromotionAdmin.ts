@@ -75,13 +75,16 @@ export function usePromotionTransition() {
       promotionId,
       action,
       expectedVersion,
+      reason,
     }: {
       promotionId: number;
       action: PromotionLifecycleAction;
       expectedVersion?: number;
+      reason?: string;
     }) =>
       PromotionsApi.transition(promotionId, action, {
         expected_version: expectedVersion,
+        reason,
       }),
     onSuccess: async (updatedPromotion) => {
       queryClient.setQueriesData<PromotionListResponse>(
@@ -124,6 +127,27 @@ export function useAdminPromotion(promotionId: number | null, enabled = true) {
   return useQuery({
     queryKey: queryKeys.promotions.adminPromotionDetail(promotionId ?? 0),
     queryFn: () => PromotionsApi.getAdminPromotion(promotionId as number),
+    enabled: enabled && promotionId != null,
+    staleTime: queryStaleTime.short,
+  });
+}
+
+export function useTargetingOptions(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.promotions.targetingOptions(),
+    queryFn: () => PromotionsApi.getTargetingOptions(),
+    enabled,
+    staleTime: queryStaleTime.long,
+  });
+}
+
+export function useCampaignPerformance(
+  promotionId: number | null,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.promotions.campaignPerformance(promotionId ?? 0),
+    queryFn: () => PromotionsApi.getCampaignPerformance(promotionId as number),
     enabled: enabled && promotionId != null,
     staleTime: queryStaleTime.short,
   });

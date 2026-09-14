@@ -32,9 +32,9 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
     return {
       type: 'laptop',
       icon: <LaptopIcon />,
-      color: '#1976d2',
+      color: 'var(--hotel-info)',
       label: 'Laptop',
-      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      gradient: 'color-mix(in srgb, var(--hotel-info) 20%, transparent)',
     };
   }
 
@@ -42,9 +42,9 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
     return {
       type: 'desktop',
       icon: <ComputerIcon />,
-      color: '#2e7d32',
+      color: 'var(--hotel-success)',
       label: 'Desktop',
-      gradient: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+      gradient: 'color-mix(in srgb, var(--hotel-success) 20%, transparent)',
     };
   }
 
@@ -52,9 +52,9 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
     return {
       type: 'tablet',
       icon: <TabletIcon />,
-      color: '#ed6c02',
+      color: 'var(--hotel-warning)',
       label: 'Tablet',
-      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      gradient: 'color-mix(in srgb, var(--hotel-warning) 20%, transparent)',
     };
   }
 
@@ -63,9 +63,9 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
     return {
       type: 'mobile',
       icon: isIphone ? <PhoneIphoneIcon /> : <SmartphoneIcon />,
-      color: '#9c27b0',
+      color: 'var(--hotel-chart-4)',
       label: isIphone ? 'iPhone' : 'Mobile',
-      gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+      gradient: 'color-mix(in srgb, var(--hotel-chart-4) 20%, transparent)',
     };
   }
 
@@ -73,18 +73,18 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
     return {
       type: 'security-key',
       icon: <SecurityIcon />,
-      color: '#d32f2f',
+      color: 'var(--hotel-danger)',
       label: 'Security Key',
-      gradient: 'linear-gradient(135deg, #ff6b6b 0%, #c92a2a 100%)',
+      gradient: 'color-mix(in srgb, var(--hotel-danger) 20%, transparent)',
     };
   }
 
   return {
     type: 'unknown',
     icon: <FingerprintIcon />,
-    color: '#757575',
+    color: 'var(--hotel-neutral)',
     label: 'Device',
-    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    gradient: 'color-mix(in srgb, var(--hotel-info) 20%, transparent)',
   };
 };
 
@@ -141,15 +141,15 @@ export const DeviceIcon: React.FC<DeviceIconProps> = ({ deviceName, size = 48 })
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: 'white',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          color: config.color,
+          boxShadow: 'var(--hotel-shadow-sm)',
           transition: 'transform 0.3s ease',
           '&:hover': {
             transform: 'scale(1.1) rotate(5deg)',
           },
           '& svg': {
             fontSize: size * 0.6,
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))',
           },
         }}
       >

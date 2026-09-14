@@ -1,6 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { RouteById } from '../router/renderRouteFromRegistry';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
+// The promotions workspace moved to /campaigns (revenue group). Keep the old
+// path as a permanent redirect so bookmarks and deep links keep working.
 export const Route = createFileRoute('/promotions')({
-  component: () => <RouteById id="promotions" />,
+  beforeLoad: () => {
+    throw redirect({ to: '/campaigns', replace: true });
+  },
 });

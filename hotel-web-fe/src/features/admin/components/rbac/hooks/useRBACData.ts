@@ -198,7 +198,7 @@ export function useRBACData(): UseRBACDataReturn {
         name,
         displayName: PERMISSION_CATEGORIES[name]?.displayName || name.charAt(0).toUpperCase() + name.slice(1),
         icon: PERMISSION_CATEGORIES[name]?.icon || 'VpnKey',
-        color: PERMISSION_CATEGORIES[name]?.color || '#9e9e9e',
+        color: PERMISSION_CATEGORIES[name]?.color || 'var(--hotel-neutral)',
         permissions: perms.sort((a, b) => a.name.localeCompare(b.name)),
       }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName));

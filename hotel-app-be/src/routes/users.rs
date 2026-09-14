@@ -30,9 +30,23 @@ pub fn routes() -> Router<DbPool> {
         // User records
         .route("/users", get(get_users))
         .route("/users", post(create_user))
+        .route("/users/directory", get(get_directory))
+        .route("/users/invite", post(invite_user))
         .route("/users/{user_id}", get(get_user))
         .route("/users/{user_id}", patch(update_user))
         .route("/users/{user_id}", delete(delete_user))
+        // Lifecycle
+        .route("/users/{user_id}/suspend", post(suspend_user))
+        .route("/users/{user_id}/reactivate", post(reactivate_user))
+        .route("/users/{user_id}/unlock", post(unlock_user))
+        .route("/users/{user_id}/resend-invite", post(resend_invite))
+        // Sessions
+        .route("/users/{user_id}/sessions", get(get_user_sessions))
+        .route("/users/{user_id}/sessions", delete(revoke_all_sessions))
+        .route(
+            "/users/{user_id}/sessions/{session_id}",
+            delete(revoke_user_session),
+        )
         // Role membership
         .route("/users/roles", post(assign_role))
         .route("/users/{user_id}/roles", put(replace_user_roles))
@@ -45,6 +59,95 @@ async fn get_users(
 ) -> Result<Json<Vec<models::UserResponse>>, ApiError> {
     require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
     handlers::users::get_users_handler(State(pool)).await
+}
+
+async fn get_directory(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    query: axum::extract::Query<models::StaffDirectoryQuery>,
+) -> Result<Json<models::StaffDirectoryResponse>, ApiError> {
+    require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
+    handlers::users::get_directory_handler(State(pool), query).await
+}
+
+async fn invite_user(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(input): Json<models::InviteUserInput>,
+) -> Result<Json<models::InviteUserResponse>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_CREATE_PERMISSIONS).await?;
+    handlers::users::invite_user_handler(State(pool), Extension(actor_user_id), Json(input)).await
+}
+
+async fn suspend_user(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::UserResponse>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
+    handlers::users::suspend_user_handler(State(pool), Extension(actor_user_id), path).await
+}
+
+async fn reactivate_user(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::UserResponse>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
+    handlers::users::reactivate_user_handler(State(pool), Extension(actor_user_id), path).await
+}
+
+async fn unlock_user(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::UserResponse>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
+    handlers::users::unlock_user_handler(State(pool), Extension(actor_user_id), path).await
+}
+
+async fn resend_invite(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::InviteUserResponse>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_CREATE_PERMISSIONS).await?;
+    handlers::users::resend_invite_handler(State(pool), Extension(actor_user_id), path).await
+}
+
+async fn get_user_sessions(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<Vec<crate::models::auth::UserSessionInfo>>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
+    handlers::users::user_sessions_handler(State(pool), Extension(actor_user_id), path).await
+}
+
+async fn revoke_all_sessions(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
+    handlers::users::revoke_user_sessions_handler(State(pool), Extension(actor_user_id), path).await
+}
+
+async fn revoke_user_session(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<(i64, String)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
+    handlers::users::revoke_user_session_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn create_user(

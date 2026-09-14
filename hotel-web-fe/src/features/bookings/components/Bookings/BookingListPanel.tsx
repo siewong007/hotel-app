@@ -156,12 +156,12 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
                   px: 2,
                   py: 1.75,
                   cursor: 'pointer',
-                  bgcolor: isSelected ? alpha('#2f6f52', 0.1) : 'background.paper',
-                  borderLeft: isSelected ? '4px solid #2f6f52' : '4px solid transparent',
+                  bgcolor: isSelected ? 'var(--hotel-selected)' : 'background.paper',
+                  borderLeft: isSelected ? '4px solid var(--hotel-primary)' : '4px solid transparent',
                   opacity: booking.status === 'voided' ? 0.55 : 1,
                 }}
               >
-                <Box sx={{ width: 46, height: 46, borderRadius: '50%', bgcolor: alpha('#2f6f52', 0.12), color: '#245a42', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>
+                <Box sx={{ width: 46, height: 46, borderRadius: '50%', bgcolor: 'var(--hotel-primary-subtle)', color: 'var(--hotel-primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>
                   {getGuestInitials(booking.guest_name)}
                 </Box>
                 <Box sx={{ minWidth: 0 }}>

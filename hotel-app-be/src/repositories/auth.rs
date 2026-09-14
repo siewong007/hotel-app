@@ -893,6 +893,11 @@ mod tests {
             two_factor_recovery_codes: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            last_login_at: None,
+            is_locked: false,
+            locked_until: None,
+            failed_login_attempts: 0,
+            is_super_admin: false,
         }
     }
 

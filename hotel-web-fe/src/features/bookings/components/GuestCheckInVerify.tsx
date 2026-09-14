@@ -145,7 +145,7 @@ export const GuestCheckInVerify: React.FC = () => {
               </Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2">{guest.email}</Typography>
+              <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>{guest.email}</Typography>
             </Grid>
             <Grid size={6}>
               <Typography variant="body2" sx={{

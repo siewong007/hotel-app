@@ -124,7 +124,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
       maxWidth="md"
       fullWidth
     >
-      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
+      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'var(--hotel-on-primary)', py: 2, px: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <PersonIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
@@ -421,13 +421,13 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                                       display: 'flex',
                                       alignItems: 'center',
                                       gap: 0.5,
-                                      backgroundColor: 'rgba(211, 47, 47, 0.12)',
+                                      backgroundColor: 'var(--hotel-danger-bg)',
                                       borderRadius: 1,
                                       mr: 1,
                                       mb: 1,
                                       px: 1,
                                       py: 0.5,
-                                      border: '1px solid rgba(211, 47, 47, 0.4)',
+                                      border: '1px solid var(--hotel-danger-border)',
                                       cursor: 'not-allowed',
                                     }}
                                   >
@@ -459,7 +459,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                                   }
                                   label={new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                                   sx={{
-                                    backgroundColor: isSelected ? 'rgba(156, 39, 176, 0.1)' : 'transparent',
+                                    backgroundColor: isSelected ? 'var(--hotel-selected)' : 'transparent',
                                     borderRadius: 1,
                                     mr: 1,
                                     mb: 1,
@@ -528,7 +528,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-raised)', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onClose} variant="outlined">Close</Button>
       </DialogActions>
     </Dialog>

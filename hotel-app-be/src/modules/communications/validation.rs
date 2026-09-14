@@ -55,6 +55,7 @@ pub struct CampaignDraft {
     pub body_text: Option<String>,
     pub template_id: Option<i64>,
     pub promotion_id: Option<i64>,
+    pub segment_id: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -198,6 +199,13 @@ pub fn validate_campaign_input(input: CampaignInput) -> Result<CampaignDraft, Ap
         }
         _ => None,
     };
+    let segment_id = match input.segment_id {
+        Some(id) if id > 0 => Some(id),
+        Some(_) => {
+            return Err(ApiError::BadRequest("Invalid segment".to_string()));
+        }
+        None => None,
+    };
     Ok(CampaignDraft {
         name: sanitize_required_text(&input.name, "name", 1, 160)?,
         topic: campaign_type.clone(),
@@ -207,6 +215,7 @@ pub fn validate_campaign_input(input: CampaignInput) -> Result<CampaignDraft, Ap
         body_text: sanitize_optional_text(input.body_text, "body_text", MAX_BODY_CHARS)?,
         template_id: input.template_id,
         promotion_id,
+        segment_id,
     })
 }
 
@@ -329,6 +338,7 @@ mod tests {
             body_text: None,
             template_id: None,
             promotion_id,
+            segment_id: None,
         }
     }
 

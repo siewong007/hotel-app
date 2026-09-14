@@ -49,7 +49,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
 }) => {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
+      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'var(--hotel-on-primary)', py: 2, px: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, flexDirection: 'column' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -64,7 +64,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
           </Box>
           <IconButton
             onClick={onClose}
-            sx={{ color: 'white' }}
+            sx={{ color: 'var(--hotel-on-primary)' }}
             aria-label="Close room history"
           >
             <CancelIcon />
@@ -178,12 +178,12 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                                  entry.to_status === 'reserved' ? <BookingIcon /> :
                                  <HistoryIcon />;
 
-                const statusColor = entry.to_status === 'occupied' ? '#FFA726' :
-                                  entry.to_status === 'available' ? '#66BB6A' :
-                                  entry.to_status === 'cleaning' || entry.to_status === 'reserved_dirty' ? '#FFEB3B' :
-                                  entry.to_status === 'maintenance' ? '#EF5350' :
-                                  entry.to_status === 'reserved' ? '#42A5F5' :
-                                  '#BDBDBD';
+                const statusColor = entry.to_status === 'occupied' ? 'var(--hotel-warning)' :
+                                  entry.to_status === 'available' ? 'var(--hotel-success)' :
+                                  entry.to_status === 'cleaning' || entry.to_status === 'reserved_dirty' ? 'var(--hotel-warning)' :
+                                  entry.to_status === 'maintenance' ? 'var(--hotel-danger)' :
+                                  entry.to_status === 'reserved' ? 'var(--hotel-info)' :
+                                  'var(--hotel-neutral)';
 
                 return (
                   <Paper
@@ -194,7 +194,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                       borderColor: statusColor,
                       cursor: entry.guest_id ? 'pointer' : 'default',
                       '&:hover': entry.guest_id ? {
-                        bgcolor: 'grey.50',
+                        bgcolor: 'var(--hotel-surface-raised)',
                         boxShadow: 2,
                       } : {},
                     }}
@@ -209,11 +209,11 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                             width: 40,
                             height: 40,
                             borderRadius: '50%',
-                            bgcolor: statusColor,
+                            bgcolor: `color-mix(in srgb, ${statusColor} 15%, transparent)`,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: 'white',
+                            color: statusColor,
                           }}
                         >
                           {statusIcon}
@@ -272,7 +272,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-raised)', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onClose} variant="outlined">Close</Button>
       </DialogActions>
     </Dialog>

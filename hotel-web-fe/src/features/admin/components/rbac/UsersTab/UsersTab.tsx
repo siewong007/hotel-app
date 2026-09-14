@@ -23,7 +23,6 @@ import {
   CircularProgress,
   Alert,
   Tooltip,
-  alpha,
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 import { DataTable, type ColumnDef } from '../../../../../components';
@@ -286,7 +285,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                 size="small"
                 icon={<SecurityIcon sx={{ fontSize: 14 }} />}
                 sx={{
-                  bgcolor: alpha(getRoleColor(role.name), 0.1),
+                  bgcolor: `color-mix(in srgb, ${getRoleColor(role.name)} 10%, transparent)`,
                   color: getRoleColor(role.name),
                   fontWeight: 500,
                   '& .MuiChip-icon': { color: 'inherit' },
@@ -419,7 +418,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                       size="small"
                       icon={<SecurityIcon sx={{ fontSize: 14 }} />}
                       sx={{
-                        bgcolor: alpha(getRoleColor(role.name), 0.1),
+                        bgcolor: `color-mix(in srgb, ${getRoleColor(role.name)} 10%, transparent)`,
                         color: getRoleColor(role.name),
                         fontWeight: 500,
                         '& .MuiChip-icon': { color: 'inherit' },

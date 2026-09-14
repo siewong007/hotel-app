@@ -41,31 +41,31 @@ export const TIER_CONFIG: Record<number, {
 }> = {
   1: {
     name: 'Bronze',
-    color: '#CD7F32',
-    gradient: 'linear-gradient(135deg, #CD7F32 0%, #B87333 100%)',
+    color: '#CD8B4A',
+    gradient: 'color-mix(in srgb, #CD8B4A 16%, var(--hotel-surface-raised))',
     icon: '🥉',
-    bgColor: 'rgba(205, 127, 50, 0.1)',
+    bgColor: 'color-mix(in srgb, #CD8B4A 12%, transparent)',
   },
   2: {
     name: 'Silver',
-    color: '#C0C0C0',
-    gradient: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)',
+    color: '#B9BEC7',
+    gradient: 'color-mix(in srgb, #B9BEC7 16%, var(--hotel-surface-raised))',
     icon: '🥈',
-    bgColor: 'rgba(192, 192, 192, 0.1)',
+    bgColor: 'color-mix(in srgb, #B9BEC7 12%, transparent)',
   },
   3: {
     name: 'Gold',
-    color: '#FFD700',
-    gradient: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+    color: '#E3BC55',
+    gradient: 'color-mix(in srgb, #E3BC55 16%, var(--hotel-surface-raised))',
     icon: '🥇',
-    bgColor: 'rgba(255, 215, 0, 0.1)',
+    bgColor: 'color-mix(in srgb, #E3BC55 12%, transparent)',
   },
   4: {
     name: 'Platinum',
-    color: '#E5E4E2',
-    gradient: 'linear-gradient(135deg, #E5E4E2 0%, #B9B9B9 100%)',
+    color: '#D8DCE4',
+    gradient: 'color-mix(in srgb, #D8DCE4 14%, var(--hotel-surface-raised))',
     icon: '💎',
-    bgColor: 'rgba(229, 228, 226, 0.1)',
+    bgColor: 'color-mix(in srgb, #D8DCE4 12%, transparent)',
   },
 };
 

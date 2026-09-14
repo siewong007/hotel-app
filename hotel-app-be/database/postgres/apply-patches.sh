@@ -130,7 +130,10 @@ while IFS= read -r line || [[ -n $line ]]; do
     previous_version=$version
 done < "$catalog_dir/manifest.tsv"
 
-((${#versions[@]} > 0)) || fail 'patch manifest contains no patch rows'
+if ((${#versions[@]} == 0)); then
+    printf '%s\n' 'patch catalog is empty; nothing to apply'
+    exit 0
+fi
 "$check_mode" && exit 0
 
 if [[ -n $container || -n $database_user || -n $database_name ]]; then

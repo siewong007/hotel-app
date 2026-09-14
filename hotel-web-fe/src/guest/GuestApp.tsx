@@ -5,7 +5,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider } from '../auth/AuthContext';
 import { queryClient } from '../api/queryClient';
-import { createAppTheme, type ThemeMode } from '../theme';
+import { createAppTheme, normalizeThemeMode, type ThemeMode } from '../theme';
 import { storage } from '../utils/storage';
 import { ApiNotificationHost } from '../components/common/ApiNotificationHost';
 import { ConfirmProvider } from '../components/common/ConfirmProvider';
@@ -13,15 +13,10 @@ import { I18nProvider } from '../i18n';
 import { ThemeModeContext } from '../router/ThemeModeContext';
 import { guestRouter } from './guestRouter';
 
-function isThemeMode(value: unknown): value is ThemeMode {
-  return value === 'light' || value === 'dark' || value === 'night';
-}
-
 export default function GuestApp() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    const stored = storage.getItem<ThemeMode>('themeMode');
-    return isThemeMode(stored) ? stored : 'light';
-  });
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() =>
+    normalizeThemeMode(storage.getItem<string>('themeMode')),
+  );
   const activeTheme = useMemo(() => createAppTheme(themeMode), [themeMode]);
   const handleThemeModeChange = (mode: ThemeMode) => {
     setThemeMode(mode);

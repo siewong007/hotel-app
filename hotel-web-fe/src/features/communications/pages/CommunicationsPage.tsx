@@ -25,7 +25,10 @@ import {
   Typography,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { PromotionsApi } from '../../promotions/api/promotionsApi';
+import { SegmentsApi } from '../../segments/api';
 import { CommunicationsApi } from '../api';
 import type {
   CampaignInput,
@@ -58,6 +61,7 @@ const EMPTY_CAMPAIGN: CampaignInput = {
   body_html: '',
   promotion_id: null,
   template_id: null,
+  segment_id: null,
 };
 
 function CampaignDialog({
@@ -80,9 +84,19 @@ function CampaignDialog({
       PromotionsApi.listAdmin({
         page: 1,
         page_size: 100,
-        status: 'published',
+        status: 'live',
       }),
     enabled: open && form.campaign_type === 'promotion',
+  });
+  const segments = useQuery({
+    queryKey: ['segments', 'campaign-options'],
+    queryFn: () => SegmentsApi.list({ is_active: true, page_size: 100 }),
+    enabled: open,
+  });
+  const audience = useQuery({
+    queryKey: ['communications', 'audience', form.campaign_type, form.segment_id],
+    queryFn: () => CommunicationsApi.audienceCount(form.campaign_type, form.segment_id),
+    enabled: open,
   });
   const save = useMutation({
     mutationFn: (input: CampaignInput) =>
@@ -157,6 +171,37 @@ function CampaignDialog({
             </TextField>
           )}
           <TextField
+            select
+            label="Guest segment"
+            value={form.segment_id ?? ''}
+            onChange={(e) =>
+              set({ segment_id: e.target.value ? Number(e.target.value) : null })
+            }
+            helperText={
+              segments.isError
+                ? 'Segments could not be loaded'
+                : form.segment_id
+                  ? 'Only segment members who are subscribed and unsuppressed receive this campaign'
+                  : 'Optional — leave empty to reach every eligible subscriber'
+            }
+            disabled={segments.isLoading || segments.isError}
+          >
+            <MenuItem value="">All eligible guests</MenuItem>
+            {(segments.data?.items ?? []).map((s) => (
+              <MenuItem key={s.id} value={s.id}>
+                {s.name}
+              </MenuItem>
+            ))}
+          </TextField>
+          {audience.data && (
+            <Alert severity="info" icon={false} sx={{ py: 0.5 }}>
+              Audience: <strong>{audience.data.eligible}</strong> eligible
+              {form.segment_id
+                ? ` — ${audience.data.excluded_segment} eligible guests fall outside the segment`
+                : ''}
+            </Alert>
+          )}
+          <TextField
             label="Subject"
             value={form.subject}
             onChange={(e) => set({ subject: e.target.value })}
@@ -194,6 +239,7 @@ function CampaignDialog({
 }
 
 function CampaignsTab() {
+  const isPhone = useIsPhone();
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
   const [editor, setEditor] = useState<{ id: number | null; input: CampaignInput } | null>(null);
@@ -272,6 +318,78 @@ function CampaignsTab() {
           {notice}
         </Alert>
       )}
+      {isPhone ? (
+        <Box>
+          {(campaigns.data?.items ?? []).map((c) => (
+            <Box
+              key={c.id}
+              sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+            >
+              <MobileCardRow
+                title={c.name}
+                subtitle={`${c.campaign_type} · ${c.total_recipients} recipients`}
+                meta={`${c.sent_count} sent / ${c.failed_count} failed`}
+                status={
+                  <Chip size="small" label={c.status} color={STATUS_COLORS[c.status] ?? 'default'} />
+                }
+                footer={
+                  <>
+                    {c.status === 'draft' && (
+                      <>
+                        <Button
+                          size="small"
+                          onClick={() =>
+                            setEditor({
+                              id: c.id,
+                              input: {
+                                name: c.name,
+                                campaign_type: c.campaign_type,
+                                subject: c.subject,
+                                body_html: c.body_html,
+                                body_text: c.body_text,
+                                template_id: c.template_id,
+                                promotion_id: c.promotion_id,
+                                segment_id: c.segment_id,
+                              },
+                            })
+                          }
+                        >
+                          Edit
+                        </Button>
+                        <Button size="small" onClick={() => setTestSendFor(c)}>
+                          Test send
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => act.mutate({ action: 'schedule', campaign: c })}
+                        >
+                          Send
+                        </Button>
+                      </>
+                    )}
+                    {(c.status === 'scheduled' || c.status === 'running') && (
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={() => act.mutate({ action: 'cancel', campaign: c })}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <Button size="small" onClick={() => act.mutate({ action: 'preview', campaign: c })}>
+                      Preview
+                    </Button>
+                    <Button size="small" onClick={() => setDeliveriesFor(c)}>
+                      Deliveries
+                    </Button>
+                  </>
+                }
+              />
+            </Box>
+          ))}
+        </Box>
+      ) : (
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -314,6 +432,7 @@ function CampaignsTab() {
                               body_text: c.body_text,
                               template_id: c.template_id,
                               promotion_id: c.promotion_id,
+                              segment_id: c.segment_id,
                             },
                           })
                         }
@@ -358,6 +477,7 @@ function CampaignsTab() {
           ))}
         </TableBody>
       </Table>
+      )}
       {editor && (
         <CampaignDialog
           open
@@ -379,7 +499,11 @@ function CampaignsTab() {
                 email: {preview.audience.excluded_no_email}, inactive:{' '}
                 {preview.audience.excluded_inactive}, unsubscribed:{' '}
                 {preview.audience.excluded_unsubscribed}, suppressed:{' '}
-                {preview.audience.excluded_suppressed})
+                {preview.audience.excluded_suppressed}
+                {preview.audience.excluded_segment > 0
+                  ? `, outside segment: ${preview.audience.excluded_segment}`
+                  : ''}
+                )
               </Alert>
               <Box
                 sx={{ border: '1px solid', borderColor: 'divider', p: 2, borderRadius: 1 }}
@@ -398,6 +522,7 @@ function CampaignsTab() {
         <DialogContent>
           <TextField
             autoFocus
+            type="email"
             label="Recipient email"
             value={testEmail}
             onChange={(e) => setTestEmail(e.target.value)}
@@ -424,6 +549,22 @@ function CampaignsTab() {
       >
         <DialogTitle>Deliveries — {deliveriesFor?.name}</DialogTitle>
         <DialogContent>
+          {isPhone ? (
+            <Box>
+              {(deliveries.data?.items ?? []).map((d) => (
+                <Box
+                  key={d.id}
+                  sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+                >
+                  <MobileCardRow
+                    title={d.recipient_masked}
+                    subtitle={`${d.attempts} attempts${d.last_error ? ` · ${d.last_error}` : ''}`}
+                    status={<Chip size="small" variant="outlined" label={d.status} />}
+                  />
+                </Box>
+              ))}
+            </Box>
+          ) : (
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -444,6 +585,7 @@ function CampaignsTab() {
               ))}
             </TableBody>
           </Table>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeliveriesFor(null)}>Close</Button>
@@ -462,6 +604,7 @@ const EMPTY_TEMPLATE: TemplateInput = {
 };
 
 function TemplatesTab() {
+  const isPhone = useIsPhone();
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
   const [editor, setEditor] = useState<{ id: number | null; input: TemplateInput } | null>(null);
@@ -506,6 +649,58 @@ function TemplatesTab() {
           {error}
         </Alert>
       )}
+      {isPhone ? (
+        <Box>
+          {(templates.data ?? []).map((t: EmailTemplate) => (
+            <Box
+              key={t.id}
+              sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+            >
+              <MobileCardRow
+                title={t.name}
+                subtitle={t.code}
+                meta={t.variables.length ? `Variables: ${t.variables.join(', ')}` : 'No variables'}
+                status={
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={t.is_active ? 'Active' : 'Inactive'}
+                    color={t.is_active ? 'success' : 'default'}
+                  />
+                }
+                footer={
+                  <>
+                    <Button
+                      size="small"
+                      onClick={() =>
+                        setEditor({
+                          id: t.id,
+                          input: {
+                            code: t.code,
+                            name: t.name,
+                            subject: t.subject,
+                            body_html: t.body_html,
+                            body_text: t.body_text,
+                            variables: t.variables,
+                            is_active: t.is_active,
+                          },
+                        })
+                      }
+                    >
+                      Edit
+                    </Button>
+                    {t.is_active && (
+                      <Button size="small" color="error" onClick={() => deactivate.mutate(t.id)}>
+                        Deactivate
+                      </Button>
+                    )}
+                  </>
+                }
+              />
+            </Box>
+          ))}
+        </Box>
+      ) : (
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -553,6 +748,7 @@ function TemplatesTab() {
           ))}
         </TableBody>
       </Table>
+      )}
       {editor && (
         <Dialog open onClose={() => setEditor(null)} fullWidth maxWidth="md">
           <DialogTitle>{editor.id === null ? 'New template' : 'Edit template'}</DialogTitle>
@@ -628,6 +824,7 @@ function TemplatesTab() {
 }
 
 function SuppressionsTab() {
+  const isPhone = useIsPhone();
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
   const [email, setEmail] = useState('');
@@ -672,6 +869,7 @@ function SuppressionsTab() {
       <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
         <TextField
           size="small"
+          type="email"
           label="Email to suppress"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -680,6 +878,26 @@ function SuppressionsTab() {
           Suppress
         </Button>
       </Stack>
+      {isPhone ? (
+        <Box>
+          {(suppressions.data?.items ?? []).map((s) => (
+            <Box
+              key={s.id}
+              sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+            >
+              <MobileCardRow
+                title={s.email}
+                subtitle={`${s.reason}${s.source ? ` · ${s.source}` : ''}`}
+                footer={
+                  <Button size="small" color="error" onClick={() => remove.mutate(s.email)}>
+                    Remove
+                  </Button>
+                }
+              />
+            </Box>
+          ))}
+        </Box>
+      ) : (
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -704,6 +922,7 @@ function SuppressionsTab() {
           ))}
         </TableBody>
       </Table>
+      )}
     </Box>
   );
 }
@@ -712,7 +931,7 @@ export default function CommunicationsPage() {
   const [tab, setTab] = useState(0);
   const tabs = useMemo(
     () => [
-      { label: 'Campaigns', node: <CampaignsTab /> },
+      { label: 'Email Campaigns', node: <CampaignsTab /> },
       { label: 'Templates', node: <TemplatesTab /> },
       { label: 'Suppressions', node: <SuppressionsTab /> },
     ],

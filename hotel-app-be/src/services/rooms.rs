@@ -13,12 +13,125 @@ use crate::models::*;
 use crate::repositories::rooms_queries as rq;
 use crate::services::audit::AuditLog;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     http::HeaderMap,
     response::Json,
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
+use std::fs;
+use std::path::PathBuf;
+
+/// Deletes a file previously stored under the public room-image directory.
+/// `path` comes from the database, so it is treated as untrusted: only
+/// `/uploads/room-types/<file>` values with a bare filename are touched.
+fn delete_public_room_image(path: &str) {
+    let Some(name) = path.strip_prefix(ROOM_IMAGE_URL_PREFIX) else {
+        return;
+    };
+    let name = name.strip_prefix('/').unwrap_or(name);
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains("..") {
+        return;
+    }
+    let _ = fs::remove_file(PathBuf::from(ROOM_IMAGE_UPLOAD_DIR).join(name));
+}
+
+const ROOM_IMAGE_UPLOAD_DIR: &str = "uploads/public/room-types";
+const ROOM_IMAGE_URL_PREFIX: &str = "/uploads/room-types";
+pub(crate) const MAX_ROOM_IMAGE_BYTES: usize = 10 * 1024 * 1024;
+
+/// JPEG/PNG/WebP only — sniffs magic bytes, never trusts the declared type.
+fn room_image_extension(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("jpg")
+    } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("png")
+    } else if bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        Some("webp")
+    } else {
+        None
+    }
+}
+
+/// Pull the `file` field out of a room-image upload, streaming in chunks and
+/// aborting past the size cap. The route raises axum's `DefaultBodyLimit` to
+/// the same cap; reading chunks (rather than `field.bytes()`) keeps a large
+/// upload from being buffered wholesale and yields the size-specific message.
+async fn image_upload_bytes(mut multipart: Multipart) -> Result<Vec<u8>, ApiError> {
+    while let Some(mut field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| ApiError::BadRequest("Unable to read image upload.".to_string()))?
+    {
+        if field.name() == Some("file") {
+            let mut bytes = Vec::new();
+            while let Some(chunk) = field
+                .chunk()
+                .await
+                .map_err(|_| ApiError::BadRequest("Unable to read image upload.".to_string()))?
+            {
+                if bytes.len() + chunk.len() > MAX_ROOM_IMAGE_BYTES {
+                    return Err(ApiError::BadRequest(
+                        "Image file size must be between 1 byte and 10MB".to_string(),
+                    ));
+                }
+                bytes.extend_from_slice(&chunk);
+            }
+            return Ok(bytes);
+        }
+    }
+    Err(ApiError::BadRequest(
+        "Select an image file to upload.".to_string(),
+    ))
+}
+
+/// POST /room-types/{id}/images — stores a staff-uploaded photo under the
+/// public uploads directory and appends its URL to `room_types.images`.
+pub async fn upload_room_type_image_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    multipart: Multipart,
+) -> Result<Json<RoomType>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
+    // Fail fast on a missing type — a 404 here never touches the filesystem.
+    rq::fetch_room_type_by_id(&pool, id).await?;
+    let bytes = image_upload_bytes(multipart).await?;
+    if bytes.is_empty() {
+        return Err(ApiError::BadRequest(
+            "Image file size must be between 1 byte and 10MB".to_string(),
+        ));
+    }
+    let extension = room_image_extension(&bytes).ok_or_else(|| {
+        ApiError::BadRequest("Image must be a JPEG, PNG, or WebP file.".to_string())
+    })?;
+    let directory = PathBuf::from(ROOM_IMAGE_UPLOAD_DIR);
+    fs::create_dir_all(&directory)
+        .map_err(|_| ApiError::Internal("Unable to prepare image storage.".to_string()))?;
+    let filename = format!("{}.{}", uuid::Uuid::new_v4(), extension);
+    let disk_path = directory.join(&filename);
+    fs::write(&disk_path, &bytes)
+        .map_err(|_| ApiError::Internal("Unable to save the image.".to_string()))?;
+    let url_path = format!("{}/{}", ROOM_IMAGE_URL_PREFIX, filename);
+    if let Err(error) = rq::append_room_type_image(&pool, id, &url_path).await {
+        let _ = fs::remove_file(&disk_path);
+        return Err(error);
+    }
+    let room_type = rq::fetch_room_type_by_id(&pool, id).await?;
+    let _ = AuditLog::log_event(
+        &pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "room_type_image_added",
+            resource_type: "room_type",
+            resource_id: Some(id),
+            details: Some(serde_json::json!({ "path": url_path })),
+            ..Default::default()
+        },
+    )
+    .await;
+    Ok(Json(room_type))
+}
 
 fn normalize_transition_permission(permission: &str) -> &str {
     match permission {
@@ -504,6 +617,14 @@ pub async fn update_room_type_handler(
         .extra_bed_charge
         .map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
 
+    // Snapshot the current list so files dropped by this update can be
+    // removed from disk afterwards.
+    let before_images = if input.images.is_some() {
+        rq::fetch_room_type_by_id(&pool, id).await?.images
+    } else {
+        Vec::new()
+    };
+
     rq::update_room_type(
         &pool,
         id,
@@ -522,12 +643,19 @@ pub async fn update_room_type_handler(
             extra_bed_charge: extra_bed_charge_decimal,
             is_active: input.is_active,
             sort_order: input.sort_order,
+            images: &input.images,
         },
     )
     .await?;
 
     // Fetch the updated room type
     let room_type = rq::fetch_room_type_by_id(&pool, id).await?;
+
+    if let Some(new_images) = &input.images {
+        for removed in before_images.iter().filter(|p| !new_images.contains(p)) {
+            delete_public_room_image(removed);
+        }
+    }
 
     // Audit log: room type updated
     let _ = AuditLog::log_event(
@@ -1468,4 +1596,122 @@ pub async fn get_rooms_with_occupancy_handler(
 
     let rooms_with_occupancy = rq::fetch_rooms_with_occupancy(&pool).await?;
     Ok(Json(rooms_with_occupancy))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ApiError, MAX_ROOM_IMAGE_BYTES, delete_public_room_image, image_upload_bytes,
+        room_image_extension,
+    };
+    use axum::body::Body;
+    use axum::extract::{FromRequest, Multipart};
+    use axum::http::Request;
+
+    async fn image_multipart(payload: &[u8]) -> Multipart {
+        let boundary = "testboundary";
+        let mut body = format!(
+            "--{boundary}\r\ncontent-disposition: form-data; name=\"file\"; \
+             filename=\"room.bin\"\r\ncontent-type: application/octet-stream\r\n\r\n"
+        )
+        .into_bytes();
+        body.extend_from_slice(payload);
+        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
+        let request = Request::builder()
+            .method("POST")
+            .header(
+                "content-type",
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .body(Body::from(body))
+            .unwrap();
+        // `()` satisfies the state bound; Multipart never reads it.
+        Multipart::from_request(request, &()).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn image_upload_accepts_small_file() {
+        let bytes = image_upload_bytes(image_multipart(b"tiny").await)
+            .await
+            .unwrap();
+        assert_eq!(bytes, b"tiny");
+    }
+
+    #[tokio::test]
+    async fn image_upload_rejects_oversized_field() {
+        // Past the cap the read must fail rather than buffer the whole field.
+        // This harness carries no DefaultBodyLimit extension, so axum's 2MB
+        // multipart default trips first; on the real route the 10MB route layer
+        // and the per-field MAX_ROOM_IMAGE_BYTES check bound it identically.
+        let payload = vec![b'x'; MAX_ROOM_IMAGE_BYTES + 1];
+        let err = image_upload_bytes(image_multipart(&payload).await)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, ApiError::BadRequest(_)),
+            "expected BadRequest, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn image_upload_rejects_missing_file_field() {
+        let boundary = "testboundary";
+        let body = format!("--{boundary}--\r\n");
+        let request = Request::builder()
+            .method("POST")
+            .header(
+                "content-type",
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .body(Body::from(body))
+            .unwrap();
+        let multipart = Multipart::from_request(request, &()).await.unwrap();
+        let err = image_upload_bytes(multipart).await.unwrap_err();
+        assert!(matches!(err, ApiError::BadRequest(_)));
+    }
+
+    #[test]
+    fn room_image_extension_sniffs_magic_bytes() {
+        assert_eq!(room_image_extension(&[0xff, 0xd8, 0xff, 0xe0]), Some("jpg"));
+        assert_eq!(
+            room_image_extension(b"\x89PNG\r\n\x1a\nrest"),
+            Some("png")
+        );
+        assert_eq!(
+            room_image_extension(b"RIFF\x10\x00\x00\x00WEBPreset"),
+            Some("webp")
+        );
+        assert_eq!(room_image_extension(b"%PDF-1.7"), None);
+        assert_eq!(room_image_extension(b"GIF89a"), None);
+    }
+
+    #[test]
+    fn delete_public_room_image_rejects_foreign_paths() {
+        // A sentinel one directory up must survive: if the guard naively joined
+        // `../guard-sentinel.txt`, this file is exactly what would be deleted.
+        let dir = std::path::PathBuf::from("uploads/public");
+        std::fs::create_dir_all(&dir).unwrap();
+        let sentinel = dir.join("guard-sentinel.txt");
+        std::fs::write(&sentinel, b"keep").unwrap();
+
+        delete_public_room_image("/uploads/room-types/../../etc/passwd");
+        delete_public_room_image("uploads/room-types/x.jpg");
+        delete_public_room_image("/uploads/room-types/");
+        delete_public_room_image("/uploads/room-types/sub/x.jpg");
+        delete_public_room_image("/uploads/room-types/../guard-sentinel.txt");
+        delete_public_room_image("/etc/passwd");
+
+        assert!(sentinel.exists());
+        let _ = std::fs::remove_file(&sentinel);
+    }
+
+    #[test]
+    fn delete_public_room_image_removes_guarded_file() {
+        let dir = std::path::PathBuf::from("uploads/public/room-types");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("t.jpg"), b"x").unwrap();
+        delete_public_room_image("/uploads/room-types/t.jpg");
+        assert!(!dir.join("t.jpg").exists());
+    }
 }

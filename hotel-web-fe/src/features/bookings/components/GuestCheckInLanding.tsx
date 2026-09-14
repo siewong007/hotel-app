@@ -48,7 +48,7 @@ export const GuestCheckInLanding: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 8 }}>
+    <Container maxWidth="sm" sx={{ mt: { xs: 3, sm: 8 } }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" component="h1" gutterBottom>

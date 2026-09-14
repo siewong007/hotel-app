@@ -1047,7 +1047,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             borderRadius: 2,
             overflow: 'hidden',
             border: `1px solid ${D.border}`,
-            boxShadow: '0 20px 50px rgba(15,23,42,0.18)',
+            boxShadow: 'var(--hotel-shadow-lg)',
           },
         }
       }}

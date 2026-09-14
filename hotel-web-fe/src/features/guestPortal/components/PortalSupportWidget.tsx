@@ -4,7 +4,7 @@ import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import { Box, Fab, IconButton, Paper, Portal, Slide, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { PortalSupportTab } from './PortalSupportTab';
 
-const FOREST = '#0f3d2e';
+const FOREST = 'var(--hotel-primary)';
 const WIDGET_Z_INDEX = 1200;
 
 interface PortalSupportWidgetProps {
@@ -59,9 +59,9 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
           textTransform: 'none',
           fontWeight: 700,
           bgcolor: FOREST,
-          color: '#fff',
-          boxShadow: '0 12px 30px rgba(6,17,14,.28)',
-          '&:hover': { bgcolor: '#155e46' },
+          color: 'var(--hotel-on-primary)',
+          boxShadow: 'var(--hotel-shadow-md)',
+          '&:hover': { bgcolor: 'var(--hotel-primary-hover)' },
         }}
       >
         <SupportAgentOutlinedIcon sx={{ mr: isPhone ? 0 : 1 }} />
@@ -95,8 +95,8 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
             flexDirection: 'column',
             overflow: 'hidden',
             borderRadius: { xs: 0, sm: 3 },
-            border: { xs: 'none', sm: '1px solid rgba(6,17,14,.14)' },
-            boxShadow: { xs: 'none', sm: '0 24px 60px rgba(6,17,14,.28)' },
+            border: { xs: 'none', sm: '1px solid var(--hotel-border)' },
+            boxShadow: { xs: 'none', sm: 'var(--hotel-shadow-lg)' },
           }}
         >
           <Box
@@ -109,7 +109,7 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
               // Respect the notch/status bar when the sheet is full-screen on phones.
               pt: { xs: 'max(12px, env(safe-area-inset-top))', sm: 1.25 },
               bgcolor: FOREST,
-              color: '#fff',
+              color: 'var(--hotel-on-primary)',
               flexShrink: 0,
             }}
           >
@@ -124,13 +124,13 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
               onClick={() => onOpenChange(false)}
               aria-label="Close support"
               size="small"
-              sx={{ color: '#fff', '&:hover': { bgcolor: 'rgba(255,255,255,.14)' } }}
+              sx={{ color: 'var(--hotel-on-primary)', '&:hover': { bgcolor: 'var(--hotel-active)' } }}
             >
               <CloseRoundedIcon />
             </IconButton>
           </Box>
 
-          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: { xs: 2, md: 2.5 }, bgcolor: '#fffdf9' }}>
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: { xs: 2, md: 2.5 }, bgcolor: 'var(--hotel-surface-raised)' }}>
             <PortalSupportTab token={token} />
           </Box>
         </Paper>

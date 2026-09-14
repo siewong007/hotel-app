@@ -213,9 +213,9 @@ export const canRelease = (booking: BookingWithDetails) =>
 export const canReactivate = (booking: BookingWithDetails) => booking.status === 'voided';
 
 export const statusDotColor = (status?: string) => {
-  if (status === 'checked_in') return '#2f64b3';
-  if (status === 'pending') return '#c47b1e';
-  if (status === 'voided') return '#c43d32';
-  if (status === 'checked_out' || status === 'completed') return '#6b7280';
-  return '#3d8f6b';
+  if (status === 'checked_in') return 'var(--hotel-info)';
+  if (status === 'pending') return 'var(--hotel-warning)';
+  if (status === 'voided') return 'var(--hotel-danger)';
+  if (status === 'checked_out' || status === 'completed') return 'var(--hotel-neutral)';
+  return 'var(--hotel-success)';
 };

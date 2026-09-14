@@ -70,13 +70,10 @@ export interface StatusConfig {
   bgColor: string;
   textColor: string;
   borderColor: string;
-  // Room-card background fills (saturated surfaces the card's white text sits
-  // on). cardFill defaults to bgColor — set it only when bgColor is too light
-  // for white text (dirty states). cardFillDark is the dark-mode variant.
-  cardFill?: string;
-  cardFillDark: string;
   // Accent for status dots/tiles/pills on neutral surfaces (filter chips,
-  // header stat tiles, context-menu status pill).
+  // header stat tiles, context-menu status pill) and the room-card fill — one
+  // token per status keeps the grid in the filter's exact color scheme, and
+  // the var() resolves per theme mode.
   accentColor: string;
 
   // Content
@@ -105,13 +102,12 @@ export interface StatusConfig {
  */
 export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   available: {
-    // Visual - Green (consistent across room management and timeline)
+    // Visual - success tone (tinted token values; see theme/tokens.ts)
     color: 'success',
-    bgColor: '#66BB6A',
-    textColor: '#fff',
-    borderColor: '#43A047',
-    cardFillDark: '#2F9E5F',
-    accentColor: '#3f8f5b',
+    bgColor: 'var(--hotel-success-bg)',
+    textColor: 'var(--hotel-success)',
+    borderColor: 'var(--hotel-success-border)',
+    accentColor: 'var(--hotel-success)',
 
     // Content
     label: 'Vacant/Clean',
@@ -131,13 +127,12 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   },
 
   occupied: {
-    // Visual - Orange (consistent across room management and timeline)
+    // Visual - warning tone (consistent across room management and timeline)
     color: 'warning',
-    bgColor: '#FFA726',
-    textColor: '#fff',
-    borderColor: '#FB8C00',
-    cardFillDark: '#E07B24',
-    accentColor: '#ec7c32',
+    bgColor: 'var(--hotel-warning-bg)',
+    textColor: 'var(--hotel-warning)',
+    borderColor: 'var(--hotel-warning-border)',
+    accentColor: 'var(--hotel-warning)',
 
     // Content
     label: 'Occupied',
@@ -157,13 +152,12 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   },
 
   reserved: {
-    // Visual - Blue (consistent across room management and timeline)
+    // Visual - info tone (consistent across room management and timeline)
     color: 'info',
-    bgColor: '#42A5F5',
-    textColor: '#fff',
-    borderColor: '#1E88E5',
-    cardFillDark: '#2B7FBE',
-    accentColor: '#3f7fbd',
+    bgColor: 'var(--hotel-info-bg)',
+    textColor: 'var(--hotel-info)',
+    borderColor: 'var(--hotel-info-border)',
+    accentColor: 'var(--hotel-info)',
 
     // Content
     label: 'Reserved',
@@ -184,12 +178,10 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
 
   reserved_dirty: {
     color: 'warning',
-    bgColor: '#FBC02D',
-    textColor: '#2F2A12',
-    borderColor: '#B88900',
-    cardFill: '#a89436',
-    cardFillDark: '#B99A27',
-    accentColor: '#b8942f',
+    bgColor: 'var(--hotel-warning-bg)',
+    textColor: 'var(--hotel-warning)',
+    borderColor: 'var(--hotel-warning-border)',
+    accentColor: 'var(--hotel-warning)',
 
     label: 'Reserved / Dirty',
     shortLabel: 'Res Dirty',
@@ -207,14 +199,12 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   },
 
   dirty: {
-    // Visual - Yellow color
+    // Visual - warning tone
     color: 'warning',
-    bgColor: '#FDD835', // Yellow
-    textColor: '#333',
-    borderColor: '#F9A825',
-    cardFill: '#a89436',
-    cardFillDark: '#B99A27',
-    accentColor: '#b8942f',
+    bgColor: 'var(--hotel-warning-bg)',
+    textColor: 'var(--hotel-warning)',
+    borderColor: 'var(--hotel-warning-border)',
+    accentColor: 'var(--hotel-warning)',
 
     // Content
     label: 'Dirty',
@@ -235,13 +225,12 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   },
 
   maintenance: {
-    // Visual
+    // Visual - neutral tone
     color: 'default',
-    bgColor: '#757575',
-    textColor: '#fff',
-    borderColor: '#616161',
-    cardFillDark: '#6B7378',
-    accentColor: '#8d9691',
+    bgColor: 'var(--hotel-neutral-bg)',
+    textColor: 'var(--hotel-neutral)',
+    borderColor: 'var(--hotel-neutral-border)',
+    accentColor: 'var(--hotel-neutral)',
 
     // Content
     label: 'Maintenance',
@@ -282,9 +271,8 @@ export const getStatusAccentColor = (status: RoomStatusType) => {
   return getStatusConfig(status).accentColor;
 };
 
-export const getStatusCardFill = (status: RoomStatusType, isDarkMode: boolean) => {
-  const config = getStatusConfig(status);
-  return isDarkMode ? config.cardFillDark : (config.cardFill ?? config.bgColor);
+export const getStatusCardFill = (status: RoomStatusType) => {
+  return getStatusConfig(status).accentColor;
 };
 
 export const getStatusLabel = (status: RoomStatusType) => {
@@ -409,42 +397,42 @@ export interface BookingStatusConfig {
 
 export const BOOKING_STATUS_CONFIG: Record<BookingStatusType, BookingStatusConfig> = {
   pending: {
-    color: '#FFEB3B', // Yellow
+    color: 'var(--hotel-warning)',
     label: 'Pending',
     shortLabel: 'Pend',
     description: 'Booking awaiting confirmation',
     displayAs: 'pending',
   },
   confirmed: {
-    color: '#42A5F5', // Blue - same as reserved
+    color: 'var(--hotel-info)', // same tone as reserved
     label: 'Reserved',
     shortLabel: 'Res',
     description: 'Booking confirmed, awaiting guest arrival',
     displayAs: 'reserved',
   },
   checked_in: {
-    color: '#FFA726', // Orange - same as occupied
+    color: 'var(--hotel-warning)', // same tone as occupied
     label: 'Occupied',
     shortLabel: 'Occ',
     description: 'Guest has checked in',
     displayAs: 'occupied',
   },
   auto_checked_in: {
-    color: '#FFA726', // Orange - same as occupied
+    color: 'var(--hotel-warning)', // same tone as occupied
     label: 'Occupied',
     shortLabel: 'Occ',
     description: 'Guest auto checked in',
     displayAs: 'occupied',
   },
   checked_out: {
-    color: '#66BB6A', // Green
+    color: 'var(--hotel-success)',
     label: 'Checked Out',
     shortLabel: 'Out',
     description: 'Guest has checked out',
     displayAs: 'checked_out',
   },
   voided: {
-    color: '#BDBDBD', // Grey
+    color: 'var(--hotel-neutral)',
     label: 'Voided',
     shortLabel: 'Void',
     description: 'Booking was voided',
@@ -493,10 +481,10 @@ export function getUnifiedStatusColor(status: string): string {
   // Check if it's a room status
   const roomConfig = ROOM_STATUS_CONFIG[status as RoomStatusType];
   if (roomConfig) {
-    return roomConfig.bgColor;
+    return roomConfig.accentColor;
   }
-  // Default grey for unknown statuses
-  return '#BDBDBD';
+  // Default neutral for unknown statuses
+  return 'var(--hotel-neutral)';
 }
 
 /**

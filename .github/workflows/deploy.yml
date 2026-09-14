@@ -162,42 +162,6 @@ jobs:
             "$bundle_dir/database/patches/_begin.sql"
           cp hotel-app-be/database/postgres/patches/_end.sql \
             "$bundle_dir/database/patches/_end.sql"
-          cp hotel-app-be/database/postgres/patches/0002_google_subject.sql \
-            "$bundle_dir/database/patches/0002_google_subject.sql"
-          cp hotel-app-be/database/postgres/patches/0003_payment_idempotency.sql \
-            "$bundle_dir/database/patches/0003_payment_idempotency.sql"
-          cp hotel-app-be/database/postgres/patches/0004_booking_status_vocabulary.sql \
-            "$bundle_dir/database/patches/0004_booking_status_vocabulary.sql"
-          cp hotel-app-be/database/postgres/patches/0005_booking_status_enforcement.sql \
-            "$bundle_dir/database/patches/0005_booking_status_enforcement.sql"
-          cp hotel-app-be/database/postgres/patches/0006_guest_role_isolation.sql \
-            "$bundle_dir/database/patches/0006_guest_role_isolation.sql"
-          cp hotel-app-be/database/postgres/patches/0007_manager_audit_read.sql \
-            "$bundle_dir/database/patches/0007_manager_audit_read.sql"
-          cp hotel-app-be/database/postgres/patches/0008_notifications_email_triggers.sql \
-            "$bundle_dir/database/patches/0008_notifications_email_triggers.sql"
-          cp hotel-app-be/database/postgres/patches/0009_unpaid_hold_release.sql \
-            "$bundle_dir/database/patches/0009_unpaid_hold_release.sql"
-          cp hotel-app-be/database/postgres/patches/0010_consent_records.sql \
-            "$bundle_dir/database/patches/0010_consent_records.sql"
-          cp hotel-app-be/database/postgres/patches/0011_guest_nick_name.sql \
-            "$bundle_dir/database/patches/0011_guest_nick_name.sql"
-          cp hotel-app-be/database/postgres/patches/0012_payment_retry_capabilities.sql \
-            "$bundle_dir/database/patches/0012_payment_retry_capabilities.sql"
-          cp hotel-app-be/database/postgres/patches/0013_two_factor_enrollment_policy.sql \
-            "$bundle_dir/database/patches/0013_two_factor_enrollment_policy.sql"
-          cp hotel-app-be/database/postgres/patches/0014_session_client_timezone.sql \
-            "$bundle_dir/database/patches/0014_session_client_timezone.sql"
-          cp hotel-app-be/database/postgres/patches/0015_authenticator_hotel_name.sql \
-            "$bundle_dir/database/patches/0015_authenticator_hotel_name.sql"
-          cp hotel-app-be/database/postgres/patches/0016_hotel_business_number.sql \
-            "$bundle_dir/database/patches/0016_hotel_business_number.sql"
-          cp hotel-app-be/database/postgres/patches/0017_remove_seeded_rate_plans.sql \
-            "$bundle_dir/database/patches/0017_remove_seeded_rate_plans.sql"
-          cp hotel-app-be/database/postgres/patches/0018_billable_payment_status.sql \
-            "$bundle_dir/database/patches/0018_billable_payment_status.sql"
-          cp hotel-app-be/database/postgres/patches/0019_guest_relations.sql \
-            "$bundle_dir/database/patches/0019_guest_relations.sql"
 
           (
             cd "$bundle_dir"
@@ -213,24 +177,6 @@ jobs:
               database/patches/manifest.tsv \
               database/patches/_begin.sql \
               database/patches/_end.sql \
-              database/patches/0002_google_subject.sql \
-              database/patches/0003_payment_idempotency.sql \
-              database/patches/0004_booking_status_vocabulary.sql \
-              database/patches/0005_booking_status_enforcement.sql \
-              database/patches/0006_guest_role_isolation.sql \
-              database/patches/0007_manager_audit_read.sql \
-              database/patches/0008_notifications_email_triggers.sql \
-              database/patches/0009_unpaid_hold_release.sql \
-              database/patches/0010_consent_records.sql \
-              database/patches/0011_guest_nick_name.sql \
-              database/patches/0012_payment_retry_capabilities.sql \
-              database/patches/0013_two_factor_enrollment_policy.sql \
-              database/patches/0014_session_client_timezone.sql \
-              database/patches/0015_authenticator_hotel_name.sql \
-              database/patches/0016_hotel_business_number.sql \
-              database/patches/0017_remove_seeded_rate_plans.sql \
-              database/patches/0018_billable_payment_status.sql \
-              database/patches/0019_guest_relations.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

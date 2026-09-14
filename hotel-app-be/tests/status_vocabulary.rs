@@ -39,11 +39,13 @@ fn status_check_blocks(sql: &str) -> Vec<String> {
 }
 
 fn is_communications_lifecycle_status(block: &str) -> bool {
-    // Campaigns and individual deliveries can be deliberately stopped. Their
-    // `cancelled` terminal state is not one of the legacy reservation/payment
-    // values this regression guard is designed to remove.
+    // Campaigns and individual deliveries can be deliberately stopped —
+    // promotions share that lifecycle since the campaigns work added a
+    // terminal `cancelled` transition. Their `cancelled` states are not the
+    // legacy reservation/payment values this guard is designed to remove.
     block.contains("email_campaigns_status_check")
         || block.contains("email_deliveries_status_check")
+        || block.contains("promotions_status_check")
 }
 
 #[test]

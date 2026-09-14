@@ -88,6 +88,16 @@ pub async fn update_room_type_handler(
     room_service::update_room_type_handler(State(pool), Path(id), headers, Json(input)).await
 }
 
+/// POST /room-types/{id}/images — staff photo upload for a room type.
+pub async fn upload_room_type_image_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    multipart: axum::extract::Multipart,
+) -> Result<Json<RoomType>, ApiError> {
+    room_service::upload_room_type_image_handler(State(pool), headers, Path(id), multipart).await
+}
+
 pub async fn delete_room_type_handler(
     State(pool): State<DbPool>,
     Path(id): Path<i64>,

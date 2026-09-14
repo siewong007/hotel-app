@@ -126,6 +126,7 @@ const BookingsPage: React.FC = () => {
   const routedBookingSearch = pageSearchParams.get('search') || '';
   const routedBookingId = pageSearchParams.get('booking_id') || '';
   const createRequested = pageSearchParams.get('create') === '1';
+  const routedView = pageSearchParams.get('view') || '';
   const summaryBookingsQuery = useBookingsWithDetails();
   const fetchBookingWorkflow = useBookingWorkflowFetcher();
   const summaryBookings = summaryBookingsQuery.data ?? [];
@@ -162,6 +163,18 @@ const BookingsPage: React.FC = () => {
     setSearchDate,
     setCurrentPage,
   ]);
+
+  // Deep link: ?view=arriving|departing|in_house|upcoming|balance selects the
+  // same summary-strip views (quick actions + dashboard "View all" links).
+  useEffect(() => {
+    const valid: BookingView[] = [
+      'all', 'arriving', 'in_house', 'departing', 'upcoming',
+      'balance', 'normal_balance', 'company_balance',
+    ];
+    if (valid.includes(routedView as BookingView)) {
+      setBookingView(routedView as BookingView);
+    }
+  }, [routedView]);
 
   // Create booking dialog (using UnifiedBookingModal)
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -434,7 +447,7 @@ const BookingsPage: React.FC = () => {
               loadGuests();
             }}
             disabled={rooms.length === 0}
-            sx={{ minHeight: 44, px: 2.5, bgcolor: '#2f6f52', '&:hover': { bgcolor: '#255a42' } }}
+            sx={{ minHeight: 44, px: 2.5, bgcolor: 'primary.main', '&:hover': { bgcolor: 'primary.dark' } }}
           >
             New booking
           </Button>

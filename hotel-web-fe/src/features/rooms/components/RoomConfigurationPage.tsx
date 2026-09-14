@@ -44,6 +44,7 @@ import {
   RemoveCircleOutlined as MinusIcon,
   AddCircleOutlined as PlusIcon,
   SmokingRooms as SmokingIcon,
+  AddPhotoAlternate as AddPhotoIcon,
 } from '@mui/icons-material';
 import { Room, RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../types';
 import { errorMessage } from '../../../utils';
@@ -51,6 +52,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { compareMoney, toMoneyNumber } from '../../../utils/money';
+import { apiUrl } from '../../../desktop/runtimeApi';
 import {
   useAllRoomTypes,
   useCreateRoom,
@@ -60,29 +62,31 @@ import {
   useRooms,
   useUpdateRoom,
   useUpdateRoomType,
+  useUploadRoomTypeImage,
 } from '../hooks/useRoomQueries';
 
-/* ---------- Design tokens (Salim Inn · Room Configuration) ---------- */
+/* ---------- Design tokens (Room Configuration) — aliases onto --hotel-* ---------- */
 const C = {
-  surface: '#FFFFFF',
-  surface2: '#F8FAFB',
-  surface3: '#EFF2F5',
-  border: '#E2E6EC',
-  borderHi: '#CBD2DA',
-  ink: '#0F172A',
-  ink2: '#475569',
-  ink3: '#7B8794',
-  emerald: '#10A47C',
-  emeraldDeep: '#0E8C6A',
-  emeraldDarker: '#0B6A50',
-  emeraldSoft: '#E7F5EF',
-  blue: '#2F7DE1',
-  blueSoft: '#E8F1FB',
-  amber: '#C8941D',
-  amberSoft: '#FBF1DC',
-  rose: '#D14256',
-  roseSoft: '#FCE8EC',
-  slateSoft: '#F0F3F7',
+  surface: 'var(--hotel-surface)',
+  surface2: 'var(--hotel-surface-raised)',
+  surface3: 'var(--hotel-surface-sunken)',
+  border: 'var(--hotel-border)',
+  borderHi: 'var(--hotel-border-strong)',
+  ink: 'var(--hotel-text)',
+  ink2: 'var(--hotel-text-secondary)',
+  ink3: 'var(--hotel-text-muted)',
+  emerald: 'var(--hotel-primary)',
+  emeraldDeep: 'var(--hotel-primary-hover)',
+  emeraldDarker: 'var(--hotel-primary-active)',
+  emeraldSoft: 'var(--hotel-primary-subtle)',
+  blue: 'var(--hotel-info)',
+  blueSoft: 'var(--hotel-info-bg)',
+  amber: 'var(--hotel-warning)',
+  amberSoft: 'var(--hotel-warning-bg)',
+  amberBorder: 'var(--hotel-warning-border)',
+  rose: 'var(--hotel-danger)',
+  roseSoft: 'var(--hotel-danger-bg)',
+  slateSoft: 'var(--hotel-neutral-bg)',
 };
 
 const BED_TYPES = ['Single', 'Twin', 'Double', 'Queen', 'King', 'Super King', 'Bunk'];
@@ -179,6 +183,7 @@ const RoomConfigurationPage: React.FC = () => {
   const createRoomTypeMutation = useCreateRoomType();
   const updateRoomTypeMutation = useUpdateRoomType();
   const deleteRoomTypeMutation = useDeleteRoomType();
+  const uploadRoomTypeImageMutation = useUploadRoomTypeImage();
 
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | RoomStatus>('all');
@@ -198,6 +203,7 @@ const RoomConfigurationPage: React.FC = () => {
   const [deletingRoom, setDeletingRoom] = useState<Room | null>(null);
 
   const [formLoading, setFormLoading] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   const loadData = async () => {
     try {
@@ -413,6 +419,42 @@ const RoomConfigurationPage: React.FC = () => {
     }
   };
 
+  const handleUploadTypePhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !editingType) return;
+    try {
+      setPhotoBusy(true);
+      const updated = await uploadRoomTypeImageMutation.mutateAsync({ roomTypeId: editingType.id, file });
+      setEditingType(updated);
+      emitApiNotification({ message: 'Photo added', severity: 'success' });
+      await loadData();
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to upload photo'), severity: 'error' });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const handleRemoveTypePhoto = async (url: string) => {
+    if (!editingType) return;
+    const remaining = (editingType.images ?? []).filter((image) => image !== url);
+    try {
+      setPhotoBusy(true);
+      const updated = await updateRoomTypeMutation.mutateAsync({
+        roomTypeId: editingType.id,
+        data: { images: remaining },
+      });
+      setEditingType(updated);
+      emitApiNotification({ message: 'Photo removed', severity: 'success' });
+      await loadData();
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to remove photo'), severity: 'error' });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const handleDeleteType = async () => {
     if (!typeDeleteTarget) return;
     try {
@@ -588,7 +630,7 @@ const RoomConfigurationPage: React.FC = () => {
         alignItems: 'center',
         gap: 0.75,
         bgcolor: active ? C.ink : C.surface,
-        color: active ? '#fff' : C.ink2,
+        color: active ? 'var(--hotel-bg)' : C.ink2,
         border: `1px solid ${active ? C.ink : C.border}`,
         borderRadius: 999,
         px: 1.5,
@@ -603,8 +645,8 @@ const RoomConfigurationPage: React.FC = () => {
       <Box
         component="span"
         sx={{
-          bgcolor: active ? 'rgba(255,255,255,0.22)' : C.surface3,
-          color: active ? '#fff' : C.ink3,
+          bgcolor: active ? 'color-mix(in srgb, var(--hotel-bg) 20%, transparent)' : C.surface3,
+          color: active ? 'var(--hotel-bg)' : C.ink3,
           px: 0.75,
           borderRadius: 999,
           fontSize: 10.5,
@@ -625,7 +667,7 @@ const RoomConfigurationPage: React.FC = () => {
       <Box
         sx={{
           position: 'relative',
-          bgcolor: '#fff',
+          bgcolor: C.surface,
           border: `1px solid ${C.border}`,
           borderRadius: '11px',
           p: '12px 14px',
@@ -636,7 +678,7 @@ const RoomConfigurationPage: React.FC = () => {
           transition: 'border-color 120ms, box-shadow 120ms, transform 120ms',
           '&:hover': {
             borderColor: C.borderHi,
-            boxShadow: '0 2px 6px rgba(15,23,42,0.05)',
+            boxShadow: 'var(--hotel-shadow-sm)',
             transform: 'translateY(-1px)',
           },
           '&:hover .rc-actions': { display: 'flex' },
@@ -658,7 +700,7 @@ const RoomConfigurationPage: React.FC = () => {
               <IconButton
                 size="small"
                 onClick={() => handleToggleRoomStatus(room)}
-                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: '#fff' }}
+                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: C.surface }}
               >
                 <ActiveIcon sx={{ fontSize: 13, color: statusColor[st] }} />
               </IconButton>
@@ -667,7 +709,7 @@ const RoomConfigurationPage: React.FC = () => {
               <IconButton
                 size="small"
                 onClick={() => openEditRoom(room)}
-                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: '#fff' }}
+                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: C.surface }}
               >
                 <EditIcon sx={{ fontSize: 13, color: C.ink3 }} />
               </IconButton>
@@ -676,7 +718,7 @@ const RoomConfigurationPage: React.FC = () => {
               <IconButton
                 size="small"
                 onClick={() => setDeletingRoom(room)}
-                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: '#fff' }}
+                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: C.surface }}
               >
                 <DeleteIcon sx={{ fontSize: 13, color: C.rose }} />
               </IconButton>
@@ -698,8 +740,8 @@ const RoomConfigurationPage: React.FC = () => {
               height: 10,
               borderRadius: '50%',
               bgcolor: statusColor[st],
-              border: '2px solid #fff',
-              boxShadow: `0 0 0 1px ${statusColor[st]}99`,
+              border: '2px solid var(--hotel-surface)',
+              boxShadow: `0 0 0 1px color-mix(in srgb, ${statusColor[st]} 60%, transparent)`,
             }}
             title={st}
           />
@@ -718,9 +760,9 @@ const RoomConfigurationPage: React.FC = () => {
                   justifyContent: 'center',
                   width: 24,
                   height: 20,
-                  color: '#8A5A16',
-                  bgcolor: '#FFF4D7',
-                  border: '1px solid #F2D28B',
+                  color: C.amber,
+                  bgcolor: C.amberSoft,
+                  border: `1px solid ${C.amberBorder}`,
                   borderRadius: '6px',
                 }}
               >
@@ -737,7 +779,7 @@ const RoomConfigurationPage: React.FC = () => {
             <Chip
               label="Custom"
               size="small"
-              sx={{ height: 18, fontSize: 9.5, fontWeight: 700, bgcolor: '#FDF1E0', color: C.amber }}
+              sx={{ height: 18, fontSize: 9.5, fontWeight: 700, bgcolor: C.amberSoft, color: C.amber }}
             />
           )}
         </Box>
@@ -816,7 +858,7 @@ const RoomConfigurationPage: React.FC = () => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search room number, type or floor…"
-          sx={{ minWidth: 280, bgcolor: '#fff', '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+          sx={{ minWidth: 280, bgcolor: C.surface, '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
           slotProps={{
             input: {
               startAdornment: (
@@ -840,9 +882,9 @@ const RoomConfigurationPage: React.FC = () => {
           value={groupBy}
           onChange={(_, v) => v && setGroupBy(v)}
           sx={{
-            bgcolor: '#fff',
+            bgcolor: C.surface,
             '& .MuiToggleButton-root': { textTransform: 'none', fontWeight: 600, fontSize: 12, px: 1.5, gap: 0.75 },
-            '& .Mui-selected': { bgcolor: `${C.ink} !important`, color: '#fff !important' },
+            '& .Mui-selected': { bgcolor: `${C.ink} !important`, color: 'var(--hotel-bg) !important' },
           }}
         >
           <ToggleButton value="type">
@@ -860,7 +902,7 @@ const RoomConfigurationPage: React.FC = () => {
             p: 4,
             textAlign: 'center',
             color: C.ink3,
-            bgcolor: '#fff',
+            bgcolor: C.surface,
             border: `1.5px dashed ${C.borderHi}`,
             borderRadius: '11px',
           }}
@@ -921,7 +963,7 @@ const RoomConfigurationPage: React.FC = () => {
                     display: 'grid',
                     placeItems: 'center',
                     flexShrink: 0,
-                    border: `1px solid ${C.emerald}29`,
+                    border: `1px solid color-mix(in srgb, ${C.emerald} 16%, transparent)`,
                   }}
                 >
                   {isType ? <BedIcon /> : <BuildingIcon />}
@@ -949,7 +991,7 @@ const RoomConfigurationPage: React.FC = () => {
                           alignItems: 'baseline',
                           gap: 0.5,
                           bgcolor: C.emeraldSoft,
-                          border: `1px solid ${C.emerald}33`,
+                          border: `1px solid color-mix(in srgb, ${C.emerald} 20%, transparent)`,
                           color: C.emeraldDarker,
                           px: 1.125,
                           py: 0.5,
@@ -1049,7 +1091,7 @@ const RoomConfigurationPage: React.FC = () => {
             <Collapse in={open} unmountOnExit>
               <Box sx={{ p: '16px 18px 18px', bgcolor: C.surface2 }}>
                 {total === 0 && !isType && (
-                  <Box sx={{ p: 3, textAlign: 'center', color: C.ink3, bgcolor: '#fff', border: `1.5px dashed ${C.borderHi}`, borderRadius: '11px' }}>
+                  <Box sx={{ p: 3, textAlign: 'center', color: C.ink3, bgcolor: C.surface, border: `1.5px dashed ${C.borderHi}`, borderRadius: '11px' }}>
                     No rooms in this {g.kind === 'floor' ? 'floor' : 'group'} yet.
                   </Box>
                 )}
@@ -1126,7 +1168,7 @@ const RoomConfigurationPage: React.FC = () => {
               Preview
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box sx={{ width: 38, height: 38, borderRadius: '9px', bgcolor: C.emeraldSoft, color: C.emeraldDeep, display: 'grid', placeItems: 'center', border: `1px solid ${C.emerald}2E` }}>
+              <Box sx={{ width: 38, height: 38, borderRadius: '9px', bgcolor: C.emeraldSoft, color: C.emeraldDeep, display: 'grid', placeItems: 'center', border: `1px solid color-mix(in srgb, ${C.emerald} 18%, transparent)` }}>
                 <BedIcon sx={{ fontSize: 18 }} />
               </Box>
               <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -1326,6 +1368,97 @@ const RoomConfigurationPage: React.FC = () => {
             helperText="Lower numbers appear first"
             sx={{ mt: 1.5 }}
           />
+
+          <SectionHeader>Photos</SectionHeader>
+          {editingType ? (
+            <>
+              {(editingType.images ?? []).length > 0 && (
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+                  {(editingType.images ?? []).map((url, index) => (
+                    <Box
+                      key={url}
+                      sx={{
+                        position: 'relative',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        border: `1px solid ${C.border}`,
+                        aspectRatio: '4/3',
+                        bgcolor: C.surface3,
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        src={url.startsWith('/') ? apiUrl(url) : url}
+                        alt={`${typeForm.name || 'Room type'} photo ${index + 1}`}
+                        sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                      {index === 0 && (
+                        <Box
+                          component="span"
+                          sx={{
+                            position: 'absolute',
+                            top: 6,
+                            left: 6,
+                            fontSize: 9.5,
+                            fontWeight: 700,
+                            letterSpacing: '0.4px',
+                            bgcolor: 'rgba(0,0,0,0.65)',
+                            color: '#fff',
+                            px: 0.75,
+                            py: 0.25,
+                            borderRadius: '5px',
+                          }}
+                        >
+                          COVER
+                        </Box>
+                      )}
+                      <IconButton
+                        size="small"
+                        aria-label={`Remove photo ${index + 1}`}
+                        disabled={photoBusy}
+                        onClick={() => handleRemoveTypePhoto(url)}
+                        sx={{
+                          position: 'absolute',
+                          top: 4,
+                          right: 4,
+                          width: 22,
+                          height: 22,
+                          bgcolor: 'rgba(0,0,0,0.6)',
+                          color: '#fff',
+                          '&:hover': { bgcolor: 'rgba(0,0,0,0.85)' },
+                        }}
+                      >
+                        <CloseIcon sx={{ fontSize: 13 }} />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+              <Button
+                component="label"
+                variant="outlined"
+                size="small"
+                disabled={photoBusy}
+                startIcon={photoBusy ? <CircularProgress size={14} /> : <AddPhotoIcon />}
+                sx={{ mt: 1.25, textTransform: 'none', borderColor: C.borderHi, color: C.ink2 }}
+              >
+                {photoBusy ? 'Uploading…' : 'Upload photo'}
+                <input
+                  type="file"
+                  hidden
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleUploadTypePhoto}
+                />
+              </Button>
+              <Typography sx={{ fontSize: 11, color: C.ink3, mt: 0.75 }}>
+                The first photo is the cover shown on the landing page and guest booking portal. JPEG, PNG or WebP, up to 10 MB.
+              </Typography>
+            </>
+          ) : (
+            <Alert severity="info" sx={{ fontSize: 12 }}>
+              Save the room type first, then add photos here. Photos appear on the landing page gallery and the guest booking portal.
+            </Alert>
+          )}
         </Box>
 
         <Box sx={{ p: '14px 22px', borderTop: `1px solid ${C.border}`, bgcolor: C.surface2, display: 'flex', alignItems: 'center', gap: 1.25 }}>

@@ -31,8 +31,9 @@ port through Tauri IPC. The sidecar receives an explicit `ALLOWED_ORIGINS` list.
 
 ## PostgreSQL V1 lifecycle
 
-A new empty database is initialized exactly once, then converged by an ordered
-patch catalog:
+A new empty database is initialized exactly once; an ordered patch catalog
+carries any later schema changes (the catalog is currently empty — the
+original 1.2–1.23 lineage was folded into the baseline):
 
 ```text
 database/postgres/migrations/0001_v1_baseline.sql
@@ -58,7 +59,7 @@ row. There is no partially applied patch, and a rerun is a no-op.
 
 | Context | Application point |
 |---|---|
-| Server / local | `make db-patch` (also the last step of `make db-setup`) |
+| Server / local | `make db-patch` (also the last step of `make db-baseline`) |
 | Production deploy | `deploy/deploy.sh` — after the verified backup, after PostgreSQL alone is up, before the application containers are activated |
 | Desktop | the Tauri launcher (`src-tauri/src/postgres/patches.rs`), after it recognizes a fresh or V1 database and before it starts the backend sidecar |
 | Backend startup | never — it validates the schema and refuses layouts it does not recognize |
@@ -127,6 +128,23 @@ day. Rust code must use `core/db.rs::hotel_today(executor)` for business-day
 decisions (due dates, occupancy gating, report windows) — never
 `chrono::Local`/`Utc` date math.
 
+## Revenue attribution and promotion pricing
+
+- `bookings.booking_channel_id` (FK → `booking_channels`) is the canonical
+  booking-source attribution for revenue reporting. `bookings.source` and
+  `bookings.channel` are legacy free-text varchars — displayed as entered,
+  never used for analytics. `bookings.net_revenue` stores the post-commission
+  amount computed at write time.
+- Promotion → booking attribution runs through `voucher_redemptions`
+  (promotion_id, booking_id, gross/discount/net). `voucher_redemption_allocations`
+  spreads each redemption across stay nights; per-night `discount_amount`
+  combines the complimentary-credit share and the voucher share so the rows
+  always reconcile with the parent redemption.
+- All discount math lives in `services/promotion_pricing.rs`
+  (`calculate_promotion_pricing`) — the single engine used by guest-booking
+  quotes and redemption writes. Do not reimplement percentage/fixed discount
+  math elsewhere.
+
 ## Guest relations
 
 The staff CRM workspace (`modules/guest_relations/`, `/guest-relations/guests`)
@@ -151,6 +169,22 @@ race-safe: `lock_room_type_tx` (`FOR UPDATE`) plus `allocate_room_tx`
 notification preferences (`/guest-portal/me/notification-preferences`), and
 booking-confirmation deliveries queued from the guest-booking and payment
 paths.
+
+## Guest segments
+
+`guest_segments` stores named JSONB rule sets (`{groups: [{conditions}]}`
+— OR between groups, AND within). `modules/segments/rules.rs` compiles them
+into parameterized predicates over `guests` (whitelisted fields/operators;
+only values are bound). Membership is always evaluated live — there is no
+materialized member table.
+
+`email_campaigns.segment_id` intersects the compiled predicate with the
+existing audience gates (active guest, valid email, topic subscription,
+suppression list, per-campaign delivery dedup). Preview counts and the
+scheduler's expansion share the same `SegmentScope` resolution: a missing
+or inactive segment fails closed to zero recipients rather than widening
+to the untargeted audience. Segments referenced by campaigns cannot be
+deleted (`ON DELETE RESTRICT` + a service-level conflict) — deactivate them.
 
 ## Realtime resilience
 

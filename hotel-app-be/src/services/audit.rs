@@ -13,6 +13,58 @@ use serde_json::Value;
 /// Audit logging service for tracking sensitive operations
 pub struct AuditLog;
 
+/// `details` keys whose values are replaced with `[redacted]` before the event
+/// is persisted. Matching is substring-based on the lowercase key so variants
+/// (`new_password`, `clientSecret`, `x-api-key`) are all caught. This is the
+/// last line of defense — call sites should still never build details from
+/// credential material.
+const SENSITIVE_DETAIL_MARKERS: &[&str] = &[
+    "password",
+    "passwd",
+    "secret",
+    "token",
+    "api_key",
+    "apikey",
+    "authorization",
+    "cookie",
+    "credential",
+    "private_key",
+    "totp",
+    "recovery_code",
+    "cvv",
+    "card_number",
+    "bearer",
+    "signature",
+];
+
+fn is_sensitive_detail_key(key: &str) -> bool {
+    let key = key.to_lowercase();
+    SENSITIVE_DETAIL_MARKERS
+        .iter()
+        .any(|marker| key.contains(marker))
+}
+
+/// Recursively redact sensitive keys in an audit `details` payload. Applied to
+/// every event — both the non-fatal [`AuditLog::log_event`] path and the
+/// transactional [`AuditLog::log_event_tx`] path — so a call site that
+/// accidentally includes a secret degrades to `[redacted]` instead of
+/// persisting it.
+pub(crate) fn scrub_details(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            for (key, item) in map.iter_mut() {
+                if is_sensitive_detail_key(key) {
+                    *item = Value::String("[redacted]".to_string());
+                } else {
+                    scrub_details(item);
+                }
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(scrub_details),
+        _ => {}
+    }
+}
+
 impl AuditLog {
     /// Log an audit event to the database
     ///
@@ -25,13 +77,16 @@ impl AuditLog {
     /// * `details` - Additional details as JSON
     /// * `ip_address` - IP address of the requester
     /// * `user_agent` - User agent string from the request
-    pub async fn log_event(pool: &DbPool, event: AuditEvent<'_>) -> Result<(), ApiError> {
+    pub async fn log_event(pool: &DbPool, mut event: AuditEvent<'_>) -> Result<(), ApiError> {
         // Deliberately non-fatal: a failed audit write must not abort the
         // business operation it describes. The failure is still observable via
         // the AUDIT_WRITE_FAILURES metric and the warn log below.
         let action = event.action;
         let resource_type = event.resource_type;
 
+        if let Some(details) = &mut event.details {
+            scrub_details(details);
+        }
         let result = AuditRepository::insert_event(pool, event, Utc::now()).await;
 
         if let Err(e) = &result {
@@ -53,8 +108,11 @@ impl AuditLog {
 
     pub async fn log_event_tx(
         tx: &mut DbTransaction<'_>,
-        event: AuditEvent<'_>,
+        mut event: AuditEvent<'_>,
     ) -> Result<(), ApiError> {
+        if let Some(details) = &mut event.details {
+            scrub_details(details);
+        }
         AuditRepository::insert_event_tx(tx, event, Utc::now())
             .await
             .map_err(ApiError::from)
@@ -589,8 +647,38 @@ fn sort_direction(sort_order: Option<&str>) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::details_has_changes;
+    use super::scrub_details;
     use super::{category_for_resource, resource_types_for_category};
     use serde_json::json;
+
+    #[test]
+    fn scrub_details_redacts_sensitive_keys_at_any_depth() {
+        let mut details = json!({
+            "username": "jdoe",
+            "password": "hunter2",
+            "nested": {
+                "client_secret": "abc",
+                "apiKey": "xyz",
+                "note": "safe"
+            },
+            "items": [{"refresh_token": "rt"}, {"count": 3}]
+        });
+        scrub_details(&mut details);
+        assert_eq!(details["username"], "jdoe");
+        assert_eq!(details["password"], "[redacted]");
+        assert_eq!(details["nested"]["client_secret"], "[redacted]");
+        assert_eq!(details["nested"]["apiKey"], "[redacted]");
+        assert_eq!(details["nested"]["note"], "safe");
+        assert_eq!(details["items"][0]["refresh_token"], "[redacted]");
+        assert_eq!(details["items"][1]["count"], 3);
+    }
+
+    #[test]
+    fn scrub_details_leaves_non_objects_untouched() {
+        let mut value = json!("plain");
+        scrub_details(&mut value);
+        assert_eq!(value, "plain");
+    }
 
     #[test]
     fn classifies_null_or_metadata_only_details_as_action_only() {

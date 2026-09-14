@@ -245,6 +245,18 @@ export function useUpdateRoomType() {
   });
 }
 
+export function useUploadRoomTypeImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ roomTypeId, file }: { roomTypeId: number; file: File }) =>
+      RoomsService.uploadRoomTypeImage(roomTypeId, file),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.roomTypes.detail(variables.roomTypeId) });
+      invalidateRoomDependencies(queryClient);
+    },
+  });
+}
+
 export function useDeleteRoomType() {
   const queryClient = useQueryClient();
   return useMutation({

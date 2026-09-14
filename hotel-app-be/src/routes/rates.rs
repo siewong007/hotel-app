@@ -27,6 +27,7 @@ pub fn routes() -> Router<DbPool> {
         // Room rate routes
         .route("/room-rates", get(get_room_rates))
         .route("/room-rates", post(create_room_rate))
+        .route("/room-rates/bulk", post(bulk_upsert_room_rates))
         .route(
             "/room-rates/by-plan/{rate_plan_id}",
             get(get_room_rates_by_plan),
@@ -112,6 +113,15 @@ async fn create_room_rate(
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
     handlers::rates::create_room_rate(State(pool), user_id, Json(input)).await
+}
+
+async fn bulk_upsert_room_rates(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(input): Json<models::BulkRoomRateInput>,
+) -> Result<impl IntoResponse, handlers::rates::RateError> {
+    let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
+    handlers::rates::bulk_upsert_room_rates(State(pool), user_id, Json(input)).await
 }
 
 async fn get_room_rates_by_plan(

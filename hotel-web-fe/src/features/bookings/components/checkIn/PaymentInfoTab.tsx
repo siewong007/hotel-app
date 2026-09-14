@@ -370,7 +370,7 @@ export function PaymentInfoTab({
                 </Grid>
                 {selectedCompany && !selectedCompany.isNew && (
                   <Grid size={12}>
-                    <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                    <Paper variant="outlined" sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)' }}>
                       <Typography variant="subtitle2" gutterBottom>
                         Company Details
                       </Typography>
@@ -518,7 +518,7 @@ export function PaymentInfoTab({
 
         {/* Payment Summary */}
         <Grid sx={{ mt: 1 }} size={12}>
-          <Paper sx={{ p: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}>
+          <Paper sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)', border: 1, borderColor: 'divider' }}>
             <Typography variant="subtitle2" gutterBottom>Payment Summary</Typography>
             <Grid container spacing={1}>
               <Grid size={6}>

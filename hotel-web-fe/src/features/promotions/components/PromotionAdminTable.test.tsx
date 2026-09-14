@@ -11,6 +11,7 @@ function buildPromotion(overrides: Partial<Promotion> = {}): Promotion {
     description: null,
     terms: null,
     status: 'draft',
+    lifecycle: 'draft',
     promotion_kind: 'voucher',
     discount_type: 'percentage',
     discount_value: 15,
@@ -28,6 +29,8 @@ function buildPromotion(overrides: Partial<Promotion> = {}): Promotion {
     per_guest_limit: 1,
     is_public: true,
     room_type_ids: [],
+    booking_channel_ids: [],
+    loyalty_tier_ids: [],
     version: 9,
     created_at: '2026-07-16T00:00:00Z',
     updated_at: '2026-07-16T00:00:00Z',
@@ -38,6 +41,8 @@ function buildPromotion(overrides: Partial<Promotion> = {}): Promotion {
 function renderTable(overrides: Partial<React.ComponentProps<typeof PromotionAdminTable>> = {}) {
   const onEdit = vi.fn();
   const onTransition = vi.fn();
+  const onCancel = vi.fn();
+  const onViewPerformance = vi.fn();
   render(
     <PromotionAdminTable
       promotions={[buildPromotion()]}
@@ -46,15 +51,18 @@ function renderTable(overrides: Partial<React.ComponentProps<typeof PromotionAdm
       pageSize={25}
       isLoading={false}
       canManage
+      canApprove
       isTransitioning={false}
       onEdit={onEdit}
+      onViewPerformance={onViewPerformance}
+      onCancel={onCancel}
       onTransition={onTransition}
       onPageChange={vi.fn()}
       onPageSizeChange={vi.fn()}
       {...overrides}
     />
   );
-  return { onEdit, onTransition };
+  return { onEdit, onTransition, onCancel, onViewPerformance };
 }
 
 describe('PromotionAdminTable', () => {
@@ -68,25 +76,50 @@ describe('PromotionAdminTable', () => {
     expect(screen.getByText('Read only')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel campaign' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Campaign performance' })
+    ).toBeTruthy();
   });
 
   it('offers the correct lifecycle transitions for a draft and sends the selected promotion', () => {
     const promotion = buildPromotion();
-    const { onEdit, onTransition } = renderTable({ promotions: [promotion] });
+    const { onEdit, onTransition, onCancel } = renderTable({ promotions: [promotion] });
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
     fireEvent.click(screen.getByRole('button', { name: 'Archive' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel campaign' }));
 
     expect(onEdit).toHaveBeenCalledWith(promotion);
     expect(onTransition).toHaveBeenNthCalledWith(1, promotion, 'publish');
     expect(onTransition).toHaveBeenNthCalledWith(2, promotion, 'archive');
+    expect(onCancel).toHaveBeenCalledWith(promotion);
     expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
   });
 
+  it('hides publish for operators without promotions:approve', () => {
+    renderTable({ canApprove: false, promotions: [buildPromotion()] });
+
+    expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
+    // Manage-level actions remain.
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cancel campaign' })).toBeTruthy();
+  });
+
+  it('renders the derived lifecycle chip instead of the stored status', () => {
+    renderTable({
+      promotions: [buildPromotion({ status: 'published', lifecycle: 'scheduled' })],
+    });
+
+    expect(screen.getByText('Scheduled')).toBeTruthy();
+    expect(screen.queryByText('Published')).toBeNull();
+    expect(screen.queryByText('Live')).toBeNull();
+  });
+
   it('offers pause instead of publish for published promotions and locks transitions while saving', () => {
-    const promotion = buildPromotion({ status: 'published' });
+    const promotion = buildPromotion({ status: 'published', lifecycle: 'live' });
     const { onTransition } = renderTable({ promotions: [promotion], isTransitioning: true });
 
     expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
@@ -97,5 +130,17 @@ describe('PromotionAdminTable', () => {
 
     fireEvent.click(pause);
     expect(onTransition).not.toHaveBeenCalled();
+  });
+
+  it('a cancelled campaign exposes no lifecycle actions', () => {
+    renderTable({
+      promotions: [buildPromotion({ status: 'cancelled', lifecycle: 'cancelled' })],
+    });
+
+    expect(screen.getByText('Cancelled')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel campaign' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull();
   });
 });

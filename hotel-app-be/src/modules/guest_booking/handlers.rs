@@ -91,6 +91,23 @@ pub async fn public_search_handler(
     Ok(Json(service::search(&pool, None, query).await?))
 }
 
+/// `GET /booking/room-types` — active room types with photos, no account needed.
+///
+/// Powers the public site's room gallery; intentionally carries no pricing or
+/// availability so it stays a cheap, cacheable read.
+pub async fn public_room_types_handler(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<super::models::PublicRoomType>>, ApiError> {
+    let ip = crate::routes::extract_client_ip(&headers, peer_addr);
+    require_public_capacity(&limiters.public_booking_read_ip, ip, "room-type lookups").await?;
+    Ok(Json(
+        super::repository::GuestBookingRepository::list_public_room_types(&pool).await?,
+    ))
+}
+
 /// `POST /booking/quote` — price one room type, no account needed.
 pub async fn public_quote_handler(
     State(pool): State<DbPool>,

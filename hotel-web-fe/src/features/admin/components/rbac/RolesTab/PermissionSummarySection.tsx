@@ -4,7 +4,6 @@ import {
   Typography,
   Chip,
   Stack,
-  alpha,
   Collapse,
   IconButton,
 } from '@mui/material';
@@ -131,10 +130,10 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
                   justifyContent: 'space-between',
                   px: 1.5,
                   py: 1,
-                  backgroundColor: alpha(group.color, 0.05),
+                  backgroundColor: `color-mix(in srgb, ${group.color} 5%, transparent)`,
                   cursor: 'pointer',
                   '&:hover': {
-                    backgroundColor: alpha(group.color, 0.1),
+                    backgroundColor: `color-mix(in srgb, ${group.color} 10%, transparent)`,
                   },
                 }}
               >
@@ -153,7 +152,7 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
                     sx={{
                       height: 20,
                       fontSize: '0.7rem',
-                      backgroundColor: alpha(group.color, 0.15),
+                      backgroundColor: `color-mix(in srgb, ${group.color} 15%, transparent)`,
                       color: group.color,
                     }}
                   />
@@ -179,7 +178,7 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
                         size="small"
                         variant="outlined"
                         sx={{
-                          borderColor: alpha(group.color, 0.3),
+                          borderColor: `color-mix(in srgb, ${group.color} 30%, transparent)`,
                           color: group.color,
                           fontSize: '0.75rem',
                         }}

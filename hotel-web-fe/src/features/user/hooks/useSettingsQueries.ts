@@ -291,6 +291,24 @@ export function useHotelSettingsQuery() {
   });
 }
 
+/**
+ * Restore a group of settings to their seeded defaults via the backend reset
+ * endpoint, which audits each key as `settings_reset`. Keys without a recorded
+ * default (or on a database installed before `default_value` existed) reject
+ * with a 400 the caller surfaces.
+ */
+export function useResetSystemSettingsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (keys: string[]) => {
+      await Promise.all(keys.map(key => AdminService.resetSystemSetting(key)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.settings.all });
+    },
+  });
+}
+
 export function useSaveHotelSettingsMutation() {
   const queryClient = useQueryClient();
   return useMutation({

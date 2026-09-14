@@ -43,6 +43,8 @@ import { channelAbbreviation, PendingPreviewView, CompletedReportView } from './
 import { TabPanel, getTabA11yProps } from '../../../components/common/TabPanel';
 import { formatLocalDate } from '../../../utils/date';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import {
   useNightAuditDetailsFetcher,
   useNightAuditPreview,
@@ -52,6 +54,7 @@ import {
 
 
 const NightAuditPage: React.FC = () => {
+  const isPhone = useIsPhone();
   const confirm = useConfirm();
   // State
   const [tabValue, setTabValue] = useState(0);
@@ -748,10 +751,77 @@ const NightAuditPage: React.FC = () => {
             <CircularProgress />
           </Box>
         ) : auditHistory.length > 0 ? (
+          isPhone ? (
+          <Paper variant="outlined">
+            {auditHistory.map((audit) => {
+              const isExpanded = expandedRows.has(audit.id);
+              return (
+                <Box
+                  key={audit.id}
+                  sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-of-type': { borderBottom: 0 } }}
+                >
+                  <MobileCardRow
+                    title={new Date(audit.audit_date + 'T00:00:00').toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                    subtitle={`${new Date(audit.run_at).toLocaleString()} · ${audit.run_by_username || 'System'}`}
+                    meta={`${audit.total_bookings_posted} bookings · ${Number(audit.occupancy_rate).toFixed(0)}% occupancy`}
+                    status={getStatusChip(audit.status)}
+                    onClick={() => toggleRowExpansion(audit.id)}
+                  />
+                  <Collapse in={isExpanded}>
+                    <Box sx={{ bgcolor: 'var(--hotel-surface-sunken)', p: 2 }}>
+                      <CompletedReportView
+                        audit={audit}
+                        details={auditDetails[audit.id]}
+                        detailsLoading={detailsLoading.has(audit.id)}
+                        running={running}
+                        onLoadDetails={async () => {
+                          setDetailsLoading(prev => new Set(prev).add(audit.id));
+                          try {
+                            const details = await fetchAuditDetails(audit.id);
+                            setAuditDetails(prev => ({ ...prev, [audit.id]: details }));
+                          } catch (err) {
+                            console.error('Failed to fetch audit details:', err);
+                          } finally {
+                            setDetailsLoading(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(audit.id);
+                              return newSet;
+                            });
+                          }
+                        }}
+                        onExportPDF={() => exportAuditToPDF(audit)}
+                        onExportCSV={() => exportAuditToCSV(audit)}
+                        onRerun={handleRerunAudit}
+                      />
+                    </Box>
+                  </Collapse>
+                </Box>
+              );
+            })}
+            <TablePagination
+              component="div"
+              count={historyTotal}
+              page={historyPage}
+              onPageChange={(_, newPage) => setHistoryPage(newPage)}
+              rowsPerPage={historyPageSize}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+              onRowsPerPageChange={(e) => {
+                setHistoryPageSize(parseInt(e.target.value, 10));
+                setHistoryPage(0);
+              }}
+              labelRowsPerPage="Audits per page"
+            />
+          </Paper>
+          ) : (
           <TableContainer component={Paper} variant="outlined">
             <Table>
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell sx={{ width: 48 }} />
                   <TableCell sx={{ fontWeight: 600 }}>Audit Date</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Run At</TableCell>
@@ -819,7 +889,7 @@ const NightAuditPage: React.FC = () => {
                       <TableRow>
                         <TableCell colSpan={7} sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }}>
                           <Collapse in={isExpanded}>
-                            <Box sx={{ bgcolor: 'grey.50', p: 2 }}>
+                            <Box sx={{ bgcolor: 'var(--hotel-surface-sunken)', p: 2 }}>
                               <CompletedReportView
                                 audit={audit}
                                 details={auditDetails[audit.id]}
@@ -867,6 +937,7 @@ const NightAuditPage: React.FC = () => {
               labelRowsPerPage="Audits per page"
             />
           </TableContainer>
+          )
         ) : (
           <Alert severity="info">No audit history available.</Alert>
         )}

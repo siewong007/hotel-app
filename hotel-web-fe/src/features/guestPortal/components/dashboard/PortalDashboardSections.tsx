@@ -66,8 +66,8 @@ import {
 } from "./dashboardUtils";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
-const FOREST = "#06110e";
-const GOLD = "#d9b572";
+const FOREST = "var(--hotel-text)";
+const GOLD = "var(--hotel-primary)";
 const REFUND_REASONS = [
   "Change of plans",
   "Booking made by mistake",
@@ -147,7 +147,7 @@ export function SectionHeading({
     <Box sx={{ mb: 3 }}>
       <Typography
         variant="overline"
-        sx={{ color: "#8d6b30", fontWeight: 700, letterSpacing: "0.12em" }}
+        sx={{ color: "var(--hotel-primary-text)", fontWeight: 700, letterSpacing: "0.12em" }}
       >
         {eyebrow}
       </Typography>
@@ -429,7 +429,7 @@ export function OverviewSection({
       <Box>
         <Typography
           variant="overline"
-          sx={{ color: "#8d6b30", fontWeight: 700, letterSpacing: "0.12em" }}
+          sx={{ color: "var(--hotel-primary-text)", fontWeight: 700, letterSpacing: "0.12em" }}
         >
           Guest account
         </Typography>
@@ -453,10 +453,10 @@ export function OverviewSection({
           <Card
             sx={{
               minHeight: "100%",
-              color: "white",
-              bgcolor: FOREST,
+              color: "var(--hotel-text)",
+              bgcolor: "var(--hotel-surface-raised)",
               backgroundImage:
-                "linear-gradient(135deg, #06110e 0%, #17332b 100%)",
+                "linear-gradient(135deg, var(--hotel-surface-raised) 0%, var(--hotel-surface-sunken) 100%)",
             }}
           >
             <CardContent
@@ -487,21 +487,21 @@ export function OverviewSection({
                   {nextStay ? (
                     <>
                       <Typography
-                        sx={{ color: "rgba(255,255,255,.76)", mt: 1 }}
+                        sx={{ color: "var(--hotel-text-secondary)", mt: 1 }}
                       >
                         {formatPortalDate(nextStay.check_in_date)} —{" "}
                         {formatPortalDate(nextStay.check_out_date)}
                       </Typography>
                       <Typography
                         variant="body2"
-                        sx={{ color: "rgba(255,255,255,.76)", mt: 0.5 }}
+                        sx={{ color: "var(--hotel-text-secondary)", mt: 0.5 }}
                       >
                         {humanizePortalStatus(nextStay.status)} ·{" "}
                         {formatPortalCurrency(nextStay.total_amount)}
                       </Typography>
                     </>
                   ) : (
-                    <Typography sx={{ color: "rgba(255,255,255,.76)", mt: 1 }}>
+                    <Typography sx={{ color: "var(--hotel-text-secondary)", mt: 1 }}>
                       Find a room when you are ready.
                     </Typography>
                   )}
@@ -513,7 +513,7 @@ export function OverviewSection({
                   endIcon={<EastOutlinedIcon />}
                   onClick={() => onSectionChange("stays")}
                   sx={{
-                    color: "white",
+                    color: "var(--hotel-text)",
                     mt: 3,
                     px: 0,
                     "&:hover": { bgcolor: "transparent", color: GOLD },
@@ -528,7 +528,7 @@ export function OverviewSection({
         <Grid size={{ xs: 12, md: 5 }}>
           <Card
             variant="outlined"
-            sx={{ minHeight: "100%", borderColor: "rgba(6,17,14,.14)" }}
+            sx={{ minHeight: "100%", borderColor: "var(--hotel-border)" }}
           >
             <CardContent
               sx={{
@@ -542,7 +542,7 @@ export function OverviewSection({
                 <Box>
                   <Typography
                     variant="overline"
-                    sx={{ color: "#8d6b30", fontWeight: 700 }}
+                    sx={{ color: "var(--hotel-primary-text)", fontWeight: 700 }}
                   >
                     Points balance
                   </Typography>
@@ -569,7 +569,7 @@ export function OverviewSection({
                   color: FOREST,
                   mt: 3,
                   px: 0,
-                  "&:hover": { bgcolor: "transparent", color: "#8d6b30" },
+                  "&:hover": { bgcolor: "transparent", color: "var(--hotel-primary-text)" },
                 }}
               >
                 View points history
@@ -580,7 +580,7 @@ export function OverviewSection({
       </Grid>
       <Paper
         variant="outlined"
-        sx={{ p: { xs: 2, sm: 3 }, borderColor: "rgba(6,17,14,.12)" }}
+        sx={{ p: { xs: 2, sm: 3 }, borderColor: "var(--hotel-border)" }}
       >
         <Stack
           direction={{ xs: "column", sm: "row" }}
@@ -700,7 +700,7 @@ function BookingDetailsDialog({
           <Alert
             severity="error"
             variant="filled"
-            sx={{ mt: 2, boxShadow: "0 4px 14px rgba(166,66,43,.22)" }}
+            sx={{ mt: 2, boxShadow: "var(--hotel-shadow-sm)" }}
           >
             <Typography variant="subtitle2" sx={{
               fontWeight: 800
@@ -911,7 +911,7 @@ export function BookingsSection({ token }: { token: string }) {
                 mb: 3,
                 py: 1,
                 alignItems: "center",
-                boxShadow: "0 6px 18px rgba(166,66,43,.24)",
+                boxShadow: "var(--hotel-shadow-md)",
               }}
             >
               <Typography variant="subtitle1" sx={{
@@ -970,7 +970,7 @@ export function BookingsSection({ token }: { token: string }) {
                     <TableRow
                       key={booking.booking_number}
                       hover
-                      sx={receiptUploadRequired ? { bgcolor: "#FFF1EE", "&:hover": { bgcolor: "#FBE0DA" } } : undefined}
+                      sx={receiptUploadRequired ? { bgcolor: "var(--hotel-danger-bg)", "&:hover": { bgcolor: "var(--hotel-active)" } } : undefined}
                     >
                       <TableCell
                         component="th"
@@ -1045,7 +1045,7 @@ export function BookingsSection({ token }: { token: string }) {
             {items.map((booking) => {
               const receiptUploadRequired = requiresPaymentReceipt(booking);
               return (
-                <Card key={booking.booking_number} variant="outlined" sx={receiptUploadRequired ? { borderColor: "#C75A46", bgcolor: "#FFF8F6", boxShadow: "0 5px 16px rgba(166,66,43,.12)" } : undefined}>
+                <Card key={booking.booking_number} variant="outlined" sx={receiptUploadRequired ? { borderColor: "var(--hotel-danger-border)", bgcolor: "var(--hotel-danger-bg)", boxShadow: "var(--hotel-shadow-sm)" } : undefined}>
                   <CardContent>
                     <Stack
                       direction="row"
@@ -1487,7 +1487,7 @@ export function CreditsSection({ token }: { token: string }) {
         <EmptyState message="You have no complimentary nights right now. The hotel will let you know when you earn some." />
       ) : (
         <>
-          <Card sx={{ mb: 3, bgcolor: FOREST, color: "white" }}>
+          <Card sx={{ mb: 3, bgcolor: "var(--hotel-surface-raised)", color: "var(--hotel-text)" }}>
             <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
               <Typography
                 variant="overline"
@@ -1498,7 +1498,7 @@ export function CreditsSection({ token }: { token: string }) {
               <Typography variant="h3" sx={{ mt: 0.5, fontWeight: 700 }}>
                 {total.toLocaleString()}
               </Typography>
-              <Typography sx={{ color: "rgba(255,255,255,.76)", mt: 1 }}>
+              <Typography sx={{ color: "var(--hotel-text-secondary)", mt: 1 }}>
                 Across {rows.length} room{" "}
                 {rows.length === 1 ? "type" : "types"}
               </Typography>
@@ -1572,7 +1572,7 @@ export function PointsHistorySection({ token }: { token: string }) {
         description="Track your loyalty points and current balance. Claimable rewards are available in Offers."
       />
       {member ? (
-        <Card sx={{ mb: 3, bgcolor: FOREST, color: "white" }}>
+        <Card sx={{ mb: 3, bgcolor: "var(--hotel-surface-raised)", color: "var(--hotel-text)" }}>
           <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, sm: 7 }}>
@@ -1585,7 +1585,7 @@ export function PointsHistorySection({ token }: { token: string }) {
                 <Typography variant="h5" sx={{ mt: 1, fontWeight: 700 }}>
                   {member.member_number}
                 </Typography>
-                <Typography sx={{ color: "rgba(255,255,255,.76)", mt: 1 }}>
+                <Typography sx={{ color: "var(--hotel-text-secondary)", mt: 1 }}>
                   Level {member.tier_level} · {member.status}
                 </Typography>
               </Grid>
@@ -1599,7 +1599,7 @@ export function PointsHistorySection({ token }: { token: string }) {
                 <Typography variant="h3" sx={{ mt: 0.5, fontWeight: 700 }}>
                   {member.points_balance.toLocaleString()}
                 </Typography>
-                <Typography sx={{ color: "rgba(255,255,255,.76)" }}>
+                <Typography sx={{ color: "var(--hotel-text-secondary)" }}>
                   {member.lifetime_points.toLocaleString()} lifetime points
                 </Typography>
               </Grid>

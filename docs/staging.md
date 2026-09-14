@@ -25,3 +25,20 @@ Credentials are **only** on the VPS: `/root/.saliminn-staging-basic-auth`. The h
 
 ## Capacity
 The box is 2 GB and already runs payroll, shop, HitPay sandbox, and prod hotel. Staging adds another Postgres. Pause HitPay sandbox if memory gets tight.
+
+## Staging data
+
+The staging Postgres image pins `postgres:16`, but the application baseline is
+PostgreSQL 19-native (`postgres:19beta3` locally). Until the staging compose
+moves to PG19, do not rely on PG19-only behaviour there.
+
+Seeding staging data is an explicit operation, never part of deploy:
+
+```bash
+# on the VPS, against the staging database only:
+make db-baseline DATABASE_URL=postgres://…staging…   # fresh DB structure
+make db-seed     DATABASE_URL=postgres://…staging…   # deterministic demo dataset
+```
+
+`db-seed` is safe to rerun — it resets the staging-owned id band
+(800000-899999) in place. See `hotel-app-be/database/README.md` for details.

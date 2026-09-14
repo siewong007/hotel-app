@@ -40,6 +40,7 @@ pub struct EmailCampaign {
     pub body_text: Option<String>,
     pub template_id: Option<i64>,
     pub promotion_id: Option<i64>,
+    pub segment_id: Option<i64>,
     pub scheduled_at: Option<DateTime<Utc>>,
     pub started_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
@@ -147,6 +148,8 @@ pub struct AudienceCount {
     pub excluded_inactive: i64,
     pub excluded_unsubscribed: i64,
     pub excluded_suppressed: i64,
+    /// Otherwise-eligible guests excluded by the campaign's segment filter.
+    pub excluded_segment: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -224,6 +227,7 @@ pub struct CampaignInput {
     pub body_text: Option<String>,
     pub template_id: Option<i64>,
     pub promotion_id: Option<i64>,
+    pub segment_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -45,6 +45,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/auth/register", post(register))
         .route("/auth/verify-email", post(verify_email))
         .route("/auth/resend-verification", post(resend_verification))
+        .route("/auth/accept-invite", post(accept_invite))
 }
 
 async fn login_lookup(
@@ -240,4 +241,25 @@ async fn resend_verification(
         ));
     }
     handlers::auth::resend_verification_handler(State(pool), Json(req)).await
+}
+
+/// Public staff-invite acceptance. Rate-limited like other credential minting:
+/// the token itself is 256 bits of entropy, so the limiter exists to stop
+/// password-spraying through it, not guessing.
+async fn accept_invite(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(req): Json<models::AcceptInviteInput>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers, peer_addr);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Try again in {retry_after} seconds."),
+            retry_after,
+        ));
+    }
+    handlers::auth::accept_invite_handler(State(pool), Json(req)).await
 }

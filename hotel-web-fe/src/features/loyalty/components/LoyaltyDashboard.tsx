@@ -55,6 +55,8 @@ import { useAuth } from '../../../auth/AuthContext';
 import { LoyaltyReward, RewardUpdateInput } from '../../../types';
 import { LoadingSpinner } from '../../../components';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { errorMessage } from '../../../utils';
 import {
   canRedeem as rewardIsRedeemable,
@@ -100,6 +102,7 @@ const CATEGORY_ICONS: Record<string, React.ReactElement> = {
 };
 
 const LoyaltyDashboard: React.FC = () => {
+  const isPhone = useIsPhone();
   const { hasPermission } = useAuth();
   const { symbol: currencySymbol } = useCurrency();
   const isAdmin = hasPermission('loyalty:manage');
@@ -411,14 +414,14 @@ const LoyaltyDashboard: React.FC = () => {
           </Typography>
         </Box>
         {/* Current Points Card - Showing 0 for non-enrolled users */}
-        <Card sx={{ mb: 4, background: 'linear-gradient(135deg, #CD7F32 0%, #B87333 100%)', color: 'white' }}>
+        <Card sx={{ mb: 4, background: 'var(--hotel-surface-raised)', color: 'var(--hotel-text)' }}>
           <CardContent sx={{ p: 3 }}>
             <Grid container spacing={3} sx={{
               alignItems: "center"
             }}>
               <Grid size={{ xs: 12, md: 6 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Avatar sx={{ width: 64, height: 64, bgcolor: 'rgba(255,255,255,0.2)' }}>
+                  <Avatar sx={{ width: 64, height: 64, bgcolor: 'var(--hotel-hover)' }}>
                     <StarsIcon sx={{ fontSize: 32 }} />
                   </Avatar>
                   <Box>
@@ -432,7 +435,7 @@ const LoyaltyDashboard: React.FC = () => {
                 </Box>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
-                <Alert severity="info" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', '& .MuiAlert-icon': { color: 'white' } }}>
+                <Alert severity="info" sx={{ bgcolor: 'var(--hotel-hover)', color: 'var(--hotel-text)', '& .MuiAlert-icon': { color: 'var(--hotel-text)' } }}>
                   <Typography variant="body2">
                     <strong>Not enrolled yet?</strong> Contact support to join our loyalty program and start earning points with every booking!
                   </Typography>
@@ -524,7 +527,7 @@ const LoyaltyDashboard: React.FC = () => {
                         height: 200,
                         background: reward.image_url
                           ? `url(${reward.image_url})`
-                          : `linear-gradient(135deg, ${tierConfig.color} 0%, ${tierConfig.color}80 100%)`,
+                          : `color-mix(in srgb, ${tierConfig.color} 16%, var(--hotel-surface-raised))`,
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                         display: 'flex',
@@ -634,6 +637,32 @@ const LoyaltyDashboard: React.FC = () => {
           </Button>
         </Box>
         <Card>
+          {isPhone ? (
+            <Box>
+              {allRewards.map((reward) => (
+                <Box
+                  key={reward.id}
+                  sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+                >
+                  <MobileCardRow
+                    title={reward.name}
+                    subtitle={`${formatCategoryLabel(reward.category)} · ${formatNumber(reward.points_cost)} pts`}
+                    meta={`${getTierConfig(reward.minimum_tier_level).name}+ tier · ${reward.stock_quantity !== null && reward.stock_quantity !== undefined ? reward.stock_quantity : '∞'} in stock${reward.monetary_value ? ` · ${currencySymbol}${reward.monetary_value}` : ''}`}
+                    footer={
+                      <>
+                        <IconButton size="small" onClick={() => handleEditClick(reward)} color="primary" aria-label={`Edit reward ${reward.name}`}>
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => handleDeleteClick(reward)} color="error" aria-label={`Delete reward ${reward.name}`}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </>
+                    }
+                  />
+                </Box>
+              ))}
+            </Box>
+          ) : (
           <TableContainer>
             <Table>
               <TableHead>
@@ -699,6 +728,7 @@ const LoyaltyDashboard: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          )}
         </Card>
         {/* Edit/Create Dialog */}
         <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
@@ -858,7 +888,7 @@ const LoyaltyDashboard: React.FC = () => {
         sx={{
           mb: 3,
           background: tierConfig.gradient,
-          color: 'white',
+          color: 'var(--hotel-text)',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -884,7 +914,7 @@ const LoyaltyDashboard: React.FC = () => {
                   sx={{
                     width: 80,
                     height: 80,
-                    bgcolor: 'rgba(255,255,255,0.2)',
+                    bgcolor: 'var(--hotel-hover)',
                     fontSize: '3rem',
                     mr: 2,
                   }}
@@ -936,9 +966,9 @@ const LoyaltyDashboard: React.FC = () => {
                     sx={{
                       height: 10,
                       borderRadius: 5,
-                      bgcolor: 'rgba(255,255,255,0.3)',
+                      bgcolor: 'var(--hotel-active)',
                       '& .MuiLinearProgress-bar': {
-                        bgcolor: 'white',
+                        bgcolor: 'var(--hotel-text)',
                         borderRadius: 5,
                       },
                     }}
@@ -1034,8 +1064,8 @@ const LoyaltyDashboard: React.FC = () => {
                           label={getTierConfig(reward.minimum_tier_level).name}
                           size="small"
                           sx={{
-                            bgcolor: 'rgba(0,0,0,0.7)',
-                            color: 'white',
+                            bgcolor: 'var(--hotel-scrim)',
+                            color: 'var(--hotel-text)',
                           }}
                         />
                       </Tooltip>
@@ -1065,7 +1095,7 @@ const LoyaltyDashboard: React.FC = () => {
                       height: 200,
                       background: reward.image_url
                         ? `url(${reward.image_url})`
-                        : `linear-gradient(135deg, ${getTierConfig(reward.minimum_tier_level).color} 0%, ${getTierConfig(reward.minimum_tier_level).color}80 100%)`,
+                        : `color-mix(in srgb, ${getTierConfig(reward.minimum_tier_level).color} 16%, var(--hotel-surface-raised))`,
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
                       display: 'flex',
@@ -1225,7 +1255,7 @@ const LoyaltyDashboard: React.FC = () => {
                         <Card
                           sx={{
                             background: isCurrent ? config.gradient : undefined,
-                            color: isCurrent ? 'white' : undefined,
+                            color: isCurrent ? config.color : undefined,
                             border: isCurrent ? 3 : 1,
                             borderColor: isCurrent ? config.color : 'divider',
                             opacity: isLocked ? 0.7 : 1,
@@ -1241,7 +1271,7 @@ const LoyaltyDashboard: React.FC = () => {
                                 <Chip
                                   label="Current"
                                   size="small"
-                                  sx={{ mt: 1, bgcolor: 'rgba(255,255,255,0.3)', color: 'white' }}
+                                  sx={{ mt: 1, bgcolor: 'var(--hotel-active)', color: 'var(--hotel-text)' }}
                                 />
                               )}
                               {isLocked && (
@@ -1283,8 +1313,8 @@ const LoyaltyDashboard: React.FC = () => {
                       <ListItemAvatar>
                         <Avatar
                           sx={{
-                            bgcolor: isEarn ? 'success.light' : isRedeem ? 'error.light' : 'grey.300',
-                            color: isEarn ? 'success.dark' : isRedeem ? 'error.dark' : 'grey.700',
+                            bgcolor: isEarn ? 'success.light' : isRedeem ? 'error.light' : 'var(--hotel-neutral-bg)',
+                            color: isEarn ? 'success.dark' : isRedeem ? 'error.dark' : 'var(--hotel-text-secondary)',
                           }}
                         >
                           {isEarn ? <TrendingUpIcon /> : <RedeemIcon />}

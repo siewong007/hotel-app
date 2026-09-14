@@ -71,7 +71,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
         height: variant === 'card' ? 32 : 28,
         fontSize: '0.75rem',
         fontWeight: 800,
-        background: `linear-gradient(135deg,#fff,${theme.palette.primary.light})`,
+        background: `linear-gradient(135deg, var(--hotel-surface-overlay), var(--hotel-primary-subtle))`,
         color: theme.palette.primary.dark,
         flexShrink: 0,
       }}

@@ -140,62 +140,19 @@ fn manifest_entries() -> Vec<PatchEntry> {
 #[test]
 fn postgres_patch_manifest_is_ordered_complete_and_checksummed() {
     let entries = manifest_entries();
-    assert_eq!(
-        entries
-            .iter()
-            .take(4)
-            .map(|entry| {
-                (
-                    entry.generation,
-                    entry.version,
-                    entry.name.as_str(),
-                    entry.checksum.as_str(),
-                    entry.file.as_str(),
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![
-            (
-                1,
-                2,
-                "google-subject",
-                "sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650",
-                "0002_google_subject.sql",
-            ),
-            (
-                1,
-                3,
-                "payment-idempotency",
-                "sha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36",
-                "0003_payment_idempotency.sql",
-            ),
-            (
-                1,
-                4,
-                "booking-status-vocabulary",
-                "sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7",
-                "0004_booking_status_vocabulary.sql",
-            ),
-            (
-                1,
-                5,
-                "booking-status-enforcement",
-                "sha256:a9ea019977a421f15bf923e074384ecaf88e458af85b3f15c6bc6b3aa66a08e3",
-                "0005_booking_status_enforcement.sql",
-            ),
-        ]
-    );
+    // The original V1 convergence catalog (versions 2 through 23) was folded
+    // into the baseline and retired, so an empty manifest is the expected
+    // steady state. Whatever the catalog lists must still satisfy the runner's
+    // ordering contract: generation 1 only, first version 2, contiguous.
     assert!(entries.iter().all(|entry| entry.generation == 1));
-    assert_eq!(entries.first().map(|entry| entry.version), Some(2));
+    if let Some(first) = entries.first() {
+        assert_eq!(first.version, 2);
+    }
     assert!(
         entries
             .windows(2)
             .all(|pair| pair[1].version == pair[0].version + 1)
     );
-    let last = entries.last().expect("manifest must have a last patch");
-    assert_eq!(last.version, 19);
-    assert_eq!(last.name, "guest-relations");
-    assert_eq!(last.file, "0019_guest_relations.sql");
     for entry in entries {
         let bytes = std::fs::read(postgres_dir().join("patches").join(&entry.file))
             .expect("manifest-listed patch must exist");
@@ -495,19 +452,24 @@ fn deployment_local_database_setup_records_the_patch_catalog() {
         !makefile.contains("$(DATABASE_URL)"),
         "Make recipes must leave DATABASE_URL expansion to the shell environment"
     );
-    assert!(make_lines.contains(&"db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \\"));
+    assert!(make_lines.contains(&"db-baseline db-seed db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \\"));
     assert!(make_lines.contains(&"require-database-url:"));
     assert!(make_lines.contains(
         &"@case \"$$DATABASE_URL\" in *[![:space:]]*) ;; *) printf '%s\\n' 'DATABASE_URL is required' >&2; exit 1 ;; esac"
     ));
-    assert!(make_lines.contains(&"db-setup: require-database-url ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)"));
+    assert!(make_lines.contains(&"db-baseline: require-database-url ## Canonical: create schema + system bootstrap on an empty DB (requires DATABASE_URL)"));
+    assert!(make_lines.contains(&"db-seed: require-database-url ## Canonical: populate comprehensive deterministic staging data (requires DATABASE_URL)"));
     assert!(make_lines.contains(&"db-patch: require-database-url ## Apply verified V1 compatibility patches (requires DATABASE_URL)"));
 
+    // db-setup survives as a deprecated alias; the canonical recipe is db-baseline.
+    assert!(make_lines.contains(
+        &"db-setup: db-baseline ## DEPRECATED alias for db-baseline (kept for compatibility)"
+    ));
     let setup = makefile
-        .split("db-setup: require-database-url ##")
+        .split("db-baseline: require-database-url ##")
         .nth(1)
         .and_then(|source| source.split("\n\n").next())
-        .expect("Makefile must define db-setup");
+        .expect("Makefile must define db-baseline");
     let setup_lines = active_lines(setup);
     let baseline = active_line_position(
         &setup_lines,
@@ -666,18 +628,6 @@ fn shared_patch_control_files_match_reviewed_bytes() {
 }
 
 #[test]
-fn google_subject_patch_rejects_unbounded_varchar_and_non_index_name_collisions() {
-    let patch = patch_source("0002_google_subject.sql");
-    assert!(patch.contains("found_length IS DISTINCT FROM 255"));
-    assert!(patch.contains("found_relation regclass;"));
-    assert!(patch.contains("found_relation := to_regclass('public.uq_users_google_subject');"));
-    assert!(patch.contains("found_index := pg_get_indexdef(found_relation);"));
-    assert!(patch.contains(
-        "found_relation IS NOT NULL AND\n       (found_index IS NULL OR found_index <> expected_index)"
-    ));
-}
-
-#[test]
 fn patch_runner_check_mode_validates_the_committed_catalog() {
     let status = Command::new(postgres_dir().join("apply-patches.sh"))
         .arg("--check")
@@ -686,11 +636,11 @@ fn patch_runner_check_mode_validates_the_committed_catalog() {
     assert!(status.success());
 }
 
-#[test]
-fn patch_runner_check_mode_rejects_corrupted_patch_bytes() {
-    let source_dir = postgres_dir().join("patches");
+/// Builds a minimal catalog in a private temp directory: the real controls
+/// plus one synthetic patch row whose checksum is derived from `patch_bytes`.
+fn synthetic_catalog_dir(label: &str, patch_bytes: &[u8]) -> PathBuf {
     let temporary_dir = std::env::temp_dir().join(format!(
-        "hotel-app-postgres-patches-{}-{}",
+        "hotel-app-postgres-catalog-{label}-{}-{}",
         std::process::id(),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -698,16 +648,35 @@ fn patch_runner_check_mode_rejects_corrupted_patch_bytes() {
             .as_nanos()
     ));
     std::fs::create_dir(&temporary_dir).expect("temporary catalog directory must be created");
-
-    for entry in std::fs::read_dir(&source_dir).expect("patch catalog directory must be readable") {
-        let entry = entry.expect("patch catalog entry must be readable");
-        std::fs::copy(entry.path(), temporary_dir.join(entry.file_name()))
-            .expect("patch catalog entry must be copied");
+    for control in ["_begin.sql", "_end.sql"] {
+        std::fs::copy(postgres_dir().join("patches").join(control), temporary_dir.join(control))
+            .expect("patch control must be copied");
     }
-    let corrupt_file = temporary_dir.join("0004_booking_status_vocabulary.sql");
-    let mut bytes = std::fs::read(&corrupt_file).expect("patch bytes must be readable");
-    bytes[0] ^= 1;
-    std::fs::write(&corrupt_file, bytes).expect("corrupt patch bytes must be written");
+    std::fs::write(
+        temporary_dir.join("0002_synthetic_patch.sql"),
+        patch_bytes,
+    )
+    .expect("synthetic patch must be written");
+    let checksum = format!("sha256:{}", hex::encode(Sha256::digest(patch_bytes)));
+    std::fs::write(
+        temporary_dir.join("manifest.tsv"),
+        format!(
+            "# generation\tversion\tname\tchecksum\tfile\n1\t2\tsynthetic-patch\t{checksum}\t0002_synthetic_patch.sql\n"
+        ),
+    )
+    .expect("synthetic manifest must be written");
+    temporary_dir
+}
+
+#[test]
+fn patch_runner_check_mode_rejects_corrupted_patch_bytes() {
+    let temporary_dir = synthetic_catalog_dir("corrupt", b"SELECT 1;\n");
+    // A catalog row whose checksum does not match the patch bytes on disk.
+    std::fs::write(
+        temporary_dir.join("manifest.tsv"),
+        "# generation\tversion\tname\tchecksum\tfile\n1\t2\tsynthetic-patch\tsha256:0000000000000000000000000000000000000000000000000000000000000000\t0002_synthetic_patch.sql\n",
+    )
+    .expect("corrupted manifest must be written");
 
     let output = Command::new(postgres_dir().join("apply-patches.sh"))
         .arg("--check")
@@ -752,21 +721,7 @@ fn patch_runner_check_mode_rejects_incomplete_deployment_options() {
 
 #[test]
 fn patch_runner_executes_the_validated_patch_snapshot() {
-    let source_dir = postgres_dir().join("patches");
-    let temporary_dir = std::env::temp_dir().join(format!(
-        "hotel-app-postgres-snapshot-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system time must be after Unix epoch")
-            .as_nanos()
-    ));
-    std::fs::create_dir(&temporary_dir).expect("temporary catalog directory must be created");
-    for entry in std::fs::read_dir(&source_dir).expect("patch catalog directory must be readable") {
-        let entry = entry.expect("patch catalog entry must be readable");
-        std::fs::copy(entry.path(), temporary_dir.join(entry.file_name()))
-            .expect("patch catalog entry must be copied");
-    }
+    let temporary_dir = synthetic_catalog_dir("snapshot", b"SELECT 1;\n");
 
     let command_dir = temporary_dir.join("bin");
     std::fs::create_dir(&command_dir).expect("temporary command directory must be created");
@@ -800,10 +755,7 @@ fn patch_runner_executes_the_validated_patch_snapshot() {
         .env("PATCH_CATALOG_DIR", &temporary_dir)
         .env("DATABASE_URL", "postgresql://unused")
         .env("PATH", path)
-        .env(
-            "SNAPSHOT_TARGET",
-            temporary_dir.join("0002_google_subject.sql"),
-        )
+        .env("SNAPSHOT_TARGET", temporary_dir.join("0002_synthetic_patch.sql"))
         .env("PSQL_CAPTURE", &capture_file)
         .output()
         .expect("patch runner must start");
@@ -874,7 +826,7 @@ fn documentation_database_readme_describes_baseline_seed_and_patches() {
         .map(|offset| seed + offset)
         .expect("the README must describe the patch catalog after baseline and seed");
     assert!(baseline < seed && seed < patches);
-    assert!(lifecycle.contains("fresh install reports `applied patch 1.2"));
+    assert!(lifecycle.contains("patch catalog is empty; nothing to apply"));
     assert!(lifecycle.contains("rerun a no-op"));
 
     for required in [

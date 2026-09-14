@@ -42,6 +42,10 @@ vi.mock('../../../components/common/ConfirmProvider', () => ({
   useConfirm: () => mocks.confirm,
 }));
 
+vi.mock('../../../router', () => ({
+  useSearchParams: () => [new URLSearchParams(), vi.fn()],
+}));
+
 vi.mock('../hooks/useHousekeepingQueries', () => ({
   useHousekeepingBoard: () => ({ ...mocks.board }),
   useHousekeepingTasks: () => ({ ...mocks.tasks }),

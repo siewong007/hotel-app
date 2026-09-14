@@ -22,7 +22,6 @@ import {
   IconButton,
   Popover,
   Divider,
-  alpha,
 } from '@mui/material';
 import {
   ChevronLeft,
@@ -43,6 +42,7 @@ import {
   getUnifiedStatusLabel,
 } from '../config';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useIsPhone } from '../../../hooks/useIsPhone';
 import { useBookingsWithDetails } from '../../bookings/hooks/useBookingQueries';
 import { useRooms } from '../hooks/useRoomQueries';
 import { formatLocalDate } from '../../../utils/date';
@@ -59,33 +59,33 @@ const ROW_PAD_Y = 8;
 // ── Concept B "sketchy" palette ───────────────────────────────────────────
 const PALETTE = {
   pageBg: 'var(--hotel-bg)',
-  panelBg: 'var(--hotel-paper)',
-  headerBg: 'var(--hotel-muted-bg)',
-  ink: 'var(--hotel-text-primary)',
+  panelBg: 'var(--hotel-surface)',
+  headerBg: 'var(--hotel-hover)',
+  ink: 'var(--hotel-text)',
   inkMuted: 'var(--hotel-text-secondary)',
   inkSubtle: 'var(--hotel-text-secondary)',
   todayAccent: 'var(--hotel-primary)',
-  rowDivider: 'var(--hotel-divider)',
-  zebra: 'var(--hotel-subtle-bg)',
-  inkWash: 'color-mix(in srgb, var(--hotel-text-primary) 8%, transparent)',
-  inkHover: 'color-mix(in srgb, var(--hotel-text-primary) 5%, transparent)',
+  rowDivider: 'var(--hotel-border)',
+  zebra: 'var(--hotel-active)',
+  inkWash: 'color-mix(in srgb, var(--hotel-text) 8%, transparent)',
+  inkHover: 'color-mix(in srgb, var(--hotel-text) 5%, transparent)',
 };
 
-// Sketchy status colors (bar fill + border). Falls back through unified status helper.
+// Status bar fill + border — tinted status tokens (see theme/tokens.ts).
 function statusBarColors(status: string, isComplimentary?: boolean): { bg: string; border: string } {
-  if (isComplimentary) return { bg: '#55efc4', border: '#00b894' };
+  if (isComplimentary) return { bg: 'var(--hotel-success-bg)', border: 'var(--hotel-success)' };
   switch (status) {
     case 'checked_in':
     case 'auto_checked_in':
     case 'occupied':
-      return { bg: '#ffd166', border: '#c9a100' };
+      return { bg: 'var(--hotel-warning-bg)', border: 'var(--hotel-warning)' };
     case 'reserved':
     case 'confirmed':
-      return { bg: '#74b9ff', border: '#1a6fc9' };
+      return { bg: 'var(--hotel-info-bg)', border: 'var(--hotel-info)' };
     case 'pending':
-      return { bg: '#a29bfe', border: '#6c5ce7' };
+      return { bg: 'color-mix(in srgb, var(--hotel-chart-4) 16%, transparent)', border: 'var(--hotel-chart-4)' };
     default:
-      return { bg: '#dcd6ca', border: '#666' };
+      return { bg: 'var(--hotel-neutral-bg)', border: 'var(--hotel-neutral)' };
   }
 }
 
@@ -184,9 +184,12 @@ function buildBookingBarLayout(
 
 const RoomReservationTimeline: React.FC = () => {
   const { format: formatCurrency } = useCurrency();
+  const isPhone = useIsPhone();
+  const roomCol = isPhone ? 120 : ROOM_COL;
+  const dayW = isPhone ? 52 : DAY_W;
 
   const [error, setError] = useState<string | null>(null);
-  const [daysToShow, setDaysToShow] = useState(14);
+  const [daysToShow, setDaysToShow] = useState(() => (isPhone ? 7 : 14));
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -340,8 +343,14 @@ const RoomReservationTimeline: React.FC = () => {
     setPopoverAnchor(null);
     setHoveredBooking(null);
   };
+  // Tap opens details immediately — hover delays are unreliable on touch.
+  const handleBarClick = (e: React.MouseEvent<HTMLElement>, booking: TimelineBooking) => {
+    if (popoverTimeoutRef.current) clearTimeout(popoverTimeoutRef.current);
+    setPopoverAnchor(e.currentTarget);
+    setHoveredBooking(booking);
+  };
 
-  const totalGridWidth = ROOM_COL + DAY_W * daysToShow;
+  const totalGridWidth = roomCol + dayW * daysToShow;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -356,10 +365,10 @@ const RoomReservationTimeline: React.FC = () => {
 
   // Status pill colors for legend (matches statusBarColors above).
   const LEGEND: Array<{ label: string; color: string }> = [
-    { label: 'Occupied', color: '#ffd166' },
-    { label: 'Reserved', color: '#74b9ff' },
-    { label: 'Pending', color: '#a29bfe' },
-    { label: 'Complimentary', color: '#55efc4' },
+    { label: 'Occupied', color: 'var(--hotel-warning)' },
+    { label: 'Reserved', color: 'var(--hotel-info)' },
+    { label: 'Pending', color: 'var(--hotel-chart-4)' },
+    { label: 'Complimentary', color: 'var(--hotel-success)' },
   ];
 
   return (
@@ -500,9 +509,9 @@ const RoomReservationTimeline: React.FC = () => {
               >
                 <Box
                   sx={{
-                    width: ROOM_COL,
+                    width: roomCol,
                     flexShrink: 0,
-                    px: 1.75,
+                    px: isPhone ? 1 : 1.75,
                     py: 1,
                     borderRight: `2px solid ${PALETTE.ink}`,
                     position: 'sticky',
@@ -519,7 +528,7 @@ const RoomReservationTimeline: React.FC = () => {
                     <Box
                       key={i}
                       sx={{
-                        width: DAY_W,
+                        width: dayW,
                         flexShrink: 0,
                         textAlign: 'center',
                         py: 0.75,
@@ -527,13 +536,15 @@ const RoomReservationTimeline: React.FC = () => {
                         bgcolor: isToday ? 'color-mix(in srgb, var(--hotel-primary) 10%, transparent)' : 'transparent',
                       }}
                     >
-                      <Typography sx={{ fontFamily: 'inherit', fontSize: 13, color: isToday ? PALETTE.todayAccent : PALETTE.inkMuted, lineHeight: 1.1 }}>
-                        {d.toLocaleDateString('en-US', { weekday: 'short' })} · {d.toLocaleDateString('en-US', { month: 'short' })}
+                      <Typography sx={{ fontFamily: 'inherit', fontSize: isPhone ? 11 : 13, color: isToday ? PALETTE.todayAccent : PALETTE.inkMuted, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        {isPhone
+                          ? d.toLocaleDateString('en-US', { weekday: 'narrow' })
+                          : `${d.toLocaleDateString('en-US', { weekday: 'short' })} · ${d.toLocaleDateString('en-US', { month: 'short' })}`}
                       </Typography>
                       <Typography
                         sx={{
                           fontFamily: 'inherit',
-                          fontSize: 24,
+                          fontSize: isPhone ? 20 : 24,
                           lineHeight: 1.05,
                           fontWeight: isToday ? 700 : 400,
                           color: isToday ? PALETTE.todayAccent : PALETTE.ink,
@@ -541,7 +552,7 @@ const RoomReservationTimeline: React.FC = () => {
                       >
                         {d.getDate()}
                       </Typography>
-                      {isToday && (
+                      {isToday && !isPhone && (
                         <Typography sx={{ fontFamily: 'inherit', fontSize: 12, color: PALETTE.todayAccent, mt: '-2px' }}>
                           today
                         </Typography>
@@ -569,10 +580,10 @@ const RoomReservationTimeline: React.FC = () => {
                     {/* Room info cell (sticky) */}
                     <Box
                       sx={{
-                        width: ROOM_COL,
+                        width: roomCol,
                         flexShrink: 0,
                         borderRight: `2px solid ${PALETTE.ink}`,
-                        px: 1.75,
+                        px: isPhone ? 1 : 1.75,
                         py: 1.25,
                         bgcolor: PALETTE.panelBg,
                         display: 'flex',
@@ -583,26 +594,26 @@ const RoomReservationTimeline: React.FC = () => {
                         zIndex: 5,
                       }}
                     >
-                      <Typography sx={{ fontFamily: 'inherit', fontWeight: 700, fontSize: 22, color: PALETTE.ink, lineHeight: 1.1 }}>
+                      <Typography sx={{ fontFamily: 'inherit', fontWeight: 700, fontSize: isPhone ? 18 : 22, color: PALETTE.ink, lineHeight: 1.1 }}>
                         {room.room_number}
                       </Typography>
-                      <Typography sx={{ fontFamily: 'inherit', fontSize: 14, color: PALETTE.inkSubtle, lineHeight: 1.1 }}>
+                      <Typography sx={{ fontFamily: 'inherit', fontSize: isPhone ? 12 : 14, color: PALETTE.inkSubtle, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {room.room_type}
                       </Typography>
-                      <Typography sx={{ fontFamily: 'inherit', fontSize: 14, color: PALETTE.todayAccent, fontWeight: 600, lineHeight: 1.1 }}>
+                      <Typography sx={{ fontFamily: 'inherit', fontSize: isPhone ? 12 : 14, color: PALETTE.todayAccent, fontWeight: 600, lineHeight: 1.1 }}>
                         {formatCurrency(toMoneyNumber(room.price_per_night))}/night
                       </Typography>
                     </Box>
 
                     {/* Day cell backgrounds */}
-                    <Box sx={{ position: 'absolute', left: ROOM_COL, top: 0, right: 0, bottom: 0, display: 'flex' }}>
+                    <Box sx={{ position: 'absolute', left: roomCol, top: 0, right: 0, bottom: 0, display: 'flex' }}>
                       {dates.map((d, i) => {
                         const isToday = sameDay(d, today);
                         return (
                           <Box
                             key={i}
                             sx={{
-                              width: DAY_W,
+                              width: dayW,
                               flexShrink: 0,
                               height: '100%',
                               borderRight: `1px solid ${PALETTE.rowDivider}`,
@@ -621,8 +632,8 @@ const RoomReservationTimeline: React.FC = () => {
                     {roomBookingBars.map((b) => {
                       const span = b.endCol - b.startCol;
                       const sc = statusBarColors(b.status, b.is_complimentary);
-                      const left = ROOM_COL + b.startCol * DAY_W + 4;
-                      const width = span * DAY_W - 8;
+                      const left = roomCol + b.startCol * dayW + 4;
+                      const width = span * dayW - 8;
                       const showText = width > 90;
                       const showRate = width > 160;
                       const isSynthetic = String(b.id).startsWith('synthetic-');
@@ -632,6 +643,7 @@ const RoomReservationTimeline: React.FC = () => {
                           key={b.id}
                           onMouseEnter={(e) => handleBarMouseEnter(e, b)}
                           onMouseLeave={handleBarMouseLeave}
+                          onClick={(e) => handleBarClick(e, b)}
                           sx={{
                             position: 'absolute',
                             left,
@@ -651,7 +663,7 @@ const RoomReservationTimeline: React.FC = () => {
                             justifyContent: 'center',
                             transition: 'filter 0.15s',
                             background: isSynthetic
-                              ? `repeating-linear-gradient(45deg, ${sc.bg} 0 8px, ${alpha(sc.bg, 0.7)} 8px 16px)`
+                              ? `repeating-linear-gradient(45deg, ${sc.bg} 0 8px, color-mix(in srgb, ${sc.bg} 55%, transparent) 8px 16px)`
                               : sc.bg,
                             '&:hover': { filter: 'brightness(1.05)' },
                           }}
@@ -854,8 +866,9 @@ const RoomReservationTimeline: React.FC = () => {
                   label={getUnifiedStatusLabel(hoveredBooking.status)}
                   size="small"
                   sx={{
-                    bgcolor: getUnifiedStatusColor(hoveredBooking.status),
-                    color: 'white',
+                    bgcolor: `color-mix(in srgb, ${getUnifiedStatusColor(hoveredBooking.status)} 14%, transparent)`,
+                    color: getUnifiedStatusColor(hoveredBooking.status),
+                    border: `1px solid color-mix(in srgb, ${getUnifiedStatusColor(hoveredBooking.status)} 35%, transparent)`,
                     fontWeight: 600,
                     fontSize: '0.65rem',
                     height: 22,
@@ -908,15 +921,15 @@ const RoomReservationTimeline: React.FC = () => {
                 elevation={0}
                 sx={{
                   p: 0.75,
-                  bgcolor: alpha('#00b894', 0.12),
-                  border: `1px solid #00b894`,
+                  bgcolor: 'var(--hotel-success-bg)',
+                  border: '1px solid var(--hotel-success-border)',
                   borderRadius: '4px',
                   mb: 0.75,
                 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CardGiftcard sx={{ fontSize: 16, color: '#00b894' }} />
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#00b894' }}>
+                  <CardGiftcard sx={{ fontSize: 16, color: 'var(--hotel-success)' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--hotel-success)' }}>
                     Complimentary: {hoveredBooking.complimentary_nights || 0} nights
                   </Typography>
                 </Box>
@@ -976,7 +989,7 @@ const SketchyBtn: React.FC<{
       lineHeight: 1.2,
       userSelect: 'none',
       whiteSpace: 'nowrap',
-      '&:hover': { bgcolor: filled ? 'var(--hotel-primary-dark)' : PALETTE.inkHover },
+      '&:hover': { bgcolor: filled ? 'var(--hotel-primary-active)' : PALETTE.inkHover },
     }}
   >
     {children}

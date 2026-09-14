@@ -48,6 +48,8 @@ import { getHotelSettings } from '../../../utils/hotelSettings';
 import { formatStatusLabel } from '../../../utils/formatters';
 import { formatHotelDate } from '../../../utils/date';
 import StatusChip from '../../../components/common/StatusChip';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 
 // Online bookings store source='online' and bury the channel name in booking_remarks
 // (formatted as "<Channel> - Ref: <ref>" or "<Channel> Booking" by UnifiedBookingModal).
@@ -68,6 +70,7 @@ interface JournalSectionsDisplayProps {
 }
 
 export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps) {
+  const isPhone = useIsPhone();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const toggleSection = (entryType: string) => {
@@ -104,8 +107,8 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
               justifyContent: 'space-between',
               p: 1.5,
               cursor: 'pointer',
-              bgcolor: 'grey.50',
-              '&:hover': { bgcolor: 'grey.100' },
+              bgcolor: 'var(--hotel-surface-sunken)',
+              '&:hover': { bgcolor: 'var(--hotel-surface-sunken)' },
             }}
             onClick={() => toggleSection(section.entry_type)}
           >
@@ -140,10 +143,32 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
 
           <Collapse in={expandedSections.has(section.entry_type)}>
             <Divider />
+            {isPhone ? (
+              <Box>
+                {section.entries.map((entry, idx) => (
+                  <Box
+                    key={`${entry.booking_number}-${idx}`}
+                    sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+                  >
+                    <MobileCardRow
+                      title={entry.description || 'Journal entry'}
+                      subtitle={`#${entry.booking_number} · Room ${entry.room_number}`}
+                      meta={`Dr ${Number(entry.debit) > 0 ? formatCurrency(Number(entry.debit)) : '-'} · Cr ${Number(entry.credit) > 0 ? formatCurrency(Number(entry.credit)) : '-'}`}
+                    />
+                  </Box>
+                ))}
+                <Box sx={{ px: 2, py: 1.5, display: 'flex', justifyContent: 'space-between', bgcolor: 'var(--hotel-surface-sunken)' }}>
+                  <Typography variant="body2"><strong>Total</strong></Typography>
+                  <Typography variant="body2">
+                    <strong>Dr {Number(section.total_debit) > 0 ? formatCurrency(Number(section.total_debit)) : '-'} · Cr {Number(section.total_credit) > 0 ? formatCurrency(Number(section.total_credit)) : '-'}</strong>
+                  </Typography>
+                </Box>
+              </Box>
+            ) : (
             <TableContainer>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                  <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                     <TableCell><strong>Booking #</strong></TableCell>
                     <TableCell><strong>Room</strong></TableCell>
                     <TableCell><strong>Description</strong></TableCell>
@@ -165,7 +190,7 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
                       </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                  <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                     <TableCell colSpan={3}><strong>Total</strong></TableCell>
                     <TableCell align="right">
                       <strong>{Number(section.total_debit) > 0 ? formatCurrency(Number(section.total_debit)) : '-'}</strong>
@@ -177,6 +202,7 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
                 </TableBody>
               </Table>
             </TableContainer>
+            )}
           </Collapse>
         </Paper>
       ))}
@@ -215,7 +241,7 @@ export function GuestLedgerSummary({ sections }: { sections: JournalSection[] })
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell><strong>Account</strong></TableCell>
               <TableCell align="right"><strong>Debits</strong></TableCell>
               <TableCell align="right"><strong>Credits</strong></TableCell>
@@ -233,7 +259,7 @@ export function GuestLedgerSummary({ sections }: { sections: JournalSection[] })
                 </TableCell>
               </TableRow>
             ))}
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell><strong>Total</strong></TableCell>
               <TableCell align="right"><strong>{formatCurrency(totalDebit)}</strong></TableCell>
               <TableCell align="right"><strong>{formatCurrency(totalCredit)}</strong></TableCell>
@@ -258,7 +284,7 @@ export function RoomSoldDetail({ bookings }: { bookings: PostedBookingDetail[] }
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell><strong>Room</strong></TableCell>
               <TableCell><strong>Type</strong></TableCell>
               <TableCell><strong>Guest Name</strong></TableCell>
@@ -275,7 +301,7 @@ export function RoomSoldDetail({ bookings }: { bookings: PostedBookingDetail[] }
                 </TableRow>
               );
             })}
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell><strong>Total Room Sold</strong></TableCell>
               <TableCell><strong>{bookings.length}</strong></TableCell>
               <TableCell />
@@ -341,7 +367,7 @@ function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdo
     <TableContainer component={Paper} variant="outlined">
       <Table size="small">
         <TableHead>
-          <TableRow sx={{ bgcolor: 'grey.100' }}>
+          <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
             <TableCell><strong>{title}</strong></TableCell>
             <TableCell align="center"><strong>Bookings</strong></TableCell>
             <TableCell align="right"><strong>Amount</strong></TableCell>
@@ -357,7 +383,7 @@ function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdo
               <TableCell align="right">{formatCurrency(Number(item.amount))}</TableCell>
             </TableRow>
           ))}
-          <TableRow sx={{ bgcolor: 'grey.100' }}>
+          <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
             <TableCell><strong>Total</strong></TableCell>
             <TableCell align="center"><strong>{totalCount}</strong></TableCell>
             <TableCell align="right"><strong>{formatCurrency(totalAmount)}</strong></TableCell>
@@ -390,6 +416,7 @@ interface PendingPreviewViewProps {
 }
 
 export function PendingPreviewView({ preview, auditDate, running, onRun }: PendingPreviewViewProps) {
+  const isPhone = useIsPhone();
   const occupancyPct = preview.room_snapshot.total > 0
     ? Math.round((preview.room_snapshot.occupied / preview.room_snapshot.total) * 100)
     : 0;
@@ -461,10 +488,27 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
         Bookings to be Posted ({preview.unposted_bookings.length})
       </Typography>
       {preview.unposted_bookings.length > 0 ? (
+        isPhone ? (
+          <Paper variant="outlined" sx={{ mb: 3 }}>
+            {preview.unposted_bookings.map((booking: UnpostedBooking) => (
+              <Box
+                key={booking.booking_id}
+                sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+              >
+                <MobileCardRow
+                  title={booking.guest_name}
+                  subtitle={`#${booking.booking_number} · Room ${booking.room_number}`}
+                  meta={`${formatHotelDate(booking.check_in_date)} → ${formatHotelDate(booking.check_out_date)} · ${formatCurrency(Number(booking.total_amount))}${booking.source ? ` · ${formatStatusLabel(booking.source)}` : ''}`}
+                  status={getBookingStatusChip(booking.status)}
+                />
+              </Box>
+            ))}
+          </Paper>
+        ) : (
         <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.100' }}>
+              <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                 <TableCell><strong>Booking #</strong></TableCell>
                 <TableCell><strong>Guest</strong></TableCell>
                 <TableCell><strong>Room</strong></TableCell>
@@ -493,6 +537,7 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
             </TableBody>
           </Table>
         </TableContainer>
+        )
       ) : (
         <Alert severity="info" sx={{ mb: 3 }}>No bookings to post for this date.</Alert>
       )}
