@@ -92,9 +92,12 @@ V1 baseline then `seed.sql`; Docker, server and desktop share that sequence, and
 schemas are exported and rebuilt rather than migrated. **There is no second migration
 file** — the only forward path is `database/postgres/patches/`, an ordered
 checksum-verified catalog driven by `manifest.tsv`. The original 22-patch lineage
-(1.2–1.23) was folded into the baseline and the catalog reset to EMPTY: `manifest.tsv`
-currently carries no rows, an empty catalog is a valid no-op for both executors, and
-databases that recorded pre-reset revisions are rebuilt rather than converged.
+(1.2–1.23) was folded into the baseline and the catalog republished from empty;
+`manifest.tsv` currently carries generations 1.2 (`deposit_forfeited`) and 1.3
+(`guest_relations_phase2`). A database that still records pre-fold 1.2+ revisions hits
+a checksum-mismatch abort — fix is a one-time lineage-row DELETE, runbook in
+`docs/guides/deployment.md`; valid V1 databases (incl. desktop) converge via
+`apply_catalog`, only unversioned/incompatible non-empty databases are rebuilt.
 For future additive changes the mechanism is unchanged: the schema goes into the
 baseline (fresh installs) AND a new catalog patch (installed V1 databases).
 Nothing discovers loose SQL. A new `000N_*.sql` is dead until it is registered in FOUR

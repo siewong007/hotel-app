@@ -109,6 +109,43 @@ docker exec saliminn-db \
   --command 'SELECT current_database(), current_user;'
 ```
 
+### Stale patch lineage (one-time, pre-fold databases)
+
+*Done on staging and production 2026-09-14. Only needed for a database that
+still records pre-fold `hotel_schema_revisions` rows — e.g. a dump restored
+from before the fold, or a dev box that ran the 1.2–1.23 lineage.*
+
+Symptom: `deploy.sh` aborts during the patch step with
+`patch 1.2 checksum mismatch` — the database recorded generation-1 versions
+under the old names/checksums (`1.2 google-subject`, `1.3
+payment-idempotency`), and the current catalog republishes those versions as
+`deposit-forfeited`/`guest-relations-phase2`.
+
+Fix (production; for staging use `saliminn-staging-db`):
+
+```bash
+# 1. Confirm the stale lineage — old names like google-subject must be present.
+docker exec saliminn-db psql -U hotel_admin -d hotel_management -X -c \
+  "SELECT version, name, checksum FROM public.hotel_schema_revisions \
+   WHERE generation = 1 ORDER BY version;"
+
+# 2. Verified backup — never skip.
+docker exec saliminn-db pg_dump --format=custom --no-owner --no-acl \
+  -U hotel_admin hotel_management > /opt/saliminn/backups/lineage-reset-$(date -u +%Y%m%dT%H%M%SZ).dump
+
+# 3. Delete only the post-baseline rows; the version=1 row is the frozen token.
+docker exec saliminn-db psql -U hotel_admin -d hotel_management \
+  -X -v ON_ERROR_STOP=1 -c \
+  "DELETE FROM public.hotel_schema_revisions WHERE generation = 1 AND version > 1;"
+
+# 4. Re-run the deploy. 5. Re-check the SELECT — expect 1.1 plus
+#    1.2 deposit-forfeited / 1.3 guest-relations-phase2.
+```
+
+The full runbook — including the post-deploy export smoke test and the desktop
+variant — lives in
+[deployment.md](deployment.md#one-time-reset-stale-pre-fold-patch-lineage).
+
 ## TLS and the Cloudflare dependency
 
 The origin is IPv6-only, so Cloudflare is not optional decoration — it is the

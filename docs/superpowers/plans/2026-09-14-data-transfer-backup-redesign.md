@@ -4,6 +4,22 @@
 **Status:** executing (subagent-driven)
 **Branch:** `data-transfer/backup-redesign` (worktree `.worktrees/data-transfer-backup`)
 
+**Task status (2026-09-14):**
+
+| Task | State |
+|---|---|
+| Ops track (Cloudflare 502 fix + prod/staging lineage reset) | Done — verified in production |
+| Task 1 — models + entity catalog | Done, reviewed (`1dba168ef`) |
+| Task 2 — v3 export writer + preview | Done, reviewed (`b35c68c93`) |
+| Task 3 — staged import pipeline | Done, reviewed (`7241cb468`, fixes `023739b5b`) |
+| Task 4 — backend integration tests | Done, reviewed (`ec3b3030e`, `690b3cd70`) |
+| Task 5 — frontend redesign | In progress |
+| Task 6 — docs + OpenAPI + compose memory | In progress (this commit) |
+
+Ledger: `.superpowers/sdd/2026-09-14-data-transfer-backup-redesign/progress.md`.
+Where this plan's spec text and the shipped code diverge, the code — and
+`docs/guides/data-transfer.md` — win; noted deviations are marked below.
+
 ---
 
 ## Global constraints (bind every task)
@@ -96,9 +112,12 @@ code — nothing is silently omitted. `tables` holds the data in deterministic
 `integrity` is the trailer: totals + per-entity row counts actually written — a truncated
 download is detectable by a missing/short trailer.
 
-Import detection: `format == "hotel-backup" && version == 3` → v3; else
-`version == "2.0"` with `tables` → v2; else legacy `BookingDataExport` shape → v1.
-Unknown/future `format`/`version` → structured 400 naming the found value.
+Import detection *(as shipped)*: a first-4 KB sniff
+(`detect_backup_format`) orders the parse attempts — v3 → v2 → v1 newest-first
+from the sniffed guess — and preview/execute trust the full parse, not the
+sniff. An unparseable file → 400 at preview; a parsed file with an
+unknown/future `format`, `version`, or `kind` → named entry in the preview's
+`validationErrors`, and a failed job (with the same message) on execute.
 
 ## Entity coverage — 75 transferable / 29 excluded
 
@@ -187,16 +206,17 @@ uid-1000 writable, not publicly served). Reject non-`{`-leading bodies early.
 - Preview computes new/existing by PK lookup (`WHERE pk = ANY($1)` batched; composite-PK
   tables use per-row `EXISTS` — they're small) plus the missing-ref scan.
 - **Job execution:** `tokio::spawn` inside `execute`; registry is
-  `static IMPORT_JOBS: OnceLock<std::sync::Mutex<HashMap<Uuid, JobState>>>` in
-  `services/data_transfer/jobs.rs` (or a `jobs` submodule file — keep the flat layout).
+  `static IMPORT_JOBS: OnceLock<Mutex<HashMap<Uuid, ImportJobEntry>>>` in
+  `services/data_transfer_jobs.rs` (flat file, as shipped).
   Progress = `{entity, rowsApplied, totalRows}` updated per batch. Job retains the temp
   file until done, then deletes it. Startup + per-upload sweep deletes staged files older
   than 24 h. Audit events: `data_import` start/finish/fail with `job_id`, mode, counts.
 - Memory: parse `tables` as `BTreeMap<String, Vec<Box<RawValue>>>` via
   `serde_json::from_reader(BufReader<File>)`; per-row `serde_json::from_str(raw.get())`
   into `Map<String,Value>` for policy handling. Peak ≈ 1× file size inside the job task —
-  the 256 MB upload cap stays inside the 192 MB container only for realistic sizes; compose
-  limit bump to `384m` lands with the deploy (host has ~1 GB free).
+  the 256 MB upload cap stays inside the 192 MB container only for realistic sizes; the
+  compose bump to `384m` already shipped in `deploy/docker-compose.prod.yml` (staging
+  stays at `128m`).
 
 ## Task 1 — Backup format models + entity catalog (backend)
 
