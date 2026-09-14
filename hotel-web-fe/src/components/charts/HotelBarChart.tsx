@@ -28,7 +28,7 @@ export function HotelBarChart<D extends BarDatum = BarDatum>({
     <div style={{ height, width: '100%' }}>
       <ResponsiveBar<D>
         theme={nivo}
-        colors={colors ?? palette[0]}
+        colors={colors ?? [palette[0]]}
         animate={animate ?? animateDefault}
         margin={
           margin ?? (horizontal

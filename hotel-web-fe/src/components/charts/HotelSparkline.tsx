@@ -30,7 +30,7 @@ export const HotelSparkline: React.FC<HotelSparklineProps> = ({
       <ResponsiveLine
         data={[{ id: 'spark', data: values.map((y, i) => ({ x: i, y })) }]}
         theme={nivo}
-        colors={color ?? palette[0]}
+        colors={[color ?? palette[0]]}
         margin={{ top: 3, right: 2, bottom: 3, left: 2 }}
         xScale={{ type: 'point' }}
         yScale={{ type: 'linear', min: 'auto', max: 'auto' }}

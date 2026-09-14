@@ -16,13 +16,15 @@ const TOKEN_ALIAS: Record<string, string> = {
   good: '--hotel-success', bad: '--hotel-danger',
 };
 
-/** Receivables ageing bucket key → semantic status color. */
-export const AGEING_TONE: Record<string, string> = {
-  current: 'var(--hotel-success)',
-  '1_30': 'var(--hotel-info)',
-  '31_60': 'var(--hotel-warning)',
-  '61_90': 'var(--hotel-orange)',
-  '90_plus': 'var(--hotel-danger)',
+/** Receivables ageing bucket key → status-tone key; resolve to a hex via
+ *  `useChartTheme().status[tone]` at the call site (Nivo `colors` needs a
+ *  resolved value — `var()` breaks react-spring interpolation). */
+export const AGEING_TONE: Record<string, 'success' | 'info' | 'warning' | 'orange' | 'danger'> = {
+  current: 'success',
+  '1_30': 'info',
+  '31_60': 'warning',
+  '61_90': 'orange',
+  '90_plus': 'danger',
 };
 
 /** Resolve a `var(--token)` string to the aliased `var(--hotel-*)` reference;
