@@ -4,10 +4,9 @@ import { Box, Chip, Paper, Typography, alpha, useTheme } from '@mui/material';
 import type { CellKey, GridCellView } from '../types';
 import type { InventoryRoomTypeRow } from '../hooks/useOnlineInventory';
 import { cellKey, parseCellKey } from '../utils';
+import { DAY_NUM, WEEKDAY_SHORT } from '../constants';
 import { GridCell } from './GridCell';
 
-const WEEKDAY_SHORT = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
-const DAY_NUM = new Intl.DateTimeFormat(undefined, { day: 'numeric' });
 const HEADER_DATE = new Intl.DateTimeFormat(undefined, {
   month: 'long',
   day: 'numeric',

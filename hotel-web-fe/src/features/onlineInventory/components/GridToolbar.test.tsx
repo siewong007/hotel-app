@@ -2,13 +2,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Phone row: useMediaQuery reports the viewport (jsdom has no matchMedia) —
-// pinned explicitly so a future global polyfill can't flip the branch.
+// Phone row: pin useIsPhone (jsdom has no matchMedia) — explicitly mocked so
+// a future global polyfill can't flip the branch.
 const mocks = vi.hoisted(() => ({ isPhone: false }));
-vi.mock('@mui/material', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@mui/material')>();
-  return { ...actual, useMediaQuery: () => mocks.isPhone };
-});
+vi.mock('../../../hooks/useIsPhone', () => ({ useIsPhone: () => mocks.isPhone }));
 
 import { formatLocalDate } from '../../../utils/date';
 import { shiftDate } from '../utils';

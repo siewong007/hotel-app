@@ -9,7 +9,6 @@ import {
   Stack,
   Tooltip,
   Typography,
-  alpha,
 } from '@mui/material';
 import {
   ExitToApp as CheckOutIcon,
@@ -25,8 +24,8 @@ import {
   Close as CloseIcon,
   MeetingRoom as RoomIcon,
   MoreVert as MoreVertIcon,
-  Public as PublicIcon,
 } from '@mui/icons-material';
+import { BookingChannelChip, BillingChip, NightAuditChip } from './BookingMetaChips';
 import type { BookingWithDetails } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
@@ -200,45 +199,9 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                     flexWrap: "wrap",
                     mt: 0.75
                   }}>
-                  {channelInfo && (
-                    <Tooltip title={`Online booking via ${channelInfo.name}`} arrow>
-                      <Chip
-                        size="small"
-                        icon={<PublicIcon />}
-                        label={channelInfo.abbreviation}
-                        sx={{
-                          height: 22,
-                          minWidth: 60,
-                          maxWidth: 'none',
-                          flexShrink: 0,
-                          fontWeight: 900,
-                          bgcolor: channelInfo.background,
-                          color: channelInfo.color,
-                          border: `1px solid ${alpha(channelInfo.color, 0.2)}`,
-                          '& .MuiChip-icon': {
-                            color: channelInfo.color,
-                            fontSize: 14,
-                            ml: 0.65,
-                            mr: -0.35,
-                          },
-                          '& .MuiChip-label': {
-                            px: 0.8,
-                            overflow: 'visible',
-                          },
-                        }}
-                      />
-                    </Tooltip>
-                  )}
-                  {billingChipLabel && (
-                    <Chip
-                      size="small"
-                      label={billingChipLabel}
-                      sx={{ height: 22, fontWeight: 800 }}
-                    />
-                  )}
-                  {nightAuditInvolved && (
-                    <Chip size="small" label="Night audit" variant="outlined" sx={{ height: 22, fontWeight: 900 }} />
-                  )}
+                  {channelInfo && <BookingChannelChip channel={channelInfo} />}
+                  {billingChipLabel && <BillingChip label={billingChipLabel} />}
+                  {nightAuditInvolved && <NightAuditChip />}
                 </Stack>
               )}
             </Box>
