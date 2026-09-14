@@ -21,7 +21,6 @@ import type { GuestPortalEkycStatus, GuestPortalEkycSubmission } from '../../../
 import {
   isIdBackRequired,
   validateEkycFields,
-  EKYC_FIELD_LABEL_KEYS,
   type EkycFieldValues,
 } from '../../../ekyc/utils/ekycFieldRules';
 import { guestErrorMessage } from '../../utils/feedback';
