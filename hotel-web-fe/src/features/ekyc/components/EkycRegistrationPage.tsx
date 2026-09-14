@@ -29,6 +29,7 @@ import {
   ArrowForward as ForwardIcon,
 } from '@mui/icons-material';
 import { useNavigate } from '../../../router';
+import { useAuth } from '../../../auth/AuthContext';
 import { EkycService } from '../../../api';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
@@ -80,6 +81,7 @@ const countries = [
 
 const EkycRegistrationPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -821,6 +823,25 @@ const EkycRegistrationPage: React.FC = () => {
         return null;
     }
   };
+
+  // eKYC submission is guest-only — the API rejects staff accounts, so the
+  // route (reachable by URL) shows a notice instead of a doomed form.
+  if (user && user.user_type !== 'guest') {
+    return (
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+        <Alert
+          severity="info"
+          action={
+            <Button color="inherit" size="small" onClick={() => navigate('/profile')}>
+              Back to Profile
+            </Button>
+          }
+        >
+          eKYC identity verification is only available for guest accounts.
+        </Alert>
+      </Container>
+    );
+  }
 
   if (success) {
     return (

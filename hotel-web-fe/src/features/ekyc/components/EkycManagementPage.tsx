@@ -981,6 +981,7 @@ const EkycManagementPage: React.FC = () => {
         autoHideDuration={4000}
         onClose={() => setSuccessMsg('')}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        sx={{ top: { xs: 72, sm: 88 } }}
       >
         <Alert severity="success" variant="filled" onClose={() => setSuccessMsg('')}>
           {successMsg}
