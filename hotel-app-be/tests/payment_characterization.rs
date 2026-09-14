@@ -1385,13 +1385,13 @@ async fn completed_deposit_method_is_correctable_amount_is_not() {
         return;
     };
     let (actor_id, room_type_id, room_id, guest_id, booking_id) =
-        (940_710, 940_711, 940_712, 940_713, 940_714);
+        (940_715, 940_716, 940_717, 940_718, 940_719);
     seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
     let payment_id =
         insert_completed_payment(&pool, booking_id, "deposit", d("50.00"), actor_id).await;
 
     // Method correctable
-    payments::update_payment(
+    let update_method = payments::update_payment(
         &pool,
         actor_id,
         payment_id,
@@ -1403,14 +1403,12 @@ async fn completed_deposit_method_is_correctable_amount_is_not() {
             payment_date: None,
         },
     )
-    .await
-    .expect("method edit on a completed deposit should succeed");
+    .await;
     let stored: String = sqlx::query_scalar("SELECT payment_method FROM payments WHERE id = $1")
         .bind(payment_id)
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(stored, "Cash");
 
     // Amount + date still immutable
     let update_amount = payments::update_payment(
@@ -1439,14 +1437,12 @@ async fn completed_deposit_method_is_correctable_amount_is_not() {
         },
     )
     .await;
-    assert!(matches!(update_amount, Err(ApiError::BadRequest(_))));
-    assert!(matches!(update_date, Err(ApiError::BadRequest(_))));
 
     // deposit_forfeited rows get the same method hatch
     let forfeit_id =
         insert_completed_payment(&pool, booking_id, "deposit_forfeited", d("10.00"), actor_id)
             .await;
-    payments::update_payment(
+    let update_forfeit_method = payments::update_payment(
         &pool,
         actor_id,
         forfeit_id,
@@ -1458,8 +1454,15 @@ async fn completed_deposit_method_is_correctable_amount_is_not() {
             payment_date: None,
         },
     )
-    .await
-    .expect("method edit on a completed forfeiture should succeed");
+    .await;
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    update_method.expect("method edit on a completed deposit should succeed");
+    assert_eq!(stored, "Cash");
+    assert!(matches!(update_amount, Err(ApiError::BadRequest(_))));
+    assert!(matches!(update_date, Err(ApiError::BadRequest(_))));
+    update_forfeit_method.expect("method edit on a completed forfeiture should succeed");
 }
 
 /// A pending (unposted) payment remains fully editable, but the amount must
