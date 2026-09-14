@@ -2069,28 +2069,32 @@ impl PaymentRepository {
                 "Payment is already in a terminal state".to_string(),
             ));
         }
-        // A held deposit on an in-house booking is money owed back to the
-        // guest — it can only leave through refund or forfeit, never a void.
+        // Once the stay is closed a deposit is a settled liability — it can
+        // only leave through refund or forfeit, never a void. In-house stays
+        // allow the void: a deposit recorded but never collected is cancelled
+        // through this path (reversible via revert-deposit-void).
         if existing.payment_type.as_deref() == Some("deposit")
             && existing.payment_status.as_deref() == Some("completed")
             && matches!(
                 Self::booking_status_for_payment_tx(tx, booking_id)
                     .await?
                     .as_str(),
-                "checked_in"
-                    | "auto_checked_in"
-                    | "late_checkout"
-                    | "checked_out"
-                    | "completed"
+                "checked_out" | "completed"
             )
         {
             return Err(ApiError::BadRequest(
-                "Deposit payments can't be voided after check-in — \
+                "Deposit payments can't be voided after checkout — \
                  refund or forfeit the deposit instead"
                     .to_string(),
             ));
         }
-        if existing.payment_status.as_deref() == Some("completed") && !allow_completed {
+        // Deposit rows ride the route's payments:delete gate even when
+        // completed — cancelling collateral is desk work, unlike voiding
+        // settled revenue. deposit_forfeited rows keep the manage gate.
+        if existing.payment_status.as_deref() == Some("completed")
+            && !allow_completed
+            && existing.payment_type.as_deref() != Some("deposit")
+        {
             return Err(ApiError::Forbidden(
                 "Voiding a posted payment requires the payments:manage permission".to_string(),
             ));
