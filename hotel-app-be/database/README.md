@@ -44,10 +44,14 @@ make db-patch DATABASE_URL="$DATABASE_URL"
 
 The final `make db-patch` step reads `patches/manifest.tsv` and applies its
 catalog in order. The original V1 convergence catalog (versions 2 through 23)
-has been folded into the baseline, so the catalog currently lists no patches:
-the step prints `patch catalog is empty; nothing to apply` and a fresh install
-records revision 1 only. The next same-generation change re-opens the catalog
-at version 2.
+was folded into the baseline and the catalog republished from empty; it now
+carries two converge-style patches — `1.2 deposit-forfeited` and `1.3
+guest-relations-phase2` — so a fresh install records revisions 1, 2 and 3.
+A database that still records the pre-fold 1.2+ lineage aborts on a
+checksum-mismatch guard; the one-time lineage reset runbook is in
+`docs/guides/deployment.md`. An empty catalog is also valid state: the
+runner then prints `patch catalog is empty; nothing to apply` and records
+nothing beyond the baseline revision.
 
 `seed.sql` creates all required system/reference records and fresh-install
 bootstrap records, then records the completed V1 revision. It is not a startup
@@ -148,13 +152,17 @@ and always attribute the bootstrap admin (the real actor is recorded inside
 
 ## Compatible V1 patching
 
-The catalog is currently empty: every V1 convergence patch shipped to date was
-folded into `migrations/0001_v1_baseline.sql` and `seed.sql`, so a new install
-needs nothing beyond the baseline, the seed, and this (no-op) step. Databases
-installed before the fold stay on their recorded revisions; they converge by
-rebuild, not by patching — the published patch files were retired because a
-fresh baseline already contains every object they created. Future additive
-changes re-open the catalog at version 2 exactly as described below.
+The catalog is live: every V1 convergence patch from the original lineage
+(versions 2–23) was folded into `migrations/0001_v1_baseline.sql` and
+`seed.sql`, and the catalog was republished from empty. It currently ships
+`1.2 deposit-forfeited` and `1.3 guest-relations-phase2`. Fresh installs get
+every patched object from the baseline, so each patch body is a no-op there —
+but the patch still runs and records its revision row, keeping fresh and
+patched-forward databases on the same supported revision. Databases that
+still record pre-fold 1.2+ revisions hit the checksum-mismatch guard and
+converge by the one-time lineage reset in `docs/guides/deployment.md`;
+unversioned or legacy layouts converge by rebuild, not patching. Future
+additive changes append to the catalog exactly as described below.
 
 `patches/manifest.tsv` is the catalog. Each row is five tab-separated fields —
 generation, version, name, `sha256:` checksum, file — and the runner rejects a
@@ -249,9 +257,11 @@ graph (guests/rooms/staff/companies vertices; bookings `stayed_in` and
 user_guests `manages` edges) for `GRAPH_TABLE` multi-hop queries. It is pure
 query surface over the existing tables — no storage, no application coupling.
 
-## PostgreSQL 19 Beta 2 optimization
+## PostgreSQL 19 optimization
 
-The files under `postgres/optimization/` are opt-in, benchmark-gated profiles:
+The files under `postgres/optimization/` are opt-in, benchmark-gated profiles
+(named `pg19_beta2*` because they were authored and benchmarked against Beta 2;
+the deployed image has since moved to `postgres:19beta3`):
 
 ```bash
 make db-pg19-tune DATABASE_URL="$DATABASE_URL"
@@ -265,7 +275,8 @@ profile's per-table `autovacuum_parallel_workers` settings are inert. For
 online table rebuilds use `make db-repack TABLE=public.bookings` (PostgreSQL
 19 `REPACK CONCURRENTLY`) or `make db-repack-full` in a maintenance window.
 
-PostgreSQL 19 Beta 2 is prerelease software for testing, not production.
+PostgreSQL 19 is prerelease software (`postgres:19beta3` in every compose
+file) — the profiles are for testing, not production.
 
 ## Docker and desktop
 

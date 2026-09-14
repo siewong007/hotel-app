@@ -8,7 +8,7 @@
   <a href="https://github.com/siewong007/hotel-app/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/siewong007/hotel-app/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/siewong007/hotel-app/actions/workflows/docker.yml"><img alt="Docker" src="https://github.com/siewong007/hotel-app/actions/workflows/docker.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-blue">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-blue">
   <img alt="Top language" src="https://img.shields.io/github/languages/top/siewong007/hotel-app">
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/siewong007/hotel-app">
 </p>
@@ -50,24 +50,26 @@ This project addresses that problem by implementing a centralized administrative
 | Bookings | Booking CRUD, check-in workflow, booking timeline, void/reactivation actions, and guest-linked bookings |
 | Rooms | Room and room-type management, availability search, status changes, maintenance/cleaning events, and occupancy summaries |
 | Guests | Guest profiles, linked guest accounts, guest booking history, upgrades, and credit-related records |
-| Payments and invoices | Payment summaries, payment recording, deposit refund workflow, invoice preview, and invoice generation endpoints |
+| Payments and invoices | Payment summaries, payment recording (PayPal + staff-recorded), deposit refund workflow, invoice preview, and invoice generation endpoints |
 | Ledgers | Customer/company ledger records, ledger payments, summaries, voids, and reversals |
-| Reports and analytics | Occupancy reports, booking analytics, benchmark-style report endpoint, generated reports, and personalized reports |
+| Revenue and marketing | Revenue overview (ADR/RevPAR/channel mix), rate plans and rate calendar, campaigns/promotions, vouchers, and guest segments |
+| Reports and insights | Report catalog (`/insights`), occupancy and booking analytics, dashboard metrics, and generated report endpoints |
 | Loyalty | Loyalty programs, memberships, points, rewards, redemptions, and member-facing reward views |
+| Communications | Email campaigns via SMTP, per-guest notification preferences, transactional booking/payment emails, and unsubscribe tokens |
 | eKYC and guest portal | Document upload, eKYC status/review endpoints, self check-in, and public pre-check-in guest portal routes |
-| Administration | Settings, audit log browsing/export, night audit, complimentary stays, and data import/export |
+| Administration | Settings, audit log browsing/export, night audit, complimentary stays, system health/jobs, and `hotel-backup` v3 data import/export |
 | Desktop | Tauri shell, backend sidecar startup, bundled PostgreSQL lifecycle code, logs, and service status commands |
 
 ## Tech Stack
 
 | Layer | Technologies |
 | --- | --- |
-| Backend API | Rust 1.95.0, Axum 0.8, Tokio, SQLx 0.8, Serde, Validator |
+| Backend API | Rust 1.95.0, Axum 0.8, Tokio, SQLx 0.9, Serde, Validator |
 | Frontend | React 19, TypeScript 6, Vite 8, MUI v9, TanStack Router, TanStack Query, TanStack Table, ky |
 | Desktop | Tauri 2, Rust commands, backend sidecar, bundled PostgreSQL resources |
-| Database | PostgreSQL 19, SQLx migrations and parameterized queries |
+| Database | PostgreSQL 19, V1 baseline + seed + checksum-verified patch catalog, parameterized SQLx queries |
 | Security | JWT, refresh tokens, RBAC, TOTP 2FA, passkey endpoints, rate limiting, CORS, and security headers |
-| Reporting | Recharts, jsPDF, jsPDF AutoTable, backend analytics endpoints |
+| Reporting | Nivo charts, jsPDF, jsPDF AutoTable, backend analytics endpoints |
 | CI/CD | GitHub Actions: secret scan and `cargo audit`, frontend typecheck/lint/test/build, backend check/test/clippy/release, PostgreSQL schema and workflow smoke, desktop compile check; separate Docker image, desktop build, security, and production deploy workflows |
 
 ## 🧱 Architecture
@@ -225,8 +227,16 @@ hotel-app/
 ├── hotel-desktop/                # Tauri desktop application
 │   ├── scripts/                  # Desktop resource sync and sidecar copy scripts
 │   └── src-tauri/                # Tauri Rust commands, PostgreSQL lifecycle, config
+├── docs/                         # Project documentation (index: docs/README.md)
+│   ├── api/openapi.json          # Generated route index (CI-enforced)
+│   ├── architecture/             # ADRs, request/data flows, domain boundaries
+│   ├── guides/                   # Deployment, data transfer, i18n, VPS access
+│   ├── security/                 # Production ops + backup/restore runbooks
+│   └── superpowers/              # Historical plans/specs (status index inside)
+├── deploy/                       # Production/staging deploy scripts, Caddyfile, backups
 ├── infra/terraform/oci/          # Oracle Cloud Always Free development infrastructure
-├── .github/workflows/            # CI and Docker workflows
+├── .github/workflows/            # CI, security, Docker, deploy, desktop-build workflows
+├── Makefile                      # Root task runner (make help)
 └── README.md
 ```
 
@@ -295,10 +305,11 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 - ✅ **OCI Always Free Terraform** — Ampere A1 development VM, networking, Vault access, and Compose bootstrap
 - ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts
 - ✅ **Project Makefile** — Convenience commands for all development workflows
-- ✅ **Frontend test suite** — Vitest + Testing Library across ~89 test files
-- ✅ **Backend integration tests** — 19 test files covering auth/RBAC, bookings, payments, ledgers, rooms, and night audit
+- ✅ **Frontend test suite** — Vitest + Testing Library across ~230 test files
+- ✅ **Backend integration tests** — 50 test files covering auth/RBAC, bookings, payments, ledgers, rooms, night audit, data transfer, and portal flows
 - ✅ **Security CI gate** — Committed-secret scan, `cargo audit`, CodeQL, and dependency review
-- ✅ **Architecture Decision Records (ADRs)** — 11 documented architectural decisions
+- ✅ **Generated OpenAPI spec** — `docs/api/openapi.json`, regenerated from the router and enforced by the `openapi_drift` CI test
+- ✅ **Architecture Decision Records (ADRs)** — 12 documented architectural decisions
 - ✅ **Deployment guide** — Comprehensive production deployment documentation
 - ✅ **Contributing guide** — Guidelines, conventions, and testing instructions
 - ✅ **Security documentation** — Deployment checklist, production runbook, and backup/restore drill
@@ -306,13 +317,13 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 
 ### Planned
 
-- **OpenAPI/Swagger documentation** — Generate from backend route and model definitions
+- **Simplified Chinese locale** — In progress on `feat/i18n-zh` (worktree); English + Bahasa Melayu are shipped today
 - **Distributed caching** — Replace in-memory RBAC/settings caches for multi-instance deployment
-- **Strict TypeScript mode** — Enable `strict: true` incrementally in tsconfig
-- **Backend domain module migration** — Continue moving flat-by-layer domains into `modules/<domain>/` (nine migrated so far)
-- **Frontend component tests** — Expand coverage for the remaining large feature pages
+- **Backend domain module migration** — Continue moving flat-by-layer domains into `modules/<domain>/` (fifteen module directories so far, fourteen routed plus the internal `consent` module)
+- **Frontend component tests** — Expand depth: every page has smoke + axe coverage; workflow-level assertions remain for the largest pages
 - **Desktop backup/restore** — Complete managed backup solution with recovery procedures
 - **Windows and Linux desktop packaging** — Extend the desktop build workflow beyond macOS
+- **SMS channel** — Communications module is email-only today
 
 ## Limitations
 
@@ -322,7 +333,6 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 - Some desktop operational commands are still limited; for example, database backup behavior is not a complete managed backup solution.
 - Desktop packaging is built and verified for macOS only; Windows and Linux are built manually.
 - eKYC document handling is implemented as an application workflow, not a certified identity verification service.
-- API documentation is currently README-based rather than generated from a formal OpenAPI schema.
 - Rate limiting and caching are in-memory only, which limits to single-instance deployments.
 
 ## Contributing

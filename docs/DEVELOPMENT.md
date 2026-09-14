@@ -31,10 +31,11 @@ Backend needs no install step — `cargo` fetches on first build.
 Two example files, both fully read by something:
 
 - `.env.example` (root) — what `docker compose` reads: `POSTGRES_*`, ports,
-  `JWT_SECRET`, image tags.
+  `JWT_SECRET`, `TOTP_ENCRYPTION_KEY`, image tags.
 - `hotel-app-be/.env.example` — the backend-process reference:
   `DATABASE_URL`, `JWT_SECRET` (≥32 chars), `ALLOWED_ORIGINS`, `SMTP_*`,
-  `TOTP_ENCRYPTION_KEY`, `PASSKEY_RP_ID`, `GOOGLE_CLIENT_ID`, pool tuning.
+  `TOTP_ENCRYPTION_KEY`, `PASSKEY_RP_ID`, `GOOGLE_CLIENT_ID`, `TURNSTILE_*`,
+  pool tuning.
 
 Copy → `.env` and fill in. `docker compose` aborts on blank `:?` secrets.
 
@@ -75,9 +76,12 @@ The compose service auto-initializes `hotel_management` on first boot.
 Schema rules: additive changes go in the baseline **and** a new catalog patch
 registered in `patches/manifest.tsv` + `deploy/deploy.sh` +
 `deploy/deploy-staging.sh` + both deploy workflows — a loose `000N_*.sql`
-file is never executed. The catalog is currently **empty**: the original
-1.2–1.23 patch lineage was folded into the baseline, so fresh installs need
-no patches and pre-reset databases are rebuilt rather than converged.
+file is never executed. The catalog currently publishes two converge-style
+patches, `1.2 deposit-forfeited` and `1.3 guest-relations-phase2` (the original
+1.2–1.23 lineage was folded into the baseline and the catalog republished from
+empty). A database that still records the pre-fold 1.2+ names/checksums aborts
+on `patch 1.N checksum mismatch` — the one-time lineage reset runbook is in
+`docs/guides/deployment.md`.
 
 ## Validate
 
@@ -90,10 +94,12 @@ cargo fmt --check                               # formatting
 cargo test --all-features                       # needs DATABASE_URL for full coverage
 ```
 
-`DATABASE_URL` must point at a **baseline+seed initialized** database or 15 of
-19 test files silently skip (real run ≈ 700 tests; ~209 means only lib tests
-ran). Postgres-backed suites create and destroy their own scratch databases
-against the server in `DATABASE_URL`.
+`DATABASE_URL` must point at a **baseline+seed initialized** database or 45 of
+the 50 test files silently skip (the suite still exits 0 — judge by run count,
+not exit code; a full run reports ~1,300 tests across `src/` unit tests and
+`tests/`). Patch-lifecycle and schema-drift tests also shell out to `psql` —
+on macOS that means libpq on PATH, e.g. `PATH="/opt/homebrew/opt/libpq/bin:$PATH"`. Postgres-backed suites create and destroy their own scratch
+databases against the server in `DATABASE_URL`.
 
 Frontend (`hotel-web-fe/`):
 
@@ -129,7 +135,7 @@ Deploy itself is scripted in `deploy/deploy.sh` (+ `docs/guides/deployment.md`).
 - **`cargo run` → "a bin target must be available"**: the crate ships multiple
   bins; use `cargo run --bin hotel-app-be`.
 - **Backend tests all "pass" but suspiciously fast**: `DATABASE_URL` unset —
-  15/19 files skip. Point it at an initialized db.
+  45/50 files skip. Point it at an initialized db.
 - **`postgres_patch_lifecycle` fails with "psql: command not found"**: needs a
   PostgreSQL toolchain on PATH. Shim it through the dev container:
 

@@ -191,6 +191,9 @@ prepare-desktop: ## Prepare desktop app resources
 docs: ## Generate documentation (backend)
 	cd hotel-app-be && cargo doc --no-deps --document-private-items
 
+docs-check: ## Check Markdown links resolve to real files
+	python3 scripts/check-doc-links.py
+
 # ─── Clean ────────────────────────────────────────────────────────────────────
 
 clean-be: ## Clean backend build artifacts

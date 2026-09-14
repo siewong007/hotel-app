@@ -35,6 +35,14 @@ jobs:
       - name: Check Rust dependency advisories
         run: cargo audit
 
+  docs:
+    name: Docs — Markdown link check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Check Markdown links resolve
+        run: python3 scripts/check-doc-links.py
+
   frontend:
     name: Frontend — Typecheck, Lint & Build
     runs-on: ubuntu-latest

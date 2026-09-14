@@ -48,7 +48,7 @@ Backend (`hotel-app-be/`):
 ```bash
 cargo check --all-features                    # minimum bar before claiming done
 cargo clippy --all-features -- -D warnings    # what CI actually runs — copy it verbatim
-cargo test --all-features                     # DATABASE_URL must be set or 15 of 19 test files silently skip
+cargo test --all-features                     # DATABASE_URL must be set or 45 of 50 test files silently skip
 cargo run --bin hotel-app-be                  # port 3030 (bare `cargo run` errors: multiple bins)
 cargo run --bin hash_password -- <password>   # helper bins in src/bin/ (also fix_password)
 psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
@@ -75,9 +75,10 @@ check; and a desktop `cargo check` against placeholder resources — so a broken
 
 Backend request flow: `routes/<domain>.rs` (RBAC gate) → auth middleware →
 `handlers/<domain>.rs` (thin) → `services/<domain>.rs` (business logic, where a domain
-has one) → `repositories/` → `models/`. Nine domains have migrated to the newer
-`modules/<domain>/` layout (analytics, communications, ekyc, guest_booking, loyalty,
-promotions, settings, support, teams) — put new domains there.
+has one) → `repositories/` → `models/`. Fourteen routed domains live in the newer
+`modules/<domain>/` layout (communications, ekyc, guest_booking, guest_relations,
+insights, loyalty, promotions, realtime, revenue, segments, settings, support,
+system, teams; `consent` is an internal routeless module) — put new domains there.
 
 - `routes/mod.rs::create_router` — ALL domain routers must be `.merge()`d here; wires CORS, rate limits, security headers.
 - `core/auth.rs` + `core/middleware.rs` — `require_auth(&headers)`; `check_permission(pool, user_id, "<resource>:<action>")`; `<resource>:manage` implies all actions of that resource.

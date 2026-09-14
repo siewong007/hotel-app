@@ -54,8 +54,9 @@ implement this; don't hand-roll per-page badge colors.
 ## Charts
 
 `--hotel-chart-1..5` (series), `--hotel-chart-grid`, `--hotel-chart-axis`,
-`--hotel-tooltip-bg`. Recharts and the custom SVG charts both consume these.
-No rainbow palettes, no literal hexes in chart props.
+`--hotel-tooltip-bg`. The Nivo wrappers in `src/components/charts/` and the
+custom SVG charts both consume these. No rainbow palettes, no literal hexes
+in chart props.
 
 ## Misc
 

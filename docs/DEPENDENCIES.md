@@ -16,7 +16,7 @@ lockfile dump. Last reviewed during the 2026-09-13 modernization pass.
 | @tanstack/react-table 9 | Tables | Behind shared `DataTable`; v9 feature-gated API (`tableFeatures`) |
 | ky | HTTP client | Wrapped by `src/api/client.ts` — never call `fetch` directly |
 | date-fns | Dates | Business-day math belongs to the backend (`hotel_today`) |
-| recharts | Charts | Dashboard/reports |
+| @nivo/{bar,line,pie,core} | Charts | Dashboard/reports; wrapped by `src/components/charts/` — never imported directly |
 | jspdf + jspdf-autotable | PDF export | Receipts/reports |
 | @paypal/react-paypal-js | PayPal buttons | Guest + staff payment surfaces |
 | qrcode.react | QR rendering | 2FA enrollment, share links |

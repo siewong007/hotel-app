@@ -8,7 +8,7 @@ Staging runs on the AIC VPS alongside production, in an isolated Compose project
 | Host | `saliminn.my` | `staging.saliminn.my` |
 | API port | `127.0.0.1:3030` | `127.0.0.1:3031` |
 | FE port | `127.0.0.1:8081` | `127.0.0.1:8083` |
-| Postgres | `postgres:19beta3` | `postgres:16` |
+| Postgres | `postgres:19beta3` | `postgres:19beta3` |
 | Auth | public (Cloudflare) | Caddy basic auth + Cloudflare |
 | Workflow | `deploy.yml` | `deploy-staging.yml` |
 
@@ -28,9 +28,8 @@ The box is 2 GB and already runs payroll, shop, HitPay sandbox, and prod hotel. 
 
 ## Staging data
 
-The staging Postgres image pins `postgres:16`, but the application baseline is
-PostgreSQL 19-native (`postgres:19beta3` locally). Until the staging compose
-moves to PG19, do not rely on PG19-only behaviour there.
+The staging Postgres runs the same `postgres:19beta3` image as production —
+the V1 baseline is PG19-native end to end.
 
 Seeding staging data is an explicit operation, never part of deploy:
 

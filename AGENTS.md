@@ -50,9 +50,10 @@ sections, and pure helpers before changing behavior.
 
 ## Folder structure targets
 
-New backend domains use the domain-module layout already adopted by `modules/analytics`,
-`communications`, `ekyc`, `guest_booking`, `loyalty`, `promotions`, `settings`,
-`support`, and `teams`:
+New backend domains use the domain-module layout already adopted by
+`modules/communications`, `ekyc`, `guest_booking`, `guest_relations`, `insights`,
+`loyalty`, `promotions`, `realtime`, `revenue`, `segments`, `settings`, `support`,
+`system`, and `teams` (`consent` is an internal module with no routes):
 
 ```text
 src/modules/<domain>/
@@ -99,11 +100,11 @@ Add or update tests when refactoring pure business logic, SQL builders, date/mon
 status/permission/validation logic, and anything touching auth, 2FA, passkeys, eKYC,
 booking state transitions, payments, ledgers, or night audit.
 
-Backend integration tests require `DATABASE_URL`: 15 of the 19 files in
+Backend integration tests require `DATABASE_URL`: 45 of the 50 files in
 `hotel-app-be/tests/` return early without it and the suite still exits 0. Verify by run
-count (a real full run is ~513 passed / 10 ignored; ~209 means only lib tests ran), never
-by exit code alone. Fix-gated tests carry `#[ignore]`; CI fails when one starts passing,
-which means the fix landed and the attribute is stale.
+count (a real full run is ~1,300 tests; ~479 means only lib tests ran), never by exit
+code alone. Patch/schema-drift suites also need `psql` on PATH (macOS: libpq). Fix-gated tests carry `#[ignore]`; CI fails when one
+starts passing, which means the fix landed and the attribute is stale.
 
 The frontend runs Vitest with Testing Library (`bun run test`). `typecheck`, `lint`, and
 `test` are three independent gates — vitest transpiles without type information, so code

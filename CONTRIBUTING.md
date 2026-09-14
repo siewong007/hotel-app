@@ -136,8 +136,8 @@ rules are in [AGENTS.md](AGENTS.md).
   - Place in the same file as the code being tested (inline `#[cfg(test)]`)
   - Or in separate test modules under `tests/`
 - **Integration tests:** Database-backed tests in `hotel-app-be/tests/`
-  - PostgreSQL tests: `cargo test --features postgres --no-default-features`
-  - **Fifteen of the 19 files return early when `DATABASE_URL` is unset, and the suite still exits 0.** Export `DATABASE_URL` and check the reported run count before treating a green run as evidence.
+  - Run with `cargo test --all-features` (`postgres` is a default feature — do not pass `--no-default-features`)
+  - **45 of the 50 files return early when `DATABASE_URL` is unset, and the suite still exits 0.** Export `DATABASE_URL` and check the reported run count before treating a green run as evidence.
 - **What to test:**
   - Pure business logic and calculations
   - SQL query builders and PostgreSQL helpers

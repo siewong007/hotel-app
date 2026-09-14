@@ -80,9 +80,12 @@ utils/          Small pure helpers (sanitization, dates)
 database/postgres/  Baseline, seed, and the checksum-verified patch catalog
 ```
 
-Eleven domains already live in `modules/<domain>/` (analytics, communications,
-consent, ekyc, guest_booking, loyalty, promotions, realtime, settings, support,
-teams); new domains go there. Remaining domains use the flat-by-layer layout.
+Fifteen domain directories live in `modules/<domain>/` — fourteen merged into
+the router (`communications`, `ekyc`, `guest_booking`, `guest_relations`,
+`insights`, `loyalty`, `promotions`, `realtime`, `revenue`, `segments`,
+`settings`, `support`, `system`, `teams`) plus `consent`, which is an internal
+service/repository module with no HTTP routes. New domains go there; the
+remaining domains use the flat-by-layer layout.
 
 Cross-cutting machinery:
 
@@ -108,15 +111,18 @@ stay generic.
 `hotel-web-fe/src/`:
 
 ```text
-main.tsx            Entry: providers (QueryClient, Theme, Auth, i18n)
-routes/             TanStack Router file routes (routeTree.gen.ts generated)
+index.tsx           Entry: providers (QueryClient, Theme, Auth, i18n)
+App.tsx / routes/   TanStack Router file routes (routeTree.gen.ts generated)
+router/             RootLayout, route guards, registry→router rendering
 navigation/         routeRegistry.tsx — lazy page registry driving the sidebar
 features/<domain>/  Feature modules: components/, hooks/, api.ts, utils, types
 api/                client.ts (ky) + <domain>.service.ts per backend domain
-auth/               AuthContext (session state, permissions)
-components/         Shared UI (data-table, dialogs, layout, common)
-hooks/              Shared hooks (useApi, usePermissions, …)
-guest/              Guest-portal application shell and guest router
+auth/               AuthContext (session state, permissions, token store)
+components/         Shared UI (data-table, dialogs, layout, common, charts)
+hooks/              Shared hooks (useApi, usePermissions, sockets, …)
+guest/              Guest-facing app shell — separate `guest.html` Vite entry
+desktop/            Tauri runtime helpers (service gate, IPC bridge)
+theme/              MUI theme + semantic token layer (see DESIGN_SYSTEM.md)
 i18n/               In-house Intl-based i18n engine + JSON locale bundles
 utils/              date.ts, errorMessage, pagination, sanitization, …
 ```
@@ -128,8 +134,9 @@ utils/              date.ts, errorMessage, pagination, sanitization, …
 - HTTP: all requests go through `src/api/client.ts` (in-memory access token,
   HttpOnly refresh cookie, idempotent-GET retry, one refresh-and-retry on 401,
   `Retry-After` honored). `fetch` is never called directly.
-- UI: MUI 9 + Emotion; shared `DataTable` on TanStack Table 9; charts via
-  Recharts; PDFs via jsPDF (+autotable); forms use controlled MUI inputs with
+- UI: MUI 9 + Emotion; shared `DataTable` on TanStack Table 9; charts via Nivo
+  wrapped in `src/components/charts/` (`Hotel{Bar,Line,Pie,Sparkline}Chart`);
+  PDFs via jsPDF (+autotable); forms use controlled MUI inputs with
   `validator`-equivalent checks server-side.
 - i18n: `useTranslation(ns)` → `{ t }`, i18next-shaped but implemented on
   `Intl` (ADR 012). Staff language is a browser preference; guest language is
@@ -177,7 +184,7 @@ settings.
 - Authorization: `check_permission(pool, user_id, "<resource>:<action>")` at the
   route layer. Roles map to permission sets managed through the RBAC admin UI;
   `<resource>:manage` implies all actions on that resource.
-- Webhook routes (`/webhooks/paypal`) carry no bearer auth by design — each
+- Webhook routes (`/api/webhooks/paypal`) carry no bearer auth by design — each
   delivery is cryptographically signature-verified and IP rate-limited.
 
 ## Feature modules
@@ -186,17 +193,20 @@ See [FEATURES.md](FEATURES.md) for the status registry. Delivered domains:
 
 | Domain | Backend surface | Frontend surface |
 |---|---|---|
-| Auth, users, RBAC | `routes/{auth,users,rbac,profile,passkey,two_factor}.rs` | `features/{auth,admin/rbac,user}` |
+| Auth, users, RBAC, teams | `routes/{auth,users,rbac,profile,passkey,two_factor}.rs`, `modules/teams` | `features/{auth,user}`, `features/admin/components/rbac` |
 | Rooms & housekeeping | `routes/{rooms,housekeeping,maintenance}.rs` | `features/{rooms,housekeeping}` |
-| Bookings & rates | `routes/{bookings,rates,booking_channels}.rs` + `modules/guest_booking` | `features/{bookings,onlineInventory}` |
-| Guests & companies | `routes/{guests,companies}.rs` | `features/guests`, `features/admin` |
-| Payments & ledgers | `routes/{payments,ledgers,payment_retry}.rs`, `routes/webhooks.rs` | `features/{customer-ledger,invoices,paymentRecovery}` |
-| Night audit & reports | `routes/{night_audit,analytics,audit}.rs` | `features/{night-audit,reports,audit-log,dashboard}` |
-| Promotions & loyalty | `modules/promotions`, `modules/loyalty` | `features/{promotions,loyalty}` |
+| Bookings & rates | `routes/{bookings,rates,booking_channels}.rs` + `modules/guest_booking` | `features/{bookings,rates,onlineInventory}` |
+| Guests, companies, relations | `routes/{guests,companies}.rs` + `modules/guest_relations` | `features/{guests,guestRelations}` |
+| Payments & ledgers | `routes/{payments,ledgers,payment_retry}.rs`, `routes/webhooks.rs` | `features/{customer-ledger,invoices,paymentRecovery}`, `features/admin/components/{CustomerLedger,PaymentApprovalsPage}` |
+| Night audit, analytics, insights | `routes/{night_audit,analytics,audit}.rs`, `modules/insights` | `features/{night-audit,insights,audit-log,dashboard}`, `features/admin/components/{AuditLogPage,NightAuditPage}` |
+| Revenue, promotions, segments | `modules/{revenue,promotions,segments}` | `features/{revenue,promotions,segments}`, `features/communications` |
+| Loyalty | `modules/loyalty` | `features/loyalty` |
 | eKYC | `modules/ekyc` | `features/ekyc` |
 | Communications & support | `modules/{communications,support}` | `features/{communications,support,notifications,help}` |
-| Settings & data transfer | `modules/settings`, `routes/data_transfer.rs` | `features/{user,data-transfer}` |
-| Guest portal | `routes/guest_portal.rs` + `modules/{guest_booking,consent}` | `guest/` + `features/guestPortal` |
+| Settings, system, data transfer | `modules/{settings,system}`, `routes/data_transfer.rs` | `features/{user,data-transfer}`, `features/admin/system`, `features/admin/components/DataTransferPage` |
+| Realtime | `modules/realtime` (`/api/updates/socket`), hub sockets under loyalty/support | `hooks/useDataChangeSocket`, socket hooks per feature |
+| Guest portal | `routes/guest_portal.rs` + `modules/{guest_booking,consent}` | `guest/` entry + `features/guestPortal` |
+| Legal & misc public pages | — (static content) | `features/legal`, `/offers`, `/unsubscribe/$token` |
 | Search | `routes/search.rs` | shared search |
 
 ## Notable invariants

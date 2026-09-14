@@ -11,7 +11,7 @@ cd hotel-app-be
 HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift
 ```
 
-The OpenAPI document is a method+path index (423 operations across ~350
+The OpenAPI document is a method+path index (424 operations across 352
 paths). This page documents the cross-cutting contract every endpoint shares;
 for per-endpoint request/response shapes read the handler and model files —
 `src/handlers/<domain>.rs` and `src/models/<domain>.rs` are the source of
@@ -21,8 +21,9 @@ truth.
 
 - Dev: `http://localhost:3030` (Vite proxies `/api`, `/uploads`, `/health`,
   `/ws` to it)
-- All application routes live under `/api/*` except `/webhooks/*` and
-  `/health`, `/ws`.
+- All application routes live under `/api/*` — including the webhook and
+  WebSocket routes. The only root-level paths are `/health` and `/ws/status`
+  (a plain status probe, not a socket upgrade).
 
 ## Authentication
 
@@ -31,7 +32,7 @@ truth.
 | Staff API (`/api/**`) | `Authorization: Bearer <access_token>` — short-lived JWT minted by `POST /api/auth/login` or `POST /api/auth/refresh` |
 | Refresh | HttpOnly cookie on the refresh endpoint; tokens are revocable DB rows |
 | Guest portal (`/api/guest-portal/**`) | Guest session cookie/bearer from `/api/guest-portal/auth/*`; booking access tokens for pre-check-in links |
-| Webhooks (`/webhooks/paypal`) | **No bearer** — PayPal signature verification + IP rate limit |
+| Webhooks (`/api/webhooks/paypal`) | **No bearer** — PayPal signature verification + IP rate limit |
 | Public endpoints | `/api/promotions`, `/api/promotions/{slug}`, auth/guest-portal public routes, `/health` |
 
 Authorization: after auth, route wrappers call
@@ -71,25 +72,27 @@ different fields → `409`.
 
 ## Endpoint domains
 
-Grouped by path prefix (counts from `openapi.json`):
+Grouped by path prefix (counts from `openapi.json`, 424 ops total):
 
 | Prefix | Ops | Domain |
 |---|---|---|
-| `/api/guest-portal/*` | 48 | Guest self-service: auth, bookings, pre-check-in, eKYC, payments, vouchers, support, preferences |
-| `/api/admin/*` | 44 | Back-office: RBAC, users, vouchers, system settings, admin actions |
-| `/api/auth/*` | 19 | Login/refresh/logout, password, passkey, 2FA, Google |
-| `/api/rooms*`, `/api/room-types`, `/api/room-rates` | ~25 | Inventory and pricing |
-| `/api/bookings*`, `/api/booking` | ~25 | Booking lifecycle |
-| `/api/guests*` | 14 | Guest records |
-| `/api/ekyc*` | 15 | eKYC submissions + review queue |
-| `/api/profile/*` | 12 | Self-service profile/settings |
-| `/api/rbac/*` | 10 | Role/permission management |
-| `/api/ledgers*`, `/api/payments*`, `/api/invoices*` | ~21 | Money |
-| `/api/promotions*`, `/api/loyalty*` | ~7 | Marketing |
-| `/api/night-audit*`, `/api/audit-logs*`, `/api/analytics*`, `/api/reports*` | ~17 | Ops intelligence |
+| `/api/admin/*` | 66 | Back-office: communications, loyalty, promotions, payments, segments, vouchers, online-inventory |
+| `/api/guest-portal/*` | 51 | Guest self-service: auth, bookings, pre-check-in, eKYC, payments, vouchers, support, preferences |
+| `/api/guests*` | 31 | Guest records + guest-relations interactions/preferences/reviews |
+| `/api/bookings*`, `/api/booking*` | 32 | Booking lifecycle |
+| `/api/rooms*`, `/api/room-types`, `/api/room-rates` | 35 | Inventory and pricing |
+| `/api/auth/*` | 20 | Login/refresh/logout, password, passkey, 2FA, Google |
+| `/api/users*` | 17 | Staff user management |
+| `/api/ekyc*` | 16 | eKYC submissions + review queue |
+| `/api/rbac/*` | 15 | Role/permission management |
+| `/api/ledgers*`, `/api/payments*`, `/api/invoices*` | 29 | Money |
+| `/api/profile/*` | 14 | Self-service profile/settings |
+| `/api/teams*` | 8 | Team management |
 | `/api/data-transfer/*` | 7 | `hotel-backup` JSON export + staged import pipeline — see below |
-| `/api/{housekeeping,maintenance,support,teams,communications,settings,booking-channels,companies,search,users,system,updates}*` | rest | Assorted domains |
-| `/webhooks/paypal` | 1 | PayPal signature-verified events |
+| `/api/night-audit*`, `/api/audit-logs*`, `/api/analytics*`, `/api/insights*`, `/api/reports*` | ~20 | Ops intelligence |
+| `/api/{housekeeping,maintenance,support,communications,settings,booking-channels,companies,search,rate-plans,market-codes,rate-codes,rate-management,complimentary,revenue,promotions,loyalty,guest-relations,system,updates}*` | rest | Assorted domains |
+| `/api/webhooks/paypal` | 1 | PayPal signature-verified events |
+| `/health`, `/ws/status` | 2 | Infrastructure probes (root level) |
 
 ### Data transfer
 
@@ -110,5 +113,8 @@ The file format, entity coverage, and semantics are documented in
 
 ## Realtime
 
-`/ws` upgrades to WebSocket (loyalty + notifications hubs); clients reconnect
+WebSocket upgrades live under `/api`: `/api/updates/socket` (staff data-change
+hub, `modules/realtime`), `/api/admin/loyalty/socket` (staff loyalty), and
+`/api/guest-portal/me/{loyalty,support}/socket` (guest). Clients reconnect
 with capped exponential backoff and lagged-drop is logged server-side.
+`/ws/status` is a plain JSON status probe, not an upgrade endpoint.

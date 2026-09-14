@@ -229,7 +229,7 @@ than upgraded in place. `seed.sql` is one self-validating transaction that raise
 re-apply.
 
 Verify any baseline edit by installing the baseline and seed into a scratch
-`postgres:19beta2` container before claiming it works — the SQL is an opaque
+`postgres:19beta3` container before claiming it works — the SQL is an opaque
 `include_str!` to the compiler, so `cargo check` and the test suite cannot detect a
 baseline that will not install.
 
@@ -239,7 +239,7 @@ baseline that will not install.
 - ✅ Compatible with Docker init scripts
 - ✅ Existing V1 databases avoid accidental seed or backfill rewrites at startup
 - ❌ Different from typical sqlx migration workflow
-- ❌ PostgreSQL 19 Beta 2 remains a testing target until general availability
+- ❌ PostgreSQL 19 (currently `19beta3`) remains a testing target until general availability
 
 ---
 

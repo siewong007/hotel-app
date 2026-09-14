@@ -32,8 +32,9 @@ port through Tauri IPC. The sidecar receives an explicit `ALLOWED_ORIGINS` list.
 ## PostgreSQL V1 lifecycle
 
 A new empty database is initialized exactly once; an ordered patch catalog
-carries any later schema changes (the catalog is currently empty — the
-original 1.2–1.23 lineage was folded into the baseline):
+carries any later schema changes (the original 1.2–1.23 lineage was folded
+into the baseline; the republished catalog currently ships `1.2
+deposit-forfeited` and `1.3 guest-relations-phase2`):
 
 ```text
 database/postgres/migrations/0001_v1_baseline.sql
@@ -75,7 +76,7 @@ Full lifecycle reference, including failure recovery:
 
 Two capture paths converge on one policy: the synchronous capture
 (`services/payments.rs::capture_paypal_payment`) and the inbound webhook
-(`/webhooks/paypal` → `routes/webhooks.rs` → `handlers/webhooks.rs`). Both
+(`/api/webhooks/paypal` → `routes/webhooks.rs` → `handlers/webhooks.rs`). Both
 verify the captured amount against the stored payment row — never the editable
 booking total. On a mismatch after money has moved they write a
 `paypal_capture_conflict` / `paypal_webhook_conflict` audit event and leave the
@@ -83,7 +84,8 @@ payment untouched for staff review; a payment is only marked failed when money
 never moved. Webhook routes carry no bearer auth by design — each delivery is
 cryptographically verified and IP rate-limited; unhandled event types are
 audit-logged as `paypal_webhook_ignored` and acknowledged. Conflicts surface on
-the admin Payment Approvals page (requires `payments:read` + `audit:read`).
+the admin Payment Approvals page via `GET /api/admin/payments/paypal-conflicts`
+(`payments:read`).
 Payments RBAC lives at the route layer: every wrapper in `routes/payments.rs`
 calls `require_permission_helper` before its handler.
 
@@ -157,7 +159,7 @@ identifiers): [guest-relations.md](guest-relations.md).
 ## Guest portal security
 
 Pre-checkin tokens are 256-bit (`generate_session_token`) and invalidated on
-submit; the portal has logout/revoke and `/guest_portal/me/*` is rate-limited.
+submit; the portal has logout/revoke and `/api/guest-portal/me/*` is rate-limited.
 Every portal mutation writes an audit event. Portal booking creation is
 race-safe: `lock_room_type_tx` (`FOR UPDATE`) plus `allocate_room_tx`
 (`FOR UPDATE SKIP LOCKED`) guarantee a single winner for the last room.

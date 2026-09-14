@@ -1,6 +1,16 @@
 # Claude Design ↔ Application Page Reconciliation
 
 Last reviewed: 2026-07-10
+
+> **Stale route manifest.** The manifest below reflects routes as of
+> 2026-07-10. Routes shipped since — `/insights` (which `/reports` now
+> redirects to), `/revenue`, `/rates`, `/campaigns`, `/segments`,
+> `/communications`, `/online-inventory`, `/support`, `/payment-approvals`,
+> `/notifications`, `/system-health`, `/jobs`, `/offers`, `/legal/*`, and the
+> expanded `/guest-relations/*` and `/portal/*` trees — are not represented.
+> Current truth: `hotel-web-fe/src/navigation/routeRegistry.tsx` +
+> `src/routes/`. The component-level sync findings above remain the accurate
+> part of this document.
 Claude Design project: **Hotel App Design System** (`03f1e68f-8bc7-42c2-97d2-32f663b92470`, https://claude.ai/design/p/03f1e68f-8bc7-42c2-97d2-32f663b92470)
 Source of app-page truth: `hotel-web-fe/src/routes/` + `src/navigation/routeRegistry.tsx` (routes verified in agreement, 2026-07-10). `hotel-desktop` reuses the same pages (`frontendDist: ../../hotel-web-fe/dist`), so Platform = Web + Desktop for every row unless noted.
 

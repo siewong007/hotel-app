@@ -1,6 +1,6 @@
 # hotel-app-be
 
-Rust backend API for the hotel administrative panel: Axum 0.8, SQLx 0.8, PostgreSQL 19.
+Rust backend API for the hotel administrative panel: Axum 0.8, SQLx 0.9, PostgreSQL 19.
 It serves the React frontend in web deployments and runs as a sidecar process inside the
 Tauri desktop app.
 
@@ -44,9 +44,11 @@ cargo fmt
 integration test after a signature change — run `cargo test`, or at least
 `cargo check --tests`.
 
-Fifteen of the 19 files under `tests/` return early when `DATABASE_URL` is unset, and the
-suite still exits 0. Export `DATABASE_URL` and check the reported run count: a full run is roughly
-513 passed with 10 ignored, while about 209 means only the library unit tests ran.
+45 of the 50 files under `tests/` return early when `DATABASE_URL` is unset, and the
+suite still exits 0. Export `DATABASE_URL` and check the reported run count: a full run
+reports ~1,300 tests; ~479 means only the library unit tests ran. The patch-lifecycle
+and schema-drift suites additionally shell out to `psql` — on macOS add libpq to PATH
+(`/opt/homebrew/opt/libpq/bin`) or they fail with `psql: command not found`.
 
 ## Layout
 
@@ -58,8 +60,9 @@ src/
   services/       Business workflows, transactions, audit decisions
   repositories/   SQL persistence and row mapping
   models/         Request/response DTOs and domain structs
-  modules/        Newer self-contained domain modules (analytics, communications, ekyc,
-                  guest_booking, loyalty, promotions, settings, support, teams)
+  modules/        Self-contained domain modules (communications, consent, ekyc,
+                  guest_booking, guest_relations, insights, loyalty, promotions,
+                  realtime, revenue, segments, settings, support, system, teams)
   utils/          Sanitization and small pure helpers
   bin/            hash_password, fix_password
 database/postgres/  V1 baseline, seed, and PostgreSQL 19 tuning scripts
