@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
@@ -33,6 +33,9 @@ const mocks = vi.hoisted(() => ({
   getMarketCodes: vi.fn(),
   listBookingChannels: vi.fn(),
   getRoomChargeLedgerForBooking: vi.fn(),
+  getAllRoomTypes: vi.fn(),
+  getAvailableRoomsForDates: vi.fn(),
+  updateRoomStatus: vi.fn(),
   useRooms: vi.fn(),
   roomsQuery: { data: [] as unknown[], error: null as unknown },
 }));
@@ -67,6 +70,11 @@ vi.mock('../../../api', () => ({
   },
   GuestsService: {
     getGuest: (...args: unknown[]) => mocks.getGuest(...args),
+  },
+  RoomsService: {
+    getAllRoomTypes: (...args: unknown[]) => mocks.getAllRoomTypes(...args),
+    getAvailableRoomsForDates: (...args: unknown[]) => mocks.getAvailableRoomsForDates(...args),
+    updateRoomStatus: (...args: unknown[]) => mocks.updateRoomStatus(...args),
   },
   CompaniesService: {
     getCompanies: (...args: unknown[]) => mocks.getCompanies(...args),
@@ -192,6 +200,9 @@ describe('BookingDetailPage', () => {
     mocks.getMarketCodes.mockReset().mockResolvedValue({ market_codes: [] });
     mocks.listBookingChannels.mockReset().mockResolvedValue([]);
     mocks.getRoomChargeLedgerForBooking.mockReset().mockResolvedValue({});
+    mocks.getAllRoomTypes.mockReset().mockResolvedValue([]);
+    mocks.getAvailableRoomsForDates.mockReset().mockResolvedValue([]);
+    mocks.updateRoomStatus.mockReset().mockResolvedValue({});
 
     mocks.roomsQuery.data = [];
     mocks.roomsQuery.error = null;
@@ -244,5 +255,176 @@ describe('BookingDetailPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /More/i }));
     expect(await screen.findByText('Workflow')).toBeDefined();
     expect(screen.getByText('Void')).toBeDefined();
+  });
+
+  // ---------------------------------------------------------------------
+  // Booking-action dialog coverage. These used to be driven through
+  // BookingsPage's auto-opened inline details panel; the panel lives on this
+  // page now, so the assertions moved with it (recordPayment is asserted at
+  // the service seam — this harness keeps the real mutation hooks).
+  // ---------------------------------------------------------------------
+
+  it('the "Check in" button fetches the guest profile and prefills IC/phone', async () => {
+    mocks.getGuest.mockResolvedValue({ ic_number: '990101-01-1234', phone: '0123456789' });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Check in' }));
+
+    await waitFor(() => expect(mocks.getGuest).toHaveBeenCalledWith('g-7'));
+    expect(screen.getByText('Check-In - Room 101')).toBeDefined();
+    expect(screen.getByText('Booking #BK-1042')).toBeDefined();
+
+    await waitFor(() => {
+      const icField = screen.getByLabelText(/IC \/ Passport Number/) as HTMLInputElement;
+      expect(icField.value).toBe('990101-01-1234');
+    });
+  });
+
+  // The Accept Payment dialog carries no date field, so the payments row is
+  // stamped with the server timestamp — recording a payment here dates it to
+  // the day the status is changed, not the day the guest handed over money.
+  // Staff must be told before they use this instead of the checkout invoice
+  // (the only path that sends an explicit payment_date).
+  it('the Accept Payment dialog warns that the payment is dated today', async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Payment' }));
+
+    const notice = screen
+      .getAllByRole('alert')
+      .find(node => node.textContent?.includes('This payment will be dated'));
+
+    expect(notice).toBeDefined();
+    expect(notice?.textContent).toContain('not the day the guest actually paid');
+    expect(notice?.textContent).toContain('Record Payment');
+  });
+
+  it('reuses a failed booking payment key, rotates it after a material edit, and clears it after success', async () => {
+    // Fake timers with automatic advancement make RTL's waitFor polling
+    // deterministic under parallel-suite load; the code under test has no
+    // timers of its own (same pattern as the timezone test below).
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const timeout = new Error('timeout');
+      mocks.recordPayment
+        .mockRejectedValueOnce(timeout)
+        .mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
+
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Payment' }));
+      const dialog = await screen.findByRole('dialog');
+
+      const [amountInput] = within(dialog).getAllByRole('spinbutton');
+      fireEvent.change(amountInput, { target: { value: '150' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(1));
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(2));
+      const firstRequest = mocks.recordPayment.mock.calls[0][0];
+      expect(mocks.recordPayment.mock.calls[1][0].idempotency_key)
+        .toBe(firstRequest.idempotency_key);
+
+      fireEvent.mouseDown(within(dialog).getByRole('combobox'));
+      fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(3));
+      const changedRequest = mocks.recordPayment.mock.calls[2][0];
+      expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(4));
+      expect(mocks.recordPayment.mock.calls[3][0].idempotency_key)
+        .not.toBe(changedRequest.idempotency_key);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Review finding I5 regression pin, now reachable: on the old list page the
+  // `checkout_required` dialog could not be driven through the harness (the
+  // auto-opened panel unmounted between query and click). Here the panel is
+  // the page, so a checked-in booking with a balance reaches it via "Check
+  // out". The reference must be checkout-prefixed and stable across retries
+  // of one attempt — the backend checks it before the idempotency key.
+  it('sends a stable checkout-prefixed transaction reference for checkout-required payments', async () => {
+    mocks.getBookingById.mockResolvedValue(buildBooking({ status: 'checked_in' }));
+    mocks.recordPayment
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce(undefined);
+
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Check out' }));
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
+    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
+    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(2));
+
+    const firstRef = mocks.recordPayment.mock.calls[0][0].transaction_reference;
+    expect(firstRef).toMatch(/^checkout-42-/);
+    expect(mocks.recordPayment.mock.calls[1][0].transaction_reference).toBe(firstRef);
+  });
+
+  // The date must resolve in the HOTEL timezone: the server stamps the row
+  // there, and formatHotelDate passes date-only strings straight through, so
+  // handing it a machine-local 'YYYY-MM-DD' would name the viewer's day.
+  //
+  // Pinned to an instant where the two genuinely disagree — a hotel in UTC+14
+  // has already rolled over to Aug 7 while every zone from UTC-11 to UTC+13
+  // is still on Aug 6. Without this the assertion proves nothing: the dev
+  // machine (Asia/Kuching) and the seeded hotel zone (Asia/Kuala_Lumpur) are
+  // both UTC+8, so a machine-local date renders identically.
+  it('dates the Accept Payment notice in the hotel timezone, not the viewer’s', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.setSystemTime(new Date('2026-08-06T10:00:00Z'));
+      localStorage.setItem(
+        'hotelSettings',
+        JSON.stringify({ timezone: 'Pacific/Kiritimati' }),
+      );
+
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Payment' }));
+
+      const notice = screen
+        .getAllByRole('alert')
+        .find(node => node.textContent?.includes('This payment will be dated'));
+
+      expect(notice?.textContent).toContain('today (Aug 7, 2026)');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  describe('permission gating', () => {
+    it('hides the admin-only Edit control and skips the booking-channels/companies fetches for a non-admin user', async () => {
+      renderPage();
+
+      await screen.findByRole('button', { name: 'Check in' });
+
+      expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+      expect(mocks.listBookingChannels).not.toHaveBeenCalled();
+      expect(mocks.getCompanies).not.toHaveBeenCalled();
+    });
+
+    it('shows the admin-only Edit control, fetches booking channels, and loads active companies once Edit opens the dialog', async () => {
+      mocks.hasPermission.mockImplementation((permission: string) => permission === 'bookings:update');
+
+      renderPage();
+
+      await waitFor(() => expect(mocks.listBookingChannels).toHaveBeenCalledTimes(1));
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+
+      expect(await screen.findByText('Edit Booking #F-1042')).toBeDefined();
+      await waitFor(() => expect(mocks.getAllRoomTypes).toHaveBeenCalled());
+      await waitFor(() => expect(mocks.getCompanies).toHaveBeenCalled());
+    });
   });
 });

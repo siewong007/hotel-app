@@ -13,8 +13,7 @@ interface StaysTabProps {
 /**
  * Guest 360 stays list — the same reservations table the legacy profile
  * dialog renders (shared via GuestReservationsTable), plus a per-row deep
- * link into the bookings workspace (`?booking_id=` selects the row and opens
- * its detail panel there).
+ * link into the booking detail route (`/bookings/$bookingId`).
  */
 const StaysTab: React.FC<StaysTabProps> = ({ reservations, summary }) => (
   <Box>
@@ -28,7 +27,7 @@ const StaysTab: React.FC<StaysTabProps> = ({ reservations, summary }) => (
       renderBookingActions={(booking) => (
         <MuiLink
           component={Link}
-          to={`/bookings?booking_id=${booking.id}`}
+          to={`/bookings/${booking.id}`}
           underline="hover"
           sx={{
             display: 'inline-flex',

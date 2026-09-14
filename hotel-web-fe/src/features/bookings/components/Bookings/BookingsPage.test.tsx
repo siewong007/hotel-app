@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { configure } from '@testing-library/dom';
 
 // The payment idempotency suite below runs under fake timers with automatic
@@ -49,6 +49,7 @@ function createLocalStorageStub() {
 
 const mocks = vi.hoisted(() => ({
   hasPermission: vi.fn(),
+  navigate: vi.fn(),
   searchParams: new URLSearchParams(),
   setSearchParams: vi.fn(),
 
@@ -126,6 +127,7 @@ vi.mock('../../../../hooks/useCurrency', () => ({
 }));
 
 vi.mock('../../../../router', () => ({
+  useNavigate: () => mocks.navigate,
   useSearchParams: () => [mocks.searchParams, mocks.setSearchParams],
 }));
 
@@ -346,6 +348,7 @@ describe('BookingsPage', () => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
 
     mocks.hasPermission.mockReset().mockReturnValue(false);
+    mocks.navigate.mockReset();
     mocks.searchParams = new URLSearchParams();
     mocks.setSearchParams.mockReset();
 
@@ -437,8 +440,7 @@ describe('BookingsPage', () => {
       expect(screen.getAllByText(/Room 101/).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/Room 202/).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/Room 303/).length).toBeGreaterThan(0);
-      // F-1001 (booking1) renders twice once the auto-select effect opens the
-      // details panel for the first visible booking (list row + detail header).
+      // F-1001 renders in booking1's list row (folio/invoice column).
       expect(screen.getAllByText('F-1001').length).toBeGreaterThan(0);
       expect(screen.getByText('F-1002')).toBeDefined();
       expect(screen.getByText('F-1003')).toBeDefined();
@@ -578,6 +580,34 @@ describe('BookingsPage', () => {
     });
   });
 
+  describe('navigation', () => {
+    it('clicking a booking row navigates to the /bookings/$bookingId detail route', () => {
+      renderPage();
+
+      fireEvent.click(screen.getByText('Alex Tan'));
+
+      expect(mocks.navigate).toHaveBeenCalledWith('/bookings/2');
+    });
+
+    it('redirects the legacy ?booking_id= deep link to the detail route', async () => {
+      mocks.searchParams = new URLSearchParams('booking_id=7');
+
+      renderPage();
+
+      await waitFor(() =>
+        expect(mocks.navigate).toHaveBeenCalledWith('/bookings/7', { replace: true }));
+    });
+
+    it('keeps ?search= filtering the list without navigating away', async () => {
+      mocks.searchParams = new URLSearchParams('search=Jane');
+
+      renderPage();
+
+      await waitFor(() => expect(mocks.lastBookingsPageParams).toMatchObject({ search: 'Jane' }));
+      expect(mocks.navigate).not.toHaveBeenCalled();
+    });
+  });
+
   describe('modals', () => {
     it('opens the create-booking modal from "New booking" and routes a direct booking into the check-in dialog', () => {
       renderPage();
@@ -640,159 +670,8 @@ describe('BookingsPage', () => {
       expect(mocks.setSearchParams).not.toHaveBeenCalled();
     });
 
-    it('the existing-booking "Check in" button fetches the guest profile and prefills IC/phone', async () => {
-      renderPage();
-
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Check in' })).toBeDefined());
-      fireEvent.click(screen.getByRole('button', { name: 'Check in' }));
-
-      expect(mocks.getGuest).toHaveBeenCalledWith('g-1');
-      expect(screen.getByText('Check-In - Room 101')).toBeDefined();
-      expect(screen.getByText(`Booking #${booking1.booking_number}`)).toBeDefined();
-
-      await waitFor(() => {
-        const icField = screen.getByLabelText(/IC \/ Passport Number/) as HTMLInputElement;
-        expect(icField.value).toBe('990101-01-1234');
-      });
-    });
-
-    // The Accept Payment dialog carries no date field, so the payments row is
-    // stamped with the server timestamp — recording a payment here dates it to
-    // the day the status is changed, not the day the guest handed over money.
-    // Staff must be told before they use this instead of the checkout invoice
-    // (the only path that sends an explicit payment_date).
-    it('the Accept Payment dialog warns that the payment is dated today', async () => {
-      renderPage();
-
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Payment' })).toBeDefined());
-      fireEvent.click(screen.getByRole('button', { name: 'Payment' }));
-
-      const notice = screen
-        .getAllByRole('alert')
-        .find(node => node.textContent?.includes('This payment will be dated'));
-
-      expect(notice).toBeDefined();
-      expect(notice?.textContent).toContain('not the day the guest actually paid');
-      expect(notice?.textContent).toContain('Record Payment');
-    });
-
-    it('reuses a failed booking payment key, rotates it after a material edit, and clears it after success', async () => {
-      // Fake timers with automatic advancement make RTL's waitFor polling
-      // deterministic under parallel-suite load; the code under test has no
-      // timers of its own (same pattern as the timezone test below).
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-      try {
-        const timeout = new Error('timeout');
-        mocks.recordPaymentMutation.mutateAsync
-          .mockRejectedValueOnce(timeout)
-          .mockRejectedValueOnce(timeout)
-          .mockResolvedValueOnce(undefined)
-          .mockResolvedValueOnce(undefined);
-
-        renderPage();
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Payment' })).toBeDefined());
-        fireEvent.click(screen.getByRole('button', { name: 'Payment' }));
-        const dialog = await screen.findByRole('dialog');
-
-        const [amountInput] = within(dialog).getAllByRole('spinbutton');
-        fireEvent.change(amountInput, { target: { value: '150' } });
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
-        await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(1));
-
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
-        await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(2));
-        const firstRequest = mocks.recordPaymentMutation.mutateAsync.mock.calls[0][0];
-        expect(mocks.recordPaymentMutation.mutateAsync.mock.calls[1][0].idempotency_key)
-          .toBe(firstRequest.idempotency_key);
-
-        fireEvent.mouseDown(within(dialog).getByRole('combobox'));
-        fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
-        await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(3));
-        const changedRequest = mocks.recordPaymentMutation.mutateAsync.mock.calls[2][0];
-        expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
-
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
-        await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(4));
-        expect(mocks.recordPaymentMutation.mutateAsync.mock.calls[3][0].idempotency_key)
-          .not.toBe(changedRequest.idempotency_key);
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-
-    // Review finding I5 (fix applied in BookingsPage.tsx: the synthetic checkout
-    // reference is now derived from the idempotency attempt rather than the
-    // AMOUNT, so two separate same-value payments no longer collide).
-    //
-    // NOT COVERED BY A TEST. Reaching the reference requires the
-    // `checkout_required` dialog, which only opens via handleCheckOut on a
-    // checked-in booking with a balance; six attempts to drive it through this
-    // page harness failed on the detail panel unmounting between query and
-    // click. The manual "Payment" path never sets a reference, so it cannot
-    // exercise this. Needs either a harness fix or extraction of the reference
-    // derivation into a pure helper that can be unit-tested directly.
-
-
-    // The date must resolve in the HOTEL timezone: the server stamps the row
-    // there, and formatHotelDate passes date-only strings straight through, so
-    // handing it a machine-local 'YYYY-MM-DD' would name the viewer's day.
-    //
-    // Pinned to an instant where the two genuinely disagree — a hotel in UTC+14
-    // has already rolled over to Aug 7 while every zone from UTC-11 to UTC+13
-    // is still on Aug 6. Without this the assertion proves nothing: the dev
-    // machine (Asia/Kuching) and the seeded hotel zone (Asia/Kuala_Lumpur) are
-    // both UTC+8, so a machine-local date renders identically.
-    it('dates the Accept Payment notice in the hotel timezone, not the viewer’s', async () => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-      try {
-        vi.setSystemTime(new Date('2026-08-06T10:00:00Z'));
-        localStorage.setItem(
-          'hotelSettings',
-          JSON.stringify({ timezone: 'Pacific/Kiritimati' }),
-        );
-
-        renderPage();
-
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Payment' })).toBeDefined());
-        fireEvent.click(screen.getByRole('button', { name: 'Payment' }));
-
-        const notice = screen
-          .getAllByRole('alert')
-          .find(node => node.textContent?.includes('This payment will be dated'));
-
-        expect(notice?.textContent).toContain('today (Aug 7, 2026)');
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-  });
-
-  describe('permission gating', () => {
-    it('hides the admin-only Edit control and skips the booking-channels fetch for a non-admin user', async () => {
-      renderPage();
-
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Check in' })).toBeDefined());
-
-      expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
-      expect(mocks.listBookingChannels).not.toHaveBeenCalled();
-      expect(mocks.lastActiveCompaniesArg).toBe(false);
-    });
-
-    it('shows the admin-only Edit control, fetches booking channels, and enables active companies once Edit opens the dialog', async () => {
-      mocks.hasPermission.mockImplementation((permission: string) => permission === 'bookings:update');
-
-      renderPage();
-
-      await waitFor(() => expect(mocks.listBookingChannels).toHaveBeenCalledTimes(1));
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Edit' })).toBeDefined());
-      expect(mocks.lastActiveCompaniesArg).toBe(false);
-
-      fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-
-      expect(screen.getByText('Edit Booking #F-1001')).toBeDefined();
-      expect(mocks.getAllRoomTypes).toHaveBeenCalled();
-      await waitFor(() => expect(mocks.lastActiveCompaniesArg).toBe(true));
-    });
+    // Row-detail actions (Check in, Payment, Edit, …) moved to the
+    // /bookings/$bookingId page with the details panel; their dialog coverage
+    // now lives in BookingDetailPage.test.tsx.
   });
 });

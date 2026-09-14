@@ -163,7 +163,7 @@ describe('CheckoutInvoiceModal payment idempotency', () => {
   it('reuses a failed booking-payment key, rotates it after an edit, and clears it after success', async () => {
     // Fake timers with automatic advancement make RTL's waitFor polling
     // deterministic under parallel-suite load; the code under test has no
-    // timers of its own (same pattern as the BookingsPage timezone test).
+    // timers of its own (same pattern as the BookingDetailPage timezone test).
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       const timeout = new Error('timeout');

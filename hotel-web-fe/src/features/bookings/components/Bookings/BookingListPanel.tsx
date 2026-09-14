@@ -48,8 +48,8 @@ interface BookingListPanelProps {
   loading: boolean;
   totalBookings: number;
   bookingView: BookingView;
-  selectedBooking: BookingWithDetails | null;
-  onSelectBooking: (booking: BookingWithDetails) => void;
+  /** Row click — the page navigates to /bookings/$bookingId. */
+  onOpenBooking: (booking: BookingWithDetails) => void;
   sortField: SortField;
   onToggleSort: () => void;
   pagination: BookingListPagination;
@@ -61,8 +61,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
   loading,
   totalBookings,
   bookingView,
-  selectedBooking,
-  onSelectBooking,
+  onOpenBooking,
   sortField,
   onToggleSort,
   pagination,
@@ -138,7 +137,6 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
       ) : (
         <Stack divider={<Divider />} sx={{ maxHeight: { lg: 'calc(100vh - 430px)' }, minHeight: 420, overflow: 'auto' }}>
           {bookings.map((booking) => {
-            const isSelected = selectedBooking && String(selectedBooking.id) === String(booking.id);
             const balance = getBookingBalance(booking);
             const isPaid = !isPositiveMoney(balance) && ['paid', 'paid_rate'].includes(String(booking.payment_status || '').toLowerCase());
             const channelInfo = getBookingChannelInfo(booking);
@@ -147,7 +145,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
             return (
               <Box
                 key={booking.id}
-                onClick={() => onSelectBooking(booking)}
+                onClick={() => onOpenBooking(booking)}
                 sx={{
                   display: 'grid',
                   gridTemplateColumns: { xs: '44px 1fr', md: '54px 1fr auto auto' },
@@ -156,8 +154,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
                   px: 2,
                   py: 1.75,
                   cursor: 'pointer',
-                  bgcolor: isSelected ? 'var(--hotel-selected)' : 'background.paper',
-                  borderLeft: isSelected ? '4px solid var(--hotel-primary)' : '4px solid transparent',
+                  bgcolor: 'background.paper',
                   opacity: booking.status === 'voided' ? 0.55 : 1,
                 }}
               >

@@ -15,8 +15,7 @@ import {
 import {
   BookingWithDetails,
 } from '../../../../types';
-import { useAuth } from '../../../../auth/AuthContext';
-import { useSearchParams } from '../../../../router';
+import { useNavigate, useSearchParams } from '../../../../router';
 import UnifiedBookingModal from '../../../rooms/components/UnifiedBooking';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { useBookings, PAGE_SIZE } from '../../hooks/useBookings';
@@ -38,16 +37,14 @@ import {
 import BookingSummarySection from './BookingSummarySection';
 import BookingFiltersBar from './BookingFiltersBar';
 import BookingListPanel from './BookingListPanel';
-import BookingDetailsPanel from './BookingDetailsPanel';
 
 const BookingsPage: React.FC = () => {
   const [pageSearchParams, setPageSearchParams] = useSearchParams();
-  const { hasPermission } = useAuth();
+  const navigate = useNavigate();
   const PAYMENT_METHODS = getHotelSettings().payment_methods;
   const ONLINE_CHANNELS = getHotelSettings()
     .booking_channels.map((channel) => channel.name?.trim())
     .filter((name): name is string => Boolean(name));
-  const isAdmin = hasPermission('bookings:update') || hasPermission('bookings:manage');
 
   const {
     bookings,
@@ -85,8 +82,6 @@ const BookingsPage: React.FC = () => {
     clearFilters,
   } = useBookings();
 
-  const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
-  const [bookingDetailsOpen, setBookingDetailsOpen] = useState(true);
   const [bookingView, setBookingView] = useState<BookingView>('all');
   const routedBookingSearch = pageSearchParams.get('search') || '';
   const routedBookingId = pageSearchParams.get('booking_id') || '';
@@ -96,12 +91,20 @@ const BookingsPage: React.FC = () => {
   const summaryBookings = summaryBookingsQuery.data ?? [];
   const summaryLoaded = summaryBookingsQuery.isSuccess;
 
+  // Legacy deep link: /bookings?booking_id=<id> used to select the row and
+  // auto-open the inline details panel. The /bookings/$bookingId route owns
+  // the detail surface now, so redirect there instead — `replace` keeps the
+  // back button on the list rather than looping through the redirect.
   useEffect(() => {
-    if (!routedBookingSearch && !routedBookingId) return;
+    if (!routedBookingId) return;
+    navigate(`/bookings/${routedBookingId}`, { replace: true });
+  }, [routedBookingId, navigate]);
 
-    const nextSearch = routedBookingSearch || routedBookingId;
+  useEffect(() => {
+    if (!routedBookingSearch || routedBookingId) return;
+
     setBookingView('all');
-    setSearchQuery(nextSearch);
+    setSearchQuery(routedBookingSearch);
     setRoomNumberFilter('');
     setPaymentMethodFilter('');
     setStatusFilter('all');
@@ -110,10 +113,6 @@ const BookingsPage: React.FC = () => {
     setCustomEndDate('');
     setSearchDate('');
     setCurrentPage(1);
-    if (routedBookingId) {
-      setSelectedBookingId(routedBookingId);
-      setBookingDetailsOpen(true);
-    }
   }, [
     routedBookingSearch,
     routedBookingId,
@@ -167,10 +166,10 @@ const BookingsPage: React.FC = () => {
     await Promise.all([loadData(), summaryBookingsQuery.refetch()]);
   };
 
-  // All booking-action dialogs and their handlers live in the shared hook so
-  // the /bookings/$bookingId detail page drives the same workflows.
+  // Row clicks navigate to /bookings/$bookingId, so the shared hook stays on
+  // the list page only for list-chrome dialogs: the create flow's
+  // onBookingCreated routes a direct booking into the Check-In dialog.
   const {
-    callbacks: bookingActionCallbacks,
     dialogs: bookingActionDialogs,
     openCheckInDialog,
   } = useBookingActions({
@@ -222,23 +221,6 @@ const BookingsPage: React.FC = () => {
     return filteredAndSortedBookings;
   }, [arrivingBookings, bookingView, companyDueBookings, departingBookings, dueBookings, filteredAndSortedBookings, inHouseBookings, normalDueBookings, upcomingBookings]);
 
-  const selectedBooking = useMemo(() => {
-    if (!bookingDetailsOpen) return null;
-    if (selectedBookingId == null) return visibleBookings[0] || null;
-    return visibleBookings.find((booking) => String(booking.id) === String(selectedBookingId)) || visibleBookings[0] || null;
-  }, [bookingDetailsOpen, selectedBookingId, visibleBookings]);
-
-  useEffect(() => {
-    if (!bookingDetailsOpen) return;
-    if (visibleBookings.length === 0) {
-      setSelectedBookingId(null);
-      return;
-    }
-    if (!selectedBookingId || !visibleBookings.some((booking) => String(booking.id) === String(selectedBookingId))) {
-      setSelectedBookingId(visibleBookings[0].id);
-    }
-  }, [bookingDetailsOpen, selectedBookingId, visibleBookings]);
-
   const totalGuestsInHouse = inHouseBookings.reduce((sum, booking) => sum + Number(booking.adults || 1) + Number(booking.children || 0), 0);
   const roomCount = rooms.length || 0;
   const normalOutstandingDue = normalDueBookings.reduce((sum, booking) => sumMoney([sum, getBookingBalance(booking)]), 0);
@@ -276,10 +258,10 @@ const BookingsPage: React.FC = () => {
 
   const handleTakePaymentAction = () => {
     selectBookingView('normal_balance');
-    if (normalDueBookings.length > 0) {
-      setSelectedBookingId(normalDueBookings[0].id);
-      setBookingDetailsOpen(true);
-    }
+    // Straight into the first outstanding booking's detail page — the payment
+    // action lives there now that the inline panel is gone.
+    const firstDue = normalDueBookings[0];
+    if (firstDue) navigate(`/bookings/${firstDue.id}`);
   };
 
   const hasActiveFilters = Boolean(
@@ -359,7 +341,7 @@ const BookingsPage: React.FC = () => {
       <Grid container spacing={2.5} sx={{
         alignItems: "stretch"
       }}>
-        <Grid size={{ xs: 12, lg: selectedBooking ? 8 : 12 }}>
+        <Grid size={{ xs: 12 }}>
           <Card elevation={0} sx={{ overflow: 'hidden', height: '100%' }}>
             <BookingFiltersBar
               searchQuery={searchQuery}
@@ -423,11 +405,7 @@ const BookingsPage: React.FC = () => {
               loading={loading}
               totalBookings={totalBookings}
               bookingView={bookingView}
-              selectedBooking={selectedBooking}
-              onSelectBooking={(booking) => {
-                setSelectedBookingId(booking.id);
-                setBookingDetailsOpen(true);
-              }}
+              onOpenBooking={(booking) => navigate(`/bookings/${booking.id}`)}
               sortField={sortField}
               onToggleSort={() => handleSort(sortField === 'check_in_date' ? 'guest_name' : 'check_in_date')}
               pagination={bookingPagination}
@@ -435,20 +413,6 @@ const BookingsPage: React.FC = () => {
             />
           </Card>
         </Grid>
-
-        {selectedBooking && (
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <BookingDetailsPanel
-            booking={selectedBooking}
-            isAdmin={isAdmin}
-            onClose={() => {
-              setSelectedBookingId(null);
-              setBookingDetailsOpen(false);
-            }}
-            {...bookingActionCallbacks}
-          />
-        </Grid>
-        )}
       </Grid>
       {/* Create Booking Modal (Unified) */}
       <UnifiedBookingModal
@@ -498,8 +462,8 @@ const BookingsPage: React.FC = () => {
           openCheckInDialog(bookingWithDetails);
         }}
       />
-      {/* All booking-action dialogs (CheckIn, Payment, Workflow, Edit, Invoice,
-          Release, Void, Reactivate) mount via the shared hook. */}
+      {/* Booking-action dialogs stay mounted via the shared hook for the
+          create → check-in flow; row-level actions live on the detail page. */}
       {bookingActionDialogs}
     </Box>
   );

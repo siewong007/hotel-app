@@ -855,7 +855,7 @@ describe('CustomerLedgerPage', () => {
   it('retains the idempotency key when the payment commits but the refetch fails', async () => {
     // Fake timers with automatic advancement make RTL's waitFor polling
     // deterministic under parallel-suite load (same pattern as the
-    // BookingsPage timezone test).
+    // BookingDetailPage timezone test).
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       mocks.hotelApi.createLedgerPayment.mockResolvedValue(undefined);
