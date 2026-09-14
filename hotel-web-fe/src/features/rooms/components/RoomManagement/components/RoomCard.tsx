@@ -26,7 +26,8 @@ import {
 } from '@mui/icons-material';
 import type { Room, BookingWithDetails } from '../../../../../types';
 import type { RoomMenuAnchor } from '../types';
-import { getRoomTypeCode } from '../../../utils/roomManagementUtils';
+import { getRoomTypeCode, formatMenuBookingDate } from '../../../utils/roomManagementUtils';
+import { useIsPhone } from '../../../../../hooks/useIsPhone';
 
 // Ink and borders rendered ON the saturated status fill. The fill is the
 // status accent token, which inverts between modes (deep in light, pastel in
@@ -96,7 +97,11 @@ const CardPillButton: React.FC<{
   </Button>
 );
 
-const CardMoreButton: React.FC<{ onClick: (event: React.MouseEvent<HTMLElement>) => void }> = ({ onClick }) => (
+const CardMoreButton: React.FC<{
+  onClick: (event: React.MouseEvent<HTMLElement>) => void;
+  /** Hit target in px — 24 on desktop, larger on phone for touch. */
+  size?: number;
+}> = ({ onClick, size = 24 }) => (
   <Tooltip title="More actions" arrow>
     <IconButton
       size="small"
@@ -108,15 +113,15 @@ const CardMoreButton: React.FC<{ onClick: (event: React.MouseEvent<HTMLElement>)
         border: '1px solid',
         borderColor: onFill(55),
         borderRadius: 999,
-        width: 24,
-        height: 24,
+        width: size,
+        height: size,
         flexShrink: 0,
         color: ON_FILL,
         bgcolor: 'transparent',
         '&:hover': { borderColor: ON_FILL, bgcolor: onFill(12) },
       }}
     >
-      <MoreHorizIcon sx={{ fontSize: 14 }} />
+      <MoreHorizIcon sx={{ fontSize: Math.round(size * 0.6) }} />
     </IconButton>
   </Tooltip>
 );
@@ -164,6 +169,165 @@ const RoomCard: React.FC<RoomCardProps> = ({
   onNewBooking,
   onMarkAvailable,
 }) => {
+  const isPhone = useIsPhone();
+
+  // Phone: compact card — room identity, a status line, the guest when one is
+  // attached, and ONE next-step action + More (which opens the same context
+  // menu that holds every secondary badge/note action).
+  if (isPhone) {
+    const primary = isOccupied
+      ? { label: 'Check out', tone: 'paper' as const, onClick: () => onCheckOut(room) }
+      : isReservedToday
+        ? { label: 'Check in', tone: 'dark' as const, onClick: () => onCheckIn(room) }
+        : computedStatus === 'dirty' || computedStatus === 'reserved_dirty'
+          ? { label: 'Mark clean', tone: 'dark' as const, onClick: () => onMarkAvailable(room) }
+          : computedStatus === 'available'
+            ? { label: '+ New booking', tone: 'dark' as const, onClick: () => onNewBooking(room) }
+            : null;
+    const guestBooking = isOccupied ? booking : isReservedToday ? reservedBooking : undefined;
+
+    return (
+      <Box sx={{ minWidth: 0 }}>
+        <Card
+          elevation={0}
+          className="hotel-room-card"
+          sx={{
+            bgcolor: cardFill,
+            backgroundImage: 'none',
+            border: '1px solid',
+            borderColor: onFill(28),
+            color: ON_FILL,
+            cursor: 'pointer',
+            position: 'relative',
+            minHeight: 150,
+            maxWidth: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: 2.5,
+            transition: 'box-shadow 150ms ease',
+            '&:hover': {
+              boxShadow: 'var(--hotel-shadow-md)',
+            },
+            overflow: 'hidden',
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            onMenuOpen(e, room);
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={`Room ${room.room_number}, ${statusLabel} — open actions`}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            onMenuOpen({ top: rect.top + 48, left: rect.left + 12 }, room);
+          }}
+        >
+          <CardContent
+            sx={{
+              p: 1.25,
+              pb: '44px',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              '&:last-child': { pb: '44px' },
+            }}
+          >
+            {/* Room number + type code */}
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0 }}>
+              <Typography
+                sx={{
+                  fontSize: '1.4rem',
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {room.room_number}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 800,
+                  color: onFill(80),
+                  letterSpacing: 0.6,
+                  fontSize: '0.62rem',
+                  lineHeight: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {room.room_type_code || getRoomTypeCode(room.room_type)}
+              </Typography>
+            </Box>
+
+            {/* Status line — the fill color carries status on desktop; on the
+                compact card it needs the explicit label. */}
+            <Typography
+              sx={{
+                mt: 0.4,
+                fontSize: '0.62rem',
+                fontWeight: 800,
+                letterSpacing: 0.7,
+                textTransform: 'uppercase',
+                color: onFill(85),
+              }}
+            >
+              {statusLabel}
+            </Typography>
+
+            {/* Guest name + dates for occupied / arriving-today rooms */}
+            {guestBooking && (
+              <Box sx={{ mt: 0.75, minWidth: 0 }}>
+                {guestBooking.guest_name && (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 800,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontSize: '0.85rem',
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    {guestBooking.guest_name}
+                  </Typography>
+                )}
+                <Typography
+                  sx={{
+                    mt: 0.25,
+                    color: onFill(80),
+                    fontSize: '0.68rem',
+                    fontWeight: 500,
+                  }}
+                >
+                  {formatMenuBookingDate(guestBooking.check_in_date)} – {formatMenuBookingDate(guestBooking.check_out_date)}
+                </Typography>
+              </Box>
+            )}
+
+            {/* One primary action per status + More */}
+            <CardActionRow>
+              {primary ? (
+                <CardPillButton tone={primary.tone} onClick={primary.onClick}>
+                  {primary.label}
+                </CardPillButton>
+              ) : (
+                <Box sx={{ flex: 1 }} />
+              )}
+              <CardMoreButton onClick={(e) => onMenuOpen(e, room)} size={32} />
+            </CardActionRow>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ minWidth: 0 }}>
       <Card
