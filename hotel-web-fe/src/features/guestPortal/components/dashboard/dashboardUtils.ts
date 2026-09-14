@@ -1,6 +1,11 @@
 import { parseLocalDate } from '../../../../utils/date';
 import { formatCurrency, getCurrentCurrency } from '../../../../utils/currency';
+import { t as translate, type TranslationVars } from '../../../../i18n';
 import type { GuestPortalMembershipActivity } from '../../../../types';
+
+/** guestPortal-namespaced translate for the non-React helpers below. */
+const pt = (key: string, vars?: TranslationVars): string =>
+  translate(key, vars, 'guestPortal');
 
 export const PORTAL_SECTIONS = [
   'overview',
@@ -47,12 +52,12 @@ export function formatPortalCurrency(value: string | number | null | undefined):
 }
 
 export function firstName(fullName: string | null | undefined): string {
-  return fullName?.trim().split(/\s+/)[0] || 'there';
+  return fullName?.trim().split(/\s+/)[0] || pt('dashboard.nameFallback');
 }
 
 export function humanizePortalStatus(value: string | null | undefined): string {
-  if (!value) return 'Status unavailable';
-  if (value.trim().toLowerCase() === 'voided') return 'Cancelled';
+  if (!value) return pt('dashboard.statusUnavailable');
+  if (value.trim().toLowerCase() === 'voided') return pt('dashboard.statusCancelled');
   return value
     .trim()
     .replace(/[_-]+/g, ' ')
@@ -67,19 +72,21 @@ export function pointsActivityContext(
 
   if (bookingNumber) {
     const bookingContext = activity.transaction_type === 'earned'
-      ? `From booking ${bookingNumber}`
-      : `Booking ${bookingNumber}`;
+      ? pt('dashboard.points.contextFromBooking', { number: bookingNumber })
+      : pt('dashboard.points.contextBooking', { number: bookingNumber });
     return reason && activity.transaction_type !== 'earned'
-      ? `${bookingContext}: ${reason}`
+      ? pt('dashboard.points.contextWithReason', { context: bookingContext, reason })
       : bookingContext;
   }
 
   if (activity.transaction_type === 'adjusted') {
     const adjustedBy = activity.adjusted_by?.trim();
     const adjustmentContext = adjustedBy
-      ? `Adjusted by ${adjustedBy}`
-      : 'Adjusted by hotel staff';
-    return reason ? `${adjustmentContext}: ${reason}` : adjustmentContext;
+      ? pt('dashboard.points.contextAdjustedBy', { name: adjustedBy })
+      : pt('dashboard.points.contextAdjustedByStaff');
+    return reason
+      ? pt('dashboard.points.contextWithReason', { context: adjustmentContext, reason })
+      : adjustmentContext;
   }
 
   return reason || null;

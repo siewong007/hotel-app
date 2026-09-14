@@ -14,11 +14,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PortalCommunicationsApi } from '../api';
 import { TOPIC_LABELS, type NotificationTopic } from '../types';
 import { portalSessionScope } from '../../promotions/utils';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
+import { useTranslation } from '../../../i18n';
 
 const FOREST = 'var(--hotel-text)';
 
+const TOPIC_KEYS: Record<NotificationTopic, string> = {
+  announcement: 'preferences.topics.announcement',
+  promotion: 'preferences.topics.promotion',
+  birthday_voucher: 'preferences.topics.birthday_voucher',
+};
+
 /** Per-topic email opt-in toggles shown on the guest portal dashboard. */
 export default function PortalNotificationPreferences({ token }: { token: string }) {
+  const { t } = useTranslation('guestPortal');
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
@@ -29,6 +38,11 @@ export default function PortalNotificationPreferences({ token }: { token: string
     queryFn: () => PortalCommunicationsApi.getPreferences(token),
     retry: false,
   });
+
+  const topicLabel = (topic: NotificationTopic): string => {
+    const key = TOPIC_KEYS[topic];
+    return key ? t(key) : (TOPIC_LABELS[topic] ?? topic);
+  };
 
   const update = useMutation({
     mutationFn: (change: { topic: NotificationTopic; subscribed: boolean }) =>
@@ -50,19 +64,23 @@ export default function PortalNotificationPreferences({ token }: { token: string
     },
     onSuccess: (data, change) => {
       queryClient.setQueryData(queryKey, data);
-      setSavedMessage(`${TOPIC_LABELS[change.topic] ?? change.topic} emails ${change.subscribed ? 'enabled' : 'disabled'}.`);
+      setSavedMessage(
+        t(change.subscribed ? 'preferences.savedEnabled' : 'preferences.savedDisabled', {
+          topic: topicLabel(change.topic),
+        }),
+      );
     },
     onError: (mutationError, _change, context) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
-      setError(mutationError instanceof Error ? mutationError.message : 'We could not save your email preferences.');
+      setError(guestErrorMessage(mutationError, t('preferences.saveFailed')));
     },
   });
 
-  if (prefs.isLoading) return <CircularProgress size={24} aria-label="Loading email preferences" />;
+  if (prefs.isLoading) return <CircularProgress size={24} aria-label={t('preferences.loadingAria')} />;
   if (prefs.isError) {
     return (
-      <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void prefs.refetch()}>Retry</Button>}>
-        {prefs.error instanceof Error ? prefs.error.message : 'We could not load your email preferences.'}
+      <Alert severity="error" role="alert" action={<Button color="inherit" size="small" onClick={() => void prefs.refetch()}>{t('common:actions.retry')}</Button>}>
+        {guestErrorMessage(prefs.error, t('preferences.loadFailed'))}
       </Alert>
     );
   }
@@ -71,7 +89,7 @@ export default function PortalNotificationPreferences({ token }: { token: string
     <Card variant="outlined" sx={{ borderColor: 'var(--hotel-border)', borderRadius: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
         <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700 }}>
-          Email preferences
+          {t('preferences.title')}
         </Typography>
         <Typography
           variant="body2"
@@ -80,12 +98,12 @@ export default function PortalNotificationPreferences({ token }: { token: string
             mt: 0.5,
             mb: 2
           }}>
-          You only receive the email topics you choose. All optional communications require your opt-in.
+          {t('preferences.subtitle')}
         </Typography>
         <Box role="status" aria-live="polite" aria-atomic="true" sx={{ minHeight: savedMessage || error ? 40 : 0, mb: savedMessage || error ? 1.5 : 0 }}>
-          {savedMessage ? <Alert severity="success" sx={{ py: 0.25 }}>{savedMessage}</Alert> : null}
+          {savedMessage ? <Alert severity="success" role="alert" sx={{ py: 0.25 }}>{savedMessage}</Alert> : null}
           {error ? (
-          <Alert severity="error" onClose={() => setError(null)} sx={{ py: 0.25 }}>
+          <Alert severity="error" role="alert" onClose={() => setError(null)} sx={{ py: 0.25 }}>
             {error}
           </Alert>) : null}
         </Box>
@@ -104,16 +122,16 @@ export default function PortalNotificationPreferences({ token }: { token: string
               }}>
               <Box><Typography variant="body2" sx={{
                 fontWeight: 600
-              }}>{TOPIC_LABELS[s.topic] ?? s.topic}</Typography><Typography variant="caption" sx={{
+              }}>{topicLabel(s.topic)}</Typography><Typography variant="caption" sx={{
                 color: "text.secondary"
-              }}>{s.subscribed ? 'Email updates enabled' : 'Email updates disabled'}</Typography></Box>
+              }}>{s.subscribed ? t('preferences.enabled') : t('preferences.disabled')}</Typography></Box>
               <Switch
                 checked={s.subscribed}
                 disabled={update.isPending}
                 onChange={(e) =>
                   update.mutate({ topic: s.topic, subscribed: e.target.checked })
                 }
-                slotProps={{ input: { role: 'switch', 'aria-label': `toggle ${s.topic} emails` } }}
+                slotProps={{ input: { role: 'switch', 'aria-label': t('preferences.toggleAria', { topic: topicLabel(s.topic) }) } }}
               />
             </Stack>
           ))}

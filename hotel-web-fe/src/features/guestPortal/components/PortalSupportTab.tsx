@@ -46,20 +46,28 @@ import {
   type PortalSupportMessage,
   type PortalSupportStatus,
 } from '../support/types';
+import { guestErrorMessage } from '../utils/feedback';
+import { useTranslation, type TranslationVars } from '../../../i18n';
 
 const MAX_MESSAGE_LENGTH = 4_000;
 
-const STATUS_LABELS: Record<PortalSupportStatus, string> = {
-  waiting_for_staff: 'Waiting for support',
-  waiting_for_guest: 'Waiting for your reply',
-  resolved: 'Resolved',
-  closed: 'Closed',
+type Translate = (key: string, vars?: TranslationVars) => string;
+
+const STATUS_KEYS: Record<PortalSupportStatus, string> = {
+  waiting_for_staff: 'support.status.waiting_for_staff',
+  waiting_for_guest: 'support.status.waiting_for_guest',
+  resolved: 'support.status.resolved',
+  closed: 'support.status.closed',
 };
 
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
-}
+const CATEGORY_KEYS: Record<PortalSupportCategory, string> = {
+  booking: 'support.categories.booking',
+  stay: 'support.categories.stay',
+  billing: 'support.categories.billing',
+  loyalty: 'support.categories.loyalty',
+  technical: 'support.categories.technical',
+  other: 'support.categories.other',
+};
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—';
@@ -75,12 +83,14 @@ function formatDateTime(value: string | null | undefined): string {
   });
 }
 
-function supportCategoryLabel(category: PortalSupportCategory | string): string {
-  return PORTAL_SUPPORT_CATEGORIES.find(option => option.value === category)?.label ?? category;
+function supportCategoryLabel(category: PortalSupportCategory | string, t: Translate): string {
+  const key = CATEGORY_KEYS[category as PortalSupportCategory];
+  return key ? t(key) : category;
 }
 
-function supportStatusLabel(status: PortalSupportStatus | string): string {
-  return STATUS_LABELS[status as PortalSupportStatus] ?? formatStatusLabel(status);
+function supportStatusLabel(status: PortalSupportStatus | string, t: Translate): string {
+  const key = STATUS_KEYS[status as PortalSupportStatus];
+  return key ? t(key) : formatStatusLabel(status);
 }
 
 function supportStatusColor(status: PortalSupportStatus): ChipProps['color'] {
@@ -113,6 +123,7 @@ interface NewConversationDialogProps {
 }
 
 function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubmit }: NewConversationDialogProps) {
+  const { t } = useTranslation('guestPortal');
   const [category, setCategory] = useState<PortalSupportCategory>('booking');
   const [message, setMessage] = useState('');
   const [clientRequestId, setClientRequestId] = useState(() => newPortalSupportClientId());
@@ -129,7 +140,7 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
     const trimmedMessage = message.trim();
 
     if (!trimmedMessage) {
-      setError('Please describe how we can help.');
+      setError(t('support.newDialog.emptyMessage'));
       return;
     }
 
@@ -140,7 +151,7 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
       setMessage('');
       setClientRequestId(newPortalSupportClientId());
     } catch (submitError) {
-      setError(getErrorMessage(submitError, 'We could not start this conversation. Please try again.'));
+      setError(guestErrorMessage(submitError, t('support.newDialog.createFailed')));
     }
   };
 
@@ -164,18 +175,18 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
       }}
     >
       <Box component="form" onSubmit={handleSubmit}>
-        <DialogTitle sx={{ pb: 1 }}>Contact hotel support</DialogTitle>
+        <DialogTitle sx={{ pb: 1 }}>{t('support.newDialog.title')}</DialogTitle>
         <DialogContent sx={{ pt: '12px !important' }}>
           <Alert id="support-conversation-safety-note" severity="warning" sx={{ mb: 3 }}>
-            This chat is not monitored for emergencies. If you are in immediate danger, contact local emergency services or the hotel front desk now.
+            {t('support.newDialog.safetyNote')}
           </Alert>
 
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          {error && <Alert severity="error" role="alert" sx={{ mb: 2 }}>{error}</Alert>}
 
           <TextField
             select
             fullWidth
-            label="What do you need help with?"
+            label={t('support.newDialog.categoryLabel')}
             value={category}
             onChange={event => setCategory(event.target.value as PortalSupportCategory)}
             disabled={isSubmitting}
@@ -186,7 +197,7 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
           >
             {PORTAL_SUPPORT_CATEGORIES.filter(option => categories.includes(option.value)).map(option => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(CATEGORY_KEYS[option.value])}
               </option>
             ))}
           </TextField>
@@ -196,8 +207,8 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
             fullWidth
             multiline
             minRows={5}
-            label="How can we help?"
-            placeholder="Please share the details. Do not include card or payment details."
+            label={t('support.newDialog.messageLabel')}
+            placeholder={t('support.newDialog.messagePlaceholder')}
             value={message}
             onChange={event => setMessage(event.target.value)}
             helperText={`${message.length}/${MAX_MESSAGE_LENGTH}`}
@@ -208,9 +219,9 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-          <Button onClick={handleClose} disabled={isSubmitting} sx={{ minHeight: 44 }}>Cancel</Button>
+          <Button onClick={handleClose} disabled={isSubmitting} sx={{ minHeight: 44 }}>{t('common:actions.cancel')}</Button>
           <Button type="submit" variant="contained" disabled={isSubmitting} sx={{ minHeight: 44 }} startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : <SendOutlinedIcon />}>
-            Send message
+            {t('support.newDialog.send')}
           </Button>
         </DialogActions>
       </Box>
@@ -227,7 +238,8 @@ function ConversationListItem({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const title = conversation.subject?.trim() || supportCategoryLabel(conversation.category);
+  const { t } = useTranslation('guestPortal');
+  const title = conversation.subject?.trim() || supportCategoryLabel(conversation.category, t);
 
   return (
     <ListItemButton selected={selected} onClick={onSelect} alignItems="flex-start" sx={{ minHeight: 76, py: 1.5, px: 2, transition: 'background-color 160ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }}>
@@ -237,14 +249,16 @@ function ConversationListItem({
           <Stack component="span" direction="row" spacing={0.75} sx={{ mt: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>
             <Chip
               component="span"
-              label={supportStatusLabel(conversation.status)}
+              label={supportStatusLabel(conversation.status, t)}
               color={supportStatusColor(conversation.status)}
               size="small"
             />
             <Typography component="span" variant="caption" sx={{
               color: "text.secondary"
             }}>
-              Updated {formatDateTime(conversation.last_activity_at || conversation.updated_at)}
+              {t('support.updatedAt', {
+                date: formatDateTime(conversation.last_activity_at || conversation.updated_at),
+              })}
             </Typography>
           </Stack>
         }
@@ -257,6 +271,7 @@ function ConversationListItem({
 }
 
 function MessageBubble({ message }: { message: PortalSupportMessage }) {
+  const { t } = useTranslation('guestPortal');
   const isGuest = message.author_type === 'guest';
   const isSystem = message.author_type === 'system';
 
@@ -286,7 +301,7 @@ function MessageBubble({ message }: { message: PortalSupportMessage }) {
         })}
       >
         <Typography variant="caption" sx={{ display: 'block', opacity: 0.8, mb: 0.25 }}>
-          {isGuest ? 'You' : 'Hotel support'}
+          {isGuest ? t('support.you') : t('support.hotelSupport')}
         </Typography>
         <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
           {message.body}
@@ -324,6 +339,7 @@ function ConversationDetail({
   onNewConversation: () => void;
   canStartConversation: boolean;
 }) {
+  const { t } = useTranslation('guestPortal');
   const [message, setMessage] = useState('');
   const [clientMessageId, setClientMessageId] = useState(() => newPortalSupportClientId());
   const [sendError, setSendError] = useState<string | null>(null);
@@ -347,10 +363,10 @@ function ConversationDetail({
         borderColor: 'divider'
       }}>
       <Button startIcon={<ArrowBackOutlinedIcon />} onClick={onBack} sx={{ minHeight: 44 }}>
-        Back to conversations
+        {t('support.backToConversations')}
       </Button>
       <Button onClick={onNewConversation} disabled={!canStartConversation} sx={{ minHeight: 44 }}>
-        New
+        {t('support.new')}
       </Button>
     </Stack>
   );
@@ -371,8 +387,8 @@ function ConversationDetail({
       <Box>
         {mobileNavigation}
         <Box sx={{ p: 3 }}>
-          <Alert severity="error" action={<Button color="inherit" size="small" onClick={onRetry}>Retry</Button>}>
-            {getErrorMessage(error, 'We could not load this conversation.')}
+          <Alert severity="error" action={<Button color="inherit" size="small" onClick={onRetry}>{t('common:actions.retry')}</Button>}>
+            {guestErrorMessage(error, t('support.detailLoadFailed'))}
           </Alert>
         </Box>
       </Box>
@@ -386,10 +402,10 @@ function ConversationDetail({
         <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 320, textAlign: 'center', p: 3 }}>
           <Box>
             <SupportAgentOutlinedIcon color="primary" sx={{ fontSize: 42, mb: 1 }} />
-            <Typography variant="h6">Select a conversation</Typography>
+            <Typography variant="h6">{t('support.selectConversation')}</Typography>
             <Typography sx={{
               color: "text.secondary"
-            }}>Choose a support conversation to read or reply.</Typography>
+            }}>{t('support.selectConversationHint')}</Typography>
           </Box>
         </Box>
       </Box>
@@ -411,7 +427,7 @@ function ConversationDetail({
       setMessage('');
       setClientMessageId(newPortalSupportClientId());
     } catch (submitError) {
-      setSendError(getErrorMessage(submitError, 'We could not send your message. Please try again.'));
+      setSendError(guestErrorMessage(submitError, t('support.sendFailed')));
     }
   };
 
@@ -420,7 +436,7 @@ function ConversationDetail({
       setSendError(null);
       await onReopen();
     } catch (reopenError) {
-      setSendError(getErrorMessage(reopenError, 'We could not reopen this conversation. Please start a new one instead.'));
+      setSendError(guestErrorMessage(reopenError, t('support.reopenFailed')));
     }
   };
 
@@ -436,20 +452,20 @@ function ConversationDetail({
             alignItems: { sm: 'center' }
           }}>
           <Box>
-            <Typography variant="h6">{conversation.subject?.trim() || supportCategoryLabel(conversation.category)}</Typography>
+            <Typography variant="h6">{conversation.subject?.trim() || supportCategoryLabel(conversation.category, t)}</Typography>
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Started {formatDateTime(conversation.created_at)}
+              {t('support.startedAt', { date: formatDateTime(conversation.created_at) })}
             </Typography>
           </Box>
-          <Chip label={supportStatusLabel(conversation.status)} color={supportStatusColor(conversation.status)} size="small" />
+          <Chip label={supportStatusLabel(conversation.status, t)} color={supportStatusColor(conversation.status)} size="small" />
         </Stack>
       </Box>
-      <Box role="log" aria-live="polite" aria-label="Conversation messages" sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 3 }, bgcolor: 'var(--hotel-surface-sunken)' }}>
+      <Box role="log" aria-live="polite" aria-label={t('support.messagesAria')} sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 3 }, bgcolor: 'var(--hotel-surface-sunken)' }}>
         {conversation.resolution_summary ? (
           <Alert severity="success" sx={{ mb: 2 }}>
-            <Typography variant="subtitle2">Resolution</Typography>
+            <Typography variant="subtitle2">{t('support.resolution')}</Typography>
             {conversation.resolution_summary}
           </Alert>
         ) : null}
@@ -457,7 +473,7 @@ function ConversationDetail({
       </Box>
       <Divider />
       <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: 'var(--hotel-surface-raised)', position: { xs: 'sticky', md: 'static' }, bottom: 0, pb: { xs: 'max(16px, env(safe-area-inset-bottom))', md: 3 }, boxShadow: { xs: 'var(--hotel-shadow-md)', md: 'none' } }}>
-        {sendError && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setSendError(null)}>{sendError}</Alert>}
+        {sendError && <Alert severity="error" role="alert" sx={{ mb: 1.5 }} onClose={() => setSendError(null)}>{sendError}</Alert>}
 
         {canReply && (
           <Box component="form" onSubmit={handleSend}>
@@ -465,8 +481,8 @@ function ConversationDetail({
               fullWidth
               multiline
               minRows={3}
-              label="Reply to hotel support"
-              placeholder="Type your message"
+              label={t('support.replyLabel')}
+              placeholder={t('support.replyPlaceholder')}
               value={message}
               onChange={event => setMessage(event.target.value)}
               helperText={`${message.length}/${MAX_MESSAGE_LENGTH}`}
@@ -477,7 +493,7 @@ function ConversationDetail({
             />
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.5 }}>
               <Button type="submit" variant="contained" disabled={isSending || !message.trim()} sx={{ minHeight: 44 }} startIcon={isSending ? <CircularProgress size={18} color="inherit" /> : <SendOutlinedIcon />}>
-                Send reply
+                {t('support.sendReply')}
               </Button>
             </Box>
           </Box>
@@ -488,20 +504,20 @@ function ConversationDetail({
             severity="success"
             action={
               <Button color="inherit" size="small" onClick={handleReopen} disabled={isReopening} sx={{ minHeight: 44 }} startIcon={isReopening ? <CircularProgress size={16} color="inherit" /> : <ReplayOutlinedIcon />}>
-                Reopen
+                {t('support.reopen')}
               </Button>
             }
           >
-            This conversation is resolved. Reopen it if you still need help.
+            {t('support.reopenHint')}
           </Alert>
         )}
 
         {conversation.status === 'resolved' && !conversation.can_reopen && (
-          <Alert severity="info">This resolved conversation can no longer be reopened. Please start a new conversation if you still need help.</Alert>
+          <Alert severity="info">{t('support.resolvedNoReopen')}</Alert>
         )}
 
         {conversation.status === 'closed' && (
-          <Alert severity="info">This conversation is closed. Please start a new conversation if you need further assistance.</Alert>
+          <Alert severity="info">{t('support.closedNotice')}</Alert>
         )}
       </Box>
     </Box>
@@ -509,6 +525,7 @@ function ConversationDetail({
 }
 
 export function PortalSupportTab({ token }: { token: string }) {
+  const { t } = useTranslation('guestPortal');
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [selectedConversationId, setSelectedConversationId] = useState<PortalSupportConversationId | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
@@ -563,13 +580,13 @@ export function PortalSupportTab({ token }: { token: string }) {
           mb: 3
         }}>
         <Box>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--hotel-text)' }}>Message the hotel team</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--hotel-text)' }}>{t('support.title')}</Typography>
           <Typography
             variant="body2"
             sx={{
               color: "text.secondary",
               mt: 0.5
-            }}>Ask about your stay or account and keep every response together.</Typography>
+            }}>{t('support.subtitle')}</Typography>
         </Box>
         <Button
           variant="contained"
@@ -578,39 +595,39 @@ export function PortalSupportTab({ token }: { token: string }) {
           disabled={!isSupportEnabled}
           sx={{ minHeight: 44, alignSelf: { xs: 'stretch', sm: 'auto' } }}
         >
-          New conversation
+          {t('support.newConversation')}
         </Button>
       </Stack>
       {!isSupportEnabled ? (
         <Alert severity="info" sx={{ mb: 2 }}>
-          The hotel is not accepting new support conversations right now. You can still read existing conversations below.
+          {t('support.disabledNotice')}
         </Alert>
       ) : null}
       <Alert severity="warning" sx={{ mb: 3 }}>
-        For an emergency, contact local emergency services or the hotel front desk. Support chat is not monitored for emergencies.
+        {t('support.emergencyNotice')}
       </Alert>
       {conversationsQuery.isLoading ? (
         <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 280 }}><CircularProgress /></Box>
       ) : conversationsQuery.error ? (
-        <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void conversationsQuery.refetch()}>Retry</Button>}>
-          {getErrorMessage(conversationsQuery.error, 'We could not load your support conversations.')}
+        <Alert severity="error" role="alert" action={<Button color="inherit" size="small" onClick={() => void conversationsQuery.refetch()}>{t('common:actions.retry')}</Button>}>
+          {guestErrorMessage(conversationsQuery.error, t('support.listLoadFailed'))}
         </Alert>
       ) : items.length === 0 ? (
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
           <SupportAgentOutlinedIcon color="primary" sx={{ fontSize: 48, mb: 1 }} />
-          <Typography variant="h6" gutterBottom>No support conversations yet</Typography>
+          <Typography variant="h6" gutterBottom>{t('support.emptyTitle')}</Typography>
           <Typography
             sx={{
               color: "text.secondary",
               mb: 2
-            }}>Start a conversation and the hotel team will get back to you here.</Typography>
-          <Button variant="contained" onClick={() => setNewConversationOpen(true)} disabled={!isSupportEnabled}>Contact support</Button>
+            }}>{t('support.emptyBody')}</Typography>
+          <Button variant="contained" onClick={() => setNewConversationOpen(true)} disabled={!isSupportEnabled}>{t('support.contactSupport')}</Button>
         </Paper>
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(280px, 34%) 1fr' }, gap: { xs: 0, md: 2 }, alignItems: 'stretch' }}>
           <Paper variant="outlined" sx={{ display: isDesktop || !mobileDetailOpen ? 'block' : 'none', maxHeight: { md: 640 }, overflowY: 'auto', borderRadius: { xs: 2, md: 3 }, borderColor: 'var(--hotel-border)', boxShadow: { md: 'var(--hotel-shadow-sm)' } }}>
-            <Box sx={{ px: 2, pt: 2, pb: 1 }}><Typography variant="overline" sx={{ color: 'var(--hotel-primary-text)', fontWeight: 700, letterSpacing: '.1em' }}>Conversations</Typography></Box>
-            <List disablePadding aria-label="Support conversations">
+            <Box sx={{ px: 2, pt: 2, pb: 1 }}><Typography variant="overline" sx={{ color: 'var(--hotel-primary-text)', fontWeight: 700, letterSpacing: '.1em' }}>{t('support.conversationsHeading')}</Typography></Box>
+            <List disablePadding aria-label={t('support.listAria')}>
               {items.map((conversation, index) => (
                 <Box key={String(conversation.id)}>
                   {index > 0 && <Divider component="li" />}

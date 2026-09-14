@@ -9,6 +9,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import { useTranslation } from '../../../i18n';
 import type { Promotion } from '../types';
 import { formatPromotionDate, formatPromotionDiscount } from '../utils';
 
@@ -33,6 +34,7 @@ export function PromotionCard({
   onClaim,
   onSignIn,
 }: PromotionCardProps) {
+  const { t } = useTranslation('guestPortal');
   const claimEnd = formatPromotionDate(promotion.claim_ends_at);
   const stayStart = formatPromotionDate(promotion.stay_starts_on);
   const stayEnd = formatPromotionDate(promotion.stay_ends_on);
@@ -45,11 +47,11 @@ export function PromotionCard({
       <CardContent sx={{ flex: 1 }}>
         <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 0.5 }}>
           <Chip
-            label={promotion.promotion_kind === 'voucher' ? 'Voucher' : 'Deal'}
+            label={promotion.promotion_kind === 'voucher' ? t('offers.kind.voucher') : t('offers.kind.deal')}
             color={promotion.promotion_kind === 'voucher' ? 'secondary' : 'primary'}
             size="small"
           />
-          {hasVoucher ? <Chip label="Claimed" color="success" size="small" /> : null}
+          {hasVoucher ? <Chip label={t('offers.claimed')} color="success" size="small" /> : null}
         </Stack>
 
         <Typography variant="h6" component="h2" gutterBottom>
@@ -80,21 +82,24 @@ export function PromotionCard({
             <Typography variant="caption" sx={{
               color: "text.secondary"
             }}>
-              Claim by {claimEnd}
+              {t('offers.claimBy', { date: claimEnd })}
             </Typography>
           ) : null}
           {stayStart || stayEnd ? (
             <Typography variant="caption" sx={{
               color: "text.secondary"
             }}>
-              Stay dates: {stayStart ?? 'Any time'} – {stayEnd ?? 'No end date'}
+              {t('offers.stayDates', {
+                start: stayStart ?? t('offers.anyTime'),
+                end: stayEnd ?? t('offers.noEndDate'),
+              })}
             </Typography>
           ) : null}
           {promotion.min_nights ? (
             <Typography variant="caption" sx={{
               color: "text.secondary"
             }}>
-              Minimum stay: {promotion.min_nights} night{promotion.min_nights === 1 ? '' : 's'}
+              {t('offers.minNights', { count: promotion.min_nights })}
             </Typography>
           ) : null}
           {promotion.terms ? (
@@ -102,7 +107,7 @@ export function PromotionCard({
               <Typography variant="caption" sx={{
                 fontWeight: 600
               }}>
-                Terms
+                {t('offers.terms')}
               </Typography>
               <Typography
                 variant="caption"
@@ -126,12 +131,12 @@ export function PromotionCard({
               onClick={onClaim}
             >
               {isClaiming
-                ? 'Redeeming…'
+                ? t('offers.redeeming')
                 : hasVoucher
-                  ? 'Already claimed'
+                  ? t('offers.alreadyClaimed')
                   : promotion.slug === 'july-deluxe-20-loyalty'
-                    ? 'Redeem 2,000 points'
-                    : 'Claim deal'}
+                    ? t('offers.redeemPoints')
+                    : t('offers.claimDeal')}
             </Button>
             {!canClaim && !hasVoucher && claimUnavailableReason ? (
               <Typography
@@ -146,7 +151,7 @@ export function PromotionCard({
           </Stack>
         ) : (
           <Button variant="contained" fullWidth onClick={onSignIn}>
-            Sign in to claim
+            {t('offers.signInToClaim')}
           </Button>
         )}
       </CardActions>

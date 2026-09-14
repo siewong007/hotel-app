@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { APIError } from '../../../../api/client';
 
 const mocks = vi.hoisted(() => ({
   getEkycStatus: vi.fn(),
@@ -126,7 +127,7 @@ describe('IdentitySection', () => {
   it('surfaces the server message when an upload is refused', async () => {
     mocks.getEkycStatus.mockResolvedValue(null);
     mocks.uploadEkycDocument.mockRejectedValue(
-      new Error('Too many verification attempts. Please try again in 540 seconds.'),
+      new APIError('Too many verification attempts. Please try again in 540 seconds.', 429),
     );
 
     render(<IdentitySection token="guest-token" />);

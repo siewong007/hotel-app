@@ -140,7 +140,7 @@ describe('PortalSupportTab', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /send reply/i }));
 
-    await waitFor(() => expect(screen.getByText('Connection interrupted')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('We could not send your message. Please try again.')).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: /send reply/i }));
 
     await waitFor(() => expect(mocks.sendMutation.mutateAsync).toHaveBeenCalledTimes(2));
@@ -169,8 +169,8 @@ describe('PortalSupportTab', () => {
 
     render(<PortalSupportTab token="guest-session-token" />);
 
-    expect(screen.getByText('Guest support is temporarily unavailable')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(screen.getByText('We could not load your support conversations.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(mocks.listQuery.refetch).toHaveBeenCalledOnce();
   });
 
@@ -180,8 +180,8 @@ describe('PortalSupportTab', () => {
 
     render(<PortalSupportTab token="guest-session-token" />);
 
-    expect(screen.getByText('The conversation could not be loaded')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(screen.getByText('We could not load this conversation.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(mocks.detailQuery.refetch).toHaveBeenCalledOnce();
     expect(mocks.listQuery.refetch).not.toHaveBeenCalled();
   });

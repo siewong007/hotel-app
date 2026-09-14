@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { APIError } from '../../../../api/client';
 
 const mocks = vi.hoisted(() => ({
   me: vi.fn(),
@@ -118,7 +119,7 @@ describe('ProfileSection', () => {
 
   it('keeps the form open and shows the reason when the save fails', async () => {
     mocks.me.mockResolvedValue({ guest: completeGuest, profile_complete: true });
-    mocks.updateProfile.mockRejectedValue(new Error('Another guest profile already uses this name.'));
+    mocks.updateProfile.mockRejectedValue(new APIError('Another guest profile already uses this name.', 409));
 
     render(<ProfileSection token="guest-token" />);
 

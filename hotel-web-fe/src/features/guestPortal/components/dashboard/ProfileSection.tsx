@@ -20,39 +20,42 @@ import type {
   GuestPortalMeResponse,
   GuestPortalProfileUpdate,
 } from '../../../../types';
-import { errorMessage } from '../../../../utils/errorMessage';
+import { guestErrorMessage } from '../../utils/feedback';
 import { validatePhone } from '../../../../utils/validation';
+import { useTranslation } from '../../../../i18n';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 
 const FOREST = 'var(--hotel-text)';
 const GOLD_TEXT = 'var(--hotel-primary-text)';
 
 /**
- * How the backend's `missing_profile_fields` entries read to a guest.
+ * The backend's `missing_profile_fields` entries are translated under
+ * `dashboard.profile.missingFields`; an unknown field falls back to its raw
+ * server name.
  *
  * The verdict is the server's (`services::profile::completion_for_guest`) — the
  * portal never re-derives which fields are missing, so the banner here and the
  * guard that blocks a booking can never disagree.
  */
-const MISSING_FIELD_LABELS: Record<string, string> = {
-  first_name: 'First name',
-  last_name: 'Last name',
-  phone: 'Phone number',
+const MISSING_FIELD_KEYS: Record<string, string> = {
+  first_name: 'dashboard.profile.missingFields.first_name',
+  last_name: 'dashboard.profile.missingFields.last_name',
+  phone: 'dashboard.profile.missingFields.phone',
 };
 
 /** Editable fields, in the order they appear in the form. */
 const EDITABLE_FIELDS = [
-  { key: 'first_name', label: 'First name', required: true, autoComplete: 'given-name' },
-  { key: 'last_name', label: 'Last name', required: true, autoComplete: 'family-name' },
-  { key: 'title', label: 'Title', required: false, autoComplete: 'honorific-prefix' },
-  { key: 'phone', label: 'Phone number', required: true, autoComplete: 'tel' },
-  { key: 'alt_phone', label: 'Alternate phone', required: false, autoComplete: 'tel' },
-  { key: 'nationality', label: 'Nationality', required: false, autoComplete: 'country-name' },
-  { key: 'address_line1', label: 'Address', required: false, autoComplete: 'address-line1' },
-  { key: 'city', label: 'City', required: false, autoComplete: 'address-level2' },
-  { key: 'state_province', label: 'State or province', required: false, autoComplete: 'address-level1' },
-  { key: 'postal_code', label: 'Postcode', required: false, autoComplete: 'postal-code' },
-  { key: 'country', label: 'Country', required: false, autoComplete: 'country-name' },
+  { key: 'first_name', required: true, autoComplete: 'given-name' },
+  { key: 'last_name', required: true, autoComplete: 'family-name' },
+  { key: 'title', required: false, autoComplete: 'honorific-prefix' },
+  { key: 'phone', required: true, autoComplete: 'tel' },
+  { key: 'alt_phone', required: false, autoComplete: 'tel' },
+  { key: 'nationality', required: false, autoComplete: 'country-name' },
+  { key: 'address_line1', required: false, autoComplete: 'address-line1' },
+  { key: 'city', required: false, autoComplete: 'address-level2' },
+  { key: 'state_province', required: false, autoComplete: 'address-level1' },
+  { key: 'postal_code', required: false, autoComplete: 'postal-code' },
+  { key: 'country', required: false, autoComplete: 'country-name' },
 ] as const;
 
 type EditableKey = (typeof EDITABLE_FIELDS)[number]['key'];
@@ -113,6 +116,7 @@ function ReadOnlyRow({ label, value }: { label: string; value?: string | null })
  * eKYC, so both change through their own flows rather than a contact form.
  */
 export function ProfileSection({ token }: { token: string }) {
+  const { t } = useTranslation('guestPortal');
   const [me, setMe] = useState<GuestPortalMeResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -130,11 +134,11 @@ export function ProfileSection({ token }: { token: string }) {
     try {
       setMe(await GuestPortalDashboardService.me(token));
     } catch (error) {
-      setLoadError(errorMessage(error, 'We could not load your profile.'));
+      setLoadError(guestErrorMessage(error, t('dashboard.profile.loadFailed')));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [t, token]);
 
   useEffect(() => {
     void load();
@@ -175,8 +179,8 @@ export function ProfileSection({ token }: { token: string }) {
     if (!values) return;
 
     const errors: Partial<Record<EditableKey, string>> = {};
-    if (!values.first_name.trim()) errors.first_name = 'First name is required';
-    if (!values.last_name.trim()) errors.last_name = 'Last name is required';
+    if (!values.first_name.trim()) errors.first_name = t('dashboard.profile.errors.firstNameRequired');
+    if (!values.last_name.trim()) errors.last_name = t('dashboard.profile.errors.lastNameRequired');
     const phoneError = validatePhone(values.phone);
     if (phoneError) errors.phone = phoneError;
     // Blank is allowed and clears the field; anything typed must be a real number.
@@ -199,17 +203,17 @@ export function ProfileSection({ token }: { token: string }) {
       setValues(null);
       setSaved(true);
     } catch (error) {
-      setSaveError(errorMessage(error, 'We could not save your profile.'));
+      setSaveError(guestErrorMessage(error, t('dashboard.profile.saveFailed')));
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <LoadingState label="Loading your profile…" />;
+  if (loading) return <LoadingState label={t('dashboard.profile.loading')} />;
   if (loadError || !guest) {
     return (
       <ErrorState
-        message={loadError ?? 'We could not load your profile.'}
+        message={loadError ?? t('dashboard.profile.loadFailed')}
         retry={() => void load()}
       />
     );
@@ -218,22 +222,24 @@ export function ProfileSection({ token }: { token: string }) {
   return (
     <Box>
       <SectionHeading
-        eyebrow="Your account"
-        title="Profile"
-        description="The details we use to reach you about a stay. Keeping them current means confirmations and check-in reminders arrive where you expect them."
+        eyebrow={t('dashboard.profile.eyebrow')}
+        title={t('dashboard.profile.title')}
+        description={t('dashboard.profile.description')}
       />
 
       <Stack spacing={3}>
         {!profileComplete ? (
-          <Alert severity="warning" data-testid="profile-incomplete">
-            <Typography sx={{ fontWeight: 600 }}>Your profile is incomplete</Typography>
+          <Alert severity="warning" role="alert" data-testid="profile-incomplete">
+            <Typography sx={{ fontWeight: 600 }}>{t('dashboard.profile.incompleteTitle')}</Typography>
             <Typography variant="body2">
               {missingFields.length > 0
-                ? `Please add: ${missingFields
-                    .map((field) => MISSING_FIELD_LABELS[field] ?? field)
-                    .join(', ')}.`
-                : 'Please add your remaining contact details.'}{' '}
-              We need these before you can book online.
+                ? t('dashboard.profile.incompleteFields', {
+                    fields: missingFields
+                      .map((field) => (MISSING_FIELD_KEYS[field] ? t(MISSING_FIELD_KEYS[field]) : field))
+                      .join(', '),
+                  })
+                : t('dashboard.profile.incompleteGeneric')}{' '}
+              {t('dashboard.profile.incompleteReason')}
             </Typography>
           </Alert>
         ) : null}
@@ -241,16 +247,17 @@ export function ProfileSection({ token }: { token: string }) {
         {saved ? (
           <Alert
             severity="success"
+            role="alert"
             icon={<CheckCircleOutlineIcon fontSize="inherit" />}
             onClose={() => setSaved(false)}
           >
-            Your profile has been saved.
+            {t('dashboard.profile.saved')}
           </Alert>
         ) : null}
 
         <Paper
           component="section"
-          aria-label="Contact details"
+          aria-label={t('dashboard.profile.contactAria')}
           variant="outlined"
           sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: 'var(--hotel-surface-raised)' }}
         >
@@ -265,10 +272,10 @@ export function ProfileSection({ token }: { token: string }) {
           >
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="h6" component="h3" sx={{ color: FOREST, fontWeight: 700 }}>
-                Contact details
+                {t('dashboard.profile.contactTitle')}
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                How the hotel reaches you, and where we send your confirmations.
+                {t('dashboard.profile.contactSubtitle')}
               </Typography>
             </Box>
             {!editing ? (
@@ -277,7 +284,7 @@ export function ProfileSection({ token }: { token: string }) {
                 startIcon={<EditOutlinedIcon />}
                 onClick={startEditing}
               >
-                Edit
+                {t('dashboard.profile.edit')}
               </Button>
             ) : null}
           </Box>
@@ -287,7 +294,7 @@ export function ProfileSection({ token }: { token: string }) {
           {editing && values ? (
             <Box component="form" onSubmit={(event) => void submit(event)} noValidate>
               {saveError ? (
-                <Alert severity="error" sx={{ mb: 2 }}>
+                <Alert severity="error" role="alert" sx={{ mb: 2 }}>
                   {saveError}
                 </Alert>
               ) : null}
@@ -296,7 +303,7 @@ export function ProfileSection({ token }: { token: string }) {
                   <Grid size={{ xs: 12, sm: 6 }} key={field.key}>
                     <TextField
                       fullWidth
-                      label={field.label}
+                      label={t(`dashboard.profile.fields.${field.key}`)}
                       required={field.required}
                       autoComplete={field.autoComplete}
                       value={values[field.key]}
@@ -309,10 +316,10 @@ export function ProfileSection({ token }: { token: string }) {
               </Grid>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1 }}>
                 <Button type="submit" variant="contained" disabled={saving}>
-                  {saving ? 'Saving…' : 'Save changes'}
+                  {saving ? t('dashboard.profile.saving') : t('dashboard.profile.save')}
                 </Button>
                 <Button variant="text" onClick={cancelEditing} disabled={saving}>
-                  Cancel
+                  {t('common:actions.cancel')}
                 </Button>
               </Stack>
             </Box>
@@ -321,7 +328,7 @@ export function ProfileSection({ token }: { token: string }) {
               {EDITABLE_FIELDS.map((field) => (
                 <ReadOnlyRow
                   key={field.key}
-                  label={field.label}
+                  label={t(`dashboard.profile.fields.${field.key}`)}
                   value={typeof guest[field.key] === 'string' ? (guest[field.key] as string) : null}
                 />
               ))}
@@ -331,25 +338,24 @@ export function ProfileSection({ token }: { token: string }) {
 
         <Paper
           component="section"
-          aria-label="Identity details"
+          aria-label={t('dashboard.profile.identityAria')}
           variant="outlined"
           sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: 'var(--hotel-surface-raised)' }}
         >
           <Typography variant="h6" component="h3" sx={{ color: FOREST, fontWeight: 700 }}>
-            Identity
+            {t('dashboard.profile.identityTitle')}
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-            These identify your account, so they are not edited from this form. Contact the hotel
-            to change them.
+            {t('dashboard.profile.identitySubtitle')}
           </Typography>
           <Divider sx={{ my: 2.5 }} />
           <Grid container spacing={2.5}>
-            <ReadOnlyRow label="Email" value={guest.email} />
-            <ReadOnlyRow label="ID / IC number" value={guest.ic_number} />
+            <ReadOnlyRow label={t('dashboard.profile.email')} value={guest.email} />
+            <ReadOnlyRow label={t('dashboard.profile.icNumber')} value={guest.ic_number} />
             <Grid size={{ xs: 12 }}>
               <Chip
                 size="small"
-                label={`Display name: ${guest.nick_name}`}
+                label={t('dashboard.profile.displayName', { name: guest.nick_name })}
                 sx={{ bgcolor: 'var(--hotel-primary-subtle)', color: GOLD_TEXT, fontWeight: 600 }}
               />
             </Grid>

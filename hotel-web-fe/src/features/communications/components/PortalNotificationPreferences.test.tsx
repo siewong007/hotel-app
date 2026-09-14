@@ -39,13 +39,10 @@ function renderPreferences(token = 'guest-token') {
 }
 
 function switchForTopic(label: string): HTMLInputElement {
-  const topic = {
-    'Hotel announcements': 'announcement',
-    'Promotions and offers': 'promotion',
-    'Birthday voucher': 'birthday_voucher',
-  }[label];
-  if (!topic) throw new Error(`Unknown notification topic: ${label}`);
-  return screen.getByRole('switch', { name: `toggle ${topic} emails` }) as HTMLInputElement;
+  if (!['Hotel announcements', 'Promotions and offers', 'Birthday voucher'].includes(label)) {
+    throw new Error(`Unknown notification topic: ${label}`);
+  }
+  return screen.getByRole('switch', { name: `Toggle ${label} emails` }) as HTMLInputElement;
 }
 
 describe('PortalNotificationPreferences', () => {
@@ -92,8 +89,35 @@ describe('PortalNotificationPreferences', () => {
     const announcementToggle = switchForTopic('Hotel announcements');
     fireEvent.click(announcementToggle);
 
-    await waitFor(() => expect(screen.getByText('Unable to save email preferences')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('We could not save your email preferences.')).toBeTruthy());
     expect((announcementToggle as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('clears a stale success message when the next update fails', async () => {
+    mocks.getPreferences.mockResolvedValue(initialPreferences);
+    mocks.updatePreferences
+      .mockResolvedValueOnce({
+        subscriptions: initialPreferences.subscriptions.map(subscription =>
+          subscription.topic === 'promotion' ? { ...subscription, subscribed: true } : subscription
+        ),
+      })
+      .mockRejectedValueOnce(new Error('Save failed'));
+
+    renderPreferences();
+
+    await screen.findByText('Promotions and offers');
+    fireEvent.click(switchForTopic('Promotions and offers'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Promotions and offers emails enabled.')).toBeTruthy()
+    );
+
+    fireEvent.click(switchForTopic('Hotel announcements'));
+
+    await waitFor(() =>
+      expect(screen.getByText('We could not save your email preferences.')).toBeTruthy()
+    );
+    expect(screen.queryByText('Promotions and offers emails enabled.')).toBeNull();
   });
 
   it('shows a retry action instead of a blank panel when preferences cannot load', async () => {
@@ -101,8 +125,8 @@ describe('PortalNotificationPreferences', () => {
 
     renderPreferences();
 
-    expect(await screen.findByText('Preferences are unavailable')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('We could not load your email preferences.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(mocks.getPreferences).toHaveBeenCalledTimes(2));
     expect(mocks.getPreferences).toHaveBeenLastCalledWith('guest-token');
   });

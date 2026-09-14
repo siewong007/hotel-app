@@ -1,7 +1,8 @@
 import { Alert, Box, CircularProgress, Grid, Stack, Typography } from '@mui/material';
 import { useState } from 'react';
-import { getQueryErrorMessage } from '../../../api/queryConfig';
 import { useNavigate } from '../../../router';
+import { guestErrorMessage } from '../../guestPortal/utils/feedback';
+import { useTranslation } from '../../../i18n';
 import {
   useClaimPromotion,
   useGuestPromotionCatalog,
@@ -22,6 +23,7 @@ function createClaimRequestId(): string {
 }
 
 export function PromotionCatalog({ token }: PromotionCatalogProps) {
+  const { t } = useTranslation('guestPortal');
   const navigate = useNavigate();
   const isPortal = Boolean(token);
   const publicQuery = usePromotionCatalog({ page: 1, page_size: 50 }, !isPortal);
@@ -53,8 +55,8 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
 
   if (error) {
     return (
-      <Alert severity="error">
-        {getQueryErrorMessage(error, 'Unable to load current offers')}
+      <Alert severity="error" role="alert">
+        {guestErrorMessage(error, t('offers.loadFailed'))}
       </Alert>
     );
   }
@@ -62,11 +64,11 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
   if (entries.length === 0) {
     return (
       <Box sx={{ textAlign: 'center', py: 7 }}>
-        <Typography variant="h6">No offers are available right now</Typography>
+        <Typography variant="h6">{t('offers.emptyTitle')}</Typography>
         <Typography variant="body2" sx={{
           color: "text.secondary"
         }}>
-          Please check again soon for new hotel deals.
+          {t('offers.emptyBody')}
         </Typography>
       </Box>
     );
@@ -84,8 +86,8 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
         onSuccess: (voucher) => {
           setSuccessMessage(
             voucher.code
-              ? `${entry.promotion.name} is now in My Vouchers. Code: ${voucher.code}`
-              : `${entry.promotion.name} is now in My Vouchers.`
+              ? t('offers.claimSuccessWithCode', { name: entry.promotion.name, code: voucher.code })
+              : t('offers.claimSuccess', { name: entry.promotion.name })
           );
         },
       }
@@ -95,13 +97,13 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
   return (
     <Stack spacing={2}>
       {successMessage ? (
-        <Alert severity="success" onClose={() => setSuccessMessage(null)}>
+        <Alert severity="success" role="alert" onClose={() => setSuccessMessage(null)}>
           {successMessage}
         </Alert>
       ) : null}
       {claimMutation.error ? (
-        <Alert severity="error" onClose={() => claimMutation.reset()}>
-          {getQueryErrorMessage(claimMutation.error, 'Unable to claim this offer')}
+        <Alert severity="error" role="alert" onClose={() => claimMutation.reset()}>
+          {guestErrorMessage(claimMutation.error, t('offers.claimFailed'))}
         </Alert>
       ) : null}
       <Grid container spacing={2}>

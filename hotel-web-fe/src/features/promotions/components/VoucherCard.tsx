@@ -11,6 +11,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useState } from 'react';
+import { useTranslation } from '../../../i18n';
 import { VOUCHER_STATUS_LABELS } from '../constants';
 import type { Voucher } from '../types';
 import { formatPromotionDate } from '../utils';
@@ -39,13 +40,20 @@ const STATUS_STYLES = {
   },
 } as const;
 
-function getVoucherOrigin(source: string): string {
-  return source === 'guest_claim' ? 'Claimed from Offers' : 'Issued by the hotel';
+const STATUS_KEYS: Record<string, string> = {
+  available: 'vouchers.status.available',
+  redeemed: 'vouchers.status.redeemed',
+  revoked: 'vouchers.status.revoked',
+};
+
+function getVoucherOrigin(source: string, t: (key: string) => string): string {
+  return source === 'guest_claim' ? t('vouchers.originClaimed') : t('vouchers.originIssued');
 }
 
 export function VoucherCard({ voucher }: VoucherCardProps) {
+  const { t } = useTranslation('guestPortal');
   const [copyState, setCopyState] = useState<CopyState>('idle');
-  const displayCode = voucher.code ?? voucher.code_masked ?? 'Code unavailable';
+  const displayCode = voucher.code ?? voucher.code_masked ?? t('vouchers.codeUnavailable');
   const expiresAt = formatPromotionDate(voucher.expires_at);
   const claimedAt = formatPromotionDate(voucher.claimed_at ?? voucher.created_at);
   const isExpired = Boolean(
@@ -53,9 +61,10 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
       voucher.expires_at &&
       new Date(voucher.expires_at).getTime() < Date.now()
   );
-  const displayStatus = isExpired
-    ? 'Expired'
-    : VOUCHER_STATUS_LABELS[voucher.status] ?? voucher.status;
+  const statusKey = isExpired ? 'vouchers.status.expired' : STATUS_KEYS[voucher.status];
+  const displayStatus = statusKey
+    ? t(statusKey)
+    : (VOUCHER_STATUS_LABELS[voucher.status] ?? voucher.status);
   const statusStyle = isExpired
     ? { backgroundColor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', accent: 'var(--hotel-warning)' }
     : STATUS_STYLES[voucher.status];
@@ -122,7 +131,7 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
                 variant="overline"
                 sx={{ color: 'var(--hotel-primary-text)', fontWeight: 800, letterSpacing: '0.13em' }}
               >
-                Stay voucher
+                {t('vouchers.stayVoucher')}
               </Typography>
             </Stack>
             <Chip
@@ -146,7 +155,7 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
             {voucher.promotion_name}
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.75, color: 'text.secondary' }}>
-            Present this code when booking or select the voucher during checkout.
+            {t('vouchers.hint')}
           </Typography>
 
           <Stack
@@ -159,11 +168,11 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
             }}>
               <CalendarMonthOutlinedIcon sx={{ fontSize: 18 }} />
               <Typography variant="body2">
-                {expiresAt ? `Valid until ${expiresAt}` : 'No expiry date'}
+                {expiresAt ? t('vouchers.validUntil', { date: expiresAt }) : t('vouchers.noExpiry')}
               </Typography>
             </Stack>
             <Typography variant="body2">
-              {getVoucherOrigin(voucher.source)}{claimedAt ? ` · ${claimedAt}` : ''}
+              {getVoucherOrigin(voucher.source, t)}{claimedAt ? ` · ${claimedAt}` : ''}
             </Typography>
           </Stack>
         </Box>
@@ -184,7 +193,7 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
             variant="caption"
             sx={{ color: 'var(--hotel-primary-text)', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}
           >
-            Voucher code
+            {t('vouchers.codeLabel')}
           </Typography>
           <Typography
             sx={{
@@ -216,18 +225,18 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
                 '&:hover': { backgroundColor: 'var(--hotel-primary-hover)', boxShadow: 'none' },
               }}
             >
-              {copyState === 'copied' ? 'Copied' : 'Copy code'}
+              {copyState === 'copied' ? t('vouchers.copied') : t('vouchers.copyCode')}
             </Button>
           ) : null}
           <Box role="status" aria-live="polite" aria-atomic="true" sx={{ minHeight: 20, mt: 1 }}>
             {copyState === 'copied' ? (
               <Typography variant="caption" sx={{ color: 'var(--hotel-success)', fontWeight: 700 }}>
-                Voucher code copied to clipboard.
+                {t('vouchers.copySuccess')}
               </Typography>
             ) : null}
             {copyState === 'failed' ? (
               <Typography variant="caption" sx={{ color: 'var(--hotel-danger)', fontWeight: 700 }}>
-                Could not copy the code. Please select it manually.
+                {t('vouchers.copyFailed')}
               </Typography>
             ) : null}
           </Box>

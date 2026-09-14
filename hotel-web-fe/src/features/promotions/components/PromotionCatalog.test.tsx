@@ -168,14 +168,14 @@ describe('PromotionCatalog', () => {
     mocks.publicCatalog.error = new Error('Offers service is unavailable');
     const { rerender } = render(<PromotionCatalog />);
 
-    expect(screen.getByText('Offers service is unavailable')).toBeTruthy();
+    expect(screen.getByText('Unable to load current offers')).toBeTruthy();
 
     mocks.publicCatalog.error = null;
     mocks.guestCatalog.data = { items: [buildGuestPromotion()], total: 1, page: 1, page_size: 50 };
     mocks.claimMutation.error = new Error('This offer has already been claimed');
     rerender(<PromotionCatalog token="guest-session-token" />);
 
-    expect(screen.getByText('This offer has already been claimed')).toBeTruthy();
+    expect(screen.getByText('Unable to claim this offer')).toBeTruthy();
     expect(screen.getByText('Summer stay')).toBeTruthy();
   });
 

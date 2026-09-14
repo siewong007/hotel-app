@@ -15,7 +15,8 @@ import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import { useConfirm } from '../../../../components/common/ConfirmProvider';
 import type { UserSessionInfo } from '../../../../types';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
-import { errorMessage } from '../../../../utils/errorMessage';
+import { guestErrorMessage } from '../../utils/feedback';
+import { useTranslation } from '../../../../i18n';
 import {
   useRevokeSessionMutation,
   useSessionsQuery,
@@ -40,6 +41,7 @@ function DeviceRow({
   onRevoke: (session: UserSessionInfo) => void;
   revoking: boolean;
 }) {
+  const { t } = useTranslation('guestPortal');
   const device = detectDeviceType(session.user_agent || '');
   return (
     <Box
@@ -58,7 +60,7 @@ function DeviceRow({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Typography sx={{ color: FOREST, fontWeight: 600 }}>{device.label}</Typography>
           {session.is_current ? (
-            <Chip label="This device" size="small" color="success" />
+            <Chip label={t('dashboard.devices.thisDevice')} size="small" color="success" />
           ) : null}
         </Box>
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.25 }}>
@@ -66,7 +68,7 @@ function DeviceRow({
         </Typography>
         {session.ip_address ? (
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            IP {session.ip_address}
+            {t('dashboard.devices.ip', { address: session.ip_address })}
           </Typography>
         ) : null}
       </Box>
@@ -82,7 +84,7 @@ function DeviceRow({
           disabled={revoking}
           onClick={() => onRevoke(session)}
         >
-          Sign out
+          {t('dashboard.devices.signOut')}
         </Button>
       ) : null}
     </Box>
@@ -98,6 +100,7 @@ function DeviceRow({
  * session `AuthContext` holds. The portal bearer token would not be accepted.
  */
 export function DevicesSection() {
+  const { t } = useTranslation('guestPortal');
   const confirm = useConfirm();
   // The section renders its own ErrorState + retry, so a failed load should
   // not ALSO raise the client's global toast.
@@ -108,25 +111,24 @@ export function DevicesSection() {
 
   const handleRevoke = async (session: UserSessionInfo) => {
     const accepted = await confirm({
-      title: 'Sign out this device',
-      message:
-        'That device will be signed out straight away and will need to sign in again. If you do not recognise it, change your password afterwards.',
-      confirmText: 'Sign out device',
+      title: t('dashboard.devices.confirmTitle'),
+      message: t('dashboard.devices.confirmBody'),
+      confirmText: t('dashboard.devices.confirmButton'),
       severity: 'warning',
     });
     if (!accepted) return;
     try {
       await revokeSession.mutateAsync(session.id);
-      notify('That device has been signed out.', 'success');
+      notify(t('dashboard.devices.signedOut'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'We could not sign out that device.'), 'error');
+      notify(guestErrorMessage(error, t('dashboard.devices.signOutFailed')), 'error');
     }
   };
 
   return (
     <Paper
       component="section"
-      aria-label="Signed-in devices"
+      aria-label={t('dashboard.devices.aria')}
       variant="outlined"
       sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: 'var(--hotel-surface-raised)' }}
     >
@@ -136,11 +138,10 @@ export function DevicesSection() {
         </Box>
         <Box sx={{ minWidth: 0 }}>
           <Typography variant="h6" component="h3" sx={{ color: FOREST, fontWeight: 700 }}>
-            Signed-in devices
+            {t('dashboard.devices.title')}
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-            Where your account is currently signed in. Locations are worked out from each
-            device&apos;s time zone, so they are approximate — a nearby city is normal.
+            {t('dashboard.devices.description')}
           </Typography>
         </Box>
       </Box>
@@ -150,16 +151,16 @@ export function DevicesSection() {
       {sessionsQuery.isPending ? (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 3 }}>
           <CircularProgress size={22} />
-          <Typography sx={{ color: 'text.secondary' }}>Loading your devices…</Typography>
+          <Typography sx={{ color: 'text.secondary' }}>{t('dashboard.devices.loading')}</Typography>
         </Box>
       ) : sessionsQuery.isError ? (
         <ErrorState
-          message="We could not load your signed-in devices."
+          message={t('dashboard.devices.loadFailed')}
           retry={() => void sessionsQuery.refetch()}
         />
       ) : sessions.length === 0 ? (
         <Typography sx={{ color: 'text.secondary' }}>
-          No other devices are signed in right now.
+          {t('dashboard.devices.empty')}
         </Typography>
       ) : (
         <Stack component="ul" divider={<Divider />} sx={{ m: 0, p: 0 }}>
