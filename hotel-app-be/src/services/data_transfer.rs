@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use axum::body::{Body, Bytes};
 use serde_json::Value;
 
 use crate::constants::ImportMode;
@@ -236,6 +237,7 @@ pub async fn preview_export_counts(pool: &DbPool) -> Result<ExportPreview, ApiEr
     })
 }
 
+#[allow(dead_code)] // used by tests/data_transfer_export.rs
 pub async fn export_booking_data(pool: &DbPool) -> Result<FullDataExport, ApiError> {
     let mut tables = std::collections::BTreeMap::new();
     for table in DataTransferRepository::transfer_tables(pool).await? {
@@ -252,6 +254,105 @@ pub async fn export_booking_data(pool: &DbPool) -> Result<FullDataExport, ApiErr
         exported_at: chrono::Utc::now().to_rfc3339(),
         tables,
     })
+}
+
+/// Rows pulled per `FETCH FORWARD` while streaming a full export. Bounds the
+/// export's memory to a few hundred wide rows at a time; each batch is written
+/// to the body before the next fetch.
+const EXPORT_CURSOR_BATCH: i64 = 500;
+
+/// Build the full-database export as a streamed response body.
+///
+/// The materialized [`export_booking_data`] path loaded every transferable
+/// table into memory and serialized it in one shot — behind Cloudflare the
+/// request produced no bytes for the duration of the dump, so large exports
+/// surfaced as "the origin returned an invalid or incomplete response", and
+/// peak RSS scaled with database size. This streams the identical
+/// `FullDataExport` JSON shape: the envelope goes out immediately, then each
+/// table's rows are pulled through a SQL cursor and written in bounded
+/// batches.
+///
+/// One read transaction holds every cursor, so the export is also a single
+/// consistent snapshot — the old path's per-table queries could skew. The
+/// `record_count` for the audit row accumulates while streaming; a client
+/// disconnect drops the transaction and skips the audit, matching the old
+/// "audit only completed exports" behaviour.
+pub async fn export_booking_data_body(pool: &DbPool, user_id: i64) -> Result<Body, ApiError> {
+    let mut tables: Vec<TransferTable> = DataTransferRepository::transfer_tables(pool)
+        .await?
+        .into_iter()
+        .filter(|table| is_transferable_key(&table.table.key()))
+        .collect();
+    // `Json(FullDataExport)` serialized its BTreeMap in key order; keep the
+    // streamed bytes in that order.
+    tables.sort_by_key(|table| table.table.key());
+    let table_count = tables.len();
+
+    let pool = pool.clone();
+    let stream: futures_core::stream::BoxStream<'static, Result<Bytes, ApiError>> =
+        Box::pin(async_stream::try_stream! {
+            let mut tx = pool.begin().await.map_err(ApiError::from)?;
+            let exported_at = chrono::Utc::now().to_rfc3339();
+            yield Bytes::from(format!(
+                "{{\"version\":\"2.0\",\"exported_at\":\"{exported_at}\",\"tables\":{{"
+            ));
+
+            let mut record_count: usize = 0;
+            for (index, table) in tables.iter().enumerate() {
+                if index > 0 {
+                    yield Bytes::from_static(b",");
+                }
+                let key = serde_json::to_string(&table.table.key())
+                    .map_err(|error| ApiError::Internal(error.to_string()))?;
+                yield Bytes::from(format!("{key}:["));
+
+                DataTransferRepository::declare_export_cursor(&mut tx, table).await?;
+                let mut first_row = true;
+                loop {
+                    let rows =
+                        DataTransferRepository::fetch_export_cursor(&mut tx, EXPORT_CURSOR_BATCH)
+                            .await?;
+                    if rows.is_empty() {
+                        break;
+                    }
+                    record_count += rows.len();
+                    let mut batch = Vec::new();
+                    for row in rows {
+                        if !first_row {
+                            batch.push(b',');
+                        }
+                        first_row = false;
+                        batch.extend_from_slice(row.as_bytes());
+                    }
+                    yield Bytes::from(batch);
+                }
+                DataTransferRepository::close_export_cursor(&mut tx).await?;
+                yield Bytes::from_static(b"]");
+            }
+
+            tx.commit().await.map_err(ApiError::from)?;
+            yield Bytes::from_static(b"}}");
+
+            // Audit only once the body was fully produced: the largest
+            // exfiltration channel in the product gets a record, and the counts
+            // describe what actually left.
+            let _ = crate::services::audit::AuditLog::log_event(
+                &pool,
+                crate::models::AuditEvent {
+                    user_id: Some(user_id),
+                    action: "data_export",
+                    resource_type: "data_transfer",
+                    details: Some(serde_json::json!({
+                        "table_count": table_count,
+                        "record_count": record_count,
+                    })),
+                    ..Default::default()
+                },
+            )
+            .await;
+        });
+
+    Ok(Body::from_stream(stream))
 }
 
 pub async fn import_booking_data(
