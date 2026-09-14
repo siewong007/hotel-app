@@ -1812,7 +1812,11 @@ impl PaymentRepository {
         // Posted and terminal rows are immutable financial records. A
         // completed payment's amount/method/date can never be rewritten —
         // corrections go through a void + re-record so the ledger keeps both
-        // sides. Refund markers belong to the refund workflow (void via
+        // sides. The one exception is the method on completed
+        // deposit/deposit_forfeited rows: deposits are collateral, not bill
+        // settlement, and with in-house deposit voids guarded a method edit
+        // is the only honest correction path for a wrong tender. Refund
+        // markers belong to the refund workflow (void via
         // revert_deposit_refund). Notes and transaction_reference stay
         // editable: they carry no money and reference edits are what keep the
         // idempotency-dedup machinery consistent.
@@ -1903,16 +1907,23 @@ impl PaymentRepository {
         };
         let final_payment_date = request.payment_date.as_deref().or(preserved_requested_date);
 
-        // A posted payment's financial fields can never change. Resubmitting
-        // the same value is a no-op, not a mutation, so it stays permitted —
-        // callers like the invoice edit form send the whole record.
+        // A posted payment's financial fields can never change — the sole
+        // exception is the method on deposit-like rows (see below).
+        // Resubmitting the same value is a no-op, not a mutation, so it stays
+        // permitted — callers like the invoice edit form send the whole
+        // record.
         if existing_status == "completed" {
             let amount_changed = request.amount.is_some() && final_amount != existing_amount;
             let method_changed =
                 request.payment_method.is_some() && final_payment_method != existing.payment_method;
             let date_changed = request.payment_date.is_some()
                 && final_payment_date != existing.payment_date.as_deref();
-            if amount_changed || method_changed || date_changed {
+            // Deposit rows are collateral, not bill settlement — and with
+            // in-house deposit voids guarded, a method edit is the only
+            // honest correction path. Amount/date stay immutable on every
+            // posted type; method stays immutable on bill-settling types.
+            let deposit_like = matches!(existing_type, "deposit" | "deposit_forfeited");
+            if amount_changed || date_changed || (method_changed && !deposit_like) {
                 return Err(ApiError::BadRequest(
                     "Amount, method and payment date are immutable once a payment is posted — \
                      void the payment and record a new one instead"

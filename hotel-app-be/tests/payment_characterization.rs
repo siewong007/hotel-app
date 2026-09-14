@@ -1373,6 +1373,95 @@ async fn completed_payment_amount_method_and_date_are_immutable() {
     assert_eq!(stored_notes.as_deref(), Some("corrected reference note"));
 }
 
+/// A posted deposit's method is a descriptive attribute (which till the cash
+/// went into), not money movement — and with in-house deposit voids guarded
+/// it is the only honest correction path. Method edits stay allowed on
+/// completed `deposit`/`deposit_forfeited` rows; amount and date remain
+/// immutable on every posted type, and bill-settling rows keep full
+/// immutability (covered by the test above).
+#[tokio::test]
+async fn completed_deposit_method_is_correctable_amount_is_not() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_710, 940_711, 940_712, 940_713, 940_714);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    let payment_id =
+        insert_completed_payment(&pool, booking_id, "deposit", d("50.00"), actor_id).await;
+
+    // Method correctable
+    payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: None,
+            payment_method: Some("Cash".to_string()),
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+        },
+    )
+    .await
+    .expect("method edit on a completed deposit should succeed");
+    let stored: String = sqlx::query_scalar("SELECT payment_method FROM payments WHERE id = $1")
+        .bind(payment_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(stored, "Cash");
+
+    // Amount + date still immutable
+    let update_amount = payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: Some(75.0),
+            payment_method: None,
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+        },
+    )
+    .await;
+    let update_date = payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: None,
+            payment_method: None,
+            transaction_reference: None,
+            notes: None,
+            payment_date: Some("2030-01-01".to_string()),
+        },
+    )
+    .await;
+    assert!(matches!(update_amount, Err(ApiError::BadRequest(_))));
+    assert!(matches!(update_date, Err(ApiError::BadRequest(_))));
+
+    // deposit_forfeited rows get the same method hatch
+    let forfeit_id =
+        insert_completed_payment(&pool, booking_id, "deposit_forfeited", d("10.00"), actor_id)
+            .await;
+    payments::update_payment(
+        &pool,
+        actor_id,
+        forfeit_id,
+        UpdatePaymentRequest {
+            amount: None,
+            payment_method: Some("Visa Card".to_string()),
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+        },
+    )
+    .await
+    .expect("method edit on a completed forfeiture should succeed");
+}
+
 /// A pending (unposted) payment remains fully editable, but the amount must
 /// stay positive and, for room-charge rows, inside the live outstanding
 /// balance — the row under edit is not in `total_paid` yet, so the cap is the
