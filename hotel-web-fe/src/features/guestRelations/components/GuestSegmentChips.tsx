@@ -2,6 +2,10 @@ import React from 'react';
 import { Box } from '@mui/material';
 import {
   BlockOutlined as BlacklistIcon,
+  EventOutlined as UpcomingIcon,
+  HistoryOutlined as ReturningIcon,
+  HotelOutlined as InHouseIcon,
+  SnoozeOutlined as InactiveIcon,
   Star as MemberIcon,
   SupportAgentOutlined as OpenRequestsIcon,
   WarningAmberOutlined as MissingTourismIcon,
@@ -18,6 +22,10 @@ const SEGMENT_TONES: Partial<Record<GuestRelationsSegment, { icon?: React.ReactN
   vip: { icon: <VipIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.gold },
   blacklisted: { icon: <BlacklistIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.rose },
   openRequests: { icon: <OpenRequestsIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.blue },
+  returning: { icon: <ReturningIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.green700 },
+  inHouse: { icon: <InHouseIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.blue },
+  upcoming: { icon: <UpcomingIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.amber },
+  inactive: { icon: <InactiveIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.ink3 },
 };
 
 interface GuestSegmentChipsProps {

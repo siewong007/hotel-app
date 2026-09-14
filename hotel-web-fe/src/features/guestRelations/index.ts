@@ -2,7 +2,10 @@
 // page decomposes the legacy features/guests GuestConfigurationPage monolith;
 // route wiring lands in Task 16.
 export { default as GuestRelationsPage } from './pages/GuestRelationsPage';
+export { default as GuestRelationsOverviewPage } from './pages/GuestRelationsOverviewPage';
+export { default as GuestRelationsFollowUpsPage } from './pages/GuestRelationsFollowUpsPage';
 export { default as GuestProfilePage } from './pages/GuestProfilePage';
+export { default as OverviewSectionCard } from './components/OverviewSectionCard';
 export { default as GuestFormDialog } from './components/GuestFormDialog';
 export { default as GuestListTable } from './components/GuestListTable';
 export { default as GuestSegmentChips } from './components/GuestSegmentChips';

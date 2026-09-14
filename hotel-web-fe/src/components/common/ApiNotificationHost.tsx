@@ -70,6 +70,10 @@ export function ApiNotificationHost() {
       autoHideDuration={activeNotification?.severity === 'error' ? 6500 : 5000}
       onClose={handleClose}
       anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      // Default anchors put the toast flush at the viewport top, covering the
+      // sticky header (56px staff topbar, 64–76px guest toolbar) — drop it
+      // below so the page title and header controls stay visible.
+      sx={{ top: { xs: 72, sm: 88 } }}
     >
       <Alert
         onClose={handleClose}

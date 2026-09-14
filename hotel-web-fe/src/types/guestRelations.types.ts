@@ -244,3 +244,108 @@ export interface CreateStaffSupportConversationRequest {
   priority?: SupportPriority;
   assignee_id?: number;
 }
+
+// ---------------------------------------------------------------------
+// Phase 2 — cross-guest operational layer (overview + follow-up queue).
+// Mirrors the "Phase 2" DTOs in modules/guest_relations/models.rs.
+// ---------------------------------------------------------------------
+
+/**
+ * `count` over the full matching set plus up to 5 preview `items` — every
+ * overview section carries this shape so the dashboard renders in one
+ * aggregate payload.
+ */
+export interface OverviewSection<T> {
+  count: number;
+  items: T[];
+}
+
+/** Booking preview row shared by `arrivals` / `in_house` / `departures` / `vip_arrivals`. */
+export interface OverviewBookingItem {
+  booking_id: number;
+  guest_id: number;
+  guest_name: string;
+  status: string;
+  room_label: string | null;
+  is_vip: boolean;
+}
+
+export interface OverviewSupportItem {
+  conversation_id: number;
+  conversation_number: string;
+  guest_id: number | null;
+  guest_name: string | null;
+  status: string;
+  priority: string | null;
+  subject: string;
+}
+
+/**
+ * Open-conversation counts plus preview rows. `open` is every
+ * `status <> 'closed'` conversation — the staff-inbox definition of open —
+ * with the `waiting_for_staff` backlog split out for the dashboard.
+ */
+export interface OverviewSupportSection {
+  open: number;
+  waiting_for_staff: number;
+  items: OverviewSupportItem[];
+}
+
+export interface OverviewReviewItem {
+  review_id: number;
+  guest_id: number;
+  guest_name: string;
+  rating: number | null;
+  created_at: string;
+}
+
+/**
+ * One open follow-up (`guest_notes.follow_up_at` set, not yet completed) in
+ * the cross-guest queue; also the preview row for the overview's
+ * `follow_ups` section. `snippet` is the first 160 chars of `content`.
+ */
+export interface FollowUpQueueItem {
+  note_id: number;
+  guest_id: number;
+  guest_name: string;
+  subject: string | null;
+  interaction_type: string;
+  follow_up_at: string;
+  assigned_to: number | null;
+  assigned_to_name: string | null;
+  created_by_name: string | null;
+  snippet: string | null;
+}
+
+/**
+ * `GET /guest-relations/overview` payload. `support` / `reviews` are absent
+ * (never `null`) unless the caller holds `support:read` / `reviews:read` —
+ * the same omit-not-null convention as `GuestProfile.sensitive`.
+ */
+export interface GuestRelationsOverview {
+  arrivals: OverviewSection<OverviewBookingItem>;
+  in_house: OverviewSection<OverviewBookingItem>;
+  departures: OverviewSection<OverviewBookingItem>;
+  vip_arrivals: OverviewSection<OverviewBookingItem>;
+  support?: OverviewSupportSection;
+  reviews?: OverviewSection<OverviewReviewItem>;
+  follow_ups: OverviewSection<FollowUpQueueItem>;
+}
+
+/** `due` filter for `GET /guest-relations/follow-ups` (backend default `all`). */
+export type FollowUpDue = 'overdue' | 'today' | 'upcoming' | 'all';
+
+/** `GET /guest-relations/follow-ups` params. */
+export interface FollowUpQueueParams {
+  due?: FollowUpDue;
+  page?: number;
+  page_size?: number;
+}
+
+/** Paged follow-up queue envelope — same `{ data, total, page, page_size }` shape as `GuestInteractionListResponse`. */
+export interface FollowUpQueueResponse {
+  data: FollowUpQueueItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}

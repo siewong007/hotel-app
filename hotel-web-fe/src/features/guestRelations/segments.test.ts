@@ -32,6 +32,10 @@ describe('getGuestRelationsSegmentQueryParams', () => {
       vip: { vip: true },
       blacklisted: { blacklisted: true },
       openRequests: { has_open_support: true },
+      returning: { segment: 'returning' },
+      inHouse: { segment: 'in_house' },
+      upcoming: { segment: 'upcoming' },
+      inactive: { segment: 'inactive' },
     };
     for (const { key } of GUEST_RELATIONS_SEGMENTS) {
       expect(getGuestRelationsSegmentQueryParams(key)).toEqual(expected[key]);
@@ -83,8 +87,16 @@ describe('guestMatchesSegment', () => {
     expect(guestMatchesSegment(buildGuest({}), 'blacklisted')).toBe(false);
   });
 
-  it('treats openRequests as a server-side-only filter — every returned row matches', () => {
-    expect(guestMatchesSegment(buildGuest({}), 'openRequests')).toBe(true);
+  it('matches openRequests on the per-row has_open_support flag', () => {
+    expect(guestMatchesSegment(buildGuest({ has_open_support: true }), 'openRequests')).toBe(true);
+    expect(guestMatchesSegment(buildGuest({ has_open_support: false }), 'openRequests')).toBe(false);
+    expect(guestMatchesSegment(buildGuest({}), 'openRequests')).toBe(false);
+  });
+
+  it('treats booking-derived segments as server-side-only — every returned row matches', () => {
+    for (const segment of ['returning', 'inHouse', 'upcoming', 'inactive'] as const) {
+      expect(guestMatchesSegment(buildGuest({}), segment)).toBe(true);
+    }
     expect(guestMatchesSegment(buildGuest({}), 'all')).toBe(true);
   });
 });
@@ -100,6 +112,10 @@ describe('getGuestRelationsSegmentCounts', () => {
       vip: 1,
       blacklisted: 1,
       openRequests: 6,
+      returning: 3,
+      inHouse: 2,
+      upcoming: 4,
+      inactive: 7,
     });
     expect(counts).toEqual({
       all: 10,
@@ -111,6 +127,10 @@ describe('getGuestRelationsSegmentCounts', () => {
       vip: 1,
       blacklisted: 1,
       openRequests: 6,
+      returning: 3,
+      inHouse: 2,
+      upcoming: 4,
+      inactive: 7,
     });
   });
 
@@ -124,6 +144,10 @@ describe('getGuestRelationsSegmentCounts', () => {
       vip: 0,
       blacklisted: 0,
       openRequests: 0,
+      returning: 0,
+      inHouse: 0,
+      upcoming: 0,
+      inactive: 0,
     });
     expect(counts.non).toBe(0);
   });

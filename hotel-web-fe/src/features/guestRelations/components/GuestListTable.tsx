@@ -25,6 +25,7 @@ import {
   ManageAccountsOutlined as PortalAccountIcon,
   MoreVert as MoreIcon,
   Star as MemberIcon,
+  SupportAgentOutlined as OpenRequestsIcon,
   VerifiedUserOutlined as EkycIcon,
   VisibilityOutlined as ViewIcon,
   WorkspacePremiumOutlined as VipIcon,
@@ -100,6 +101,20 @@ const VipChip: React.FC<{ status: string }> = ({ status }) => (
     icon={<VipIcon sx={{ fontSize: 12 }} />}
     label={formatStatusLabel(status, 'VIP')}
     sx={{ bgcolor: alpha('#5b3aa8', 0.12), color: '#5b3aa8', fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
+  />
+);
+
+const OpenRequestChip: React.FC = () => (
+  <Chip
+    size="small"
+    icon={<OpenRequestsIcon sx={{ fontSize: 13 }} />}
+    label="Open request"
+    sx={{
+      bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.blue} 10%, transparent)`,
+      color: GUEST_DESIGN.blue,
+      fontWeight: 700,
+      '& .MuiChip-icon': { color: 'inherit' },
+    }}
   />
 );
 
@@ -335,26 +350,36 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
       enableSorting: false,
       cell: (info) => {
         const guest = info.row.original;
-        // The list payload exposes is_blacklisted only — per-row open-support
-        // counts and alert-note flags are not selected (see
-        // repositories/guest.rs select_cols).
-        if (!guest.is_blacklisted) {
+        // The list payload exposes is_blacklisted plus has_open_support (the
+        // open-conversation flag — every status but 'closed'); alert-note
+        // counts are still not selected (see repositories/guest.rs
+        // select_cols).
+        if (!guest.is_blacklisted && !guest.has_open_support) {
           return <Typography sx={{ fontSize: 12.5, color: 'text.disabled' }}>—</Typography>;
         }
         return (
-          <Tooltip title={guest.blacklist_reason ? `Blacklisted — ${guest.blacklist_reason}` : 'Blacklisted guest'}>
-            <Chip
-              size="small"
-              icon={<BlacklistedBadgeIcon sx={{ fontSize: 14 }} />}
-              label="Blacklisted"
-              sx={{
-                bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`,
-                color: GUEST_DESIGN.rose,
-                fontWeight: 700,
-                '& .MuiChip-icon': { color: 'inherit' },
-              }}
-            />
-          </Tooltip>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+            {guest.is_blacklisted && (
+              <Tooltip title={guest.blacklist_reason ? `Blacklisted — ${guest.blacklist_reason}` : 'Blacklisted guest'}>
+                <Chip
+                  size="small"
+                  icon={<BlacklistedBadgeIcon sx={{ fontSize: 14 }} />}
+                  label="Blacklisted"
+                  sx={{
+                    bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`,
+                    color: GUEST_DESIGN.rose,
+                    fontWeight: 700,
+                    '& .MuiChip-icon': { color: 'inherit' },
+                  }}
+                />
+              </Tooltip>
+            )}
+            {guest.has_open_support && (
+              <Tooltip title="Open support conversation">
+                <OpenRequestChip />
+              </Tooltip>
+            )}
+          </Box>
         );
       },
     },
@@ -450,6 +475,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
               sx={{ bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`, color: GUEST_DESIGN.rose, fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
             />
           )}
+          {guest.has_open_support && <OpenRequestChip />}
         </Box>
         <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.75 }}>
           {guest.email || guest.phone || 'No contact details'}

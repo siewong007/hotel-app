@@ -21,4 +21,18 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive('/admin-portal', dash)).toBe(true);
     expect(isNavItemActive('/bookings', dash)).toBe(false);
   });
+
+  it('lights guest-relations for its nested workspace pages', () => {
+    const gr = route({ id: 'guest-relations', path: '/guest-relations' });
+    expect(isNavItemActive('/guest-relations', gr)).toBe(true);
+    expect(isNavItemActive('/guest-relations/guests', gr)).toBe(true);
+    expect(isNavItemActive('/guest-relations/guests/7', gr)).toBe(true);
+    expect(isNavItemActive('/guest-relations/follow-ups', gr)).toBe(true);
+    // Prefix-lookalikes outside the subtree must not match.
+    expect(isNavItemActive('/guest-relations-old', gr)).toBe(false);
+    expect(isNavItemActive('/support', gr)).toBe(false);
+    // The exception is scoped to the route id — other entries keep
+    // exact-match semantics even at the same path shape.
+    expect(isNavItemActive('/guest-relations/guests', route({ path: '/guest-relations' }))).toBe(false);
+  });
 });

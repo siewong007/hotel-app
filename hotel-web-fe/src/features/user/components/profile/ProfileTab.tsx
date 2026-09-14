@@ -102,9 +102,14 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
 
   return (
     <>
-      <Box sx={{ mb: 3 }}>
-        <EkycStatusCard />
-      </Box>
+      {/* eKYC self check-in is guest-only — for staff the status endpoint
+          400s, which the global error hook surfaces as a toast and a
+          notification-center entry on every profile visit. */}
+      {profile.user_type === 'guest' && (
+        <Box sx={{ mb: 3 }}>
+          <EkycStatusCard />
+        </Box>
+      )}
       {profile.user_type === 'guest' && !profile.email_configured && (
         <Alert
           severity="info"

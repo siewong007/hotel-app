@@ -10,7 +10,6 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutlined';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
@@ -29,7 +28,7 @@ interface UserMenuProps {
 }
 
 /**
- * Account menu: profile, hotel settings (staff only), help, sign out.
+ * Account menu: profile, hotel settings (staff only), sign out.
  * Extracted from the old top-navigation user pill — the trigger is a real <button>
  * so it is keyboard-focusable, which the div-onClick original was not.
  */
@@ -228,16 +227,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
             <ListItemText>{tOr('routes.settings.breadcrumb', 'Hotel Settings')}</ListItemText>
           </MenuItem>
         )}
-        <MenuItem
-          onClick={() => handleMenuItemClick('/help')}
-          sx={{ py: 1.25 }}
-          onMouseEnter={() => preloadRoute('/help')}
-        >
-          <ListItemIcon>
-            <HelpOutlineIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>{tOr('routes.help.breadcrumb', 'Help & Support')}</ListItemText>
-        </MenuItem>
         <Divider sx={{ my: 1 }} />
         <MenuItem onClick={handleLogout} sx={{ py: 1.25, color: 'error.main' }}>
           <ListItemIcon>
