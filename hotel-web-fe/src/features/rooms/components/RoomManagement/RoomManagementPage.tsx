@@ -602,6 +602,18 @@ const RoomManagementPage: React.FC = () => {
     if (isOccupied && booking?.guest_id) {
       bookingActions.push({ id: 'guest-details', label: 'Guest details', icon: <PersonIcon />, onClick: () => handleViewGuestDetails(booking.guest_id) });
     }
+    // Booking notes (remarks + cleaning preference) — the card's inline editor
+    // is hidden on phone, so the menu carries the action for every size. Same
+    // gate the card used: an attached active or arriving booking.
+    const notesBooking = booking ?? reservedBooking;
+    if (notesBooking) {
+      bookingActions.push({
+        id: 'booking-notes',
+        label: 'Edit booking notes',
+        icon: <NotesIcon />,
+        onClick: () => handleEditBookingNotes(notesBooking),
+      });
+    }
     if (isComplimentary) {
       bookingActions.push({
         id: 'complimentary-info',
