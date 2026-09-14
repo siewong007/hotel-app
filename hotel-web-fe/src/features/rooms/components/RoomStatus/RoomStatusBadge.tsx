@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import { RoomStatusType, getStatusConfig } from '../../config';
+import { RoomStatusType, getStatusConfig, getLocalizedStatusShortLabel } from '../../config';
+import { useTranslation } from '../../../../i18n/useTranslation';
 
 interface RoomStatusBadgeProps {
   status: RoomStatusType;
@@ -21,6 +22,7 @@ const RoomStatusBadge: React.FC<RoomStatusBadgeProps> = ({
   size = 'medium',
   variant = 'soft',
 }) => {
+  const { t } = useTranslation('rooms');
   const config = getStatusConfig(status);
   const IconComponent = config.icon;
 
@@ -86,7 +88,7 @@ const RoomStatusBadge: React.FC<RoomStatusBadgeProps> = ({
             color: 'inherit',
           }}
         >
-          {config.shortLabel}
+          {getLocalizedStatusShortLabel(t, status)}
         </Typography>
       )}
     </Box>

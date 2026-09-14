@@ -36,6 +36,9 @@ import { queryKeys } from '../../../api/queryKeys';
 import { Room, RoomDetailedStatus, RoomStatusUpdateInput } from '../../../types';
 import RoomHistoryTimeline from './RoomHistoryTimeline';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { formatHotelDate } from '../../../utils/date';
+import { getLocalizedStatusLabel } from '../config';
 
 interface RoomEventDialogProps {
   open: boolean;
@@ -54,6 +57,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
   currentStatus,
   onSuccess,
 }) => {
+  const { t } = useTranslation('rooms');
   const queryClient = useQueryClient();
   const loadedRoomIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -169,52 +173,52 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
     // Validation: Cannot change from other status to available
     if (currentStatus && currentStatus !== 'available' && newStatus === 'available') {
-      setError('You cannot change room status back to "available". Only system can set rooms to available.');
+      setError(t('roomEvent.errToAvailable'));
       return;
     }
 
     // Validation: Cannot modify occupied rooms UNLESS setting occupied again (to update dates)
     if (currentStatus === 'occupied' && newStatus !== 'occupied') {
-      setError('Cannot change occupied room status. Please check out the guest first or use "Room Change" button.');
+      setError(t('roomEvent.errOccupied'));
       return;
     }
 
     // Validation: Can only change from available to other statuses (exception: occupied can update its dates)
     if (currentStatus !== 'available' && !(currentStatus === 'occupied' && newStatus === 'occupied')) {
-      setError('You can only change room status when it is "available".');
+      setError(t('roomEvent.errOnlyAvailable'));
       return;
     }
 
     // Validate required fields based on status
     if (newStatus === 'reserved') {
       if (!reservedStartDate || !reservedEndDate) {
-        setError('Reserved status requires both start date and end date.');
+        setError(t('roomEvent.errReservedDates'));
         return;
       }
       if (new Date(reservedEndDate) < new Date(reservedStartDate)) {
-        setError('End date must be after start date.');
+        setError(t('roomEvent.errEndAfterStart'));
         return;
       }
     }
 
     if (newStatus === 'occupied') {
       if (!reservedStartDate || !reservedEndDate) {
-        setError('Occupied status requires both start date and end date to track when the room will be available.');
+        setError(t('roomEvent.errOccupiedDates'));
         return;
       }
       if (new Date(reservedEndDate) < new Date(reservedStartDate)) {
-        setError('End date must be after start date.');
+        setError(t('roomEvent.errEndAfterStart'));
         return;
       }
     }
 
     if (newStatus === 'maintenance') {
       if (!maintenanceStartDate || maintenanceStartDate.trim() === '' || !maintenanceEndDate || maintenanceEndDate.trim() === '') {
-        setError('Maintenance status requires both start date and end date.');
+        setError(t('roomEvent.errMaintenanceDates'));
         return;
       }
       if (new Date(maintenanceEndDate) < new Date(maintenanceStartDate)) {
-        setError('End date must be after start date.');
+        setError(t('roomEvent.errEndAfterStart'));
         return;
       }
     }
@@ -237,7 +241,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       onSuccess();
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to update room status'));
+      setError(errorMessage(err, t('errors.updateStatus')));
     } finally {
       setLoading(false);
     }
@@ -285,7 +289,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       onSuccess();
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to end maintenance'));
+      setError(errorMessage(err, t('errors.endMaintenance')));
     } finally {
       setLoading(false);
     }
@@ -293,7 +297,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
   const handleRoomChange = async () => {
     if (!roomId || !targetRoomId) {
-      setError('Please select a target room.');
+      setError(t('roomEvent.selectTarget'));
       return;
     }
 
@@ -309,7 +313,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       onClose();
     } catch (err) {
       console.error('Room change error:', err);
-      setError(errorMessage(err, 'Failed to execute room change'));
+      setError(errorMessage(err, t('errors.executeRoomChange')));
     } finally {
       setLoading(false);
     }
@@ -317,7 +321,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
   const handleCheckInGuest = async () => {
     if (!roomId || !detailedStatus?.current_booking?.id) {
-      setError('No booking found to check in.');
+      setError(t('roomEvent.noBooking'));
       return;
     }
 
@@ -335,7 +339,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       onClose();
     } catch (err) {
       console.error('Failed to check in guest:', err);
-      setError(`Failed to check in guest: ${errorMessage(err, 'unknown error')}`);
+      setError(t('errors.checkInDetail', { detail: errorMessage(err, t('errors.unknown')) }));
     } finally {
       setLoading(false);
     }
@@ -369,12 +373,12 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
           }}>
           <SettingsIcon sx={{ mr: 1, color: 'primary.main' }} />
           <Typography variant="h6">
-            Room {roomNumber || roomId} - Status Management
+            {t('roomEvent.title', { room: roomNumber || roomId })}
           </Typography>
         </Box>
         {currentStatus && (
           <Chip
-            label={currentStatus.toUpperCase()}
+            label={getLocalizedStatusLabel(t, currentStatus).toUpperCase()}
             color={currentStatus === 'available' ? 'success' : currentStatus === 'occupied' ? 'error' : 'warning'}
             size="small"
             sx={{ mt: 1 }}
@@ -385,8 +389,8 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
         {/* Tabs */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
           <Tabs value={currentTab} onChange={(_, newValue) => setCurrentTab(newValue)}>
-            <Tab icon={<SettingsIcon />} label="Change Status" iconPosition="start" />
-            <Tab icon={<HistoryIcon />} label="History" iconPosition="start" />
+            <Tab icon={<SettingsIcon />} label={t('roomEvent.tabStatus')} iconPosition="start" />
+            <Tab icon={<HistoryIcon />} label={t('roomEvent.tabHistory')} iconPosition="start" />
           </Tabs>
         </Box>
 
@@ -402,10 +406,10 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
           {isOccupied && !roomChangeMode && (
             <Alert severity="info" icon={<InfoIcon />}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Room is Occupied
+                {t('roomEvent.occupiedTitle')}
               </Typography>
               <Typography variant="body2" sx={{ mb: 2 }}>
-                This room is currently occupied. You cannot modify the status while guests are checked in.
+                {t('roomEvent.occupiedBody')}
               </Typography>
               <Button
                 variant="contained"
@@ -414,7 +418,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                 size="small"
                 startIcon={<RoomChangeIcon />}
               >
-                Change Room
+                {t('roomEvent.changeRoom')}
               </Button>
             </Alert>
           )}
@@ -423,23 +427,23 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
             <Box>
               <Alert severity="info" sx={{ mb: 2 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                  Room Change
+                  {t('roomEvent.changeTitle')}
                 </Typography>
                 <Typography variant="body2">
-                  Select a new room to transfer the guest. This will move the booking to the selected room.
+                  {t('roomEvent.changeBody')}
                 </Typography>
               </Alert>
 
               <FormControl fullWidth required sx={{ mb: 2 }}>
-                <InputLabel>Target Room</InputLabel>
+                <InputLabel>{t('roomEvent.targetRoom')}</InputLabel>
                 <Select
                   value={targetRoomId}
                   onChange={(e) => setTargetRoomId(String(e.target.value))}
-                  label="Target Room"
+                  label={t('roomEvent.targetRoom')}
                 >
                   {availableRooms.map((room) => (
                     <MenuItem key={room.id} value={String(room.id)}>
-                      Room {room.room_number} - {room.room_type}
+                      {t('guestDetails.roomOption', { number: room.room_number, type: room.room_type })}
                     </MenuItem>
                   ))}
                 </Select>
@@ -447,11 +451,11 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
               {availableRooms.length === 0 ? (
                 <Alert severity="warning" sx={{ mb: 2 }}>
-                  No rooms available for change. All other rooms are occupied or unavailable.
+                  {t('roomEvent.noRoomsAvailable')}
                 </Alert>
               ) : (
                 <Alert severity="success" sx={{ mb: 2 }}>
-                  {availableRooms.length} room{availableRooms.length !== 1 ? 's' : ''} available
+                  {t('roomEvent.roomsAvailable', { count: availableRooms.length })}
                 </Alert>
               )}
 
@@ -464,7 +468,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   }}
                   disabled={loading}
                 >
-                  Cancel
+                  {t('common:actions.cancel')}
                 </Button>
                 <Button
                   variant="contained"
@@ -473,7 +477,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   disabled={loading || !targetRoomId}
                   startIcon={loading ? <CircularProgress size={20} /> : null}
                 >
-                  {loading ? 'Changing...' : 'Execute Room Change'}
+                  {loading ? t('roomEvent.changing') : t('roomEvent.executeChange')}
                 </Button>
               </Box>
             </Box>
@@ -482,10 +486,10 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
           {canCheckInGuest && (
             <Alert severity="info" icon={<InfoIcon />}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Guest Ready to Check In
+                {t('roomEvent.readyTitle')}
               </Typography>
               <Typography variant="body2" sx={{ mb: 2 }}>
-                {detailedStatus?.current_booking?.guest_name} is scheduled to check in today. Use the button below to check in the guest and mark the room as occupied.
+                {t('roomEvent.readyBody', { guest: detailedStatus?.current_booking?.guest_name })}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
@@ -508,7 +512,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                     },
                   }}
                 >
-                  {loading ? 'Checking In...' : 'Check In Guest'}
+                  {loading ? t('roomEvent.checkingIn') : t('roomEvent.checkInGuest')}
                 </Button>
                 <Button
                   variant="outlined"
@@ -517,7 +521,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   disabled={loading}
                   size="small"
                 >
-                  Cancel Reservation
+                  {t('roomEvent.cancelReservation')}
                 </Button>
               </Box>
             </Alert>
@@ -527,15 +531,15 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
             <Alert severity="success" icon={<InfoIcon />}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                 {currentStatus === 'reserved_dirty'
-                  ? 'Cleaning Required'
+                  ? t('roomEvent.progressTitleReservedDirty')
                   : currentStatus === 'maintenance'
-                    ? 'Maintenance'
-                    : 'Reserved'} In Progress
+                    ? t('roomEvent.progressTitleMaintenance')
+                    : t('roomEvent.progressTitleReserved')}
               </Typography>
               <Typography variant="body2">
                 {currentStatus === 'reserved_dirty'
-                  ? 'This room has a reservation but still needs cleaning before check-in.'
-                  : `This room is currently under ${currentStatus}. Use the button below to complete the ${currentStatus} and return the room to available status.`}
+                  ? t('roomEvent.progressBodyReservedDirty')
+                  : t('roomEvent.progressBodyOther', { status: getLocalizedStatusLabel(t, currentStatus || '').toLowerCase() })}
               </Typography>
               <Button
                 variant="contained"
@@ -558,16 +562,14 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   },
                 }}
               >
-                {loading ? 'Ending...' : currentStatus === 'reserved_dirty' ? 'Mark Clean' : `End ${
-                  currentStatus === 'maintenance' ? 'Maintenance' : 'Reserved Status'
-                }`}
+                {loading ? t('roomEvent.ending') : currentStatus === 'reserved_dirty' ? t('menu.markClean') : currentStatus === 'maintenance' ? t('roomEvent.endMaintenance') : t('roomEvent.endReserved')}
               </Button>
             </Alert>
           )}
 
           {!canChangeStatus && !isOccupied && !canEndMaintenance && (
             <Alert severity="info">
-              Room status can only be changed when the room is "available".
+              {t('roomEvent.onlyAvailableNotice')}
             </Alert>
           )}
 
@@ -585,13 +587,13 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
             <Card elevation={0} sx={{ bgcolor: 'var(--hotel-surface-raised)' }}>
               <CardContent>
                 <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                  Room Details
+                  {t('roomEvent.roomDetails')}
                 </Typography>
                 <Grid container spacing={1}>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Room Type:</Typography>
+                    }}>{t('fields.roomType')}:</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -603,7 +605,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                       <Grid size={6}>
                         <Typography variant="body2" sx={{
                           color: "text.secondary"
-                        }}>Current Guest:</Typography>
+                        }}>{t('roomEvent.currentGuest')}:</Typography>
                       </Grid>
                       <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -613,21 +615,21 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                       <Grid size={6}>
                         <Typography variant="body2" sx={{
                           color: "text.secondary"
-                        }}>Check-in Date:</Typography>
+                        }}>{t('complimentary.checkInDate')}:</Typography>
                       </Grid>
                       <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {detailedStatus.current_booking.check_in_date}
+                          {formatHotelDate(detailedStatus.current_booking.check_in_date)}
                         </Typography>
                       </Grid>
                       <Grid size={6}>
                         <Typography variant="body2" sx={{
                           color: "text.secondary"
-                        }}>Check-out Date:</Typography>
+                        }}>{t('complimentary.checkOutDate')}:</Typography>
                       </Grid>
                       <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {detailedStatus.current_booking.check_out_date}
+                          {formatHotelDate(detailedStatus.current_booking.check_out_date)}
                         </Typography>
                       </Grid>
                     </>
@@ -637,11 +639,11 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                       <Grid size={6}>
                         <Typography variant="body2" sx={{
                           color: "text.secondary"
-                        }}>Next Booking:</Typography>
+                        }}>{t('roomEvent.nextBooking')}:</Typography>
                       </Grid>
                       <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {detailedStatus.next_booking.guest_name} - {detailedStatus.next_booking.check_in_date}
+                          {t('roomEvent.nextBookingValue', { guest: detailedStatus.next_booking.guest_name, date: formatHotelDate(detailedStatus.next_booking.check_in_date) })}
                         </Typography>
                       </Grid>
                     </>
@@ -658,31 +660,29 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
               {/* Status Form */}
               <Box>
                 <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                  Change Room Status
+                  {t('roomEvent.changeStatusTitle')}
                 </Typography>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  You can only change from "available" to other statuses. To return a room to "available",
-                  complete the associated event or use the check-out process.
+                  {t('roomEvent.changeStatusInfo')}
                 </Alert>
                 <Grid container spacing={2}>
                   <Grid size={12}>
                     <FormControl fullWidth>
-                      <InputLabel>New Status</InputLabel>
+                      <InputLabel>{t('roomEvent.newStatus')}</InputLabel>
                       <Select
                         value={newStatus}
                         onChange={(e) => setNewStatus(e.target.value as typeof newStatus)}
-                        label="New Status"
+                        label={t('roomEvent.newStatus')}
                       >
-                        <MenuItem value="maintenance">Maintenance</MenuItem>
-                        <MenuItem value="occupied">Occupied</MenuItem>
+                        <MenuItem value="maintenance">{getLocalizedStatusLabel(t, 'maintenance')}</MenuItem>
+                        <MenuItem value="occupied">{getLocalizedStatusLabel(t, 'occupied')}</MenuItem>
                       </Select>
                     </FormControl>
                   </Grid>
                   <Grid size={12}>
                     <Alert severity="info" sx={{ mt: 0 }}>
                       <Typography variant="body2">
-                        <strong>To reserve a room:</strong> Use the "Walk-in Check-in" or "Book Room" options from the room menu.
-                        This ensures guest details are properly captured for the reservation.
+                        <strong>{t('roomEvent.reserveHintTitle')}</strong> {t('roomEvent.reserveHintBody')}
                       </Typography>
                     </Alert>
                   </Grid>
@@ -693,15 +693,15 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                       <Grid size={12}>
                         <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 1 }}>
                           {newStatus === 'occupied'
-                            ? 'Occupied rooms must have defined start and end dates to track availability:'
-                            : 'Fill in both dates and times for reservation:'}
+                            ? t('roomEvent.occupiedDatesHint')
+                            : t('roomEvent.reservedDatesHint')}
                         </Typography>
                       </Grid>
                       <Grid size={6}>
                         <TextField
                           fullWidth
                           type="datetime-local"
-                          label="Start Date & Time"
+                          label={t('roomEvent.startDateTime')}
                           value={reservedStartDate}
                           onChange={(e) => setReservedStartDate(e.target.value)}
                           required
@@ -714,7 +714,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                         <TextField
                           fullWidth
                           type="datetime-local"
-                          label="End Date & Time"
+                          label={t('roomEvent.endDateTime')}
                           value={reservedEndDate}
                           onChange={(e) => setReservedEndDate(e.target.value)}
                           required
@@ -731,14 +731,14 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                     <>
                       <Grid size={12}>
                         <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 1 }}>
-                          Fill in both dates and times for maintenance schedule:
+                          {t('roomEvent.maintenanceDatesHint')}
                         </Typography>
                       </Grid>
                       <Grid size={6}>
                         <TextField
                           fullWidth
                           type="datetime-local"
-                          label="Maintenance Start Date & Time"
+                          label={t('roomEvent.maintenanceStart')}
                           value={maintenanceStartDate}
                           onChange={(e) => {
                             const newValue = e.target.value;
@@ -747,7 +747,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                           }}
                           required
                           error={!maintenanceStartDate && error !== null}
-                          helperText={!maintenanceStartDate && error ? "Required" : "When will maintenance start?"}
+                          helperText={!maintenanceStartDate && error ? t('roomEvent.required') : t('roomEvent.maintenanceStartHint')}
                           slotProps={{
                             inputLabel: { shrink: true }
                           }}
@@ -757,7 +757,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                         <TextField
                           fullWidth
                           type="datetime-local"
-                          label="Maintenance End Date & Time"
+                          label={t('roomEvent.maintenanceEnd')}
                           value={maintenanceEndDate}
                           onChange={(e) => {
                             const newValue = e.target.value;
@@ -766,7 +766,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                           }}
                           required
                           error={!maintenanceEndDate && error !== null}
-                          helperText={!maintenanceEndDate && error ? "Required" : "When will maintenance be completed?"}
+                          helperText={!maintenanceEndDate && error ? t('roomEvent.required') : t('roomEvent.maintenanceEndHint')}
                           slotProps={{
                             inputLabel: { shrink: true }
                           }}
@@ -778,12 +778,12 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   <Grid size={12}>
                     <TextField
                       fullWidth
-                      label="Status Notes"
+                      label={t('roomEvent.statusNotes')}
                       multiline
                       rows={3}
                       value={statusNotes}
                       onChange={(e) => setStatusNotes(e.target.value)}
-                      placeholder="Add notes about why the status is being changed..."
+                      placeholder={t('roomEvent.statusNotesPlaceholder')}
                     />
                   </Grid>
                 </Grid>
@@ -800,7 +800,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={loading}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         {!isOccupied && canChangeStatus && (
           <Button
@@ -809,7 +809,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
             disabled={loading}
             startIcon={loading ? <CircularProgress size={20} /> : <SettingsIcon />}
           >
-            {loading ? 'Updating...' : 'Update Status'}
+            {loading ? t('roomEvent.updating') : t('roomEvent.updateStatus')}
           </Button>
         )}
       </DialogActions>
