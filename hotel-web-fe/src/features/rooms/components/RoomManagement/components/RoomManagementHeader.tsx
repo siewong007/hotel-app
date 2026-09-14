@@ -13,6 +13,8 @@ import {
 } from '@mui/icons-material';
 import type { Room } from '../../../../../types';
 import { formatHotelDate } from '../../../../../utils/date';
+import { useIsPhone } from '../../../../../hooks/useIsPhone';
+import { SearchAndFilters } from '../../../../../components/common/SearchAndFilters';
 import type { RoomStatusType } from '../../../config';
 import { getStatusAccentColor } from '../../../config';
 import type {
@@ -74,6 +76,216 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
   prioritySort,
   onTogglePrioritySort,
 }) => {
+  const isPhone = useIsPhone();
+
+  // Non-default selections surfaced on the phone filter-button badge — the
+  // same set handleResetFilters restores (status pills, attribute chips, floor
+  // chip, attention-first sort; the room# search stays visible so it is not
+  // counted).
+  const activeFilterCount =
+    (statusFilter !== 'all' ? 1 : 0) +
+    (attrFilters.smoking ? 1 : 0) +
+    (attrFilters.daily ? 1 : 0) +
+    (attrFilters.nodaily ? 1 : 0) +
+    (floorFilter !== 'all' ? 1 : 0) +
+    (prioritySort ? 1 : 0);
+
+  const handleResetFilters = () => {
+    onStatusFilterChange('all');
+    if (attrFilters.smoking) onToggleAttr('smoking');
+    if (attrFilters.daily) onToggleAttr('daily');
+    if (attrFilters.nodaily) onToggleAttr('nodaily');
+    onFloorFilterChange('all');
+    onRoomSearchChange('');
+    if (prioritySort) onTogglePrioritySort();
+  };
+
+  // --- Shared controlled filter controls ---------------------------------
+  // Both layouts render these same elements: desktop lays them out in one
+  // inline row, phone mounts them inside the SearchAndFilters FilterSheet.
+  // Values/handlers all come from props, so the sheet's unmount-on-close is
+  // safe — no local state lives inside these controls.
+
+  const statusFilterGroup = (
+    <ToggleButtonGroup
+      exclusive
+      size="small"
+      value={statusFilter}
+      onChange={(_, value) => {
+        if (value) onStatusFilterChange(value);
+      }}
+      sx={{ gap: 0.75, rowGap: 0.75, flexWrap: 'wrap' }}
+    >
+      {filterOptions.map((item) => {
+        const selected = statusFilter === item.value;
+        return (
+          <ToggleButton
+            key={item.value}
+            value={item.value}
+            sx={{
+              border: '1px solid !important',
+              borderColor: selected ? `${tint(item.color === 'transparent' ? 'var(--hotel-text)' : item.color, 55)} !important` : 'divider',
+              borderRadius: '999px !important',
+              px: 1.5,
+              py: 0.4,
+              gap: 0.75,
+              color: 'text.primary',
+              bgcolor: selected
+                ? (item.color === 'transparent' ? 'action.selected' : tint(item.color, 12))
+                : 'background.paper',
+              textTransform: 'none',
+              '&:hover': { bgcolor: item.color === 'transparent' ? 'action.hover' : tint(item.color, 8) },
+            }}
+          >
+            <Box
+              sx={{
+                width: 9,
+                height: 9,
+                borderRadius: '50%',
+                bgcolor: item.color,
+                border: item.value === 'all' ? '1px solid' : 0,
+                borderColor: 'divider',
+              }}
+            />
+            <Typography variant="caption" sx={{ fontWeight: 700 }}>{item.label}</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+              {item.count}
+            </Typography>
+          </ToggleButton>
+        );
+      })}
+    </ToggleButtonGroup>
+  );
+
+  const attributeChips = ([
+    { key: 'smoking' as const, label: 'Smoking', count: smokingCount, color: 'var(--hotel-warning)', icon: <SmokingIcon sx={{ fontSize: 15 }} /> },
+    { key: 'daily' as const, label: 'Daily cleaning', count: dailyCleaningCount, color: 'var(--hotel-success)', icon: <SparkleIcon sx={{ fontSize: 15 }} /> },
+    { key: 'nodaily' as const, label: 'No cleaning', count: noCleaningCount, color: 'var(--hotel-neutral)', icon: <BlockIcon sx={{ fontSize: 15 }} /> },
+  ]).map((item) => {
+    const selected = attrFilters[item.key];
+    return (
+      <Box
+        key={item.key}
+        component="button"
+        onClick={() => onToggleAttr(item.key)}
+        sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 0.75,
+          px: 1.5,
+          py: 0.5,
+          cursor: 'pointer',
+          border: '1px solid',
+          borderColor: selected ? tint(item.color, 55) : 'divider',
+          borderRadius: '999px',
+          color: 'text.primary',
+          bgcolor: selected ? tint(item.color, 12) : 'background.paper',
+          font: 'inherit',
+          '&:hover': { bgcolor: selected ? tint(item.color, 18) : tint(item.color, 6) },
+          '& svg': { color: item.color },
+        }}
+      >
+        {item.icon}
+        <Typography variant="caption" sx={{ fontWeight: 700 }}>{item.label}</Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+          {item.count}
+        </Typography>
+      </Box>
+    );
+  });
+
+  const floorChips = (['all', ...floors] as (number | 'all')[]).map((floor) => {
+    const selected = floorFilter === floor;
+    return (
+      <Box
+        key={floor}
+        component="button"
+        onClick={() => onFloorFilterChange(floor)}
+        sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          px: 1.25,
+          py: 0.5,
+          cursor: 'pointer',
+          border: '1px solid',
+          borderColor: selected ? tint('var(--hotel-info)', 55) : 'divider',
+          borderRadius: '999px',
+          color: 'text.primary',
+          bgcolor: selected ? 'var(--hotel-info-bg)' : 'background.paper',
+          font: 'inherit',
+          '&:hover': { bgcolor: selected ? tint('var(--hotel-info)', 18) : 'action.hover' },
+        }}
+      >
+        <Typography variant="caption" sx={{ fontWeight: 700 }}>
+          {floor === 'all' ? 'All floors' : `Floor ${floor}`}
+        </Typography>
+      </Box>
+    );
+  });
+
+  const searchField = (
+    <TextField
+      size="small"
+      value={roomSearch}
+      onChange={(e) => onRoomSearchChange(e.target.value)}
+      placeholder="Room #"
+      slotProps={{
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            </InputAdornment>
+          ),
+        },
+        htmlInput: { 'aria-label': 'Search by room number' },
+      }}
+      sx={{
+        width: isPhone ? '100%' : 110,
+        '& .MuiInputBase-root': {
+          borderRadius: 999,
+          fontSize: isPhone ? '0.875rem' : '0.75rem',
+          height: isPhone ? 40 : 30,
+        },
+      }}
+    />
+  );
+
+  const attentionFirstToggle = (
+    <Box
+      component="button"
+      onClick={onTogglePrioritySort}
+      title="Sort rooms by attention needed (dirty, maintenance, reserved first)"
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.6,
+        px: 1.25,
+        py: 0.5,
+        cursor: 'pointer',
+        border: '1px solid',
+        borderColor: prioritySort ? tint('var(--hotel-warning)', 55) : 'divider',
+        borderRadius: '999px',
+        color: 'text.primary',
+        bgcolor: prioritySort ? 'var(--hotel-warning-bg)' : 'background.paper',
+        font: 'inherit',
+        '&:hover': { bgcolor: prioritySort ? tint('var(--hotel-warning)', 18) : 'action.hover' },
+        '& svg': { color: 'var(--hotel-warning)' },
+      }}
+    >
+      <SortIcon sx={{ fontSize: 15 }} />
+      <Typography variant="caption" sx={{ fontWeight: 700 }}>Attention first</Typography>
+    </Box>
+  );
+
+  const sheetSectionLabel = (text: string) => (
+    <Typography
+      variant="caption"
+      sx={{ display: 'block', fontWeight: 600, color: 'text.secondary', mb: 0.75 }}
+    >
+      {text}
+    </Typography>
+  );
+
   return (
     <Paper
       elevation={0}
@@ -178,184 +390,67 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
         </Box>
       </Box>
 
-      {/* Status Filters */}
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', px: 2.5, py: 1.25 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mr: 0.5 }}>
-          Filter:
-        </Typography>
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={statusFilter}
-          onChange={(_, value) => {
-            if (value) onStatusFilterChange(value);
-          }}
-          sx={{ gap: 0.75, flexWrap: 'wrap' }}
+      {/* Filters: phone → search + badged sheet via SearchAndFilters;
+          desktop → the same controls in the original inline row. */}
+      {isPhone ? (
+        <SearchAndFilters
+          search={searchField}
+          activeFilterCount={activeFilterCount}
+          onReset={handleResetFilters}
+          sheetTitle="Room filters"
         >
-          {filterOptions.map((item) => {
-            const selected = statusFilter === item.value;
-            return (
-              <ToggleButton
-                key={item.value}
-                value={item.value}
-                sx={{
-                  border: '1px solid !important',
-                  borderColor: selected ? `${tint(item.color === 'transparent' ? 'var(--hotel-text)' : item.color, 55)} !important` : 'divider',
-                  borderRadius: '999px !important',
-                  px: 1.5,
-                  py: 0.4,
-                  gap: 0.75,
-                  color: 'text.primary',
-                  bgcolor: selected
-                    ? (item.color === 'transparent' ? 'action.selected' : tint(item.color, 12))
-                    : 'background.paper',
-                  textTransform: 'none',
-                  '&:hover': { bgcolor: item.color === 'transparent' ? 'action.hover' : tint(item.color, 8) },
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 9,
-                    height: 9,
-                    borderRadius: '50%',
-                    bgcolor: item.color,
-                    border: item.value === 'all' ? '1px solid' : 0,
-                    borderColor: 'divider',
-                  }}
-                />
-                <Typography variant="caption" sx={{ fontWeight: 700 }}>{item.label}</Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                  {item.count}
-                </Typography>
-              </ToggleButton>
-            );
-          })}
-        </ToggleButtonGroup>
-
-        {/* Divider between status filters and quick attribute filters */}
-        <Box sx={{ width: '1px', height: 26, bgcolor: 'divider', mx: 0.5 }} />
-
-        {/* Quick attribute filters (independent toggles) */}
-        {([
-          { key: 'smoking' as const, label: 'Smoking', count: smokingCount, color: 'var(--hotel-warning)', icon: <SmokingIcon sx={{ fontSize: 15 }} /> },
-          { key: 'daily' as const, label: 'Daily cleaning', count: dailyCleaningCount, color: 'var(--hotel-success)', icon: <SparkleIcon sx={{ fontSize: 15 }} /> },
-          { key: 'nodaily' as const, label: 'No cleaning', count: noCleaningCount, color: 'var(--hotel-neutral)', icon: <BlockIcon sx={{ fontSize: 15 }} /> },
-        ]).map((item) => {
-          const selected = attrFilters[item.key];
-          return (
-            <Box
-              key={item.key}
-              component="button"
-              onClick={() => onToggleAttr(item.key)}
-              sx={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 0.75,
-                px: 1.5,
-                py: 0.5,
-                cursor: 'pointer',
-                border: '1px solid',
-                borderColor: selected ? tint(item.color, 55) : 'divider',
-                borderRadius: '999px',
-                color: 'text.primary',
-                bgcolor: selected ? tint(item.color, 12) : 'background.paper',
-                font: 'inherit',
-                '&:hover': { bgcolor: selected ? tint(item.color, 18) : tint(item.color, 6) },
-                '& svg': { color: item.color },
-              }}
-            >
-              {item.icon}
-              <Typography variant="caption" sx={{ fontWeight: 700 }}>{item.label}</Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                {item.count}
-              </Typography>
+          <Box>
+            {sheetSectionLabel('Status')}
+            {statusFilterGroup}
+          </Box>
+          <Box>
+            {sheetSectionLabel('Attributes')}
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {attributeChips}
             </Box>
-          );
-        })}
+          </Box>
+          {floors.length > 1 && (
+            <Box>
+              {sheetSectionLabel('Floor')}
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {floorChips}
+              </Box>
+            </Box>
+          )}
+          <Box>
+            {sheetSectionLabel('Sort')}
+            {attentionFirstToggle}
+          </Box>
+        </SearchAndFilters>
+      ) : (
+        /* Status Filters */
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', px: 2.5, py: 1.25 }}>
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mr: 0.5 }}>
+            Filter:
+          </Typography>
+          {statusFilterGroup}
 
-        {/* Floor filter — only useful when the property spans floors */}
-        {floors.length > 1 && (
-          <>
-            <Box sx={{ width: '1px', height: 26, bgcolor: 'divider', mx: 0.5 }} />
-            {(['all', ...floors] as (number | 'all')[]).map((floor) => {
-              const selected = floorFilter === floor;
-              return (
-                <Box
-                  key={floor}
-                  component="button"
-                  onClick={() => onFloorFilterChange(floor)}
-                  sx={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    px: 1.25,
-                    py: 0.5,
-                    cursor: 'pointer',
-                    border: '1px solid',
-                    borderColor: selected ? tint('var(--hotel-info)', 55) : 'divider',
-                    borderRadius: '999px',
-                    color: 'text.primary',
-                    bgcolor: selected ? 'var(--hotel-info-bg)' : 'background.paper',
-                    font: 'inherit',
-                    '&:hover': { bgcolor: selected ? tint('var(--hotel-info)', 18) : 'action.hover' },
-                  }}
-                >
-                  <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                    {floor === 'all' ? 'All floors' : `Floor ${floor}`}
-                  </Typography>
-                </Box>
-              );
-            })}
-          </>
-        )}
+          {/* Divider between status filters and quick attribute filters */}
+          <Box sx={{ width: '1px', height: 26, bgcolor: 'divider', mx: 0.5 }} />
 
-        {/* Room-number search + attention-first sort, pushed to the row end */}
-        <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <TextField
-            size="small"
-            value={roomSearch}
-            onChange={(e) => onRoomSearchChange(e.target.value)}
-            placeholder="Room #"
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  </InputAdornment>
-                ),
-              },
-              htmlInput: { 'aria-label': 'Search by room number' },
-            }}
-            sx={{
-              width: 110,
-              '& .MuiInputBase-root': { borderRadius: 999, fontSize: '0.75rem', height: 30 },
-            }}
-          />
-          <Box
-            component="button"
-            onClick={onTogglePrioritySort}
-            title="Sort rooms by attention needed (dirty, maintenance, reserved first)"
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.6,
-              px: 1.25,
-              py: 0.5,
-              cursor: 'pointer',
-              border: '1px solid',
-              borderColor: prioritySort ? tint('var(--hotel-warning)', 55) : 'divider',
-              borderRadius: '999px',
-              color: 'text.primary',
-              bgcolor: prioritySort ? 'var(--hotel-warning-bg)' : 'background.paper',
-              font: 'inherit',
-              '&:hover': { bgcolor: prioritySort ? tint('var(--hotel-warning)', 18) : 'action.hover' },
-              '& svg': { color: 'var(--hotel-warning)' },
-            }}
-          >
-            <SortIcon sx={{ fontSize: 15 }} />
-            <Typography variant="caption" sx={{ fontWeight: 700 }}>Attention first</Typography>
+          {/* Quick attribute filters (independent toggles) */}
+          {attributeChips}
+
+          {/* Floor filter — only useful when the property spans floors */}
+          {floors.length > 1 && (
+            <>
+              <Box sx={{ width: '1px', height: 26, bgcolor: 'divider', mx: 0.5 }} />
+              {floorChips}
+            </>
+          )}
+
+          {/* Room-number search + attention-first sort, pushed to the row end */}
+          <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+            {searchField}
+            {attentionFirstToggle}
           </Box>
         </Box>
-      </Box>
+      )}
     </Paper>
   );
 };
