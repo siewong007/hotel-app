@@ -121,7 +121,14 @@
       "creditsFailed": "Unable to apply your complimentary nights to this stay.",
       "createFailed": "Unable to create the booking.",
       "nickname": "Please enter a nickname.",
-      "nicknameTaken": "This nickname is already used. Please choose another."
+      "nicknameTaken": "This nickname is already used. Please choose another.",
+      "invalidDates": "Enter valid check-in and check-out dates.",
+      "checkInPast": "Check-in must be today or later.",
+      "checkOutOrder": "Check-out must be later than check-in.",
+      "stayLength": "Stays must be between 1 and 30 nights.",
+      "checkInHorizon": "Choose a check-in date within the next three calendar months.",
+      "adultsRange": "Adults must be between 1 and 20.",
+      "childrenRange": "Children must be between 0 and 20."
     },
     "availabilityChangedTitle": "Room availability changed",
     "availabilityChangedBody": "This room or its online availability changed while you were reviewing. We refreshed the options and cleared the previous quote so you can choose from the latest availability.",
@@ -131,7 +138,20 @@
     "retry": "Retry",
     "signInAgain": "Sign in again",
     "nickname": "Nickname",
-    "nicknameHint": "Any name you like — it holds the room and must not already be taken."
+    "nicknameHint": "Any name you like — it holds the room and must not already be taken.",
+    "roomImageAlt": "{{name}} room",
+    "confirmation": {
+      "confirmedTitle": "Booking confirmed",
+      "payTitle": "Complete your payment",
+      "stayDates": "{{checkIn}} to {{checkOut}}",
+      "receiptTitle": "Payment receipt",
+      "receiptBody": "Payment received and your booking is confirmed.",
+      "amountPaid": "Amount paid",
+      "bookAnother": "Book another stay",
+      "emailNote": "We've emailed a confirmation. If it is not in Primary, check Spam and Promotions.",
+      "keepBookingPre": "Keep booking number",
+      "keepBookingPost": ". With the email you gave us, it is how you reopen this booking later — this page's link expires."
+    }
   },
   "errorBoundary": {
     "title": "We hit a problem",
@@ -351,6 +371,32 @@
   },
   "payments": {
     "pendingLoadFailed": "We could not load your bookings awaiting payment. Your transaction history is shown below."
+  },
+  "payment": {
+    "loading": "Loading payment options…",
+    "configLoadFailed": "Unable to load payment options right now.",
+    "amountDue": "Amount due: {{amount}}",
+    "chooseMethod": "Choose a payment method",
+    "bankTransferLabel": "Offline banking (bank transfer)",
+    "paypalLabel": "PayPal or debit / credit card",
+    "bankDetailsHeading": "Bank transfer details",
+    "bankFieldBank": "Bank:",
+    "bankFieldAccountName": "Account name:",
+    "bankFieldAccountNumber": "Account number:",
+    "bankDetailsUnavailable": "Bank transfer details are not currently available. Please contact the hotel directly.",
+    "receiptSelected": "Receipt selected: {{name}}",
+    "attachReceipt": "Attach receipt (optional)",
+    "receiptHint": "Optional JPEG, PNG, WebP, or PDF proof of payment (up to 10MB).",
+    "paidViaBank": "I've paid via bank transfer",
+    "bankSubmitFailed": "Unable to submit your bank transfer claim.",
+    "paypalStartFailed": "Unable to start your PayPal payment.",
+    "paypalOrderMissing": "Something went wrong starting the PayPal order. Please try again.",
+    "paypalCaptureFailed": "Unable to confirm your PayPal payment.",
+    "paypalProcessFailed": "PayPal was unable to process this payment. Please try again.",
+    "inFlight": "A payment request is already in progress.",
+    "acceptTermsFirst": "Please accept the Payment Terms above to continue to PayPal.",
+    "successConfirmed": "Payment received — your booking is confirmed.",
+    "successPending": "Pending payment confirmation by our team."
   },
   "recoverPayment": {
     "title": "Complete your payment",

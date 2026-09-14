@@ -57,10 +57,6 @@ function newRequestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `portal-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
 function voucherStayEligibilityKey(voucherId: number, roomTypeId: number, search: GuestBookingSearch): string {
   return [voucherId, roomTypeId, search.check_in_date, search.check_out_date, search.adults, search.children].join(':');
 }
@@ -170,7 +166,7 @@ const PortalBookingPage: React.FC = () => {
         setRequestId(newRequestId());
       })
       .catch((quoteError) => {
-        if (!cancelled) setError(errorMessage(quoteError, t('book.errors.refreshPriceFailed')));
+        if (!cancelled) setError(guestErrorMessage(quoteError, t('book.errors.refreshPriceFailed')));
       })
       .finally(() => {
         if (!cancelled) setIsQuoting(false);
@@ -211,7 +207,7 @@ const PortalBookingPage: React.FC = () => {
 
   const runSearch = useCallback(async () => {
     if (!canQuery) return;
-    const validationError = validateGuestBookingSearch(search);
+    const validationError = validateGuestBookingSearch(search, t);
     if (validationError) { setError(validationError); return; }
     setIsSearching(true); setError(null); setOffers([]);
     try {
@@ -221,13 +217,13 @@ const PortalBookingPage: React.FC = () => {
       setOffers(nextOffers);
       if (nextOffers.length === 0) setError(t('book.errors.noRooms'));
     } catch (searchError) {
-      setError(errorMessage(searchError, t('book.errors.searchFailed')));
+      setError(guestErrorMessage(searchError, t('book.errors.searchFailed')));
       setOffers([]);
     } finally { setIsSearching(false); }
   }, [canQuery, search, t, token]);
 
   const selectOffer = useCallback(async (offer: GuestBookingOffer) => {
-    if (!canQuery) return;
+    if (!canQuery || isQuoting) return;
     setSelectedOffer(offer); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setRequestId(newRequestId()); setIsQuoting(true); setError(null);
     try {
       if (token) {
@@ -248,9 +244,9 @@ const PortalBookingPage: React.FC = () => {
         }));
       }
     }
-    catch (quoteError) { setSelectedOffer(null); setError(errorMessage(quoteError, t('book.errors.quoteFailed'))); }
+    catch (quoteError) { setSelectedOffer(null); setError(guestErrorMessage(quoteError, t('book.errors.quoteFailed'))); }
     finally { setIsQuoting(false); }
-  }, [canQuery, guestDetails.tourism_type, search, t, token]);
+  }, [canQuery, guestDetails.tourism_type, isQuoting, search, t, token]);
 
   const applyVoucher = useCallback(async (nextVoucherId: number | '') => {
     if (nextVoucherId !== '' && !eligibleVoucherIds.has(nextVoucherId)) return;
@@ -272,7 +268,7 @@ const PortalBookingPage: React.FC = () => {
         });
       }
       setVoucherId('');
-      setError(errorMessage(quoteError, t('book.errors.voucherFailed')));
+      setError(guestErrorMessage(quoteError, t('book.errors.voucherFailed')));
     } finally { setIsQuoting(false); }
   }, [complimentaryDates, eligibleVoucherIds, ineligibleVoucherKeys, search, selectedOffer, t, token]);
 
@@ -289,7 +285,7 @@ const PortalBookingPage: React.FC = () => {
       setRequestId(newRequestId());
     } catch (quoteError) {
       setComplimentaryDates(previousDates);
-      setError(errorMessage(quoteError, t('book.errors.creditsFailed')));
+      setError(guestErrorMessage(quoteError, t('book.errors.creditsFailed')));
     } finally { setIsQuoting(false); }
   }, [complimentaryDates, search, selectedOffer, t, token, voucherId]);
 
@@ -334,7 +330,7 @@ const PortalBookingPage: React.FC = () => {
         setNicknameTaken(true);
         return;
       }
-      setError(errorMessage(createError, t('book.errors.createFailed')));
+      setError(guestErrorMessage(createError, t('book.errors.createFailed')));
       // Re-price so the guest is never left looking at a total the server has
       // moved on from; if the room itself is gone, fall back to a fresh search.
       try {
@@ -380,7 +376,7 @@ const PortalBookingPage: React.FC = () => {
         navigate(COMPLETE_PROFILE_REDIRECT);
         return;
       }
-      setError(errorMessage(createError, t('book.errors.createFailed')));
+      setError(guestErrorMessage(createError, t('book.errors.createFailed')));
       try { setQuote(await GuestBookingApi.quote({ ...search, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates }, token)); }
       catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch(); }
     } finally { setIsSubmitting(false); }
@@ -421,9 +417,9 @@ const PortalBookingPage: React.FC = () => {
         {steps.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
       </Stepper>
       <SearchStage search={search} isSearching={isSearching} onChange={setSearch} onSearch={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); void runSearch(); }} />
-      <Collapse in={Boolean(error)} timeout={animationTimeout}><Box sx={{ mt: 2 }}>{error && <Alert severity="error">{error}</Alert>}</Box></Collapse>
+      <Collapse in={Boolean(error)} timeout={animationTimeout}><Box sx={{ mt: 2 }}>{error && <Alert severity="error" role="alert">{error}</Alert>}</Box></Collapse>
       <Collapse in={!selectedOffer && offers.length > 0} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}><Typography variant="h5" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
+        <Box sx={{ mt: 3 }}><Typography variant="h5" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} disabled={isQuoting} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
         <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} nicknameTaken={nicknameTaken} quote={quote} search={search} vouchers={vouchers} vouchersError={vouchersError} onRetryVouchers={() => void loadVouchers()} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
@@ -436,7 +432,7 @@ const PortalBookingPage: React.FC = () => {
 function SessionGate({ error, status, canRetry, onRetry, onRestart }: { error: string | null; status: string; canRetry: boolean; onRetry: () => void; onRestart: () => void }) {
   const { t } = useTranslation('guestPortal');
   return (
-    <Container maxWidth="sm" sx={{ mt: 8 }}>{error ? <Alert severity="error" action={<Button color="inherit" size="small" onClick={canRetry ? onRetry : onRestart}>{canRetry ? t('book.retry') : t('book.signInAgain')}</Button>}>{error}</Alert> : <Stack direction="row" spacing={2} sx={{
+    <Container maxWidth="sm" sx={{ mt: 8 }}>{error ? <Alert severity="error" role="alert" action={<Button color="inherit" size="small" onClick={canRetry ? onRetry : onRestart}>{canRetry ? t('book.retry') : t('book.signInAgain')}</Button>}>{error}</Alert> : <Stack direction="row" spacing={2} sx={{
       justifyContent: "center"
     }}><CircularProgress size={24} /><Typography>{status === 'checking-account' ? t('book.checkingAccount') : t('book.openingPortal')}</Typography></Stack>}</Container>
   );
@@ -463,14 +459,14 @@ function SearchStage({ search, isSearching, onChange, onSearch }: { search: Gues
   );
 }
 
-function OfferCard({ offer, onSelect }: { offer: GuestBookingOffer; onSelect: () => void }) {
+function OfferCard({ offer, disabled, onSelect }: { offer: GuestBookingOffer; disabled?: boolean; onSelect: () => void }) {
   const { t } = useTranslation('guestPortal');
   const image = offerImage(offer);
   const [imageFailed, setImageFailed] = useState(false);
   const shouldShowImage = Boolean(image && !imageFailed);
   const roomsLabel = t('book.roomsLeft', { count: offer.available_rooms });
   return (
-    <Card component="article" variant="outlined" sx={{ height: '100%', overflow: 'hidden', transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}>{shouldShowImage ? <Box component="img" src={image!} alt={`${offer.room_type_name} room`} onError={() => setImageFailed(true)} sx={{ display: 'block', width: '100%', height: 176, objectFit: 'cover', bgcolor: 'var(--hotel-surface-raised)' }} /> : <Box aria-hidden="true" sx={{ height: 176, background: FALLBACK_ROOM_IMAGE, display: 'grid', placeItems: 'center', color: 'var(--hotel-text-secondary)' }}><HotelIcon sx={{ fontSize: 48 }} /></Box>}<CardContent sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 176px)' }}><Stack direction="row" spacing={2} sx={{
+    <Card component="article" variant="outlined" sx={{ height: '100%', overflow: 'hidden', transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}>{shouldShowImage ? <Box component="img" src={image!} alt={t('book.roomImageAlt', { name: offer.room_type_name })} onError={() => setImageFailed(true)} sx={{ display: 'block', width: '100%', height: 176, objectFit: 'cover', bgcolor: 'var(--hotel-surface-raised)' }} /> : <Box aria-hidden="true" sx={{ height: 176, background: FALLBACK_ROOM_IMAGE, display: 'grid', placeItems: 'center', color: 'var(--hotel-text-secondary)' }}><HotelIcon sx={{ fontSize: 48 }} /></Box>}<CardContent sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 176px)' }}><Stack direction="row" spacing={2} sx={{
       justifyContent: "space-between"
     }}><Box><Typography variant="h5">{offer.room_type_name}</Typography><Typography variant="body2" sx={{
       color: "text.secondary"
@@ -489,7 +485,7 @@ function OfferCard({ offer, onSelect }: { offer: GuestBookingOffer; onSelect: ()
         alignItems: "end"
       }}><Box><Typography variant="caption" sx={{
       color: "text.secondary"
-    }}>{t('book.stayTotal')}</Typography><Typography variant="h5">{money(offer.total_amount, offer.currency)}</Typography></Box><Button variant="contained" startIcon={<HotelIcon />} onClick={onSelect}>{t('book.select')}</Button></Stack></CardContent></Card>
+    }}>{t('book.stayTotal')}</Typography><Typography variant="h5">{money(offer.total_amount, offer.currency)}</Typography></Box><Button variant="contained" startIcon={<HotelIcon />} disabled={disabled} onClick={onSelect}>{t('book.select')}</Button></Stack></CardContent></Card>
   );
 }
 
@@ -514,7 +510,7 @@ function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guest
   return (
     <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5">{t('book.reviewStay')}</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography sx={{
         color: "text.secondary"
-      }}>{t('book.staySummary', { checkIn: quote.check_in_date, checkOut: quote.check_out_date, nights: nightsLabel, adults: quote.adults, children: childrenLabel })}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} nicknameTaken={nicknameTaken} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} />{vouchersError ? <Alert severity="warning" sx={{ mt: 3 }} action={<Button color="inherit" size="small" onClick={onRetryVouchers}>{t('common:actions.retry')}</Button>}>{vouchersError}</Alert> : null}<FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">{t('book.voucher')}</InputLabel><Select labelId="voucher-label" label={t('book.voucher')} value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">{t('book.noVoucher')}</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? t('book.notEligible') : ''}{voucher.is_cancellable === false ? t('book.voucherNonCancellable') : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{t('book.voucherApplied', { name: quote.voucher_name })}</Alert>}{quote.voucher_is_cancellable === false && <Alert severity="warning" sx={{ mt: 2 }}>{t('book.voucherLocksCancellation')}</Alert>}</>}<ConsentBlock prompts={BOOKING_CONSENTS} state={consent} /><TextField label={t('book.specialRequests')} value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
+      }}>{t('book.staySummary', { checkIn: quote.check_in_date, checkOut: quote.check_out_date, nights: nightsLabel, adults: quote.adults, children: childrenLabel })}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} nicknameTaken={nicknameTaken} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} />{vouchersError ? <Alert severity="warning" role="alert" sx={{ mt: 3 }} action={<Button color="inherit" size="small" onClick={onRetryVouchers}>{t('common:actions.retry')}</Button>}>{vouchersError}</Alert> : null}<FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">{t('book.voucher')}</InputLabel><Select labelId="voucher-label" label={t('book.voucher')} value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">{t('book.noVoucher')}</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? t('book.notEligible') : ''}{voucher.is_cancellable === false ? t('book.voucherNonCancellable') : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" role="alert" sx={{ mt: 2 }}>{t('book.voucherApplied', { name: quote.voucher_name })}</Alert>}{quote.voucher_is_cancellable === false && <Alert severity="warning" role="alert" sx={{ mt: 2 }}>{t('book.voucherLocksCancellation')}</Alert>}</>}<ConsentBlock prompts={BOOKING_CONSENTS} state={consent} /><TextField label={t('book.specialRequests')} value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
         htmlInput: { maxLength: 1000 }
       }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label={t('book.dailyCleaning')} /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>
   );
@@ -678,9 +674,10 @@ function SummaryLine({ label, value, strong = false, color }: { label: string; v
 ); }
 
 function ConfirmationStage({ confirmation, token, paymentMode, isAnonymous, onStays, onAnother }: { confirmation: GuestBookingConfirmation; token: string | null; paymentMode: 'session' | 'token'; isAnonymous: boolean; onStays: () => void; onAnother: () => void }) {
+  const { t } = useTranslation('guestPortal');
   const [paymentComplete, setPaymentComplete] = useState(confirmation.status === 'confirmed');
   const [completedPayment, setCompletedPayment] = useState<PaymentActionResponse | null>(null);
-  const title = paymentComplete ? 'Booking confirmed' : 'Complete your payment';
+  const title = paymentComplete ? t('book.confirmation.confirmedTitle') : t('book.confirmation.payTitle');
   const handlePaymentResult = (result: PaymentActionResponse) => {
     if (result.status === 'completed') {
       setPaymentComplete(true);
@@ -694,7 +691,7 @@ function ConfirmationStage({ confirmation, token, paymentMode, isAnonymous, onSt
         color: "text.secondary",
         display: 'block',
         mt: 2
-      }}>Booking number</Typography><Typography
+      }}>{t('booking.bookingNumber')}</Typography><Typography
       variant="h3"
       sx={{
         color: "primary.main",
@@ -702,21 +699,21 @@ function ConfirmationStage({ confirmation, token, paymentMode, isAnonymous, onSt
         fontVariantNumeric: 'tabular-nums'
       }}>{confirmation.booking_number}</Typography><Typography sx={{ mt: 3, fontWeight: 700 }}>{confirmation.room_type_name}</Typography><Typography sx={{
       color: "text.secondary"
-    }}>{confirmation.check_in_date} to {confirmation.check_out_date}</Typography><Typography variant="h5" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode={paymentMode} bookingId={confirmation.booking_id} token={token ?? ''} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'success.50' }}><Stack
+    }}>{t('book.confirmation.stayDates', { checkIn: confirmation.check_in_date, checkOut: confirmation.check_out_date })}</Typography><Typography variant="h5" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode={paymentMode} bookingId={confirmation.booking_id} token={token ?? ''} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'success.50' }}><Stack
       direction="row"
       spacing={2}
       sx={{
         justifyContent: "space-between",
         alignItems: "flex-start"
-      }}><Box><Typography id="payment-receipt-heading" variant="h6">Payment receipt</Typography><Typography variant="body2" sx={{
+      }}><Box><Typography id="payment-receipt-heading" variant="h6">{t('book.confirmation.receiptTitle')}</Typography><Typography variant="body2" sx={{
       color: "text.secondary"
-    }}>Payment received and your booking is confirmed.</Typography></Box><Chip color="success" label="Paid" size="small" /></Stack><Divider sx={{ my: 2 }} /><SummaryLine label="Booking" value={confirmation.booking_number} /><SummaryLine label="Receipt ID" value={`PAY-${completedPayment.payment_id}`} /><SummaryLine label="Stay" value={`${confirmation.check_in_date} – ${confirmation.check_out_date}`} /><SummaryLine label="Amount paid" value={money(confirmation.total_amount, confirmation.currency)} strong /><Button variant="outlined" fullWidth sx={{ mt: 2 }} onClick={() => window.print()}>Print receipt</Button></Paper> : null}<Stack
+    }}>{t('book.confirmation.receiptBody')}</Typography></Box><Chip color="success" label={t('dashboard.bookings.details.paid')} size="small" /></Stack><Divider sx={{ my: 2 }} /><SummaryLine label={t('dashboard.bookings.colBooking')} value={confirmation.booking_number} /><SummaryLine label={t('dashboard.bookings.details.receiptId')} value={`PAY-${completedPayment.payment_id}`} /><SummaryLine label={t('dashboard.bookings.details.stay')} value={`${confirmation.check_in_date} – ${confirmation.check_out_date}`} /><SummaryLine label={t('book.confirmation.amountPaid')} value={money(confirmation.total_amount, confirmation.currency)} strong /><Button variant="outlined" fullWidth sx={{ mt: 2 }} onClick={() => window.print()}>{t('dashboard.bookings.details.printReceipt')}</Button></Paper> : null}<Stack
       direction={{ xs: 'column', sm: 'row' }}
       spacing={1.5}
       sx={{
         justifyContent: "center",
         mt: 3
-      }}><Button variant="outlined" onClick={onStays}>{isAnonymous ? 'Back to the hotel' : 'View my stays'}</Button><Button variant="contained" onClick={onAnother}>Book another stay</Button></Stack><Alert severity="info" sx={{ mt: 3, textAlign: 'left' }}>We've emailed a confirmation. If it is not in Primary, check Spam and Promotions.{isAnonymous ? <> Keep booking number <strong>{confirmation.booking_number}</strong>. With the email you gave us, it is how you reopen this booking later — this page's link expires.</> : null}</Alert></Paper></Container>
+      }}><Button variant="outlined" onClick={onStays}>{isAnonymous ? t('book.backToHotel') : t('dashboard.overview.viewStays')}</Button><Button variant="contained" onClick={onAnother}>{t('book.confirmation.bookAnother')}</Button></Stack><Alert severity="info" sx={{ mt: 3, textAlign: 'left' }}>{t('book.confirmation.emailNote')}{isAnonymous ? <> {t('book.confirmation.keepBookingPre')} <strong>{confirmation.booking_number}</strong>{t('book.confirmation.keepBookingPost')}</> : null}</Alert></Paper></Container>
   );
 }
 

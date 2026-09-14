@@ -125,12 +125,16 @@ describe('GuestPaymentPanel', () => {
   });
 
   it('offers a retry when the payment config fails to load', async () => {
+    // A transport failure is not an API error body, so the guest sees the
+    // friendly fallback — never the raw exception text.
     mocks.dashboardPaymentConfig.mockRejectedValueOnce(new Error('network down'));
 
     render(<GuestPaymentPanel mode="session" bookingId={7} token="portal-token" />);
 
-    expect(await screen.findByText('network down')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(
+      await screen.findByText('Unable to load payment options right now.'),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('Offline banking (bank transfer)')).toBeTruthy();
     expect(mocks.dashboardPaymentConfig).toHaveBeenCalledTimes(2);
   }, 15000);
@@ -252,7 +256,11 @@ describe('GuestPaymentPanel', () => {
     acceptPaymentTerms();
     const submit = screen.getByText("I've paid via bank transfer");
     fireEvent.click(submit);
-    fireEvent.click(submit);
+    // The button disables while the claim is in flight, so a second click —
+    // however fast — cannot start another payment.
+    const submitButton = submit.closest('button') as HTMLButtonElement;
+    await waitFor(() => expect(submitButton.disabled).toBe(true));
+    fireEvent.click(submitButton);
     release({ payment_id: 50, status: 'pending_verification' });
 
     await waitFor(() =>

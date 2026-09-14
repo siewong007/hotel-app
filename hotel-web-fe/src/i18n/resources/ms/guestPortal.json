@@ -119,7 +119,14 @@
       "creditsFailed": "Tidak dapat menggunakan malam percuma anda pada penginapan ini.",
       "createFailed": "Tidak dapat mencipta tempahan.",
       "nickname": "Sila masukkan nama samaran.",
-      "nicknameTaken": "Nama samaran ini sudah digunakan. Sila pilih yang lain."
+      "nicknameTaken": "Nama samaran ini sudah digunakan. Sila pilih yang lain.",
+      "invalidDates": "Masukkan tarikh daftar masuk dan daftar keluar yang sah.",
+      "checkInPast": "Daftar masuk mestilah hari ini atau selepasnya.",
+      "checkOutOrder": "Daftar keluar mestilah lebih lewat daripada daftar masuk.",
+      "stayLength": "Penginapan mestilah antara 1 hingga 30 malam.",
+      "checkInHorizon": "Pilih tarikh daftar masuk dalam tempoh tiga bulan kalendar akan datang.",
+      "adultsRange": "Dewasa mestilah antara 1 hingga 20.",
+      "childrenRange": "Kanak-kanak mestilah antara 0 hingga 20."
     },
     "availabilityChangedTitle": "Ketersediaan bilik berubah",
     "availabilityChangedBody": "Bilik ini atau ketersediaan dalam taliannya berubah semasa anda menyemak. Kami memuat semula pilihan dan mengosongkan sebut harga terdahulu supaya anda boleh memilih daripada ketersediaan terkini.",
@@ -129,7 +136,20 @@
     "retry": "Cuba lagi",
     "signInAgain": "Log masuk semula",
     "nickname": "Nama samaran",
-    "nicknameHint": "Apa-apa nama yang anda suka — ia menahan bilik dan tidak boleh sudah digunakan."
+    "nicknameHint": "Apa-apa nama yang anda suka — ia menahan bilik dan tidak boleh sudah digunakan.",
+    "roomImageAlt": "Bilik {{name}}",
+    "confirmation": {
+      "confirmedTitle": "Tempahan disahkan",
+      "payTitle": "Lengkapkan pembayaran anda",
+      "stayDates": "{{checkIn}} hingga {{checkOut}}",
+      "receiptTitle": "Resit pembayaran",
+      "receiptBody": "Pembayaran diterima dan tempahan anda telah disahkan.",
+      "amountPaid": "Jumlah dibayar",
+      "bookAnother": "Tempah penginapan lain",
+      "emailNote": "Kami telah menghantar e-mel pengesahan. Jika ia tiada dalam Primary, semak Spam dan Promotions.",
+      "keepBookingPre": "Simpan nombor tempahan",
+      "keepBookingPost": ". Dengan e-mel yang anda berikan, itulah cara anda membuka semula tempahan ini kemudian — pautan halaman ini tamat tempoh."
+    }
   },
   "errorBoundary": {
     "title": "Kami menghadapi masalah",
@@ -344,6 +364,32 @@
   },
   "payments": {
     "pendingLoadFailed": "Kami tidak dapat memuatkan tempahan anda yang menunggu pembayaran. Sejarah transaksi anda ditunjukkan di bawah."
+  },
+  "payment": {
+    "loading": "Memuatkan pilihan pembayaran…",
+    "configLoadFailed": "Tidak dapat memuatkan pilihan pembayaran sekarang.",
+    "amountDue": "Jumlah perlu dibayar: {{amount}}",
+    "chooseMethod": "Pilih kaedah pembayaran",
+    "bankTransferLabel": "Perbankan luar talian (pemindahan bank)",
+    "paypalLabel": "PayPal atau kad debit / kredit",
+    "bankDetailsHeading": "Butiran pemindahan bank",
+    "bankFieldBank": "Bank:",
+    "bankFieldAccountName": "Nama akaun:",
+    "bankFieldAccountNumber": "Nombor akaun:",
+    "bankDetailsUnavailable": "Butiran pemindahan bank tidak tersedia sekarang. Sila hubungi hotel secara langsung.",
+    "receiptSelected": "Resit dipilih: {{name}}",
+    "attachReceipt": "Lampirkan resit (pilihan)",
+    "receiptHint": "Bukti pembayaran JPEG, PNG, WebP, atau PDF pilihan (sehingga 10MB).",
+    "paidViaBank": "Saya telah membayar melalui pemindahan bank",
+    "bankSubmitFailed": "Tidak dapat menghantar tuntutan pemindahan bank anda.",
+    "paypalStartFailed": "Tidak dapat memulakan pembayaran PayPal anda.",
+    "paypalOrderMissing": "Sesuatu telah berlaku semasa memulakan pesanan PayPal. Sila cuba lagi.",
+    "paypalCaptureFailed": "Tidak dapat mengesahkan pembayaran PayPal anda.",
+    "paypalProcessFailed": "PayPal tidak dapat memproses pembayaran ini. Sila cuba lagi.",
+    "inFlight": "Satu permintaan pembayaran sedang diproses.",
+    "acceptTermsFirst": "Sila terima Terma Pembayaran di atas untuk meneruskan ke PayPal.",
+    "successConfirmed": "Pembayaran diterima — tempahan anda disahkan.",
+    "successPending": "Menunggu pengesahan pembayaran oleh pasukan kami."
   },
   "recoverPayment": {
     "title": "Lengkapkan pembayaran anda",
