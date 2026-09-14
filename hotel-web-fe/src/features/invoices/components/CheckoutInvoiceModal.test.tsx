@@ -775,7 +775,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     );
   });
 
-  it('disables the cancel option without payments:delete or bookings:update', async () => {
+  it('disables the cancel option without payments:delete when deposit rows exist', async () => {
     mocks.hasPermission.mockReturnValue(false);
     renderModal(false, { deposit_paid: true, deposit_amount: 50 });
     const dialog = await screen.findByRole('dialog');
@@ -785,7 +785,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     const cancelOption = within(dialog).getByRole('radio', { name: /Cancel uncollected deposit/i });
     expect(cancelOption.getAttribute('aria-disabled')).toBe('true');
     expect(
-      within(dialog).getByText('Requires the payments:delete or bookings:update permission'),
+      within(dialog).getByText('Requires the payments:delete permission'),
     ).toBeDefined();
 
     fireEvent.click(cancelOption);
