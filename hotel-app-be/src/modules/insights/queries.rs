@@ -12,7 +12,9 @@ use sqlx::Row;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::modules::insights::models::{BookingKpis, RoomBuckets, RoomTypeLoad};
+use crate::modules::insights::models::{
+    ArrivalRow, BookingKpis, DepartureRow, RoomBuckets, RoomTypeLoad,
+};
 
 /// Buckets `derived status` the way the dashboard's `buildDashboardAnalyticsData`
 /// did: occupied; reserved (arriving ≤ today); cleaning (dirty states);
@@ -173,6 +175,110 @@ pub async fn revenue_for_date(pool: &DbPool, date: NaiveDate) -> Result<f64, Api
     Ok(decimal_to_f64(crate::models::row_mappers::get_decimal(
         &row, "revenue",
     )))
+}
+
+/// Open folio balance per booking — posted, non-voided ledger lines only.
+const LEDGER_BALANCE: &str = r#"
+LEFT JOIN (
+    SELECT booking_id, SUM(balance_due) AS balance
+    FROM customer_ledgers
+    WHERE is_posted = true AND void_at IS NULL AND booking_id IS NOT NULL
+    GROUP BY booking_id
+) cl ON cl.booking_id = b.id
+"#;
+
+fn fmt_time(value: Option<chrono::NaiveTime>) -> String {
+    value.map(|t| t.format("%H:%M").to_string()).unwrap_or_else(|| "—".into())
+}
+
+/// Today's expected check-ins — same status predicate as the
+/// daily-operations report's arrivals list.
+pub async fn arrival_roster(pool: &DbPool, today: NaiveDate) -> Result<Vec<ArrivalRow>, ApiError> {
+    // Audited: the only interpolation is the LEDGER_BALANCE const above —
+    // static SQL, no user input.
+    let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+        r#"
+        SELECT b.id, b.booking_number, g.nick_name AS guest_name,
+               r.room_number, rt.name AS room_type,
+               COALESCE(bc.name, b.source, 'direct') AS source,
+               (b.check_out_date - b.check_in_date)::bigint AS nights,
+               b.check_in_time,
+               g.vip_status,
+               COALESCE(cl.balance, 0) AS balance
+        FROM bookings b
+        JOIN guests g ON b.guest_id = g.id
+        JOIN rooms r ON b.room_id = r.id
+        JOIN room_types rt ON r.room_type_id = rt.id
+        LEFT JOIN booking_channels bc ON b.booking_channel_id = bc.id
+        {LEDGER_BALANCE}
+        WHERE b.check_in_date = $1 AND b.status IN ('confirmed', 'pending')
+        ORDER BY b.check_in_time NULLS LAST, r.room_number
+        "#,
+    )))
+    .bind(today)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(rows
+        .iter()
+        .map(|row| ArrivalRow {
+            booking_id: row.get("id"),
+            booking_number: row.get("booking_number"),
+            guest_name: row.get("guest_name"),
+            room_number: row.get("room_number"),
+            room_type: row.get("room_type"),
+            source: row.get("source"),
+            nights: row.get("nights"),
+            eta: fmt_time(row.get("check_in_time")),
+            balance: decimal_to_f64(crate::models::row_mappers::get_decimal(row, "balance")),
+            vip: row.get::<Option<String>, _>("vip_status").is_some(),
+        })
+        .collect())
+}
+
+/// Today's expected check-outs — in-house statuses, same as the
+/// daily-operations report's departures list.
+pub async fn departure_roster(
+    pool: &DbPool,
+    today: NaiveDate,
+) -> Result<Vec<DepartureRow>, ApiError> {
+    // Audited: the only interpolation is the LEDGER_BALANCE const above.
+    let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+        r#"
+        SELECT b.id, b.booking_number, g.nick_name AS guest_name,
+               r.room_number, rt.name AS room_type,
+               (b.check_out_date - b.check_in_date)::bigint AS nights,
+               b.check_out_time,
+               COALESCE(cl.balance, 0) AS balance
+        FROM bookings b
+        JOIN guests g ON b.guest_id = g.id
+        JOIN rooms r ON b.room_id = r.id
+        JOIN room_types rt ON r.room_type_id = rt.id
+        {LEDGER_BALANCE}
+        WHERE b.check_out_date = $1
+          AND b.status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+        ORDER BY b.check_out_time NULLS LAST, r.room_number
+        "#,
+    )))
+    .bind(today)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(rows
+        .iter()
+        .map(|row| DepartureRow {
+            booking_id: row.get("id"),
+            booking_number: row.get("booking_number"),
+            guest_name: row.get("guest_name"),
+            room_number: row.get("room_number"),
+            room_type: row.get("room_type"),
+            out: fmt_time(row.get("check_out_time")),
+            balance: decimal_to_f64(crate::models::row_mappers::get_decimal(row, "balance")),
+            nights: row.get("nights"),
+        })
+        .collect())
 }
 
 fn decimal_to_f64(value: rust_decimal::Decimal) -> f64 {

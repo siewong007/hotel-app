@@ -50,6 +50,38 @@ pub struct RoomTypeLoad {
     pub available: i64,
 }
 
+/// One expected check-in on the business date (status confirmed/pending —
+/// the same predicate the daily-operations report uses).
+#[derive(Debug, Clone, Serialize)]
+pub struct ArrivalRow {
+    pub booking_id: i64,
+    pub booking_number: String,
+    pub guest_name: String,
+    pub room_number: String,
+    pub room_type: String,
+    pub source: String,
+    pub nights: i64,
+    /// `bookings.check_in_time` rendered "HH:MM" — the expected arrival time.
+    pub eta: String,
+    /// Open folio balance across the booking's posted, non-voided ledgers.
+    pub balance: f64,
+    pub vip: bool,
+}
+
+/// One expected check-out on the business date (in-house statuses).
+#[derive(Debug, Clone, Serialize)]
+pub struct DepartureRow {
+    pub booking_id: i64,
+    pub booking_number: String,
+    pub guest_name: String,
+    pub room_number: String,
+    pub room_type: String,
+    /// `bookings.check_out_time` rendered "HH:MM".
+    pub out: String,
+    pub balance: f64,
+    pub nights: i64,
+}
+
 /// `GET /api/insights/overview` — the admin dashboard's numbers, computed
 /// once server-side from the same sources the individual endpoints use.
 #[derive(Debug, Serialize)]
@@ -65,6 +97,9 @@ pub struct InsightsOverview {
     pub revenue_last_7_days: Vec<RevenuePoint>,
     pub guests_total: i64,
     pub room_types: Vec<RoomTypeLoad>,
+    /// Named rosters for the dashboard's arrivals/departures panels.
+    pub arrivals: Vec<ArrivalRow>,
+    pub departures: Vec<DepartureRow>,
 }
 
 // ---------------------------------------------------------------------------

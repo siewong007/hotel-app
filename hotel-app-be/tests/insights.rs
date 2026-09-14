@@ -83,6 +83,42 @@ mod postgres_tests {
     }
 
     #[tokio::test]
+    async fn overview_rosters_match_booking_kpis() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+
+        let overview = service::overview(&pool).await.expect("overview");
+
+        // Roster lengths must equal the booking KPI counters for today —
+        // both derive from the same status predicates on the business date.
+        assert_eq!(
+            overview.arrivals.len() as i64,
+            overview.bookings.today_check_ins,
+            "arrival roster must match today_check_ins"
+        );
+        assert_eq!(
+            overview.departures.len() as i64,
+            overview.bookings.today_check_outs,
+            "departure roster must match today_check_outs"
+        );
+
+        for row in &overview.arrivals {
+            assert!(!row.guest_name.is_empty());
+            assert!(!row.room_number.is_empty());
+            assert!(!row.room_type.is_empty());
+            assert!(row.nights > 0, "arrival {} nights", row.booking_number);
+            assert!(row.balance >= 0.0, "arrival {} balance", row.booking_number);
+        }
+        for row in &overview.departures {
+            assert!(!row.guest_name.is_empty());
+            assert!(!row.room_number.is_empty());
+            assert!(row.nights > 0, "departure {} nights", row.booking_number);
+            assert!(row.balance >= 0.0, "departure {} balance", row.booking_number);
+        }
+    }
+
+    #[tokio::test]
     async fn catalog_covers_legacy_generator_types() {
         // Every report type the legacy string-dispatched generator supports
         // must be in the catalog — otherwise `/insights/reports/{id}` 404s a

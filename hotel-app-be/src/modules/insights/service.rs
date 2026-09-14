@@ -36,6 +36,8 @@ pub async fn overview(pool: &DbPool) -> Result<InsightsOverview, ApiError> {
     let (rooms, room_types) = queries::room_buckets(pool, today).await?;
     let bookings = queries::booking_kpis(pool, today).await?;
     let guests_total = queries::guests_total(pool).await?;
+    let arrivals = queries::arrival_roster(pool, today).await?;
+    let departures = queries::departure_roster(pool, today).await?;
     let revenue_today = queries::revenue_for_date(pool, today).await?;
 
     let mut revenue_last_7_days = Vec::with_capacity(7);
@@ -60,6 +62,8 @@ pub async fn overview(pool: &DbPool) -> Result<InsightsOverview, ApiError> {
         revenue_last_7_days,
         guests_total,
         room_types,
+        arrivals,
+        departures,
     })
 }
 
