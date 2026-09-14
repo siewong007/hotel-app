@@ -19,7 +19,7 @@ export function mobileNavItems(visible: AppRouteDefinition[]): AppRouteDefinitio
 
   take('dashboard');
   take('bookings');
-  take('guest-config');
+  take('guest-relations');
   take('room-management');
   take('housekeeping');
 

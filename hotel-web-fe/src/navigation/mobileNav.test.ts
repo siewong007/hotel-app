@@ -10,7 +10,7 @@ describe('mobileNavItems', () => {
     expect(ids(mobileNavItems(navigationRouteDefinitions))).toEqual([
       'dashboard',
       'bookings',
-      'guest-config',
+      'guest-relations',
       'room-management',
     ]);
   });

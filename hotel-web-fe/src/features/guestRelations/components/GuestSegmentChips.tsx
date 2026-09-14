@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, alpha } from '@mui/material';
+import { Box } from '@mui/material';
 import {
   BlockOutlined as BlacklistIcon,
   Star as MemberIcon,
@@ -80,7 +80,7 @@ const GuestSegmentChips: React.FC<GuestSegmentChipsProps> = ({ segment, counts, 
               borderRadius: 999,
               minWidth: 18,
               textAlign: 'center',
-              bgcolor: active ? 'rgba(255,255,255,0.18)' : (tone?.tone ? alpha(tone.tone, 0.12) : GUEST_DESIGN.paper3),
+              bgcolor: active ? 'rgba(255,255,255,0.18)' : (tone?.tone ? `color-mix(in srgb, ${tone.tone} 12%, transparent)` : GUEST_DESIGN.paper3),
               color: active ? '#fff' : (tone?.tone || GUEST_DESIGN.ink3),
               fontVariantNumeric: 'tabular-nums',
             }}

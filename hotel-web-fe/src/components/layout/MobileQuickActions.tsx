@@ -88,10 +88,10 @@ export const MobileQuickActions: React.FC = () => {
       icon: <BuildIcon />,
       run: () => navigate('/housekeeping?create=ticket'),
     },
-    canOpen('guest-config') && {
+    canOpen('guest-relations') && {
       key: 'newGuest',
       icon: <PersonAddIcon />,
-      run: () => navigate('/guest-config'),
+      run: () => navigate('/guest-relations/guests'),
     },
   ];
   const actions = candidates.filter((a): a is QuickAction => Boolean(a));

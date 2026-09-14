@@ -74,7 +74,7 @@ describe('MobileNavBar', () => {
   it('renders the four preferred destinations plus More for full access', () => {
     grantAllPolicies();
     render(<MobileNavBar />);
-    for (const label of ['Overview', 'Bookings', 'Guests', 'Rooms', 'More']) {
+    for (const label of ['Overview', 'Bookings', 'Guest Relations', 'Rooms', 'More']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
   });

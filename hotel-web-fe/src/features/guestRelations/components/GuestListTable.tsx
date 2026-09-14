@@ -109,7 +109,7 @@ const TourismChip: React.FC<{ guest: Guest }> = ({ guest }) => {
       <Chip
         size="small"
         label="Missing tourism"
-        sx={{ bgcolor: alpha(GUEST_DESIGN.rose, 0.1), color: GUEST_DESIGN.rose, fontWeight: 700 }}
+        sx={{ bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`, color: GUEST_DESIGN.rose, fontWeight: 700 }}
       />
     );
   }
@@ -348,7 +348,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
               icon={<BlacklistedBadgeIcon sx={{ fontSize: 14 }} />}
               label="Blacklisted"
               sx={{
-                bgcolor: alpha(GUEST_DESIGN.rose, 0.1),
+                bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`,
                 color: GUEST_DESIGN.rose,
                 fontWeight: 700,
                 '& .MuiChip-icon': { color: 'inherit' },
@@ -447,7 +447,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
               size="small"
               icon={<BlacklistIcon sx={{ fontSize: 13 }} />}
               label="Blacklisted"
-              sx={{ bgcolor: alpha(GUEST_DESIGN.rose, 0.1), color: GUEST_DESIGN.rose, fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
+              sx={{ bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`, color: GUEST_DESIGN.rose, fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
             />
           )}
         </Box>

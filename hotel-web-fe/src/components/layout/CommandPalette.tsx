@@ -132,11 +132,9 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
     const ledgerIdTitle = title.match(/^Ledger #(\d+)$/i);
     const searchValue = item.route.startsWith('/bookings')
       ? bookingSearchValueFromTitle(title)
-      : item.route.startsWith('/guest-config')
-        ? title
-        : item.route.startsWith('/company-ledger')
-          ? (ledgerIdTitle?.[1] || title)
-          : null;
+      : item.route.startsWith('/company-ledger')
+        ? (ledgerIdTitle?.[1] || title)
+        : null;
     if (!searchValue) return item.route;
 
     const params = new URLSearchParams(rawSearch);
