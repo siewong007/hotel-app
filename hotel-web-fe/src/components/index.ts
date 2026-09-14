@@ -37,6 +37,8 @@ export { CollapsibleSection } from './common/CollapsibleSection';
 export type { CollapsibleSectionProps } from './common/CollapsibleSection';
 export { ResponsiveTabs } from './common/ResponsiveTabs';
 export type { ResponsiveTabsProps, ResponsiveTabItem } from './common/ResponsiveTabs';
+export { StickyActionBar } from './common/StickyActionBar';
+export type { StickyActionBarProps } from './common/StickyActionBar';
 
 // Data table primitives
 export { DataTable } from './data-table/DataTable';
