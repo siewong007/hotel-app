@@ -112,6 +112,7 @@
       "quoteFailed": "Unable to quote this room type.",
       "refreshPriceFailed": "Unable to refresh the price for this guest type.",
       "voucherFailed": "This voucher cannot be applied to the selected stay.",
+      "vouchersLoadFailed": "We could not load your vouchers. You can still book without one.",
       "creditsFailed": "Unable to apply your complimentary nights to this stay.",
       "createFailed": "Unable to create the booking.",
       "nickname": "Please enter a nickname.",
@@ -126,6 +127,9 @@
     "signInAgain": "Sign in again",
     "nickname": "Nickname",
     "nicknameHint": "Any name you like — it holds the room and must not already be taken."
+  },
+  "payments": {
+    "pendingLoadFailed": "We could not load your bookings awaiting payment. Your transaction history is shown below."
   },
   "recoverPayment": {
     "title": "Complete your payment",

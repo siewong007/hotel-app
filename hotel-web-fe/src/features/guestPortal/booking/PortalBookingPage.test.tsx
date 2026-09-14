@@ -219,6 +219,30 @@ describe('PortalBookingPage voucher eligibility', () => {
     expect(disabledVoucher.getAttribute('aria-disabled')).toBe('true');
   });
 
+  it('warns at the voucher picker when vouchers fail to load, without masking the quote flow', async () => {
+    mocks.listVouchers.mockReset().mockRejectedValue(new Error('Network down'));
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+
+    expect(
+      await screen.findByText(
+        'We could not load your vouchers. You can still book without one.',
+      ),
+    ).toBeTruthy();
+    // The quote/search flow is untouched: the picker renders empty and the
+    // guest can still proceed to payment.
+    expect(screen.getByRole('combobox', { name: 'Voucher' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Continue to payment' })).toBeTruthy();
+
+    mocks.listVouchers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100 });
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(mocks.listVouchers).toHaveBeenCalledTimes(2));
+  });
+
   it('continues to payment without asking for a payment choice during review', async () => {
     mocks.paymentConfig.mockResolvedValue({
       paypal_enabled: false,

@@ -45,6 +45,8 @@ import EastOutlinedIcon from "@mui/icons-material/EastOutlined";
 import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
 import { GuestPortalDashboardService } from "../../api/guestPortalDashboard.service";
 import { useGuestLoyaltySocket } from "../../hooks/useGuestLoyaltySocket";
+import { guestErrorMessage } from "../../utils/feedback";
+import { useTranslation } from "../../../../i18n";
 import { PromotionCatalog, VoucherWallet } from "../../../promotions";
 import PortalNotificationPreferences from "../../../communications/components/PortalNotificationPreferences";
 import { PortalSupportTab } from "../PortalSupportTab";
@@ -1161,6 +1163,7 @@ export function BookingsSection({ token }: { token: string }) {
 }
 
 export function PaymentsSection({ token }: { token: string }) {
+  const { t } = useTranslation("guestPortal");
   const [items, setItems] = useState<GuestPortalTransaction[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -1175,6 +1178,7 @@ export function PaymentsSection({ token }: { token: string }) {
   // used here to detect bookings still awaiting payment.
   const [pendingBookings, setPendingBookings] = useState<GuestPortalBookingSummary[]>([]);
   const [pendingLoading, setPendingLoading] = useState(true);
+  const [pendingError, setPendingError] = useState<string | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -1193,24 +1197,50 @@ export function PaymentsSection({ token }: { token: string }) {
   }, [page, pageSize, token]);
   const loadPendingBookings = useCallback(async () => {
     setPendingLoading(true);
+    setPendingError(null);
     try {
       const response = await GuestPortalDashboardService.bookings(
         { page: 1, per_page: 50 },
         token,
       );
       setPendingBookings(response.items.filter((booking) => booking.status === "pending"));
-    } catch {
+    } catch (caught) {
+      // Secondary surface: the transactions list below is still valid, so a
+      // failed pending-bookings check warns inline instead of taking the
+      // whole section down.
       setPendingBookings([]);
+      setPendingError(
+        guestErrorMessage(caught, t("guestPortal:payments.pendingLoadFailed")),
+      );
     } finally {
       setPendingLoading(false);
     }
-  }, [token]);
+  }, [t, token]);
   useEffect(() => {
     void load();
   }, [load]);
   useEffect(() => {
     void loadPendingBookings();
   }, [loadPendingBookings]);
+  // The pending-payments check is a secondary surface: its failure warns above
+  // the list with a retry instead of replacing the transactions it sits on.
+  const pendingAlert = pendingError ? (
+    <Alert
+      severity="warning"
+      sx={{ mb: 2 }}
+      action={
+        <Button
+          color="inherit"
+          size="small"
+          onClick={() => void loadPendingBookings()}
+        >
+          {t("common:actions.retry")}
+        </Button>
+      }
+    >
+      {pendingError}
+    </Alert>
+  ) : null;
   return (
     <>
       <SectionHeading
@@ -1223,9 +1253,15 @@ export function PaymentsSection({ token }: { token: string }) {
       ) : error ? (
         <ErrorState message={error} retry={() => void load()} />
       ) : items.length === 0 && pendingBookings.length === 0 ? (
-        <EmptyState message="No transactions found." />
+        <>
+          {pendingAlert}
+          {pendingError ? null : (
+            <EmptyState message="No transactions found." />
+          )}
+        </>
       ) : (
         <>
+          {pendingAlert}
           <TableContainer sx={{ display: { xs: "none", lg: "block" } }}>
             <Table aria-label="Your transactions">
               <caption

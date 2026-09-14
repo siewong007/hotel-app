@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   bookings: vi.fn(),
   cancelBooking: vi.fn(),
+  transactions: vi.fn(),
 }));
 
 /** Params of the most recent bookings() call. (`Array.prototype.at` is outside
@@ -17,6 +18,7 @@ vi.mock('../../api/guestPortalDashboard.service', () => ({
   GuestPortalDashboardService: {
     bookings: (...args: unknown[]) => mocks.bookings(...args),
     cancelBooking: (...args: unknown[]) => mocks.cancelBooking(...args),
+    transactions: (...args: unknown[]) => mocks.transactions(...args),
   },
 }));
 
@@ -26,7 +28,7 @@ vi.mock('../GuestPaymentPanel', () => ({
   ),
 }));
 
-import { BookingsSection } from './PortalDashboardSections';
+import { BookingsSection, PaymentsSection } from './PortalDashboardSections';
 
 const booking = {
   id: 7,
@@ -247,5 +249,59 @@ describe('BookingsSection payment details', () => {
 
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(screen.getByText('Upload payment receipt')).toBeTruthy();
+  });
+});
+
+describe('PaymentsSection pending bookings', () => {
+  const transaction = {
+    kind: 'payment',
+    date: '2026-08-01',
+    reference: 'PAY-42',
+    invoice_number: null,
+    booking_number: 'SI-1007',
+    method: 'Bank transfer',
+    status: 'completed',
+    amount: '420.00',
+  };
+
+  beforeEach(() => {
+    mocks.bookings.mockReset();
+    mocks.transactions.mockReset();
+    mocks.transactions.mockResolvedValue({ items: [transaction], total: 1 });
+  });
+
+  afterEach(cleanup);
+
+  it('warns inline without taking the transactions list down', async () => {
+    mocks.bookings.mockRejectedValue(new Error('Network down'));
+    render(<PaymentsSection token="guest-token" />);
+
+    expect(
+      await screen.findByText(
+        'We could not load your bookings awaiting payment. Your transaction history is shown below.',
+      ),
+    ).toBeTruthy();
+    // The primary surface still renders — a failed secondary check must not
+    // mask it behind an empty or error state. (Desktop table and mobile card
+    // list are both in the DOM, hence findAll.)
+    expect((await screen.findAllByText('PAY-42')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('No transactions found.')).toBeNull();
+  });
+
+  it('retries the pending-payments check from the warning', async () => {
+    mocks.bookings.mockRejectedValueOnce(new Error('Network down'));
+    mocks.bookings.mockResolvedValue({ items: [], total: 0 });
+    render(<PaymentsSection token="guest-token" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(mocks.bookings).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          'We could not load your bookings awaiting payment. Your transaction history is shown below.',
+        ),
+      ).toBeNull(),
+    );
   });
 });

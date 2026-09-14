@@ -110,6 +110,7 @@
       "quoteFailed": "Tidak dapat sebut harga jenis bilik ini.",
       "refreshPriceFailed": "Tidak dapat memuat semula harga untuk jenis tetamu ini.",
       "voucherFailed": "Baucar ini tidak boleh digunakan untuk penginapan yang dipilih.",
+      "vouchersLoadFailed": "Kami tidak dapat memuatkan baucar anda. Anda masih boleh membuat tempahan tanpa baucar.",
       "creditsFailed": "Tidak dapat menggunakan malam percuma anda pada penginapan ini.",
       "createFailed": "Tidak dapat mencipta tempahan.",
       "nickname": "Sila masukkan nama samaran.",
@@ -124,6 +125,9 @@
     "signInAgain": "Log masuk semula",
     "nickname": "Nama samaran",
     "nicknameHint": "Apa-apa nama yang anda suka — ia menahan bilik dan tidak boleh sudah digunakan."
+  },
+  "payments": {
+    "pendingLoadFailed": "Kami tidak dapat memuatkan tempahan anda yang menunggu pembayaran. Sejarah transaksi anda ditunjukkan di bawah."
   },
   "recoverPayment": {
     "title": "Lengkapkan pembayaran anda",
