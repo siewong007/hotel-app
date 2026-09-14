@@ -89,6 +89,14 @@ export class InvoicesService {
     }
   }
 
+  static async revertDepositVoid(bookingId: string | number): Promise<any> {
+    try {
+      return await api.post(`payments/revert-deposit-void/${bookingId}`).json<any>();
+    } catch (error) {
+      throw toApiError(error, 'Failed to restore deposit');
+    }
+  }
+
   static async getUserInvoices(): Promise<any[]> {
     try {
       return await api.get('invoices').json<any[]>();

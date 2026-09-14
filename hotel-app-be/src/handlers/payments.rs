@@ -85,6 +85,17 @@ pub async fn revert_deposit_refund_handler(
     ))
 }
 
+/// Revert a voided (cancelled) deposit for a booking
+pub async fn revert_deposit_void_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(
+        payments::revert_deposit_void(&pool, user_id, booking_id).await?,
+    ))
+}
+
 /// Forfeit part or all of a booking's held keycard deposit
 pub async fn forfeit_deposit_handler(
     State(pool): State<DbPool>,

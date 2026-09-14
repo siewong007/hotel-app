@@ -4021,22 +4021,21 @@ async fn delete_payment_voids_and_requires_manage_for_completed_rows() {
     assert!(void_audit, "the void must write a payment_voided audit row");
 }
 
-/// A completed deposit is held collateral: once the booking is in-house,
-/// voiding the row would make money the guest is still owed vanish from the
-/// ledger — the exact action that caused the incident this guard prevents.
-/// Every in-house-or-later status must refuse the void with the actionable
-/// refund/forfeit message even for a `payments:manage` caller, and the row
-/// must stay `completed`. A `deposit_forfeited` row stays voidable on the
-/// same booking — that is the deliberate un-forfeit hatch (the Task-6
-/// checkout guard re-blocks the booking afterwards).
+/// Cancelling a recorded deposit is desk work on the `payments:delete` route
+/// gate — a completed deposit on a pre-checkout or in-house booking voids
+/// even without `payments:manage` (collateral, reversible via
+/// revert-deposit-void). Once the stay is checked out the void stays refused:
+/// post-checkout deposit money only moves through refund/forfeit.
+/// `deposit_forfeited` rows keep the manage gate — kept income is a revenue
+/// correction, not a desk cancellation.
 #[tokio::test]
-async fn delete_completed_deposit_is_refused_once_the_booking_is_in_house() {
+async fn delete_completed_deposit_voidable_in_house_refused_after_checkout() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;
     };
 
     let (actor_id, room_type_id, room_id, guest_id, booking_id) =
-        (940_940, 940_941, 940_942, 940_943, 940_944);
+        (940_960, 940_961, 940_962, 940_963, 940_964);
     cleanup(
         &pool,
         &[room_type_id],
@@ -4064,33 +4063,50 @@ async fn delete_completed_deposit_is_refused_once_the_booking_is_in_house() {
         },
     )
     .await;
-    grant_role(&pool, actor_id, "manager").await;
 
-    let deposit_id =
-        insert_completed_payment(&pool, booking_id, "deposit", d("100.00"), actor_id).await;
-    let forfeit_id =
-        insert_completed_payment(&pool, booking_id, "deposit_forfeited", d("25.00"), actor_id)
-            .await;
-
-    // `late_checkout` is in the guard's in-house list but is not in the
-    // bookings_status_check vocabulary, so no row can carry it to test.
-    for status in [
-        "checked_in",
-        "auto_checked_in",
-        "checked_out",
-        "completed",
-    ] {
+    // In-house stays: the void succeeds without a payments:manage grant and
+    // the mirror drops to "no deposit collected".
+    for status in ["checked_in", "auto_checked_in"] {
         sqlx::query("UPDATE bookings SET status = $2 WHERE id = $1")
             .bind(booking_id)
             .bind(status)
             .execute(&pool)
             .await
             .unwrap();
+        let deposit_id =
+            insert_completed_payment(&pool, booking_id, "deposit", d("100.00"), actor_id).await;
+        let voided = payments::delete_payment(&pool, actor_id, deposit_id).await;
+        let row_status = fetch_payment_status(&pool, deposit_id).await;
+        let mirror: bool = sqlx::query_scalar(
+            "SELECT COALESCE(deposit_paid, false) FROM bookings WHERE id = $1",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(
+            voided.is_ok(),
+            "in-house deposit void must succeed on {status}: {voided:?}"
+        );
+        assert_eq!(row_status, "void", "the row must be kept as void on {status}");
+        assert!(!mirror, "the mirror must drop after the void on {status}");
+    }
+
+    // Closed stays keep the refund/forfeit resolution path.
+    for status in ["checked_out", "completed"] {
+        sqlx::query("UPDATE bookings SET status = $2 WHERE id = $1")
+            .bind(booking_id)
+            .bind(status)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let deposit_id =
+            insert_completed_payment(&pool, booking_id, "deposit", d("100.00"), actor_id).await;
         let void = payments::delete_payment(&pool, actor_id, deposit_id).await;
         match void {
             Err(ApiError::BadRequest(message)) => assert!(
                 message.contains("refund") && message.contains("forfeit"),
-                "the refusal must name the refund/forfeit resolution path, got: {message}"
+                "the refusal must name the refund/forfeit path, got: {message}"
             ),
             other => panic!(
                 "voiding a completed deposit on a {status} booking must be refused, got: {other:?}"
@@ -4099,23 +4115,24 @@ async fn delete_completed_deposit_is_refused_once_the_booking_is_in_house() {
         assert_eq!(
             fetch_payment_status(&pool, deposit_id).await,
             "completed",
-            "a refused void must leave the {status} booking's deposit row completed"
+            "a refused void must leave the {status} deposit row completed"
         );
     }
 
-    // The un-forfeit hatch: a completed `deposit_forfeited` row is NOT a held
-    // deposit, so it stays voidable by payments:manage even on a completed
-    // booking — voiding it re-asserts money held, which the checkout guard
-    // then re-blocks on.
+    // Un-forfeit stays a manage-gated void.
+    sqlx::query("UPDATE bookings SET status = 'checked_in' WHERE id = $1")
+        .bind(booking_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    grant_role(&pool, actor_id, "manager").await;
+    let forfeit_id =
+        insert_completed_payment(&pool, booking_id, "deposit_forfeited", d("25.00"), actor_id)
+            .await;
     let unforfeit = payments::delete_payment(&pool, actor_id, forfeit_id).await;
     assert!(
         unforfeit.is_ok(),
-        "a deposit_forfeited row must stay voidable in-house (un-forfeit hatch): {unforfeit:?}"
-    );
-    assert_eq!(
-        fetch_payment_status(&pool, forfeit_id).await,
-        "void",
-        "the un-forfeit void must flip the row to void"
+        "a deposit_forfeited row must stay voidable by payments:manage: {unforfeit:?}"
     );
 
     cleanup(
@@ -4890,4 +4907,133 @@ async fn update_payment_reference_ignores_legacy_rows_but_still_guards_keyed_own
              on it, got: {message}"
         );
     }
+}
+
+/// Reverting a voided deposit flips the newest voided row back to completed
+/// and re-hangs the mirror — the cancel/revert pair round-trips without
+/// touching settled payments. Works on checked-out stays too, and errors
+/// when nothing voided exists.
+#[tokio::test]
+async fn revert_deposit_void_restores_the_newest_voided_row() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_970, 940_971, 940_972, 940_973, 940_974);
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "checked_in",
+            check_in: "2031-08-10",
+            check_out: "2031-08-12",
+            base_price: d("150.00"),
+            subtotal: d("300.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+
+    let older =
+        insert_completed_payment(&pool, booking_id, "deposit", d("50.00"), actor_id).await;
+    let newer =
+        insert_completed_payment(&pool, booking_id, "deposit", d("25.00"), actor_id).await;
+    for id in [older, newer] {
+        sqlx::query("UPDATE payments SET status = 'void' WHERE id = $1")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+
+    let first = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+    let first_id = first
+        .as_ref()
+        .ok()
+        .and_then(|v| v["reverted_payment_id"].as_i64());
+    let mirror_first: (bool, Option<Decimal>) = sqlx::query_as(
+        "SELECT COALESCE(deposit_paid, false), deposit_amount FROM bookings WHERE id = $1",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let second = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+    let second_id = second
+        .as_ref()
+        .ok()
+        .and_then(|v| v["reverted_payment_id"].as_i64());
+    let mirror_second: Option<Decimal> =
+        sqlx::query_scalar("SELECT deposit_amount FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    // A checked-out stay can still be corrected.
+    sqlx::query("UPDATE bookings SET status = 'checked_out' WHERE id = $1")
+        .bind(booking_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE payments SET status = 'void' WHERE id = $1")
+        .bind(newer)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let on_checked_out = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+
+    let drained = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+    let audit = audit_log_exists(&pool, "deposit_void_reverted", newer).await;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+
+    assert_eq!(
+        first_id,
+        Some(newer),
+        "the newest voided row restores first: {first:?}"
+    );
+    assert!(
+        mirror_first.0 && mirror_first.1 == Some(d("25.00")),
+        "the mirror must re-hang at the restored amount: {mirror_first:?}"
+    );
+    assert_eq!(
+        second_id,
+        Some(older),
+        "the next call restores the older row: {second:?}"
+    );
+    assert_eq!(mirror_second, Some(d("75.00")));
+    assert!(
+        on_checked_out.is_ok(),
+        "revert must work on checked-out stays: {on_checked_out:?}"
+    );
+    assert!(
+        matches!(drained, Err(ApiError::BadRequest(_))),
+        "reverting with nothing voided must fail: {drained:?}"
+    );
+    assert!(audit, "the revert must write a deposit_void_reverted audit row");
 }

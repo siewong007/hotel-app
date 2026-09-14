@@ -792,6 +792,9 @@
     "/api/payments/revert-deposit-refund/{booking_id}": {
       "POST": {}
     },
+    "/api/payments/revert-deposit-void/{booking_id}": {
+      "POST": {}
+    },
     "/api/payments/workflow-summary/{booking_id}": {
       "GET": {}
     },
