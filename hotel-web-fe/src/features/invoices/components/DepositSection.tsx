@@ -65,6 +65,11 @@ export interface DepositResolutionSectionProps {
     /** `payments:delete`. */ restore: boolean;
   };
   readOnly: boolean;
+  /**
+   * Label override for the 'none' status chip — e.g. 'City Ledger - N/A'
+   * for company-billing bookings where a deposit does not apply.
+   */
+  noDepositLabel?: string;
   hotelSettings: Pick<HotelSettings, 'payment_methods'>;
   onRefund: (input: DepositRefundInput) => void;
   onForfeit: (input: DepositForfeitInput) => void;
@@ -444,6 +449,7 @@ const DepositSection: React.FC<DepositResolutionSectionProps> = ({
   busy,
   can,
   readOnly,
+  noDepositLabel,
   hotelSettings,
   onRefund,
   onForfeit,
@@ -469,6 +475,8 @@ const DepositSection: React.FC<DepositResolutionSectionProps> = ({
     : resolution.remaining;
   const pending = resolution.status === 'pending';
   const chip = DEPOSIT_STATUS_CHIP[resolution.status];
+  const chipLabel =
+    resolution.status === 'none' && noDepositLabel ? noDepositLabel : chip.label;
   const methods = hotelSettings.payment_methods.length
     ? hotelSettings.payment_methods
     : DEFAULT_REFUND_METHODS;
@@ -482,13 +490,24 @@ const DepositSection: React.FC<DepositResolutionSectionProps> = ({
           resolution.collectedAt ? ` · ${formatHotelDateTime(resolution.collectedAt)}` : ''
         }`
       : null;
+  // Only non-zero legs render — a fresh pending deposit reads "Remaining
+  // RM50.00", not "Refunded RM0.00 · …". Remaining always shows: it is the
+  // ledger's still-held answer regardless of the other legs.
   const breakdownLine =
     isPositiveMoney(resolution.refunded)
     || isPositiveMoney(resolution.forfeited)
     || isPositiveMoney(resolution.remaining)
-      ? `Refunded ${formatMoney(resolution.refunded)} · Forfeited ${formatMoney(
-          resolution.forfeited,
-        )} · Remaining ${formatMoney(resolution.remaining)}`
+      ? [
+          isPositiveMoney(resolution.refunded)
+            ? `Refunded ${formatMoney(resolution.refunded)}`
+            : null,
+          isPositiveMoney(resolution.forfeited)
+            ? `Forfeited ${formatMoney(resolution.forfeited)}`
+            : null,
+          `Remaining ${formatMoney(resolution.remaining)}`,
+        ]
+          .filter((leg): leg is string => leg !== null)
+          .join(' · ')
       : null;
 
   const options: Array<{
@@ -528,10 +547,18 @@ const DepositSection: React.FC<DepositResolutionSectionProps> = ({
   const anyBusy =
     busy.refunding || busy.forfeiting || busy.cancelling || busy.reverting || busy.restoring;
 
-  // Radio-group keyboard behavior: arrows/Home/End move focus and select the
-  // newly focused option (skipped when that option is permission-disabled or
-  // a resolution action is busy).
+  // Radio-group keyboard behavior: arrows/Home/End always move focus to the
+  // target option — a permission-disabled option is still focusable — and
+  // only the SELECTION is skipped when that option is disabled or a
+  // resolution action is busy. Enter/Space select the focused option under
+  // the same gate; preventDefault keeps the native button activation from
+  // double-firing the click.
   const handleOptionKeyDown = (event: React.KeyboardEvent, index: number) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (options[index].enabled && !anyBusy) setSelected(options[index].key);
+      return;
+    }
     let next: number | null = null;
     if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
       next = (index + 1) % options.length;
@@ -672,7 +699,7 @@ const DepositSection: React.FC<DepositResolutionSectionProps> = ({
             {formatMoney(held)}
           </Typography>
         ) : null}
-        <StatusChip status={resolution.status} label={chip.label} tone={chip.tone} />
+        <StatusChip status={resolution.status} label={chipLabel} tone={chip.tone} />
       </Box>
 
       {pending && !readOnly ? (

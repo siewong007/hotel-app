@@ -125,7 +125,11 @@ const ledger: CustomerLedger = {
   updated_at: '2026-08-01T00:00:00.000Z',
 };
 
-function renderModal(ledgerView = false, overrides: Partial<BookingWithDetails> = {}) {
+function renderModal(
+  ledgerView = false,
+  overrides: Partial<BookingWithDetails> = {},
+  modalProps: { readOnly?: boolean } = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -141,6 +145,7 @@ function renderModal(ledgerView = false, overrides: Partial<BookingWithDetails> 
       onClose={vi.fn()}
       booking={{ ...booking, ...overrides }}
       ledger={ledgerView ? ledger : null}
+      readOnly={modalProps.readOnly}
     />,
     { wrapper },
   );
@@ -843,5 +848,108 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
 
     await within(dialog).findByText('Deposit refunded');
     expect(within(dialog).queryByRole('button', { name: 'Revert refund' })).toBeNull();
+  });
+
+  it('passes the chosen refund method, reference and staff note through to the service', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    selectResolutionOption(dialog, /Refund deposit/i);
+    // The record-payment form's "Reference (Optional)"/"Notes (Optional)"
+    // fields stay mounted inside their Collapse — scope to the deposit
+    // resolution area so only the refund panel's fields match.
+    const depositArea = within(dialog).getByRole('radiogroup')
+      .parentElement as HTMLElement;
+    await selectComboboxOption(
+      within(depositArea).getByRole('combobox', { name: /refund method/i }),
+      'Bank Transfer',
+    );
+    fireEvent.change(within(depositArea).getByLabelText(/Reference \(optional\)/i), {
+      target: { value: 'RF-9001' },
+    });
+    fireEvent.change(within(depositArea).getByLabelText(/^Note \(optional\)/i), {
+      target: { value: 'handed to guest at desk' },
+    });
+    fireEvent.click(within(depositArea).getByRole('button', { name: 'Refund RM50.00' }));
+
+    // The completed deposit row already covers the mirror — no mint, just
+    // the refund carrying the staff-entered reference and note.
+    await waitFor(() =>
+      expect(mocks.refundDeposit).toHaveBeenCalledWith('42', 'Bank Transfer', 50, {
+        transaction_reference: 'RF-9001',
+        note: 'handed to guest at desk',
+      }),
+    );
+    expect(mocks.updateBooking).not.toHaveBeenCalled();
+  });
+
+  it('gates the refund and forfeit options on payments:refund while cancel stays routed on its own permission', async () => {
+    // bookings:update only: cancel auto-routes through the mirror waive and
+    // stays enabled; refund/forfeit render disabled with the caption.
+    mocks.hasPermission.mockImplementation((p: string) => p === 'bookings:update');
+    mocks.payments = [billPayment];
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    const refundOption = within(dialog).getByRole('radio', { name: /Refund deposit/i });
+    const forfeitOption = within(dialog).getByRole('radio', { name: /Forfeit deposit/i });
+    const cancelOption = within(dialog).getByRole('radio', { name: /Cancel uncollected deposit/i });
+    expect(refundOption.getAttribute('aria-disabled')).toBe('true');
+    expect(forfeitOption.getAttribute('aria-disabled')).toBe('true');
+    expect(cancelOption.getAttribute('aria-disabled')).toBe('false');
+    expect(
+      within(dialog).getAllByText('Requires the payments:refund permission'),
+    ).toHaveLength(2);
+
+    fireEvent.click(refundOption);
+    expect(within(dialog).queryByRole('button', { name: /Refund RM50\.00/ })).toBeNull();
+  });
+
+  it('reads "Bill to the company ledger" in the ready strip when the unpaid bill posts to the ledger', async () => {
+    // Company billing: an unpaid bill is not a checkout blocker — it posts
+    // to the company ledger — so the strip reads ready with ledger wording.
+    mocks.payments = [];
+    renderModal(false, { deposit_paid: false, company_id: 5, company_name: 'Acme Corp' });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText('Ready for checkout — Bill to the company ledger'),
+      ).toBeDefined(),
+    );
+    expect(
+      (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
+  it('labels the no-deposit chip "City Ledger - N/A" on a company-billing booking', async () => {
+    mocks.payments = [billPayment];
+    renderModal(false, { deposit_paid: false, company_id: 5, company_name: 'Acme Corp' });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('City Ledger - N/A')).toBeDefined());
+    expect(within(dialog).queryByText('No deposit')).toBeNull();
+  });
+
+  it('labels the no-deposit chip "No deposit" on a guest-billed booking', async () => {
+    mocks.payments = [billPayment];
+    renderModal(false, { deposit_paid: false });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('No deposit')).toBeDefined());
+  });
+
+  it('suppresses the readiness strip in readOnly — a receipt carries no checkout framing', async () => {
+    // A held deposit would block checkout, but a read-only receipt should
+    // not say "Checkout is not ready" — the strip is suppressed entirely.
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 }, { readOnly: true });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('Pending resolution')).toBeDefined());
+    expect(within(dialog).queryByText(/Checkout is not ready|Ready for checkout/)).toBeNull();
+    // Receipt actions only — no checkout gate or resolution controls.
+    expect(within(dialog).queryByRole('button', { name: 'Proceed to Checkout' })).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Print Invoice' })).toBeDefined();
+    expect(within(dialog).queryByRole('radiogroup')).toBeNull();
   });
 });

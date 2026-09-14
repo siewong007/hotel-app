@@ -64,6 +64,7 @@ function renderSection({ resolution, ...props }: RenderOptions = {}) {
         ...props.can,
       }}
       readOnly={props.readOnly ?? false}
+      noDepositLabel={props.noDepositLabel}
       hotelSettings={props.hotelSettings ?? { payment_methods: ['Cash', 'Bank Transfer', 'E-Wallet', 'Other'] }}
       onRefund={props.onRefund ?? mocks.onRefund}
       onForfeit={props.onForfeit ?? mocks.onForfeit}
@@ -96,6 +97,63 @@ describe('DepositSection — guided deposit resolution', () => {
     // Held amount (header, tabular-nums) + remaining summary both render RM50.00.
     expect(screen.getAllByText('RM50.00').length).toBeGreaterThan(0);
     expect(screen.getByText(/Collected RM50\.00 via Cash/)).toBeDefined();
+    // Zero legs are dropped from the breakdown — a fresh pending deposit
+    // shows only the still-held remainder.
+    expect(screen.getByText('Remaining RM50.00')).toBeDefined();
+    expect(screen.queryByText(/Refunded RM0\.00/)).toBeNull();
+    expect(screen.queryByText(/Forfeited RM0\.00/)).toBeNull();
+  });
+
+  it('keeps the Remaining leg alongside the non-zero legs of a resolved deposit', () => {
+    renderSection({
+      resolution: { status: 'refunded', refunded: 50, remaining: 0 },
+    });
+
+    expect(screen.getByText('Refunded RM50.00 · Remaining RM0.00')).toBeDefined();
+    expect(screen.queryByText(/Forfeited RM0\.00/)).toBeNull();
+  });
+
+  it('moves the roving tabindex with arrow keys, selects with Enter/Space, and keeps a disabled option focusable but not selectable', () => {
+    renderSection({ can: { refund: false, forfeit: true, cancel: true, revertRefund: true, restore: true } });
+
+    const group = screen.getByRole('radiogroup');
+    const [refundOpt, forfeitOpt, cancelOpt] =
+      within(group).getAllByRole('radio') as HTMLButtonElement[];
+
+    // Nothing selected → the first option holds the group's single tab stop.
+    expect(refundOpt.tabIndex).toBe(0);
+    expect(forfeitOpt.tabIndex).toBe(-1);
+    expect(cancelOpt.tabIndex).toBe(-1);
+
+    // ArrowDown from the first option moves focus AND selects — the tab
+    // stop roves with the selection.
+    fireEvent.keyDown(refundOpt, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(forfeitOpt);
+    expect(forfeitOpt.getAttribute('aria-checked')).toBe('true');
+    expect(forfeitOpt.tabIndex).toBe(0);
+    expect(refundOpt.tabIndex).toBe(-1);
+
+    // ArrowUp back onto the permission-disabled option: focus lands but the
+    // selection does not — a disabled option is focusable, not selectable.
+    fireEvent.keyDown(forfeitOpt, { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(refundOpt);
+    expect(refundOpt.getAttribute('aria-checked')).toBe('false');
+    expect(forfeitOpt.getAttribute('aria-checked')).toBe('true');
+    fireEvent.keyDown(refundOpt, { key: 'Enter' });
+    fireEvent.keyDown(refundOpt, { key: ' ' });
+    expect(refundOpt.getAttribute('aria-checked')).toBe('false');
+    expect(screen.queryByRole('button', { name: /Refund RM50\.00/ })).toBeNull();
+
+    // Enter/Space select a focused enabled option.
+    cancelOpt.focus();
+    fireEvent.keyDown(cancelOpt, { key: 'Enter' });
+    expect(cancelOpt.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Cancel deposit record' })).toBeDefined();
+
+    forfeitOpt.focus();
+    fireEvent.keyDown(forfeitOpt, { key: ' ' });
+    expect(forfeitOpt.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Review forfeiture' })).toBeDefined();
   });
 
   it('offers three radio options and mounts only the selected option form', () => {
@@ -346,5 +404,15 @@ describe('DepositSection — guided deposit resolution', () => {
 
     expect(screen.getByText('No deposit')).toBeDefined();
     expect(screen.queryByRole('radiogroup')).toBeNull();
+  });
+
+  it('uses the noDepositLabel override for the none chip', () => {
+    renderSection({
+      resolution: { status: 'none', collected: 0, remaining: 0, method: null, collectedAt: null, mirrorDue: 0 },
+      noDepositLabel: 'City Ledger - N/A',
+    });
+
+    expect(screen.getByText('City Ledger - N/A')).toBeDefined();
+    expect(screen.queryByText('No deposit')).toBeNull();
   });
 });

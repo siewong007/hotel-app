@@ -256,6 +256,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   // ('Deposit waived: …' was written that way before resolution statuses).
   const {
     deposit: depositResolution,
+    completedDepositCount,
     refunding: refundingDeposit,
     forfeiting: forfeitingDeposit,
     cancelling: cancellingDeposit,
@@ -275,16 +276,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     invalidateInvoiceState,
   });
 
-  // Resolution permission gates — `cancel` mirrors the hook's auto-route:
-  // completed deposit rows → per-row void (`payments:delete`); no rows →
-  // the booking-mirror waive (`bookings:update`).
-  const hasCompletedDepositRows = payments.some(
-    (payment) =>
-      (payment.payment_type || '').toLowerCase() === 'deposit'
-      && payment.payment_status === 'completed',
-  );
+  // Resolution permission gates — `cancel` mirrors the hook's auto-route on
+  // the same completed-row count: rows → per-row void (`payments:delete`);
+  // no rows → the booking-mirror waive (`bookings:update`).
   const canRefundOrForfeitDeposit = hasPermission('payments:refund');
-  const canCancelDeposit = hasCompletedDepositRows
+  const canCancelDeposit = completedDepositCount > 0
     ? hasPermission('payments:delete')
     : hasPermission('bookings:update');
   const canRevertDepositRefund = hasPermission('payments:manage');
@@ -477,7 +473,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   // Restore); with none it waives the booking mirror. The section collects
   // the required reason first.
   const handleCancelDeposit = async (reason: string) => {
-    const hadCompletedDepositRows = hasCompletedDepositRows;
+    const hadCompletedDepositRows = completedDepositCount > 0;
     const accepted = await confirm({
       title: 'Cancel deposit',
       message: hadCompletedDepositRows
@@ -838,7 +834,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     : `Ready for checkout — ${billWording}${
         depositResolutionWording ? ` · Deposit ${depositResolutionWording}` : ''
       }`;
-  const readinessStrip = (
+  // Suppressed in readOnly — a read-only receipt isn't a checkout, so it
+  // shouldn't carry "Checkout is not ready"/"Ready for checkout" framing.
+  const readinessStrip = readOnly ? null : (
     <Alert severity={blockers.length ? 'warning' : 'success'} sx={{ mb: 2 }}>
       <Typography variant="body2" sx={{ fontWeight: 600 }}>
         {readinessMessage}
@@ -1289,6 +1287,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   restore: canRestoreDeposit,
                 }}
                 readOnly={readOnly}
+                noDepositLabel={booking?.company_id ? 'City Ledger - N/A' : undefined}
                 hotelSettings={hotelSettings}
                 onRefund={handleRefundDeposit}
                 onForfeit={handleForfeitDeposit}

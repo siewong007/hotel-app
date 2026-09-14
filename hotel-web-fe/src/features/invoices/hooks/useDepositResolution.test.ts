@@ -117,6 +117,7 @@ describe('useDepositResolution', () => {
         voidedDepositCount: 0,
         mirrorDue: 0,
       });
+      expect(result.current.completedDepositCount).toBe(0);
     });
 
     it('is pending while a completed deposit row still has money held', () => {
@@ -128,6 +129,7 @@ describe('useDepositResolution', () => {
       expect(result.current.deposit.remaining).toBe(50);
       expect(result.current.deposit.method).toBe('bank_transfer');
       expect(result.current.deposit.collectedAt).toBe('2026-08-01T10:00:00.000Z');
+      expect(result.current.completedDepositCount).toBe(1);
     });
 
     it('is pending via the booking mirror for a flag-only legacy deposit', () => {
@@ -240,6 +242,8 @@ describe('useDepositResolution', () => {
       expect(result.current.deposit.status).toBe('cancelled');
       expect(result.current.deposit.voidedDepositCount).toBe(2);
       expect(result.current.deposit.collected).toBe(0);
+      // Voided rows don't count — the modal's cancel route gates on this.
+      expect(result.current.completedDepositCount).toBe(0);
     });
 
     it('is waived when the caller reports the booking mirror was waived — even while the stale mirror still reads due', () => {

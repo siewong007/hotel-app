@@ -92,6 +92,11 @@ export interface ForfeitDepositArgs {
 
 export interface UseDepositResolutionResult {
   deposit: DepositResolution;
+  /**
+   * Completed deposit payment rows — the modal's cancel auto-route and its
+   * `payments:delete` vs `bookings:update` permission gate key off this.
+   */
+  completedDepositCount: number;
   refunding: boolean;
   forfeiting: boolean;
   cancelling: boolean;
@@ -407,6 +412,7 @@ export function useDepositResolution({
 
   return {
     deposit,
+    completedDepositCount: completedDepositRows.length,
     refunding,
     forfeiting,
     cancelling,
