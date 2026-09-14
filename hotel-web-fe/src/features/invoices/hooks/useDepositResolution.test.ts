@@ -109,6 +109,10 @@ describe('useDepositResolution', () => {
         remaining: 0,
         method: null,
         collectedAt: null,
+        refundMethod: null,
+        refundedAt: null,
+        refundReference: null,
+        forfeitReason: null,
         status: 'none',
         voidedDepositCount: 0,
         mirrorDue: 0,
@@ -157,6 +161,47 @@ describe('useDepositResolution', () => {
       expect(result.current.deposit.status).toBe('forfeited');
       expect(result.current.deposit.forfeited).toBe(50);
       expect(result.current.deposit.remaining).toBe(0);
+    });
+
+    it('surfaces refund row details (method/time/reference) for the resolved strip', () => {
+      const { result } = renderResolution({
+        payments: [
+          buildPayment({ id: 1 }),
+          buildPayment({
+            id: 2,
+            payment_type: 'refund',
+            payment_status: 'refunded',
+            payment_method: 'Bank Transfer',
+            payment_date: '2026-08-02T09:15:00.000Z',
+            transaction_reference: 'RF-9001',
+          }),
+          // An older refund row (already reverted) must not win the details.
+          buildPayment({
+            id: 3,
+            payment_type: 'refund',
+            payment_status: 'void',
+            payment_method: 'cash',
+            payment_date: '2026-08-02T10:00:00.000Z',
+          }),
+        ],
+      });
+      expect(result.current.deposit.refundMethod).toBe('Bank Transfer');
+      expect(result.current.deposit.refundedAt).toBe('2026-08-02T09:15:00.000Z');
+      expect(result.current.deposit.refundReference).toBe('RF-9001');
+    });
+
+    it('strips the "Deposit forfeited: " prefix off forfeitReason', () => {
+      const { result } = renderResolution({
+        payments: [
+          buildPayment({ id: 1 }),
+          buildPayment({
+            id: 2,
+            payment_type: 'deposit_forfeited',
+            notes: 'Deposit forfeited: Room damage — broken lamp',
+          }),
+        ],
+      });
+      expect(result.current.deposit.forfeitReason).toBe('Room damage — broken lamp');
     });
 
     it('is partially_forfeited when refund and forfeit rows split the deposit', () => {

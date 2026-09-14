@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
+  Alert,
+  alpha,
   Box,
   Button,
   ButtonBase,
@@ -8,26 +10,77 @@ import {
   FormControl,
   Grid,
   InputAdornment,
+  InputLabel,
   MenuItem,
   Select,
   TextField,
   Typography,
 } from '@mui/material';
+import type { Theme } from '@mui/material';
 import {
-  AccountBalanceWallet as DepositIcon,
-  ExpandMore as ExpandMoreIcon,
-  Payment as PaymentIcon,
+  DiscFullOutlined as DepositIcon,
+  RadioButtonChecked as RadioCheckedIcon,
+  RadioButtonUnchecked as RadioUncheckedIcon,
 } from '@mui/icons-material';
 import StatusChip from '../../../components/common/StatusChip';
-import { statusToneVars, type StatusTone } from '../../../theme/tokens';
-import { isGreaterMoney, isPositiveMoney, toMoneyNumber } from '../../../utils/money';
+import type { StatusTone } from '../../../components/common/StatusChip';
+import { useCurrency } from '../../../hooks/useCurrency';
+import { formatHotelDateTime } from '../../../utils/date';
+import type { HotelSettings } from '../../../utils/hotelSettings';
+import { isGreaterMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../utils/money';
+import type { DepositResolution, DepositResolutionStatus } from '../hooks/useDepositResolution';
 
-export interface DepositSectionProps {
-  /** Amount of deposit held that still needs resolution. */
+export interface DepositRefundInput {
+  method: string;
+  reference?: string;
+  note?: string;
+}
+
+export interface DepositForfeitInput {
+  amount: number;
+  reason: string;
+  notes?: string;
+}
+
+/**
+ * Guided deposit-resolution contract — the modal computes `can.*` from
+ * `useAuth().hasPermission` and forwards `useDepositResolution`'s
+ * `deposit`/busy flags/actions verbatim.
+ */
+export interface DepositResolutionSectionProps {
+  /** Derived deposit lifecycle from `useDepositResolution`. */
+  resolution: DepositResolution;
+  busy: {
+    refunding: boolean;
+    forfeiting: boolean;
+    cancelling: boolean;
+    reverting: boolean;
+    restoring: boolean;
+  };
+  can: {
+    /** `payments:refund`. */ refund: boolean;
+    /** `payments:refund`. */ forfeit: boolean;
+    /** `payments:delete` or `bookings:update` (the action auto-routes). */ cancel: boolean;
+    /** `payments:manage`. */ revertRefund: boolean;
+    /** `payments:delete`. */ restore: boolean;
+  };
+  readOnly: boolean;
+  hotelSettings: Pick<HotelSettings, 'payment_methods'>;
+  onRefund: (input: DepositRefundInput) => void;
+  onForfeit: (input: DepositForfeitInput) => void;
+  onCancel: (reason: string) => void;
+  onRevertRefund: () => void;
+  onRestore: () => void;
+}
+
+/**
+ * @deprecated Transitional shape kept only so `CheckoutInvoiceModal`
+ * typechecks until Task 5 wires `useDepositResolution` — the section renders
+ * nothing for these props. Delete this variant with the old call site.
+ */
+export interface LegacyDepositSectionProps {
   depositRefund: number;
-  /** Ceiling for the forfeit amount field (recorded − refunded − forfeited). */
   refundableDeposit: number;
-  /** `isPositiveMoney(recordedDeposit)` — a real deposit payment row exists. */
   hasRecordedDeposit: boolean;
   depositRefunded: boolean;
   depositForfeited: boolean;
@@ -44,11 +97,8 @@ export interface DepositSectionProps {
   restoringDeposit: boolean;
   readOnly: boolean;
   canCancelDeposit: boolean;
-  /** Count of voided deposit rows eligible for restore. */
   voidedDepositCount: number;
-  /** Chip label for the no-deposit state. */
   noDepositLabel: string;
-  /** True when the no-deposit chip should read as a waive (warning tone). */
   noDepositWaived: boolean;
   currencySymbol: string;
   formatCurrency: (value: number) => string;
@@ -64,6 +114,29 @@ export interface DepositSectionProps {
   onRestoreDeposit: () => void;
 }
 
+export type DepositSectionProps = DepositResolutionSectionProps | LegacyDepositSectionProps;
+
+type ResolutionChoice = 'refund' | 'forfeit' | 'cancel';
+
+const DEFAULT_REFUND_METHODS = ['Cash', 'Bank Transfer', 'E-Wallet', 'Other'];
+
+const FORFEIT_REASONS = [
+  { value: 'ROOM_DAMAGE', label: 'Room damage' },
+  { value: 'MISSING_ITEM', label: 'Missing item or key' },
+  { value: 'OUTSTANDING_CHARGE', label: 'Outstanding charge' },
+  { value: 'OTHER', label: 'Other' },
+] as const;
+
+const STATUS_CHIP: Record<DepositResolutionStatus, { label: string; tone: StatusTone }> = {
+  none: { label: 'No deposit', tone: 'neutral' },
+  pending: { label: 'Pending resolution', tone: 'warning' },
+  refunded: { label: 'Refunded', tone: 'success' },
+  partially_forfeited: { label: 'Partially forfeited', tone: 'warning' },
+  forfeited: { label: 'Fully forfeited', tone: 'warning' },
+  cancelled: { label: 'Cancelled', tone: 'neutral' },
+  waived: { label: 'Cancelled — not collected', tone: 'neutral' },
+};
+
 const cardSx = {
   border: '1px solid var(--hotel-border)',
   borderRadius: 2,
@@ -72,411 +145,696 @@ const cardSx = {
   mb: 3,
 } as const;
 
+/** Foreground color for a strip/icon — 'neutral' has no palette key. */
+const toneColor = (theme: Theme, tone: StatusTone): string => {
+  switch (tone) {
+    case 'neutral':
+      return theme.palette.text.secondary;
+    case 'primary':
+      return theme.palette.primary.main;
+    case 'secondary':
+      return theme.palette.secondary.main;
+    default:
+      return theme.palette[tone].main;
+  }
+};
+
 /** One-line tinted strip used by every resolved deposit state. */
-const StatusStrip: React.FC<{
-  tone: StatusTone;
+const ResolutionStrip: React.FC<{
+  tone: 'success' | 'warning' | 'neutral';
   title: React.ReactNode;
   caption?: React.ReactNode;
-  chip: React.ReactNode;
-  amount?: string;
   actions?: React.ReactNode;
-}> = ({ tone, title, caption, chip, amount, actions }) => {
-  const t = statusToneVars(tone);
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1.5,
-        flexWrap: 'wrap',
-        p: 1.5,
-        bgcolor: t.bg,
-        borderLeft: `3px solid ${t.fg}`,
-      }}
-    >
-      <Box sx={{ color: t.fg, display: 'flex', flexShrink: 0 }}>
-        <DepositIcon fontSize="small" />
-      </Box>
-      <Box sx={{ flex: 1, minWidth: 140 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600, color: t.fg }}>
-          {title}
-        </Typography>
-        {caption ? (
-          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-            {caption}
-          </Typography>
-        ) : null}
-      </Box>
-      {amount ? (
-        <Typography variant="body2" sx={{ fontWeight: 700, color: t.fg }}>
-          {amount}
+}> = ({ tone, title, caption, actions }) => (
+  <Box
+    sx={(theme: Theme) => ({
+      display: 'flex',
+      alignItems: 'center',
+      gap: 1.5,
+      flexWrap: 'wrap',
+      px: 1.5,
+      py: 1.25,
+      borderRadius: 1,
+      bgcolor: alpha(toneColor(theme, tone), 0.08),
+      borderLeft: `3px solid ${toneColor(theme, tone)}`,
+    })}
+  >
+    <Box sx={{ flex: 1, minWidth: 160 }}>
+      <Typography
+        variant="body2"
+        sx={(theme: Theme) => ({ fontWeight: 600, color: toneColor(theme, tone) })}
+      >
+        {title}
+      </Typography>
+      {caption ? (
+        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+          {caption}
         </Typography>
       ) : null}
-      {chip}
-      {actions}
+    </Box>
+    {actions}
+  </Box>
+);
+
+interface PanelProps {
+  formatMoney: (value: number) => string;
+}
+
+/** Refund is always the full remaining balance — the backend's one-active-refund rule makes partial refunds a trap. */
+const RefundPanel: React.FC<PanelProps & {
+  amount: number;
+  methods: string[];
+  busy: boolean;
+  onSubmit: (input: DepositRefundInput) => void;
+}> = ({ amount, methods, busy, formatMoney, onSubmit }) => {
+  const [method, setMethod] = useState(methods[0] ?? 'Cash');
+  const [reference, setReference] = useState('');
+  const [note, setNote] = useState('');
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          Refund amount — fixed to the full held balance:
+        </Typography>
+        <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          {formatMoney(amount)}
+        </Typography>
+      </Box>
+      <Grid container spacing={1}>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <FormControl size="small" fullWidth>
+            <InputLabel id="deposit-refund-method-label">Refund method</InputLabel>
+            <Select
+              labelId="deposit-refund-method-label"
+              label="Refund method"
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+            >
+              {methods.map((m) => (
+                <MenuItem key={m} value={m}>
+                  {m}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <TextField
+            size="small"
+            fullWidth
+            label="Reference (optional)"
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <TextField
+            size="small"
+            fullWidth
+            label="Note (optional)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </Grid>
+      </Grid>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          size="small"
+          variant="contained"
+          color="success"
+          disabled={busy}
+          startIcon={busy ? <CircularProgress size={14} /> : undefined}
+          onClick={() =>
+            onSubmit({
+              method,
+              reference: reference.trim() || undefined,
+              note: note.trim() || undefined,
+            })
+          }
+          sx={{ fontSize: '0.75rem', py: 0.5 }}
+        >
+          Refund {formatMoney(amount)}
+        </Button>
+      </Box>
+    </Box>
+  );
+};
+
+/** Amount + categorized reason, then an inline review of the retain/refund split before the destructive submit. */
+const ForfeitPanel: React.FC<PanelProps & {
+  remaining: number;
+  busy: boolean;
+  currencySymbol: string;
+  onSubmit: (input: DepositForfeitInput) => void;
+}> = ({ remaining, busy, currencySymbol, formatMoney, onSubmit }) => {
+  const [amountInput, setAmountInput] = useState(remaining.toFixed(2));
+  const [reasonCode, setReasonCode] = useState('');
+  const [notes, setNotes] = useState('');
+  const [review, setReview] = useState(false);
+
+  const amount = toMoneyNumber(amountInput);
+  const overCeiling = isGreaterMoney(amount, remaining);
+  const notPositive = !isPositiveMoney(amount);
+  const reasonLabel = FORFEIT_REASONS.find((r) => r.value === reasonCode)?.label ?? '';
+  const notesRequired = reasonCode === 'OTHER';
+  const reasonValid = reasonCode !== '' && (!notesRequired || notes.trim() !== '');
+  const canReview = !notPositive && !overCeiling && reasonValid;
+  const remainder = isPositiveMoney(subtractMoney(remaining, amount))
+    ? subtractMoney(remaining, amount)
+    : 0;
+
+  const amountHelper = (() => {
+    if (amountInput.trim() === '') return `Refundable deposit: ${formatMoney(remaining)}`;
+    if (overCeiling) return `Cannot exceed ${formatMoney(remaining)}`;
+    if (notPositive) return 'Enter an amount above 0';
+    return `Remaining to refund after: ${formatMoney(remainder)}`;
+  })();
+
+  if (review) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box
+          sx={(theme: Theme) => ({
+            p: 1.5,
+            borderRadius: 1,
+            bgcolor: alpha(theme.palette.warning.main, 0.08),
+            border: `1px solid ${alpha(theme.palette.warning.main, 0.35)}`,
+          })}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            You are retaining {formatMoney(amount)} of the deposit — {formatMoney(remainder)} will
+            remain to refund.
+          </Typography>
+          <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
+            Reason: {reasonLabel}
+            {notes.trim() ? ` — ${notes.trim()}` : ''}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+          <Button size="small" variant="text" onClick={() => setReview(false)} disabled={busy}>
+            Back
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            color="error"
+            disabled={busy}
+            startIcon={busy ? <CircularProgress size={14} /> : undefined}
+            onClick={() =>
+              onSubmit({ amount, reason: reasonLabel, notes: notes.trim() || undefined })
+            }
+            sx={{ fontSize: '0.75rem', py: 0.5 }}
+          >
+            Forfeit {formatMoney(amount)}
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+        Keep part or all of the deposit — the rest stays refundable.
+      </Typography>
+      <Grid container spacing={1}>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <TextField
+            size="small"
+            fullWidth
+            label="Forfeit amount"
+            value={amountInput}
+            onChange={(e) => setAmountInput(e.target.value)}
+            error={amountInput.trim() !== '' && (overCeiling || notPositive)}
+            helperText={amountHelper}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">{currencySymbol}</InputAdornment>
+                ),
+              },
+              htmlInput: { inputMode: 'decimal' },
+            }}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <FormControl size="small" fullWidth>
+            <InputLabel id="deposit-forfeit-reason-label">Forfeit reason</InputLabel>
+            <Select
+              labelId="deposit-forfeit-reason-label"
+              label="Forfeit reason"
+              value={reasonCode}
+              onChange={(e) => setReasonCode(e.target.value)}
+            >
+              {FORFEIT_REASONS.map((r) => (
+                <MenuItem key={r.value} value={r.value}>
+                  {r.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <TextField
+            size="small"
+            fullWidth
+            label="Staff notes"
+            required={notesRequired}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            helperText={notesRequired ? 'Required when the reason is Other' : undefined}
+          />
+        </Grid>
+      </Grid>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          size="small"
+          variant="outlined"
+          color="warning"
+          disabled={!canReview || busy}
+          onClick={() => setReview(true)}
+          sx={{ fontSize: '0.75rem', py: 0.5 }}
+        >
+          Review forfeiture
+        </Button>
+      </Box>
+    </Box>
+  );
+};
+
+/** For a deposit that was recorded but never collected — auto-routes to waive (no rows) or void (rows). */
+const CancelPanel: React.FC<PanelProps & {
+  recorded: number;
+  busy: boolean;
+  onSubmit: (reason: string) => void;
+}> = ({ recorded, busy, formatMoney, onSubmit }) => {
+  const [reason, setReason] = useState('');
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          Recorded deposit:
+        </Typography>
+        <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          {formatMoney(recorded)}
+        </Typography>
+      </Box>
+      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+        Use this only when the deposit was recorded but no money was actually received.
+      </Typography>
+      <TextField
+        size="small"
+        fullWidth
+        required
+        label="Reason"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+      />
+      <Alert severity="warning" sx={{ py: 0.5 }}>
+        This does not issue a refund.
+      </Alert>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          size="small"
+          variant="contained"
+          color="warning"
+          disabled={!reason.trim() || busy}
+          startIcon={busy ? <CircularProgress size={14} /> : undefined}
+          onClick={() => onSubmit(reason.trim())}
+          sx={{ fontSize: '0.75rem', py: 0.5 }}
+        >
+          Cancel deposit record
+        </Button>
+      </Box>
+    </Box>
+  );
+};
+
+const GuidedDepositSection: React.FC<DepositResolutionSectionProps> = ({
+  resolution,
+  busy,
+  can,
+  readOnly,
+  hotelSettings,
+  onRefund,
+  onForfeit,
+  onCancel,
+  onRevertRefund,
+  onRestore,
+}) => {
+  const { format: formatMoney, symbol: currencySymbol } = useCurrency();
+  const [selected, setSelected] = useState<ResolutionChoice | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  // The amount actually held: the refundable ledger remainder, or the booking
+  // mirror's assertion for a flag-only legacy deposit.
+  const held = isPositiveMoney(resolution.remaining) ? resolution.remaining : resolution.mirrorDue;
+  const pending = resolution.status === 'pending';
+  const chip = STATUS_CHIP[resolution.status];
+  const methods = hotelSettings.payment_methods.length
+    ? hotelSettings.payment_methods
+    : DEFAULT_REFUND_METHODS;
+
+  const collectedLine = isPositiveMoney(resolution.collected)
+    ? `Collected ${formatMoney(resolution.collected)}${
+        resolution.method ? ` via ${resolution.method}` : ''
+      }${resolution.collectedAt ? ` · ${formatHotelDateTime(resolution.collectedAt)}` : ''}`
+    : isPositiveMoney(resolution.mirrorDue)
+      ? `Recorded on the booking${
+          resolution.collectedAt ? ` · ${formatHotelDateTime(resolution.collectedAt)}` : ''
+        }`
+      : null;
+  const breakdownLine =
+    isPositiveMoney(resolution.refunded)
+    || isPositiveMoney(resolution.forfeited)
+    || isPositiveMoney(resolution.remaining)
+      ? `Refunded ${formatMoney(resolution.refunded)} · Forfeited ${formatMoney(
+          resolution.forfeited,
+        )} · Remaining ${formatMoney(resolution.remaining)}`
+      : null;
+
+  const options: Array<{
+    key: ResolutionChoice;
+    title: string;
+    description: string;
+    enabled: boolean;
+    disabledReason?: string;
+  }> = [
+    {
+      key: 'refund',
+      title: 'Refund deposit',
+      description: `Return ${formatMoney(held)} to the guest`,
+      enabled: can.refund,
+      disabledReason: 'Requires the payments:refund permission',
+    },
+    {
+      key: 'forfeit',
+      title: 'Forfeit deposit',
+      description: 'Keep some or all of it for an approved reason',
+      enabled: can.forfeit && isPositiveMoney(resolution.remaining),
+      disabledReason: !can.forfeit
+        ? 'Requires the payments:refund permission'
+        : 'No collected deposit to forfeit',
+    },
+    {
+      key: 'cancel',
+      title: 'Cancel uncollected deposit',
+      description: 'It was recorded but no money was received',
+      enabled: can.cancel,
+      disabledReason: 'Requires the payments:delete or bookings:update permission',
+    },
+  ];
+
+  // Radio-group keyboard behavior: arrows/Home/End move focus and select the
+  // newly focused option (skipped when that option is permission-disabled).
+  const handleOptionKeyDown = (event: React.KeyboardEvent, index: number) => {
+    let next: number | null = null;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+      next = (index + 1) % options.length;
+    } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+      next = (index + options.length - 1) % options.length;
+    } else if (event.key === 'Home') {
+      next = 0;
+    } else if (event.key === 'End') {
+      next = options.length - 1;
+    }
+    if (next === null) return;
+    event.preventDefault();
+    optionRefs.current[next]?.focus();
+    if (options[next].enabled) setSelected(options[next].key);
+  };
+
+  const resolvedStrip = (() => {
+    switch (resolution.status) {
+      case 'refunded':
+        return (
+          <ResolutionStrip
+            tone="success"
+            title="Deposit refunded"
+            caption={`${formatMoney(resolution.refunded)}${
+              resolution.refundMethod ? ` via ${resolution.refundMethod}` : ''
+            }${
+              resolution.refundedAt ? ` · ${formatHotelDateTime(resolution.refundedAt)}` : ''
+            }${resolution.refundReference ? ` · Ref ${resolution.refundReference}` : ''}`}
+            actions={
+              can.revertRefund && !readOnly ? (
+                <Button
+                  size="small"
+                  variant="text"
+                  color="warning"
+                  onClick={onRevertRefund}
+                  disabled={busy.reverting}
+                  startIcon={busy.reverting ? <CircularProgress size={14} /> : undefined}
+                  sx={{ fontSize: '0.75rem' }}
+                >
+                  Revert refund
+                </Button>
+              ) : undefined
+            }
+          />
+        );
+      case 'forfeited':
+      case 'partially_forfeited':
+        return (
+          <ResolutionStrip
+            tone="warning"
+            title={
+              resolution.status === 'partially_forfeited'
+                ? 'Deposit partially forfeited'
+                : 'Deposit forfeited'
+            }
+            caption={`Kept ${formatMoney(resolution.forfeited)}${
+              resolution.forfeitReason ? ` — ${resolution.forfeitReason}` : ''
+            }${
+              isPositiveMoney(resolution.refunded)
+                ? ` · Remainder refunded ${formatMoney(resolution.refunded)}`
+                : ''
+            }`}
+          />
+        );
+      case 'cancelled':
+      case 'waived':
+        return (
+          <ResolutionStrip
+            tone="neutral"
+            title="Cancelled — not collected"
+            caption={
+              resolution.status === 'waived'
+                ? 'The booking deposit flag was waived — no money was received.'
+                : 'The deposit payment record was voided — no money was received.'
+            }
+            actions={
+              resolution.status === 'cancelled'
+              && resolution.voidedDepositCount > 0
+              && can.restore
+              && !readOnly ? (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={onRestore}
+                  disabled={busy.restoring}
+                  startIcon={busy.restoring ? <CircularProgress size={14} /> : undefined}
+                  sx={{ fontSize: '0.75rem' }}
+                >
+                  Restore deposit
+                </Button>
+              ) : undefined
+            }
+          />
+        );
+      default:
+        return null;
+    }
+  })();
+
+  return (
+    <Box sx={cardSx}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, flexWrap: 'wrap' }}>
+        <Box
+          sx={(theme: Theme) => ({
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            bgcolor: alpha(toneColor(theme, chip.tone), 0.12),
+            color: toneColor(theme, chip.tone),
+          })}
+        >
+          <DepositIcon fontSize="small" />
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 160 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            Security deposit
+          </Typography>
+          {collectedLine ? (
+            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              {collectedLine}
+            </Typography>
+          ) : null}
+          {breakdownLine ? (
+            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              {breakdownLine}
+            </Typography>
+          ) : null}
+        </Box>
+        {isPositiveMoney(held) ? (
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
+          >
+            {formatMoney(held)}
+          </Typography>
+        ) : null}
+        <StatusChip status={resolution.status} label={chip.label} tone={chip.tone} />
+      </Box>
+
+      {pending && !readOnly ? (
+        <Box
+          sx={{
+            px: 1.5,
+            py: 1.5,
+            borderTop: '1px solid var(--hotel-border-subtle)',
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+            How should this deposit be resolved?
+          </Typography>
+          <Box
+            role="radiogroup"
+            aria-label="Deposit resolution"
+            sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
+          >
+            {options.map((option, index) => (
+              <ButtonBase
+                key={option.key}
+                ref={(el: HTMLButtonElement | null) => {
+                  optionRefs.current[index] = el;
+                }}
+                role="radio"
+                aria-checked={selected === option.key}
+                aria-disabled={!option.enabled}
+                tabIndex={selected ? (selected === option.key ? 0 : -1) : index === 0 ? 0 : -1}
+                onClick={() => option.enabled && setSelected(option.key)}
+                onKeyDown={(e) => handleOptionKeyDown(e, index)}
+                sx={(theme: Theme) => ({
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 1.25,
+                  width: '100%',
+                  px: 1.5,
+                  py: 1.25,
+                  textAlign: 'left',
+                  borderRadius: 1.5,
+                  border: '1px solid',
+                  borderColor:
+                    selected === option.key ? theme.palette.primary.main : 'divider',
+                  bgcolor:
+                    selected === option.key
+                      ? alpha(theme.palette.primary.main, 0.06)
+                      : 'transparent',
+                  opacity: option.enabled ? 1 : 0.55,
+                  cursor: option.enabled ? 'pointer' : 'not-allowed',
+                  transition: theme.transitions.create(['border-color', 'background-color']),
+                  '&:hover': option.enabled
+                    ? { bgcolor: alpha(theme.palette.primary.main, 0.04) }
+                    : {},
+                })}
+              >
+                {selected === option.key ? (
+                  <RadioCheckedIcon fontSize="small" sx={{ color: 'primary.main', mt: '1px' }} />
+                ) : (
+                  <RadioUncheckedIcon
+                    fontSize="small"
+                    sx={{ color: 'text.disabled', mt: '1px' }}
+                  />
+                )}
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {option.title}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ display: 'block', color: 'text.secondary' }}
+                  >
+                    {option.description}
+                  </Typography>
+                  {!option.enabled && option.disabledReason ? (
+                    <Typography
+                      variant="caption"
+                      sx={{ display: 'block', color: 'warning.main' }}
+                    >
+                      {option.disabledReason}
+                    </Typography>
+                  ) : null}
+                </Box>
+              </ButtonBase>
+            ))}
+          </Box>
+          <Collapse in={selected !== null} unmountOnExit>
+            {/* `key` remounts the panel on option switch so each form starts clean. */}
+            <Box
+              key={selected ?? 'none'}
+              sx={{
+                mt: 1.5,
+                p: 1.5,
+                border: '1px solid var(--hotel-border-subtle)',
+                borderRadius: 1.5,
+                bgcolor: 'var(--hotel-surface-sunken)',
+              }}
+            >
+              {selected === 'refund' && (
+                <RefundPanel
+                  amount={held}
+                  methods={methods}
+                  busy={busy.refunding}
+                  formatMoney={formatMoney}
+                  onSubmit={onRefund}
+                />
+              )}
+              {selected === 'forfeit' && (
+                <ForfeitPanel
+                  remaining={resolution.remaining}
+                  busy={busy.forfeiting}
+                  currencySymbol={currencySymbol}
+                  formatMoney={formatMoney}
+                  onSubmit={onForfeit}
+                />
+              )}
+              {selected === 'cancel' && (
+                <CancelPanel
+                  recorded={
+                    isPositiveMoney(resolution.collected)
+                      ? resolution.collected
+                      : resolution.mirrorDue
+                  }
+                  busy={busy.cancelling}
+                  formatMoney={formatMoney}
+                  onSubmit={onCancel}
+                />
+              )}
+            </Box>
+          </Collapse>
+        </Box>
+      ) : null}
+
+      {resolvedStrip ? <Box sx={{ px: 1.5, pb: 1.5 }}>{resolvedStrip}</Box> : null}
     </Box>
   );
 };
 
 /**
- * Deposit status card for the checkout invoice preview. The pending state
- * keeps the common path — refund — one click away; waive, forfeit and cancel
- * live behind the "Other options" expander. Resolved states (refunded,
- * forfeited, waived, none) render as a single tinted strip in the same shell.
- * Presentational only: all derivation and service calls stay in the parent
- * modal and arrive as props.
+ * Guided deposit-resolution card for the checkout invoice. Pending deposits
+ * pick one of three radio-style options (refund / forfeit / cancel
+ * uncollected) and only the selected form expands; resolved states render a
+ * single status strip. Presentational only — derivation and mutations arrive
+ * via props (Task 5 wires `useDepositResolution` in the modal).
  */
-const DepositSection: React.FC<DepositSectionProps> = (props) => {
-  const {
-    depositRefund,
-    refundableDeposit,
-    hasRecordedDeposit,
-    depositRefunded,
-    depositForfeited,
-    depositWaived,
-    depositWaiveReason,
-    forfeitReason,
-    forfeitAmount,
-    refundPaymentMethod,
-    refundingDeposit,
-    revertingRefund,
-    waivingDeposit,
-    forfeitingDeposit,
-    cancellingDeposit,
-    restoringDeposit,
-    readOnly,
-    canCancelDeposit,
-    voidedDepositCount,
-    noDepositLabel,
-    noDepositWaived,
-    currencySymbol,
-    formatCurrency,
-    onRefundMethodChange,
-    onWaiveReasonChange,
-    onForfeitReasonChange,
-    onForfeitAmountChange,
-    onRefund,
-    onRevertRefund,
-    onWaive,
-    onForfeit,
-    onCancelDeposit,
-    onRestoreDeposit,
-  } = props;
-
-  const [optionsOpen, setOptionsOpen] = useState(false);
-  const warn = statusToneVars('warning');
-  const pending = !depositRefunded && !depositForfeited;
-  // Same visibility rules as before the extraction: forfeit needs a real
-  // collected deposit row and is hidden in readOnly; waive shows whenever the
-  // deposit is unresolved; cancel only ever lived inside the forfeit block.
-  const showForfeit = pending && !readOnly && hasRecordedDeposit;
-  const showWaive = pending;
-  const showCancel = showForfeit && canCancelDeposit;
-
-  if (isPositiveMoney(depositRefund) && !depositWaived) {
-    return (
-      <Box sx={cardSx}>
-        {depositRefunded ? (
-          <StatusStrip
-            tone="success"
-            title="Deposit refunded"
-            caption="Refunded separately to guest"
-            amount={formatCurrency(depositRefund)}
-            chip={<StatusChip status="refunded" label="Refunded" tone="success" />}
-            actions={
-              !readOnly ? (
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="warning"
-                  onClick={onRevertRefund}
-                  disabled={revertingRefund}
-                  startIcon={revertingRefund ? <CircularProgress size={14} /> : undefined}
-                  sx={{ fontSize: '0.7rem', py: 0.25 }}
-                >
-                  Revert
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : depositForfeited ? (
-          <StatusStrip
-            tone="orange"
-            title="Deposit forfeited to the hotel"
-            amount={formatCurrency(depositRefund)}
-            chip={<StatusChip status="forfeited" label="Forfeited" tone="warning" />}
-          />
-        ) : (
-          <>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, flexWrap: 'wrap' }}>
-              <Box
-                sx={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  bgcolor: warn.bg,
-                  border: `1px solid ${warn.border}`,
-                  color: warn.fg,
-                }}
-              >
-                <DepositIcon fontSize="small" />
-              </Box>
-              <Box sx={{ flex: 1, minWidth: 160 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Security deposit
-                </Typography>
-                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-                  {formatCurrency(depositRefund)} — must be refunded, forfeited, or waived before checkout
-                </Typography>
-              </Box>
-              <StatusChip status="pending" label="Pending" tone="warning" />
-            </Box>
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                px: 1.5,
-                py: 1.25,
-                borderTop: '1px solid var(--hotel-border-subtle)',
-                flexWrap: 'wrap',
-              }}
-            >
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                Refund via
-              </Typography>
-              <FormControl size="small" sx={{ minWidth: 110 }}>
-                <Select
-                  value={refundPaymentMethod}
-                  onChange={(e) => onRefundMethodChange(e.target.value)}
-                  size="small"
-                  sx={{ fontSize: '0.8rem' }}
-                >
-                  <MenuItem value="cash">Cash</MenuItem>
-                  <MenuItem value="card">Card</MenuItem>
-                  <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
-                  <MenuItem value="duitnow">DuitNow</MenuItem>
-                </Select>
-              </FormControl>
-              <Box sx={{ flex: 1 }} />
-              <Button
-                size="small"
-                variant="contained"
-                color="success"
-                onClick={onRefund}
-                disabled={refundingDeposit}
-                startIcon={refundingDeposit ? <CircularProgress size={14} /> : <PaymentIcon />}
-                sx={{ fontSize: '0.75rem', py: 0.5 }}
-              >
-                Refund {formatCurrency(depositRefund)}
-              </Button>
-            </Box>
-            <ButtonBase
-              onClick={() => setOptionsOpen((o) => !o)}
-              aria-expanded={optionsOpen}
-              sx={{
-                width: '100%',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                px: 1.5,
-                py: 0.75,
-                borderTop: '1px solid var(--hotel-border-subtle)',
-                color: 'text.secondary',
-              }}
-            >
-              <Typography
-                variant="caption"
-                sx={{ fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase' }}
-              >
-                Other options
-              </Typography>
-              <ExpandMoreIcon
-                fontSize="small"
-                sx={{
-                  transform: optionsOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: (theme) => theme.transitions.create('transform'),
-                }}
-              />
-            </ButtonBase>
-            <Collapse in={optionsOpen} unmountOnExit>
-              <Box
-                sx={{
-                  px: 1.5,
-                  py: 1.5,
-                  bgcolor: 'var(--hotel-surface-sunken)',
-                  borderTop: '1px solid var(--hotel-border-subtle)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
-                }}
-              >
-                {showForfeit && (
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{ display: 'block', mb: 1, color: 'text.secondary' }}
-                    >
-                      Forfeit — keep the deposit (e.g., lost keycard, damage):
-                    </Typography>
-                    <Grid container spacing={1} sx={{ alignItems: 'flex-start' }}>
-                      <Grid size={{ xs: 12, sm: 5 }}>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          placeholder="Reason for forfeiting deposit"
-                          value={forfeitReason}
-                          onChange={(e) => onForfeitReasonChange(e.target.value)}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          type="number"
-                          label="Forfeit amount"
-                          value={forfeitAmount || ''}
-                          onChange={(e) => onForfeitAmountChange(toMoneyNumber(e.target.value))}
-                          error={isGreaterMoney(forfeitAmount, refundableDeposit)}
-                          helperText={
-                            isGreaterMoney(forfeitAmount, refundableDeposit)
-                              ? `Cannot exceed refundable deposit of ${formatCurrency(refundableDeposit)}`
-                              : `Refundable deposit: ${formatCurrency(refundableDeposit)}`
-                          }
-                          slotProps={{
-                            input: {
-                              startAdornment: (
-                                <InputAdornment position="start">{currencySymbol}</InputAdornment>
-                              ),
-                            },
-                            htmlInput: { min: 0, max: refundableDeposit, step: 0.01 },
-                          }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="warning"
-                          fullWidth
-                          onClick={onForfeit}
-                          disabled={
-                            !forfeitReason.trim()
-                            || !isPositiveMoney(forfeitAmount)
-                            || isGreaterMoney(forfeitAmount, refundableDeposit)
-                            || forfeitingDeposit
-                          }
-                          startIcon={forfeitingDeposit ? <CircularProgress size={14} /> : undefined}
-                          sx={{ fontSize: '0.75rem', py: 0.5 }}
-                        >
-                          Forfeit Deposit
-                        </Button>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                )}
-                {showWaive && (
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{ display: 'block', mb: 1, color: 'text.secondary' }}
-                    >
-                      Deposit recorded but never collected — waive it:
-                    </Typography>
-                    <Grid container spacing={1} sx={{ alignItems: 'center' }}>
-                      <Grid size={{ xs: 12, sm: 8 }}>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          placeholder="Reason for waiving deposit (e.g., recorded in error)"
-                          value={depositWaiveReason}
-                          onChange={(e) => onWaiveReasonChange(e.target.value)}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="warning"
-                          fullWidth
-                          onClick={onWaive}
-                          disabled={!depositWaiveReason.trim() || waivingDeposit}
-                          startIcon={waivingDeposit ? <CircularProgress size={14} /> : undefined}
-                          sx={{ fontSize: '0.75rem', py: 0.5 }}
-                        >
-                          Waive Deposit
-                        </Button>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                )}
-                {showCancel && (
-                  <Button
-                    size="small"
-                    variant="text"
-                    color="error"
-                    onClick={onCancelDeposit}
-                    disabled={cancellingDeposit}
-                    startIcon={cancellingDeposit ? <CircularProgress size={14} /> : undefined}
-                    sx={{ fontSize: '0.75rem', alignSelf: 'flex-start' }}
-                  >
-                    Cancel deposit (recorded but not collected)
-                  </Button>
-                )}
-              </Box>
-            </Collapse>
-          </>
-        )}
-      </Box>
-    );
-  }
-
-  if (depositWaived) {
-    return (
-      <Box sx={cardSx}>
-        <StatusStrip
-          tone="warning"
-          title="Deposit waived"
-          caption={depositWaiveReason ? `Waived: ${depositWaiveReason}` : undefined}
-          chip={<StatusChip status="waived" label="Waived" tone="warning" />}
-        />
-      </Box>
-    );
-  }
-
-  return (
-    <Box sx={cardSx}>
-      <StatusStrip
-        tone="info"
-        title="Deposit"
-        chip={
-          <StatusChip
-            status={noDepositLabel}
-            label={noDepositLabel}
-            tone={noDepositWaived ? 'warning' : 'info'}
-          />
-        }
-        actions={
-          canCancelDeposit && voidedDepositCount > 0 ? (
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={onRestoreDeposit}
-              disabled={restoringDeposit}
-              startIcon={restoringDeposit ? <CircularProgress size={14} /> : undefined}
-              sx={{ fontSize: '0.75rem' }}
-            >
-              Restore deposit{voidedDepositCount > 1 ? ` (${voidedDepositCount} cancelled)` : ''}
-            </Button>
-          ) : undefined
-        }
-      />
-    </Box>
-  );
-};
+const DepositSection: React.FC<DepositSectionProps> = (props) =>
+  'resolution' in props ? <GuidedDepositSection {...props} /> : null;
 
 export default DepositSection;

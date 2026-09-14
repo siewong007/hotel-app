@@ -40,6 +40,14 @@ export interface DepositResolution {
   method: string | null;
   /** Timestamp of the latest completed deposit row (falls back to the booking mirror's deposit_paid_at). */
   collectedAt: string | null;
+  /** Tender of the latest active refund row, when one exists. */
+  refundMethod: string | null;
+  /** Timestamp of the latest active refund row. */
+  refundedAt: string | null;
+  /** Staff-supplied reference stored on the latest active refund row. */
+  refundReference: string | null;
+  /** Reason text carried by the latest forfeit row ('Deposit forfeited: ' prefix stripped). */
+  forfeitReason: string | null;
   status: DepositResolutionStatus;
   /** Voided deposit rows — restorable via restoreDeposit(). */
   voidedDepositCount: number;
@@ -143,17 +151,31 @@ export function deriveDepositResolution(
   ).length;
   const mirrorDue = booking?.deposit_paid ? toMoneyNumber(booking.deposit_amount) : 0;
 
-  // The latest completed deposit row carries the collection tender + time —
-  // multiple rows are possible (the mirror mints a delta row when the
-  // asserted amount grows).
-  const latestDepositRow = payments
-    .filter(isCompletedDepositRow)
-    .reduce<CheckoutPaymentRecord | null>((latest, row) => {
+  // The latest row of each type carries the display details — multiple
+  // deposit rows are possible (the mirror mints a delta row when the asserted
+  // amount grows), and the resolved strips show the refund/forfeit row's own
+  // tender, time, reference and reason rather than the deposit's.
+  const latestRow = (rows: CheckoutPaymentRecord[]): CheckoutPaymentRecord | null =>
+    rows.reduce<CheckoutPaymentRecord | null>((latest, row) => {
       if (!latest) return row;
       const rowTs = paymentTimestamp(row);
       const latestTs = paymentTimestamp(latest);
       return rowTs > latestTs || (rowTs === latestTs && row.id > latest.id) ? row : latest;
     }, null);
+  const latestDepositRow = latestRow(payments.filter(isCompletedDepositRow));
+  const latestRefundRow = latestRow(
+    payments.filter((p) => paymentType(p) === 'refund' && p.payment_status === 'refunded'),
+  );
+  const latestForfeitRow = latestRow(
+    payments.filter(
+      (p) => paymentType(p) === 'deposit_forfeited' && p.payment_status === 'completed',
+    ),
+  );
+  // Forfeit rows store 'Deposit forfeited: {reason} — {staff notes}'; the
+  // strip shows the reason text, so strip the fixed prefix only.
+  const forfeitReason = latestForfeitRow?.notes
+    ? latestForfeitRow.notes.replace(/^deposit forfeited:\s*/i, '').trim() || null
+    : null;
 
   const status: DepositResolutionStatus = (() => {
     // Money still held dominates every other state — a partially refunded or
@@ -182,6 +204,10 @@ export function deriveDepositResolution(
     collectedAt: latestDepositRow
       ? paymentTimestamp(latestDepositRow) || null
       : booking?.deposit_paid_at ?? null,
+    refundMethod: latestRefundRow?.payment_method ?? null,
+    refundedAt: latestRefundRow ? paymentTimestamp(latestRefundRow) || null : null,
+    refundReference: latestRefundRow?.transaction_reference ?? null,
+    forfeitReason,
     status,
     voidedDepositCount,
     mirrorDue,
