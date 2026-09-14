@@ -470,4 +470,62 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
       (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
+
+  it('releases the checkout gate when forfeit rows on the ledger already cover the held deposit', async () => {
+    // The deposit is resolved by the ledger itself — no click this session.
+    // The flag is derived from the rows so an out-of-band un-forfeit (void of
+    // the deposit_forfeited row) would re-arm the gate on the next reload.
+    mocks.payments = [
+      depositRow,
+      { id: 3, payment_status: 'completed', payment_type: 'deposit_forfeited', total_amount: 50, payment_method: 'cash' },
+      billPayment,
+    ];
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByText('Deposit forfeited')).toBeDefined();
+    await waitFor(() =>
+      expect(
+        (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    );
+    expect(mocks.forfeitDeposit).not.toHaveBeenCalled();
+  });
+
+  it('keeps the checkout gate locked when a partial forfeit row leaves money held', async () => {
+    mocks.payments = [
+      depositRow,
+      { id: 3, payment_status: 'completed', payment_type: 'deposit_forfeited', total_amount: 20, payment_method: 'cash' },
+      billPayment,
+    ];
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('Deposit forfeited')).toBeDefined());
+    // RM30 of the deposit is still refundable, so checkout stays blocked.
+    expect(
+      (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    // …and the forfeit field now defaults to the remaining refundable amount.
+    expect((within(dialog).getByLabelText('Forfeit amount') as HTMLInputElement).value).toBe('30');
+  });
+
+  it('flags an over-ceiling forfeit amount and keeps the action disabled', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.change(within(dialog).getByLabelText('Forfeit amount'), { target: { value: '60' } });
+    fireEvent.change(
+      within(dialog).getByPlaceholderText(/Reason for forfeiting deposit/i),
+      { target: { value: 'Lost keycard' } },
+    );
+
+    await waitFor(() =>
+      expect(within(dialog).getByText(/Cannot exceed refundable deposit of RM50\.00/)).toBeDefined(),
+    );
+    expect(
+      (within(dialog).getByRole('button', { name: 'Forfeit Deposit' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(mocks.forfeitDeposit).not.toHaveBeenCalled();
+  });
 });

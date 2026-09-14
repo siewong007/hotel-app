@@ -262,6 +262,18 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     setForfeitAmount(refundableDeposit);
   }, [refundableDeposit]);
 
+  // `depositForfeited` reflects the ledger, not just the local click — the
+  // same way `depositRefunded` is re-derived from rows on every
+  // `reloadPayments`. An out-of-band void of a forfeit row (the un-forfeit
+  // escape hatch, `payments:manage`) re-opens the held deposit, so the flag
+  // recomputes from the rows whenever they change (and on every open): true
+  // iff forfeit rows exist and leave nothing refundable.
+  useEffect(() => {
+    setDepositForfeited(
+      isPositiveMoney(forfeitedDepositTotal) && !isPositiveMoney(refundableDeposit),
+    );
+  }, [open, booking, forfeitedDepositTotal, refundableDeposit]);
+
   const handleRecordPayment = async () => {
     if (!booking || !isPositiveMoney(paymentAmount)) return;
     const amount = toMoneyNumber(paymentAmount);
@@ -477,6 +489,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     const reason = forfeitReason.trim();
     const amount = toMoneyNumber(forfeitAmount);
     if (!booking || !reason || !isPositiveMoney(amount)) return;
+    // Client-side cap: the button's disabled state isn't a real guard for
+    // keyboard/programmatic paths — refuse over-ceiling forfeits locally
+    // instead of relying on the backend 400.
+    if (isGreaterMoney(amount, refundableDeposit)) {
+      setError(`Forfeit amount cannot exceed the refundable deposit of ${formatCurrency(refundableDeposit)}`);
+      return;
+    }
     try {
       setForfeitingDeposit(true);
       await InvoicesService.forfeitDeposit(booking.id, amount, reason);
@@ -1373,10 +1392,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           label="Forfeit amount"
                           value={forfeitAmount || ''}
                           onChange={(e) => setForfeitAmount(toMoneyNumber(e.target.value))}
+                          error={isGreaterMoney(forfeitAmount, refundableDeposit)}
+                          helperText={
+                            isGreaterMoney(forfeitAmount, refundableDeposit)
+                              ? `Cannot exceed refundable deposit of ${formatCurrency(refundableDeposit)}`
+                              : `Refundable deposit: ${formatCurrency(refundableDeposit)}`
+                          }
                           slotProps={{
                             input: {
                               startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                            }
+                            },
+                            htmlInput: { min: 0, max: refundableDeposit, step: 0.01 }
                           }}
                         />
                       </Grid>
