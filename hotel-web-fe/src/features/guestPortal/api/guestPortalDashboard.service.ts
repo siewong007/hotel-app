@@ -19,6 +19,7 @@
  */
 import { api } from '../../../api/client';
 import type { ConsentAcceptance } from '../../legal/useConsent';
+import { SKIP_API_NOTIFICATION_HEADER } from '../../../utils/apiNotifications';
 import { getPortalToken } from './portalTokenStore';
 import type {
   GuestPortalBenefitsResponse,
@@ -50,7 +51,12 @@ function authHeaders(token?: string): Record<string, string> {
   if (!guestToken) {
     throw new Error('Not signed in to the guest portal');
   }
-  return { Authorization: `Bearer ${guestToken}` };
+  // Guest surfaces render every failure inline — the shared client's
+  // global toast would repeat the same message.
+  return {
+    Authorization: `Bearer ${guestToken}`,
+    [SKIP_API_NOTIFICATION_HEADER]: 'true',
+  };
 }
 
 function withPageParams(params?: PortalPageParams): URLSearchParams | undefined {
@@ -67,7 +73,12 @@ export class GuestPortalDashboardService {
     // A portal session is needed before any guest page can render. Fail quickly
     // enough to offer recovery controls instead of leaving the experience on an
     // indefinite loading screen when the local backend is unavailable.
-    return await api.post('guest-portal/session', { timeout: 10_000 }).json();
+    return await api
+      .post('guest-portal/session', {
+        timeout: 10_000,
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+      })
+      .json();
   }
 
   static async logout(token?: string): Promise<void> {

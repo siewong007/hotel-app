@@ -1,5 +1,6 @@
 import { api } from '../../../api/client';
 import { apiUrl } from '../../../desktop/runtimeApi';
+import { SKIP_API_NOTIFICATION_HEADER } from '../../../utils/apiNotifications';
 import { getPortalToken } from '../api/portalTokenStore';
 import type {
   CreateAnonymousBookingRequest,
@@ -17,7 +18,12 @@ function authHeaders(token?: string): Record<string, string> {
   if (!portalToken) {
     throw new Error('Sign in to the guest portal to continue');
   }
-  return { Authorization: `Bearer ${portalToken}` };
+  // Guest surfaces render every failure inline — the shared client's
+  // global toast would repeat the same message.
+  return {
+    Authorization: `Bearer ${portalToken}`,
+    [SKIP_API_NOTIFICATION_HEADER]: 'true',
+  };
 }
 
 export const GuestBookingApi = {

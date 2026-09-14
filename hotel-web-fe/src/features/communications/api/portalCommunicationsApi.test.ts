@@ -34,7 +34,10 @@ describe('PortalCommunicationsApi', () => {
     await PortalCommunicationsApi.getPreferences('guest-token-a');
 
     expect(get).toHaveBeenCalledWith('guest-portal/me/notification-preferences', {
-      headers: { Authorization: 'Bearer guest-token-a' },
+      headers: {
+        Authorization: 'Bearer guest-token-a',
+        'x-skip-api-notification': 'true',
+      },
     });
     expect(getPortalToken).not.toHaveBeenCalled();
   });
@@ -50,7 +53,10 @@ describe('PortalCommunicationsApi', () => {
     await PortalCommunicationsApi.updatePreferences(input);
 
     expect(put).toHaveBeenCalledWith('guest-portal/me/notification-preferences', {
-      headers: { Authorization: 'Bearer stored-guest-token' },
+      headers: {
+        Authorization: 'Bearer stored-guest-token',
+        'x-skip-api-notification': 'true',
+      },
       json: input,
     });
   });

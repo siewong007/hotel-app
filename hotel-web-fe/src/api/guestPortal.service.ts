@@ -1,5 +1,6 @@
 import { api } from './client';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
+import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import {
   Booking,
   Guest,
@@ -19,7 +20,12 @@ import {
 export const BOOKING_ACCESS_TOKEN_HEADER = 'X-Booking-Access-Token';
 
 function bookingTokenHeaders(token: string): Record<string, string> {
-  return { [BOOKING_ACCESS_TOKEN_HEADER]: token };
+  // Guest surfaces render every failure inline — the shared client's
+  // global toast would repeat the same message.
+  return {
+    [BOOKING_ACCESS_TOKEN_HEADER]: token,
+    [SKIP_API_NOTIFICATION_HEADER]: 'true',
+  };
 }
 
 export class GuestPortalService {
@@ -27,7 +33,12 @@ export class GuestPortalService {
     booking_number: string;
     name: string;
   }): Promise<{ token: string; expires_at: string; booking_id: string }> {
-    return await api.post('guest-portal/verify', { json: request }).json();
+    return await api
+      .post('guest-portal/verify', {
+        json: request,
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+      })
+      .json();
   }
 
   static async getBooking(token: string): Promise<{

@@ -39,7 +39,10 @@ describe('GuestPortalSupportService', () => {
     ).resolves.toEqual(response);
 
     expect(get).toHaveBeenCalledWith('guest-portal/me/support/conversations', {
-      headers: { Authorization: 'Bearer guest-session-token' },
+      headers: {
+        Authorization: 'Bearer guest-session-token',
+        'x-skip-api-notification': 'true',
+      },
       searchParams: { page: 2, page_size: 20 },
     });
   });
@@ -50,7 +53,10 @@ describe('GuestPortalSupportService', () => {
     await GuestPortalSupportService.getConversation('guest / conversation', 'guest-session-token');
 
     expect(get).toHaveBeenCalledWith('guest-portal/me/support/conversations/guest%20%2F%20conversation', {
-      headers: { Authorization: 'Bearer guest-session-token' },
+      headers: {
+        Authorization: 'Bearer guest-session-token',
+        'x-skip-api-notification': 'true',
+      },
     });
   });
 
@@ -65,7 +71,10 @@ describe('GuestPortalSupportService', () => {
     await GuestPortalSupportService.createConversation(request, 'guest-session-token');
 
     expect(post).toHaveBeenCalledWith('guest-portal/me/support/conversations', {
-      headers: { Authorization: 'Bearer guest-session-token' },
+      headers: {
+        Authorization: 'Bearer guest-session-token',
+        'x-skip-api-notification': 'true',
+      },
       json: request,
     });
   });
@@ -81,7 +90,10 @@ describe('GuestPortalSupportService', () => {
     await GuestPortalSupportService.sendMessage(17, request, 'guest-session-token');
 
     expect(post).toHaveBeenCalledWith('guest-portal/me/support/conversations/17/messages', {
-      headers: { Authorization: 'Bearer guest-session-token' },
+      headers: {
+        Authorization: 'Bearer guest-session-token',
+        'x-skip-api-notification': 'true',
+      },
       json: request,
     });
   });
@@ -92,7 +104,10 @@ describe('GuestPortalSupportService', () => {
     await GuestPortalSupportService.reopenConversation(17, 'guest-session-token');
 
     expect(post).toHaveBeenCalledWith('guest-portal/me/support/conversations/17/reopen', {
-      headers: { Authorization: 'Bearer guest-session-token' },
+      headers: {
+        Authorization: 'Bearer guest-session-token',
+        'x-skip-api-notification': 'true',
+      },
       json: {},
     });
   });

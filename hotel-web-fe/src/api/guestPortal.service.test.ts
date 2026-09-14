@@ -36,6 +36,7 @@ describe('GuestPortalService', () => {
 
       expect(post).toHaveBeenCalledWith('guest-portal/verify', {
         json: { booking_number: 'BK-1', name: 'John Wong' },
+        headers: { 'x-skip-api-notification': 'true' },
       });
       expect(result).toEqual(response);
     });
@@ -49,7 +50,10 @@ describe('GuestPortalService', () => {
       const result = await GuestPortalService.getBooking('tok_abc');
 
       expect(get).toHaveBeenCalledWith('guest-portal/booking', {
-        headers: { 'X-Booking-Access-Token': 'tok_abc' },
+        headers: {
+          'X-Booking-Access-Token': 'tok_abc',
+          'x-skip-api-notification': 'true',
+        },
       });
       expect(result).toEqual(response);
     });
@@ -68,7 +72,10 @@ describe('GuestPortalService', () => {
 
       expect(post).toHaveBeenCalledWith('guest-portal/pre-checkin', {
         json: request,
-        headers: { 'X-Booking-Access-Token': 'tok_abc' },
+        headers: {
+          'X-Booking-Access-Token': 'tok_abc',
+          'x-skip-api-notification': 'true',
+        },
       });
       expect(result).toEqual(response);
     });
@@ -82,7 +89,10 @@ describe('GuestPortalService', () => {
       const result = await GuestPortalService.paymentConfig('tok_abc');
 
       expect(get).toHaveBeenCalledWith('guest-portal/payment-config', {
-        headers: { 'X-Booking-Access-Token': 'tok_abc' },
+        headers: {
+          'X-Booking-Access-Token': 'tok_abc',
+          'x-skip-api-notification': 'true',
+        },
       });
       expect(result).toEqual(config);
     });
@@ -99,7 +109,10 @@ describe('GuestPortalService', () => {
       const result = await GuestPortalService.submitBankTransfer('tok_abc', consents);
 
       expect(post).toHaveBeenCalledWith('guest-portal/booking/payments/bank-transfer', {
-        headers: { 'X-Booking-Access-Token': 'tok_abc' },
+        headers: {
+          'X-Booking-Access-Token': 'tok_abc',
+          'x-skip-api-notification': 'true',
+        },
         json: { consents },
       });
       expect(result).toEqual(response);
@@ -118,7 +131,10 @@ describe('GuestPortalService', () => {
       expect(url).toBe('guest-portal/booking/payments/42/receipt');
       expect(options.body).toBeInstanceOf(FormData);
       expect(options.body.get('file')).toBe(file);
-      expect(options.headers).toEqual({ 'X-Booking-Access-Token': 'tok_abc' });
+      expect(options.headers).toEqual({
+        'X-Booking-Access-Token': 'tok_abc',
+        'x-skip-api-notification': 'true',
+      });
     });
   });
 
@@ -133,7 +149,10 @@ describe('GuestPortalService', () => {
       const result = await GuestPortalService.createPaypalOrder('tok_abc', consents);
 
       expect(post).toHaveBeenCalledWith('guest-portal/booking/payments/paypal/create-order', {
-        headers: { 'X-Booking-Access-Token': 'tok_abc' },
+        headers: {
+          'X-Booking-Access-Token': 'tok_abc',
+          'x-skip-api-notification': 'true',
+        },
         json: { consents },
       });
       expect(result).toEqual(response);
@@ -149,7 +168,10 @@ describe('GuestPortalService', () => {
 
       expect(post).toHaveBeenCalledWith('guest-portal/booking/payments/paypal/capture', {
         json: { order_id: 'ord_1', payment_id: 9 },
-        headers: { 'X-Booking-Access-Token': 'tok_abc' },
+        headers: {
+          'X-Booking-Access-Token': 'tok_abc',
+          'x-skip-api-notification': 'true',
+        },
       });
       expect(result).toEqual(response);
     });
