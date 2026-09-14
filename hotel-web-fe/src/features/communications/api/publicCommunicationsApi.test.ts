@@ -27,7 +27,9 @@ describe('PublicCommunicationsApi', () => {
 
     await PublicCommunicationsApi.view('signed/token?one');
 
-    expect(get).toHaveBeenCalledWith('/communications/unsubscribe/signed%2Ftoken%3Fone');
+    expect(get).toHaveBeenCalledWith('/communications/unsubscribe/signed%2Ftoken%3Fone', {
+      headers: { 'x-skip-api-notification': 'true' },
+    });
   });
 
   it('keeps per-topic and global unsubscribe payloads distinct', async () => {
@@ -37,9 +39,11 @@ describe('PublicCommunicationsApi', () => {
     await PublicCommunicationsApi.unsubscribeAll('signed-token');
 
     expect(post).toHaveBeenNthCalledWith(1, '/communications/unsubscribe/signed-token', {
+      headers: { 'x-skip-api-notification': 'true' },
       json: { topic: 'promotion' },
     });
     expect(post).toHaveBeenNthCalledWith(2, '/communications/unsubscribe/signed-token', {
+      headers: { 'x-skip-api-notification': 'true' },
       json: { global: true },
     });
   });

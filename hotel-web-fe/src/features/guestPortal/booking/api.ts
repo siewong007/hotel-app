@@ -86,6 +86,9 @@ export const PublicBookingApi = {
   search(input: GuestBookingSearch): Promise<GuestBookingOffer[]> {
     return api
       .get('booking/offers', {
+        // Anonymous booking failures render inline on PortalBookingPage —
+        // suppress the shared client's duplicate global toast.
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
         searchParams: Object.fromEntries(
           Object.entries(input).map(([key, value]) => [key, String(value)]),
         ),
@@ -94,12 +97,20 @@ export const PublicBookingApi = {
   },
 
   quote(input: GuestBookingQuoteRequest): Promise<GuestBookingQuote> {
-    return api.post('booking/quote', { json: input }).json<GuestBookingQuote>();
+    return api
+      .post('booking/quote', {
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        json: input,
+      })
+      .json<GuestBookingQuote>();
   },
 
   create(input: CreateAnonymousBookingRequest): Promise<GuestBookingConfirmation> {
     return api
-      .post('booking/reservations', { json: input })
+      .post('booking/reservations', {
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        json: input,
+      })
       .json<GuestBookingConfirmation>();
   },
 };

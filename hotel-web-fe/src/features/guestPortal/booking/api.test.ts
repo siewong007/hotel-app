@@ -109,12 +109,45 @@ describe('PublicBookingApi', () => {
     post.mockReset();
   });
 
-  it('sends no auth or skip headers on the anonymous endpoints', async () => {
+  it('sends no auth header but skips the global toast on anonymous search', async () => {
     get.mockReturnValue(jsonResponse([]));
 
     await PublicBookingApi.search(SEARCH);
 
-    const options = get.mock.calls[0][1];
-    expect(options.headers).toBeUndefined();
+    expect(get).toHaveBeenCalledWith('booking/offers', {
+      headers: { 'x-skip-api-notification': 'true' },
+      searchParams: {
+        check_in_date: '2026-10-01',
+        check_out_date: '2026-10-03',
+        adults: '2',
+        children: '0',
+      },
+    });
+  });
+
+  it('sends no auth header but skips the global toast on anonymous quote and create', async () => {
+    const quoteInput = { ...SEARCH, room_type_id: 7 };
+    const createInput = {
+      ...SEARCH,
+      room_type_id: 7,
+      client_request_id: 'req-anon-1',
+      expected_total: '250.00',
+      guest: { first_name: 'anon-guest', email: 'anon@example.com', tourism_type: 'local' as const },
+      consents: [],
+      marketing_opt_in: false,
+    };
+    post.mockReturnValue(jsonResponse({}));
+
+    await PublicBookingApi.quote(quoteInput);
+    await PublicBookingApi.create(createInput);
+
+    expect(post).toHaveBeenNthCalledWith(1, 'booking/quote', {
+      headers: { 'x-skip-api-notification': 'true' },
+      json: quoteInput,
+    });
+    expect(post).toHaveBeenNthCalledWith(2, 'booking/reservations', {
+      headers: { 'x-skip-api-notification': 'true' },
+      json: createInput,
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { api } from '../../../api/client';
+import { SKIP_API_NOTIFICATION_HEADER } from '../../../utils/apiNotifications';
 import type {
   CampaignPerformance,
   Promotion,
@@ -33,7 +34,12 @@ function toSearchParams(
 export const PromotionsApi = {
   listPublic(params?: PromotionListParams): Promise<PromotionListResponse> {
     return api
-      .get('promotions', { searchParams: toSearchParams(params) })
+      .get('promotions', {
+        // Sole caller is the guest-facing PromotionCatalog, which renders
+        // load failures inline — suppress the duplicate global toast.
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        searchParams: toSearchParams(params),
+      })
       .json<PromotionListResponse>();
   },
 

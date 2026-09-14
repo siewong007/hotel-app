@@ -18,9 +18,13 @@ function jsonResponse<T>(value: T) {
   return { json: vi.fn().mockResolvedValue(value) };
 }
 
-function latestSearchParams(mock: ReturnType<typeof vi.fn>): URLSearchParams {
+function latestOptions(mock: ReturnType<typeof vi.fn>): Record<string, unknown> {
   const call = mock.mock.calls[mock.mock.calls.length - 1];
-  return call[1].searchParams as URLSearchParams;
+  return call[1] as Record<string, unknown>;
+}
+
+function latestSearchParams(mock: ReturnType<typeof vi.fn>): URLSearchParams {
+  return latestOptions(mock).searchParams as URLSearchParams;
 }
 
 describe('PromotionsApi', () => {
@@ -41,7 +45,12 @@ describe('PromotionsApi', () => {
       promotion_kind: 'voucher',
     });
 
-    expect(get).toHaveBeenCalledWith('promotions', expect.anything());
+    expect(get).toHaveBeenCalledWith(
+      'promotions',
+      expect.objectContaining({
+        headers: { 'x-skip-api-notification': 'true' },
+      }),
+    );
     expect(Object.fromEntries(latestSearchParams(get))).toEqual({
       page: '2',
       page_size: '25',
@@ -103,6 +112,8 @@ describe('PromotionsApi', () => {
     await PromotionsApi.revokeVoucher(9, { reason: 'Requested by guest' });
 
     expect(get).toHaveBeenCalledWith('admin/vouchers', expect.anything());
+    // Staff-facing endpoints keep the global error toast — no skip header.
+    expect(latestOptions(get).headers).toBeUndefined();
     expect(Object.fromEntries(latestSearchParams(get))).toEqual({
       page: '1',
       page_size: '50',
