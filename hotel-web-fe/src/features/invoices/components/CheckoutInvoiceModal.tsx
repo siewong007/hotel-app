@@ -45,6 +45,7 @@ import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../u
 import { isDepositLikePayment, settledPaymentsTotal } from '../utils/payments';
 import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
+import DepositSection from './DepositSection';
 import { formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
 import { divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 import { formatStatusLabel } from '../../../utils/formatters';
@@ -1325,281 +1326,44 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Box>
             </Box>
             </PhoneCollapsibleSection>
-            {/* Deposit Refund Section */}
-            {isPositiveMoney(charges.depositRefund) && !depositWaived ? (
-              <PhoneCollapsibleSection isPhone={isPhone} title="Deposit adjustments" collapseOnPhone>
-              <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
-                <Box sx={{ p: 1.5, bgcolor: depositRefunded ? '#e8f5e9' : '#fff3e0' }}>
-                  <Grid container sx={{
-                    alignItems: "center"
-                  }}>
-                    <Grid size={{ xs: 12, sm: 5 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: depositRefunded ? '#2e7d32' : '#e65100' }}>
-                        {depositForfeited ? 'Deposit' : 'Deposit Refund'}
-                      </Typography>
-                      <Typography variant="caption" sx={{
-                        color: "text.secondary"
-                      }}>
-                        {depositRefunded
-                          ? 'Refunded separately to guest'
-                          : depositForfeited
-                            ? 'Forfeited to the hotel'
-                            : 'Must be refunded, forfeited, or waived before checkout'}
-                      </Typography>
-                    </Grid>
-                    <Grid sx={{ textAlign: 'right', display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: { xs: 'flex-start', sm: 'flex-end' }, gap: 1 }} size={{ xs: 12, sm: 7 }}>
-                      {depositRefunded ? (
-                        <>
-                          <Chip label="Refunded" size="small" color="success" />
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
-                            {formatCurrency(charges.depositRefund)}
-                          </Typography>
-                          {!readOnly && (
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="warning"
-                              onClick={handleRevertDepositRefund}
-                              disabled={revertingRefund}
-                              startIcon={revertingRefund ? <CircularProgress size={14} /> : undefined}
-                              sx={{ fontSize: '0.7rem', py: 0.25 }}
-                            >
-                              Revert
-                            </Button>
-                          )}
-                        </>
-                      ) : depositForfeited ? (
-                        <>
-                          <Chip label="Forfeited" size="small" color="warning" />
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#e65100' }}>
-                            {formatCurrency(charges.depositRefund)}
-                          </Typography>
-                        </>
-                      ) : (
-                        <>
-                          <FormControl size="small" sx={{ minWidth: 100 }}>
-                            <Select
-                              value={refundPaymentMethod}
-                              onChange={(e) => setRefundPaymentMethod(e.target.value)}
-                              size="small"
-                              sx={{ fontSize: '0.8rem' }}
-                            >
-                              <MenuItem value="cash">Cash</MenuItem>
-                              <MenuItem value="card">Card</MenuItem>
-                              <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
-                              <MenuItem value="duitnow">DuitNow</MenuItem>
-                            </Select>
-                          </FormControl>
-                          <Button
-                            size="small"
-                            variant="contained"
-                            color="success"
-                            onClick={handleRefundDeposit}
-                            disabled={refundingDeposit}
-                            startIcon={refundingDeposit ? <CircularProgress size={14} /> : <PaymentIcon />}
-                            sx={{ fontSize: '0.75rem', py: 0.5 }}
-                          >
-                            Refund {formatCurrency(charges.depositRefund)}
-                          </Button>
-                        </>
-                      )}
-                    </Grid>
-                  </Grid>
-                </Box>
-                {/* Waive Deposit Option — only for a deposit that was recorded
-                    on the booking but never actually collected (flag-only); a
-                    real collected deposit must be refunded or forfeited. */}
-                {!depositRefunded && !depositForfeited && (
-                  <Box sx={{ p: 1.5, borderTop: '1px solid #ddd', bgcolor: '#fafafa' }}>
-                    <Grid container spacing={1} sx={{
-                      alignItems: "center"
-                    }}>
-                      <Grid size={12}>
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: "text.secondary",
-                            mb: 1,
-                            display: 'block'
-                          }}>
-                          Deposit recorded but never collected — waive it:
-                        </Typography>
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 8 }}>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          placeholder="Reason for waiving deposit (e.g., recorded in error)"
-                          value={depositWaiveReason}
-                          onChange={(e) => setDepositWaiveReason(e.target.value)}
-                          sx={{ fontSize: '0.8rem' }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="warning"
-                          fullWidth
-                          onClick={handleWaiveDeposit}
-                          disabled={!depositWaiveReason.trim() || waivingDeposit}
-                          startIcon={waivingDeposit ? <CircularProgress size={14} /> : undefined}
-                          sx={{ fontSize: '0.75rem', py: 0.5 }}
-                        >
-                          Waive Deposit
-                        </Button>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                )}
-                {/* Forfeit Deposit Option — keeps the collected money as
-                    income (lost keycard, damage). Requires a recorded deposit
-                    row; flag-only deposits resolve via Waive instead. */}
-                {!readOnly && !depositRefunded && !depositForfeited && isPositiveMoney(recordedDeposit) && (
-                  <Box sx={{ p: 1.5, borderTop: '1px solid #ddd', bgcolor: '#fafafa' }}>
-                    <Grid container spacing={1} sx={{
-                      alignItems: "center"
-                    }}>
-                      <Grid size={12}>
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: "text.secondary",
-                            mb: 1,
-                            display: 'block'
-                          }}>
-                          Or forfeit the deposit — keep it (e.g., lost keycard, damage):
-                        </Typography>
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 5 }}>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          placeholder="Reason for forfeiting deposit"
-                          value={forfeitReason}
-                          onChange={(e) => setForfeitReason(e.target.value)}
-                          sx={{ fontSize: '0.8rem' }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          type="number"
-                          label="Forfeit amount"
-                          value={forfeitAmount || ''}
-                          onChange={(e) => setForfeitAmount(toMoneyNumber(e.target.value))}
-                          error={isGreaterMoney(forfeitAmount, refundableDeposit)}
-                          helperText={
-                            isGreaterMoney(forfeitAmount, refundableDeposit)
-                              ? `Cannot exceed refundable deposit of ${formatCurrency(refundableDeposit)}`
-                              : `Refundable deposit: ${formatCurrency(refundableDeposit)}`
-                          }
-                          slotProps={{
-                            input: {
-                              startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                            },
-                            htmlInput: { min: 0, max: refundableDeposit, step: 0.01 }
-                          }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="warning"
-                          fullWidth
-                          onClick={handleForfeitDeposit}
-                          disabled={
-                            !forfeitReason.trim()
-                            || !isPositiveMoney(forfeitAmount)
-                            || isGreaterMoney(forfeitAmount, refundableDeposit)
-                            || forfeitingDeposit
-                          }
-                          startIcon={forfeitingDeposit ? <CircularProgress size={14} /> : undefined}
-                          sx={{ fontSize: '0.75rem', py: 0.5 }}
-                        >
-                          Forfeit Deposit
-                        </Button>
-                      </Grid>
-                      {canCancelDeposit && (
-                        <Grid size={12}>
-                          <Button
-                            size="small"
-                            variant="text"
-                            color="error"
-                            onClick={handleCancelDeposit}
-                            disabled={cancellingDeposit}
-                            startIcon={cancellingDeposit ? <CircularProgress size={14} /> : undefined}
-                            sx={{ fontSize: '0.75rem' }}
-                          >
-                            Cancel deposit (recorded but not collected)
-                          </Button>
-                        </Grid>
-                      )}
-                    </Grid>
-                  </Box>
-                )}
-              </Box>
-              </PhoneCollapsibleSection>
-            ) : depositWaived ? (
-              <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
-                <Box sx={{ p: 1.5, bgcolor: '#fff3e0' }}>
-                  <Grid container sx={{
-                    alignItems: "center"
-                  }}>
-                    <Grid size={8}>
-                      <Typography variant="body2" sx={{ color: '#e65100', fontWeight: 600 }}>
-                        Deposit
-                      </Typography>
-                      <Typography variant="caption" sx={{
-                        color: "text.secondary"
-                      }}>
-                        Waived: {depositWaiveReason}
-                      </Typography>
-                    </Grid>
-                    <Grid sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }} size={4}>
-                      <Chip label="Waived" size="small" color="warning" />
-                    </Grid>
-                  </Grid>
-                </Box>
-              </Box>
-            ) : (
-              <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
-                <Box sx={{ p: 1.5, bgcolor: '#e3f2fd' }}>
-                  <Grid container sx={{
-                    alignItems: "center"
-                  }}>
-                    <Grid size={8}>
-                      <Typography variant="body2" sx={{ color: '#1565c0' }}>
-                        Deposit
-                      </Typography>
-                    </Grid>
-                    <Grid sx={{ textAlign: 'right' }} size={4}>
-                      <Chip
-                        label={booking?.company_id ? 'City Ledger - N/A' : booking?.payment_note?.includes('waived') ? 'Waived' : 'No Deposit Collected'}
-                        size="small"
-                        color={booking?.payment_note?.includes('waived') ? 'warning' : 'info'}
-                      />
-                    </Grid>
-                  </Grid>
-                </Box>
-                {canCancelDeposit && voidedDepositRows.length > 0 && (
-                  <Box sx={{ px: 1.5, pb: 1.5, display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={handleRestoreDeposit}
-                      disabled={restoringDeposit}
-                      startIcon={restoringDeposit ? <CircularProgress size={14} /> : undefined}
-                      sx={{ fontSize: '0.75rem' }}
-                    >
-                      Restore deposit{voidedDepositRows.length > 1 ? ` (${voidedDepositRows.length} cancelled)` : ''}
-                    </Button>
-                  </Box>
-                )}
-              </Box>
-            )}
+            {/* Deposit status card — refund/forfeit/waive/cancel workflow. */}
+            <PhoneCollapsibleSection isPhone={isPhone} title="Deposit adjustments" collapseOnPhone>
+              <DepositSection
+                depositRefund={charges.depositRefund}
+                refundableDeposit={refundableDeposit}
+                hasRecordedDeposit={isPositiveMoney(recordedDeposit)}
+                depositRefunded={depositRefunded}
+                depositForfeited={depositForfeited}
+                depositWaived={depositWaived}
+                depositWaiveReason={depositWaiveReason}
+                forfeitReason={forfeitReason}
+                forfeitAmount={forfeitAmount}
+                refundPaymentMethod={refundPaymentMethod}
+                refundingDeposit={refundingDeposit}
+                revertingRefund={revertingRefund}
+                waivingDeposit={waivingDeposit}
+                forfeitingDeposit={forfeitingDeposit}
+                cancellingDeposit={cancellingDeposit}
+                restoringDeposit={restoringDeposit}
+                readOnly={readOnly}
+                canCancelDeposit={canCancelDeposit}
+                voidedDepositCount={voidedDepositRows.length}
+                noDepositLabel={booking?.company_id ? 'City Ledger - N/A' : booking?.payment_note?.includes('waived') ? 'Waived' : 'No Deposit Collected'}
+                noDepositWaived={Boolean(booking?.payment_note?.includes('waived'))}
+                currencySymbol={currencySymbol}
+                formatCurrency={formatCurrency}
+                onRefundMethodChange={setRefundPaymentMethod}
+                onWaiveReasonChange={setDepositWaiveReason}
+                onForfeitReasonChange={setForfeitReason}
+                onForfeitAmountChange={setForfeitAmount}
+                onRefund={handleRefundDeposit}
+                onRevertRefund={handleRevertDepositRefund}
+                onWaive={handleWaiveDeposit}
+                onForfeit={handleForfeitDeposit}
+                onCancelDeposit={handleCancelDeposit}
+                onRestoreDeposit={handleRestoreDeposit}
+              />
+            </PhoneCollapsibleSection>
             {/* Payment Required Alert */}
             {requiresFullPaymentBeforeCheckout && (
               <Alert severity="warning" sx={{ mb: 2 }}>
