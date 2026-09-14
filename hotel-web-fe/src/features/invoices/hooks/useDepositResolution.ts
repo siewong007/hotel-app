@@ -52,6 +52,8 @@ export interface DepositResolution {
   status: DepositResolutionStatus;
   /** Voided deposit rows — restorable via restoreDeposit(). */
   voidedDepositCount: number;
+  /** Completed deposit payment rows — the cancel auto-route and its permission caption key off this. */
+  completedDepositCount: number;
   /** booking.deposit_paid ? booking.deposit_amount : 0 — mirror, not money. */
   mirrorDue: number;
 }
@@ -112,8 +114,11 @@ export interface UseDepositResolutionResult {
 const paymentType = (payment: CheckoutPaymentRecord): string =>
   (payment.payment_type || '').toLowerCase();
 
+// `payment_date` is date-only (the backend serializes created_at::date), so
+// prefer the full `created_at` — otherwise collectedAt/refundedAt render as
+// midnight instead of the actual collection/refund time.
 const paymentTimestamp = (payment: CheckoutPaymentRecord): string =>
-  payment.payment_date || payment.created_at || '';
+  payment.created_at || payment.payment_date || '';
 
 const isCompletedDepositRow = (payment: CheckoutPaymentRecord): boolean =>
   paymentType(payment) === 'deposit' && payment.payment_status === 'completed';
@@ -125,12 +130,13 @@ const isCompletedDepositRow = (payment: CheckoutPaymentRecord): boolean =>
  * refunded   = Σ refund/refunded          remaining = collected − refunded − forfeited
  * mirrorDue  = deposit_paid ? deposit_amount : 0
  *
- * pending:            remaining > 0, OR collected = 0 AND mirrorDue > 0
+ * pending:            remaining > 0, OR collected = 0 AND mirrorDue > 0 (and no live waive)
  * refunded:           remaining = 0, refunded > 0, forfeited = 0
  * forfeited:          remaining = 0, forfeited > 0, refunded = 0
  * partially_forfeited: remaining = 0, refunded > 0 AND forfeited > 0
+ * waived:             the caller reports the mirror was cleared via waive —
+ *                     only while no completed/voided deposit rows exist
  * cancelled:          collected = 0 AND voided deposit rows exist
- * waived:             the caller reports the mirror was cleared via waive
  * none:               nothing recorded
  */
 export function deriveDepositResolution(
@@ -138,9 +144,8 @@ export function deriveDepositResolution(
   booking: BookingWithDetails | null,
   depositWaived = false,
 ): DepositResolution {
-  const collected = sumMoney(
-    payments.filter(isCompletedDepositRow).map((p) => p.total_amount),
-  );
+  const completedDepositRows = payments.filter(isCompletedDepositRow);
+  const collected = sumMoney(completedDepositRows.map((p) => p.total_amount));
   const refunded = sumMoney(
     payments
       .filter((p) => paymentType(p) === 'refund' && p.payment_status === 'refunded')
@@ -168,7 +173,7 @@ export function deriveDepositResolution(
       const latestTs = paymentTimestamp(latest);
       return rowTs > latestTs || (rowTs === latestTs && row.id > latest.id) ? row : latest;
     }, null);
-  const latestDepositRow = latestRow(payments.filter(isCompletedDepositRow));
+  const latestDepositRow = latestRow(completedDepositRows);
   const latestRefundRow = latestRow(
     payments.filter((p) => paymentType(p) === 'refund' && p.payment_status === 'refunded'),
   );
@@ -187,16 +192,20 @@ export function deriveDepositResolution(
     // Money still held dominates every other state — a partially refunded or
     // partially forfeited deposit is still pending while a remainder is owed.
     if (isPositiveMoney(remaining)) return 'pending';
-    // The caller-flagged waive wins over the mirror-due pending path: the
-    // flag lands locally while the post-waive booking refetch is in flight.
-    if (depositWaived) return 'waived';
-    // Flag-only legacy deposit: no rows, but the mirror still asserts money
-    // held (the backend checkout gate reads max(collected, mirror) too).
-    if (!isPositiveMoney(collected) && isPositiveMoney(mirrorDue)) return 'pending';
-    // Reaching here means remaining <= 0 — fully resolved money states.
+    // Reaching here means remaining <= 0 — the fully-resolved money states
+    // must outrank the waive flag: the flag (and the sticky 'waived'
+    // payment_note sniff behind it) survives a waive → re-collect →
+    // refund/forfeit/void cycle, so it only applies once no completed or
+    // voided deposit row remains.
     if (isPositiveMoney(refunded) && isPositiveMoney(forfeited)) return 'partially_forfeited';
     if (isPositiveMoney(refunded)) return 'refunded';
     if (isPositiveMoney(forfeited)) return 'forfeited';
+    if (depositWaived && completedDepositRows.length === 0 && voidedDepositCount === 0) {
+      return 'waived';
+    }
+    // Flag-only legacy deposit: no rows, but the mirror still asserts money
+    // held (the backend checkout gate reads max(collected, mirror) too).
+    if (!isPositiveMoney(collected) && isPositiveMoney(mirrorDue)) return 'pending';
     if (!isPositiveMoney(collected) && voidedDepositCount > 0) return 'cancelled';
     return 'none';
   })();
@@ -216,6 +225,7 @@ export function deriveDepositResolution(
     forfeitReason,
     status,
     voidedDepositCount,
+    completedDepositCount: completedDepositRows.length,
     mirrorDue,
   };
 }

@@ -115,6 +115,7 @@ describe('useDepositResolution', () => {
         forfeitReason: null,
         status: 'none',
         voidedDepositCount: 0,
+        completedDepositCount: 0,
         mirrorDue: 0,
       });
       expect(result.current.completedDepositCount).toBe(0);
@@ -244,6 +245,62 @@ describe('useDepositResolution', () => {
       expect(result.current.deposit.collected).toBe(0);
       // Voided rows don't count — the modal's cancel route gates on this.
       expect(result.current.completedDepositCount).toBe(0);
+    });
+
+    it('prefers the full created_at timestamp over the date-only payment_date for display', () => {
+      const { result } = renderResolution({
+        payments: [
+          // The backend serializes payment_date as created_at::date — a
+          // date-only string would render as midnight in the strips.
+          buildPayment({
+            id: 1,
+            payment_date: '2026-08-01',
+            created_at: '2026-08-01T10:23:45.000Z',
+          }),
+          buildPayment({
+            id: 2,
+            payment_type: 'refund',
+            payment_status: 'refunded',
+            payment_date: '2026-08-02',
+            created_at: '2026-08-02T09:15:30.000Z',
+          }),
+        ],
+      });
+      expect(result.current.deposit.collectedAt).toBe('2026-08-01T10:23:45.000Z');
+      expect(result.current.deposit.refundedAt).toBe('2026-08-02T09:15:30.000Z');
+    });
+
+    it('falls back to payment_date when a row has no created_at', () => {
+      const { result } = renderResolution({
+        payments: [buildPayment({ id: 1, payment_date: '2026-08-01T10:00:00.000Z' })],
+      });
+      expect(result.current.deposit.collectedAt).toBe('2026-08-01T10:00:00.000Z');
+    });
+
+    it('reports refunded over waived when the stale waive flag accompanies completed deposit + refund rows', () => {
+      // Waive → re-collect → refund: 'waived' stays in payment_note (the
+      // modal sniffs it into depositWaived), but the money rows say the
+      // deposit was collected and refunded — 'waived' would mislabel it as
+      // 'Cancelled — not collected'.
+      const { result } = renderResolution({
+        booking: buildBooking({ payment_note: 'Deposit waived: recorded in error' }),
+        depositWaived: true,
+        payments: [
+          buildPayment({ id: 1 }),
+          buildPayment({ id: 2, payment_type: 'refund', payment_status: 'refunded' }),
+        ],
+      });
+      expect(result.current.deposit.status).toBe('refunded');
+      expect(result.current.deposit.completedDepositCount).toBe(1);
+    });
+
+    it('reports cancelled over waived when only voided deposit rows remain', () => {
+      const { result } = renderResolution({
+        depositWaived: true,
+        payments: [buildPayment({ id: 1, payment_status: 'void' })],
+      });
+      expect(result.current.deposit.status).toBe('cancelled');
+      expect(result.current.deposit.voidedDepositCount).toBe(1);
     });
 
     it('is waived when the caller reports the booking mirror was waived — even while the stale mirror still reads due', () => {

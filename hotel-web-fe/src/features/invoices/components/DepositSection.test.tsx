@@ -35,6 +35,7 @@ const baseResolution: DepositResolution = {
   forfeitReason: null,
   status: 'pending',
   voidedDepositCount: 0,
+  completedDepositCount: 1,
   mirrorDue: 0,
 };
 
@@ -288,10 +289,22 @@ describe('DepositSection — guided deposit resolution', () => {
     const refundOption = within(group).getByRole('radio', { name: /Refund deposit/ });
     expect(refundOption.getAttribute('aria-disabled')).toBe('true');
     expect(screen.getAllByText('Requires the payments:refund permission').length).toBeGreaterThan(0);
-    expect(screen.getByText('Requires the payments:delete or bookings:update permission')).toBeDefined();
+    // Completed deposit rows exist → cancel routes to per-row void, so the
+    // caption names payments:delete rather than the ambiguous either/or.
+    expect(screen.getByText('Requires the payments:delete permission')).toBeDefined();
 
     fireEvent.click(refundOption);
     expect(screen.queryByRole('button', { name: /Refund RM50\.00/ })).toBeNull();
+  });
+
+  it('captions the cancel option with bookings:update when no completed deposit rows exist (waive route)', () => {
+    renderSection({
+      resolution: { collected: 0, remaining: 0, method: null, collectedAt: null, mirrorDue: 50, completedDepositCount: 0 },
+      can: { refund: true, forfeit: true, cancel: false, revertRefund: true, restore: true },
+    });
+
+    expect(screen.getByText('Requires the bookings:update permission')).toBeDefined();
+    expect(screen.queryByText('Requires the payments:delete permission')).toBeNull();
   });
 
   it('locks option switching while a resolution action is busy', () => {
@@ -308,7 +321,7 @@ describe('DepositSection — guided deposit resolution', () => {
   });
 
   it('keeps refund enabled but disables forfeit when nothing was collected (flag-only legacy deposit)', () => {
-    renderSection({ resolution: { collected: 0, remaining: 0, method: null, collectedAt: null, mirrorDue: 50 } });
+    renderSection({ resolution: { collected: 0, remaining: 0, method: null, collectedAt: null, mirrorDue: 50, completedDepositCount: 0 } });
 
     expect(screen.getByText('Pending resolution')).toBeDefined();
     expect(screen.getByText(/Recorded on the booking/)).toBeDefined();
@@ -371,7 +384,7 @@ describe('DepositSection — guided deposit resolution', () => {
 
   it('shows the cancelled strip and Restore deposit when a voided row exists', () => {
     renderSection({
-      resolution: { status: 'cancelled', collected: 0, remaining: 0, method: null, collectedAt: null, voidedDepositCount: 1 },
+      resolution: { status: 'cancelled', collected: 0, remaining: 0, method: null, collectedAt: null, voidedDepositCount: 1, completedDepositCount: 0 },
     });
 
     expect(screen.getByText('Cancelled — not collected')).toBeDefined();
@@ -381,7 +394,7 @@ describe('DepositSection — guided deposit resolution', () => {
 
   it('hides Restore deposit without the delete permission', () => {
     renderSection({
-      resolution: { status: 'cancelled', collected: 0, remaining: 0, method: null, collectedAt: null, voidedDepositCount: 1 },
+      resolution: { status: 'cancelled', collected: 0, remaining: 0, method: null, collectedAt: null, voidedDepositCount: 1, completedDepositCount: 0 },
       can: { refund: true, forfeit: true, cancel: true, revertRefund: true, restore: false },
     });
 
@@ -399,7 +412,7 @@ describe('DepositSection — guided deposit resolution', () => {
 
   it('renders a neutral no-deposit state when nothing is recorded', () => {
     renderSection({
-      resolution: { status: 'none', collected: 0, remaining: 0, method: null, collectedAt: null, mirrorDue: 0 },
+      resolution: { status: 'none', collected: 0, remaining: 0, method: null, collectedAt: null, mirrorDue: 0, completedDepositCount: 0 },
     });
 
     expect(screen.getByText('No deposit')).toBeDefined();
@@ -408,7 +421,7 @@ describe('DepositSection — guided deposit resolution', () => {
 
   it('uses the noDepositLabel override for the none chip', () => {
     renderSection({
-      resolution: { status: 'none', collected: 0, remaining: 0, method: null, collectedAt: null, mirrorDue: 0 },
+      resolution: { status: 'none', collected: 0, remaining: 0, method: null, collectedAt: null, mirrorDue: 0, completedDepositCount: 0 },
       noDepositLabel: 'City Ledger - N/A',
     });
 

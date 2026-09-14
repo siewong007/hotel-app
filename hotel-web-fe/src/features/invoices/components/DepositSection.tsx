@@ -538,7 +538,13 @@ const DepositSection: React.FC<DepositResolutionSectionProps> = ({
       title: 'Cancel uncollected deposit',
       description: 'It was recorded but no money was received',
       enabled: can.cancel,
-      disabledReason: 'Requires the payments:delete or bookings:update permission',
+      // The cancel action auto-routes on the same row count the modal's
+      // permission gate uses: completed rows → per-row void
+      // (payments:delete); none → the booking-mirror waive
+      // (bookings:update). Name the permission the route actually needs.
+      disabledReason: resolution.completedDepositCount > 0
+        ? 'Requires the payments:delete permission'
+        : 'Requires the bookings:update permission',
     },
   ];
 
