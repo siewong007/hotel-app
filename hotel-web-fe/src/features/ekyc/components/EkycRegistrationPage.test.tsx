@@ -5,6 +5,10 @@ vi.mock('../../../router', () => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock('../../../auth/AuthContext', () => ({
+  useAuth: () => ({ user: { user_type: 'guest' } }),
+}));
+
 vi.mock('../../../api', () => ({
   EkycService: {
     uploadEkycDocument: vi.fn(),

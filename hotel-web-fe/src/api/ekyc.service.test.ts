@@ -54,7 +54,9 @@ describe('EkycService', () => {
 
       const result = await EkycService.getEkycStatus();
 
-      expect(get).toHaveBeenCalledWith('ekyc/status');
+      expect(get).toHaveBeenCalledWith('ekyc/status', {
+        headers: { 'x-skip-api-notification': 'true' },
+      });
       expect(result).toEqual(status);
     });
   });
@@ -89,17 +91,6 @@ describe('EkycService', () => {
     });
   });
 
-  describe('getEkycVerificationDetails', () => {
-    it('calls GET ekyc/status', async () => {
-      const details = { status: 'approved' };
-      get.mockReturnValue(mockJsonResponse(details));
-
-      const result = await EkycService.getEkycVerificationDetails();
-
-      expect(get).toHaveBeenCalledWith('ekyc/status');
-      expect(result).toEqual(details);
-    });
-  });
 
   describe('getAllEkycVerifications', () => {
     it('calls GET ekyc/admin/applications with no query string when no params are given', async () => {

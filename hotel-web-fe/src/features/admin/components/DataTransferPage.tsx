@@ -1483,6 +1483,7 @@ const DataTransferPage: React.FC = () => {
         autoHideDuration={3800}
         onClose={() => setToast((t) => ({ ...t, open: false }))}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        sx={{ top: { xs: 72, sm: 88 } }}
       >
         <Alert
           onClose={() => setToast((t) => ({ ...t, open: false }))}
