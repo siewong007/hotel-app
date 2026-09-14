@@ -24,11 +24,50 @@ interface BulkEditPanelProps {
   onClear(): void;
 }
 
+interface BulkEditFieldsProps {
+  targets: GridCellView[];
+  onApply(edits: Map<CellKey, StagedEdit>): void;
+}
+
 /**
  * Bulk-action bar for the current cell selection. Everything stages edits —
  * nothing is saved until the review dialog confirms.
  */
 export const BulkEditPanel = ({ targets, onApply, onClear }: BulkEditPanelProps) => {
+  if (targets.length === 0) return null;
+
+  return (
+    <Paper
+      elevation={4}
+      sx={{ px: 2.5, py: 2, borderRadius: 3, border: 1, borderColor: 'divider' }}
+      role="region"
+      aria-label="Bulk edit selected cells"
+    >
+      <Stack spacing={1.5}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+          <Typography sx={{ fontWeight: 800 }}>
+            {targets.length} {targets.length === 1 ? 'cell' : 'cells'} selected
+          </Typography>
+          <Button size="small" onClick={onClear} sx={{ ml: 'auto' }}>
+            Clear selection
+          </Button>
+        </Stack>
+
+        <Divider />
+
+        <BulkEditFields targets={targets} onApply={onApply} />
+      </Stack>
+    </Paper>
+  );
+};
+
+/**
+ * The bulk-action field cluster: weekday scoping, open/close online, hold,
+ * price, percentage/amount adjustments and reset, plus the skipped-cells
+ * warning. Extracted so the phone bottom sheet can reuse it; assumes at
+ * least one target (callers render nothing on an empty selection).
+ */
+export const BulkEditFields = ({ targets, onApply }: BulkEditFieldsProps) => {
   const { symbol } = useCurrency();
   const [days, setDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [hold, setHold] = useState('');
@@ -46,8 +85,6 @@ export const BulkEditPanel = ({ targets, onApply, onClear }: BulkEditPanelProps)
     return targets.filter((t) => weekdayFilter.has(weekdayOf(t.stay_date))).length;
   }, [targets, weekdayFilter]);
 
-  if (targets.length === 0) return null;
-
   const run = (action: BulkAction) => {
     const { edits, skipped: skippedCells } = projectBulkAction(targets, action, weekdayFilter);
     setSkipped(skippedCells);
@@ -60,149 +97,139 @@ export const BulkEditPanel = ({ targets, onApply, onClear }: BulkEditPanelProps)
   };
 
   return (
-    <Paper
-      elevation={4}
-      sx={{ px: 2.5, py: 2, borderRadius: 3, border: 1, borderColor: 'divider' }}
-      role="region"
-      aria-label="Bulk edit selected cells"
-    >
-      <Stack spacing={1.5}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-          <Typography sx={{ fontWeight: 800 }}>
-            {targets.length} {targets.length === 1 ? 'cell' : 'cells'} selected
+    <>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+        <ToggleButtonGroup
+          size="small"
+          value={days}
+          onChange={(_, next: number[]) => setDays(next)}
+          aria-label="Limit to weekdays"
+        >
+          {WEEKDAYS.map((label, index) => (
+            <ToggleButton key={label} value={index} aria-label={label} sx={{ px: 1.25, minHeight: 44 }}>
+              {label}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+        {weekdayFilter !== null && (
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            {activeCount} of {targets.length} in scope
           </Typography>
-          <ToggleButtonGroup
-            size="small"
-            value={days}
-            onChange={(_, next: number[]) => setDays(next)}
-            aria-label="Limit to weekdays"
-          >
-            {WEEKDAYS.map((label, index) => (
-              <ToggleButton key={label} value={index} aria-label={label} sx={{ px: 1.25, minHeight: 44 }}>
-                {label}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-          {weekdayFilter !== null && (
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {activeCount} of {targets.length} in scope
-            </Typography>
-          )}
-          <Button size="small" onClick={onClear} sx={{ ml: 'auto' }}>
-            Clear selection
-          </Button>
-        </Stack>
-
-        <Divider />
-
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }} useFlexGap>
-          <Button variant="outlined" size="small" onClick={() => run({ kind: 'set_enabled', enabled: true })}>
-            Open online
-          </Button>
-          <Button variant="outlined" size="small" onClick={() => run({ kind: 'set_enabled', enabled: false })}>
-            Close online
-          </Button>
-
-          <Divider orientation="vertical" flexItem />
-
-          <TextField
-            type="number"
-            size="small"
-            label="Hold"
-            value={hold}
-            onChange={(event) => setHold(event.target.value)}
-            sx={{ width: 88 }}
-            slotProps={{ htmlInput: { min: 0, step: 1, 'aria-label': 'Set hold' } }}
-          />
-          <Button
-            variant="outlined"
-            size="small"
-            disabled={numeric(hold) === null}
-            onClick={() => run({ kind: 'set_hold', rooms: Number(hold) })}
-          >
-            Set hold
-          </Button>
-
-          <Divider orientation="vertical" flexItem />
-
-          <TextField
-            type="number"
-            size="small"
-            label="Price"
-            value={price}
-            onChange={(event) => setPrice(event.target.value)}
-            sx={{ width: 120 }}
-            slotProps={{
-              input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> },
-              htmlInput: { min: 0.01, step: 0.01, 'aria-label': 'Set price' },
-            }}
-          />
-          <Button
-            variant="outlined"
-            size="small"
-            disabled={numeric(price) === null || Number(price) <= 0}
-            onClick={() => run({ kind: 'set_price', price: Number(price).toFixed(2) })}
-          >
-            Set price
-          </Button>
-
-          <Divider orientation="vertical" flexItem />
-
-          <TextField
-            type="number"
-            size="small"
-            label="±%"
-            value={percent}
-            onChange={(event) => setPercent(event.target.value)}
-            sx={{ width: 88 }}
-            slotProps={{
-              input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
-              htmlInput: { step: 1, 'aria-label': 'Adjust by percent' },
-            }}
-          />
-          <Button
-            variant="outlined"
-            size="small"
-            disabled={numeric(percent) === null}
-            onClick={() => run({ kind: 'adjust_price_percent', percent: Number(percent) })}
-          >
-            Apply %
-          </Button>
-          <TextField
-            type="number"
-            size="small"
-            label="± amount"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            sx={{ width: 112 }}
-            slotProps={{
-              input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> },
-              htmlInput: { step: 1, 'aria-label': 'Adjust by amount' },
-            }}
-          />
-          <Button
-            variant="outlined"
-            size="small"
-            disabled={numeric(amount) === null}
-            onClick={() => run({ kind: 'adjust_price_amount', amount: Number(amount).toFixed(2) })}
-          >
-            Apply amount
-          </Button>
-
-          <Divider orientation="vertical" flexItem />
-
-          <Button variant="outlined" size="small" color="warning" onClick={() => run({ kind: 'reset' })}>
-            Clear overrides
-          </Button>
-        </Stack>
-
-        {skipped > 0 && (
-          <Alert severity="warning" sx={{ py: 0 }}>
-            {skipped} {skipped === 1 ? 'cell' : 'cells'} skipped — the adjustment would make the
-            price zero or negative.
-          </Alert>
         )}
       </Stack>
-    </Paper>
+
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={1}
+        sx={{ alignItems: { xs: 'stretch', sm: 'center' }, flexWrap: 'wrap' }}
+        useFlexGap
+      >
+        <Button variant="outlined" size="small" onClick={() => run({ kind: 'set_enabled', enabled: true })}>
+          Open online
+        </Button>
+        <Button variant="outlined" size="small" onClick={() => run({ kind: 'set_enabled', enabled: false })}>
+          Close online
+        </Button>
+
+        <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+
+        <TextField
+          type="number"
+          size="small"
+          label="Hold"
+          value={hold}
+          onChange={(event) => setHold(event.target.value)}
+          sx={{ width: { xs: '100%', sm: 88 } }}
+          slotProps={{ htmlInput: { min: 0, step: 1, 'aria-label': 'Set hold' } }}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          disabled={numeric(hold) === null}
+          onClick={() => run({ kind: 'set_hold', rooms: Number(hold) })}
+        >
+          Set hold
+        </Button>
+
+        <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+
+        <TextField
+          type="number"
+          size="small"
+          label="Price"
+          value={price}
+          onChange={(event) => setPrice(event.target.value)}
+          sx={{ width: { xs: '100%', sm: 120 } }}
+          slotProps={{
+            input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> },
+            htmlInput: { min: 0.01, step: 0.01, 'aria-label': 'Set price' },
+          }}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          disabled={numeric(price) === null || Number(price) <= 0}
+          onClick={() => run({ kind: 'set_price', price: Number(price).toFixed(2) })}
+        >
+          Set price
+        </Button>
+
+        <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+
+        <TextField
+          type="number"
+          size="small"
+          label="±%"
+          value={percent}
+          onChange={(event) => setPercent(event.target.value)}
+          sx={{ width: { xs: '100%', sm: 88 } }}
+          slotProps={{
+            input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
+            htmlInput: { step: 1, 'aria-label': 'Adjust by percent' },
+          }}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          disabled={numeric(percent) === null}
+          onClick={() => run({ kind: 'adjust_price_percent', percent: Number(percent) })}
+        >
+          Apply %
+        </Button>
+        <TextField
+          type="number"
+          size="small"
+          label="± amount"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+          sx={{ width: { xs: '100%', sm: 112 } }}
+          slotProps={{
+            input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> },
+            htmlInput: { step: 1, 'aria-label': 'Adjust by amount' },
+          }}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          disabled={numeric(amount) === null}
+          onClick={() => run({ kind: 'adjust_price_amount', amount: Number(amount).toFixed(2) })}
+        >
+          Apply amount
+        </Button>
+
+        <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+
+        <Button variant="outlined" size="small" color="warning" onClick={() => run({ kind: 'reset' })}>
+          Clear overrides
+        </Button>
+      </Stack>
+
+      {skipped > 0 && (
+        <Alert severity="warning" sx={{ py: 0 }}>
+          {skipped} {skipped === 1 ? 'cell' : 'cells'} skipped — the adjustment would make the
+          price zero or negative.
+        </Alert>
+      )}
+    </>
   );
 };

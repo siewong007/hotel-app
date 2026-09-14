@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { OnlineInventoryAllocation } from '../types';
-import { buildCellView } from '../utils';
-import { BulkEditPanel } from './BulkEditPanel';
+import { buildCellView, projectBulkAction } from '../utils';
+import { BulkEditFields, BulkEditPanel } from './BulkEditPanel';
 
 const allocation = (
   overrides: Partial<OnlineInventoryAllocation> = {},
@@ -113,5 +113,22 @@ describe('BulkEditPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear overrides' }));
     const edits = props.onApply.mock.calls[0][0] as Map<string, unknown>;
     expect(edits.get('1:2026-09-12')).toEqual({ type: 'reset' });
+  });
+});
+
+describe('BulkEditFields', () => {
+  afterEach(cleanup);
+
+  it('applies "Set hold" with the projected Map for the given targets', () => {
+    const targets = twoCells();
+    const onApply = vi.fn();
+    render(<BulkEditFields targets={targets} onApply={onApply} />);
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Set hold' }), {
+      target: { value: '3' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Set hold' }));
+    const { edits } = projectBulkAction(targets, { kind: 'set_hold', rooms: 3 }, null);
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply).toHaveBeenCalledWith(edits);
   });
 });
