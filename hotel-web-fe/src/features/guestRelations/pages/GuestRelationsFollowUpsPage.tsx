@@ -73,7 +73,11 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
   }, [routedDue]);
 
   const followUpsQuery = useGuestFollowUps(due, currentPage, hasAccess);
-  const completeMutation = useCompleteFollowUp();
+  const {
+    mutateAsync: completeFollowUp,
+    isPending: completingFollowUp,
+    variables: completingVariables,
+  } = useCompleteFollowUp();
 
   const items = React.useMemo(() => followUpsQuery.data?.data ?? [], [followUpsQuery.data]);
   const total = followUpsQuery.data?.total ?? 0;
@@ -97,12 +101,12 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
   const handleMarkDone = React.useCallback(async (item: FollowUpQueueItem) => {
     try {
       setError(null);
-      await completeMutation.mutateAsync({ guestId: item.guest_id, noteId: item.note_id });
+      await completeFollowUp({ guestId: item.guest_id, noteId: item.note_id });
       emitApiNotification({ message: 'Follow-up marked done', severity: 'success' });
     } catch (err) {
       setError(errorMessage(err, 'Failed to complete follow-up'));
     }
-  }, [completeMutation.mutateAsync]);
+  }, [completeFollowUp]);
 
   const columns = React.useMemo<ColumnDef<FollowUpQueueItem, any>[]>(() => [
     {
@@ -248,7 +252,7 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
       cell: (info) => {
         const item = info.row.original;
         const isCompleting =
-          completeMutation.isPending && completeMutation.variables?.noteId === item.note_id;
+          completingFollowUp && completingVariables?.noteId === item.note_id;
         return (
           <Button
             size="small"
@@ -263,7 +267,7 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
         );
       },
     },
-  ], [completeMutation.isPending, completeMutation.variables?.noteId, handleMarkDone]);
+  ], [completingFollowUp, completingVariables, handleMarkDone]);
 
   const pagination = React.useMemo(
     () => getPaginationState({ page: currentPage, pageSize, totalItems: total }),
