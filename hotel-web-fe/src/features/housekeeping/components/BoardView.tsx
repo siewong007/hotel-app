@@ -18,7 +18,8 @@ import EmptyState from '../../../components/common/EmptyState';
 import StatusChip from '../../../components/common/StatusChip';
 import { FilterSheet } from '../../../components/common/FilterSheet';
 import { useIsPhone } from '../../../hooks/useIsPhone';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { HousekeepingBoardRoom } from '../../../types/housekeeping.types';
 import {
   compareRoomsByUrgency,
@@ -89,6 +90,7 @@ export default function BoardView({
   actions,
   ...ctx
 }: BoardViewProps) {
+  const { t } = useTranslation('housekeeping');
   const floors = useMemo(
     () =>
       Array.from(
@@ -144,55 +146,55 @@ export default function BoardView({
   const secondaryFilters = (
     <>
       <FormControl size="small" fullWidth={isPhone} sx={{ minWidth: isPhone ? 0 : 110 }}>
-        <InputLabel id="housekeeping-floor-filter">Floor</InputLabel>
+        <InputLabel id="housekeeping-floor-filter">{t('board.floor')}</InputLabel>
         <Select
           labelId="housekeeping-floor-filter"
-          label="Floor"
+          label={t('board.floor')}
           value={filters.floor}
           onChange={(event) => set({ floor: event.target.value })}
         >
-          <MenuItem value="all">All floors</MenuItem>
+          <MenuItem value="all">{t('board.allFloors')}</MenuItem>
           {floors.map((floor) => (
             <MenuItem key={floor} value={String(floor)}>
-              Floor {floor}
+              {t('rooms:header.floorN', { floor })}
             </MenuItem>
           ))}
         </Select>
       </FormControl>
       <FormControl size="small" fullWidth={isPhone} sx={{ minWidth: isPhone ? 0 : 140 }}>
-        <InputLabel id="housekeeping-status-filter">Room status</InputLabel>
+        <InputLabel id="housekeeping-status-filter">{t('board.roomStatus')}</InputLabel>
         <Select
           labelId="housekeeping-status-filter"
-          label="Room status"
+          label={t('board.roomStatus')}
           value={filters.status}
           onChange={(event) => set({ status: event.target.value })}
         >
-          <MenuItem value="all">All statuses</MenuItem>
+          <MenuItem value="all">{t('board.allStatuses')}</MenuItem>
           {statuses.map((status) => (
             <MenuItem key={status} value={status}>
-              {formatStatusLabel(status)}
+              {statusLabel(t, 'room', status)}
             </MenuItem>
           ))}
         </Select>
       </FormControl>
       <FormControl size="small" fullWidth={isPhone} sx={{ minWidth: isPhone ? 0 : 130 }}>
-        <InputLabel id="housekeeping-priority-filter">Priority</InputLabel>
+        <InputLabel id="housekeeping-priority-filter">{t('board.priority')}</InputLabel>
         <Select
           labelId="housekeeping-priority-filter"
-          label="Priority"
+          label={t('board.priority')}
           value={filters.priority}
           onChange={(event) => set({ priority: event.target.value })}
         >
-          <MenuItem value="all">All priorities</MenuItem>
+          <MenuItem value="all">{t('board.allPriorities')}</MenuItem>
           {PRIORITIES.map((priority) => (
             <MenuItem key={priority} value={priority}>
-              {formatStatusLabel(priority)}
+              {statusLabel(t, 'priority', priority)}
             </MenuItem>
           ))}
         </Select>
       </FormControl>
       <Chip
-        label="Needs attention"
+        label={t('page.statAttention')}
         color={filters.attentionOnly ? 'primary' : 'default'}
         variant={filters.attentionOnly ? 'filled' : 'outlined'}
         onClick={() => set({ attentionOnly: !filters.attentionOnly })}
@@ -201,7 +203,7 @@ export default function BoardView({
       />
       {activeFilterCount > 0 ? (
         <Chip
-          label={`Clear (${activeFilterCount})`}
+          label={t('board.clear', { count: activeFilterCount })}
           variant="outlined"
           onDelete={() => onFiltersChange(EMPTY_BOARD_FILTERS)}
           onClick={() => onFiltersChange(EMPTY_BOARD_FILTERS)}
@@ -213,11 +215,11 @@ export default function BoardView({
   const searchField = (
     <TextField
       size="small"
-      placeholder="Search room, type or assignee…"
+      placeholder={t('board.searchPlaceholder')}
       value={filters.search}
       onChange={(event) => set({ search: event.target.value })}
       slotProps={{
-        htmlInput: { 'aria-label': 'Search rooms' },
+        htmlInput: { 'aria-label': t('board.searchAria') },
         input: {
           startAdornment: (
             <InputAdornment position="start">
@@ -242,7 +244,7 @@ export default function BoardView({
               onClick={() => setFiltersOpen(true)}
               sx={{ whiteSpace: 'nowrap', minHeight: 40 }}
             >
-              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              {t('common:filters.title')}{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </Button>
           </Stack>
           <FilterSheet
@@ -264,16 +266,16 @@ export default function BoardView({
         <BoardSkeleton />
       ) : groupedRooms.length === 0 ? (
         <EmptyState
-          title={rooms.length === 0 ? 'No rooms to show' : 'No rooms match these filters'}
+          title={rooms.length === 0 ? t('board.emptyNoRooms') : t('board.emptyFiltered')}
           description={
             rooms.length === 0
-              ? 'Every room is accounted for — nothing needs housekeeping attention right now.'
-              : 'Try widening the search or clearing a filter.'
+              ? t('board.emptyNoRoomsBody')
+              : t('board.emptyFilteredBody')
           }
           action={
             activeFilterCount > 0 ? (
               <Chip
-                label="Clear all filters"
+                label={t('board.clearAll')}
                 variant="outlined"
                 onClick={() => onFiltersChange(EMPTY_BOARD_FILTERS)}
               />
@@ -285,16 +287,16 @@ export default function BoardView({
           {groupedRooms.map(([status, laneRooms]) => {
             const meta = roomStatusMeta(status);
             return (
-              <Box key={status} component="section" aria-label={`${formatStatusLabel(status)} rooms`}>
+              <Box key={status} component="section" aria-label={t('board.laneAria', { status: statusLabel(t, 'room', status) })}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
-                  <StatusChip status={status} tone={meta.tone} variant="filled" />
+                  <StatusChip status={status} domain="room" tone={meta.tone} variant="filled" />
                   <Chip size="small" variant="outlined" label={laneRooms.length} />
-                  {meta.hint ? (
+                  {meta.hintKey ? (
                     <Typography
                       variant="caption"
                       sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}
                     >
-                      {meta.hint}
+                      {t(meta.hintKey)}
                     </Typography>
                   ) : null}
                 </Stack>

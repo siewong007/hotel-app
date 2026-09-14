@@ -24,6 +24,7 @@ import enFinance from './en/finance.json';
 import enGuestPortal from './en/guestPortal.json';
 import enGuests from './en/guests.json';
 import enHelp from './en/help.json';
+import enHousekeeping from './en/housekeeping.json';
 import enNav from './en/nav.json';
 import enNotifications from './en/notifications.json';
 import enRevenue from './en/revenue.json';
@@ -40,6 +41,7 @@ import msFinance from './ms/finance.json';
 import msGuestPortal from './ms/guestPortal.json';
 import msGuests from './ms/guests.json';
 import msHelp from './ms/help.json';
+import msHousekeeping from './ms/housekeeping.json';
 import msNav from './ms/nav.json';
 import msNotifications from './ms/notifications.json';
 import msRevenue from './ms/revenue.json';
@@ -56,6 +58,7 @@ import zhFinance from './zh/finance.json';
 import zhGuestPortal from './zh/guestPortal.json';
 import zhGuests from './zh/guests.json';
 import zhHelp from './zh/help.json';
+import zhHousekeeping from './zh/housekeeping.json';
 import zhNav from './zh/nav.json';
 import zhNotifications from './zh/notifications.json';
 import zhRevenue from './zh/revenue.json';
@@ -80,6 +83,7 @@ const enResources = {
   guestPortal: enGuestPortal as TranslationBundle,
   guests: enGuests as TranslationBundle,
   help: enHelp as TranslationBundle,
+  housekeeping: enHousekeeping as TranslationBundle,
   nav: enNav as TranslationBundle,
   notifications: enNotifications as TranslationBundle,
   revenue: enRevenue as TranslationBundle,
@@ -99,6 +103,7 @@ const msResources = {
   guestPortal: msGuestPortal as TranslationBundle,
   guests: msGuests as TranslationBundle,
   help: msHelp as TranslationBundle,
+  housekeeping: msHousekeeping as TranslationBundle,
   nav: msNav as TranslationBundle,
   notifications: msNotifications as TranslationBundle,
   revenue: msRevenue as TranslationBundle,
@@ -118,6 +123,7 @@ const zhResources = {
   guestPortal: zhGuestPortal as TranslationBundle,
   guests: zhGuests as TranslationBundle,
   help: zhHelp as TranslationBundle,
+  housekeeping: zhHousekeeping as TranslationBundle,
   nav: zhNav as TranslationBundle,
   notifications: zhNotifications as TranslationBundle,
   revenue: zhRevenue as TranslationBundle,

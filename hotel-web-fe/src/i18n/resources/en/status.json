@@ -191,6 +191,38 @@
     "completed": "Completed",
     "failed": "Failed"
   },
+  "priority": {
+    "low": "Low",
+    "normal": "Normal",
+    "medium": "Medium",
+    "high": "High",
+    "urgent": "Urgent",
+    "critical": "Critical"
+  },
+  "task_type": {
+    "cleaning": "Cleaning",
+    "checkout_clean": "Checkout clean",
+    "inspection": "Inspection",
+    "maintenance_followup": "Maintenance follow-up"
+  },
+  "maintenance_category": {
+    "electrical": "Electrical",
+    "plumbing": "Plumbing",
+    "hvac": "HVAC",
+    "furniture": "Furniture",
+    "appliance": "Appliance",
+    "structural": "Structural",
+    "other": "Other"
+  },
+  "room_event": {
+    "reserve": "Reservation",
+    "booking": "Booking",
+    "maintenance": "Maintenance",
+    "inspection": "Inspection",
+    "repair": "Repair",
+    "status_change": "Status change",
+    "reserved": "Reserved"
+  },
   "generic": {
     "active": "Active",
     "inactive": "Inactive",

@@ -58,7 +58,8 @@
     "viewAll": "查看全部",
     "goHome": "返回首页",
     "goBack": "返回",
-    "discardChanges": "放弃更改"
+    "discardChanges": "放弃更改",
+    "void": "作废"
   },
   "state": {
     "loading": "加载中…",

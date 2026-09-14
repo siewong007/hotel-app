@@ -28,7 +28,8 @@ import EmptyState from '../../../components/common/EmptyState';
 import StatusChip from '../../../components/common/StatusChip';
 import { errorMessage } from '../../../utils/errorMessage';
 import { formatHotelDateTime } from '../../../utils/date';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type {
   ListMaintenanceTicketsQuery,
   MaintenanceCategory,
@@ -61,14 +62,6 @@ const CATEGORIES: MaintenanceCategory[] = [
   'other',
 ];
 
-const STATUS_FILTERS: { key: string; label: string }[] = [
-  { key: 'all', label: 'All' },
-  ...MAINTENANCE_STATUSES.map((status) => ({
-    key: status,
-    label: formatStatusLabel(status),
-  })),
-];
-
 interface MaintenanceTabProps {
   canWrite: boolean;
   /** Snackbar relay from the page so mutation feedback is consistent. */
@@ -76,6 +69,7 @@ interface MaintenanceTabProps {
 }
 
 export default function MaintenanceTab({ canWrite, onNotify }: MaintenanceTabProps) {
+  const { t } = useTranslation('housekeeping');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [statusFilter, setStatusFilter] = useState<string>('open');
@@ -84,6 +78,14 @@ export default function MaintenanceTab({ canWrite, onNotify }: MaintenanceTabPro
   const [search, setSearch] = useState('');
   const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<MaintenanceTicket | null>(null);
+
+  const STATUS_FILTERS: { key: string; label: string }[] = [
+    { key: 'all', label: t('common:field.all') },
+    ...MAINTENANCE_STATUSES.map((status) => ({
+      key: status,
+      label: statusLabel(t, 'maintenance', status),
+    })),
+  ];
 
   const params = useMemo<ListMaintenanceTicketsQuery>(
     () => ({
@@ -112,12 +114,12 @@ export default function MaintenanceTab({ canWrite, onNotify }: MaintenanceTabPro
 
   const handleCreate = async (input: Parameters<typeof createTicket.mutateAsync>[0]) => {
     await createTicket.mutateAsync(input);
-    onNotify('success', 'Maintenance ticket created.');
+    onNotify('success', t('success.ticketCreated'));
   };
 
   const handleUpdate = async (id: number, input: UpdateMaintenanceTicketRequest) => {
     await updateTicket.mutateAsync({ id, input });
-    onNotify('success', 'Ticket updated.');
+    onNotify('success', t('success.ticketUpdated'));
   };
 
   return (
@@ -147,7 +149,7 @@ export default function MaintenanceTab({ canWrite, onNotify }: MaintenanceTabPro
             startIcon={<AddIcon />}
             onClick={() => setNewTicketOpen(true)}
           >
-            New ticket
+            {t('maint.newTicket')}
           </Button>
         ) : null}
       </Stack>
@@ -160,11 +162,11 @@ export default function MaintenanceTab({ canWrite, onNotify }: MaintenanceTabPro
       >
         <TextField
           size="small"
-          placeholder="Search ticket, title, room…"
+          placeholder={t('maint.searchPlaceholder')}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           slotProps={{
-            htmlInput: { 'aria-label': 'Search maintenance tickets' },
+            htmlInput: { 'aria-label': t('maint.searchAria') },
             input: {
               startAdornment: (
                 <InputAdornment position="start">
@@ -176,45 +178,45 @@ export default function MaintenanceTab({ canWrite, onNotify }: MaintenanceTabPro
           sx={{ minWidth: { xs: '100%', sm: 220 } }}
         />
         <FormControl size="small" sx={{ minWidth: 130 }}>
-          <InputLabel id="maintenance-category-filter">Category</InputLabel>
+          <InputLabel id="maintenance-category-filter">{t('maint.category')}</InputLabel>
           <Select
             labelId="maintenance-category-filter"
-            label="Category"
+            label={t('maint.category')}
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
           >
-            <MenuItem value="all">All categories</MenuItem>
+            <MenuItem value="all">{t('maint.allCategories')}</MenuItem>
             {CATEGORIES.map((category) => (
               <MenuItem key={category} value={category}>
-                {formatStatusLabel(category)}
+                {statusLabel(t, 'maintenance_category', category)}
               </MenuItem>
             ))}
           </Select>
         </FormControl>
         <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel id="maintenance-priority-filter">Priority</InputLabel>
+          <InputLabel id="maintenance-priority-filter">{t('board.priority')}</InputLabel>
           <Select
             labelId="maintenance-priority-filter"
-            label="Priority"
+            label={t('board.priority')}
             value={priorityFilter}
             onChange={(event) => setPriorityFilter(event.target.value)}
           >
-            <MenuItem value="all">All priorities</MenuItem>
+            <MenuItem value="all">{t('board.allPriorities')}</MenuItem>
             {MAINTENANCE_PRIORITIES.map((priority) => (
               <MenuItem key={priority} value={priority}>
-                {formatStatusLabel(priority)}
+                {statusLabel(t, 'priority', priority)}
               </MenuItem>
             ))}
           </Select>
         </FormControl>
         <Typography variant="body2" sx={{ color: 'text.secondary', ml: 'auto' }}>
-          {ticketsQuery.data ? `${tickets.length} of ${ticketsQuery.data.total} tickets` : ''}
+          {ticketsQuery.data ? t('maint.countSummary', { shown: tickets.length, total: ticketsQuery.data.total }) : ''}
         </Typography>
       </Stack>
 
       {ticketsQuery.error ? (
-        <Alert severity="error" action={<Button onClick={() => ticketsQuery.refetch()}>Retry</Button>}>
-          {errorMessage(ticketsQuery.error, 'Failed to load maintenance tickets')}
+        <Alert severity="error" action={<Button onClick={() => ticketsQuery.refetch()}>{t('common:state.retry')}</Button>}>
+          {errorMessage(ticketsQuery.error, t('errors.loadTickets'))}
         </Alert>
       ) : null}
 
@@ -226,13 +228,13 @@ export default function MaintenanceTab({ canWrite, onNotify }: MaintenanceTabPro
         </Stack>
       ) : tickets.length === 0 ? (
         <EmptyState
-          title={search ? 'No tickets match the search' : 'No maintenance tickets'}
+          title={search ? t('maint.emptySearch') : t('maint.empty')}
           description={
             statusFilter !== 'all'
-              ? `Nothing is ${formatStatusLabel(statusFilter).toLowerCase()} right now.`
+              ? t('maint.emptyStatus', { status: statusLabel(t, 'maintenance', statusFilter).toLowerCase() })
               : search
-                ? 'Try a different ticket number, title, or room.'
-                : 'Reported issues will appear here.'
+                ? t('maint.emptySearchBody')
+                : t('maint.emptyBody')
           }
         />
       ) : isMobile ? (
@@ -264,19 +266,19 @@ export default function MaintenanceTab({ canWrite, onNotify }: MaintenanceTabPro
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     {ticket.ticket_number}
-                    {ticket.room_number ? ` · Room ${ticket.room_number}` : ''}
+                    {ticket.room_number ? ` · ${t('card.roomN', { number: ticket.room_number })}` : ''}
                     {' · '}
-                    {formatStatusLabel(ticket.category)}
+                    {statusLabel(t, 'maintenance_category', ticket.category)}
                     {ticket.assigned_to_name ? ` · ${ticket.assigned_to_name}` : ''}
                   </Typography>
                 </Box>
                 <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
                   <StatusChip
                     status={ticket.priority}
-                    label={formatStatusLabel(ticket.priority)}
+                    domain="priority"
                     tone={MAINTENANCE_PRIORITY_META[ticket.priority].tone}
                   />
-                  <StatusChip status={ticket.status} tone={MAINTENANCE_STATUS_META[ticket.status].tone} />
+                  <StatusChip status={ticket.status} domain="maintenance" tone={MAINTENANCE_STATUS_META[ticket.status].tone} />
                 </Stack>
               </Stack>
             </Box>
@@ -284,17 +286,17 @@ export default function MaintenanceTab({ canWrite, onNotify }: MaintenanceTabPro
         </Stack>
       ) : (
         <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-          <Table size="small" aria-label="Maintenance tickets">
+          <Table size="small" aria-label={t('maint.tableAria')}>
             <TableHead>
               <TableRow>
-                <TableCell>Ticket</TableCell>
-                <TableCell>Title</TableCell>
-                <TableCell>Room</TableCell>
-                <TableCell>Category</TableCell>
-                <TableCell>Priority</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Assigned to</TableCell>
-                <TableCell>Updated</TableCell>
+                <TableCell>{t('maint.colTicket')}</TableCell>
+                <TableCell>{t('maint.colTitle')}</TableCell>
+                <TableCell>{t('maint.colRoom')}</TableCell>
+                <TableCell>{t('maint.colCategory')}</TableCell>
+                <TableCell>{t('maint.colPriority')}</TableCell>
+                <TableCell>{t('maint.colStatus')}</TableCell>
+                <TableCell>{t('maint.colAssignedTo')}</TableCell>
+                <TableCell>{t('maint.colUpdated')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -314,24 +316,25 @@ export default function MaintenanceTab({ canWrite, onNotify }: MaintenanceTabPro
                         event.stopPropagation();
                         setSelectedTicket(ticket);
                       }}
-                      aria-label={`Open ticket ${ticket.ticket_number}`}
+                      aria-label={t('maint.openTicketAria', { number: ticket.ticket_number })}
                     >
                       {ticket.ticket_number}
                     </Button>
                   </TableCell>
                   <TableCell>{ticket.title}</TableCell>
                   <TableCell>{ticket.room_number ?? '—'}</TableCell>
-                  <TableCell>{formatStatusLabel(ticket.category)}</TableCell>
+                  <TableCell>{statusLabel(t, 'maintenance_category', ticket.category)}</TableCell>
                   <TableCell>
                     <StatusChip
                       status={ticket.priority}
-                      label={formatStatusLabel(ticket.priority)}
+                      domain="priority"
                       tone={MAINTENANCE_PRIORITY_META[ticket.priority].tone}
                     />
                   </TableCell>
                   <TableCell>
                     <StatusChip
                       status={ticket.status}
+                      domain="maintenance"
                       tone={MAINTENANCE_STATUS_META[ticket.status].tone}
                     />
                   </TableCell>

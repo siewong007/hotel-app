@@ -7,7 +7,6 @@
  */
 import type { StatusTone } from '../../components/common/StatusChip';
 import { toHotelDateString } from '../../utils/date';
-import { formatStatusLabel } from '../../utils/formatters';
 import type {
   HousekeepingBoardRoom,
   HousekeepingPriority,
@@ -25,8 +24,9 @@ import type {
 // ---------------------------------------------------------------------------
 
 export interface RoomStatusMeta {
-  /** One-line operational meaning shown under lane headers / in the drawer. */
-  hint: string;
+  /** `housekeeping:roomStatusHint.*` key — one-line operational meaning shown
+   * under lane headers / in the drawer. Components resolve it with `t()`. */
+  hintKey: string;
   tone: StatusTone;
   /** True when the status demands action from housekeeping today. */
   attention: boolean;
@@ -36,49 +36,49 @@ export interface RoomStatusMeta {
 
 export const ROOM_STATUS_META: Record<string, RoomStatusMeta> = {
   reserved_dirty: {
-    hint: 'Arrival expected — must be cleaned before check-in',
+    hintKey: 'roomStatusHint.reserved_dirty',
     tone: 'error',
     attention: true,
     blocked: false,
   },
   dirty: {
-    hint: 'Needs cleaning',
+    hintKey: 'roomStatusHint.dirty',
     tone: 'warning',
     attention: true,
     blocked: false,
   },
   cleaning: {
-    hint: 'Cleaning in progress',
+    hintKey: 'roomStatusHint.cleaning',
     tone: 'primary',
     attention: true,
     blocked: false,
   },
   maintenance: {
-    hint: 'Blocked by maintenance',
+    hintKey: 'roomStatusHint.maintenance',
     tone: 'warning',
     attention: true,
     blocked: true,
   },
   out_of_order: {
-    hint: 'Out of order — cannot be sold',
+    hintKey: 'roomStatusHint.out_of_order',
     tone: 'error',
     attention: true,
     blocked: true,
   },
   occupied: {
-    hint: 'Guest in house',
+    hintKey: 'roomStatusHint.occupied',
     tone: 'info',
     attention: false,
     blocked: false,
   },
   reserved: {
-    hint: 'Reserved — room ready for arrival',
+    hintKey: 'roomStatusHint.reserved',
     tone: 'info',
     attention: false,
     blocked: false,
   },
   available: {
-    hint: 'Clean and ready to sell',
+    hintKey: 'roomStatusHint.available',
     tone: 'success',
     attention: false,
     blocked: false,
@@ -120,7 +120,7 @@ export const ROOM_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
 
 export const roomStatusMeta = (status: string): RoomStatusMeta =>
   ROOM_STATUS_META[status] ?? {
-    hint: '',
+    hintKey: '',
     tone: 'neutral',
     attention: false,
     blocked: false,
@@ -137,15 +137,13 @@ export const TASK_TYPES: HousekeepingTaskType[] = [
   'maintenance_followup',
 ];
 
-export const TASK_TYPE_META: Record<string, { label: string; tone: StatusTone }> = {
-  cleaning: { label: 'Cleaning', tone: 'info' },
-  checkout_clean: { label: 'Checkout clean', tone: 'warning' },
-  inspection: { label: 'Inspection', tone: 'secondary' },
-  maintenance_followup: { label: 'Maintenance follow-up', tone: 'neutral' },
+/** Tones only — labels resolve through `statusLabel(t, 'task_type', …)`. */
+export const TASK_TYPE_META: Record<string, { tone: StatusTone }> = {
+  cleaning: { tone: 'info' },
+  checkout_clean: { tone: 'warning' },
+  inspection: { tone: 'secondary' },
+  maintenance_followup: { tone: 'neutral' },
 };
-
-export const taskTypeLabel = (taskType: string): string =>
-  TASK_TYPE_META[taskType]?.label ?? formatStatusLabel(taskType);
 
 export const PRIORITIES: HousekeepingPriority[] = ['low', 'normal', 'high', 'urgent'];
 

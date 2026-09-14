@@ -101,7 +101,7 @@ export default function RoomStatusUpdateDialog({
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {t('statusDialog.current')}
             </Typography>
-            <StatusChip status={currentStatus} tone={roomStatusMeta(currentStatus).tone} />
+            <StatusChip status={currentStatus} domain="room" tone={roomStatusMeta(currentStatus).tone} />
           </Stack>
           <FormControl fullWidth required>
             <InputLabel id="room-status-target">{t('statusDialog.newStatus')}</InputLabel>
