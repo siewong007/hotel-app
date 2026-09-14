@@ -56,6 +56,9 @@ import { Link } from '../../../router';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { getBookingChannelInfo } from '../../bookings/utils/bookingChannel';
 import RoomEventDialog from '../../rooms/components/RoomEventDialog';
+import CollapsibleSection from '../../../components/common/CollapsibleSection';
+import StatusChip from '../../../components/common/StatusChip';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 
 interface RoomStatus {
   // Room.id is a UUID string in the API; the old `number` only typechecked
@@ -99,6 +102,26 @@ type BookingWithDay = BookingWithDetails & {
   checkInDay: string;
   checkOutDay: string;
 };
+
+/**
+ * Phone room list replaces the tile grid with one collapsible section per
+ * room status (the same statuses the desktop legend enumerates). Statuses
+ * that need front-desk action come first and stay expanded; routine
+ * statuses start collapsed so the page opens short.
+ */
+const PHONE_ROOM_SECTIONS: ReadonlyArray<{
+  status: RoomStatus['status'];
+  needsAttention: boolean;
+}> = [
+  { status: 'reserved', needsAttention: true }, // arrivals due → check-in action
+  { status: 'dirty', needsAttention: true },
+  { status: 'reserved_dirty', needsAttention: true },
+  { status: 'cleaning', needsAttention: true },
+  { status: 'maintenance', needsAttention: true },
+  { status: 'out_of_order', needsAttention: true },
+  { status: 'occupied', needsAttention: false },
+  { status: 'available', needsAttention: false },
+];
 
 const ReceptionistDashboard: React.FC = () => {
   const isPhone = useIsPhone();
@@ -409,6 +432,28 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
+  // Shared by the desktop tiles and the phone rows: a reserved room whose
+  // check-in is due goes straight to the check-in modal; every other room
+  // opens the room event dialog.
+  const handleRoomClick = (room: RoomStatus) => {
+    if (room.status === 'reserved' && room.booking_id && room.check_in_date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const checkInDate = new Date(room.check_in_date);
+      checkInDate.setHours(0, 0, 0, 0);
+
+      // If check-in date is today or past, open check-in modal
+      if (checkInDate <= today) {
+        handleCheckInFromRoom(room.booking_id);
+        return;
+      }
+    }
+
+    // Otherwise, open status dialog
+    setSelectedRoom(room);
+    setStatusDialogOpen(true);
+  };
+
   useEffect(() => {
     if (isReceptionist && !hasLoadedRef.current) {
       hasLoadedRef.current = true;
@@ -528,7 +573,7 @@ const ReceptionistDashboard: React.FC = () => {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'text.primary' }}>
-            Admin Dashboard
+            Front Desk
           </Typography>
           <Typography variant="body1" sx={{
             color: "text.secondary"
@@ -791,7 +836,34 @@ const ReceptionistDashboard: React.FC = () => {
             <Chip icon={<MaintenanceIcon />} label="Maintenance" size="small" sx={{ bgcolor: 'var(--hotel-neutral-bg)', color: 'var(--hotel-neutral)', border: '1px solid var(--hotel-neutral-border)' }} />
           </Box>
 
-          {/* Room Grid */}
+          {/* Rooms: status-grouped sections on phone, tile grid on desktop */}
+          {isPhone ? (
+            <Box>
+              {PHONE_ROOM_SECTIONS.map(({ status, needsAttention }) => {
+                const sectionRooms = rooms.filter((room) => room.status === status);
+                if (sectionRooms.length === 0) return null;
+                return (
+                  <CollapsibleSection
+                    key={status}
+                    title={getStatusLabel(status)}
+                    badge={<Chip size="small" label={sectionRooms.length} />}
+                    collapseOnPhone={!needsAttention}
+                    sx={{ mb: 1 }}
+                  >
+                    {sectionRooms.map((room) => (
+                      <MobileCardRow
+                        key={room.id}
+                        title={`Room ${room.room_number}`}
+                        subtitle={room.current_guest}
+                        status={<StatusChip status={room.status} label={getStatusLabel(room.status)} />}
+                        onClick={() => handleRoomClick(room)}
+                      />
+                    ))}
+                  </CollapsibleSection>
+                );
+              })}
+            </Box>
+          ) : (
           <Grid container spacing={{ xs: 1, sm: 2 }}>
             {rooms.map((room) => (
               <Grid key={room.id} size={{ xs: 4, sm: 4, md: 3, lg: 2 }}>
@@ -842,25 +914,7 @@ const ReceptionistDashboard: React.FC = () => {
                 >
                   <Paper
                     elevation={3}
-                    onClick={() => {
-                      // If room has a reservation ready for check-in, open check-in modal
-                      if (room.status === 'reserved' && room.booking_id && room.check_in_date) {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const checkInDate = new Date(room.check_in_date);
-                        checkInDate.setHours(0, 0, 0, 0);
-
-                        // If check-in date is today or past, open check-in modal
-                        if (checkInDate <= today) {
-                          handleCheckInFromRoom(room.booking_id);
-                          return;
-                        }
-                      }
-
-                      // Otherwise, open status dialog
-                      setSelectedRoom(room);
-                      setStatusDialogOpen(true);
-                    }}
+                    onClick={() => handleRoomClick(room)}
                     sx={{
                       p: { xs: 1, sm: 2 },
                       textAlign: 'center',
@@ -1006,6 +1060,7 @@ const ReceptionistDashboard: React.FC = () => {
               </Grid>
             ))}
           </Grid>
+          )}
         </CardContent>
       </Card>
       {/* Room Status Change Dialog */}
