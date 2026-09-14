@@ -12,6 +12,7 @@ import { useLocation, useNavigate } from '../../router';
 import { useAuth } from '../../auth/AuthContext';
 import { useTranslation } from '../../i18n';
 import { BottomSheet } from '../common/BottomSheet';
+import { CollapsibleSection } from '../common/CollapsibleSection';
 import {
   canAccessNavigationRoute,
   findRouteDefinition,
@@ -31,9 +32,11 @@ interface MobileMoreSheetProps {
 /**
  * The "More" destination of the staff bottom nav: every remaining
  * role-visible route grouped exactly like the sidebar (navGroups order +
- * labels), plus the non-nav account pages (Profile). Item visibility reuses
- * `canAccessNavigationRoute`, so the sheet can never expose a module the
- * sidebar would hide.
+ * labels), plus the non-nav account pages (Profile). Labeled groups collapse
+ * behind a section header — the first two stay open so the ~25-row list does
+ * not open as a wall of rows; label-less groups render bare as before. Item
+ * visibility reuses `canAccessNavigationRoute`, so the sheet can never
+ * expose a module the sidebar would hide.
  */
 export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({ open, onClose, tabIds }) => {
   const { hasPermission, hasRole, getRoutePolicy } = useAuth();
@@ -88,18 +91,26 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({ open, onClose,
   return (
     <BottomSheet open={open} onClose={onClose} title={tNav('mobile.menu')}>
       <List disablePadding>
-        {sections.map((section) => (
+        {sections.map((section, index) => (
           <Box key={section.group} component="li" sx={{ listStyle: 'none' }}>
             {section.labeled ? (
-              <Typography
-                variant="overline"
-                component="div"
-                sx={{ display: 'block', px: 1, pt: 1.5, color: 'text.secondary', fontSize: '0.68rem' }}
+              <CollapsibleSection
+                title={
+                  <Typography
+                    variant="overline"
+                    component="span"
+                    sx={{ color: 'text.secondary', fontSize: '0.68rem' }}
+                  >
+                    {groupLabel(section.group)}
+                  </Typography>
+                }
+                defaultExpanded={index < 2}
               >
-                {groupLabel(section.group)}
-              </Typography>
-            ) : null}
-            {section.items.map((item) => renderItem(item, navLabel(item)))}
+                {section.items.map((item) => renderItem(item, navLabel(item)))}
+              </CollapsibleSection>
+            ) : (
+              section.items.map((item) => renderItem(item, navLabel(item)))
+            )}
           </Box>
         ))}
         {profileRoute ? (

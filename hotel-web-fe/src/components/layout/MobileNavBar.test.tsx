@@ -104,9 +104,12 @@ describe('MobileNavBar', () => {
     grantAllPolicies();
     render(<MobileNavBar />);
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    // Labeled groups past the first two start collapsed — expand
+    // Administration to reach its rows.
+    fireEvent.click(screen.getByRole('button', { name: 'Administration' }));
     expect(screen.getByText('Audit Log')).toBeTruthy();
     expect(screen.getByText('Hotel Settings')).toBeTruthy();
-    // A tab destination is not duplicated inside the sheet.
-    expect(screen.queryByText('Timeline')).toBeTruthy(); // timeline isn't a tab
+    // Timeline isn't a tab, so it sits in the always-open first group.
+    expect(screen.queryByText('Timeline')).toBeTruthy();
   });
 });

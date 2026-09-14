@@ -15,8 +15,10 @@ import { UserMenu } from './UserMenu';
  * The staff shell's 56px header: breadcrumbs on the left (current page title
  * below `sm`, where the trail does not fit); command-palette trigger,
  * notification bell, language, account menu and a one-tap sign-out on the
- * right. Below `md` navigation lives in the bottom bar — there is no drawer,
- * so the header carries no menu button.
+ * right. Phones slim the right side to a search icon, the bell and the
+ * avatar — language and Sign Out live inside their menus there. Below `md`
+ * navigation lives in the bottom bar — there is no drawer, so the header
+ * carries no menu button.
  */
 export const AppTopbar: React.FC = () => {
   const { open: openPalette } = useCommandPalette();
@@ -57,9 +59,8 @@ export const AppTopbar: React.FC = () => {
         <Breadcrumbs />
       </Box>
 
-      {/* Command-palette trigger: field-style ≥sm. On phones the FAB's
-          quick-actions sheet already carries Search, so an xs icon here would
-          be a duplicate control the header cannot afford at 320px. */}
+      {/* Command-palette trigger: field-style ≥sm; on phones the compact
+          search icon below stands in for it. */}
       <Box
         component="button"
         type="button"
@@ -113,16 +114,31 @@ export const AppTopbar: React.FC = () => {
         </Box>
       </Box>
 
+      {/* Phone-only search affordance — the compact stand-in for the ≥sm
+          palette field, keeping Search one tap away on the smallest bars. */}
+      <IconButton
+        aria-label={tNav('aria.search')}
+        onClick={openPalette}
+        sx={{ display: { xs: 'inline-flex', sm: 'none' }, flexShrink: 0 }}
+      >
+        <SearchIcon fontSize="small" />
+      </IconButton>
       <NotificationCenter />
-      <LanguageSwitcher color="inherit" size="small" />
+      {/* Language and one-tap sign-out stay ≥sm — on phones the account menu
+          carries both, and four controls are all a 320px bar can afford. */}
+      <Box sx={{ display: { xs: 'none', sm: 'inline-flex' }, flexShrink: 0 }}>
+        <LanguageSwitcher color="inherit" size="small" />
+      </Box>
       <UserMenu variant="avatar" />
-      {/* One-tap sign-out beside the account pill — the menu's Sign Out stays
-          as the discoverable path, this is the direct one. */}
       <Tooltip title={logoutLabel}>
         <IconButton
           aria-label={logoutLabel}
           onClick={handleLogout}
-          sx={{ flexShrink: 0, color: 'text.secondary' }}
+          sx={{
+            flexShrink: 0,
+            color: 'text.secondary',
+            display: { xs: 'none', sm: 'inline-flex' },
+          }}
         >
           <LogoutIcon fontSize="small" />
         </IconButton>

@@ -152,6 +152,7 @@
     "newTask": "New task",
     "reportIssue": "Report issue",
     "newGuest": "New guest",
-    "collectPayment": "Collect payment"
+    "collectPayment": "Collect payment",
+    "backToList": "Back to list"
   }
 }
