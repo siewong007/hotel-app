@@ -1,15 +1,15 @@
 {
-  "title": "夜间审计",
+  "title": "夜审",
   "tabs": {
-    "aria": "夜间审计选项卡",
+    "aria": "夜审选项卡",
     "run": "运行审计",
     "history": "审计历史"
   },
   "actions": {
-    "refresh": "刷新夜间审计",
+    "refresh": "刷新夜审",
     "loadPreview": "加载预览",
     "runAudit": "运行审计",
-    "runNightAudit": "运行夜间审计",
+    "runNightAudit": "运行夜审",
     "running": "正在运行…",
     "rerun": "重新运行审计",
     "rerunning": "正在重新运行…",
@@ -27,12 +27,11 @@
   },
   "status": {
     "alreadyCompleted": "审计已完成",
-    "completedSeeHistory": "夜间审计已完成。详情请查看“历史”选项卡。",
+    "completedSeeHistory": "夜审已完成。详情请查看“历史”选项卡。",
     "notRunYet": "尚未运行",
     "posted": "已过账"
   },
   "history": {
-    "found_one": "找到 {{count}} 条审计记录",
     "found_other": "找到 {{count}} 条审计记录",
     "perPage": "每页审计数",
     "empty": "暂无审计历史。",
@@ -49,14 +48,14 @@
     "system": "系统"
   },
   "rerun": {
-    "title": "重新运行夜间审计",
+    "title": "重新运行夜审",
     "message": "这将重置该日期之前的审计数据并重新运行审计。",
     "confirm": "重新运行审计",
-    "success": "夜间审计已重新运行"
+    "success": "夜审已重新运行"
   },
   "confirm": {
-    "title": "确认夜间审计",
-    "intro": "您即将为 {{date}} 运行夜间审计。",
+    "title": "确认夜审",
+    "intro": "您即将为 {{date}} 运行夜审。",
     "willDo": "此操作将：",
     "markPosted": "将 {{count}} 笔预订标记为已过账",
     "lockBookings": "锁定这些预订，禁止继续编辑",
@@ -66,11 +65,10 @@
   "errors": {
     "exportCsv": "导出审计失败，请重试。",
     "exportPdf": "导出审计失败：{{message}}",
-    "run": "运行夜间审计失败"
+    "run": "运行夜审失败"
   },
   "journal": {
     "title": "日记账分录",
-    "entries_one": "{{count}} 条分录",
     "entries_other": "{{count}} 条分录",
     "entryFallback": "日记账分录",
     "expandAria": "展开部分",
@@ -118,7 +116,7 @@
     "total": "合计"
   },
   "preview": {
-    "title": "夜间审计预览",
+    "title": "夜审预览",
     "bookingsToPost": "待过账预订",
     "estimatedRevenue": "预计收入",
     "roomsOccupied": "已入住客房",
@@ -139,7 +137,7 @@
     "colChannel": "渠道"
   },
   "report": {
-    "title": "夜间审计报告",
+    "title": "夜审报告",
     "completedLine": "由 {{name}} 于 {{time}} 完成",
     "revenue": "收入 {{amount}}",
     "bookingsPosted": "已过账预订",

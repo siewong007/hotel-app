@@ -369,7 +369,22 @@ function RoomStatusChips({ rooms, label }: { rooms: RoomCounts; label: string })
   );
 }
 
-function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdownItem[] }) {
+function BreakdownTable({
+  title,
+  items,
+  resolveCategory = formatStatusLabel,
+}: {
+  title: string;
+  items: RevenueBreakdownItem[];
+  /**
+   * Category resolver. Payment-method rows omit it on purpose: those
+   * categories are the hotel's own `payment_methods` setting names, stored
+   * verbatim on the booking — free-text server data, so the humanizer is the
+   * honest fallback. The channel table passes a resolver that maps the stable
+   * `bookings.source` enum through `bookings:channels.*`.
+   */
+  resolveCategory?: (category: string) => string;
+}) {
   const { t } = useTranslation('nightAudit');
   if (!items || items.length === 0) {
     return null;
@@ -390,7 +405,7 @@ function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdo
           {items.map((item) => (
             <TableRow key={item.category} hover>
               <TableCell sx={{ textTransform: 'capitalize' }}>
-                {formatStatusLabel(item.category)}
+                {resolveCategory(item.category)}
               </TableCell>
               <TableCell align="center">{item.count}</TableCell>
               <TableCell align="right">{formatCurrency(Number(item.amount))}</TableCell>
@@ -408,7 +423,7 @@ function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdo
 }
 
 const getBookingStatusChip = (status: string) => (
-  <StatusChip status={status} />
+  <StatusChip status={status} domain="booking" />
 );
 
 const formatAuditDate = (d: string) =>
@@ -486,7 +501,13 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
               <BreakdownTable title={t('preview.byPayment')} items={preview.payment_method_breakdown} />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              <BreakdownTable title={t('preview.byChannel')} items={preview.booking_channel_breakdown} />
+              <BreakdownTable
+              title={t('preview.byChannel')}
+              items={preview.booking_channel_breakdown}
+              resolveCategory={(category) =>
+                tOr(`bookings:channels.${category}`, formatStatusLabel(category))
+              }
+            />
             </Grid>
           </Grid>
         </>

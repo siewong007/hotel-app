@@ -1,5 +1,5 @@
 {
-  "title": "在线可售库存",
+  "title": "线上库存",
   "kicker": "库存设置",
   "subtitle": "一次管理 {{days}} 天的线上库存——点击单元格进行选择，在编辑器中暂存修改，然后一次性检查并安全应用所有更改。",
   "loading": "正在加载客房可售库存…",
@@ -13,7 +13,6 @@
     "discardMove": "移动日期窗口将放弃未保存的库存修改，是否继续？",
     "discardRefresh": "刷新可售库存将放弃未保存的库存修改，是否继续？"
   },
-  "changedBar_one": "已修改 {{count}} 个单元格",
   "changedBar_other": "已修改 {{count}} 个单元格",
   "discard": "放弃",
   "reviewApply": "检查并应用",
@@ -47,7 +46,6 @@
   },
   "bulk": {
     "aria": "批量编辑所选单元格",
-    "cellsSelected_one": "已选择 {{count}} 个单元格",
     "cellsSelected_other": "已选择 {{count}} 个单元格",
     "daysAria": "限定星期",
     "days": {
@@ -74,7 +72,6 @@
     "adjustAmountAria": "按金额调整",
     "applyAmount": "应用金额",
     "clearOverrides": "清除覆盖",
-    "skipped_one": "已跳过 {{count}} 个单元格——调整会使价格变为零或负数。",
     "skipped_other": "已跳过 {{count}} 个单元格——调整会使价格变为零或负数。"
   },
   "editor": {
@@ -103,10 +100,8 @@
   },
   "review": {
     "title": "检查修改",
-    "atomicNote_one": "该 {{count}} 项修改将一并应用——若任一单元格失败，则不会保存任何内容。",
     "atomicNote_other": "全部 {{count}} 项修改将一并应用——若任一单元格失败，则不会保存任何内容。",
     "saving": "保存中…",
-    "apply_one": "应用 {{count}} 项修改",
     "apply_other": "应用 {{count}} 项修改"
   },
   "lines": {
@@ -124,7 +119,6 @@
     "save": "无法保存库存修改。"
   },
   "success": {
-    "updated_one": "已更新 {{count}} 个单元格。",
     "updated_other": "已更新 {{count}} 个单元格。"
   }
 }
