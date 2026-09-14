@@ -1,6 +1,6 @@
 export { ThemeModeContext, useThemeMode } from './ThemeModeContext';
 export type { ThemeModeContextValue } from './ThemeModeContext';
-export { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
+export { BootSplash, LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 export {
   useNavigate,
   useLocation,

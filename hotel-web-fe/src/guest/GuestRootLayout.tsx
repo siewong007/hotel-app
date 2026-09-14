@@ -3,7 +3,7 @@ import { Outlet, useLocation } from '@tanstack/react-router';
 import { ErrorBoundary } from '../components';
 import { useAuth } from '../auth/AuthContext';
 import { getHotelSettings } from '../utils/hotelSettings';
-import { LoadingFallback } from '../router/RouteFallbacks';
+import { BootSplash, LoadingFallback } from '../router/RouteFallbacks';
 import { isPublicGuestPath } from './guestDocumentPaths';
 import { GuestOneTap } from '../features/auth/google/GuestOneTap';
 import { CrossAppRedirect } from './CrossAppRedirect';
@@ -62,7 +62,7 @@ export function GuestRootLayout() {
   const oneTap = <GuestOneTap pathname={pathname} search={search} />;
 
   if (isPortal && !publicPath) {
-    if (isLoading) return <LoadingFallback />;
+    if (isLoading) return <BootSplash />;
     if (!isAuthenticated) return <CrossAppRedirect to="/login" />;
     if (user?.user_type !== 'guest') return <CrossAppRedirect to="/" />;
     return (

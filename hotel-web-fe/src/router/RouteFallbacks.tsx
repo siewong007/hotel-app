@@ -1,5 +1,35 @@
-import { Box, Skeleton } from '@mui/material';
+import { Box, Skeleton, Typography } from '@mui/material';
 import { HotelSpinner } from '../components';
+import { getHotelSettings } from '../utils/hotelSettings';
+
+// Full-viewport boot screen shown while auth resolves, before any shell exists.
+// Deliberately NOT a page-shaped skeleton — a fake dashboard reads as a wrong
+// page flashing by on every refresh (the access token is in-memory only, so
+// every reload pays for the refresh round trip here).
+export const BootSplash = () => {
+  const hotelName = getHotelSettings().hotel_name.trim();
+  return (
+    <Box
+      role="status"
+      aria-label="Loading"
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'background.default',
+      }}
+    >
+      {hotelName && (
+        <Typography variant="h6" sx={{ mb: 1, fontWeight: 600, letterSpacing: '0.02em' }}>
+          {hotelName}
+        </Typography>
+      )}
+      <HotelSpinner size={48} />
+    </Box>
+  );
+};
 
 export const LoadingFallback = () => (
   <Box
