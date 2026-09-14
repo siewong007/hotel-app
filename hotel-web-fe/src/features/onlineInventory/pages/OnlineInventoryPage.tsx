@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -107,6 +107,7 @@ const OnlineInventoryPage = () => {
       return;
     }
     sel.clear();
+    setBulkOpen(false);
     setStart(next);
   };
 
@@ -139,10 +140,19 @@ const OnlineInventoryPage = () => {
 
   const toggleSelectMode = () => {
     sel.clear();
+    setBulkOpen(false);
     setSelectMode((current) => !current);
   };
 
   const openCellSheet = (key: CellKey) => setEditorKey(key);
+
+  // Resizing across the phone breakpoint swaps the editor host (popover ↔
+  // sheet) — a stale anchor would point at an unmounted grid cell.
+  useEffect(() => {
+    setEditorKey(null);
+    setEditorAnchor(null);
+    setBulkOpen(false);
+  }, [isPhone]);
 
   const confirmSave = async () => {
     if (await inv.saveChanges()) setReviewOpen(false);
@@ -300,7 +310,13 @@ const OnlineInventoryPage = () => {
             zIndex: (theme) => theme.zIndex.appBar - 1,
             left: { xs: 12, md: '50%' },
             right: { xs: 12, md: 'auto' },
-            bottom: 16,
+            // Phones: clear the 60px bottom nav (+ --sab home indicator) with
+            // 16px margin; while select mode's StickyActionBar (~64px) is up,
+            // stack above it instead.
+            bottom: {
+              xs: `calc(${selectMode ? 136 : 76}px + var(--sab))`,
+              sm: 16,
+            },
             transform: { md: 'translateX(-50%)' },
             width: { md: 'min(680px, calc(100vw - 48px))' },
             p: 1.25,
