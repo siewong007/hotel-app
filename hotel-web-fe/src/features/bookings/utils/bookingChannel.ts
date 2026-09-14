@@ -98,10 +98,14 @@ export const getBookingChannelInfo = (
     return buildChannelInfo(configuredChannel.name, configuredChannel.abbreviation);
   }
 
-  const fallbackName = parsedName
-    || translate(sourceKey.includes('website') || sourceKey.includes('web')
-      ? 'channels.fallbackWebsite' : 'channels.fallbackOnline', undefined, 'bookings');
-  return buildChannelInfo(fallbackName);
+  if (parsedName) {
+    return buildChannelInfo(parsedName);
+  }
+  const isWebsite = sourceKey.includes('website') || sourceKey.includes('web');
+  return buildChannelInfo(
+    translate(isWebsite ? 'channels.fallbackWebsite' : 'channels.fallbackOnline', undefined, 'bookings'),
+    isWebsite ? 'WEB' : 'ONL',
+  );
 };
 
 export const getBookedViaText = (
