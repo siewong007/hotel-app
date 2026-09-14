@@ -157,7 +157,10 @@ impl BookingRepository {
         Ok(row.as_ref().map(row_mappers::row_to_booking))
     }
 
-    /// Check out a booking
+    /// Check out a booking.
+    ///
+    /// Bypasses `update_booking`'s checkout guards (balance AND unresolved
+    /// deposit) — test-only helper; never wire it to a real caller.
     #[allow(dead_code)] // used by tests/rooms_housekeeping.rs
     pub async fn check_out(pool: &DbPool, id: i64, _check_out_time: &str) -> Result<(), ApiError> {
         sqlx::query(

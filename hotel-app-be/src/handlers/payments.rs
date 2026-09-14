@@ -85,6 +85,18 @@ pub async fn revert_deposit_refund_handler(
     ))
 }
 
+/// Forfeit part or all of a booking's held keycard deposit
+pub async fn forfeit_deposit_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(
+        payments::forfeit_deposit(&pool, user_id, booking_id, body).await?,
+    ))
+}
+
 /// Get payment for a booking
 pub async fn get_payment_handler(
     State(pool): State<DbPool>,

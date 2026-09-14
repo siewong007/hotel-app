@@ -1,6 +1,7 @@
 //! Characterization tests for the payment domain functions that previously
 //! had ZERO test callers: `record_payment`, `approve_payment`,
-//! `reject_payment`, `refund_deposit` / `revert_deposit_refund`, and the
+//! `reject_payment`, `refund_deposit` / `revert_deposit_refund`,
+//! `forfeit_deposit`, and the
 //! network-free boundary of `capture_paypal_payment`. Business logic lives in
 //! `src/services/payments.rs` (thin orchestration: transactions, audit,
 //! notifications) over `src/repositories/payment.rs` (the actual SQL).
@@ -272,6 +273,30 @@ async fn insert_pending_payment(
     .fetch_one(pool)
     .await
     .expect("inserting a fixture pending payment should succeed")
+}
+
+/// Inserts a `completed` payment row directly (the same shape
+/// `reconcile_booking_deposit_tx` mints), so void-guard tests don't depend on
+/// the record-payment path's own guards — the same convention
+/// `insert_pending_payment` uses for the approve/reject tests.
+async fn insert_completed_payment(
+    pool: &PgPool,
+    booking_id: i64,
+    payment_type: &str,
+    amount: Decimal,
+    created_by: i64,
+) -> i64 {
+    sqlx::query_scalar::<_, i64>(
+        "INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, created_by) \
+         VALUES (gen_uuidv7(), $1, $2, 'cash', $3, 'completed', $4) RETURNING id",
+    )
+    .bind(booking_id)
+    .bind(amount)
+    .bind(payment_type)
+    .bind(created_by)
+    .fetch_one(pool)
+    .await
+    .expect("inserting a fixture completed payment should succeed")
 }
 
 async fn fetch_payment_status(pool: &PgPool, payment_id: i64) -> String {
@@ -3346,6 +3371,389 @@ async fn refund_deposit_ignores_booking_columns_without_a_payment_row() {
     );
 }
 
+/// (5) `PaymentRepository::forfeit_deposit`: the hotel keeps part or all of a
+/// held deposit (lost keycard, damage). A full forfeit inserts a
+/// `deposit_forfeited` / `completed` row that carries the tender the deposit
+/// was originally collected in, nets out of the booking's deposit mirror, and
+/// drains the refundable ceiling -- a later `refund_deposit` must find nothing
+/// left to return.
+#[tokio::test]
+async fn forfeit_deposit_full_amount_zeroes_the_refundable_ceiling() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_215;
+    let room_type_id = 940_216;
+    let room_id = 940_217;
+    let guest_id = 940_218;
+    let booking_id = 940_219;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "confirmed",
+            check_in: "2031-07-10",
+            check_out: "2031-07-11",
+            base_price: d("100.00"),
+            subtotal: d("100.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+
+    // A real held 50.00 deposit, collected by card through the real
+    // record_payment code path (same as the refund tests above).
+    payments::record_payment(
+        &pool,
+        actor_id,
+        RecordPaymentRequest {
+            booking_id,
+            amount: 50.0,
+            payment_method: "card".to_string(),
+            payment_type: Some("deposit".to_string()),
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+            idempotency_key: "payment-char-940219-deposit".to_string(),
+        },
+    )
+    .await
+    .expect("seeding a real collected 50.00 deposit should succeed");
+
+    let forfeit = PaymentRepository::forfeit_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        d("50.00"),
+        "Guest lost both keycards",
+    )
+    .await
+    .expect("forfeiting the held deposit should succeed");
+
+    assert_eq!(forfeit.booking_id, booking_id);
+    assert_eq!(forfeit.total_amount, "50.00");
+    assert_eq!(
+        forfeit.payment_method, "card",
+        "the forfeit row must carry the tender the deposit was collected in"
+    );
+    assert_eq!(forfeit.payment_type.as_deref(), Some("deposit_forfeited"));
+    assert_eq!(forfeit.payment_status.as_deref(), Some("completed"));
+    assert_eq!(
+        forfeit.notes.as_deref(),
+        Some("Deposit forfeited: Guest lost both keycards")
+    );
+
+    // The booking mirror must net the kept money out: nothing is still held.
+    let mirror: (Option<bool>, Option<Decimal>) =
+        sqlx::query_as("SELECT deposit_paid, deposit_amount FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(mirror.0, Some(false), "no deposit may show as held");
+    assert_eq!(mirror.1, None, "the mirrored held amount must be empty");
+
+    let summary = PaymentRepository::workflow_summary_row(&pool, booking_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(summary.deposit_collected, d("50.00"));
+    assert_eq!(summary.deposit_forfeited, d("50.00"));
+
+    // The refundable ceiling is drained — a subsequent refund must be refused.
+    let refund = payments::refund_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+    )
+    .await;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+
+    match refund {
+        Err(ApiError::BadRequest(message)) => assert!(
+            message.contains("No refundable deposit"),
+            "the refund must fail on the drained ceiling, got: {message}"
+        ),
+        other => panic!("a deposit fully forfeited must not be refundable: {other:?}"),
+    }
+}
+
+/// A partial forfeit keeps only part of the held deposit: the mirror drops to
+/// the still-held remainder and exactly `collected - forfeited` stays
+/// refundable — neither more nor less.
+#[tokio::test]
+async fn forfeit_deposit_partial_leaves_the_remainder_refundable() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_225;
+    let room_type_id = 940_226;
+    let room_id = 940_227;
+    let guest_id = 940_228;
+    let booking_id = 940_229;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "confirmed",
+            check_in: "2031-07-15",
+            check_out: "2031-07-16",
+            base_price: d("100.00"),
+            subtotal: d("100.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+    payments::record_payment(
+        &pool,
+        actor_id,
+        RecordPaymentRequest {
+            booking_id,
+            amount: 50.0,
+            payment_method: "cash".to_string(),
+            payment_type: Some("deposit".to_string()),
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+            idempotency_key: "payment-char-940229-deposit".to_string(),
+        },
+    )
+    .await
+    .expect("seeding a real collected 50.00 deposit should succeed");
+
+    PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("20.00"), "Minibar damage")
+        .await
+        .expect("a partial forfeit within the held deposit should succeed");
+
+    // Held money is now 50 - 20 = 30: the mirror and the summary agree.
+    let mirror: (Option<bool>, Option<Decimal>) =
+        sqlx::query_as("SELECT deposit_paid, deposit_amount FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(mirror.0, Some(true));
+    assert_eq!(mirror.1, Some(d("30.00")));
+    let summary = PaymentRepository::workflow_summary_row(&pool, booking_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(summary.deposit_forfeited, d("20.00"));
+
+    // The ceiling shrank: a second forfeit above the remainder is refused…
+    let over_remainder =
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("30.01"), "More damage")
+            .await;
+    assert!(
+        matches!(over_remainder, Err(ApiError::BadRequest(_))),
+        "a forfeit above collected - forfeited must be refused: {over_remainder:?}"
+    );
+
+    // …and the remainder is refundable through the normal refund workflow.
+    payments::refund_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        serde_json::json!({"payment_method": "cash", "amount": 30.0}),
+    )
+    .await
+    .expect("the 30.00 still held after the partial forfeit must be refundable");
+
+    // After the refund, nothing is left to forfeit.
+    let nothing_left =
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("0.01"), "Late charge")
+            .await;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+
+    assert!(
+        matches!(nothing_left, Err(ApiError::BadRequest(_))),
+        "no forfeitable deposit may remain once the rest was refunded: {nothing_left:?}"
+    );
+}
+
+/// `forfeit_deposit` input and ceiling guards: no forfeit without a collected
+/// deposit, never above the refundable ceiling, never a non-positive amount,
+/// and never without a reason — and a refused call must write no rows.
+#[tokio::test]
+async fn forfeit_deposit_rejects_over_ceiling_amounts_and_bad_input() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_235;
+    let room_type_id = 940_236;
+    let room_id = 940_237;
+    let guest_id = 940_238;
+    let booking_id = 940_239;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "confirmed",
+            check_in: "2031-07-20",
+            check_out: "2031-07-21",
+            base_price: d("100.00"),
+            subtotal: d("100.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+
+    // No deposit was ever collected for this booking.
+    let no_deposit =
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("10.00"), "Damage").await;
+    assert!(
+        matches!(no_deposit, Err(ApiError::BadRequest(_))),
+        "forfeiting a deposit that was never collected must be refused: {no_deposit:?}"
+    );
+
+    payments::record_payment(
+        &pool,
+        actor_id,
+        RecordPaymentRequest {
+            booking_id,
+            amount: 50.0,
+            payment_method: "cash".to_string(),
+            payment_type: Some("deposit".to_string()),
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+            idempotency_key: "payment-char-940239-deposit".to_string(),
+        },
+    )
+    .await
+    .expect("seeding a real collected 50.00 deposit should succeed");
+
+    let over_ceiling =
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("50.01"), "Damage").await;
+    let zero =
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("0.00"), "Damage").await;
+    let negative =
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("-5.00"), "Damage").await;
+    let empty_reason =
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("10.00"), "").await;
+    let whitespace_reason =
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("10.00"), "   ").await;
+
+    // None of the refused calls may have written a row or moved the mirror.
+    let forfeit_rows: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM payments WHERE booking_id = $1 AND payment_type = 'deposit_forfeited'",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let mirror: (Option<bool>, Option<Decimal>) =
+        sqlx::query_as("SELECT deposit_paid, deposit_amount FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+
+    match over_ceiling {
+        Err(ApiError::BadRequest(message)) => assert!(
+            message.contains("cannot exceed the refundable deposit"),
+            "the over-ceiling error must name the refundable ceiling, got: {message}"
+        ),
+        other => panic!("a forfeit above the refundable ceiling must be refused: {other:?}"),
+    }
+    assert!(
+        matches!(zero, Err(ApiError::BadRequest(_))),
+        "a zero forfeit must be refused: {zero:?}"
+    );
+    assert!(
+        matches!(negative, Err(ApiError::BadRequest(_))),
+        "a negative forfeit must be refused: {negative:?}"
+    );
+    assert!(
+        matches!(empty_reason, Err(ApiError::BadRequest(_))),
+        "an empty reason must be refused: {empty_reason:?}"
+    );
+    assert!(
+        matches!(whitespace_reason, Err(ApiError::BadRequest(_))),
+        "a whitespace-only reason must be refused: {whitespace_reason:?}"
+    );
+    assert_eq!(forfeit_rows, 0, "refused forfeits must write no rows");
+    assert_eq!(mirror.0, Some(true));
+    assert_eq!(mirror.1, Some(d("50.00")));
+}
+
 /// The generic record-payment endpoint must not mint `refund` rows (those are
 /// written exclusively by the deposit-refund workflow) and must reject
 /// unknown types and non-positive amounts for every payment type.
@@ -3502,6 +3910,179 @@ async fn delete_payment_voids_and_requires_manage_for_completed_rows() {
         matches!(refund_void, Err(ApiError::BadRequest(_))),
         "refund markers are managed by the refund workflow: {refund_void:?}"
     );
+    assert!(void_audit, "the void must write a payment_voided audit row");
+}
+
+/// A completed deposit is held collateral: once the booking is in-house,
+/// voiding the row would make money the guest is still owed vanish from the
+/// ledger — the exact action that caused the incident this guard prevents.
+/// Every in-house-or-later status must refuse the void with the actionable
+/// refund/forfeit message even for a `payments:manage` caller, and the row
+/// must stay `completed`. A `deposit_forfeited` row stays voidable on the
+/// same booking — that is the deliberate un-forfeit hatch (the Task-6
+/// checkout guard re-blocks the booking afterwards).
+#[tokio::test]
+async fn delete_completed_deposit_is_refused_once_the_booking_is_in_house() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_940, 940_941, 940_942, 940_943, 940_944);
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "checked_in",
+            check_in: "2031-08-10",
+            check_out: "2031-08-12",
+            base_price: d("150.00"),
+            subtotal: d("300.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+    grant_role(&pool, actor_id, "manager").await;
+
+    let deposit_id =
+        insert_completed_payment(&pool, booking_id, "deposit", d("100.00"), actor_id).await;
+    let forfeit_id =
+        insert_completed_payment(&pool, booking_id, "deposit_forfeited", d("25.00"), actor_id)
+            .await;
+
+    // `late_checkout` is in the guard's in-house list but is not in the
+    // bookings_status_check vocabulary, so no row can carry it to test.
+    for status in [
+        "checked_in",
+        "auto_checked_in",
+        "checked_out",
+        "completed",
+    ] {
+        sqlx::query("UPDATE bookings SET status = $2 WHERE id = $1")
+            .bind(booking_id)
+            .bind(status)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let void = payments::delete_payment(&pool, actor_id, deposit_id).await;
+        match void {
+            Err(ApiError::BadRequest(message)) => assert!(
+                message.contains("refund") && message.contains("forfeit"),
+                "the refusal must name the refund/forfeit resolution path, got: {message}"
+            ),
+            other => panic!(
+                "voiding a completed deposit on a {status} booking must be refused, got: {other:?}"
+            ),
+        }
+        assert_eq!(
+            fetch_payment_status(&pool, deposit_id).await,
+            "completed",
+            "a refused void must leave the {status} booking's deposit row completed"
+        );
+    }
+
+    // The un-forfeit hatch: a completed `deposit_forfeited` row is NOT a held
+    // deposit, so it stays voidable by payments:manage even on a completed
+    // booking — voiding it re-asserts money held, which the checkout guard
+    // then re-blocks on.
+    let unforfeit = payments::delete_payment(&pool, actor_id, forfeit_id).await;
+    assert!(
+        unforfeit.is_ok(),
+        "a deposit_forfeited row must stay voidable in-house (un-forfeit hatch): {unforfeit:?}"
+    );
+    assert_eq!(
+        fetch_payment_status(&pool, forfeit_id).await,
+        "void",
+        "the un-forfeit void must flip the row to void"
+    );
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+}
+
+/// Pre-stay the deposit is still just money held against a reservation, so a
+/// `payments:manage` caller keeps the existing void path — e.g. a deposit
+/// recorded on the wrong booking before the guest arrives.
+#[tokio::test]
+async fn delete_completed_deposit_stays_voidable_before_check_in() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_945, 940_946, 940_947, 940_948, 940_949);
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "confirmed",
+            check_in: "2031-08-15",
+            check_out: "2031-08-16",
+            base_price: d("150.00"),
+            subtotal: d("150.00"),
+            total_amount: d("150.00"),
+        },
+    )
+    .await;
+    grant_role(&pool, actor_id, "manager").await;
+
+    let deposit_id =
+        insert_completed_payment(&pool, booking_id, "deposit", d("50.00"), actor_id).await;
+
+    let voided = payments::delete_payment(&pool, actor_id, deposit_id).await;
+    let status = fetch_payment_status(&pool, deposit_id).await;
+    let void_audit = audit_log_exists(&pool, "payment_voided", deposit_id).await;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+
+    assert!(
+        voided.is_ok(),
+        "a pre-stay completed deposit must stay voidable by payments:manage: {voided:?}"
+    );
+    assert_eq!(status, "void", "the row must be kept as void, not deleted");
     assert!(void_audit, "the void must write a payment_voided audit row");
 }
 

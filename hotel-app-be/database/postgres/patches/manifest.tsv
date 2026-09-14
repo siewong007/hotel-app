@@ -1,1 +1,2 @@
 # generation	version	name	checksum	file
+1	2	deposit-forfeited	sha256:3a2364128ce9a28292b92030cad3f35bf29afdf8b395d95569a90e6880c1b199	0002_deposit_forfeited.sql

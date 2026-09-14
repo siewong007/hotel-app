@@ -496,7 +496,10 @@ pub async fn get_payment_workflow_summary(
     if balance_due > Decimal::ZERO {
         warnings.push(format!("Outstanding balance: {}", balance_due));
     }
-    if row.deposit_collected > row.deposit_refunded
+    // A forfeited deposit is still "collected" but can no longer be refunded,
+    // so the outstanding-deposit check compares what is actually still held
+    // and returnable to the guest.
+    if row.deposit_collected - row.deposit_refunded - row.deposit_forfeited > Decimal::ZERO
         && matches!(row.booking_status.as_str(), "checked_out" | "completed")
     {
         warnings.push("Collected deposit has not been fully refunded".to_string());
@@ -511,7 +514,8 @@ pub async fn get_payment_workflow_summary(
         "Review failed payment".to_string()
     } else if balance_due > Decimal::ZERO {
         "Collect balance due".to_string()
-    } else if row.deposit_collected > row.deposit_refunded
+    } else if row.deposit_collected - row.deposit_refunded - row.deposit_forfeited
+        > Decimal::ZERO
         && matches!(row.booking_status.as_str(), "checked_out" | "completed")
     {
         "Refund deposit".to_string()
@@ -529,6 +533,7 @@ pub async fn get_payment_workflow_summary(
         balance_due,
         deposit_collected: row.deposit_collected,
         deposit_refunded: row.deposit_refunded,
+        deposit_forfeited: row.deposit_forfeited,
         has_failed_payment: row.has_failed_payment,
         next_action,
         warnings,
@@ -578,6 +583,71 @@ pub async fn refund_deposit(
                 "booking_id": booking_id,
                 "amount": deposit_amount_f64,
                 "payment_method": payment_method,
+            })),
+            ..Default::default()
+        },
+    )
+    .await;
+
+    Ok(serde_json::json!({
+        "id": row.id,
+        "booking_id": row.booking_id,
+        "total_amount": row.total_amount,
+        "payment_method": row.payment_method,
+        "payment_type": row.payment_type,
+        "payment_status": row.payment_status,
+        "notes": row.notes,
+        "created_at": row.created_at,
+    }))
+}
+
+/// Forfeit part or all of a booking's held keycard deposit (lost keycard,
+/// damage). A reason is mandatory — the row's notes carry it — and the repo
+/// op enforces the refundable ceiling under the booking's FOR UPDATE lock,
+/// so a forfeit can never exceed the deposit money still held.
+pub async fn forfeit_deposit(
+    pool: &DbPool,
+    user_id: i64,
+    booking_id: i64,
+    body: serde_json::Value,
+) -> Result<serde_json::Value, ApiError> {
+    let reason = body
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if reason.is_empty() {
+        return Err(ApiError::BadRequest(
+            "A forfeit reason is required".to_string(),
+        ));
+    }
+
+    let forfeit_amount_f64 = body.get("amount").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let forfeit_amount = Decimal::from_f64_retain(forfeit_amount_f64).unwrap_or(Decimal::ZERO);
+
+    if forfeit_amount <= Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "Forfeit amount must be positive".to_string(),
+        ));
+    }
+
+    let row = PaymentRepository::forfeit_deposit(pool, user_id, booking_id, forfeit_amount, &reason)
+        .await?;
+
+    recompute_payment_status(pool, booking_id).await?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "payment_deposit_forfeited",
+            resource_type: "payment",
+            resource_id: Some(row.id),
+            details: Some(serde_json::json!({
+                "booking_id": booking_id,
+                "amount": forfeit_amount_f64,
+                "reason": reason,
             })),
             ..Default::default()
         },
@@ -941,13 +1011,14 @@ pub async fn queue_checkout_receipt_email(
         return Ok(());
     }
 
-    // Money that settles the booking's charges — deposits are collateral and
-    // do not reduce the balance the receipt still shows as outstanding.
+    // Money that settles the booking's charges — held deposits are collateral
+    // and forfeited deposits are income, so neither reduces the balance the
+    // receipt still shows as outstanding.
     let paid = sqlx::query_scalar::<_, rust_decimal::Decimal>(
         r#"
         SELECT COALESCE(SUM(amount) FILTER (
             WHERE status = 'completed'
-              AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit')
+              AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')
         ), 0)
         FROM payments
         WHERE booking_id = $1

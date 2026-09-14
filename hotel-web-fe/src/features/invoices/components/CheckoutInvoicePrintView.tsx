@@ -3,6 +3,7 @@ import { Box } from '@mui/material';
 import type { BookingWithDetails } from '../../../types';
 import type { HotelSettings } from '../../../utils/hotelSettings';
 import type { ChargesBreakdown } from '../utils/chargesCalculation';
+import { isDepositLikePayment } from '../utils/payments';
 import type { CheckoutPaymentRecord } from '../types';
 import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
 import { divideMoney, isLessMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../utils/money';
@@ -20,6 +21,7 @@ interface CheckoutInvoicePrintViewProps {
   depositRefunded: boolean;
   depositWaived: boolean;
   depositWaiveReason: string;
+  depositForfeited: boolean;
   balanceDue: number;
   isHourlyBooking: boolean;
   calculateNights: () => number;
@@ -33,8 +35,11 @@ interface CheckoutInvoicePrintViewProps {
 const formatPaymentMethod = (method?: string | null) =>
   method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
 
+// Only bill-settling payments print as "Amount Paid" — a held deposit is
+// collateral and a forfeited one is kept income; listing either as a bill
+// payment recreates the same false math the modal used to show.
 const completedPayments = (payments: CheckoutPaymentRecord[]) =>
-  payments.filter((payment) => payment.payment_status === 'completed');
+  payments.filter((payment) => payment.payment_status === 'completed' && !isDepositLikePayment(payment));
 
 const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
   booking,
@@ -49,6 +54,7 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
   depositRefunded,
   depositWaived,
   depositWaiveReason,
+  depositForfeited,
   balanceDue,
   isHourlyBooking,
   calculateNights,
@@ -229,7 +235,7 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
 
         {isPositiveMoney(charges.depositRefund) ? (
           <tr className="refund-row">
-            <td>Deposit {depositRefunded ? '(Refunded)' : '(Pending Refund)'}</td>
+            <td>Deposit {depositRefunded ? '(Refunded)' : depositForfeited ? '(Forfeited)' : '(Pending Refund)'}</td>
             <td className="amount">{formatCurrency(charges.depositRefund)}</td>
           </tr>
         ) : null}
@@ -276,6 +282,11 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
       <div className="notes" style={{ backgroundColor: '#fff3e0', borderLeftColor: '#e65100' }}>
         <strong style={{ color: '#e65100' }}>Deposit - Waived</strong>
         Reason: {depositWaiveReason}
+      </div>
+    ) : depositForfeited ? (
+      <div className="notes" style={{ backgroundColor: '#fff3e0', borderLeftColor: '#e65100' }}>
+        <strong style={{ color: '#e65100' }}>Deposit - Forfeited</strong>
+        Deposit of {formatCurrency(charges.depositRefund)} has been forfeited to the hotel.
       </div>
     ) : isPositiveMoney(charges.depositRefund) ? (
       <div className="notes success-note">

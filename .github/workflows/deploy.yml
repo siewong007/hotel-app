@@ -162,6 +162,8 @@ jobs:
             "$bundle_dir/database/patches/_begin.sql"
           cp hotel-app-be/database/postgres/patches/_end.sql \
             "$bundle_dir/database/patches/_end.sql"
+          cp hotel-app-be/database/postgres/patches/0002_deposit_forfeited.sql \
+            "$bundle_dir/database/patches/0002_deposit_forfeited.sql"
 
           (
             cd "$bundle_dir"
@@ -177,6 +179,7 @@ jobs:
               database/patches/manifest.tsv \
               database/patches/_begin.sql \
               database/patches/_end.sql \
+              database/patches/0002_deposit_forfeited.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

@@ -147,14 +147,27 @@ impl TemporaryCatalog {
         Self { path }
     }
 
-    /// A synthetic two-patch catalog: controls plus two patches that each
-    /// create an observable sentinel table. Used to prove the runner still
-    /// applies, records and skips patches against a database whose committed
-    /// catalog is empty.
+    /// A synthetic catalog that extends the committed one with two patches
+    /// that each create an observable sentinel table. Used to prove the
+    /// runner applies, records and skips patches past the committed head —
+    /// keeping the committed rows lets the runner skip revisions a database
+    /// already recorded instead of colliding with them.
     fn with_synthetic_patches() -> Self {
         let catalog = Self::copy_committed();
-        let mut manifest = String::from("# generation\tversion\tname\tchecksum\tfile\n");
-        for (version, name) in [(2, "sentinel-a"), (3, "sentinel-b")] {
+        let mut manifest =
+            std::fs::read_to_string(postgres_dir().join("patches/manifest.tsv"))
+                .expect("committed manifest must be readable");
+        if manifest.trim().is_empty() {
+            manifest = "# generation\tversion\tname\tchecksum\tfile\n".to_string();
+        } else if !manifest.ends_with('\n') {
+            manifest.push('\n');
+        }
+        let first_version = committed_manifest_versions()
+            .last()
+            .map(|version| version + 1)
+            .unwrap_or(2);
+        for (offset, name) in ["sentinel-a", "sentinel-b"].into_iter().enumerate() {
+            let version = first_version + offset as i32;
             let file = format!("{version:04}_{name}.sql").replace('-', "_");
             let patch_source = format!(
                 "CREATE TABLE public.patch_sentinel_{name}(id integer);\n",

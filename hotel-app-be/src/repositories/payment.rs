@@ -382,13 +382,13 @@ impl PaymentRepository {
                 WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
                         WHERE p.booking_id = b.id
                           AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0)
+                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0)
                      >= (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
                         + COALESCE(b.extra_bed_charge, 0)) THEN 'paid'
                 WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
                         WHERE p.booking_id = b.id
                           AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0) > 0
+                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0) > 0
                     THEN 'partial'
                 ELSE 'unpaid'
             END,
@@ -419,13 +419,13 @@ impl PaymentRepository {
                 WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
                         WHERE p.booking_id = b.id
                           AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0)
+                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0)
                      >= (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
                         + COALESCE(b.extra_bed_charge, 0)) THEN 'paid'
                 WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
                         WHERE p.booking_id = b.id
                           AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0) > 0
+                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0) > 0
                     THEN 'partial'
                 ELSE 'unpaid'
             END,
@@ -1217,12 +1217,14 @@ impl PaymentRepository {
                 COALESCE(b.tourism_tax_amount, 0) AS tourism_tax_amount,
                 COALESCE(b.extra_bed_charge, 0) AS extra_bed_charge,
                 -- Money that settles the booking's charges: completed payments
-                -- excluding refunds and held deposits (a keycard deposit is
-                -- collateral, not a room payment). Deposit money is reported
-                -- separately via deposit_collected/deposit_refunded.
+                -- excluding refunds, held deposits, and forfeited deposits
+                -- (a keycard deposit is collateral, not a room payment, and a
+                -- forfeited one is income, not a charge payment). Deposit
+                -- money is reported separately via
+                -- deposit_collected/deposit_refunded.
                 COALESCE((SELECT SUM(p.amount) FROM payments p
                     WHERE p.booking_id = b.id AND p.status = 'completed'
-                      AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0) AS total_paid,
+                      AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0) AS total_paid,
                 COALESCE((SELECT SUM(p.amount) FROM payments p
                     WHERE p.booking_id = b.id AND p.status <> 'void'
                       AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS total_refunded,
@@ -1232,6 +1234,9 @@ impl PaymentRepository {
                 COALESCE((SELECT SUM(p.amount) FROM payments p
                     WHERE p.booking_id = b.id AND p.status <> 'void'
                       AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS deposit_refunded,
+                COALESCE((SELECT SUM(p.amount) FROM payments p
+                    WHERE p.booking_id = b.id AND p.status = 'completed'
+                      AND COALESCE(p.payment_type, 'booking') = 'deposit_forfeited'), 0) AS deposit_forfeited,
                 EXISTS(SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status = 'failed') AS has_failed_payment
             FROM bookings b
             WHERE b.id = $1
@@ -1286,14 +1291,18 @@ impl PaymentRepository {
 
         // Refundable ceiling := completed deposit payments minus money already
         // refunded (status 'refunded' refund rows; 'void' reversals don't
-        // count). The FOR UPDATE lock above serializes this read against a
-        // concurrent refund on the same booking.
+        // count) minus forfeited deposits (completed 'deposit_forfeited'
+        // rows are kept by the hotel and leave the refundable pool). The
+        // FOR UPDATE lock above serializes this read against a concurrent
+        // refund on the same booking.
         let refundable_deposit = sqlx::query_scalar::<_, Decimal>(
             "SELECT \
                 COALESCE((SELECT SUM(amount) FROM payments \
                           WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'), 0) \
                 - COALESCE((SELECT SUM(amount) FROM payments \
-                          WHERE booking_id = $1 AND payment_type = 'refund' AND status = 'refunded'), 0)",
+                          WHERE booking_id = $1 AND payment_type = 'refund' AND status = 'refunded'), 0) \
+                - COALESCE((SELECT SUM(amount) FROM payments \
+                          WHERE booking_id = $1 AND payment_type = 'deposit_forfeited' AND status = 'completed'), 0)",
         )
         .bind(booking_id)
         .fetch_one(&mut *tx)
@@ -1330,6 +1339,120 @@ impl PaymentRepository {
         .fetch_one(&mut *tx)
         .await
         .map_err(ApiError::from)?;
+
+        tx.commit().await.map_err(ApiError::from)?;
+
+        Ok(row)
+    }
+
+    /// Record that the hotel keeps part or all of a held deposit (lost
+    /// keycard, damage). Inserts a `deposit_forfeited` row that stays
+    /// `completed` — the cash really was collected — while shrinking the
+    /// refundable ceiling and the booking's deposit mirror. Serialized with
+    /// refunds on the same booking FOR UPDATE lock and validated against the
+    /// same payments-ledger ceiling, so a forfeit can never exceed the deposit
+    /// money actually still held.
+    ///
+    /// This is the ONLY writer of `deposit_forfeited` rows: the generic
+    /// `record_payment` caller-type whitelist deliberately excludes the type,
+    /// so a caller cannot mint kept-money rows without these checks.
+    pub async fn forfeit_deposit(
+        pool: &DbPool,
+        user_id: i64,
+        booking_id: i64,
+        amount: Decimal,
+        reason: &str,
+    ) -> Result<PaymentEntryRow, ApiError> {
+        let reason = reason.trim();
+        if reason.is_empty() {
+            return Err(ApiError::BadRequest(
+                "A deposit forfeit reason is required".to_string(),
+            ));
+        }
+        if amount <= Decimal::ZERO {
+            return Err(ApiError::BadRequest(
+                "Forfeit amount must be positive".to_string(),
+            ));
+        }
+
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+        // Same serialization as `refund_deposit`: the booking FOR UPDATE lock
+        // makes the refundable-ceiling read below race-free against a
+        // concurrent refund or forfeit on the same booking.
+        let booking_locked = sqlx::query("SELECT id FROM bookings WHERE id = $1 FOR UPDATE")
+            .bind(booking_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
+        if booking_locked.is_none() {
+            return Err(ApiError::NotFound("Booking not found".to_string()));
+        }
+
+        // Identical ceiling to `refund_deposit`: completed deposit payments
+        // minus disbursed refunds minus deposits the hotel already kept.
+        let refundable_deposit = sqlx::query_scalar::<_, Decimal>(
+            "SELECT \
+                COALESCE((SELECT SUM(amount) FROM payments \
+                          WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'), 0) \
+                - COALESCE((SELECT SUM(amount) FROM payments \
+                          WHERE booking_id = $1 AND payment_type = 'refund' AND status = 'refunded'), 0) \
+                - COALESCE((SELECT SUM(amount) FROM payments \
+                          WHERE booking_id = $1 AND payment_type = 'deposit_forfeited' AND status = 'completed'), 0)",
+        )
+        .bind(booking_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        if refundable_deposit <= Decimal::ZERO {
+            return Err(ApiError::BadRequest(
+                "No refundable deposit was collected for this booking".to_string(),
+            ));
+        }
+        if amount > refundable_deposit {
+            return Err(ApiError::BadRequest(format!(
+                "Forfeit amount cannot exceed the refundable deposit of {refundable_deposit}"
+            )));
+        }
+
+        // Carry the tender the deposit was originally collected in — the row
+        // records kept money, not a new payment.
+        let deposit_method: String = sqlx::query_scalar(
+            "SELECT payment_method FROM payments \
+             WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed' \
+             ORDER BY id DESC LIMIT 1",
+        )
+        .bind(booking_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(ApiError::from)?
+        .unwrap_or_else(|| "cash".to_string());
+
+        let row = sqlx::query_as::<_, PaymentEntryRow>(
+            r#"
+            INSERT INTO payments (
+                uuid, booking_id, amount, payment_method, payment_type,
+                status, notes, created_by
+            )
+            VALUES (gen_uuidv7(), $1, $2, $3, 'deposit_forfeited', 'completed', $4, $5)
+            RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
+                      status AS payment_status, NULL::text AS transaction_reference, notes,
+                      created_at::date::text AS payment_date, created_at
+            "#,
+        )
+        .bind(booking_id)
+        .bind(decimal_to_db(amount))
+        .bind(&deposit_method)
+        .bind(format!("Deposit forfeited: {reason}"))
+        .bind(user_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        // A completed forfeit nets out of the still-held deposit mirror —
+        // resync so the booking columns can't overstate what is returnable.
+        Self::sync_booking_deposit_mirror_tx(&mut tx, booking_id).await?;
 
         tx.commit().await.map_err(ApiError::from)?;
 
@@ -1892,9 +2015,14 @@ impl PaymentRepository {
     ///
     /// Refund markers are managed exclusively by the refund workflow, and
     /// rows already in a terminal state (`refunded`, `void`) cannot be voided
-    /// again. `allow_completed` is the service's verdict that the caller holds
-    /// `payments:manage` — required to void a posted payment; pending and
-    /// failed rows stay on the route's `payments:delete` gate.
+    /// again. A completed `deposit` row on a booking that is in-house or later
+    /// is collateral the guest is still owed — voiding it would make held
+    /// money disappear, so it must leave through `refund_deposit` /
+    /// `forfeit_deposit` instead. `deposit_forfeited` rows stay voidable: that
+    /// is the deliberate un-forfeit hatch (the checkout guard re-blocks the
+    /// booking afterwards). `allow_completed` is the service's verdict that
+    /// the caller holds `payments:manage` — required to void a posted payment;
+    /// pending and failed rows stay on the route's `payments:delete` gate.
     ///
     /// Returns the PRE-void row so the caller can audit the original values.
     pub async fn void_payment_tx(
@@ -1930,6 +2058,27 @@ impl PaymentRepository {
                 "Payment is already in a terminal state".to_string(),
             ));
         }
+        // A held deposit on an in-house booking is money owed back to the
+        // guest — it can only leave through refund or forfeit, never a void.
+        if existing.payment_type.as_deref() == Some("deposit")
+            && existing.payment_status.as_deref() == Some("completed")
+            && matches!(
+                Self::booking_status_for_payment_tx(tx, booking_id)
+                    .await?
+                    .as_str(),
+                "checked_in"
+                    | "auto_checked_in"
+                    | "late_checkout"
+                    | "checked_out"
+                    | "completed"
+            )
+        {
+            return Err(ApiError::BadRequest(
+                "Deposit payments can't be voided after check-in — \
+                 refund or forfeit the deposit instead"
+                    .to_string(),
+            ));
+        }
         if existing.payment_status.as_deref() == Some("completed") && !allow_completed {
             return Err(ApiError::Forbidden(
                 "Voiding a posted payment requires the payments:manage permission".to_string(),
@@ -1946,9 +2095,13 @@ impl PaymentRepository {
         .await
         .map_err(ApiError::from)?;
 
-        // Voiding a deposit row changes the collected-deposit total — resync
-        // the booking mirror so it can't overstate what the ledger holds.
-        if existing.payment_type.as_deref() == Some("deposit") {
+        // Voiding a deposit or deposit-forfeit row changes the still-held
+        // deposit total — resync the booking mirror so it can't overstate
+        // (or understate) what the ledger holds.
+        if matches!(
+            existing.payment_type.as_deref(),
+            Some("deposit") | Some("deposit_forfeited")
+        ) {
             Self::sync_booking_deposit_mirror_tx(tx, booking_id).await?;
         }
 
@@ -1959,6 +2112,13 @@ impl PaymentRepository {
     /// are a read model for the UI only — every money decision (refund
     /// ceiling, workflow summary) reads `payments` directly. Called whenever a
     /// deposit payment row appears or is voided so the mirror can't drift.
+    ///
+    /// The mirrored amount is the collected deposit still attributable to the
+    /// stay: completed `deposit` rows minus completed `deposit_forfeited`
+    /// rows (forfeits are positive amounts the hotel kept, so they must be
+    /// subtracted — a single SUM over both types would overstate the held
+    /// amount), floored at zero. `refund` rows are deliberately not netted —
+    /// refundability is always re-derived from the ledger.
     pub async fn sync_booking_deposit_mirror_tx(
         tx: &mut DbTransaction<'_>,
         booking_id: i64,
@@ -1970,8 +2130,13 @@ impl PaymentRepository {
                 deposit_paid_at = CASE WHEN COALESCE(s.total, 0) > 0 \
                     THEN COALESCE(b.deposit_paid_at, CURRENT_TIMESTAMP) ELSE NULL END, \
                 updated_at = CURRENT_TIMESTAMP \
-             FROM (SELECT SUM(amount) AS total FROM payments \
-                   WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed') s \
+             FROM (SELECT GREATEST( \
+                        COALESCE(SUM(amount) FILTER (WHERE payment_type = 'deposit'), 0) \
+                        - COALESCE(SUM(amount) FILTER (WHERE payment_type = 'deposit_forfeited'), 0), \
+                        0) AS total \
+                   FROM payments \
+                   WHERE booking_id = $1 AND status = 'completed' \
+                     AND payment_type IN ('deposit', 'deposit_forfeited')) s \
              WHERE b.id = $1",
         )
         .bind(booking_id)
@@ -2072,6 +2237,7 @@ fn map_workflow_summary_row(row: &DbRow) -> PaymentWorkflowSummaryRow {
         total_refunded: row_mappers::get_decimal(row, "total_refunded"),
         deposit_collected: row_mappers::get_decimal(row, "deposit_collected"),
         deposit_refunded: row_mappers::get_decimal(row, "deposit_refunded"),
+        deposit_forfeited: row_mappers::get_decimal(row, "deposit_forfeited"),
         has_failed_payment: row_mappers::get_bool(row, "has_failed_payment"),
     }
 }
