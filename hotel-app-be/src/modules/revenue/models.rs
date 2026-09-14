@@ -36,15 +36,52 @@ pub struct RevenueKpis {
     /// Net-revenue share of direct-type channels
     /// (direct/website/walk_in/phone), one decimal.
     pub direct_share: Decimal,
+    /// Non-room revenue from `booking_services` whose `service_date` falls in
+    /// the range (service-date basis — independent of stay nights).
+    pub service_revenue: Decimal,
+    /// `room_revenue + service_revenue`.
+    pub total_revenue: Decimal,
 }
 
 #[derive(Debug, Serialize)]
 pub struct RevenueDailyPoint {
     pub date: NaiveDate,
     pub room_revenue: Decimal,
+    /// Non-room (services) revenue rendered on that date.
+    pub other_revenue: Decimal,
     pub room_nights_sold: i64,
     pub occupancy_rate: Decimal,
     pub adr: Decimal,
+}
+
+/// Per-room-type stay-date performance inside the reported range.
+#[derive(Debug, Serialize)]
+pub struct RoomTypePerformance {
+    pub room_type_id: i64,
+    pub name: String,
+    /// Sellable physical rooms of this type (active, not maintenance/ooo) —
+    /// the same denominator the rate calendar uses.
+    pub rooms: i64,
+    pub nights_sold: i64,
+    /// `nights_sold ÷ (rooms × days) × 100`, one decimal.
+    pub occupancy_rate: Decimal,
+    /// `room_revenue ÷ nights_sold`.
+    pub adr: Decimal,
+    pub room_revenue: Decimal,
+}
+
+/// Money-in-motion aggregates. These are distinct economic events and must
+/// never be summed together.
+#[derive(Debug, Serialize)]
+pub struct RevenuePipeline {
+    /// Net revenue of sold-status bookings whose stay starts after today.
+    pub booked: Decimal,
+    /// Room revenue earned across the reported stay-date range.
+    pub earned: Decimal,
+    /// Completed payments received inside the range, net of refunds.
+    pub collected: Decimal,
+    /// Open invoice balances as of today (point-in-time, not range-bound).
+    pub outstanding: Decimal,
 }
 
 #[derive(Debug, Serialize)]
@@ -80,6 +117,10 @@ pub struct RevenueOverview {
     pub daily: Vec<RevenueDailyPoint>,
     /// Booking-creation-date basis channel attribution.
     pub channels: Vec<RevenueChannelMix>,
+    /// Per-room-type performance across the range (stay-date basis).
+    pub room_types: Vec<RoomTypePerformance>,
+    /// Booked / earned / collected / outstanding aggregates.
+    pub pipeline: RevenuePipeline,
 }
 
 #[derive(Debug, Deserialize)]

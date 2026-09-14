@@ -4,7 +4,10 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
 
-use super::models::{RateCalendarCell, RateCalendarRoomType, RevenueChannelMix, RevenueDailyPoint};
+use super::models::{
+    RateCalendarCell, RateCalendarRoomType, RevenueChannelMix, RevenueDailyPoint,
+    RoomTypePerformance,
+};
 use super::validation::RevenueRange;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -24,6 +27,14 @@ pub struct StaySums {
     pub no_show_created: i64,
     /// Sellable inventory: all rooms except `out_of_order`.
     pub sellable_rooms: i64,
+}
+
+/// `RevenueRepository::pipeline` output — `earned` comes from the stay sums.
+pub struct PipelineSums {
+    pub booked: Decimal,
+    /// Completed payments minus same-range refunds.
+    pub collected: Decimal,
+    pub outstanding: Decimal,
 }
 
 pub struct RevenueRepository;
@@ -138,12 +149,186 @@ impl RevenueRepository {
             .map(|row| RevenueDailyPoint {
                 date: row.get::<NaiveDate, _>("date"),
                 room_revenue: row.get::<Decimal, _>("room_revenue"),
+                other_revenue: Decimal::ZERO,
                 room_nights_sold: row.get::<i64, _>("room_nights_sold"),
                 // Ratios are filled in by the service, which owns the formulas.
                 occupancy_rate: Decimal::ZERO,
                 adr: Decimal::ZERO,
             })
             .collect())
+    }
+
+    /// Non-room revenue: `booking_services` rendered inside the range
+    /// (service-date basis). Joins bookings/rooms so the optional room-type
+    /// and channel filters apply the same way as the stay aggregates.
+    pub async fn service_sums(
+        pool: &DbPool,
+        range: &RevenueRange,
+        room_type_id: Option<i64>,
+        channel_id: Option<i64>,
+    ) -> Result<Decimal, ApiError> {
+        let row = sqlx::query(
+            r#"
+            SELECT COALESCE(SUM(bs.total_price), 0) AS service_revenue
+            FROM booking_services bs
+            JOIN bookings b ON b.id = bs.booking_id
+            JOIN rooms r ON r.id = b.room_id
+            WHERE bs.status <> 'void'
+              AND bs.service_date::date BETWEEN $1 AND $2
+              AND ($3::bigint IS NULL OR r.room_type_id = $3)
+              AND ($4::bigint IS NULL OR b.booking_channel_id = $4)
+            "#,
+        )
+        .bind(range.from)
+        .bind(range.to)
+        .bind(room_type_id)
+        .bind(channel_id)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(row.get::<Decimal, _>("service_revenue"))
+    }
+
+    /// Per-date service revenue for merging into the daily series.
+    pub async fn daily_service(
+        pool: &DbPool,
+        range: &RevenueRange,
+        room_type_id: Option<i64>,
+        channel_id: Option<i64>,
+    ) -> Result<Vec<(NaiveDate, Decimal)>, ApiError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT bs.service_date::date AS date,
+                   COALESCE(SUM(bs.total_price), 0) AS other_revenue
+            FROM booking_services bs
+            JOIN bookings b ON b.id = bs.booking_id
+            JOIN rooms r ON r.id = b.room_id
+            WHERE bs.status <> 'void'
+              AND bs.service_date::date BETWEEN $1 AND $2
+              AND ($3::bigint IS NULL OR r.room_type_id = $3)
+              AND ($4::bigint IS NULL OR b.booking_channel_id = $4)
+            GROUP BY bs.service_date::date
+            ORDER BY date
+            "#,
+        )
+        .bind(range.from)
+        .bind(range.to)
+        .bind(room_type_id)
+        .bind(channel_id)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(rows
+            .iter()
+            .map(|row| {
+                (
+                    row.get::<NaiveDate, _>("date"),
+                    row.get::<Decimal, _>("other_revenue"),
+                )
+            })
+            .collect())
+    }
+
+    /// Per-room-type stay-date performance. `room_type_id` is intentionally
+    /// not applied — this IS the per-type breakdown — while `channel_id`
+    /// still scopes the stay nights.
+    pub async fn room_type_performance(
+        pool: &DbPool,
+        range: &RevenueRange,
+        channel_id: Option<i64>,
+    ) -> Result<Vec<RoomTypePerformance>, ApiError> {
+        let rows = sqlx::query(
+            r#"
+            WITH stay_nights AS (
+                SELECT r.room_type_id, gs::date AS stay_date,
+                       (b.subtotal / GREATEST(b.check_out_date - b.check_in_date, 1))
+                           AS nightly_revenue
+                FROM bookings b
+                JOIN rooms r ON r.id = b.room_id
+                CROSS JOIN LATERAL generate_series(
+                    b.check_in_date,
+                    GREATEST(b.check_out_date - 1, b.check_in_date),
+                    interval '1 day'
+                ) AS gs
+                WHERE b.status NOT IN ('voided', 'comp_void', 'no_show')
+                  AND ($3::bigint IS NULL OR b.booking_channel_id = $3)
+                  AND gs::date BETWEEN $1 AND $2
+            )
+            SELECT rt.id AS room_type_id, rt.name,
+                   (SELECT COUNT(*) FROM rooms pr
+                     WHERE pr.room_type_id = rt.id AND pr.is_active = true
+                       AND COALESCE(pr.status, 'available')
+                           NOT IN ('maintenance', 'out_of_order')) AS rooms,
+                   COALESCE(COUNT(sn.stay_date), 0) AS nights_sold,
+                   COALESCE(SUM(sn.nightly_revenue), 0) AS room_revenue
+            FROM room_types rt
+            LEFT JOIN stay_nights sn ON sn.room_type_id = rt.id
+            WHERE rt.is_active = true
+            GROUP BY rt.id, rt.name
+            ORDER BY room_revenue DESC, rt.name
+            "#,
+        )
+        .bind(range.from)
+        .bind(range.to)
+        .bind(channel_id)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(rows
+            .iter()
+            .map(|row| RoomTypePerformance {
+                room_type_id: row.get("room_type_id"),
+                name: row.get("name"),
+                rooms: row.get("rooms"),
+                nights_sold: row.get("nights_sold"),
+                // Ratios are derived in the service (single definition site).
+                occupancy_rate: Decimal::ZERO,
+                adr: Decimal::ZERO,
+                room_revenue: row.get::<Decimal, _>("room_revenue"),
+            })
+            .collect())
+    }
+
+    /// Booked / collected / outstanding aggregates. `earned` is derived in the
+    /// service from the stay sums — it is deliberately not re-queried here.
+    pub async fn pipeline(
+        pool: &DbPool,
+        range: &RevenueRange,
+        today: NaiveDate,
+    ) -> Result<PipelineSums, ApiError> {
+        let row = sqlx::query(
+            r#"
+            SELECT
+                (SELECT COALESCE(SUM(COALESCE(b.net_revenue, b.subtotal)), 0)
+                 FROM bookings b
+                 WHERE b.check_in_date > $3
+                   AND b.status NOT IN ('voided', 'comp_void', 'no_show')) AS booked,
+                (SELECT COALESCE(SUM(p.amount), 0)
+                 FROM payments p
+                 WHERE p.status = 'completed'
+                   AND p.created_at::date BETWEEN $1 AND $2) AS collected,
+                (SELECT COALESCE(SUM(p.refund_amount), 0)
+                 FROM payments p
+                 WHERE p.refund_amount IS NOT NULL
+                   AND p.refunded_at::date BETWEEN $1 AND $2) AS refunded,
+                (SELECT COALESCE(SUM(i.balance_due), 0)
+                 FROM invoices i
+                 WHERE i.balance_due > 0
+                   AND i.status IN ('issued', 'overdue')) AS outstanding
+            "#,
+        )
+        .bind(range.from)
+        .bind(range.to)
+        .bind(today)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(PipelineSums {
+            booked: row.get("booked"),
+            collected: row.get::<Decimal, _>("collected")
+                - row.get::<Decimal, _>("refunded"),
+            outstanding: row.get("outstanding"),
+        })
     }
 
     /// Channel attribution for bookings CREATED in the range. Bookings with no

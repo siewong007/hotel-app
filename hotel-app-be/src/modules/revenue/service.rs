@@ -1,10 +1,11 @@
-use chrono::Duration;
+use chrono::{Duration, NaiveDate};
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
 
 use super::models::{
     RateCalendar, RateCalendarQuery, RevenueChannelMix, RevenueDailyPoint, RevenueKpis,
-    RevenueOverview, RevenueOverviewQuery, RevenueRangeInfo,
+    RevenueOverview, RevenueOverviewQuery, RevenuePipeline, RevenueRangeInfo,
+    RoomTypePerformance,
 };
 use super::repository::{RevenueRepository, StaySums};
 use super::validation::{RevenueRange, revenue_range};
@@ -30,22 +31,46 @@ impl RevenueService {
     ) -> Result<RevenueOverview, ApiError> {
         let range = resolve_range(pool, &query).await?;
         let days = (range.to - range.from).num_days() + 1;
+        let today = hotel_today(pool).await.map_err(ApiError::from)?;
         // Same-length window immediately before the reported range.
         let previous = RevenueRange {
             from: range.from - Duration::days(days),
             to: range.from - Duration::days(1),
         };
-        let (current, prior, mut daily, mut channels) = tokio::try_join!(
+        let (
+            current,
+            prior,
+            mut daily,
+            mut channels,
+            service_revenue,
+            prior_service_revenue,
+            daily_service,
+            mut room_types,
+            pipeline_sums,
+        ) = tokio::try_join!(
             RevenueRepository::stay_sums(pool, &range, query.room_type_id, query.channel_id),
             RevenueRepository::stay_sums(pool, &previous, query.room_type_id, query.channel_id),
             RevenueRepository::daily(pool, &range, query.room_type_id, query.channel_id),
             RevenueRepository::channel_mix(pool, &range, query.room_type_id, query.channel_id),
+            RevenueRepository::service_sums(pool, &range, query.room_type_id, query.channel_id),
+            RevenueRepository::service_sums(pool, &previous, query.room_type_id, query.channel_id),
+            RevenueRepository::daily_service(pool, &range, query.room_type_id, query.channel_id),
+            RevenueRepository::room_type_performance(pool, &range, query.channel_id),
+            RevenueRepository::pipeline(pool, &range, today),
         )?;
         let direct_share = direct_share(&channels);
-        let current_kpis = kpis(&current, days, direct_share);
-        let previous_kpis = kpis(&prior, days, Decimal::ZERO);
+        let current_kpis = kpis(&current, days, direct_share, service_revenue);
+        let previous_kpis = kpis(&prior, days, Decimal::ZERO, prior_service_revenue);
+        merge_daily_service(&mut daily, &daily_service);
         fill_daily(&mut daily, current.sellable_rooms);
         fill_channel_shares(&mut channels);
+        fill_room_type_performance(&mut room_types, days);
+        let pipeline = RevenuePipeline {
+            booked: pipeline_sums.booked.round_dp(2),
+            earned: current_kpis.room_revenue,
+            collected: pipeline_sums.collected.round_dp(2),
+            outstanding: pipeline_sums.outstanding.round_dp(2),
+        };
         Ok(RevenueOverview {
             range: RevenueRangeInfo {
                 from: range.from,
@@ -61,6 +86,8 @@ impl RevenueService {
             previous_kpis,
             daily,
             channels,
+            room_types,
+            pipeline,
         })
     }
 
@@ -132,7 +159,7 @@ fn ratio_pct(part: Decimal, whole: i64) -> Decimal {
 }
 
 /// Derive every ratio from raw sums — the formulas live here and nowhere else.
-fn kpis(sums: &StaySums, days: i64, direct_share: Decimal) -> RevenueKpis {
+fn kpis(sums: &StaySums, days: i64, direct_share: Decimal, service_revenue: Decimal) -> RevenueKpis {
     let capacity = sums.sellable_rooms * days.max(1);
     let sold = Decimal::from(sums.room_nights_sold);
     RevenueKpis {
@@ -158,6 +185,8 @@ fn kpis(sums: &StaySums, days: i64, direct_share: Decimal) -> RevenueKpis {
         void_rate: ratio_pct(Decimal::from(sums.voided_created), sums.bookings_created),
         no_show_rate: ratio_pct(Decimal::from(sums.no_show_created), sums.bookings_created),
         direct_share,
+        service_revenue: service_revenue.round_dp(2),
+        total_revenue: (sums.room_revenue + service_revenue).round_dp(2),
     }
 }
 
@@ -174,6 +203,26 @@ fn direct_share(channels: &[RevenueChannelMix]) -> Decimal {
     (direct * Decimal::from(100) / total).round_dp(1)
 }
 
+/// Merge per-date service revenue into the stay-date series. Dates present
+/// only in `daily_service` get a zero-revenue stay point so service income on
+/// roomless days is not dropped from the chart.
+fn merge_daily_service(daily: &mut Vec<RevenueDailyPoint>, service: &[(NaiveDate, Decimal)]) {
+    for (date, amount) in service {
+        match daily.iter_mut().find(|point| point.date == *date) {
+            Some(point) => point.other_revenue = *amount,
+            None => daily.push(RevenueDailyPoint {
+                date: *date,
+                room_revenue: Decimal::ZERO,
+                other_revenue: *amount,
+                room_nights_sold: 0,
+                occupancy_rate: Decimal::ZERO,
+                adr: Decimal::ZERO,
+            }),
+        }
+    }
+    daily.sort_by_key(|point| point.date);
+}
+
 fn fill_daily(daily: &mut [RevenueDailyPoint], sellable_rooms: i64) {
     for point in daily.iter_mut() {
         point.occupancy_rate = ratio_pct(Decimal::from(point.room_nights_sold), sellable_rooms);
@@ -183,6 +232,20 @@ fn fill_daily(daily: &mut [RevenueDailyPoint], sellable_rooms: i64) {
             Decimal::ZERO
         };
         point.room_revenue = point.room_revenue.round_dp(2);
+        point.other_revenue = point.other_revenue.round_dp(2);
+    }
+}
+
+fn fill_room_type_performance(room_types: &mut [RoomTypePerformance], days: i64) {
+    for rt in room_types.iter_mut() {
+        let capacity = rt.rooms * days.max(1);
+        rt.occupancy_rate = ratio_pct(Decimal::from(rt.nights_sold), capacity);
+        rt.adr = if rt.nights_sold > 0 {
+            (rt.room_revenue / Decimal::from(rt.nights_sold)).round_dp(2)
+        } else {
+            Decimal::ZERO
+        };
+        rt.room_revenue = rt.room_revenue.round_dp(2);
     }
 }
 
@@ -224,6 +287,8 @@ fn deltas(current: &RevenueKpis, previous: &RevenueKpis) -> Value {
         "void_rate": pct_delta(current.void_rate, previous.void_rate),
         "no_show_rate": pct_delta(current.no_show_rate, previous.no_show_rate),
         "direct_share": pct_delta(current.direct_share, previous.direct_share),
+        "service_revenue": pct_delta(current.service_revenue, previous.service_revenue),
+        "total_revenue": pct_delta(current.total_revenue, previous.total_revenue),
     })
 }
 
@@ -254,7 +319,7 @@ mod tests {
     #[test]
     fn kpis_derive_from_sums() {
         // 20 sellable rooms, 10-day range → 200 capacity; 140 sold → 70.0%.
-        let kpi = kpis(&sums(14000, 140, 50, 60, 3, 1, 20), 10, Decimal::from(50));
+        let kpi = kpis(&sums(14000, 140, 50, 60, 3, 1, 20), 10, Decimal::from(50), Decimal::from(2100));
         assert_eq!(kpi.room_revenue, Decimal::from(14000));
         assert_eq!(kpi.occupancy_rate, Decimal::new(700, 1));
         assert_eq!(kpi.adr, Decimal::from(100));
@@ -262,23 +327,49 @@ mod tests {
         assert_eq!(kpi.alos_nights, Decimal::new(28, 1));
         assert_eq!(kpi.void_rate, Decimal::from(5));
         assert_eq!(kpi.no_show_rate, Decimal::new(17, 1));
+        assert_eq!(kpi.service_revenue, Decimal::from(2100));
+        assert_eq!(kpi.total_revenue, Decimal::from(16100));
     }
 
     #[test]
     fn empty_window_reports_zeros_not_nulls() {
-        let kpi = kpis(&sums(0, 0, 0, 0, 0, 0, 20), 30, Decimal::ZERO);
+        let kpi = kpis(&sums(0, 0, 0, 0, 0, 0, 20), 30, Decimal::ZERO, Decimal::ZERO);
         assert_eq!(kpi.occupancy_rate, Decimal::ZERO);
         assert_eq!(kpi.adr, Decimal::ZERO);
         assert_eq!(kpi.revpar, Decimal::ZERO);
         assert_eq!(kpi.alos_nights, Decimal::ZERO);
         assert_eq!(kpi.void_rate, Decimal::ZERO);
+        assert_eq!(kpi.service_revenue, Decimal::ZERO);
+        assert_eq!(kpi.total_revenue, Decimal::ZERO);
     }
 
     #[test]
     fn zero_sellable_rooms_never_divides() {
-        let kpi = kpis(&sums(100, 5, 1, 1, 0, 0, 0), 1, Decimal::ZERO);
+        let kpi = kpis(&sums(100, 5, 1, 1, 0, 0, 0), 1, Decimal::ZERO, Decimal::ZERO);
         assert_eq!(kpi.occupancy_rate, Decimal::ZERO);
         assert_eq!(kpi.revpar, Decimal::ZERO);
+    }
+
+    #[test]
+    fn service_only_dates_extend_the_daily_series() {
+        let mut daily = vec![RevenueDailyPoint {
+            date: NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+            room_revenue: Decimal::from(900),
+            other_revenue: Decimal::ZERO,
+            room_nights_sold: 6,
+            occupancy_rate: Decimal::ZERO,
+            adr: Decimal::ZERO,
+        }];
+        let service = vec![
+            (NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(), Decimal::from(120)),
+            (NaiveDate::from_ymd_opt(2026, 9, 11).unwrap(), Decimal::from(75)),
+        ];
+        merge_daily_service(&mut daily, &service);
+        assert_eq!(daily.len(), 2);
+        assert_eq!(daily[0].other_revenue, Decimal::from(120));
+        assert_eq!(daily[1].other_revenue, Decimal::from(75));
+        assert_eq!(daily[1].room_nights_sold, 0);
+        assert!(daily[0].date < daily[1].date);
     }
 
     #[test]
