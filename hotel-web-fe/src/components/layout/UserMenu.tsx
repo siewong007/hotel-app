@@ -88,6 +88,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
         transition: 'transform 0.2s',
         transform: userMenuOpen ? 'rotate(180deg)' : 'none',
         flexShrink: 0,
+        // Decorative affordance — on phones it costs ~20px of header the page
+        // title needs; the avatar alone still opens the menu.
+        display: variant === 'avatar' ? { xs: 'none', sm: 'block' } : 'block',
       }}
     />
   );
@@ -147,7 +150,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
           alignItems: 'center',
           gap: 1,
           pl: 0.5,
-          pr: 1.25,
+          pr: { xs: 0.5, sm: 1.25 },
           py: 0.5,
           borderRadius: 999,
           flexShrink: 0,

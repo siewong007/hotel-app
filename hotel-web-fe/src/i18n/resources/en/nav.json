@@ -131,8 +131,6 @@
   },
   "aria": {
     "mainNavigation": "Main navigation",
-    "openMenu": "Open menu",
-    "moreSections": "More sections",
     "search": "Search pages and actions",
     "searchResults": "Search results",
     "collapseSidebar": "Collapse sidebar",
