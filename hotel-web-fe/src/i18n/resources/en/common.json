@@ -11,7 +11,9 @@
     "back": "Back",
     "next": "Next",
     "apply": "Apply",
-    "reset": "Reset"
+    "reset": "Reset",
+    "actions": "Actions",
+    "moreActions": "More actions"
   },
   "state": {
     "loading": "Loading…",

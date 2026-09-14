@@ -11,7 +11,9 @@
     "back": "Kembali",
     "next": "Seterusnya",
     "apply": "Guna",
-    "reset": "Set semula"
+    "reset": "Set semula",
+    "actions": "Tindakan",
+    "moreActions": "Lagi tindakan"
   },
   "state": {
     "loading": "Memuatkan…",
