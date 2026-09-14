@@ -19,6 +19,11 @@
 //! not satisfy it: the guard reads pre-update state, so resolution (refund /
 //! forfeit / waive) is a separate prior call.
 //!
+//! This file also covers deposit record-path method binding: a
+//! `deposit_payment_method` on the update payload — the tender the desk
+//! actually collected — is what lands on the minted deposit payment row,
+//! falling back to the booking-level `payment_method` when absent or blank.
+//!
 //! Requires `DATABASE_URL` (PostgreSQL); tests skip gracefully without it,
 //! the same convention as tests/booking_service.rs / tests/ledger_service.rs.
 //!
@@ -718,4 +723,133 @@ async fn company_billing_does_not_exempt_the_deposit_guard() {
     assert_eq!(status, "checked_in");
 
     cleanup_fixture(&pool, &f).await;
+}
+
+/// A deposit asserted via `update_booking` records the caller-supplied
+/// `deposit_payment_method` — the tender the desk actually collected — not
+/// the booking-level `payment_method` (the room bill's tender).
+#[tokio::test]
+async fn deposit_assertion_records_deposit_payment_method() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+    let f = CheckoutFixture {
+        actor_id: 986_009,
+        booking_id: 986_109,
+        guest_id: 986_209,
+        room_id: 986_309,
+        room_type_id: 986_409,
+        company_name: None,
+    };
+    cleanup_fixture(&pool, &f).await;
+    seed_checked_in_booking(&pool, &f).await;
+
+    update_booking(
+        &pool,
+        f.actor_id,
+        f.booking_id,
+        BookingUpdateInput {
+            deposit_paid: Some(true),
+            deposit_amount: Some(50.0),
+            deposit_payment_method: Some("E-Wallet".to_string()),
+            // The room bill's tender — must NOT leak onto the deposit row.
+            payment_method: Some("Debit Card".to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("deposit assertion should succeed");
+
+    let recorded: String = sqlx::query_scalar(
+        "SELECT payment_method FROM payments \
+         WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'",
+    )
+    .bind(f.booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(recorded, "E-Wallet");
+
+    cleanup_fixture(&pool, &f).await;
+}
+
+/// Fallback chain: absent `deposit_payment_method` still records the
+/// booking-level `payment_method` (today's behavior), and a blank value is
+/// treated as absent.
+#[tokio::test]
+async fn deposit_assertion_falls_back_when_method_absent_or_blank() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+    // Two fresh bookings: one sends no deposit_payment_method, one sends "   ".
+    let absent = CheckoutFixture {
+        actor_id: 986_010,
+        booking_id: 986_110,
+        guest_id: 986_210,
+        room_id: 986_310,
+        room_type_id: 986_410,
+        company_name: None,
+    };
+    let blank = CheckoutFixture {
+        actor_id: 986_011,
+        booking_id: 986_111,
+        guest_id: 986_211,
+        room_id: 986_311,
+        room_type_id: 986_411,
+        company_name: None,
+    };
+    for f in [&absent, &blank] {
+        cleanup_fixture(&pool, f).await;
+        seed_checked_in_booking(&pool, f).await;
+    }
+
+    update_booking(
+        &pool,
+        absent.actor_id,
+        absent.booking_id,
+        BookingUpdateInput {
+            deposit_paid: Some(true),
+            deposit_amount: Some(50.0),
+            payment_method: Some("Debit Card".to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("deposit assertion without deposit_payment_method should succeed");
+
+    update_booking(
+        &pool,
+        blank.actor_id,
+        blank.booking_id,
+        BookingUpdateInput {
+            deposit_paid: Some(true),
+            deposit_amount: Some(60.0),
+            deposit_payment_method: Some("   ".to_string()),
+            payment_method: Some("Credit Card".to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("deposit assertion with blank deposit_payment_method should succeed");
+
+    for (booking_id, expected) in [
+        (absent.booking_id, "Debit Card"),
+        (blank.booking_id, "Credit Card"),
+    ] {
+        let recorded: String = sqlx::query_scalar(
+            "SELECT payment_method FROM payments \
+             WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            recorded, expected,
+            "booking {booking_id} should fall back to the booking-level payment_method"
+        );
+    }
+
+    cleanup_fixture(&pool, &absent).await;
+    cleanup_fixture(&pool, &blank).await;
 }

@@ -158,6 +158,7 @@ mod postgres_tests {
             check_out_time: None,
             deposit_paid: None,
             deposit_amount: None,
+            deposit_payment_method: None,
             company_id: None,
             company_name: None,
             clear_company: None,
