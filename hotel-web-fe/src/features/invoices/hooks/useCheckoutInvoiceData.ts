@@ -70,22 +70,20 @@ export function useCheckoutInvoiceData(
         queryFn: () => InvoicesService.getBookingPayments(booking.id),
         staleTime: 0,
       });
-      // Voided rows are retained server-side for audit; the folio only lists
-      // payments that still carry money.
-      const normalizedPayments = ((existing || []) as CheckoutPaymentRecord[]).filter(
-        (p) => p.payment_status !== 'void'
-      );
+      // Keep every row — voided payments included. The folio groups already
+      // filter by status at render time (completedPayments/refundedPayments
+      // in the modal), and voided deposit rows are what deposit resolution
+      // counts for the cancelled/restorable state. Dropping them here made
+      // voided-deposit detection dead code in production.
+      const normalizedPayments = (existing || []) as CheckoutPaymentRecord[];
       setPayments(normalizedPayments);
-      // Detect a refunded keycard deposit structurally rather than by an exact
-      // note string. The backend marks deposit refunds with payment_type='refund'
-      // / status='refunded' (see refund_deposit + bookings_queries deposit_refunded),
-      // so match on those signals and treat a deposit-related note only as a
-      // fallback. This stays correct even if the note text/method changes.
+      // Detect a refunded keycard deposit structurally: refund_deposit writes
+      // payment_type='refund' / status='refunded', and revert_deposit_refund
+      // flips that row to 'void' — so status='refunded' alone is the test.
+      // Matching on payment_type/notes too would leave a voided refund still
+      // reading "refunded" after the revert.
       const hasRefund = normalizedPayments.some(
-        (p) =>
-          p.payment_status === 'refunded' ||
-          (p.payment_type || '').toLowerCase() === 'refund' ||
-          /deposit\s*refund/i.test(p.notes || '')
+        (p) => p.payment_status === 'refunded'
       );
       setDepositRefunded(hasRefund);
     } catch {
