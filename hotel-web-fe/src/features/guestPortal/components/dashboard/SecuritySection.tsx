@@ -194,7 +194,9 @@ function RecoveryCodesDialog({
 function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
   const confirm = useConfirm();
   const { registerPasskey, user } = useAuth();
-  const passkeysQuery = usePasskeysQuery();
+  // The card renders its own ErrorState + retry, so a failed load should not
+  // ALSO raise the client's global toast.
+  const passkeysQuery = usePasskeysQuery({ suppressApiNotification: true });
   const addPasskey = useRegisterPasskeyMutation(registerPasskey);
   const deletePasskey = useDeletePasskeyMutation();
   const renamePasskey = useRenamePasskeyMutation();
@@ -800,7 +802,9 @@ function RecoveryCodesCard({
  * token is scoped to `/api/guest-portal/me*` and would not be accepted here.
  */
 export function SecuritySection() {
-  const statusQuery = useTwoFactorStatus();
+  // The section renders its own ErrorState + retry, so a failed load should
+  // not ALSO raise the client's global toast.
+  const statusQuery = useTwoFactorStatus({ suppressApiNotification: true });
   const [issuedCodes, setIssuedCodes] = useState<string[]>([]);
 
   const enabled = statusQuery.data?.enabled ?? false;

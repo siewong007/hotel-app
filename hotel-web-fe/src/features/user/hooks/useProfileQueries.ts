@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AuthService } from '../../../api/auth.service';
+import { AuthService, type ApiRequestOptions } from '../../../api/auth.service';
 import { UsersService } from '../../../api/users.service';
 import { queryKeys } from '../../../api/queryKeys';
 import type { PasskeyStepUp } from '../../../auth/AuthContext';
@@ -12,17 +12,17 @@ export function useProfileQuery() {
   });
 }
 
-export function usePasskeysQuery() {
+export function usePasskeysQuery(options?: ApiRequestOptions) {
   return useQuery<PasskeyInfo[]>({
     queryKey: queryKeys.profile.passkeys(),
-    queryFn: () => AuthService.listPasskeys(),
+    queryFn: () => AuthService.listPasskeys(options),
   });
 }
 
-export function useSessionsQuery() {
+export function useSessionsQuery(options?: ApiRequestOptions) {
   return useQuery<UserSessionInfo[]>({
     queryKey: queryKeys.profile.sessions(),
-    queryFn: () => AuthService.listSessions(),
+    queryFn: () => AuthService.listSessions(options),
   });
 }
 

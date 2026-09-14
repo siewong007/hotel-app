@@ -54,6 +54,18 @@ describe('DevicesSection', () => {
 
   afterEach(cleanup);
 
+  // The section renders its own ErrorState + retry on failure, so the load
+  // must opt out of the client's global toast or one failure shows twice.
+  it('asks the service to skip the global toast for the load it renders itself', async () => {
+    mocks.listSessions.mockResolvedValue([session()]);
+
+    renderSection();
+
+    await waitFor(() =>
+      expect(mocks.listSessions).toHaveBeenCalledWith({ suppressApiNotification: true }),
+    );
+  });
+
   it('lists each signed-in device with its approximate location', async () => {
     mocks.listSessions.mockResolvedValue([session()]);
 

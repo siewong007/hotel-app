@@ -344,8 +344,20 @@ describe('AuthService', () => {
 
       const result = await AuthService.listPasskeys();
 
-      expect(get).toHaveBeenCalledWith('profile/passkeys');
+      expect(get).toHaveBeenCalledWith('profile/passkeys', undefined);
       expect(result).toEqual(passkeys);
+    });
+
+    // Callers that render the failure inline (guest SecuritySection) opt out
+    // of the client's global toast; staff callers keep it.
+    it('opts out of the global error toast only when the caller asks for it', async () => {
+      get.mockReturnValue(mockJsonResponse([]));
+
+      await AuthService.listPasskeys({ suppressApiNotification: true });
+
+      expect(get).toHaveBeenCalledWith('profile/passkeys', {
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
     });
   });
 
@@ -376,8 +388,23 @@ describe('AuthService', () => {
 
       const result = await AuthService.listSessions();
 
-      expect(get).toHaveBeenCalledWith('profile/sessions');
+      expect(get).toHaveBeenCalledWith('profile/sessions', undefined);
       expect(result).toEqual(sessions);
+    });
+
+    // The suppression is opt-in per call: staff UserProfilePage calls with no
+    // options and must keep the global toast.
+    it('sends the skip-notification header only when asked', async () => {
+      get.mockReturnValue(mockJsonResponse([]));
+
+      await AuthService.listSessions({ suppressApiNotification: true });
+      expect(get).toHaveBeenCalledWith('profile/sessions', {
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
+
+      get.mockClear();
+      await AuthService.listSessions();
+      expect(get).toHaveBeenCalledWith('profile/sessions', undefined);
     });
   });
 
@@ -439,8 +466,18 @@ describe('AuthService', () => {
 
       const result = await AuthService.getTwoFactorStatus();
 
-      expect(get).toHaveBeenCalledWith('auth/2fa/status');
+      expect(get).toHaveBeenCalledWith('auth/2fa/status', undefined);
       expect(result).toEqual(status);
+    });
+
+    it('opts out of the global error toast only when the caller asks for it', async () => {
+      get.mockReturnValue(mockJsonResponse({ enabled: false, backup_codes_remaining: 0 }));
+
+      await AuthService.getTwoFactorStatus({ suppressApiNotification: true });
+
+      expect(get).toHaveBeenCalledWith('auth/2fa/status', {
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
     });
   });
 

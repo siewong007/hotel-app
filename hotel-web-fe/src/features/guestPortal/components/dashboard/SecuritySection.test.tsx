@@ -81,6 +81,17 @@ describe('SecuritySection', () => {
     vi.unstubAllGlobals();
   });
 
+  // Both loads render their own ErrorState + retry, so each must opt out of
+  // the client's global toast or one failure would notify twice.
+  it('asks the service to skip the global toast for the loads it renders itself', async () => {
+    renderSection();
+
+    await waitFor(() => {
+      expect(mocks.listPasskeys).toHaveBeenCalledWith({ suppressApiNotification: true });
+      expect(mocks.getTwoFactorStatus).toHaveBeenCalledWith({ suppressApiNotification: true });
+    });
+  });
+
   it('shows all three credentials the guest can control', async () => {
     renderSection();
 

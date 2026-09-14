@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import { AuthService } from '../../../api';
+import type { ApiRequestOptions } from '../../../api/auth.service';
 
-export function useTwoFactorStatus() {
+export function useTwoFactorStatus(options?: ApiRequestOptions) {
   return useQuery({
     queryKey: queryKeys.twoFactor.status(),
-    queryFn: () => AuthService.getTwoFactorStatus(),
+    queryFn: () => AuthService.getTwoFactorStatus(options),
     staleTime: queryStaleTime.standard,
   });
 }

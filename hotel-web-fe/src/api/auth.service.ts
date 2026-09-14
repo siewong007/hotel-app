@@ -12,6 +12,22 @@ import {
 } from '../types';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
 
+/**
+ * Per-call request options shared by the profile/security reads. Callers that
+ * render a failure themselves (an inline error state with retry) opt out of
+ * the client's global error toast; everyone else keeps it.
+ */
+export interface ApiRequestOptions {
+  /** The caller renders this failure itself — skip the global toast. */
+  suppressApiNotification?: boolean;
+}
+
+function apiRequestOptions(options?: ApiRequestOptions) {
+  return options?.suppressApiNotification
+    ? { headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' } }
+    : undefined;
+}
+
 export class AuthService {
   /** First-step login: confirm username/email maps to an active account. */
   static async lookupLoginIdentifier(username: string): Promise<{ exists: boolean }> {
@@ -128,8 +144,8 @@ export class AuthService {
   }
 
   // Passkey Management
-  static async listPasskeys(): Promise<PasskeyInfo[]> {
-    return await api.get('profile/passkeys').json<PasskeyInfo[]>();
+  static async listPasskeys(options?: ApiRequestOptions): Promise<PasskeyInfo[]> {
+    return await api.get('profile/passkeys', apiRequestOptions(options)).json<PasskeyInfo[]>();
   }
 
   static async updatePasskey(passkeyId: string, data: PasskeyUpdateInput): Promise<void> {
@@ -140,8 +156,8 @@ export class AuthService {
     await api.delete(`profile/passkeys/${passkeyId}`);
   }
 
-  static async listSessions(): Promise<UserSessionInfo[]> {
-    return await api.get('profile/sessions').json<UserSessionInfo[]>();
+  static async listSessions(options?: ApiRequestOptions): Promise<UserSessionInfo[]> {
+    return await api.get('profile/sessions', apiRequestOptions(options)).json<UserSessionInfo[]>();
   }
 
   static async revokeSession(sessionId: string): Promise<void> {
@@ -170,14 +186,14 @@ export class AuthService {
     await api.post('profile/2fa/disable', { json: { code } });
   }
 
-  static async getTwoFactorStatus(): Promise<{
+  static async getTwoFactorStatus(options?: ApiRequestOptions): Promise<{
     enabled: boolean;
     backup_codes_remaining: number;
     /** When the current set of recovery codes was issued. Null when 2FA is
      *  off, or when the issuing event has aged out of the audit partitions. */
     backup_codes_generated_at?: string | null;
   }> {
-    return await api.get('auth/2fa/status').json();
+    return await api.get('auth/2fa/status', apiRequestOptions(options)).json();
   }
 
   static async regenerateBackupCodes(code: string): Promise<{ backup_codes: string[] }> {
