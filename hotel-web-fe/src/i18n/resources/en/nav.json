@@ -172,7 +172,6 @@
     "placeholder": "Search bookings, guests, rooms, pages…",
     "placeholderGuest": "Search pages…",
     "noMatches": "No matches",
-    "searching": "Searching…",
     "hint": "Type at least 2 characters, or browse below",
     "newBookingHint": "Create a reservation",
     "groups": {

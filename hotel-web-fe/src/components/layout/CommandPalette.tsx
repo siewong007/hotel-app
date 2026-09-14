@@ -39,7 +39,7 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
   const { hasPermission, hasRole, getRoutePolicy, user } = useAuth();
   const isGuest = hasRole('guest') || user?.user_type === 'guest';
   const { navLabel: navLabelFor } = useRouteLabels();
-  const { t: tNav } = useTranslation('nav');
+  const { t: tNav, tOr } = useTranslation('nav');
   const helpArticles = useHelpArticles();
   const visibleItems = React.useMemo(
     () =>
@@ -201,7 +201,9 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
     serverGroups.forEach((g) => {
       out.push({
         key: g.type,
-        label: g.label,
+        // Localized header for the known types; the server's English label is
+        // the fallback for any type the bundle doesn't map.
+        label: tOr(`palette.scopes.${g.type}`, g.label),
         items: g.results.map((h) => ({
           key: `${g.type}-${h.id}`,
           title: h.title,
@@ -248,7 +250,7 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
     }
 
     return out;
-  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon, isGuest, navLabelFor, helpArticles, tNav]);
+  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon, isGuest, navLabelFor, helpArticles, tNav, tOr]);
 
   const flatItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
@@ -354,7 +356,7 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
         >
           {flatItems.length === 0 && (
             <Box sx={{ px: 2, py: 4, textAlign: 'center', color: 'text.secondary', fontSize: '0.85rem' }}>
-              {term.length >= 2 ? tNav('palette.noMatches') : serverLoading ? tNav('palette.searching') : tNav('palette.hint')}
+              {term.length >= 2 ? tNav('palette.noMatches') : serverLoading ? tNav('common:state.searching') : tNav('palette.hint')}
             </Box>
           )}
           {(() => {
