@@ -40,6 +40,13 @@ interface UseCustomerLedgerWorkspaceParams {
   entriesPage: number;
   entriesPageSize: number;
   setEntriesPage: (value: number) => void;
+  /**
+   * `false` on the phone master→detail layout: "clear the selection" is how
+   * the operator gets back to the company list, so the auto-pick below must
+   * not instantly undo it. Defaults to `true` (desktop keeps auto-selecting
+   * the highest-balance company).
+   */
+  autoSelect?: boolean;
 }
 
 const EMPTY_AGGREGATE: CompanyLedgerAggregate = {
@@ -64,6 +71,7 @@ export function useCustomerLedgerWorkspace({
   entriesPage,
   entriesPageSize,
   setEntriesPage,
+  autoSelect = true,
 }: UseCustomerLedgerWorkspaceParams) {
   const summary = useMemo<CustomerLedgerSummary>(() => {
     let total_amount = 0;
@@ -147,7 +155,7 @@ export function useCustomerLedgerWorkspace({
   const clearCount = companies.length - dueCount;
 
   useEffect(() => {
-    if (!selectedCompanyId && companies.length > 0) {
+    if (autoSelect && !selectedCompanyId && companies.length > 0) {
       const sorted = [...companies].sort((a, b) => {
         const aDue = companyAggregates.get(a.company_name)?.due || 0;
         const bDue = companyAggregates.get(b.company_name)?.due || 0;
@@ -155,7 +163,7 @@ export function useCustomerLedgerWorkspace({
       });
       setSelectedCompanyId(sorted[0].id);
     }
-  }, [companies, companyAggregates, selectedCompanyId, setSelectedCompanyId]);
+  }, [companies, companyAggregates, selectedCompanyId, setSelectedCompanyId, autoSelect]);
 
   const activeCompany = useMemo(
     () => companies.find((company) => company.id === selectedCompanyId) || null,

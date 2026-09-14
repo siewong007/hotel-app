@@ -14,7 +14,9 @@ import {
   TableRow,
   TextField,
   Button,
+  Chip,
   IconButton,
+  Stack,
   CircularProgress,
   LinearProgress,
 } from '@mui/material';
@@ -32,6 +34,7 @@ import { LedgerStatusBadge } from '../StatusPill';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../../../components/data-table/MobileCardRow';
+import { ActionsMenu } from '../../../../../components/common/ActionsMenu';
 
 interface LedgerEntriesTabProps {
   search: string;
@@ -71,6 +74,16 @@ const canRecordPayment = (ledger: CustomerLedger) => {
 const canViewInvoice = (ledger: CustomerLedger) => !!ledger.booking_id;
 const canVoid = (ledger: CustomerLedger) => !isLedgerVoided(ledger);
 
+const ENTRY_STATUS_OPTIONS = [
+  { key: 'all', label: 'All' },
+  { key: 'uninvoiced', label: 'Uninvoiced' },
+  { key: 'outstanding', label: 'Outstanding' },
+  { key: 'invoiced', label: 'Invoiced' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'overdue', label: 'Overdue' },
+  { key: 'voided', label: 'Voided' },
+] as const;
+
 const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
   search,
   onSearchChange,
@@ -94,29 +107,59 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
   formatCurrency,
 }) => {
   const isPhone = useIsPhone();
-  const entryActions = (entry: CustomerLedger, busy: boolean) => (
+
+  // Phone card footer: Record Payment keeps a dedicated button; the other
+  // four row actions collapse into the shared ActionsMenu (BottomSheet on
+  // phone). The same condition gates map to `hidden`/`disabled`/`destructive`
+  // so nothing is offered that the desktop row would hide.
+  const entryCardFooter = (entry: CustomerLedger, busy: boolean) => (
     <>
       {canRecordPayment(entry) && (
-        <IconButton size="small" aria-label="Record payment" title="Record payment" onClick={() => onRecordPayment(entry)}>
-          <PaymentIcon sx={{ fontSize: 18 }} />
-        </IconButton>
+        <Button
+          size="small"
+          variant="contained"
+          color="success"
+          startIcon={<PaymentIcon sx={{ fontSize: 16 }} />}
+          onClick={() => onRecordPayment(entry)}
+          sx={{ textTransform: 'none', fontWeight: 600 }}
+        >
+          Pay
+        </Button>
       )}
-      {canViewInvoice(entry) && (
-        <IconButton size="small" aria-label="View invoice" title="View invoice" onClick={() => onViewInvoice(entry)} disabled={busy}>
-          <OpenInNewIcon sx={{ fontSize: 18 }} />
-        </IconButton>
-      )}
-      <IconButton size="small" aria-label="Edit entry" title="Edit entry" onClick={() => onEdit(entry)}>
-        <EditIcon sx={{ fontSize: 18 }} />
-      </IconButton>
-      <IconButton size="small" aria-label="Print receipt" title="Print receipt" onClick={() => onPrintReceipt(entry)}>
-        <PrintIcon sx={{ fontSize: 18 }} />
-      </IconButton>
-      {canVoid(entry) && (
-        <IconButton size="small" aria-label="Void entry" title="Void entry" color="error" onClick={() => onVoid(entry)}>
-          <VoidIcon sx={{ fontSize: 18 }} />
-        </IconButton>
-      )}
+      <ActionsMenu
+        title={entry.description}
+        triggerLabel={`Actions for ${entry.folio_number || `entry ${entry.id}`}`}
+        actions={[
+          {
+            id: 'view-invoice',
+            label: 'View invoice',
+            icon: <OpenInNewIcon fontSize="small" />,
+            onClick: () => onViewInvoice(entry),
+            disabled: busy,
+            hidden: !canViewInvoice(entry),
+          },
+          {
+            id: 'edit',
+            label: 'Edit entry',
+            icon: <EditIcon fontSize="small" />,
+            onClick: () => onEdit(entry),
+          },
+          {
+            id: 'print',
+            label: 'Print receipt',
+            icon: <PrintIcon fontSize="small" />,
+            onClick: () => onPrintReceipt(entry),
+          },
+          {
+            id: 'void',
+            label: 'Void entry',
+            icon: <VoidIcon fontSize="small" />,
+            onClick: () => onVoid(entry),
+            destructive: true,
+            hidden: !canVoid(entry),
+          },
+        ]}
+      />
     </>
   );
 
@@ -158,47 +201,80 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
           onChange={(e) => onSearchChange(e.target.value)}
           sx={{ width: 240, bgcolor: 'background.paper' }}
         />
-        <Box
-          sx={{
-            display: 'inline-flex',
-            bgcolor: 'background.paper',
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 1,
-            p: 0.25,
-          }}
-        >
-          {([
-            { key: 'all', label: 'All' },
-            { key: 'uninvoiced', label: 'Uninvoiced' },
-            { key: 'outstanding', label: 'Outstanding' },
-            { key: 'invoiced', label: 'Invoiced' },
-            { key: 'paid', label: 'Paid' },
-            { key: 'overdue', label: 'Overdue' },
-            { key: 'voided', label: 'Voided' },
-          ] as const).map(s => (
-            <Button
-              key={s.key}
-              size="small"
-              onClick={() => onStatusFilterChange(s.key as EntryStatusFilter)}
-              sx={{
-                minWidth: 0,
-                px: 1,
-                py: 0.25,
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: statusFilter === s.key ? 'background.paper' : 'text.secondary',
-                bgcolor: statusFilter === s.key ? 'text.primary' : 'transparent',
-                borderRadius: 0.75,
-                '&:hover': {
-                  bgcolor: statusFilter === s.key ? 'text.primary' : 'action.hover',
-                },
-              }}
-            >
-              {s.label}
-            </Button>
-          ))}
-        </Box>
+        {isPhone ? (
+          // Phone: the 7 status filters become one horizontally scrollable
+          // chip row (same pattern as BookingFiltersBar's chipsRow).
+          <Stack
+            direction="row"
+            spacing={0.75}
+            useFlexGap
+            sx={{
+              width: '100%',
+              flexWrap: 'nowrap',
+              overflowX: 'auto',
+              mx: -2.5,
+              px: 2.5,
+              scrollbarWidth: 'none',
+              '&::-webkit-scrollbar': { display: 'none' },
+              '& .MuiChip-root': { flexShrink: 0 },
+            }}
+          >
+            {ENTRY_STATUS_OPTIONS.map(s => (
+              <Chip
+                key={s.key}
+                size="small"
+                label={s.label}
+                onClick={() => onStatusFilterChange(s.key as EntryStatusFilter)}
+                variant={statusFilter === s.key ? 'filled' : 'outlined'}
+                sx={{
+                  height: 26,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  bgcolor: statusFilter === s.key ? 'text.primary' : 'background.paper',
+                  color: statusFilter === s.key ? 'background.paper' : 'text.secondary',
+                  borderColor: 'divider',
+                  '&:hover': {
+                    bgcolor: statusFilter === s.key ? 'text.primary' : 'action.hover',
+                  },
+                }}
+              />
+            ))}
+          </Stack>
+        ) : (
+          <Box
+            sx={{
+              display: 'inline-flex',
+              bgcolor: 'background.paper',
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              p: 0.25,
+            }}
+          >
+            {ENTRY_STATUS_OPTIONS.map(s => (
+              <Button
+                key={s.key}
+                size="small"
+                onClick={() => onStatusFilterChange(s.key as EntryStatusFilter)}
+                sx={{
+                  minWidth: 0,
+                  px: 1,
+                  py: 0.25,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  color: statusFilter === s.key ? 'background.paper' : 'text.secondary',
+                  bgcolor: statusFilter === s.key ? 'text.primary' : 'transparent',
+                  borderRadius: 0.75,
+                  '&:hover': {
+                    bgcolor: statusFilter === s.key ? 'text.primary' : 'action.hover',
+                  },
+                }}
+              >
+                {s.label}
+              </Button>
+            ))}
+          </Box>
+        )}
       </Box>
       {loading && <LinearProgress sx={{ height: 2 }} />}
       {entries.length === 0 && loading ? (
@@ -229,7 +305,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                   subtitle={`${entry.folio_number || `#${entry.id}`}${entry.room_number ? ` · Room ${entry.room_number}` : ''} · ${formatDateForDisplay(entry.posting_date || entry.created_at)}`}
                   meta={`${entry.invoice_number || 'Not invoiced'} · ${isPositiveMoney(balance) ? `Due ${formatCurrency(balance)}` : `Paid ${formatCurrency(paid)}`}`}
                   status={<LedgerStatusBadge status={uiStatus} />}
-                  footer={<Box sx={{ display: 'flex', gap: 0.25 }}>{entryActions(entry, loadingInvoice)}</Box>}
+                  footer={entryCardFooter(entry, loadingInvoice)}
                 />
               </Box>
             );

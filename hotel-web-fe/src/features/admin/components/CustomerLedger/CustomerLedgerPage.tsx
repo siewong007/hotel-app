@@ -69,6 +69,7 @@ import {
   Search as SearchIcon,
   OpenInNew as OpenInNewIcon,
   ArrowDropDown as ArrowDropDownIcon,
+  ArrowBackOutlined as BackIcon,
   CreditScore as CreditNoteIcon,
   Replay as RegenerateIcon,
 } from '@mui/icons-material';
@@ -91,6 +92,8 @@ import {
 } from '../../../../types';
 import type { Company } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { useTranslation } from '../../../../i18n';
 import { useSearchParams } from '../../../../router';
 import { getHotelSettings, HotelSettings } from '../../../../utils/hotelSettings';
 import { formatLocalDate, addLocalDays } from '../../../../utils/date';
@@ -154,6 +157,8 @@ const CustomerLedgerPage: React.FC = () => {
   const [pageSearchParams] = useSearchParams();
   const confirm = useConfirm();
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
+  const isPhone = useIsPhone();
+  const { t: tNav } = useTranslation('nav');
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
   const {
     ledgers,
@@ -1377,6 +1382,9 @@ const CustomerLedgerPage: React.FC = () => {
     entriesPage,
     entriesPageSize,
     setEntriesPage,
+    // Phone runs master→detail: an empty selection shows the company list,
+    // so the workspace must not auto-pick a company and undo "back to list".
+    autoSelect: !isPhone,
   });
 
   useEffect(() => {
@@ -1667,23 +1675,28 @@ const CustomerLedgerPage: React.FC = () => {
           alignItems: 'start',
         }}
       >
-        {/* LEFT - COMPANY LIST PANE */}
-        <CompanyListPane
-          companies={companies}
-          companyListRows={companyListRows}
-          search={companyListSearch}
-          onSearchChange={setCompanyListSearch}
-          filter={companyListFilter}
-          onFilterChange={setCompanyListFilter}
-          dueCount={dueCount}
-          clearCount={clearCount}
-          selectedCompanyId={selectedCompanyId}
-          onSelect={setSelectedCompanyId}
-          onRegister={() => setCompanyRegDialogOpen(true)}
-          formatCurrency={formatCurrency}
-        />
+        {/* LEFT - COMPANY LIST PANE — on phone this is the master view: it is
+            the only pane while no company is selected. */}
+        {(!isPhone || !activeCompany) && (
+          <CompanyListPane
+            companies={companies}
+            companyListRows={companyListRows}
+            search={companyListSearch}
+            onSearchChange={setCompanyListSearch}
+            filter={companyListFilter}
+            onFilterChange={setCompanyListFilter}
+            dueCount={dueCount}
+            clearCount={clearCount}
+            selectedCompanyId={selectedCompanyId}
+            onSelect={setSelectedCompanyId}
+            onRegister={() => setCompanyRegDialogOpen(true)}
+            formatCurrency={formatCurrency}
+          />
+        )}
 
-        {/* RIGHT - DETAIL PANE */}
+        {/* RIGHT - DETAIL PANE — on phone it replaces the list once a company
+            is selected (the in-pane button below returns to the list). */}
+        {(!isPhone || activeCompany) && (
         <Card
           variant="outlined"
           sx={{
@@ -1729,6 +1742,29 @@ const CustomerLedgerPage: React.FC = () => {
             </Box>
           ) : (
             <>
+              {/* Phone master→detail: the list pane is unmounted while a
+                  company is selected, so the detail pane carries its own
+                  way back (clears the selection → list view). */}
+              {isPhone && (
+                <Box
+                  sx={{
+                    px: 1.5,
+                    py: 0.5,
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                  }}
+                >
+                  <Button
+                    size="small"
+                    startIcon={<BackIcon fontSize="small" />}
+                    onClick={() => setSelectedCompanyId(null)}
+                    sx={{ minWidth: 0, px: 1, fontSize: 12, textTransform: 'none' }}
+                  >
+                    {tNav('mobile.backToList')}
+                  </Button>
+                </Box>
+              )}
+
               {/* Company header */}
               <CompanyDetailHeader
                 company={activeCompany}
@@ -1899,6 +1935,7 @@ const CustomerLedgerPage: React.FC = () => {
             </>
           )}
         </Card>
+        )}
       </Box>
       {/* Create Ledger Dialog */}
       <CreateLedgerDialog
