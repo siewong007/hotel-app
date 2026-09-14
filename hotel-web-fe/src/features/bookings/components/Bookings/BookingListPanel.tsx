@@ -2,20 +2,17 @@ import React from 'react';
 import {
   Box,
   Button,
-  Chip,
   Divider,
   Pagination,
   Skeleton,
   Stack,
-  Tooltip,
   Typography,
-  alpha,
 } from '@mui/material';
 import {
   SwapVert as SwapVertIcon,
   Bed as BedIcon,
-  Public as PublicIcon,
 } from '@mui/icons-material';
+import { BookingChannelChip, BillingChip, NightAuditChip } from './BookingMetaChips';
 import type { BookingWithDetails } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
@@ -250,48 +247,12 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
                       flexWrap: "wrap"
                     }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.15 }}>{booking.guest_name}</Typography>
-                    {channelInfo && (
-                      <Tooltip title={`Online booking via ${channelInfo.name}`} arrow>
-                        <Chip
-                          size="small"
-                          icon={<PublicIcon />}
-                          label={channelInfo.abbreviation}
-                          sx={{
-                            height: 22,
-                            minWidth: 60,
-                            maxWidth: 'none',
-                            flexShrink: 0,
-                            fontWeight: 900,
-                            bgcolor: channelInfo.background,
-                            color: channelInfo.color,
-                            border: `1px solid ${alpha(channelInfo.color, 0.2)}`,
-                            '& .MuiChip-icon': {
-                              color: channelInfo.color,
-                              fontSize: 14,
-                              ml: 0.65,
-                              mr: -0.35,
-                            },
-                            '& .MuiChip-label': {
-                              px: 0.8,
-                              overflow: 'visible',
-                            },
-                          }}
-                        />
-                      </Tooltip>
-                    )}
-                    {billingChipLabel && (
-                      <Chip
-                        size="small"
-                        label={billingChipLabel}
-                        sx={{ height: 22, fontWeight: 800 }}
-                      />
-                    )}
+                    {channelInfo && <BookingChannelChip channel={channelInfo} />}
+                    {billingChipLabel && <BillingChip label={billingChipLabel} />}
                     <Typography variant="body2" sx={{ color: statusDotColor(booking.status), fontWeight: 800 }}>
                       • {getBookingStatusText(booking.status)}
                     </Typography>
-                    {isNightAuditInvolved(booking) && (
-                      <Chip size="small" label="Night audit" variant="outlined" sx={{ height: 22, fontWeight: 900 }} />
-                    )}
+                    {isNightAuditInvolved(booking) && <NightAuditChip />}
                   </Stack>
                   <Typography
                     variant="body2"

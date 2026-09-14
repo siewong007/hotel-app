@@ -4,11 +4,8 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import type { CellKey, GridCellView } from '../types';
 import type { InventoryRoomTypeRow } from '../hooks/useOnlineInventory';
 import { cellKey } from '../utils';
+import { DAY_NUM, FULL_DATE, WEEKDAY_SHORT } from '../constants';
 import { cellAriaLabel } from './GridCell';
-
-// Duplicated from InventoryGrid.tsx:9-10 — module-local Intl constants, not logic.
-const WEEKDAY_SHORT = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
-const DAY_NUM = new Intl.DateTimeFormat(undefined, { day: 'numeric' });
 
 const asDate = (date: string) => new Date(`${date}T12:00:00`);
 
@@ -59,7 +56,11 @@ const PhoneDayCell = ({
       component="button"
       type="button"
       disabled={view === undefined}
-      aria-label={view === undefined ? undefined : cellAriaLabel(view, formatPrice)}
+      aria-label={
+        view === undefined
+          ? `${FULL_DATE.format(asDate(date))}: no inventory data`
+          : cellAriaLabel(view, formatPrice)
+      }
       aria-pressed={selectMode && view !== undefined ? isSelected : undefined}
       onClick={() => {
         if (view !== undefined) onTap(dayKey);
@@ -219,12 +220,14 @@ export const PhoneInventoryView = ({
                 variant="outlined"
                 sx={{ flexShrink: 0 }}
               />
-              <Typography
-                variant="caption"
-                sx={{ color: 'text.secondary', fontWeight: 600, flexShrink: 0 }}
-              >
-                {todayView === undefined ? '—' : todayView.online_available} free today
-              </Typography>
+              {todayView !== undefined && (
+                <Typography
+                  variant="caption"
+                  sx={{ color: 'text.secondary', fontWeight: 600, flexShrink: 0 }}
+                >
+                  {todayView.online_available} free today
+                </Typography>
+              )}
             </Stack>
             <Box
               role="group"

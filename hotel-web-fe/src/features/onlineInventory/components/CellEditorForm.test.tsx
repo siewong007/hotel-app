@@ -69,6 +69,20 @@ describe('CellEditorForm', () => {
     expect(props.onDraftChange).toHaveBeenCalledWith({ walk_in_reserved_rooms: 0 });
   });
 
+  it('emits an incremented hold when the increase stepper is clicked', () => {
+    const props = renderForm();
+    fireEvent.click(screen.getByRole('button', { name: /increase walk-in hold/i }));
+    expect(props.onDraftChange).toHaveBeenCalledWith({ walk_in_reserved_rooms: 3 });
+  });
+
+  it('emits custom_price: null when the price field is cleared', () => {
+    const props = renderForm({ draft: draft({ custom_price: '300.00' }) });
+    fireEvent.change(screen.getByRole('spinbutton', { name: /custom online price/i }), {
+      target: { value: '' },
+    });
+    expect(props.onDraftChange).toHaveBeenCalledWith({ custom_price: null });
+  });
+
   it('surfaces the invalid-price helper when priceInvalid is set', () => {
     renderForm({ draft: draft({ custom_price: '0' }), priceInvalid: true });
     expect(screen.getByText(/greater than zero/i)).toBeTruthy();

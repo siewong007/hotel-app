@@ -2,12 +2,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Phone branch: useMediaQuery reports the viewport (jsdom has no matchMedia).
+// Phone branch: pin useIsPhone (jsdom has no matchMedia).
 const mocks = vi.hoisted(() => ({ isPhone: false }));
-vi.mock('@mui/material', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@mui/material')>();
-  return { ...actual, useMediaQuery: () => mocks.isPhone };
-});
+vi.mock('../../../hooks/useIsPhone', () => ({ useIsPhone: () => mocks.isPhone }));
 
 import type { OnlineInventoryAllocation } from '../types';
 import { dateRange, cellKey } from '../utils';

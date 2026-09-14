@@ -3,13 +3,7 @@ import { Box, Typography, alpha, useTheme } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
 import type { CellKey, GridCellView } from '../types';
-
-const FULL_DATE = new Intl.DateTimeFormat(undefined, {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-});
+import { FULL_DATE } from '../constants';
 
 export const cellDomId = (key: CellKey) => `inv-cell-${key.replace(':', '-')}`;
 

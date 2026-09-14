@@ -136,6 +136,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
               key={stat.title}
               label={`${stat.shortTitle} ${stat.value}`}
               onClick={() => onSelectView(stat.view)}
+              aria-pressed={activeView === stat.view}
               variant={activeView === stat.view ? 'filled' : 'outlined'}
               color={activeView === stat.view ? 'primary' : 'default'}
               sx={{
@@ -153,14 +154,10 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
           gap: 2,
           mb: 2.5,
           gridTemplateColumns: {
-            xs: `repeat(${summaryStatCards.length}, minmax(230px, 1fr))`,
             sm: 'repeat(2, minmax(0, 1fr))',
             md: 'repeat(3, minmax(0, 1fr))',
             lg: `repeat(${summaryGridColumns}, minmax(0, 1fr))`,
           },
-          overflowX: { xs: 'auto', sm: 'visible' },
-          scrollSnapType: { xs: 'x proximity', sm: 'none' },
-          pb: { xs: 1, sm: 0 },
         }}
       >
         {summaryStatCards.map((stat) => (
@@ -171,7 +168,6 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
             sx={{
               height: '100%',
               cursor: 'pointer',
-              scrollSnapAlign: 'start',
               borderLeft: stat.alert ? `4px solid ${stat.color}` : '1px solid',
               borderColor: stat.alert ? stat.color : 'divider',
               bgcolor: activeView === stat.view ? `color-mix(in srgb, ${stat.color} 8%, transparent)` : 'background.paper',

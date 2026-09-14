@@ -316,6 +316,35 @@ export default function HousekeepingPage() {
             ) : null}
           </Stack>
         }
+        mobilePrimaryAction={
+          canCreate ? (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setNewTaskRoom(null)}
+            >
+              New task
+            </Button>
+          ) : null
+        }
+        overflowActions={[
+          {
+            id: 'refresh-board',
+            label: 'Refresh board',
+            icon: <RefreshIcon fontSize="small" />,
+            onClick: () => boardQuery.refetch(),
+            disabled: boardQuery.isFetching,
+          },
+          {
+            id: 'sync-statuses',
+            label: 'Sync statuses',
+            icon: <SyncIcon fontSize="small" />,
+            onClick: () => syncStatuses.mutate(),
+            disabled: syncStatuses.isPending,
+            hidden: !canSyncStatuses,
+          },
+        ]}
       />
 
       <Stack spacing={2.5}>
@@ -356,6 +385,8 @@ export default function HousekeepingPage() {
           value={tab}
           onChange={(_event, value: number) => setTab(value)}
           aria-label="Housekeeping views"
+          variant="scrollable"
+          scrollButtons={false}
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
           <Tab label="Board" {...getTabA11yProps(0, 'housekeeping')} />

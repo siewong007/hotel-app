@@ -1,17 +1,11 @@
-import { useEffect, useState } from 'react';
 import { Button, Stack } from '@mui/material';
 
 import { BottomSheet } from '../../../components/common/BottomSheet';
 import { useCurrency } from '../../../hooks/useCurrency';
-import type { CellKey, EditableCell, GridCellView, StagedEdit } from '../types';
+import type { CellKey, GridCellView, StagedEdit } from '../types';
+import { FULL_DATE } from '../constants';
+import { useCellEditorDraft } from '../hooks/useCellEditorDraft';
 import { CellEditorForm } from './CellEditorForm';
-
-const FULL_DATE = new Intl.DateTimeFormat(undefined, {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-});
 
 interface CellEditorSheetProps {
   view: GridCellView | null;
@@ -29,21 +23,7 @@ export const CellEditorSheet = ({ view, onClose, onApply }: CellEditorSheetProps
   const { format } = useCurrency();
   const formatPrice = (value: string) => format(Number(value));
 
-  const [draft, setDraft] = useState<EditableCell>({
-    walk_in_reserved_rooms: 0,
-    online_booking_enabled: true,
-    custom_price: null,
-  });
-
-  // Re-seed the draft whenever a different cell opens the editor.
-  useEffect(() => {
-    if (view) setDraft({ ...view.current });
-  }, [view]);
-
-  const priceInvalid =
-    draft.custom_price !== null &&
-    (!Number.isFinite(Number(draft.custom_price)) || Number(draft.custom_price) <= 0);
-  const overHeld = view !== null && draft.walk_in_reserved_rooms > view.physical;
+  const { draft, patchDraft, priceInvalid, overHeld } = useCellEditorDraft(view);
 
   const apply = () => {
     if (view === null || priceInvalid) return;
@@ -72,7 +52,7 @@ export const CellEditorSheet = ({ view, onClose, onApply }: CellEditorSheetProps
           <CellEditorForm
             view={view}
             draft={draft}
-            onDraftChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+            onDraftChange={patchDraft}
             priceInvalid={priceInvalid}
             overHeld={overHeld}
             formatPrice={formatPrice}

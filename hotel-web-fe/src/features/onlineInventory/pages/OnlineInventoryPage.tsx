@@ -310,12 +310,13 @@ const OnlineInventoryPage = () => {
             zIndex: (theme) => theme.zIndex.appBar - 1,
             left: { xs: 12, md: '50%' },
             right: { xs: 12, md: 'auto' },
-            // Phones: clear the 60px bottom nav (+ --sab home indicator) with
-            // 16px margin; while select mode's StickyActionBar (~64px) is up,
-            // stack above it instead.
+            // Below md the 60px bottom nav (+ --sab home indicator) covers a
+            // bar pinned at bottom:16 — lift it clear; while phone select
+            // mode's StickyActionBar (~64px) is up, stack above it instead.
             bottom: {
               xs: `calc(${selectMode ? 136 : 76}px + var(--sab))`,
-              sm: 16,
+              sm: 'calc(76px + var(--sab))',
+              md: 16,
             },
             transform: { md: 'translateX(-50%)' },
             width: { md: 'min(680px, calc(100vw - 48px))' },
@@ -347,7 +348,7 @@ const OnlineInventoryPage = () => {
 
       {isPhone && selectMode && (
         <StickyActionBar
-          summary={`${sel.selected.size} selected`}
+          summary={<span aria-live="polite">{`${sel.selected.size} selected`}</span>}
           secondary={
             <Button onClick={toggleSelectMode} sx={{ minHeight: 44 }}>
               Done
