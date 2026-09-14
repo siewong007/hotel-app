@@ -53,6 +53,10 @@ pub fn routes() -> Router<DbPool> {
             "/payments/revert-deposit-refund/{booking_id}",
             post(revert_deposit_refund),
         )
+        .route(
+            "/payments/revert-deposit-void/{booking_id}",
+            post(revert_deposit_void),
+        )
         .route("/payments/booking/{booking_id}", get(get_payment))
         .route("/payments/{payment_id}", patch(update_payment))
         .route("/payments/{payment_id}", delete(delete_payment))
@@ -62,6 +66,10 @@ pub fn routes() -> Router<DbPool> {
         .route(
             "/admin/payments/history",
             get(list_payment_approval_history),
+        )
+        .route(
+            "/admin/payments/paypal-conflicts",
+            get(list_paypal_conflicts),
         )
         .route(
             "/admin/payments/{payment_id}/receipt",
@@ -167,6 +175,18 @@ async fn revert_deposit_refund(
     handlers::payments::revert_deposit_refund_handler(State(pool), Extension(user_id), path).await
 }
 
+// Cancelling a deposit is desk work on payments:delete (collateral, not
+// settled revenue), so reverting the cancellation rides the same gate —
+// not the payments:manage gate revert-deposit-refund uses.
+async fn revert_deposit_void(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
+    handlers::payments::revert_deposit_void_handler(State(pool), Extension(user_id), path).await
+}
+
 async fn get_invoice_preview(
     State(pool): State<DbPool>,
     headers: HeaderMap,
@@ -229,6 +249,14 @@ async fn list_payment_approval_history(
 ) -> Result<Json<models::PendingPaymentPage>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::payments::list_payment_approval_history_handler(State(pool), query).await
+}
+
+async fn list_paypal_conflicts(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
+    handlers::payments::list_paypal_conflict_events_handler(State(pool)).await
 }
 
 async fn download_payment_receipt(

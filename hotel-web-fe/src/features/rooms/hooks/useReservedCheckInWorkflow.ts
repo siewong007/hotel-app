@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { BookingsService, GuestsService } from '../../../api';
-import type { BookingWithDetails, CheckInRequest } from '../../../types';
+import type { BookingUpdateRequest, BookingWithDetails, CheckInRequest } from '../../../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
@@ -21,8 +21,6 @@ export function useReservedCheckInWorkflow({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [booking, setBooking] = useState<BookingWithDetails | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [collectingDeposit, setCollectingDeposit] = useState(false);
-  const [depositPaymentMethod, setDepositPaymentMethod] = useState('');
   const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>('pay_later');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [amountPaid, setAmountPaid] = useState(0);
@@ -36,11 +34,6 @@ export function useReservedCheckInWorkflow({
   const [icNumber, setIcNumber] = useState('');
   const [phone, setPhone] = useState('');
 
-  const resetDepositState = useCallback(() => {
-    setCollectingDeposit(false);
-    setDepositPaymentMethod('');
-  }, []);
-
   const openWithBooking = useCallback((
     nextBooking: BookingWithDetails,
     fallbackPaymentMethod = 'Cash',
@@ -49,7 +42,6 @@ export function useReservedCheckInWorkflow({
     const totalAmount = toMoneyNumber(nextBooking.total_amount);
 
     setBooking(nextBooking);
-    resetDepositState();
     setPaymentChoice(nextBooking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
     setPaymentMethod(nextBooking.payment_method || fallbackPaymentMethod);
     setAmountPaid(totalAmount);
@@ -75,7 +67,7 @@ export function useReservedCheckInWorkflow({
           /* leave fields empty for manual entry */
         });
     }
-  }, [resetDepositState]);
+  }, []);
 
   const close = useCallback(() => {
     if (processing) return;
@@ -84,16 +76,14 @@ export function useReservedCheckInWorkflow({
     setBooking(null);
     setIcNumber('');
     setPhone('');
-    resetDepositState();
-  }, [processing, resetDepositState]);
+  }, [processing]);
 
   const cancel = useCallback(() => {
     setDialogOpen(false);
     setBooking(null);
     setIcNumber('');
     setPhone('');
-    resetDepositState();
-  }, [resetDepositState]);
+  }, []);
 
   const checkIn = useCallback(async () => {
     if (!booking) {
@@ -114,28 +104,27 @@ export function useReservedCheckInWorkflow({
     try {
       setProcessing(true);
 
-      const updateData: Record<string, unknown> = {};
+      // Single atomic request: deposit fields + payment + the status flip all go
+      // through the check-in endpoint, which commits them in one transaction.
+      // (Don't push payment_status — recording the payments row is what flips the
+      // derived status; an override would be overwritten by the backend anyway.)
+      const bookingUpdate: BookingUpdateRequest = {};
       if (paymentChoice === 'pay_now') {
-        updateData.payment_status = 'paid';
-        updateData.amount_paid = toMoneyNumber(amountPaid);
-        updateData.payment_method = paymentMethod;
-      } else {
-        updateData.payment_status = 'unpaid';
+        bookingUpdate.payment_method = paymentMethod;
       }
-
       if (depositChoice === 'receive') {
-        updateData.deposit_paid = true;
-        updateData.deposit_amount = toMoneyNumber(depositAmount);
-        updateData.payment_note = `Deposit received (${depositMethod})`;
+        bookingUpdate.deposit_paid = true;
+        bookingUpdate.deposit_amount = toMoneyNumber(depositAmount);
+        bookingUpdate.payment_note = `Deposit received (${depositMethod})`;
+        bookingUpdate.deposit_payment_method = depositMethod;
       } else {
-        updateData.deposit_paid = false;
-        updateData.deposit_amount = 0;
-        updateData.payment_note = `Deposit waived: ${waiveReason}`;
+        bookingUpdate.deposit_paid = false;
+        bookingUpdate.deposit_amount = 0;
+        bookingUpdate.payment_note = `Deposit waived: ${waiveReason}`;
       }
-
-      await BookingsService.updateBooking(booking.id, updateData);
 
       const checkinPayload: CheckInRequest = {
+        booking_update: bookingUpdate,
         guest_update: {
           ic_number: icNumber.trim(),
           ...(phone.trim() ? { phone: phone.trim() } : {}),
@@ -157,7 +146,6 @@ export function useReservedCheckInWorkflow({
       setBooking(null);
       setIcNumber('');
       setPhone('');
-      resetDepositState();
       await reload();
     } catch (error) {
       showSnackbar(errorMessage(error, 'Failed to check in guest'), 'error');
@@ -175,7 +163,6 @@ export function useReservedCheckInWorkflow({
     paymentMethod,
     phone,
     reload,
-    resetDepositState,
     showSnackbar,
     waiveReason,
   ]);
@@ -184,8 +171,6 @@ export function useReservedCheckInWorkflow({
     dialogOpen,
     booking,
     processing,
-    collectingDeposit,
-    depositPaymentMethod,
     paymentChoice,
     setPaymentChoice,
     paymentMethod,

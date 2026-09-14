@@ -82,7 +82,7 @@ const FirstLoginPasskeyPrompt = lazyRoute(() => import('../features/auth/compone
 const RoomReservationTimeline = lazyRoute(() => import('../features/rooms/components/RoomReservationTimeline'));
 const RoomConfigurationPage = lazyRoute(() => import('../features/rooms/components/RoomConfigurationPage'));
 const RoomManagementPage = lazyRoute(() => import('../features/rooms/components/RoomManagement'));
-const GuestRelationsPage = lazyRoute(() => import('../features/guestRelations/pages/GuestRelationsPage'));
+const GuestRelationsOverviewPage = lazyRoute(() => import('../features/guestRelations/pages/GuestRelationsOverviewPage'));
 const GuestCheckInLanding = lazyRoute(() => import('../features/bookings/components/GuestCheckInLanding'));
 const GuestCheckInVerify = lazyRoute(() => import('../features/bookings/components/GuestCheckInVerify'));
 const GuestCheckInForm = lazyRoute(() => import('../features/bookings/components/GuestCheckInForm'));
@@ -195,8 +195,8 @@ const routeDefinitions: AppRouteDefinition[] = [
   // ── guests ──────────────────────────────────────────────────────────────
   {
     id: 'guest-relations',
-    path: '/guest-relations/guests',
-    component: GuestRelationsPage,
+    path: '/guest-relations',
+    component: GuestRelationsOverviewPage,
     animationType: 'slide',
     visibility: 'auth',
     icon: PeopleIcon,
@@ -469,8 +469,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     animationType: 'fade',
     visibility: 'auth',
     icon: NotificationsIcon,
-    breadcrumbLabel: 'Notifications',
-    navLabel: 'Notifications',
+    breadcrumbLabel: 'Deliveries',
+    navLabel: 'Deliveries',
     navGroup: 'utility',
     // Page-level RBAC is enforced by the feed endpoint (communications:read);
     // staff without it see a friendly empty state instead of nav silence.

@@ -401,6 +401,7 @@ const ReceptionistDashboard: React.FC = () => {
         updateData.deposit_paid = true;
         updateData.deposit_amount = ciDepositAmount;
         updateData.payment_note = `Deposit received (${ciDepositMethod})`;
+        updateData.deposit_payment_method = ciDepositMethod;
       } else {
         updateData.deposit_paid = false;
         updateData.deposit_amount = 0;
@@ -462,12 +463,12 @@ const ReceptionistDashboard: React.FC = () => {
   }, [isReceptionist]);
 
   const getRoomStatusColor = (room: RoomStatus) => {
-    // Occupied (checked-in guest) → Red (ALWAYS)
+    // Occupied (checked-in guest) → Amber
     if (room.status === 'occupied') {
       return 'var(--hotel-warning)';
     }
 
-    // Reserved → Yellow
+    // Reserved → Blue
     if (room.status === 'reserved') {
       return 'var(--hotel-info)';
     }
@@ -478,13 +479,18 @@ const ReceptionistDashboard: React.FC = () => {
     }
 
     // Dirty → Orange
-    if (room.status === 'dirty' || room.status === 'reserved_dirty') {
-      return 'var(--hotel-warning)';
+    if (room.status === 'dirty') {
+      return 'var(--hotel-orange)';
     }
 
-    // Maintenance → Orange
+    // Reserved / Dirty → Violet
+    if (room.status === 'reserved_dirty') {
+      return 'var(--hotel-violet)';
+    }
+
+    // Maintenance → Red
     if (room.status === 'maintenance') {
-      return 'var(--hotel-warning)';
+      return 'var(--hotel-danger)';
     }
 
     // Out of Order (Unavailable) → Grey

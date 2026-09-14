@@ -103,6 +103,9 @@
     "/api/admin/payments/history": {
       "GET": {}
     },
+    "/api/admin/payments/paypal-conflicts": {
+      "GET": {}
+    },
     "/api/admin/payments/pending": {
       "GET": {}
     },
@@ -578,6 +581,12 @@
     "/api/guest-portal/verify": {
       "POST": {}
     },
+    "/api/guest-relations/follow-ups": {
+      "GET": {}
+    },
+    "/api/guest-relations/overview": {
+      "GET": {}
+    },
     "/api/guests": {
       "GET": {},
       "POST": {}
@@ -781,6 +790,9 @@
       "POST": {}
     },
     "/api/payments/revert-deposit-refund/{booking_id}": {
+      "POST": {}
+    },
+    "/api/payments/revert-deposit-void/{booking_id}": {
       "POST": {}
     },
     "/api/payments/workflow-summary/{booking_id}": {
@@ -1147,6 +1159,9 @@
     },
     {
       "name": "guest-portal"
+    },
+    {
+      "name": "guest-relations"
     },
     {
       "name": "guests"

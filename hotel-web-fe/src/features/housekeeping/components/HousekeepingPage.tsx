@@ -205,10 +205,10 @@ export default function HousekeepingPage() {
     notify('success', 'Task updated.');
   };
 
-  const handleRoomStatus = async (roomId: number, input: RoomStatusUpdateInput) => {
+  const handleRoomStatus = async (roomId: string | number, input: RoomStatusUpdateInput) => {
     await updateRoomStatus.mutateAsync({ roomId, data: input });
     boardQuery.refetch();
-    notify('success', `Room ${roomById.get(roomId)?.room_number ?? roomId} → ${formatStatusLabel(input.status)}.`);
+    notify('success', `Room ${roomById.get(Number(roomId))?.room_number ?? roomId} → ${formatStatusLabel(input.status)}.`);
   };
 
   const goToBoardFilter = (patch: Partial<BoardFilters>) => {

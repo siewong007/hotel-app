@@ -152,6 +152,9 @@ pub struct BookingInput {
     pub booking_number: Option<String>, // Optional - if provided, use this instead of auto-generating
     pub deposit_paid: Option<bool>,
     pub deposit_amount: Option<f64>,
+    /// Tender actually collected for the deposit (cash, card…). When set it —
+    /// not `payment_method` (the bill's tender) — lands on the deposit row.
+    pub deposit_payment_method: Option<String>,
     pub room_rate_override: Option<f64>,
     pub special_requests: Option<String>,
     pub daily_rates: Option<serde_json::Value>,
@@ -209,6 +212,9 @@ pub struct BookingUpdateInput {
     pub check_out_time: Option<String>,
     pub deposit_paid: Option<bool>,
     pub deposit_amount: Option<f64>,
+    /// Tender actually collected for the deposit (cash, card…). When set it —
+    /// not `payment_method` (the bill's tender) — lands on the deposit row.
+    pub deposit_payment_method: Option<String>,
     pub company_id: Option<i64>,
     pub company_name: Option<String>,
     pub clear_company: Option<bool>,

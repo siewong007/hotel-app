@@ -28,6 +28,7 @@ export interface EkycSubmitPayload {
 }
 
 import { api, toApiError } from './client';
+import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
 
 export interface EkycListParams {
@@ -219,7 +220,11 @@ function paramsToSearch(params?: EkycListParams): string {
 
 export class EkycService {
   static async getEkycStatus(): Promise<{ status: string; submitted_at?: string } | null> {
-    return await api.get('ekyc/status').json();
+    // A 400 here means "account not linked to a guest profile" — an expected
+    // state callers render inline, so it must not toast globally.
+    return await api
+      .get('ekyc/status', { headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' } })
+      .json();
   }
 
   static async submitEkycVerification(data: EkycSubmitPayload): Promise<void> {
@@ -228,10 +233,6 @@ export class EkycService {
     } catch (error) {
       throw toApiError(error, 'eKYC submission failed');
     }
-  }
-
-  static async getEkycVerificationDetails(): Promise<any> {
-    return await api.get('ekyc/status').json();
   }
 
   static async getAllEkycVerifications(params?: EkycListParams): Promise<EkycListResponse> {

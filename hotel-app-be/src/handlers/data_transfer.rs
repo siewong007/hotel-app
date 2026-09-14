@@ -2,18 +2,29 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{ExportPreview, FullDataExport, ImportRequest};
+use crate::models::{ExportPreview, ImportRequest};
 use crate::services::data_transfer as data_transfer_service;
-use axum::{extract::State, response::Json};
+use axum::{
+    extract::State,
+    response::{Json, Response},
+};
 use serde_json::Value;
 
 /// Export all booking-related data
 pub async fn export_booking_data_handler(
     State(pool): State<DbPool>,
-) -> Result<Json<FullDataExport>, ApiError> {
-    Ok(Json(
-        data_transfer_service::export_booking_data(&pool).await?,
-    ))
+    user_id: i64,
+) -> Result<Response, ApiError> {
+    let body = data_transfer_service::export_booking_data_body(&pool, user_id).await?;
+    Ok(Response::builder()
+        .status(axum::http::StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .header(
+            "Content-Disposition",
+            "attachment; filename=\"hotel-data-export.json\"",
+        )
+        .body(body)
+        .unwrap())
 }
 
 /// Preview record counts for all transferable tables

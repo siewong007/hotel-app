@@ -39,6 +39,13 @@ const booking = {
   can_cancel: true,
 };
 
+/** Cancellation lives inside the details dialog — the row only offers
+ *  "View details" (plus the urgent receipt upload when one is outstanding). */
+async function openDetailsDialog() {
+  fireEvent.click((await screen.findAllByRole('button', { name: 'View details' }))[0]);
+  return screen.findByRole('dialog');
+}
+
 describe('BookingsSection cancellation', () => {
   beforeEach(() => {
     mocks.bookings.mockReset();
@@ -48,6 +55,16 @@ describe('BookingsSection cancellation', () => {
 
   afterEach(cleanup);
 
+  it('keeps rows to a single details action — cancel lives in the dialog', async () => {
+    render(<BookingsSection token="guest-token" />);
+
+    await screen.findAllByRole('button', { name: 'View details' });
+    expect(screen.queryByRole('button', { name: 'Request cancellation' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel booking' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'View receipt' })).toBeNull();
+    expect(screen.queryByText('Cancellation unavailable')).toBeNull();
+  });
+
   it('shows Cancel booking instead of Refund before payment is completed', async () => {
     mocks.bookings.mockResolvedValue({
       items: [{ ...booking, completed_payment_id: null }],
@@ -55,9 +72,8 @@ describe('BookingsSection cancellation', () => {
     });
     render(<BookingsSection token="guest-token" />);
 
-    expect(
-      await screen.findAllByRole('button', { name: 'Cancel booking' }),
-    ).toHaveLength(2);
+    await openDetailsDialog();
+    expect(screen.getByRole('button', { name: 'Cancel booking' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Refund' })).toBeNull();
   });
 
@@ -69,7 +85,8 @@ describe('BookingsSection cancellation', () => {
     mocks.cancelBooking.mockResolvedValue({});
     render(<BookingsSection token="guest-token" />);
 
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Cancel booking' }))[0]);
+    await openDetailsDialog();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel booking' }));
     expect(screen.getByRole('heading', { name: 'Cancel booking for SI-1007?' })).toBeTruthy();
     fireEvent.click(screen.getByLabelText('Other'));
     fireEvent.change(screen.getByLabelText('Custom cancellation reason'), { target: { value: 'Plans changed' } });
@@ -84,7 +101,8 @@ describe('BookingsSection cancellation', () => {
     mocks.cancelBooking.mockRejectedValue(new Error('Cancellation window has closed'));
     render(<BookingsSection token="guest-token" />);
 
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Request cancellation' }))[0]);
+    await openDetailsDialog();
+    fireEvent.click(screen.getByRole('button', { name: 'Request cancellation' }));
     fireEvent.click(screen.getByLabelText('Other'));
     fireEvent.change(screen.getByLabelText('Custom cancellation reason'), { target: { value: 'Plans changed' } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit request' }));
@@ -102,7 +120,8 @@ describe('BookingsSection cancellation', () => {
     mocks.cancelBooking.mockResolvedValue({ cancellation_requested: true });
     render(<BookingsSection token="guest-token" />);
 
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Request cancellation' }))[0]);
+    await openDetailsDialog();
+    fireEvent.click(screen.getByRole('button', { name: 'Request cancellation' }));
     // The dialog must make clear this is a request, not an instant void.
     expect(screen.getByRole('heading', { name: 'Request cancellation for SI-1007?' })).toBeTruthy();
     fireEvent.click(screen.getByLabelText('Change of plans'));
@@ -121,8 +140,8 @@ describe('BookingsSection cancellation', () => {
     });
     render(<BookingsSection token="guest-token" />);
 
-    expect((await screen.findAllByText('Cancellation unavailable')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('This rate is non-refundable.').length).toBeGreaterThan(0);
+    await openDetailsDialog();
+    expect(screen.getByText('This rate is non-refundable.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Request cancellation' })).toBeNull();
   });
 
@@ -138,7 +157,8 @@ describe('BookingsSection cancellation', () => {
     });
     render(<BookingsSection token="guest-token" />);
 
-    expect((await screen.findAllByText('Cancellation under review')).length).toBeGreaterThan(0);
+    await openDetailsDialog();
+    expect(screen.getByText('Cancellation under review')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Request cancellation' })).toBeNull();
   });
 
@@ -149,8 +169,10 @@ describe('BookingsSection cancellation', () => {
     });
     render(<BookingsSection token="guest-token" />);
 
-    expect((await screen.findAllByText('Cancellation unavailable')).length).toBeGreaterThan(0);
+    await openDetailsDialog();
+    expect(screen.getByText('This booking cannot be cancelled online.')).toBeTruthy();
     expect(screen.queryByText('Refund unavailable')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel booking' })).toBeNull();
   });
 });
 

@@ -64,6 +64,8 @@ totp-rs = { version = "6", features = ["qr"] }
 data-encoding = "2.8"
 image = "0.25"
 qrcode = "0.14"
+async-stream = "0.3"
+futures-core = "0.3"
 # Rate limiting is implemented in-memory (core/rate_limiter.rs) - no external dependency needed
 
 [dev-dependencies]

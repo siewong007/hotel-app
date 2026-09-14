@@ -85,6 +85,17 @@ pub async fn revert_deposit_refund_handler(
     ))
 }
 
+/// Revert a voided (cancelled) deposit for a booking
+pub async fn revert_deposit_void_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(
+        payments::revert_deposit_void(&pool, user_id, booking_id).await?,
+    ))
+}
+
 /// Forfeit part or all of a booking's held keycard deposit
 pub async fn forfeit_deposit_handler(
     State(pool): State<DbPool>,
@@ -187,6 +198,33 @@ pub async fn list_payment_approval_history_handler(
     Ok(Json(
         payments::list_payment_approval_history(&pool, limit, offset).await?,
     ))
+}
+
+/// Audit actions the payment-approvals conflict banner surfaces. Mirrors the
+/// list the frontend previously fanned out over the generic audit-logs
+/// endpoint — pinned here so the route stays a narrow read.
+const PAYPAL_CONFLICT_ACTIONS: [&str; 2] =
+    ["paypal_webhook_conflict", "paypal_capture_conflict"];
+const PAYPAL_CONFLICT_LOOKBACK_DAYS: i64 = 30;
+const PAYPAL_CONFLICT_LIMIT: i64 = 50;
+
+/// Staff: recent PayPal payment/webhook conflicts for the approvals banner.
+/// Deliberately separate from `/audit-logs`: approvers hold `payments:read`
+/// but not `audit:read`, and the banner must not widen that grant.
+pub async fn list_paypal_conflict_events_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let (events, total) = crate::services::audit::get_recent_events_by_actions(
+        &pool,
+        &PAYPAL_CONFLICT_ACTIONS,
+        PAYPAL_CONFLICT_LOOKBACK_DAYS,
+        PAYPAL_CONFLICT_LIMIT,
+    )
+    .await?;
+    Ok(Json(serde_json::json!({
+        "events": events,
+        "total": total,
+    })))
 }
 
 pub async fn download_payment_receipt_handler(

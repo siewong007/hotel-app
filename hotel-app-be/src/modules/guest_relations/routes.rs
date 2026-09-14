@@ -1,9 +1,11 @@
 //! Route registration for the Guest Relations workspace.
 //!
-//! All routes hang under `/guests/{id}` (the `{id}` name matches the existing
-//! `routes/guests.rs` tree so the merged router stays consistent). The spec's
-//! original `/notes` path segment is superseded by `/interactions` — do not
-//! register both.
+//! Guest-scoped routes hang under `/guests/{id}` (the `{id}` name matches the
+//! existing `routes/guests.rs` tree so the merged router stays consistent).
+//! The spec's original `/notes` path segment is superseded by
+//! `/interactions` — do not register both. Phase 2 adds two non-guest-scoped
+//! routes under the `/guest-relations` prefix (the frontend workspace route
+//! space).
 //!
 //! | Route | Permission |
 //! |---|---|
@@ -19,6 +21,8 @@
 //! | `GET /guests/{id}/vouchers` | `guests:read` |
 //! | `GET /guests/{id}/communications` | `communications:read` |
 //! | `GET /guests/{id}/support` | `support:read` |
+//! | `GET /guest-relations/overview` | `guests:read` (+ `support:read` / `reviews:read` per section) |
+//! | `GET /guest-relations/follow-ups` | `guests:read` |
 
 use axum::{
     Router,
@@ -57,5 +61,13 @@ pub fn routes() -> Router<DbPool> {
         .route(
             "/guests/{id}/support",
             get(handlers::list_support_conversations_handler),
+        )
+        .route(
+            "/guest-relations/overview",
+            get(handlers::overview_handler),
+        )
+        .route(
+            "/guest-relations/follow-ups",
+            get(handlers::follow_ups_handler),
         )
 }

@@ -1,6 +1,6 @@
 import { HTTPError } from 'ky';
 import { api, APIError, readErrorData, toApiError } from './client';
-import { Guest, GuestCreateRequest, GuestProfile, GuestTourismConversionResponse, GuestType, TourismType } from '../types';
+import { Guest, GuestCreateRequest, GuestListSegment, GuestProfile, GuestTourismConversionResponse, GuestType, TourismType } from '../types';
 import { withRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
 
@@ -98,6 +98,7 @@ export class GuestsService {
     vip?: boolean;
     blacklisted?: boolean;
     has_open_support?: boolean;
+    segment?: GuestListSegment;
   } = {}): Promise<{ data: Guest[]; total: number; page: number; page_size: number }> {
     const searchParams: Record<string, any> = {
       ...toPaginationSearchParams({ page: params.page, pageSize: params.page_size }),
@@ -110,6 +111,7 @@ export class GuestsService {
     if (params.vip != null) searchParams.vip = String(params.vip);
     if (params.blacklisted != null) searchParams.blacklisted = String(params.blacklisted);
     if (params.has_open_support != null) searchParams.has_open_support = String(params.has_open_support);
+    if (params.segment) searchParams.segment = params.segment;
 
     try {
       const resp = await withRetry(

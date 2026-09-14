@@ -52,6 +52,7 @@ import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/i
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import CollapsibleSection, { type CollapsibleSectionProps } from '../../../components/common/CollapsibleSection';
 import { useIsPhone } from '../../../hooks/useIsPhone';
+import { useAuth } from '../../../auth/AuthContext';
 
 interface CheckoutInvoiceModalProps {
   open: boolean;
@@ -142,6 +143,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   // there, so the inline record/edit/delete controls are hidden here.
   const isLedgerView = Boolean(ledger);
 
+  const { hasPermission } = useAuth();
+  const canCancelDeposit = !readOnly && !isLedgerView && hasPermission('payments:delete');
+
   const invalidateInvoiceState = () => {
     if (!booking) return;
     void queryClient.invalidateQueries({ queryKey: queryKeys.invoices.preview(booking.id) });
@@ -187,6 +191,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [forfeitReason, setForfeitReason] = useState('');
   const [forfeitAmount, setForfeitAmount] = useState<number>(0);
   const [forfeitingDeposit, setForfeitingDeposit] = useState(false);
+
+  // Deposit cancel/restore state — cancelling voids the deposit payment rows
+  // (deposit recorded but not collected); restore reverts that cancellation.
+  const [cancellingDeposit, setCancellingDeposit] = useState(false);
+  const [restoringDeposit, setRestoringDeposit] = useState(false);
 
   // Editable daily rates UI state
   const [editingRates, setEditingRates] = useState(false);
@@ -254,6 +263,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     (payment) => payment.payment_status === 'completed' && isDepositLikePayment(payment),
   );
   const refundedPayments = payments.filter((payment) => payment.payment_status === 'refunded');
+  // Voided deposit rows are restorable — they arrive in the all-payments
+  // payload but are filtered out of every displayed group.
+  const voidedDepositRows = payments.filter(
+    (payment) =>
+      (payment.payment_type || '').toLowerCase() === 'deposit' &&
+      payment.payment_status === 'void',
+  );
 
   // Deposit money still owed back to the guest: collected deposit rows minus
   // what has already been refunded or forfeited — the same refundable ceiling
@@ -362,7 +378,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const handleStartEdit = (payment: CheckoutPaymentRecord) => {
     setEditingPayment(payment);
     setEditAmount(toMoneyNumber(payment.total_amount));
-    setEditMethod(formatStatusLabel(payment.payment_method, 'Cash'));
+    const storedMethod = payment.payment_method || '';
+    const matchedMethod = hotelSettings.payment_methods.find(
+      (method) => method.toLowerCase() === storedMethod.toLowerCase(),
+    );
+    setEditMethod(matchedMethod || storedMethod || 'Cash');
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
     setEditDate(formatPaymentDateForInput(payment));
@@ -378,7 +398,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   };
 
   const handleUpdatePayment = async () => {
-    if (!editingPayment || !isPositiveMoney(editAmount)) return;
+    if (!editingPayment) return;
+    // Deposit-like rows admit only a method correction — their amount and
+    // date are immutable once posted, so the positive-amount gate applies
+    // just to the full edit form.
+    const depositLike = isDepositLikePayment(editingPayment);
+    if (!depositLike && !isPositiveMoney(editAmount)) return;
     try {
       setUpdatingPayment(true);
       if (isLedgerView && ledger) {
@@ -391,6 +416,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         });
         await reloadPayments();
         onLedgerPaymentsChanged?.();
+      } else if (depositLike) {
+        // Method-only correction: PATCH /payments rejects amount/date edits
+        // on posted deposit rows, so the request sends just the tender.
+        const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {
+          payment_method: editMethod,
+        });
+        setPayments(prev => prev.map(p => p.id === editingPayment.id ? updatedPayment : p));
+        invalidateInvoiceState();
       } else {
         const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {
           amount: editAmount,
@@ -551,6 +584,49 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setError(err instanceof Error && err.message ? err.message : 'Failed to revert deposit refund');
     } finally {
       setRevertingRefund(false);
+    }
+  };
+
+  // Cancelling marks the deposit "not collected": the deposit payment rows
+  // are kept as void (money trail + audit stay intact) and the booking
+  // mirror drops — the cancellation is reversible via Restore.
+  const handleCancelDeposit = async () => {
+    const depositRows = depositPayments.filter(
+      (p) => (p.payment_type || '').toLowerCase() === 'deposit',
+    );
+    if (depositRows.length === 0) return;
+    const accepted = await confirm({
+      title: 'Cancel deposit',
+      message: 'Marks the deposit as not collected. The payment record is kept as void and the cancellation can be reverted.',
+      confirmText: 'Cancel deposit',
+      severity: 'warning',
+    });
+    if (!accepted) return;
+    try {
+      setCancellingDeposit(true);
+      for (const row of depositRows) {
+        await InvoicesService.deletePayment(row.id);
+      }
+      await reloadPayments();
+      invalidateInvoiceState();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to cancel deposit');
+    } finally {
+      setCancellingDeposit(false);
+    }
+  };
+
+  const handleRestoreDeposit = async () => {
+    if (!booking) return;
+    try {
+      setRestoringDeposit(true);
+      await InvoicesService.revertDepositVoid(booking.id);
+      await reloadPayments();
+      invalidateInvoiceState();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to restore deposit');
+    } finally {
+      setRestoringDeposit(false);
     }
   };
 
@@ -1446,6 +1522,21 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           Forfeit Deposit
                         </Button>
                       </Grid>
+                      {canCancelDeposit && (
+                        <Grid size={12}>
+                          <Button
+                            size="small"
+                            variant="text"
+                            color="error"
+                            onClick={handleCancelDeposit}
+                            disabled={cancellingDeposit}
+                            startIcon={cancellingDeposit ? <CircularProgress size={14} /> : undefined}
+                            sx={{ fontSize: '0.75rem' }}
+                          >
+                            Cancel deposit (recorded but not collected)
+                          </Button>
+                        </Grid>
+                      )}
                     </Grid>
                   </Box>
                 )}
@@ -1493,6 +1584,20 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                   </Grid>
                 </Box>
+                {canCancelDeposit && voidedDepositRows.length > 0 && (
+                  <Box sx={{ px: 1.5, pb: 1.5, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={handleRestoreDeposit}
+                      disabled={restoringDeposit}
+                      startIcon={restoringDeposit ? <CircularProgress size={14} /> : undefined}
+                      sx={{ fontSize: '0.75rem' }}
+                    >
+                      Restore deposit{voidedDepositRows.length > 1 ? ` (${voidedDepositRows.length} cancelled)` : ''}
+                    </Button>
+                  </Box>
+                )}
               </Box>
             )}
             {/* Payment Required Alert */}
@@ -1527,7 +1632,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
                   Payments
                 </Typography>
-                {hasBalanceDue && !editingPayment && (
+                {!readOnly && hasBalanceDue && !editingPayment && (
                   <Button
                     size="small"
                     variant="outlined"
@@ -1656,7 +1761,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={2}>
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                            {!readOnly && (<Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
                               <Button
                                 size="small"
                                 sx={{ minWidth: 'auto', p: 0.5 }}
@@ -1678,7 +1783,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                   <DeleteIcon fontSize="small" />
                                 )}
                               </Button>
-                            </Box>
+                            </Box>)}
                           </Grid>
                         </Grid>)
                       )}
@@ -1688,9 +1793,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               )}
 
               {/* Deposit-type rows are held collateral / forfeited income, not
-                  bill settlement — grouped separately and deliberately given no
-                  Edit/Delete affordances: they resolve via refund or forfeit,
-                  never by voiding the row here. */}
+                  bill settlement — grouped separately with a method-only Edit
+                  (a wrong tender is the only honest correction now that
+                  in-house deposit voids are guarded) and still no Delete:
+                  they resolve via refund or forfeit, never by voiding the
+                  row here. */}
               {depositPayments.length > 0 && (
                 <Box sx={{ p: 0 }}>
                   <Box sx={{ px: 1.5, py: 0.75, bgcolor: '#eceff1', borderBottom: '1px solid #eee' }}>
@@ -1702,41 +1809,94 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     const forfeited = (p.payment_type || '').toLowerCase() === 'deposit_forfeited';
                     return (
                       <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee', bgcolor: '#fafafa' }}>
-                        <Grid container sx={{
-                          alignItems: "center"
-                        }}>
-                          <Grid size={4}>
-                            <Typography variant="body2">
-                              {formatStatusLabel(p.payment_method, '')}
-                            </Typography>
-                            <Typography variant="caption" sx={{
-                              color: "text.secondary"
-                            }}>
-                              {formatPaymentDateTime(p)}
-                            </Typography>
-                          </Grid>
-                          <Grid size={5}>
-                            <Chip
-                              label={forfeited ? 'Deposit forfeited' : 'Deposit held'}
-                              size="small"
-                              color={forfeited ? 'warning' : 'info'}
-                              sx={{ height: 20, fontSize: '0.7rem' }}
-                            />
-                            {(p.transaction_reference || p.notes) && (
-                              <Typography variant="caption" sx={{
-                                color: "text.secondary",
-                                display: 'block'
-                              }}>
-                                {p.transaction_reference || p.notes}
+                        {editingPayment?.id === p.id ? (
+                          // Method-only edit form — amount/date/reference are
+                          // immutable on a posted deposit row (the backend
+                          // rejects them), so the row swaps to just the tender
+                          // Select plus Save/Cancel.
+                          (<Box>
+                            <Grid container spacing={1} sx={{ mb: 1 }}>
+                              <Grid size={4}>
+                                <FormControl fullWidth size="small">
+                                  <InputLabel>Method</InputLabel>
+                                  <Select
+                                    value={editMethod}
+                                    label="Method"
+                                    onChange={(e) => setEditMethod(e.target.value)}
+                                  >
+                                    {hotelSettings.payment_methods.map((method) => (
+                                      <MenuItem key={method} value={method}>{method}</MenuItem>
+                                    ))}
+                                  </Select>
+                                </FormControl>
+                              </Grid>
+                            </Grid>
+                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                              <Button
+                                size="small"
+                                onClick={handleCancelEdit}
+                                disabled={updatingPayment}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={handleUpdatePayment}
+                                disabled={updatingPayment}
+                              >
+                                {updatingPayment ? 'Saving...' : 'Save'}
+                              </Button>
+                            </Box>
+                          </Box>)
+                        ) : (
+                          <Grid container sx={{
+                            alignItems: "center"
+                          }}>
+                            <Grid size={4}>
+                              <Typography variant="body2">
+                                {formatStatusLabel(p.payment_method, '')}
                               </Typography>
-                            )}
+                              <Typography variant="caption" sx={{
+                                color: "text.secondary"
+                              }}>
+                                {formatPaymentDateTime(p)}
+                              </Typography>
+                            </Grid>
+                            <Grid size={5}>
+                              <Chip
+                                label={forfeited ? 'Deposit forfeited' : 'Deposit held'}
+                                size="small"
+                                color={forfeited ? 'warning' : 'info'}
+                                sx={{ height: 20, fontSize: '0.7rem' }}
+                              />
+                              {(p.transaction_reference || p.notes) && (
+                                <Typography variant="caption" sx={{
+                                  color: "text.secondary",
+                                  display: 'block'
+                                }}>
+                                  {p.transaction_reference || p.notes}
+                                </Typography>
+                              )}
+                            </Grid>
+                            <Grid sx={{ textAlign: 'right' }} size={2}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#e65100' }}>
+                                {formatCurrency(toMoneyNumber(p.total_amount))}
+                              </Typography>
+                            </Grid>
+                            <Grid sx={{ textAlign: 'right' }} size={1}>
+                              {!readOnly && (<Button
+                                size="small"
+                                sx={{ minWidth: 'auto', p: 0.5 }}
+                                onClick={() => handleStartEdit(p)}
+                                disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
+                                aria-label="Edit deposit payment method"
+                              >
+                                <EditIcon fontSize="small" />
+                              </Button>)}
+                            </Grid>
                           </Grid>
-                          <Grid sx={{ textAlign: 'right' }} size={3}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#e65100' }}>
-                              {formatCurrency(toMoneyNumber(p.total_amount))}
-                            </Typography>
-                          </Grid>
-                        </Grid>
+                        )}
                       </Box>
                     );
                   })}
@@ -1853,7 +2013,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={2}>
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                            {!readOnly && (<Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
                               <Button
                                 size="small"
                                 sx={{ minWidth: 'auto', p: 0.5 }}
@@ -1875,7 +2035,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                   <DeleteIcon fontSize="small" />
                                 )}
                               </Button>
-                            </Box>
+                            </Box>)}
                           </Grid>
                         </Grid>
                       )}

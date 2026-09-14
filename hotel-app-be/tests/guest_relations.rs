@@ -80,7 +80,16 @@ const GUEST_CLOSED_SUPPORT: i64 = 986_206; // closed conversation seeded
 const GUEST_BOUNCE: i64 = 986_207; // suppressed email + opt-in + subscription + delivery
 const GUEST_TIERLESS: i64 = 986_208; // loyalty member on a NULL-code tier
 const GUEST_MEMBER: i64 = 986_209; // loyalty member on the seeded silver tier
-const GUEST_IDS: [i64; 9] = [
+// Phase 2 overview/segment fixtures — dedicated guests so the seeded bookings
+// and notes never disturb the count assertions the Phase 1 tests make on
+// GUEST_MAIN.
+const GUEST_ARRIVING: i64 = 986_210; // vip gold + arrival booking today
+const GUEST_STAYING: i64 = 986_211; // checked_in, check_out today
+const GUEST_FUTURE: i64 = 986_212; // confirmed booking check_in today + 7
+const GUEST_RETURNING: i64 = 986_213; // two recent checked_out stays
+const GUEST_INACTIVE: i64 = 986_214; // one checked_out stay 400 days ago
+const GUEST_FOLLOWUP: i64 = 986_215; // carries every follow_up_at fixture note
+const GUEST_IDS: [i64; 15] = [
     GUEST_MAIN,
     GUEST_PLAIN,
     GUEST_VIP,
@@ -90,12 +99,27 @@ const GUEST_IDS: [i64; 9] = [
     GUEST_BOUNCE,
     GUEST_TIERLESS,
     GUEST_MEMBER,
+    GUEST_ARRIVING,
+    GUEST_STAYING,
+    GUEST_FUTURE,
+    GUEST_RETURNING,
+    GUEST_INACTIVE,
+    GUEST_FOLLOWUP,
 ];
 
 const ROOM_TYPE_ID: i64 = 986_301;
 const ROOM_ID: i64 = 986_302;
+/// Second fixture room: the staying guest's booking needs a far-past check-in
+/// to top the `check_in_date`-ordered `in_house`/`departures` previews over
+/// real rows, which would overlap the other fixtures on ROOM_ID.
+const ROOM_ID_LONG: i64 = 986_303;
+const ROOM_IDS: [i64; 2] = [ROOM_ID, ROOM_ID_LONG];
 const BOOKING_MAIN: i64 = 986_501;
 const BOOKING_PLAIN: i64 = 986_502;
+/// The arrival fixture takes a negative id so it wins the `arrivals` /
+/// `vip_arrivals` preview tiebreak (`ORDER BY check_in_date, b.id` — every
+/// arrival shares today's date and real booking ids are all positive).
+const BOOKING_ARRIVING: i64 = -986_512;
 const PROMOTION_ID: i64 = 986_401;
 
 const BOUNCE_EMAIL: &str = "grt986.bounce@hotel.local";
@@ -267,7 +291,15 @@ impl Fixture {
         Self::upsert_role(pool, ROLE_EDITOR, "grt986_editor", &["guests:read", "guests:update"])
             .await;
         Self::upsert_role(pool, ROLE_READER, "grt986_reader", &["guests:read"]).await;
-        Self::upsert_role(pool, ROLE_MANAGER, "grt986_manager", &["guests:manage"]).await;
+        // support:read + reviews:read join guests:manage so the manager token
+        // exercises the overview's permission-gated sections positively.
+        Self::upsert_role(
+            pool,
+            ROLE_MANAGER,
+            "grt986_manager",
+            &["guests:manage", "support:read", "reviews:read"],
+        )
+        .await;
         Self::upsert_role(
             pool,
             ROLE_AGENT,
@@ -384,6 +416,19 @@ impl Fixture {
         .execute(pool)
         .await
         .unwrap();
+
+        // Phase 2 overview/segment guests.
+        Self::upsert_guest(pool, GUEST_ARRIVING, "Grt986 Arriving", None).await;
+        sqlx::query("UPDATE guests SET vip_status = 'gold' WHERE id = $1")
+            .bind(GUEST_ARRIVING)
+            .execute(pool)
+            .await
+            .unwrap();
+        Self::upsert_guest(pool, GUEST_STAYING, "Grt986 Staying", None).await;
+        Self::upsert_guest(pool, GUEST_FUTURE, "Grt986 Future", None).await;
+        Self::upsert_guest(pool, GUEST_RETURNING, "Grt986 Returning", None).await;
+        Self::upsert_guest(pool, GUEST_INACTIVE, "Grt986 Inactive", None).await;
+        Self::upsert_guest(pool, GUEST_FOLLOWUP, "Grt986 Followup", None).await;
     }
 
     async fn seed_rooms_and_bookings(pool: &PgPool) {
@@ -407,6 +452,15 @@ impl Fixture {
         .execute(pool)
         .await
         .expect("room fixture must be inserted");
+        sqlx::query(
+            "INSERT INTO rooms (id, room_number, room_type_id, status) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, 'GRT986-2', $2, 'available')",
+        )
+        .bind(ROOM_ID_LONG)
+        .bind(ROOM_TYPE_ID)
+        .execute(pool)
+        .await
+        .expect("long-stay room fixture must be inserted");
 
         // Distinct date ranges — `bookings_no_room_date_overlap` forbids two
         // rows on the same room over the same stay window.
@@ -622,6 +676,86 @@ impl Fixture {
             .expect("support conversation fixture must be inserted");
         }
 
+        // Phase 2 bookings — windows are hotel-day relative so the overview
+        // sections and segment clauses see them on every run. The staying
+        // guest's window reaches far into the past on its own room so it tops
+        // the `check_in_date`-ordered `in_house`/`departures` previews over
+        // real rows; the other fixtures share ROOM_ID on non-overlapping
+        // windows, which `bookings_no_room_date_overlap` permits.
+        let today = core::db::hotel_today(pool)
+            .await
+            .expect("hotel_today must resolve for P2 booking fixtures");
+        for (booking_id, guest_id, number, in_offset, out_offset, status, room_id) in [
+            (986_511_i64, GUEST_STAYING, "BK-GRT986-P2-1", -800, 0, "checked_in", ROOM_ID_LONG),
+            (BOOKING_ARRIVING, GUEST_ARRIVING, "BK-GRT986-P2-2", 0, 1, "confirmed", ROOM_ID),
+            (986_513, GUEST_FUTURE, "BK-GRT986-P2-3", 7, 8, "confirmed", ROOM_ID),
+            (986_514, GUEST_RETURNING, "BK-GRT986-P2-4", -60, -59, "checked_out", ROOM_ID),
+            (986_515, GUEST_RETURNING, "BK-GRT986-P2-5", -30, -29, "checked_out", ROOM_ID),
+            (986_516, GUEST_INACTIVE, "BK-GRT986-P2-6", -400, -399, "checked_out", ROOM_ID),
+        ] {
+            sqlx::query(
+                "INSERT INTO bookings \
+                 (id, booking_number, guest_id, guest_name, guest_email, room_id, \
+                  check_in_date, check_out_date, adults, children, room_rate, subtotal, \
+                  total_amount, status, payment_status, created_by, tourism_tax_amount, \
+                  extra_bed_charge) \
+                 OVERRIDING SYSTEM VALUE \
+                 VALUES ($1, $2, $3, 'Grt986 Booking Guest', NULL, $4, $5::date, \
+                         $6::date, 1, 0, 100, 100, 100, $7, 'unpaid', \
+                         NULL, 0, 0)",
+            )
+            .bind(booking_id)
+            .bind(number)
+            .bind(guest_id)
+            .bind(room_id)
+            .bind(today + Duration::days(in_offset))
+            .bind(today + Duration::days(out_offset))
+            .bind(status)
+            .execute(pool)
+            .await
+            .expect("P2 booking fixture must be inserted");
+        }
+
+        // Phase 2 follow-up queue fixtures on GUEST_FOLLOWUP — a dedicated
+        // guest because Phase 1 tests assert exact interaction totals on
+        // GUEST_MAIN. Distinct subjects double as lookup keys in assertions.
+        // The overdue row's follow_up_at is far in the past so it tops the
+        // `follow_up_at ASC`-ordered due-now preview even when real overdue
+        // notes exist on the shared dev database.
+        for (subject, follow_up, completed, private) in [
+            ("Grt986 P2 overdue", "-3650 days", false, false),
+            ("Grt986 P2 today", "0 hours", false, false),
+            ("Grt986 P2 upcoming", "+1 day", false, false),
+            ("Grt986 P2 done", "-1 day", true, false),
+            ("Grt986 P2 private", "-1 day", false, true),
+        ] {
+            sqlx::query(
+                "INSERT INTO guest_notes \
+                 (guest_id, subject, content, interaction_type, is_private, \
+                  follow_up_at, follow_up_completed_at, assigned_to, created_by) \
+                 VALUES ($1, $2, $3, 'follow_up', $4, \
+                         CURRENT_TIMESTAMP + ($5 || '')::interval, \
+                         CASE WHEN $6 THEN CURRENT_TIMESTAMP ELSE NULL END, \
+                         $7, $8)",
+            )
+            .bind(GUEST_FOLLOWUP)
+            .bind(subject)
+            // The overdue row doubles as the LEFT(content, 160) decode check.
+            .bind(if subject == "Grt986 P2 overdue" {
+                "x".repeat(200)
+            } else {
+                format!("{subject} content")
+            })
+            .bind(private)
+            .bind(follow_up)
+            .bind(completed)
+            .bind(USER_AUTHOR)
+            .bind(USER_AUTHOR)
+            .execute(pool)
+            .await
+            .expect("follow-up note fixture must be inserted");
+        }
+
         review_id
     }
 
@@ -710,13 +844,13 @@ impl Fixture {
             .execute(pool)
             .await
             .expect("promotion cleanup");
-        sqlx::query("DELETE FROM room_status_change_log WHERE room_id = $1")
-            .bind(ROOM_ID)
+        sqlx::query("DELETE FROM room_status_change_log WHERE room_id = ANY($1)")
+            .bind(&ROOM_IDS[..])
             .execute(pool)
             .await
             .expect("room status log cleanup");
-        sqlx::query("DELETE FROM rooms WHERE id = $1")
-            .bind(ROOM_ID)
+        sqlx::query("DELETE FROM rooms WHERE id = ANY($1)")
+            .bind(&ROOM_IDS[..])
             .execute(pool)
             .await
             .expect("room cleanup");
@@ -782,6 +916,41 @@ impl Fixture {
 
     fn guest_uri(&self, guest_id: i64, suffix: &str) -> String {
         format!("/api/guests/{guest_id}{suffix}")
+    }
+}
+
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        // `Fixture::new` cleans before seeding, but without teardown the rows
+        // seeded by the last test outlive this binary — the suites share one
+        // dev database and global assertions elsewhere (e.g. the delivery-feed
+        // counts in `admin_communications_api`) trip on leftovers such as
+        // `grt986-delivery-1`. Rust has no async Drop, `#[tokio::test]` runtimes
+        // are current-thread (no `block_in_place`), and this pool's connections
+        // are bound to the test reactor — so teardown runs on a throwaway
+        // thread with its own runtime and a fresh pool.
+        let Ok(database_url) = std::env::var("DATABASE_URL") else {
+            return;
+        };
+        let teardown = std::thread::spawn(move || {
+            let Ok(rt) = tokio::runtime::Runtime::new() else {
+                eprintln!("guest relations teardown: runtime init failed");
+                return;
+            };
+            rt.block_on(async move {
+                match PgPoolOptions::new()
+                    .max_connections(2)
+                    .connect(&database_url)
+                    .await
+                {
+                    Ok(pool) => Self::cleanup(&pool).await,
+                    Err(e) => eprintln!("guest relations teardown: connect failed: {e}"),
+                }
+            });
+        });
+        if let Err(e) = teardown.join() {
+            eprintln!("guest relations teardown panicked: {e:?}");
+        }
     }
 }
 
@@ -1804,4 +1973,434 @@ async fn guest_list_filters_vip_blacklisted_open_support() {
         "a closed conversation must not satisfy the filter"
     );
     assert!(!ids.contains(&GUEST_MAIN), "guest with no cases must not match");
+}
+
+// ---------------------------------------------------------------------------
+// 13. Phase 2 overview: counts, previews, and permission-gated sections
+// ---------------------------------------------------------------------------
+#[tokio::test]
+async fn overview_returns_counts_and_previews() {
+    let Some(fx) = Fixture::new().await else {
+        return;
+    };
+    let (status, body) = fx
+        .call(
+            "GET",
+            "/api/guest-relations/overview",
+            Some(&fx.manager),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "overview failed: {body}");
+
+    let booking_ids = |section: &Value| -> Vec<i64> {
+        section["items"]
+            .as_array()
+            .map(|rows| {
+                rows.iter()
+                    .filter_map(|row| row["booking_id"].as_i64())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+
+    // Arrival booked check_in = today; it is the VIP guest's booking, so it
+    // lands in both `arrivals` and `vip_arrivals` with the room label join.
+    assert!(
+        body["arrivals"]["count"].as_i64().unwrap_or(0) >= 1,
+        "arrivals count empty: {body}"
+    );
+    assert!(booking_ids(&body["arrivals"]).contains(&BOOKING_ARRIVING));
+    let arrival_row = body["arrivals"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["booking_id"].as_i64() == Some(BOOKING_ARRIVING))
+        .expect("arrival fixture row must be present")
+        .clone();
+    assert_eq!(arrival_row["guest_id"].as_i64(), Some(GUEST_ARRIVING));
+    assert_eq!(arrival_row["room_label"], "GRT986-1");
+    assert_eq!(arrival_row["is_vip"], true);
+
+    // The checked_in fixture is in-house AND departs today.
+    assert!(booking_ids(&body["in_house"]).contains(&986_511));
+    assert!(booking_ids(&body["departures"]).contains(&986_511));
+    assert!(booking_ids(&body["vip_arrivals"]).contains(&BOOKING_ARRIVING));
+    // The future stay is not an arrival, and the completed stays are nowhere.
+    assert!(!booking_ids(&body["arrivals"]).contains(&986_513));
+    assert!(!booking_ids(&body["departures"]).contains(&BOOKING_ARRIVING));
+
+    // Manager holds support:read — open counts decode as i64 and the seeded
+    // waiting_for_staff conversation surfaces in the preview.
+    assert!(
+        body["support"]["open"].as_i64().unwrap_or(0) >= 1,
+        "support.open empty: {body}"
+    );
+    assert!(
+        body["support"]["waiting_for_staff"].as_i64().unwrap_or(0) >= 1,
+        "waiting_for_staff empty: {body}"
+    );
+    let conv_numbers: Vec<&str> = body["support"]["items"]
+        .as_array()
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|row| row["conversation_number"].as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(conv_numbers.contains(&"SUP-GRT986-OPEN"));
+
+    // reviews:read — the seeded review (response NULL, rating 4.50) decodes
+    // through overall_rating::float8 into the f64 field.
+    assert!(
+        body["reviews"]["count"].as_i64().unwrap_or(0) >= 1,
+        "reviews count empty: {body}"
+    );
+    let review_row = body["reviews"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["review_id"].as_i64() == Some(fx.review_id))
+        .expect("seeded review must be awaiting a response")
+        .clone();
+    assert_eq!(review_row["rating"].as_f64(), Some(4.5));
+    assert!(review_row["created_at"].is_string());
+
+    // follow_ups is the due-now slice: overdue + today, never the completed,
+    // future, or private rows — private stays excluded even for guests:manage
+    // because the aggregate has no viewer context.
+    let subjects: Vec<&str> = body["follow_ups"]["items"]
+        .as_array()
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|row| row["subject"].as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(subjects.contains(&"Grt986 P2 overdue"), "{body}");
+    assert!(subjects.contains(&"Grt986 P2 today"), "{body}");
+    assert!(!subjects.contains(&"Grt986 P2 upcoming"));
+    assert!(!subjects.contains(&"Grt986 P2 done"));
+    assert!(!subjects.contains(&"Grt986 P2 private"));
+
+    // LEFT(content, 160) decoded into `snippet`.
+    let overdue_row = body["follow_ups"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["subject"].as_str() == Some("Grt986 P2 overdue"))
+        .unwrap();
+    assert_eq!(
+        overdue_row["snippet"].as_str().map(str::len),
+        Some(160),
+        "snippet must be the 160-char left-truncation"
+    );
+    assert_eq!(overdue_row["assigned_to_name"], "Grt986 grt986_author");
+}
+
+// ---------------------------------------------------------------------------
+// 14. Overview permission gating: support/reviews omitted, guests:read gate
+// ---------------------------------------------------------------------------
+#[tokio::test]
+async fn overview_omits_support_and_reviews_without_permissions() {
+    let Some(fx) = Fixture::new().await else {
+        return;
+    };
+
+    // guests:read only — the gated sections are absent, not null.
+    let (status, body) = fx
+        .call(
+            "GET",
+            "/api/guest-relations/overview",
+            Some(&fx.reader),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "reader overview failed: {body}");
+    assert!(
+        body.get("support").is_none(),
+        "support must be omitted, not null: {body}"
+    );
+    assert!(
+        body.get("reviews").is_none(),
+        "reviews must be omitted, not null: {body}"
+    );
+    assert!(body.get("arrivals").is_some());
+    assert!(body.get("follow_ups").is_some());
+
+    // No guests:read at all — the endpoint itself is gated.
+    let (status, denied) = fx
+        .call(
+            "GET",
+            "/api/guest-relations/overview",
+            Some(&fx.noperm),
+            None,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "guests:read gate broken: {denied}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 15. Follow-up queue: due buckets, envelope, pagination
+// ---------------------------------------------------------------------------
+#[tokio::test]
+async fn follow_ups_filters_by_due_bucket() {
+    let Some(fx) = Fixture::new().await else {
+        return;
+    };
+    let subjects = |body: &Value| -> Vec<String> {
+        body["data"]
+            .as_array()
+            .map(|rows| {
+                rows.iter()
+                    .filter_map(|row| row["subject"].as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let get = |uri: &'static str| {
+        let fx = &fx;
+        async move { fx.call("GET", uri, Some(&fx.reader), None).await }
+    };
+
+    let (status, overdue) = get("/api/guest-relations/follow-ups?due=overdue").await;
+    assert_eq!(status, StatusCode::OK, "overdue bucket failed: {overdue}");
+    let names = subjects(&overdue);
+    assert!(
+        names.contains(&"Grt986 P2 overdue".to_string()),
+        "{overdue}"
+    );
+    assert!(!names.contains(&"Grt986 P2 today".to_string()));
+    assert!(!names.contains(&"Grt986 P2 upcoming".to_string()));
+    assert!(!names.contains(&"Grt986 P2 done".to_string()));
+    // The private overdue row is hidden from a non-author reader.
+    assert!(!names.contains(&"Grt986 P2 private".to_string()));
+
+    let (status, today) = get("/api/guest-relations/follow-ups?due=today").await;
+    assert_eq!(status, StatusCode::OK, "today bucket failed: {today}");
+    let names = subjects(&today);
+    assert!(names.contains(&"Grt986 P2 today".to_string()), "{today}");
+    assert!(!names.contains(&"Grt986 P2 overdue".to_string()));
+    assert!(!names.contains(&"Grt986 P2 upcoming".to_string()));
+
+    let (status, upcoming) = get("/api/guest-relations/follow-ups?due=upcoming").await;
+    assert_eq!(status, StatusCode::OK, "upcoming bucket failed: {upcoming}");
+    let names = subjects(&upcoming);
+    assert!(
+        names.contains(&"Grt986 P2 upcoming".to_string()),
+        "{upcoming}"
+    );
+    assert!(!names.contains(&"Grt986 P2 overdue".to_string()));
+    assert!(!names.contains(&"Grt986 P2 done".to_string()));
+
+    // due=all (the default) returns every open follow-up regardless of date.
+    let (status, all) = get("/api/guest-relations/follow-ups?due=all").await;
+    assert_eq!(status, StatusCode::OK, "all bucket failed: {all}");
+    let names = subjects(&all);
+    for expected in ["Grt986 P2 overdue", "Grt986 P2 today", "Grt986 P2 upcoming"] {
+        assert!(names.contains(&expected.to_string()), "{all}");
+    }
+    assert!(!names.contains(&"Grt986 P2 done".to_string()));
+    // Shared paged envelope — same shape as the interactions list.
+    assert!(all["total"].as_i64().unwrap_or(0) >= 3, "{all}");
+    assert!(all["page"].is_i64() && all["page_size"].is_i64());
+
+    // Pagination slices the queue deterministically (follow_up_at ASC).
+    let (_, page1) = get("/api/guest-relations/follow-ups?due=all&page_size=1&page=1").await;
+    let (_, page2) = get("/api/guest-relations/follow-ups?due=all&page_size=1&page=2").await;
+    assert_eq!(page1["data"].as_array().unwrap().len(), 1);
+    assert_eq!(page2["data"].as_array().unwrap().len(), 1);
+    assert_ne!(
+        page1["data"][0]["note_id"].as_i64(),
+        page2["data"][0]["note_id"].as_i64(),
+        "page 2 must return a different queue row"
+    );
+    // The earliest-due open note sorts first.
+    assert_eq!(page1["data"][0]["subject"], "Grt986 P2 overdue");
+}
+
+// ---------------------------------------------------------------------------
+// 16. Follow-up queue privacy: private notes need author or guests:manage
+// ---------------------------------------------------------------------------
+#[tokio::test]
+async fn follow_ups_hides_private_notes_from_non_authors() {
+    let Some(fx) = Fixture::new().await else {
+        return;
+    };
+    let has_private = |body: &Value| -> bool {
+        body["data"]
+            .as_array()
+            .map(|rows| {
+                rows.iter()
+                    .any(|row| row["subject"].as_str() == Some("Grt986 P2 private"))
+            })
+            .unwrap_or(false)
+    };
+
+    let (_, reader) = fx
+        .call(
+            "GET",
+            "/api/guest-relations/follow-ups?due=all",
+            Some(&fx.reader),
+            None,
+        )
+        .await;
+    assert!(!has_private(&reader), "reader must not see private notes");
+
+    let (_, author) = fx
+        .call(
+            "GET",
+            "/api/guest-relations/follow-ups?due=all",
+            Some(&fx.author),
+            None,
+        )
+        .await;
+    assert!(
+        has_private(&author),
+        "the author sees their own private note"
+    );
+
+    let (_, manager) = fx
+        .call(
+            "GET",
+            "/api/guest-relations/follow-ups?due=all",
+            Some(&fx.manager),
+            None,
+        )
+        .await;
+    assert!(
+        has_private(&manager),
+        "guests:manage must see private notes"
+    );
+
+    // guests:read gate applies to the queue route too.
+    let (status, denied) = fx
+        .call(
+            "GET",
+            "/api/guest-relations/follow-ups",
+            Some(&fx.noperm),
+            None,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "guests:read gate broken: {denied}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 17. Guest-list segments + the has_open_support row flag
+// ---------------------------------------------------------------------------
+#[tokio::test]
+async fn guest_list_segment_filters() {
+    let Some(fx) = Fixture::new().await else {
+        return;
+    };
+    let list_ids = |body: &Value| -> Vec<i64> {
+        body["data"]
+            .as_array()
+            .map(|rows| rows.iter().filter_map(|row| row["id"].as_i64()).collect())
+            .unwrap_or_default()
+    };
+    let get = |uri: &'static str| {
+        let fx = &fx;
+        async move { fx.call("GET", uri, Some(&fx.reader), None).await }
+    };
+
+    // returning = >= 2 checked_out/completed stays. `search` scopes every
+    // list to the fixture guests so real dev-DB rows can't paginate them out.
+    let (status, returning) =
+        get("/api/guests?segment=returning&page_size=100&search=Grt986").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "returning segment failed: {returning}"
+    );
+    let ids = list_ids(&returning);
+    assert!(ids.contains(&GUEST_RETURNING), "{returning}");
+    assert!(!ids.contains(&GUEST_INACTIVE), "one stay is not returning");
+    assert!(
+        !ids.contains(&GUEST_MAIN),
+        "a confirmed booking is not a stay"
+    );
+
+    // in_house = a checked_in/auto_checked_in booking exists.
+    let (status, in_house) =
+        get("/api/guests?segment=in_house&page_size=100&search=Grt986").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "in_house segment failed: {in_house}"
+    );
+    let ids = list_ids(&in_house);
+    assert!(ids.contains(&GUEST_STAYING), "{in_house}");
+    assert!(!ids.contains(&GUEST_RETURNING));
+
+    // upcoming = confirmed/pending_confirmation with check_in >= today.
+    let (status, upcoming) =
+        get("/api/guests?segment=upcoming&page_size=100&search=Grt986").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "upcoming segment failed: {upcoming}"
+    );
+    let ids = list_ids(&upcoming);
+    assert!(ids.contains(&GUEST_FUTURE), "{upcoming}");
+    assert!(ids.contains(&GUEST_ARRIVING), "check-in today is upcoming");
+    assert!(!ids.contains(&GUEST_RETURNING));
+
+    // inactive = no checked_out/completed stay within 365 days.
+    let (status, inactive) =
+        get("/api/guests?segment=inactive&page_size=100&search=Grt986").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "inactive segment failed: {inactive}"
+    );
+    let ids = list_ids(&inactive);
+    assert!(ids.contains(&GUEST_INACTIVE), "{inactive}");
+    assert!(
+        !ids.contains(&GUEST_RETURNING),
+        "a stay 30 days ago is not inactive"
+    );
+
+    // Unknown segment values are ignored (same convention as other filters).
+    let (status, bogus) =
+        get("/api/guests?segment=nonsense&page_size=100&search=Grt986").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "unknown segment must not error: {bogus}"
+    );
+    assert!(list_ids(&bogus).contains(&GUEST_MAIN));
+
+    // The EXISTS projection lands on list rows: true on the open-case guest,
+    // false on the guest whose only conversation is closed.
+    let (status, open) =
+        get("/api/guests?has_open_support=true&page_size=100&search=Grt986").await;
+    assert_eq!(status, StatusCode::OK, "open-support list failed: {open}");
+    let open_row = open["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["id"].as_i64() == Some(GUEST_OPEN_SUPPORT))
+        .expect("open-support guest must be listed")
+        .clone();
+    assert_eq!(open_row["has_open_support"], true);
+
+    let (status, all) = get("/api/guests?page_size=100&search=Grt986").await;
+    assert_eq!(status, StatusCode::OK, "guest list failed: {all}");
+    let closed_row = all["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["id"].as_i64() == Some(GUEST_CLOSED_SUPPORT))
+        .expect("closed-support guest must be listed")
+        .clone();
+    assert_eq!(closed_row["has_open_support"], false);
 }

@@ -18,6 +18,14 @@ export function getNotificationPriority(
 
 export const API_NOTIFICATION_EVENT = 'api:notification';
 
+/**
+ * Requests that expect failure as a normal outcome (status probes whose UI
+ * already renders the error inline) can set this header to opt out of the
+ * global toast + notification-center entry emitted by the client's
+ * `beforeError` hook. The error still rejects normally for the caller.
+ */
+export const SKIP_API_NOTIFICATION_HEADER = 'x-skip-api-notification';
+
 type UnknownRecord = Record<string, unknown>;
 
 function isRecord(value: unknown): value is UnknownRecord {

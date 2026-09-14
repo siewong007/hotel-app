@@ -234,21 +234,21 @@ const SecureDocumentImage: React.FC<{
         <Stack direction="row" spacing={0.5}>
           <Tooltip title="Zoom out">
             <span>
-              <IconButton size="small" onClick={() => setZoom(value => Math.max(0.5, value - 0.25))} disabled={!imageUrl}>
+              <IconButton size="small" aria-label="Zoom out" onClick={() => setZoom(value => Math.max(0.5, value - 0.25))} disabled={!imageUrl}>
                 <ZoomOutIcon fontSize="small" />
               </IconButton>
             </span>
           </Tooltip>
           <Tooltip title="Zoom in">
             <span>
-              <IconButton size="small" onClick={() => setZoom(value => Math.min(2, value + 0.25))} disabled={!imageUrl}>
+              <IconButton size="small" aria-label="Zoom in" onClick={() => setZoom(value => Math.min(2, value + 0.25))} disabled={!imageUrl}>
                 <ZoomInIcon fontSize="small" />
               </IconButton>
             </span>
           </Tooltip>
           <Tooltip title="Rotate">
             <span>
-              <IconButton size="small" onClick={() => setRotation(value => (value + 90) % 360)} disabled={!imageUrl}>
+              <IconButton size="small" aria-label="Rotate image" onClick={() => setRotation(value => (value + 90) % 360)} disabled={!imageUrl}>
                 <RotateIcon fontSize="small" />
               </IconButton>
             </span>
@@ -475,7 +475,7 @@ const EkycManagementPage: React.FC = () => {
           <Stack direction="row" spacing={1}>
             <Tooltip title="Refresh">
               <span>
-                <IconButton onClick={() => listQuery.refetch()} disabled={listQuery.isFetching}>
+                <IconButton onClick={() => listQuery.refetch()} disabled={listQuery.isFetching} aria-label="Refresh applications">
                   <RefreshIcon />
                 </IconButton>
               </span>
@@ -809,7 +809,7 @@ const EkycManagementPage: React.FC = () => {
                     </TableCell>
                     <TableCell align="right">
                       <Tooltip title="View">
-                        <IconButton size="small" onClick={() => setSelectedId(application.id)}>
+                        <IconButton size="small" aria-label="View application" onClick={() => setSelectedId(application.id)}>
                           <ViewIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -981,6 +981,7 @@ const EkycManagementPage: React.FC = () => {
         autoHideDuration={4000}
         onClose={() => setSuccessMsg('')}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        sx={{ top: { xs: 72, sm: 88 } }}
       >
         <Alert severity="success" variant="filled" onClose={() => setSuccessMsg('')}>
           {successMsg}

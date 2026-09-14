@@ -62,22 +62,6 @@ vi.mock('./dashboard/IdentitySection', () => ({
 
 import { PortalDashboardPage } from './PortalDashboardPage';
 
-// A name that only this test could produce, so an assertion that it is ABSENT
-// actually proves the page does not render the configured hotel name.
-const STUB_HOTEL_NAME = 'Wordmark Regency';
-
-const stubHotelSettings = () => {
-  vi.stubGlobal('localStorage', {
-    getItem: (key: string) =>
-      key === 'hotelSettings' ? JSON.stringify({ hotel_name: STUB_HOTEL_NAME }) : null,
-    setItem: () => {},
-    removeItem: () => {},
-    clear: () => {},
-    key: () => null,
-    length: 0,
-  });
-};
-
 describe('PortalDashboardPage session bootstrap', () => {
   beforeEach(() => {
     mocks.navigate.mockReset();
@@ -103,42 +87,28 @@ describe('PortalDashboardPage session bootstrap', () => {
   });
 });
 
-describe('PortalDashboardPage header', () => {
+describe('PortalDashboardPage section dispatch', () => {
   beforeEach(() => {
     mocks.navigate.mockReset();
     mocks.signOut.mockReset();
     mocks.session = { token: 'portal-token', status: 'ready', error: null, canRetry: false, needsLogin: false };
     mocks.search = '';
-    stubHotelSettings();
   });
 
-  afterEach(() => {
-    cleanup();
-    vi.unstubAllGlobals();
-  });
+  afterEach(cleanup);
 
-  it('heads the card with the section title alone', () => {
+  it('renders the overview for the default section', () => {
     render(<PortalDashboardPage />);
 
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('My stay');
     expect(screen.getByTestId('overview-section')).toBeTruthy();
   });
 
-  // GuestPortalShell's sticky header already shows the hotel name as the logo
-  // wordmark; repeating it in the card below was a visible duplicate.
-  it('does not repeat the hotel name below the shell logo', () => {
-    render(<PortalDashboardPage />);
-
-    expect(screen.queryByText(STUB_HOTEL_NAME)).toBeNull();
-  });
-
-  it('keeps the section title in step with ?section', () => {
+  it('keeps the rendered section in step with ?section', () => {
     mocks.search = '?section=stays';
     render(<PortalDashboardPage />);
 
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('My stays');
     expect(screen.getByTestId('bookings-section')).toBeTruthy();
-    expect(screen.queryByText(STUB_HOTEL_NAME)).toBeNull();
+    expect(screen.queryByTestId('overview-section')).toBeNull();
   });
 
   // The section dispatch is an if-chain with no exhaustiveness check: a section
@@ -148,7 +118,15 @@ describe('PortalDashboardPage header', () => {
     mocks.search = '?section=identity';
     render(<PortalDashboardPage />);
 
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Identity verification');
     expect(screen.getByTestId('identity-section')).toBeTruthy();
+  });
+
+  // Sign out lives in GuestPortalShell's account menu — one control, not one
+  // per section header.
+  it('leaves account chrome to the shell (no in-page sign out)', () => {
+    render(<PortalDashboardPage />);
+
+    expect(screen.queryByRole('button', { name: 'Sign Out' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
   });
 });

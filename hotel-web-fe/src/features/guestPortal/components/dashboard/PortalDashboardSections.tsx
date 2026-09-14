@@ -47,6 +47,7 @@ import { GuestPortalDashboardService } from "../../api/guestPortalDashboard.serv
 import { useGuestLoyaltySocket } from "../../hooks/useGuestLoyaltySocket";
 import { PromotionCatalog, VoucherWallet } from "../../../promotions";
 import PortalNotificationPreferences from "../../../communications/components/PortalNotificationPreferences";
+import { AppearancePreferenceCard } from "./AppearancePreferenceCard";
 import { PortalSupportTab } from "../PortalSupportTab";
 import { GuestPaymentPanel } from "../GuestPaymentPanel";
 import type {
@@ -66,8 +67,6 @@ import {
 } from "./dashboardUtils";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
-const FOREST = "var(--hotel-text)";
-const GOLD = "var(--hotel-primary)";
 const REFUND_REASONS = [
   "Change of plans",
   "Booking made by mistake",
@@ -154,7 +153,7 @@ export function SectionHeading({
       <Typography
         variant="h4"
         component="h2"
-        sx={{ color: FOREST, fontWeight: 700, mt: 0.5 }}
+        sx={{ color: "var(--hotel-text)", fontWeight: 700, mt: 0.5 }}
       >
         {title}
       </Typography>
@@ -164,39 +163,6 @@ export function SectionHeading({
           mt: 1
         }}>
         {description}
-      </Typography>
-    </Box>
-  );
-}
-
-function CancellationUnavailable({
-  booking,
-  suffix,
-}: {
-  booking: GuestPortalBookingSummary;
-  suffix: string;
-}) {
-  const reasonId = `cancellation-unavailable-${booking.id}-${suffix}`;
-  const reason =
-    booking.cancellation_unavailable_reason ??
-    "This booking cannot be cancelled online.";
-  const label = booking.cancellation_pending
-    ? "Cancellation under review"
-    : "Cancellation unavailable";
-  return (
-    <Box role="status" aria-describedby={reasonId}>
-      <Typography
-        variant="body2"
-        sx={{
-          color: "text.secondary",
-          fontWeight: 600
-        }}>
-        {label}
-      </Typography>
-      <Typography id={reasonId} variant="caption" sx={{
-        color: "text.secondary"
-      }}>
-        {reason}
       </Typography>
     </Box>
   );
@@ -260,7 +226,7 @@ function RefundBookingDialog({
       }}
     >
       <Box component="form" onSubmit={(event) => void handleSubmit(event)}>
-        <DialogTitle sx={{ color: FOREST, fontWeight: 700 }}>
+        <DialogTitle sx={{ color: "var(--hotel-text)", fontWeight: 700 }}>
           {isRefund ? "Request cancellation" : "Cancel booking"} for {booking.booking_number}?
         </DialogTitle>
         <DialogContent>
@@ -436,7 +402,7 @@ export function OverviewSection({
         <Typography
           variant="h3"
           component="h2"
-          sx={{ color: FOREST, fontWeight: 700, mt: 0.5 }}
+          sx={{ color: "var(--hotel-text)", fontWeight: 700, mt: 0.5 }}
         >
           Welcome back, {firstName(me?.guest.nick_name)}.
         </Typography>
@@ -475,7 +441,7 @@ export function OverviewSection({
                 <Box>
                   <Typography
                     variant="overline"
-                    sx={{ color: GOLD, fontWeight: 700 }}
+                    sx={{ color: "var(--hotel-primary)", fontWeight: 700 }}
                   >
                     Your next stay
                   </Typography>
@@ -506,7 +472,7 @@ export function OverviewSection({
                     </Typography>
                   )}
                 </Box>
-                <CalendarMonthOutlinedIcon sx={{ color: GOLD, fontSize: 34 }} />
+                <CalendarMonthOutlinedIcon sx={{ color: "var(--hotel-primary)", fontSize: 34 }} />
               </Stack>
               {nextStay ? (
                 <Button
@@ -516,7 +482,7 @@ export function OverviewSection({
                     color: "var(--hotel-text)",
                     mt: 3,
                     px: 0,
-                    "&:hover": { bgcolor: "transparent", color: GOLD },
+                    "&:hover": { bgcolor: "transparent", color: "var(--hotel-primary)" },
                   }}
                 >
                   View my stays
@@ -548,7 +514,7 @@ export function OverviewSection({
                   </Typography>
                   <Typography
                     variant="h4"
-                    sx={{ fontWeight: 700, color: FOREST, mt: 1 }}
+                    sx={{ fontWeight: 700, color: "var(--hotel-text)", mt: 1 }}
                   >
                     {member ? member.points_balance.toLocaleString() : "—"}
                   </Typography>
@@ -560,13 +526,13 @@ export function OverviewSection({
                       : "Not enrolled yet"}
                   </Typography>
                 </Box>
-                <DiamondOutlinedIcon sx={{ color: GOLD, fontSize: 34 }} />
+                <DiamondOutlinedIcon sx={{ color: "var(--hotel-primary)", fontSize: 34 }} />
               </Stack>
               <Button
                 endIcon={<EastOutlinedIcon />}
                 onClick={() => onSectionChange("points-history")}
                 sx={{
-                  color: FOREST,
+                  color: "var(--hotel-text)",
                   mt: 3,
                   px: 0,
                   "&:hover": { bgcolor: "transparent", color: "var(--hotel-primary-text)" },
@@ -590,7 +556,7 @@ export function OverviewSection({
             justifyContent: "space-between"
           }}>
           <Box>
-            <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700 }}>
+            <Typography variant="h6" sx={{ color: "var(--hotel-text)", fontWeight: 700 }}>
               Plan another visit
             </Typography>
             <Typography variant="body2" sx={{
@@ -618,11 +584,13 @@ function BookingDetailsDialog({
   token,
   onClose,
   onPaymentUpdated,
+  onRequestCancel,
 }: {
   booking: GuestPortalBookingSummary | null;
   token: string;
   onClose: () => void;
   onPaymentUpdated: () => void;
+  onRequestCancel: (booking: GuestPortalBookingSummary) => void;
 }) {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptUploading, setReceiptUploading] = useState(false);
@@ -665,8 +633,20 @@ function BookingDetailsDialog({
           <Typography><strong>Booking status:</strong> {humanizePortalStatus(booking.status)}</Typography>
           <Typography><strong>Total:</strong> {formatPortalCurrency(booking.total_amount)}</Typography>
         </Stack>
+        {!booking.can_cancel ? (
+          <Box sx={{ mt: 1.5 }}>
+            {booking.cancellation_pending ? (
+              <Chip label="Cancellation under review" color="warning" size="small" />
+            ) : (
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                {booking.cancellation_unavailable_reason ??
+                  "This booking cannot be cancelled online."}
+              </Typography>
+            )}
+          </Box>
+        ) : null}
         {hasReceipt ? (
-          <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 2.5, p: 2, bgcolor: "success.50" }}>
+          <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 2.5, p: 2, bgcolor: "var(--hotel-success-bg)", borderColor: "var(--hotel-success-border)" }}>
             <Stack
               direction="row"
               spacing={2}
@@ -778,6 +758,16 @@ function BookingDetailsDialog({
         ) : null}
       </DialogContent>
       <DialogActions>
+        {booking.can_cancel ? (
+          <Button
+            color="error"
+            variant="outlined"
+            onClick={() => onRequestCancel(booking)}
+            sx={{ mr: "auto" }}
+          >
+            {booking.completed_payment_id != null ? "Request cancellation" : "Cancel booking"}
+          </Button>
+        ) : null}
         <Button onClick={onClose}>Close</Button>
       </DialogActions>
     </Dialog>
@@ -1011,29 +1001,7 @@ export function BookingsSection({ token }: { token: string }) {
                           <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
                             View details
                           </Button>
-                        {booking.status === "confirmed" ? (
-                          <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
-                            View receipt
-                          </Button>
-                        ) : null}
-                        {booking.can_cancel ? (
-                          <Button
-                            size="small"
-                            color="error"
-                            onClick={() => {
-                              setCancellationError(null);
-                              setBookingToCancel(booking);
-                            }}
-                            sx={{ minHeight: 44 }}
-                          >
-                            {booking.completed_payment_id != null ? "Request cancellation" : "Cancel booking"}
-                          </Button>
-                        ) : (
-                          <CancellationUnavailable
-                            booking={booking}
-                            suffix="desktop"
-                          />
-                        )}</Stack>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   );
@@ -1093,31 +1061,6 @@ export function BookingsSection({ token }: { token: string }) {
                     <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, minHeight: 44 }}>
                       View details
                     </Button>
-                    {booking.status === "confirmed" ? (
-                      <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, ml: 1, minHeight: 44 }}>
-                        View receipt
-                      </Button>
-                    ) : null}
-                    {booking.can_cancel ? (
-                      <Button
-                        size="small"
-                        color="error"
-                        onClick={() => {
-                          setCancellationError(null);
-                          setBookingToCancel(booking);
-                        }}
-                        sx={{ mt: 1, minHeight: 44 }}
-                      >
-                        {booking.completed_payment_id != null ? "Request cancellation" : "Cancel booking"}
-                      </Button>
-                    ) : (
-                      <Box sx={{ mt: 1.5 }}>
-                        <CancellationUnavailable
-                          booking={booking}
-                          suffix="mobile"
-                        />
-                      </Box>
-                    )}
                   </CardContent>
                 </Card>
               );
@@ -1153,6 +1096,11 @@ export function BookingsSection({ token }: { token: string }) {
             token={token}
             onClose={() => setBookingToView(null)}
             onPaymentUpdated={() => void load()}
+            onRequestCancel={(booking) => {
+              setCancellationError(null);
+              setBookingToCancel(booking);
+              setBookingToView(null);
+            }}
           />
         </>
       )}
@@ -1491,7 +1439,7 @@ export function CreditsSection({ token }: { token: string }) {
             <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
               <Typography
                 variant="overline"
-                sx={{ color: GOLD, fontWeight: 700 }}
+                sx={{ color: "var(--hotel-primary)", fontWeight: 700 }}
               >
                 Nights available
               </Typography>
@@ -1525,7 +1473,7 @@ export function CreditsSection({ token }: { token: string }) {
                   primary={credit.room_type_name}
                   secondary={`${credit.room_type_code} · ${credit.nights_available} free night${credit.nights_available === 1 ? "" : "s"}`}
                   slotProps={{
-                    primary: { sx: { fontWeight: 700, color: FOREST } }
+                    primary: { sx: { fontWeight: 700, color: "var(--hotel-text)" } }
                   }}
                 />
               </ListItem>
@@ -1578,7 +1526,7 @@ export function PointsHistorySection({ token }: { token: string }) {
               <Grid size={{ xs: 12, sm: 7 }}>
                 <Typography
                   variant="overline"
-                  sx={{ color: GOLD, fontWeight: 700 }}
+                  sx={{ color: "var(--hotel-primary)", fontWeight: 700 }}
                 >
                   {member.tier_name} member
                 </Typography>
@@ -1592,7 +1540,7 @@ export function PointsHistorySection({ token }: { token: string }) {
               <Grid size={{ xs: 12, sm: 5 }}>
                 <Typography
                   variant="overline"
-                  sx={{ color: GOLD, fontWeight: 700 }}
+                  sx={{ color: "var(--hotel-primary)", fontWeight: 700 }}
                 >
                   Points available
                 </Typography>
@@ -1613,7 +1561,7 @@ export function PointsHistorySection({ token }: { token: string }) {
       )}
       {membership?.recent_activity.length ? (
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700 }}>
+          <Typography variant="h6" sx={{ color: "var(--hotel-text)", fontWeight: 700 }}>
             Recent activity
           </Typography>
           <List>
@@ -1696,6 +1644,7 @@ export function EmbeddedSection({
         title="Preferences"
         description="Choose how you would like to hear from us."
       />
+      <AppearancePreferenceCard />
       <PortalNotificationPreferences token={token} />
     </>
   );

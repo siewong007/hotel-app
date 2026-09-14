@@ -1502,6 +1502,50 @@ impl PaymentRepository {
         Ok(refund_id)
     }
 
+    /// Revert a voided (cancelled) keycard deposit for a booking.
+    ///
+    /// Flips the newest `void` deposit row back to `completed` and resyncs the
+    /// booking mirror, so a deposit cancelled by mistake becomes held again.
+    /// The void's `processed_at`/`processed_by` stamps are left in place as
+    /// history of the void. One row per call — when several voided deposits
+    /// exist they are restored newest-first, so an older intentionally-voided
+    /// row is never resurrected by accident. Works on any booking status
+    /// (restoring a deposit on a checked-out stay is a legitimate correction).
+    /// Returns the id of the restored payment.
+    pub async fn revert_deposit_void(pool: &DbPool, booking_id: i64) -> Result<i64, ApiError> {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+        let deposit_id: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'deposit' \
+             AND status = 'void' ORDER BY id DESC LIMIT 1 FOR UPDATE",
+        )
+        .bind(booking_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        let deposit_id = match deposit_id {
+            Some(id) => id,
+            None => {
+                return Err(ApiError::BadRequest(
+                    "No voided deposit to revert".to_string(),
+                ));
+            }
+        };
+
+        sqlx::query("UPDATE payments SET status = 'completed' WHERE id = $1")
+            .bind(deposit_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
+
+        Self::sync_booking_deposit_mirror_tx(&mut tx, booking_id).await?;
+
+        tx.commit().await.map_err(ApiError::from)?;
+
+        Ok(deposit_id)
+    }
+
     /// Find payment by booking ID
     pub async fn find_by_booking_id(
         pool: &DbPool,
@@ -1812,7 +1856,11 @@ impl PaymentRepository {
         // Posted and terminal rows are immutable financial records. A
         // completed payment's amount/method/date can never be rewritten —
         // corrections go through a void + re-record so the ledger keeps both
-        // sides. Refund markers belong to the refund workflow (void via
+        // sides. The one exception is the method on completed
+        // deposit/deposit_forfeited rows: deposits are collateral, not bill
+        // settlement, and with in-house deposit voids guarded a method edit
+        // is the only honest correction path for a wrong tender. Refund
+        // markers belong to the refund workflow (void via
         // revert_deposit_refund). Notes and transaction_reference stay
         // editable: they carry no money and reference edits are what keep the
         // idempotency-dedup machinery consistent.
@@ -1826,6 +1874,15 @@ impl PaymentRepository {
         if matches!(existing_status, "refunded" | "void") {
             return Err(ApiError::BadRequest(
                 "A refunded or void payment cannot be modified".to_string(),
+            ));
+        }
+        if request
+            .payment_method
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty())
+        {
+            return Err(ApiError::BadRequest(
+                "payment_method must not be blank".to_string(),
             ));
         }
 
@@ -1903,16 +1960,23 @@ impl PaymentRepository {
         };
         let final_payment_date = request.payment_date.as_deref().or(preserved_requested_date);
 
-        // A posted payment's financial fields can never change. Resubmitting
-        // the same value is a no-op, not a mutation, so it stays permitted —
-        // callers like the invoice edit form send the whole record.
+        // A posted payment's financial fields can never change — the sole
+        // exception is the method on deposit-like rows (see below).
+        // Resubmitting the same value is a no-op, not a mutation, so it stays
+        // permitted — callers like the invoice edit form send the whole
+        // record.
         if existing_status == "completed" {
             let amount_changed = request.amount.is_some() && final_amount != existing_amount;
             let method_changed =
                 request.payment_method.is_some() && final_payment_method != existing.payment_method;
             let date_changed = request.payment_date.is_some()
                 && final_payment_date != existing.payment_date.as_deref();
-            if amount_changed || method_changed || date_changed {
+            // Deposit rows are collateral, not bill settlement — and with
+            // in-house deposit voids guarded, a method edit is the only
+            // honest correction path. Amount/date stay immutable on every
+            // posted type; method stays immutable on bill-settling types.
+            let deposit_like = matches!(existing_type, "deposit" | "deposit_forfeited");
+            if amount_changed || date_changed || (method_changed && !deposit_like) {
                 return Err(ApiError::BadRequest(
                     "Amount, method and payment date are immutable once a payment is posted — \
                      void the payment and record a new one instead"
@@ -2058,28 +2122,32 @@ impl PaymentRepository {
                 "Payment is already in a terminal state".to_string(),
             ));
         }
-        // A held deposit on an in-house booking is money owed back to the
-        // guest — it can only leave through refund or forfeit, never a void.
+        // Once the stay is closed a deposit is a settled liability — it can
+        // only leave through refund or forfeit, never a void. In-house stays
+        // allow the void: a deposit recorded but never collected is cancelled
+        // through this path (reversible via revert-deposit-void).
         if existing.payment_type.as_deref() == Some("deposit")
             && existing.payment_status.as_deref() == Some("completed")
             && matches!(
                 Self::booking_status_for_payment_tx(tx, booking_id)
                     .await?
                     .as_str(),
-                "checked_in"
-                    | "auto_checked_in"
-                    | "late_checkout"
-                    | "checked_out"
-                    | "completed"
+                "checked_out" | "completed"
             )
         {
             return Err(ApiError::BadRequest(
-                "Deposit payments can't be voided after check-in — \
+                "Deposit payments can't be voided after checkout — \
                  refund or forfeit the deposit instead"
                     .to_string(),
             ));
         }
-        if existing.payment_status.as_deref() == Some("completed") && !allow_completed {
+        // Deposit rows ride the route's payments:delete gate even when
+        // completed — cancelling collateral is desk work, unlike voiding
+        // settled revenue. deposit_forfeited rows keep the manage gate.
+        if existing.payment_status.as_deref() == Some("completed")
+            && !allow_completed
+            && existing.payment_type.as_deref() != Some("deposit")
+        {
             return Err(ApiError::Forbidden(
                 "Voiding a posted payment requires the payments:manage permission".to_string(),
             ));

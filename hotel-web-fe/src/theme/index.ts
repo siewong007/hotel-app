@@ -50,8 +50,10 @@ const buildShadows = (t: DesignTokens): Shadows =>
   ] as Shadows;
 
 /** Every token published as a `--hotel-*` custom property so plain CSS files,
- *  SVG chart fills, and generated markup share the active theme. */
-const cssVarDeclarations = (t: DesignTokens): Record<string, string> => ({
+ *  SVG chart fills, and generated markup share the active theme. Exported so
+ *  scoped theme islands (the guest portal) can republish the same vars on a
+ *  wrapper element instead of :root. */
+export const cssVarDeclarations = (t: DesignTokens): Record<string, string> => ({
   '--hotel-bg': t.surfaces.app,
   '--hotel-surface': t.surfaces.base,
   '--hotel-surface-raised': t.surfaces.raised,
@@ -90,6 +92,12 @@ const cssVarDeclarations = (t: DesignTokens): Record<string, string> => ({
   '--hotel-neutral': t.status.neutral.fg,
   '--hotel-neutral-bg': t.status.neutral.bg,
   '--hotel-neutral-border': t.status.neutral.border,
+  '--hotel-orange': t.status.orange.fg,
+  '--hotel-orange-bg': t.status.orange.bg,
+  '--hotel-orange-border': t.status.orange.border,
+  '--hotel-violet': t.status.violet.fg,
+  '--hotel-violet-bg': t.status.violet.bg,
+  '--hotel-violet-border': t.status.violet.border,
   '--hotel-chart-1': t.chart.series[0],
   '--hotel-chart-2': t.chart.series[1],
   '--hotel-chart-3': t.chart.series[2],

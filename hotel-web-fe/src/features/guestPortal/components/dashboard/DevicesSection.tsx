@@ -24,8 +24,6 @@ import { DeviceIcon, detectDeviceType } from '../../../user/components/profile/d
 import { sessionActivityLine } from '../../../user/components/profile/sessionLocation';
 import { ErrorState } from './PortalDashboardSections';
 
-const FOREST = 'var(--hotel-text)';
-const GOLD_TEXT = 'var(--hotel-primary-text)';
 
 function notify(message: string, severity: 'success' | 'error') {
   emitApiNotification({ message, severity });
@@ -56,7 +54,7 @@ function DeviceRow({
       <DeviceIcon deviceName={session.user_agent || ''} size={42} />
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <Typography sx={{ color: FOREST, fontWeight: 600 }}>{device.label}</Typography>
+          <Typography sx={{ color: 'var(--hotel-text)', fontWeight: 600 }}>{device.label}</Typography>
           {session.is_current ? (
             <Chip label="This device" size="small" color="success" />
           ) : null}
@@ -129,11 +127,11 @@ export function DevicesSection() {
       sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: 'var(--hotel-surface-raised)' }}
     >
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-        <Box sx={{ color: GOLD_TEXT, lineHeight: 0, mt: 0.25 }}>
+        <Box sx={{ color: 'var(--hotel-primary-text)', lineHeight: 0, mt: 0.25 }}>
           <DevicesOutlinedIcon />
         </Box>
         <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h6" component="h3" sx={{ color: FOREST, fontWeight: 700 }}>
+          <Typography variant="h6" component="h3" sx={{ color: 'var(--hotel-text)', fontWeight: 700 }}>
             Signed-in devices
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>

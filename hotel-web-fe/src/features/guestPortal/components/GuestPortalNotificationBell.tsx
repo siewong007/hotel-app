@@ -19,9 +19,9 @@ import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsAc
 import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
+import { GUEST_BRAND } from '../theme/guestPortalTheme';
 import type { GuestPortalBookingSummary } from '../../../types';
 
-const FOREST = 'var(--hotel-surface)';
 const URGENT = 'var(--hotel-danger)';
 
 interface GuestPortalNotificationBellProps {
@@ -179,7 +179,7 @@ export function GuestPortalNotificationBell({
             color="error"
             max={99}
             overlap="circular"
-            sx={{ '& .MuiBadge-badge': { fontWeight: 800, border: `2px solid ${FOREST}` } }}
+            sx={{ '& .MuiBadge-badge': { fontWeight: 800, border: `2px solid ${GUEST_BRAND.bg}` } }}
           >
             {pendingCount > 0
               ? <NotificationsActiveOutlinedIcon aria-hidden="true" />
@@ -262,7 +262,7 @@ export function GuestPortalNotificationBell({
                   ) : null}
                   <Button
                     variant="contained"
-                    color="secondary"
+                    color="error"
                     onClick={() => handleReviewReceipt(booking)}
                     sx={{ mt: 1.5, minHeight: 40, fontWeight: 800 }}
                   >

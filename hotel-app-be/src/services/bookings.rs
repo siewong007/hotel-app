@@ -109,9 +109,10 @@ pub async fn cancel_pending_booking_by_guest(
     booking_repo::void_booking_tx(&mut tx, booking_id, Some(user_id)).await?;
     booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
     booking_repo::void_uncompleted_booking_payments_tx(&mut tx, booking_id).await?;
+    let change_reason = reason.as_deref().unwrap_or("Booking cancelled by guest");
+    booking_repo::void_booking_ledgers_tx(&mut tx, booking_id, Some(user_id), change_reason).await?;
     payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
 
-    let change_reason = reason.as_deref().unwrap_or("Booking cancelled by guest");
     booking_repo::record_booking_history_tx(
         &mut tx,
         booking_id,
@@ -239,6 +240,7 @@ async fn perform_release(
     booking_repo::void_booking_tx(&mut tx, booking_id, actor).await?;
     booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
     booking_repo::void_uncompleted_booking_payments_tx(&mut tx, booking_id).await?;
+    booking_repo::void_booking_ledgers_tx(&mut tx, booking_id, actor, reason).await?;
     let nights_credited = booking_repo::restore_complimentary_credits_tx(&mut tx, booking).await?;
     payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
 
@@ -466,10 +468,13 @@ pub async fn void_booking(
     booking_repo::void_booking_tx(&mut tx, booking_id, Some(user_id)).await?;
     booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
     booking_repo::void_booking_payments_tx(&mut tx, booking_id).await?;
+    let change_reason = reason.as_deref().unwrap_or("Booking voided");
+    let (ledger_entries_voided, ledger_entries_with_payments) =
+        booking_repo::void_booking_ledgers_tx(&mut tx, booking_id, Some(user_id), change_reason)
+            .await?;
     let nights_credited = booking_repo::restore_complimentary_credits_tx(&mut tx, &booking).await?;
     payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
 
-    let change_reason = reason.as_deref().unwrap_or("Booking voided");
     booking_repo::record_booking_history_tx(
         &mut tx,
         booking_id,
@@ -510,6 +515,8 @@ pub async fn void_booking(
         "message": "Booking voided successfully",
         "booking_id": booking_id,
         "complimentary_nights_credited": nights_credited,
+        "ledger_entries_voided": ledger_entries_voided,
+        "ledger_entries_with_payments": ledger_entries_with_payments,
         "affected_night_audit_dates": affected_night_audit_dates,
         "night_audit_rerun_required": !affected_night_audit_dates.is_empty()
     }))

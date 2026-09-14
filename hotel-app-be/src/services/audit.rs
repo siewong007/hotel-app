@@ -373,6 +373,21 @@ pub async fn get_audit_logs(
     })
 }
 
+/// Recent audit entries for a caller-pinned action set — the shape the
+/// payment-approvals conflict banner needs without granting `audit:read`.
+/// Returns `(entries, total)`; entries are capped at `limit`, `total` is the
+/// untruncated count so callers can say "Showing N of M".
+pub async fn get_recent_events_by_actions(
+    pool: &DbPool,
+    actions: &[&str],
+    lookback_days: i64,
+    limit: i64,
+) -> Result<(Vec<AuditLogEntryWithUser>, i64), ApiError> {
+    let (total, rows) =
+        AuditRepository::list_recent_logs_by_actions(pool, actions, lookback_days, limit).await?;
+    Ok((rows.into_iter().map(row_to_entry).collect(), total))
+}
+
 pub async fn get_audit_actions(pool: &DbPool) -> Result<Vec<String>, ApiError> {
     AuditRepository::list_actions(pool).await
 }

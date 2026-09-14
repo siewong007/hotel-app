@@ -4,7 +4,9 @@ Staff-facing CRM workspace: find a guest → understand their situation → take
 action → follow up. Lives in `modules/guest_relations/` (backend) and
 `src/features/guestRelations/` (frontend). Design spec:
 `docs/superpowers/specs/2026-09-13-guest-relations-design.md` (Phase 1 shipped
-2026-09-13; Phase 2 dashboard/segments/follow-up queue deferred).
+2026-09-13) and `docs/superpowers/specs/2026-09-14-guest-relations-p2-design.md`
+(Phase 2 — overview dashboard, follow-up queue, list segments, open-issue
+badge — shipped 2026-09-14).
 
 ## Boundary — what the module owns vs links to
 
@@ -44,8 +46,8 @@ payment/campaign engine duplication, no fabricated "inferred" preferences.
 ## Endpoints
 
 Module routes (`modules/guest_relations/routes.rs`, merged in
-`routes/mod.rs`) — all under the existing `/guests/{id}` prefix; the spec's
-`/notes` segment shipped as `/interactions`:
+`routes/mod.rs`). Guest-scoped routes hang under the existing `/guests/{id}`
+prefix; the spec's `/notes` segment shipped as `/interactions`:
 
 | Endpoint | Permission | Purpose |
 |---|---|---|
@@ -63,10 +65,23 @@ Module routes (`modules/guest_relations/routes.rs`, merged in
 | `GET /guests/{id}/support` | `support:read` | Per-guest conversation list |
 | `POST /support/conversations` | `support:write` | Staff-initiated conversation on a guest's behalf (in `modules/support`, not the GR module) |
 
+Phase 2 added two non-guest-scoped routes under the `/guest-relations`
+workspace prefix — read-only aggregates over the owning domains' tables:
+
+| Endpoint | Permission | Purpose |
+|---|---|---|
+| `GET /guest-relations/overview` | `guests:read`; the `support` section also needs `support:read`, `reviews` needs `reviews:read` — unauthorized sections are omitted from the payload, never nulled | Dashboard aggregate: `arrivals`, `in_house`, `departures`, `vip_arrivals`, `follow_ups` (due-now) + optional `support` (open / waiting_for_staff counts + items), `reviews` (awaiting response). Each section is a full count + ≤5 preview rows |
+| `GET /guest-relations/follow-ups` | `guests:read` | Cross-guest open-follow-up queue in the shared `{data,total,page,page_size}` envelope; `due=overdue\|today\|upcoming\|all` (business-day buckets), `page`, `page_size`. Ordered `follow_up_at ASC`; `is_private` notes visible only to their author or a `guests:manage` holder (the overview's follow-up section always excludes them). Completion reuses `PATCH /guests/{id}/interactions/{nid}` |
+
 Pre-existing guest endpoints extended rather than duplicated: `GET /guests`
-grew `vip` / `blacklisted` / `has_open_support` list filters in
-`repositories/guest.rs::find_paginated`; `GET /guests/{id}/profile` remains the
-360 aggregate.
+grew `vip` / `blacklisted` / `has_open_support` list filters plus a `segment`
+filter (`returning` = ≥2 `checked_out`/`completed` stays, `in_house`,
+`upcoming`, `inactive` = no completed stay in 365 days — booking-derived
+EXISTS/COUNT subqueries, unknown values ignored) in
+`repositories/guest.rs::find_paginated`. `has_open_support`
+(`support_conversations.status <> 'closed'`) also rides each list row so
+unfiltered lists can badge open requests. `GET /guests/{id}/profile` remains
+the 360 aggregate.
 
 ## Permission model
 
@@ -80,14 +95,30 @@ grew `vip` / `blacklisted` / `has_open_support` list filters in
   independently — FE hides a missing-permission tab entirely rather than
   disabling it.
 - `is_private` notes are visible/mutable only to their author and
-  `guests:manage` holders (mirrored client-side in `InteractionsTab`).
+  `guests:manage` holders (mirrored client-side in `InteractionsTab`). The
+  follow-up queue enforces the same rule server-side; the overview's due-now
+  section never includes private rows.
 - `<resource>:manage` implies all actions of that resource (standard RBAC
   rule), so `guests:manage` covers read/update/reveal/delete.
 
 ## Frontend surface
 
-- `/guest-relations` → redirect to `/guest-relations/guests` (list page:
-  search, segment chips incl. VIP/Blacklisted/Open-requests, CSV export).
+- `/guest-relations` → overview dashboard (the Phase 2 landing that replaced
+  the redirect): stat cards for arrivals / in-house / departures / VIP
+  arrivals plus work queues for open support, reviews awaiting response, and
+  follow-ups due. Permission-bound sections render only when the API includes
+  them; preview rows deep-link into Guest 360, `/bookings`, `/support`, and
+  `/guest-relations/follow-ups`.
+- `/guest-relations/guests` — list page: search, segment chips (Phase 1's
+  VIP/Blacklisted/Open-requests plus the derived Returning / In-house /
+  Upcoming / Inactive set → `segment=` param), CSV export, an "Open request"
+  badge on rows where `has_open_support` is true.
+- `/guest-relations/follow-ups` — cross-guest queue page (due-filter chips,
+  per-row complete via the existing interactions PATCH). No nav entry —
+  reached from the dashboard — and bound to its own seeded
+  `guest-relations-follow-ups` route-access policy. The sidebar's
+  prefix-match (`isNavItemActive`) keeps the Guest Relations item highlighted
+  for every `/guest-relations/*` subroute.
 - `/guest-relations/guests/$guestId` — Guest 360: header (identity chips,
   quick actions) + tabs Overview / Stays / Preferences / Interactions /
   Loyalty & Vouchers / Support & Feedback / Communication.

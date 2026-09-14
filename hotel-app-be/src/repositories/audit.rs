@@ -170,6 +170,51 @@ impl AuditRepository {
         Ok((total, rows))
     }
 
+    /// Recent audit rows matching any of a small fixed action set, newest
+    /// first. Powers purpose-built views (e.g. the PayPal conflict banner)
+    /// that must not require the full `audit:read` grant — the caller pins
+    /// the action list, so this never becomes an open-ended audit read.
+    ///
+    /// Returns `(total, rows)` where `rows` is capped at `limit` and `total`
+    /// is the untruncated match count.
+    pub async fn list_recent_logs_by_actions(
+        pool: &DbPool,
+        actions: &[&str],
+        lookback_days: i64,
+        limit: i64,
+    ) -> Result<(i64, Vec<AuditLogRow>), ApiError> {
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_logs \
+             WHERE action = ANY($1) AND created_at >= CURRENT_TIMESTAMP - $2 * interval '1 day'",
+        )
+        .bind(actions)
+        .bind(lookback_days)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(format!("Failed to count recent audit logs: {}", e)))?;
+
+        let rows = sqlx::query_as::<_, AuditLogRow>(
+            r#"
+            SELECT a.id, a.user_id, u.username, a.action, a.resource_type, a.resource_id,
+                   a.details, host(a.ip_address) AS ip_address, a.user_agent, a.created_at
+            FROM audit_logs a
+            LEFT JOIN users u ON a.user_id = u.id
+            WHERE a.action = ANY($1)
+              AND a.created_at >= CURRENT_TIMESTAMP - $2 * interval '1 day'
+            ORDER BY a.created_at DESC
+            LIMIT $3
+            "#,
+        )
+        .bind(actions)
+        .bind(lookback_days)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::Database(format!("Failed to fetch recent audit logs: {}", e)))?;
+
+        Ok((total, rows))
+    }
+
     /// When the user's current recovery-code set was issued.
     ///
     /// Both enabling 2FA and regenerating the codes mint a fresh set, so the

@@ -9,6 +9,7 @@ import {
   getExplicitApiNotificationMessage,
   getApiNotificationMessage,
   getApiNotificationSeverity,
+  SKIP_API_NOTIFICATION_HEADER,
 } from '../utils/apiNotifications';
 import { queryClient } from './queryClient';
 import { domainForApiPath, invalidateDomain } from './queryInvalidation';
@@ -399,11 +400,15 @@ export const api = ky.create({
         const message = getApiNotificationMessage(payload, response.status);
         error.message = message;
 
-        emitApiNotification({
-          message,
-          severity: getApiNotificationSeverity(payload, response.status),
-          statusCode: response.status,
-        });
+        // The request opted out (e.g. a status probe that renders its own
+        // inline error) — still reject, just skip the global toast + history.
+        if (!error.request.headers.has(SKIP_API_NOTIFICATION_HEADER)) {
+          emitApiNotification({
+            message,
+            severity: getApiNotificationSeverity(payload, response.status),
+            statusCode: response.status,
+          });
+        }
 
         return error;
       }

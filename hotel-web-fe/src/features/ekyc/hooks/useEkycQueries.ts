@@ -16,14 +16,6 @@ export function useEkycStatus() {
   });
 }
 
-export function useEkycVerificationDetails() {
-  return useQuery({
-    queryKey: queryKeys.ekyc.myVerification(),
-    queryFn: () => EkycService.getEkycVerificationDetails(),
-    staleTime: queryStaleTime.standard,
-  });
-}
-
 export function useAllEkycVerifications(params?: EkycListParams) {
   return useQuery({
     queryKey: queryKeys.ekyc.allVerifications(params),

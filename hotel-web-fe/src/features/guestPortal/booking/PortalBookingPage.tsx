@@ -578,7 +578,7 @@ function ComplimentaryNights({ quote, onChange }: { quote: GuestBookingQuote; on
     onChange(selected.includes(date) ? selected.filter((value) => value !== date) : [...selected, date]);
   };
   return (
-    <Card variant="outlined" sx={{ mt: 3, borderColor: 'success.light', bgcolor: 'success.50' }}>
+    <Card variant="outlined" sx={{ mt: 3, borderColor: 'var(--hotel-success-border)', bgcolor: 'var(--hotel-success-bg)' }}>
       <CardContent>
         <Stack
           direction="row"
@@ -687,7 +687,7 @@ function ConfirmationStage({ confirmation, token, paymentMode, isAnonymous, onSt
         fontVariantNumeric: 'tabular-nums'
       }}>{confirmation.booking_number}</Typography><Typography sx={{ mt: 3, fontWeight: 700 }}>{confirmation.room_type_name}</Typography><Typography sx={{
       color: "text.secondary"
-    }}>{confirmation.check_in_date} to {confirmation.check_out_date}</Typography><Typography variant="h5" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode={paymentMode} bookingId={confirmation.booking_id} token={token ?? ''} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'success.50' }}><Stack
+    }}>{confirmation.check_in_date} to {confirmation.check_out_date}</Typography><Typography variant="h5" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode={paymentMode} bookingId={confirmation.booking_id} token={token ?? ''} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'var(--hotel-success-bg)', borderColor: 'var(--hotel-success-border)' }}><Stack
       direction="row"
       spacing={2}
       sx={{

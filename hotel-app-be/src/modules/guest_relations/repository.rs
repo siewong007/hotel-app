@@ -5,7 +5,7 @@
 //! support domains. Mutations to those domains stay with their own modules —
 //! the cross-domain methods below delegate to the owning repositories.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::Row;
 
 use super::models::*;
@@ -45,6 +45,15 @@ pub struct InteractionUpdateValues {
     pub follow_up_at: Option<DateTime<Utc>>,
     pub follow_up_completed_at: Option<DateTime<Utc>>,
     pub assigned_to: Option<i64>,
+}
+
+/// Which permission-gated overview sections the caller may see. The service
+/// resolves these from `support:read` / `reviews:read`; the repository skips
+/// the section's queries entirely when the flag is false, so the payload
+/// field serializes as absent rather than `null` or empty.
+pub struct OverviewCaps {
+    pub include_support: bool,
+    pub include_reviews: bool,
 }
 
 /// Consent/contact fields read off the `guests` row for the communications
@@ -194,6 +203,65 @@ fn support_summary_from_row(row: &DbRow) -> SupportConversationSummary {
         version: i64::from(row.try_get::<i32, _>("version").unwrap_or(1)),
     }
 }
+
+fn overview_booking_from_row(row: &DbRow) -> OverviewBookingItem {
+    OverviewBookingItem {
+        booking_id: row.try_get("booking_id").unwrap_or_default(),
+        guest_id: row.try_get("guest_id").unwrap_or_default(),
+        guest_name: row.try_get("guest_name").unwrap_or_default(),
+        status: row.try_get("status").unwrap_or_default(),
+        room_label: opt(row, "room_label"),
+        is_vip: row_mappers::get_bool(row, "is_vip"),
+    }
+}
+
+fn overview_support_from_row(row: &DbRow) -> OverviewSupportItem {
+    OverviewSupportItem {
+        conversation_id: row.try_get("conversation_id").unwrap_or_default(),
+        conversation_number: row.try_get("conversation_number").unwrap_or_default(),
+        guest_id: opt(row, "guest_id"),
+        guest_name: opt(row, "guest_name"),
+        status: row.try_get("status").unwrap_or_default(),
+        priority: opt(row, "priority"),
+        subject: row.try_get("subject").unwrap_or_default(),
+    }
+}
+
+fn overview_review_from_row(row: &DbRow) -> OverviewReviewItem {
+    OverviewReviewItem {
+        review_id: row.try_get("review_id").unwrap_or_default(),
+        guest_id: row.try_get("guest_id").unwrap_or_default(),
+        guest_name: row.try_get("guest_name").unwrap_or_default(),
+        rating: opt(row, "rating"),
+        created_at: required_timestamp(row, "created_at"),
+    }
+}
+
+fn follow_up_item_from_row(row: &DbRow) -> FollowUpQueueItem {
+    FollowUpQueueItem {
+        note_id: row.try_get("note_id").unwrap_or_default(),
+        guest_id: row.try_get("guest_id").unwrap_or_default(),
+        guest_name: row.try_get("guest_name").unwrap_or_default(),
+        subject: opt(row, "subject"),
+        interaction_type: row
+            .try_get("interaction_type")
+            .unwrap_or_else(|_| "note".to_string()),
+        follow_up_at: required_timestamp(row, "follow_up_at"),
+        assigned_to: opt(row, "assigned_to"),
+        assigned_to_name: opt(row, "assigned_to_name"),
+        created_by_name: opt(row, "created_by_name"),
+        snippet: opt(row, "snippet"),
+    }
+}
+
+/// The `guests` display-name expression used across this module and the
+/// support module — `nick_name` is NOT NULL in the baseline, so it is the
+/// canonical display name.
+const GUEST_NAME_EXPR: &str =
+    "COALESCE(g.nick_name, trim(g.first_name || ' ' || g.last_name), 'Guest')";
+
+/// Preview rows per overview section — the spec caps every section at 5.
+const OVERVIEW_PREVIEW_LIMIT: i64 = 5;
 
 pub struct GuestRelationsRepository;
 
@@ -798,5 +866,335 @@ impl GuestRelationsRepository {
         .await
         .map_err(ApiError::from)?;
         Ok(rows.iter().map(support_summary_from_row).collect())
+    }
+
+    // ------------------------------------------------------------------
+    // Phase 2 — cross-guest overview + follow-up queue
+    // ------------------------------------------------------------------
+
+    /// Aggregate payload for the `/guest-relations` dashboard. `hotel_today`
+    /// is the hotel business date resolved by the service
+    /// (`core::db::hotel_today`) and is bound as `$1` for the date-windowed
+    /// booking sections rather than relying on `CURRENT_DATE`.
+    ///
+    /// Each section is a `count` over the full matching set plus a
+    /// [`OVERVIEW_PREVIEW_LIMIT`]-row preview. `caps` gates the
+    /// permission-bound sections: when `include_support` / `include_reviews`
+    /// is false the query never runs and the payload field is omitted.
+    ///
+    /// `follow_ups` is the due-now slice of the follow-up queue
+    /// (`follow_up_at <= now()`); private notes are always excluded here —
+    /// the author / `guests:manage` exception only applies to the full queue
+    /// ([`Self::list_follow_up_queue`]), which receives the viewer id.
+    pub async fn overview(
+        pool: &DbPool,
+        hotel_today: NaiveDate,
+        caps: OverviewCaps,
+    ) -> Result<OverviewResponse, ApiError> {
+        let arrivals = Self::booking_overview_section(
+            pool,
+            "b.check_in_date = $1 \
+             AND b.status IN ('confirmed', 'pending_confirmation', 'pending', 'pending_payment')",
+            Some(hotel_today),
+        )
+        .await?;
+        let in_house = Self::booking_overview_section(
+            pool,
+            "b.status IN ('checked_in', 'auto_checked_in')",
+            None,
+        )
+        .await?;
+        let departures = Self::booking_overview_section(
+            pool,
+            "b.check_out_date = $1 AND b.status IN ('checked_in', 'auto_checked_in')",
+            Some(hotel_today),
+        )
+        .await?;
+        // Same VIP predicate as the guest-list `vip` filter
+        // (`vip_status IS NOT NULL AND <> ''`) over the arrivals set.
+        let vip_arrivals = Self::booking_overview_section(
+            pool,
+            "b.check_in_date = $1 \
+             AND b.status IN ('confirmed', 'pending_confirmation', 'pending', 'pending_payment') \
+             AND g.vip_status IS NOT NULL AND g.vip_status <> ''",
+            Some(hotel_today),
+        )
+        .await?;
+        let support = if caps.include_support {
+            Some(Self::support_overview_section(pool).await?)
+        } else {
+            None
+        };
+        let reviews = if caps.include_reviews {
+            Some(Self::reviews_overview_section(pool).await?)
+        } else {
+            None
+        };
+        let follow_ups = Self::due_follow_ups_section(pool).await?;
+        Ok(OverviewResponse {
+            arrivals,
+            in_house,
+            departures,
+            vip_arrivals,
+            support,
+            reviews,
+            follow_ups,
+        })
+    }
+
+    /// Shared projection for the four bookings-based overview sections; they
+    /// differ only in `predicate`, which is always a compile-time-constant
+    /// fragment — never user input. `today` is bound as `$1` only when the
+    /// predicate references it (`in_house` is a pure status filter).
+    async fn booking_overview_section(
+        pool: &DbPool,
+        predicate: &str,
+        today: Option<NaiveDate>,
+    ) -> Result<OverviewSection<OverviewBookingItem>, ApiError> {
+        const BOOKING_JOINS: &str = r#"
+            FROM bookings b
+            JOIN guests g ON g.id = b.guest_id
+            LEFT JOIN rooms r ON r.id = b.room_id
+        "#;
+        let count_sql = format!("SELECT COUNT(*) {BOOKING_JOINS} WHERE {predicate}");
+        let list_sql = format!(
+            r#"
+            SELECT b.id AS booking_id,
+                   b.guest_id,
+                   {GUEST_NAME_EXPR} AS guest_name,
+                   b.status,
+                   r.room_number AS room_label,
+                   (g.vip_status IS NOT NULL AND g.vip_status <> '') AS is_vip
+            {BOOKING_JOINS}
+            WHERE {predicate}
+            ORDER BY b.check_in_date, b.id
+            LIMIT {OVERVIEW_PREVIEW_LIMIT}
+            "#
+        );
+        let mut count_query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*count_sql));
+        let mut list_query = sqlx::query(sqlx::AssertSqlSafe(&*list_sql));
+        if let Some(today) = today {
+            count_query = count_query.bind(today);
+            list_query = list_query.bind(today);
+        }
+        let total: i64 = count_query.fetch_one(pool).await.map_err(ApiError::from)?;
+        let rows = list_query.fetch_all(pool).await.map_err(ApiError::from)?;
+        Ok(OverviewSection {
+            count: total,
+            items: rows.iter().map(overview_booking_from_row).collect(),
+        })
+    }
+
+    /// `status <> 'closed'` is the staff-inbox definition of open (same as
+    /// `queue_metrics` / the `has_open_support` flag); `waiting_for_staff` is
+    /// split out so the dashboard can surface the staff-actionable backlog.
+    /// Preview rows put waiting-for-staff first, then newest activity.
+    async fn support_overview_section(
+        pool: &DbPool,
+    ) -> Result<OverviewSupportSection, ApiError> {
+        let counts = sqlx::query(
+            r#"
+                SELECT COUNT(*) AS open_count,
+                       COUNT(*) FILTER (WHERE sc.status = 'waiting_for_staff') AS waiting_for_staff
+                FROM support_conversations sc
+                WHERE sc.status <> 'closed'
+            "#,
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
+        let list_sql = format!(
+            r#"
+            SELECT sc.id AS conversation_id,
+                   sc.conversation_number,
+                   sc.guest_id,
+                   {GUEST_NAME_EXPR} AS guest_name,
+                   sc.status,
+                   sc.priority,
+                   sc.subject
+            FROM support_conversations sc
+            LEFT JOIN guests g ON g.id = sc.guest_id
+            WHERE sc.status <> 'closed'
+            ORDER BY CASE sc.status WHEN 'waiting_for_staff' THEN 0 ELSE 1 END,
+                     sc.updated_at DESC,
+                     sc.id DESC
+            LIMIT {OVERVIEW_PREVIEW_LIMIT}
+            "#
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*list_sql))
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(OverviewSupportSection {
+            open: counts.try_get("open_count").unwrap_or_default(),
+            waiting_for_staff: counts.try_get("waiting_for_staff").unwrap_or_default(),
+            items: rows.iter().map(overview_support_from_row).collect(),
+        })
+    }
+
+    /// Reviews awaiting a staff response (`response IS NULL`), newest first.
+    /// `overall_rating` is numeric(3,2) — the `::float8` cast decodes
+    /// straight into the f64 field, same cast as `list_reviews`.
+    async fn reviews_overview_section(
+        pool: &DbPool,
+    ) -> Result<OverviewSection<OverviewReviewItem>, ApiError> {
+        let total: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM guest_reviews WHERE response IS NULL")
+                .fetch_one(pool)
+                .await
+                .map_err(ApiError::from)?;
+        let list_sql = format!(
+            r#"
+            SELECT r.id AS review_id,
+                   r.guest_id,
+                   {GUEST_NAME_EXPR} AS guest_name,
+                   r.overall_rating::float8 AS rating,
+                   r.created_at
+            FROM guest_reviews r
+            JOIN guests g ON g.id = r.guest_id
+            WHERE r.response IS NULL
+            ORDER BY r.created_at DESC, r.id DESC
+            LIMIT {OVERVIEW_PREVIEW_LIMIT}
+            "#
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*list_sql))
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(OverviewSection {
+            count: total,
+            items: rows.iter().map(overview_review_from_row).collect(),
+        })
+    }
+
+    /// The overview's `follow_ups` section — the due-now slice of the queue
+    /// (`follow_up_at` set and `<= now()`, not completed). Private notes are
+    /// unconditionally excluded: this aggregate is visible to every
+    /// `guests:read` holder and there is no viewer id to apply the
+    /// author / `guests:manage` exception, which only the full queue gets.
+    /// Uses the same open-follow-up predicate as `idx_guest_notes_follow_up_open`.
+    async fn due_follow_ups_section(
+        pool: &DbPool,
+    ) -> Result<OverviewSection<FollowUpQueueItem>, ApiError> {
+        const DUE_NOW: &str = r#"
+            WHERE n.follow_up_at IS NOT NULL
+              AND n.follow_up_at <= CURRENT_TIMESTAMP
+              AND n.follow_up_completed_at IS NULL
+              AND NOT COALESCE(n.is_private, false)
+        "#;
+        let count_sql = format!("SELECT COUNT(*) FROM guest_notes n {DUE_NOW}");
+        let list_sql = format!(
+            r#"
+            SELECT n.id AS note_id,
+                   n.guest_id,
+                   {GUEST_NAME_EXPR} AS guest_name,
+                   n.subject,
+                   n.interaction_type,
+                   n.follow_up_at,
+                   n.assigned_to,
+                   COALESCE(au.full_name, au.username) AS assigned_to_name,
+                   COALESCE(cu.full_name, cu.username) AS created_by_name,
+                   LEFT(n.content, 160) AS snippet
+            FROM guest_notes n
+            LEFT JOIN guests g ON g.id = n.guest_id
+            LEFT JOIN users au ON au.id = n.assigned_to
+            LEFT JOIN users cu ON cu.id = n.created_by
+            {DUE_NOW}
+            ORDER BY n.follow_up_at ASC, n.id ASC
+            LIMIT {OVERVIEW_PREVIEW_LIMIT}
+            "#
+        );
+        let total: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(&*count_sql))
+            .fetch_one(pool)
+            .await
+            .map_err(ApiError::from)?;
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*list_sql))
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(OverviewSection {
+            count: total,
+            items: rows.iter().map(follow_up_item_from_row).collect(),
+        })
+    }
+
+    /// Paginated cross-guest queue over open follow-ups (`follow_up_at` set,
+    /// `follow_up_completed_at IS NULL`). `due` selects a business-day bucket
+    /// against `CURRENT_DATE` — the pool's per-connection timezone makes it
+    /// the hotel date: `overdue` = before today, `today` = within the
+    /// business day, `upcoming` = after today; `all` (and any unknown value)
+    /// adds no date filter, matching the guest-list `segment` convention of
+    /// ignoring unrecognized filter values.
+    ///
+    /// Visibility mirrors [`Self::list_interactions`]: `is_private` rows are
+    /// visible only to their author or to a caller holding `guests:manage`
+    /// (`include_private`). Ordered `follow_up_at ASC` — most overdue first.
+    /// Returns `(total, items)`; the service wraps them in the paged
+    /// envelope.
+    pub async fn list_follow_up_queue(
+        pool: &DbPool,
+        due: &str,
+        include_private: bool,
+        viewer_user_id: i64,
+        page: i64,
+        page_size: i64,
+    ) -> Result<(i64, Vec<FollowUpQueueItem>), ApiError> {
+        let due_filter = match due {
+            "overdue" => " AND n.follow_up_at < CURRENT_DATE",
+            "today" => {
+                " AND n.follow_up_at >= CURRENT_DATE \
+                   AND n.follow_up_at < CURRENT_DATE + INTERVAL '1 day'"
+            }
+            "upcoming" => " AND n.follow_up_at >= CURRENT_DATE + INTERVAL '1 day'",
+            _ => "",
+        };
+        // $1 viewer_user_id, $2 include_private, $3 page_size, $4 offset
+        let visibility = r#"
+            WHERE n.follow_up_at IS NOT NULL
+              AND n.follow_up_completed_at IS NULL
+              AND (NOT COALESCE(n.is_private, false) OR n.created_by = $1 OR $2::bool)
+        "#;
+        let count_sql =
+            format!("SELECT COUNT(*) FROM guest_notes n {visibility}{due_filter}");
+        let list_sql = format!(
+            r#"
+            SELECT n.id AS note_id,
+                   n.guest_id,
+                   {GUEST_NAME_EXPR} AS guest_name,
+                   n.subject,
+                   n.interaction_type,
+                   n.follow_up_at,
+                   n.assigned_to,
+                   COALESCE(au.full_name, au.username) AS assigned_to_name,
+                   COALESCE(cu.full_name, cu.username) AS created_by_name,
+                   LEFT(n.content, 160) AS snippet
+            FROM guest_notes n
+            LEFT JOIN guests g ON g.id = n.guest_id
+            LEFT JOIN users au ON au.id = n.assigned_to
+            LEFT JOIN users cu ON cu.id = n.created_by
+            {visibility}{due_filter}
+            ORDER BY n.follow_up_at ASC, n.id ASC
+            LIMIT $3 OFFSET $4
+            "#
+        );
+
+        let page_size = page_size.max(1);
+        let offset = (page.max(1) - 1) * page_size;
+        let total: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(&*count_sql))
+            .bind(viewer_user_id)
+            .bind(include_private)
+            .fetch_one(pool)
+            .await
+            .map_err(ApiError::from)?;
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*list_sql))
+            .bind(viewer_user_id)
+            .bind(include_private)
+            .bind(page_size)
+            .bind(offset)
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+
+        Ok((total, rows.iter().map(follow_up_item_from_row).collect()))
     }
 }

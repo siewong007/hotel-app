@@ -27,6 +27,10 @@ const mocks = vi.hoisted(() => ({
       vip: 0,
       blacklisted: 0,
       openRequests: 0,
+      returning: 0,
+      inHouse: 0,
+      upcoming: 0,
+      inactive: 0,
     },
     error: null as unknown,
     isPending: false,
@@ -157,6 +161,10 @@ describe('GuestRelationsPage', () => {
     ['Tourists', { tourism_type: 'foreign' }],
     ['Missing info', { missing_info: true }],
     ['Missing tourism', { missing_tourism: true }],
+    ['Returning', { segment: 'returning' }],
+    ['In house', { segment: 'in_house' }],
+    ['Upcoming', { segment: 'upcoming' }],
+    ['Inactive', { segment: 'inactive' }],
   ] as const)('the %s chip maps to the API filter params', (label, filter) => {
     const { container } = render(<GuestRelationsPage />);
     // The segment pills are the only buttons carrying aria-pressed (the stat
@@ -167,6 +175,26 @@ describe('GuestRelationsPage', () => {
     expect(chip, `chip "${label}"`).toBeTruthy();
     fireEvent.click(chip!);
     expect(mocks.lastGuestsPageParams).toEqual({ page: 1, page_size: 50, ...filter });
+  });
+
+  it('clears the segment param when the All guests chip is reselected', () => {
+    const { container } = render(<GuestRelationsPage />);
+    const chipByLabel = (label: string) =>
+      Array.from(container.querySelectorAll('button[aria-pressed]')).find(
+        (el) => el.textContent?.startsWith(label),
+      );
+
+    fireEvent.click(chipByLabel('In house')!);
+    expect(mocks.lastGuestsPageParams).toEqual({ page: 1, page_size: 50, segment: 'in_house' });
+
+    fireEvent.click(chipByLabel('All guests')!);
+    expect(mocks.lastGuestsPageParams).toEqual({ page: 1, page_size: 50 });
+  });
+
+  it('renders an open-request badge on rows carrying has_open_support', () => {
+    setGuestsPageData([buildGuest({ has_open_support: true })]);
+    render(<GuestRelationsPage />);
+    expect(screen.getByText('Open request')).toBeTruthy();
   });
 
   it('sends the debounced search through as the search param', async () => {

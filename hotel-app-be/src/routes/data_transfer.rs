@@ -28,31 +28,9 @@ pub fn routes() -> Router<DbPool> {
 async fn export_data(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<Json<models::FullDataExport>, ApiError> {
+) -> Result<axum::response::Response, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "settings:manage").await?;
-    let export = handlers::data_transfer::export_booking_data_handler(State(pool.clone())).await?;
-
-    // This single GET returns every guest (name, email, phone, IC/passport),
-    // every booking, payment and ledger row — the largest exfiltration channel
-    // in the product, and until now the one with no record. Audited after a
-    // successful export so the row counts describe what actually left.
-    let payload = &export.0;
-    let _ = crate::services::audit::AuditLog::log_event(
-        &pool,
-        crate::models::AuditEvent {
-            user_id: Some(user_id),
-            action: "data_export",
-            resource_type: "data_transfer",
-            details: Some(serde_json::json!({
-                "table_count": payload.tables.len(),
-                "record_count": payload.tables.values().map(Vec::len).sum::<usize>(),
-            })),
-            ..Default::default()
-        },
-    )
-    .await;
-
-    Ok(export)
+    handlers::data_transfer::export_booking_data_handler(State(pool), user_id).await
 }
 
 async fn preview_export_counts(

@@ -9,7 +9,7 @@ import { AppTopbar } from '../components/layout/AppTopbar';
 import { MobileNavBar } from '../components/layout/MobileNavBar';
 import { MobileQuickActions } from '../components/layout/MobileQuickActions';
 import { CommandPaletteProvider } from '../components/layout/CommandPalette';
-import { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
+import { BootSplash, LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
 import { ErrorBoundary, PageErrorBoundary } from '../components';
 import { GuestPortalShell } from '../features/guestPortal/components/GuestPortalShell';
@@ -78,7 +78,7 @@ export const RootLayout: React.FC = () => {
   // Portal pages share the Salim Inn guest experience instead of inheriting
   // the operational staff navigation.
   if (isGuestPortal) {
-    if (isLoading && !isPublicBooking) return <LoadingFallback />;
+    if (isLoading && !isPublicBooking) return <BootSplash />;
 
     // A portal bearer token is only a short-lived companion to a signed-in
     // guest account. Do not render portal routes while the account state is
@@ -106,7 +106,7 @@ export const RootLayout: React.FC = () => {
   }
 
   if (isAdminPortal) {
-    if (isLoading) return <LoadingFallback />;
+    if (isLoading) return <BootSplash />;
     // Typed-route shim contract — see router/compat.tsx.
     if (!isAuthenticated) return <CrossAppRedirect to="/login" />;
     if (user?.user_type === 'guest') return <CrossAppRedirect to="/guest-portal" />;
@@ -134,7 +134,7 @@ export const RootLayout: React.FC = () => {
     );
   }
 
-  if (isLoading) return <LoadingFallback />;
+  if (isLoading) return <BootSplash />;
 
   if (!isAuthenticated) {
     return (

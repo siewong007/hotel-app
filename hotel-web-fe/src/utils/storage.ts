@@ -11,6 +11,7 @@ type StorageKey =
   | 'roles'
   | 'routePolicies'
   | 'themeMode'
+  | 'guestThemeMode'
   | 'locale'
   | 'cmdRecents'
   | 'notificationHistory'

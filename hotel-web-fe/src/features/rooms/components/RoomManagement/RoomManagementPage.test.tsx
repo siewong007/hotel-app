@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
-// Page-level regression test for the room menu's "Edit booking notes" action:
-// the compact phone card dropped the card's inline notes editor, so the menu
-// (BottomSheet on phone, anchored Menu on desktop) must keep it reachable.
-// The page's real getMenuLayout runs here — hooks/dialogs are mocked, the
-// card + context menu under test are not.
+// Page-level coverage for RoomManagementPage:
+//  - smoke + axe tests keep the grid rendering from empty data (master).
+//  - "booking notes menu action" regression tests: the compact phone card
+//    dropped the card's inline notes editor, so the menu (BottomSheet on
+//    phone, anchored Menu on desktop) must keep it reachable.
+// The page's real getMenuLayout runs here — workflow hooks are mocked at the
+// barrel, dialogs are stubbed, the card + context menu under test are not.
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +18,10 @@ const mocks = vi.hoisted(() => ({
   roomBookings: new Map<string, import('../../../../types').BookingWithDetails>(),
   reservedBookings: new Map<string, import('../../../../types').BookingWithDetails>(),
   infoByRoom: new Map<string, import('../../hooks/useRoomManagementFilters').RoomManagementStatusInfo>(),
+  roomData: {
+    loading: false,
+    error: null as string | null,
+  },
 }));
 
 vi.mock('@mui/material', async (importOriginal) => {
@@ -22,7 +29,10 @@ vi.mock('@mui/material', async (importOriginal) => {
   return { ...actual, useMediaQuery: () => mocks.isPhone };
 });
 
-vi.mock('../../../../router', () => ({ useNavigate: () => vi.fn() }));
+vi.mock('../../../../router', () => ({
+  useNavigate: () => vi.fn(),
+  Link: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 vi.mock('../../../../api', () => ({
   BookingsService: { markBookingComplimentary: vi.fn() },
@@ -33,16 +43,24 @@ vi.mock('../../../../api', () => ({
   },
 }));
 
-vi.mock('../../../invoices/hooks/useCheckoutFlow', () => ({
-  useCheckoutFlow: () => ({ openCheckout: vi.fn() }),
+vi.mock('../../../../components/common/ConfirmProvider', () => ({
+  useConfirm: () => vi.fn(),
+}));
+
+vi.mock('../../../../hooks/useCurrency', () => ({
+  useCurrency: () => ({ format: (n: number) => `RM${Number(n).toFixed(2)}`, symbol: 'RM', currency: 'MYR' }),
+}));
+
+vi.mock('../../../../auth/AuthContext', () => ({
+  useAuth: () => ({ hasPermission: () => true }),
 }));
 
 vi.mock('../../hooks', () => ({
   useRoomData: () => ({
     rooms: mocks.rooms,
     guests: [],
-    loading: false,
-    error: null,
+    loading: mocks.roomData.loading,
+    error: mocks.roomData.error,
     roomBookings: mocks.roomBookings,
     reservedBookings: mocks.reservedBookings,
     allBookingsData: [],
@@ -97,8 +115,64 @@ vi.mock('../../hooks', () => ({
     filteredRooms: mocks.rooms,
     filterOptions: [],
   }),
-  useReservedCheckInWorkflow: () => ({ openWithBooking: vi.fn(), dialogOpen: false }),
-  useGuestCreditsWorkflow: () => ({ openGuestDetails: vi.fn(), dialogOpen: false }),
+  useReservedCheckInWorkflow: () => ({
+    dialogOpen: false,
+    booking: null,
+    openWithBooking: vi.fn(),
+    close: vi.fn(),
+    cancel: vi.fn(),
+    checkIn: vi.fn(),
+    processing: false,
+    paymentChoice: 'pay_later',
+    setPaymentChoice: vi.fn(),
+    paymentMethod: 'Cash',
+    setPaymentMethod: vi.fn(),
+    amountPaid: 0,
+    setAmountPaid: vi.fn(),
+    depositChoice: 'receive',
+    setDepositChoice: vi.fn(),
+    depositMethod: 'Cash',
+    setDepositMethod: vi.fn(),
+    depositAmount: 0,
+    setDepositAmount: vi.fn(),
+    waiveReason: '',
+    setWaiveReason: vi.fn(),
+    icNumber: '',
+    setIcNumber: vi.fn(),
+    phone: '',
+    setPhone: vi.fn(),
+  }),
+  useGuestCreditsWorkflow: () => ({
+    dialogOpen: false,
+    booking: null,
+    openWithBooking: vi.fn(),
+    close: vi.fn(),
+    cancel: vi.fn(),
+    checkIn: vi.fn(),
+    processing: false,
+    openGuestDetails: vi.fn(),
+    selectedGuest: null,
+    tab: 0,
+    changeTab: vi.fn(),
+    guestCredits: [],
+    loadingCredits: false,
+    creditsBookingSuccess: null,
+    creditsBookingForm: null,
+    availableRoomsForCredits: [],
+    roomBlockedDates: [],
+    selectedComplimentaryDates: [],
+    bookingWithCredits: null,
+    getCreditsBookingDates: vi.fn(),
+    getTotalCreditsForRoom: vi.fn(),
+    isDateBlocked: vi.fn(),
+    checkInFromCreditsBooking: vi.fn(),
+    bookAnother: vi.fn(),
+    changeCheckInDate: vi.fn(),
+    changeCheckOutDate: vi.fn(),
+    changeRoom: vi.fn(),
+    changeAdults: vi.fn(),
+    changeChildren: vi.fn(),
+  }),
   useUpcomingBookingsDialog: () => ({
     open: false,
     close: vi.fn(),
@@ -108,10 +182,25 @@ vi.mock('../../hooks', () => ({
   }),
 }));
 
-// Dialog children and the header are outside this test's scope — stub them so
-// no QueryClientProvider or service layer is needed.
-vi.mock('./components/RoomManagementHeader', () => ({ default: () => null }));
-vi.mock('../UnifiedBooking/UnifiedBookingModal', () => ({ default: () => null }));
+vi.mock('../../../invoices/hooks/useCheckoutFlow', () => ({
+  useCheckoutFlow: () => ({
+    openCheckout: vi.fn(),
+    closeCheckout: vi.fn(),
+    checkoutOpen: false,
+    checkoutBooking: null,
+    confirmCheckout: vi.fn(),
+    receiptOpen: false,
+    closeReceipt: vi.fn(),
+    receiptBooking: null,
+    receiptLedger: null,
+    openReceipt: vi.fn(),
+  }),
+}));
+
+// Dialog children are outside this test's scope — stub them so no service
+// layer is needed. (The header is left real: its filter props are fully
+// mocked and the smoke test asserts rendered text.)
+vi.mock('../UnifiedBooking/UnifiedBookingModal', () => ({ default: () => null, BookingType: {} }));
 vi.mock('../../../invoices/components/CheckoutInvoiceModals', () => ({ default: () => null }));
 vi.mock('../UpdateCheckoutDateDialog', () => ({ default: () => null }));
 vi.mock('./RoomStatusDialog', () => ({ default: () => null }));
@@ -128,6 +217,14 @@ vi.mock('./components/GuestDetailsDialog', () => ({ default: () => null }));
 import RoomManagementPage from './RoomManagementPage';
 import type { BookingWithDetails, Room } from '../../../../types';
 import type { RoomManagementStatusInfo } from '../../hooks/useRoomManagementFilters';
+import { expectNoCriticalAxeViolations } from '../../../../test/axe';
+
+const renderPage = () =>
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <RoomManagementPage />
+    </QueryClientProvider>,
+  );
 
 const occupiedRoom: Room = {
   id: 'r1',
@@ -201,6 +298,30 @@ const statusInfo = (overrides: Partial<RoomManagementStatusInfo>): RoomManagemen
   ...overrides,
 });
 
+describe('RoomManagementPage', () => {
+  beforeEach(() => {
+    mocks.isPhone = false;
+    mocks.roomData.loading = false;
+    mocks.roomData.error = null;
+    mocks.rooms = [];
+    mocks.roomBookings = new Map();
+    mocks.reservedBookings = new Map();
+    mocks.infoByRoom = new Map();
+  });
+
+  afterEach(cleanup);
+
+  it('renders the rooms workspace', () => {
+    renderPage();
+    expect(document.body.textContent?.length).toBeGreaterThan(0);
+  });
+
+  it('reports no critical axe violations', async () => {
+    const { container } = renderPage();
+    await expectNoCriticalAxeViolations(container);
+  });
+});
+
 describe('RoomManagementPage — booking notes menu action', () => {
   beforeEach(() => {
     mocks.isPhone = true;
@@ -228,7 +349,7 @@ describe('RoomManagementPage — booking notes menu action', () => {
 
   it('phone: the sheet exposes "Edit booking notes" for an occupied room and opens the dialog', async () => {
     mocks.rooms = [occupiedRoom];
-    render(<RoomManagementPage />);
+    renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: /Room 101/ }));
     fireEvent.click(await screen.findByText('Edit booking notes'));
@@ -239,7 +360,7 @@ describe('RoomManagementPage — booking notes menu action', () => {
 
   it('phone: the sheet exposes "Edit booking notes" for a reserved room and targets the reservation', async () => {
     mocks.rooms = [reservedRoom];
-    render(<RoomManagementPage />);
+    renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: /Room 102/ }));
     fireEvent.click(await screen.findByText('Edit booking notes'));
@@ -250,7 +371,7 @@ describe('RoomManagementPage — booking notes menu action', () => {
 
   it('phone: no booking-notes action when the room has no booking attached', async () => {
     mocks.rooms = [vacantRoom];
-    render(<RoomManagementPage />);
+    renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: /Room 103/ }));
     // The sheet rendered — room-notes action still present for contrast.
@@ -261,7 +382,7 @@ describe('RoomManagementPage — booking notes menu action', () => {
   it('desktop: the anchored menu carries the same action', async () => {
     mocks.isPhone = false;
     mocks.rooms = [occupiedRoom];
-    render(<RoomManagementPage />);
+    renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: /Room 101/ }));
     fireEvent.click(await screen.findByText('Edit booking notes'));

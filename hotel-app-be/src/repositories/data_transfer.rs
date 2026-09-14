@@ -419,11 +419,8 @@ impl DataTransferRepository {
         .map_err(ApiError::from)
     }
 
-    pub async fn export_transfer_table(
-        pool: &DbPool,
-        table: &TransferTable,
-    ) -> Result<Vec<Value>, ApiError> {
-        let order_by = if table.primary_key_columns.is_empty() {
+    fn export_order_by(table: &TransferTable) -> String {
+        if table.primary_key_columns.is_empty() {
             String::new()
         } else {
             format!(
@@ -435,8 +432,71 @@ impl DataTransferRepository {
                     .collect::<Vec<_>>()
                     .join(", ")
             )
-        };
-        Self::export_query(pool, &format!("SELECT * FROM {}{order_by}", table.source())).await
+        }
+    }
+
+    #[allow(dead_code)] // used by tests/data_transfer_export.rs
+    pub async fn export_transfer_table(
+        pool: &DbPool,
+        table: &TransferTable,
+    ) -> Result<Vec<Value>, ApiError> {
+        Self::export_query(
+            pool,
+            &format!(
+                "SELECT * FROM {}{}",
+                table.source(),
+                Self::export_order_by(table)
+            ),
+        )
+        .await
+    }
+
+    /// Open a SQL cursor over one transferable table's `row_to_json` payload.
+    ///
+    /// `export_transfer_table` materializes a whole table in memory before a
+    /// single byte reaches the client; for a full-database backup that meant
+    /// the request sat silent long enough for edge proxies to cut it, and peak
+    /// RSS scaled with database size. The cursor lets the caller `FETCH`
+    /// bounded batches instead: first byte goes out immediately, memory stays
+    /// flat, and each `FETCH` is its own statement under the 120s
+    /// `statement_timeout`. The cursor lives inside `tx` — the caller's
+    /// transaction gives the whole export one consistent snapshot.
+    pub async fn declare_export_cursor(
+        tx: &mut DbTransaction<'_>,
+        table: &TransferTable,
+    ) -> Result<(), ApiError> {
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DECLARE data_transfer_export_cursor NO SCROLL CURSOR FOR SELECT row_to_json(t)::text FROM (SELECT * FROM {}{}) t",
+            table.source(),
+            Self::export_order_by(table)
+        )))
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(())
+    }
+
+    /// Pull the next batch of rows from [`Self::declare_export_cursor`]. An
+    /// empty result means the table is exhausted; close the cursor or let the
+    /// transaction end before declaring the next one.
+    pub async fn fetch_export_cursor(
+        tx: &mut DbTransaction<'_>,
+        limit: i64,
+    ) -> Result<Vec<String>, ApiError> {
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "FETCH FORWARD {limit} FROM data_transfer_export_cursor"
+        )))
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(ApiError::from)
+    }
+
+    pub async fn close_export_cursor(tx: &mut DbTransaction<'_>) -> Result<(), ApiError> {
+        sqlx::query("CLOSE data_transfer_export_cursor")
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(())
     }
 
     pub async fn clear_transfer_tables(
@@ -622,6 +682,7 @@ impl DataTransferRepository {
         Ok(())
     }
 
+    #[allow(dead_code)] // used by tests/data_transfer_export.rs
     pub async fn export_query(pool: &DbPool, query: &str) -> Result<Vec<Value>, ApiError> {
         // `export_query` doesn't take a table name directly, but its only
         // caller today (`export_table`) already validates the table before

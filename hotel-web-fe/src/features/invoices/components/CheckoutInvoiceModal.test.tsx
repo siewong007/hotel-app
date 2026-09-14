@@ -17,6 +17,10 @@ import type { CheckoutPaymentRecord } from '../types';
 const mocks = vi.hoisted(() => ({
   recordPayment: vi.fn(),
   createLedgerPayment: vi.fn(),
+  updatePayment: vi.fn(),
+  deletePayment: vi.fn(),
+  revertDepositVoid: vi.fn(),
+  hasPermission: vi.fn(),
   setPayments: vi.fn(),
   reloadPayments: vi.fn(),
   updateBooking: vi.fn(),
@@ -37,12 +41,17 @@ vi.mock('../../../api', () => ({
 vi.mock('../../../api/invoices.service', () => ({
   InvoicesService: {
     recordPayment: (...args: unknown[]) => mocks.recordPayment(...args),
-    updatePayment: vi.fn(),
-    deletePayment: vi.fn(),
+    updatePayment: (...args: unknown[]) => mocks.updatePayment(...args),
+    deletePayment: (...args: unknown[]) => mocks.deletePayment(...args),
     refundDeposit: (...args: unknown[]) => mocks.refundDeposit(...args),
     forfeitDeposit: (...args: unknown[]) => mocks.forfeitDeposit(...args),
     revertDepositRefund: vi.fn(),
+    revertDepositVoid: (...args: unknown[]) => mocks.revertDepositVoid(...args),
   },
+}));
+
+vi.mock('../../../auth/AuthContext', () => ({
+  useAuth: () => ({ hasPermission: mocks.hasPermission }),
 }));
 
 vi.mock('../../../api/ledger.service', () => ({
@@ -395,8 +404,10 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
 
   beforeEach(() => {
     mocks.forfeitDeposit.mockReset().mockResolvedValue({ id: 3, payment_status: 'completed', payment_type: 'deposit_forfeited', total_amount: 50 });
+    mocks.updatePayment.mockReset().mockResolvedValue({ ...depositRow, payment_method: 'bank_transfer' });
     mocks.reloadPayments.mockReset().mockResolvedValue(undefined);
     mocks.setPayments.mockReset();
+    mocks.hasPermission.mockReset().mockReturnValue(true);
     mocks.payments = [depositRow, billPayment];
   });
 
@@ -527,5 +538,87 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
       (within(dialog).getByRole('button', { name: 'Forfeit Deposit' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(mocks.forfeitDeposit).not.toHaveBeenCalled();
+  });
+
+  // A wrong tender on a posted deposit row can't be voided (in-house deposit
+  // voids are guarded), so the row exposes a method-only correction: Edit
+  // opens a form with just the tender Select, and the PATCH sends only
+  // payment_method — amount/date/reference would 400 on a completed row.
+  it('lets staff correct a deposit row method — method-only form', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('Deposit held')).toBeDefined());
+    // Scope to the deposits section — the section header sits in its own Box
+    // directly above the rows, so two levels up is the section container.
+    const depositsHeader = within(dialog).getByText(/Deposits — collateral/i);
+    const depositSection = depositsHeader.parentElement!.parentElement!;
+    // The deposit row gets Edit but never Delete — the folio's only delete
+    // button still belongs to the bill payment.
+    expect(within(depositSection).queryByTestId('DeleteIcon')).toBeNull();
+    expect(within(dialog).getAllByTestId('DeleteIcon')).toHaveLength(1);
+
+    fireEvent.click(
+      within(depositSection).getByRole('button', { name: 'Edit deposit payment method' }),
+    );
+
+    // Method-only form: the tender Select renders; amount, date, reference
+    // and notes fields do not — the backend keeps them immutable.
+    await within(depositSection).findByRole('combobox');
+    expect(within(depositSection).queryByLabelText('Amount')).toBeNull();
+    expect(within(depositSection).queryByLabelText('Payment Date')).toBeNull();
+    expect(within(depositSection).queryByLabelText('Reference')).toBeNull();
+    expect(within(depositSection).queryByLabelText('Notes')).toBeNull();
+
+    fireEvent.mouseDown(within(depositSection).getByRole('combobox'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
+    fireEvent.click(within(depositSection).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mocks.updatePayment).toHaveBeenCalledTimes(1));
+    expect(mocks.updatePayment).toHaveBeenCalledWith(1, { payment_method: 'Bank Transfer' });
+    // No amount/payment_date/transaction_reference keys — sending them on a
+    // posted deposit row would be rejected server-side.
+    expect(Object.keys(mocks.updatePayment.mock.calls[0][1])).toEqual(['payment_method']);
+  });
+
+  it('shows Cancel deposit under payments:delete and calls deletePayment for each held deposit row', async () => {
+    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:delete');
+    mocks.deletePayment.mockReset().mockResolvedValue({});
+    mocks.reloadPayments.mockReset().mockResolvedValue(undefined);
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    // Exact names: the trigger is 'Cancel deposit (recorded but not
+    // collected)', the ConfirmProvider confirm button is 'Cancel deposit'.
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel deposit (recorded but not collected)' }),
+    );
+    const confirmButton = await screen.findByRole('button', { name: 'Cancel deposit' });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(mocks.deletePayment).toHaveBeenCalledWith(depositRow.id));
+    expect(mocks.reloadPayments).toHaveBeenCalled();
+  });
+
+  it('hides Cancel deposit without payments:delete', async () => {
+    mocks.hasPermission.mockReturnValue(false);
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).queryByRole('button', { name: 'Cancel deposit (recorded but not collected)' }),
+    ).toBeNull();
+  });
+
+  it('shows Restore deposit when a voided deposit row exists and calls revertDepositVoid', async () => {
+    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:delete');
+    mocks.revertDepositVoid.mockReset().mockResolvedValue({ deposit_restored: true });
+    mocks.reloadPayments.mockReset().mockResolvedValue(undefined);
+    mocks.payments = [{ ...depositRow, payment_status: 'void' }];
+    renderModal(false, { deposit_paid: false });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Restore deposit$/ }));
+    await waitFor(() => expect(mocks.revertDepositVoid).toHaveBeenCalled());
+    expect(mocks.reloadPayments).toHaveBeenCalled();
   });
 });

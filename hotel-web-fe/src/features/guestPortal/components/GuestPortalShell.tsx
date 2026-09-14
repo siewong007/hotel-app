@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   AppBar,
+  Avatar,
   BottomNavigation,
   BottomNavigationAction,
   Box,
@@ -12,6 +13,8 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Menu,
+  MenuItem,
   Stack,
   Toolbar,
   Typography,
@@ -29,9 +32,14 @@ import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
 import MoreHorizOutlinedIcon from '@mui/icons-material/MoreHorizOutlined';
+import KeyboardArrowDownOutlinedIcon from '@mui/icons-material/KeyboardArrowDownOutlined';
+import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import { Link, useLocation, useNavigate } from '../../../router';
+import { useAuth } from '../../../auth/AuthContext';
 import { GuestPortalThemeProvider } from '../theme/GuestPortalThemeProvider';
+import { GUEST_BRAND } from '../theme/guestPortalTheme';
 import { getValidPortalToken, PORTAL_TOKEN_CHANGE_EVENT } from '../api/portalTokenStore';
+import { useGuestSignOut } from '../hooks/useGuestSignOut';
 import { GuestPortalNotificationBell } from './GuestPortalNotificationBell';
 import { PortalSupportWidget } from './PortalSupportWidget';
 import { getHotelSettings } from '../../../utils/hotelSettings';
@@ -51,10 +59,6 @@ interface GuestPortalShellProps {
   showAccountNav?: boolean;
 }
 
-const FOREST = 'var(--hotel-surface)';
-const LINEN = 'var(--hotel-bg)';
-const GOLD = 'var(--hotel-primary)';
-
 const DASHBOARD_LINK = '/guest-portal?section=overview';
 const BOOKING_LINK = '/guest-portal?view=booking';
 const SIGN_IN_LINK = '/login?redirect=%2Fguest-portal%3Fview%3Dbooking';
@@ -63,19 +67,24 @@ const MORE_VALUE = 'more';
 
 // The shell owns the ONLY navigation in the guest portal: a top bar on web, a
 // bottom bar on phones. Pages must not render their own section switcher.
-// `primary` items are the phone bottom-bar slots; `secondary` items stay inline
-// on web and move into the phone "More" sheet.
+// `primary` items are the phone bottom-bar slots and stay inline on web;
+// `rewards` group under a desktop dropdown and the phone "More" sheet;
+// `account` items live in the avatar menu on web and the "More" sheet on
+// phones.
 const primarySections = [
   { label: 'Home', section: 'overview', to: DASHBOARD_LINK, icon: <HomeOutlinedIcon /> },
   { label: 'Stays', section: 'stays', to: '/guest-portal?section=stays', icon: <HotelOutlinedIcon /> },
   { label: 'Points', section: 'points-history', to: '/guest-portal?section=points-history', icon: <HistoryOutlinedIcon /> },
 ] as const;
 
-const secondarySections = [
-  { label: 'Profile', section: 'profile', to: '/guest-portal?section=profile', icon: <PersonOutlineOutlinedIcon /> },
+const rewardsSections = [
   { label: 'Offers', section: 'offers', to: '/guest-portal?section=offers', icon: <LocalOfferOutlinedIcon /> },
   { label: 'Vouchers', section: 'vouchers', to: '/guest-portal?section=vouchers', icon: <ConfirmationNumberOutlinedIcon /> },
   { label: 'Free nights', section: 'credits', to: '/guest-portal?section=credits', icon: <CardGiftcardOutlinedIcon /> },
+] as const;
+
+const accountSections = [
+  { label: 'Profile', section: 'profile', to: '/guest-portal?section=profile', icon: <PersonOutlineOutlinedIcon /> },
   { label: 'Identity', section: 'identity', to: '/guest-portal?section=identity', icon: <BadgeOutlinedIcon /> },
   { label: 'Security', section: 'security', to: '/guest-portal?section=security', icon: <ShieldOutlinedIcon /> },
   { label: 'Preferences', section: 'preferences', to: '/guest-portal?section=preferences', icon: <TuneOutlinedIcon /> },
@@ -83,7 +92,8 @@ const secondarySections = [
 
 type GuestSection =
   | (typeof primarySections)[number]['section']
-  | (typeof secondarySections)[number]['section']
+  | (typeof rewardsSections)[number]['section']
+  | (typeof accountSections)[number]['section']
   | 'support'
   | 'booking';
 
@@ -116,21 +126,63 @@ function currentGuestSection(search: string): GuestSection {
   }
 }
 
+const navButtonSx = (active: boolean) => ({
+  flexShrink: 0,
+  minHeight: 44,
+  px: 1.5,
+  borderRadius: 1.5,
+  color: active ? GUEST_BRAND.text : GUEST_BRAND.muted,
+  fontSize: '0.8125rem',
+  boxShadow: active ? `inset 0 -2px 0 ${GUEST_BRAND.accent}` : 'none',
+  '&:hover': { bgcolor: GUEST_BRAND.hover, color: GUEST_BRAND.text },
+  '&:focus-visible': { outline: `3px solid ${GUEST_BRAND.accent}`, outlineOffset: 3 },
+});
+
+const sheetRowSx = { minHeight: 52 };
+const sheetIconSx = { minWidth: 40, color: 'var(--hotel-primary)' };
+const groupLabelSx = {
+  px: 2,
+  pt: 1.5,
+  pb: 0.5,
+  color: 'var(--hotel-primary-text)',
+  fontWeight: 700,
+  letterSpacing: '.12em',
+};
+
 /** Guest-only navigation that preserves the existing portal route contract. */
 export function GuestPortalShell({ children, showAccountNav = true }: GuestPortalShellProps) {
   const { tOr } = useTranslation('guestPortal');
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const signOut = useGuestSignOut();
   const hotelName = getHotelSettings().hotel_name;
   const [portalToken, setPortalToken] = useState<string | null>(() => getValidPortalToken());
   const [moreOpen, setMoreOpen] = useState(false);
+  const [rewardsAnchor, setRewardsAnchor] = useState<HTMLElement | null>(null);
+  const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null);
   const activeSection = currentGuestSection(location.search);
-  const isSecondaryActive = secondarySections.some((link) => link.section === activeSection);
+  const isUtilityActive = [...rewardsSections, ...accountSections].some(
+    (link) => link.section === activeSection,
+  );
+  const isRewardsActive = rewardsSections.some((link) => link.section === activeSection);
   const mobileValue = activeSection === 'booking'
     ? BOOKING_LINK
-    : isSecondaryActive
+    : isUtilityActive
       ? MORE_VALUE
       : primarySections.find((link) => link.section === activeSection)?.to ?? DASHBOARD_LINK;
+
+  const rewardsOpen = Boolean(rewardsAnchor);
+  const accountOpen = Boolean(accountAnchor);
+
+  const displayName =
+    user?.full_name?.trim() || user?.username || tOr('account.guest', 'Guest');
+  const avatarInitials = displayName
+    .split(/\s+/)
+    .map((word) => word[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 
   useEffect(() => {
     const syncPortalToken = () => setPortalToken(getValidPortalToken());
@@ -160,9 +212,15 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
     if (!next && activeSection === 'support') navigate(DASHBOARD_LINK);
   };
 
+  const handleSignOut = () => {
+    setAccountAnchor(null);
+    setMoreOpen(false);
+    signOut();
+  };
+
   return (
     <GuestPortalThemeProvider>
-      <Box sx={{ minHeight: '100vh', bgcolor: LINEN, color: 'text.primary', pb: { xs: showAccountNav ? 10 : 2, md: 0 } }}>
+      <Box sx={{ minHeight: '100vh', bgcolor: 'var(--hotel-bg)', color: 'text.primary', pb: { xs: showAccountNav ? 10 : 2, md: 0 } }}>
         <Box
           component="a"
           href="#guest-portal-main"
@@ -191,9 +249,9 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
           position="sticky"
           elevation={0}
           sx={{
-            bgcolor: 'var(--hotel-text)',
-            borderBottom: '1px solid color-mix(in srgb, var(--hotel-primary) 30%, transparent)',
-            
+            bgcolor: GUEST_BRAND.bg,
+            color: GUEST_BRAND.text,
+            borderBottom: `1px solid ${GUEST_BRAND.border}`,
           }}
         >
           <Container maxWidth="xl" disableGutters>
@@ -216,40 +274,155 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                   display: { xs: 'none', md: showAccountNav ? 'flex' : 'none' },
                   ml: 'auto',
                   minWidth: 0,
-                  overflowX: 'auto',
-                  scrollbarWidth: 'none',
-                  '&::-webkit-scrollbar': { display: 'none' },
+                  alignItems: 'center',
                 }}
               >
-                {[...primarySections, ...secondarySections].map(link => (
+                {primarySections.map(link => (
                   <Button
                     key={link.label}
                     component={Link}
                     to={link.to}
                     color="inherit"
                     aria-current={activeSection === link.section ? 'page' : undefined}
-                    sx={{
-                      flexShrink: 0,
-                      minHeight: 44,
-                      px: 1.5,
-                      color: activeSection === link.section ? 'var(--hotel-text)' : 'var(--hotel-text-secondary)',
-                      fontSize: '0.8125rem',
-                      '&:hover': { bgcolor: 'var(--hotel-hover)', color: 'var(--hotel-text)', transform: 'translateY(-1px)' },
-                      '&:focus-visible': { outline: `3px solid ${GOLD}`, outlineOffset: 3 },
-                    }}
+                    sx={navButtonSx(activeSection === link.section)}
                   >
                     {tOr(`nav.${link.section}`, link.label)}
                   </Button>
                 ))}
-                <Button component="a" href={HOTEL_INDEX_LINK} color="inherit" sx={{ flexShrink: 0, minHeight: 44, px: 1.5, color: 'var(--hotel-text-secondary)', fontSize: '0.8125rem', '&:hover': { bgcolor: 'var(--hotel-hover)', color: 'var(--hotel-text)', transform: 'translateY(-1px)' } }}>
-                  {tOr('actions.exploreHotel', 'Explore hotel')}
+                <Button
+                  color="inherit"
+                  aria-haspopup="menu"
+                  aria-expanded={rewardsOpen}
+                  aria-controls={rewardsOpen ? 'guest-rewards-menu' : undefined}
+                  onClick={(event) => setRewardsAnchor(event.currentTarget)}
+                  endIcon={<KeyboardArrowDownOutlinedIcon fontSize="small" />}
+                  sx={navButtonSx(isRewardsActive)}
+                >
+                  {tOr('nav.rewards', 'Rewards')}
                 </Button>
+                <Menu
+                  id="guest-rewards-menu"
+                  anchorEl={rewardsAnchor}
+                  open={rewardsOpen}
+                  onClose={() => setRewardsAnchor(null)}
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                  slotProps={{ list: { 'aria-label': tOr('nav.rewards', 'Rewards') } }}
+                >
+                  {rewardsSections.map(link => (
+                    <MenuItem
+                      key={link.label}
+                      component={Link}
+                      to={link.to}
+                      onClick={() => setRewardsAnchor(null)}
+                      aria-current={activeSection === link.section ? 'page' : undefined}
+                      sx={{ gap: 1.25, minHeight: 44 }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 0, color: 'var(--hotel-primary)' }}>{link.icon}</ListItemIcon>
+                      {tOr(`nav.${link.section}`, link.label)}
+                    </MenuItem>
+                  ))}
+                </Menu>
               </Stack>
 
               <Box sx={{ ml: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <LanguageSwitcher color="inherit" size="small" />
                 {showAccountNav ? (
-                  <GuestPortalNotificationBell token={portalToken} />
+                  <>
+                    <GuestPortalNotificationBell token={portalToken} />
+                    <Button
+                      color="inherit"
+                      aria-label={tOr('account.title', 'Account')}
+                      aria-haspopup="menu"
+                      aria-expanded={accountOpen}
+                      aria-controls={accountOpen ? 'guest-account-menu' : undefined}
+                      onClick={(event) => setAccountAnchor(event.currentTarget)}
+                      sx={{
+                        minHeight: 44,
+                        pl: 0.75,
+                        pr: 1.25,
+                        gap: 1,
+                        borderRadius: 999,
+                        color: GUEST_BRAND.text,
+                        textTransform: 'none',
+                        '&:hover': { bgcolor: GUEST_BRAND.hover },
+                        '&:focus-visible': { outline: `3px solid ${GUEST_BRAND.accent}`, outlineOffset: 3 },
+                      }}
+                    >
+                      <Avatar sx={{ width: 32, height: 32, fontSize: '0.8125rem', fontWeight: 700, bgcolor: GUEST_BRAND.accent, color: GUEST_BRAND.accentText }}>
+                        {avatarInitials}
+                      </Avatar>
+                      <Box
+                        component="span"
+                        sx={{
+                          display: { xs: 'none', lg: 'block' },
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                          maxWidth: 140,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {displayName}
+                      </Box>
+                    </Button>
+                    <Menu
+                      id="guest-account-menu"
+                      anchorEl={accountAnchor}
+                      open={accountOpen}
+                      onClose={() => setAccountAnchor(null)}
+                      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                      transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                      slotProps={{
+                        list: { 'aria-label': tOr('account.title', 'Account') },
+                        paper: { sx: { mt: 1, minWidth: 240 } },
+                      }}
+                    >
+                      <Box
+                        component="li"
+                        sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.5, listStyle: 'none' }}
+                      >
+                        <Avatar sx={{ width: 36, height: 36, fontSize: '0.875rem', fontWeight: 700, bgcolor: 'var(--hotel-primary)', color: 'var(--hotel-on-primary)' }}>
+                          {avatarInitials}
+                        </Avatar>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontWeight: 700, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {displayName}
+                          </Typography>
+                          {user?.email ? (
+                            <Typography variant="body2" sx={{ color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {user.email}
+                            </Typography>
+                          ) : null}
+                        </Box>
+                      </Box>
+                      <Divider component="li" />
+                      {accountSections.map(link => (
+                        <MenuItem
+                          key={link.label}
+                          component={Link}
+                          to={link.to}
+                          onClick={() => setAccountAnchor(null)}
+                          aria-current={activeSection === link.section ? 'page' : undefined}
+                          sx={{ gap: 1.25, minHeight: 44 }}
+                        >
+                          <ListItemIcon sx={{ minWidth: 0, color: 'var(--hotel-primary)' }}>{link.icon}</ListItemIcon>
+                          {tOr(`nav.${link.section}`, link.label)}
+                        </MenuItem>
+                      ))}
+                      <Divider component="li" />
+                      <MenuItem component="a" href={HOTEL_INDEX_LINK} onClick={() => setAccountAnchor(null)} sx={{ gap: 1.25, minHeight: 44 }}>
+                        <ListItemIcon sx={{ minWidth: 0, color: 'var(--hotel-primary)' }}><OpenInNewOutlinedIcon /></ListItemIcon>
+                        {tOr('actions.exploreHotel', 'Explore hotel')}
+                      </MenuItem>
+                      <Divider component="li" />
+                      <MenuItem onClick={handleSignOut} sx={{ gap: 1.25, minHeight: 44, color: 'var(--hotel-danger)' }}>
+                        <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><LogoutOutlinedIcon /></ListItemIcon>
+                        {tOr('account.signOut', 'Sign out')}
+                      </MenuItem>
+                    </Menu>
+                  </>
                 ) : (
                   <Button
                     component={Link}
@@ -258,11 +431,11 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                     sx={{
                       minHeight: 44,
                       px: 1.5,
-                      color: 'var(--hotel-text)',
+                      color: GUEST_BRAND.text,
                       fontSize: '0.8125rem',
                       whiteSpace: 'nowrap',
-                      '&:hover': { bgcolor: 'var(--hotel-hover)', color: 'var(--hotel-text)' },
-                      '&:focus-visible': { outline: `3px solid ${GOLD}`, outlineOffset: 3 },
+                      '&:hover': { bgcolor: GUEST_BRAND.hover },
+                      '&:focus-visible': { outline: `3px solid ${GUEST_BRAND.accent}`, outlineOffset: 3 },
                     }}
                   >
                     {tOr('actions.signIn', 'Sign in')}
@@ -286,11 +459,12 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                   flexShrink: 0,
                   minHeight: 44,
                   px: 2,
-                  bgcolor: GOLD,
-                  color: 'var(--hotel-on-primary)',
+                  bgcolor: GUEST_BRAND.accent,
+                  color: GUEST_BRAND.accentText,
                   fontSize: '0.8125rem',
+                  fontWeight: 700,
                   whiteSpace: 'nowrap',
-                  '&:hover': { bgcolor: 'var(--hotel-primary-hover)', transform: 'translateY(-1px)' },
+                  '&:hover': { bgcolor: GUEST_BRAND.accentHover },
                   '&:focus-visible': { outline: '3px solid var(--hotel-focus-ring)', outlineOffset: 3 },
                 }}
               >
@@ -337,30 +511,70 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
         >
           <Box sx={{ px: 2, pt: 2, pb: 1 }}>
             <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'var(--hotel-border-strong)', mx: 'auto', mb: 1.5 }} />
-            <Typography variant="overline" sx={{ color: 'var(--hotel-primary-text)', fontWeight: 700, letterSpacing: '.12em' }}>
-              {tOr('actions.more', 'More')}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 0.5, pb: 0.5 }}>
+              <Avatar sx={{ width: 40, height: 40, fontSize: '0.9375rem', fontWeight: 700, bgcolor: 'var(--hotel-primary)', color: 'var(--hotel-on-primary)' }}>
+                {avatarInitials}
+              </Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 700, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {displayName}
+                </Typography>
+                {user?.email ? (
+                  <Typography variant="body2" sx={{ color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {user.email}
+                  </Typography>
+                ) : null}
+              </Box>
+            </Box>
           </Box>
           <List sx={{ pb: 1 }}>
-            {secondarySections.map(link => (
+            <Typography variant="overline" component="li" sx={{ ...groupLabelSx, display: 'block', listStyle: 'none' }}>
+              {tOr('groups.rewards', 'Rewards')}
+            </Typography>
+            {rewardsSections.map(link => (
               <ListItemButton
                 key={link.label}
                 component={Link}
                 to={link.to}
                 selected={activeSection === link.section}
                 aria-current={activeSection === link.section ? 'page' : undefined}
-                sx={{ minHeight: 52 }}
+                sx={sheetRowSx}
               >
-                <ListItemIcon sx={{ minWidth: 40, color: 'var(--hotel-primary)' }}>{link.icon}</ListItemIcon>
-              <ListItemText primary={tOr(`nav.${link.section}`, link.label)} slotProps={{
+                <ListItemIcon sx={sheetIconSx}>{link.icon}</ListItemIcon>
+                <ListItemText primary={tOr(`nav.${link.section}`, link.label)} slotProps={{
                   primary: { sx: { fontWeight: 600 } }
                 }} />
               </ListItemButton>
             ))}
             <Divider component="li" sx={{ my: 1 }} />
-            <ListItemButton component="a" href={HOTEL_INDEX_LINK} sx={{ minHeight: 52 }}>
-              <ListItemIcon sx={{ minWidth: 40, color: 'var(--hotel-primary)' }}><OpenInNewOutlinedIcon /></ListItemIcon>
+            <Typography variant="overline" component="li" sx={{ ...groupLabelSx, display: 'block', listStyle: 'none' }}>
+              {tOr('groups.account', 'Account')}
+            </Typography>
+            {accountSections.map(link => (
+              <ListItemButton
+                key={link.label}
+                component={Link}
+                to={link.to}
+                selected={activeSection === link.section}
+                aria-current={activeSection === link.section ? 'page' : undefined}
+                sx={sheetRowSx}
+              >
+                <ListItemIcon sx={sheetIconSx}>{link.icon}</ListItemIcon>
+                <ListItemText primary={tOr(`nav.${link.section}`, link.label)} slotProps={{
+                  primary: { sx: { fontWeight: 600 } }
+                }} />
+              </ListItemButton>
+            ))}
+            <Divider component="li" sx={{ my: 1 }} />
+            <ListItemButton component="a" href={HOTEL_INDEX_LINK} sx={sheetRowSx}>
+              <ListItemIcon sx={sheetIconSx}><OpenInNewOutlinedIcon /></ListItemIcon>
               <ListItemText primary={tOr('actions.exploreHotel', 'Explore hotel')} slotProps={{
+                primary: { sx: { fontWeight: 600 } }
+              }} />
+            </ListItemButton>
+            <ListItemButton onClick={handleSignOut} sx={{ ...sheetRowSx, color: 'var(--hotel-danger)' }}>
+              <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}><LogoutOutlinedIcon /></ListItemIcon>
+              <ListItemText primary={tOr('account.signOut', 'Sign out')} slotProps={{
                 primary: { sx: { fontWeight: 600 } }
               }} />
             </ListItemButton>

@@ -76,6 +76,7 @@ const canVoid = (ledger: CustomerLedger) => !isLedgerVoided(ledger);
 
 const ENTRY_STATUS_OPTIONS = [
   { key: 'all', label: 'All' },
+  { key: 'draft', label: 'Draft' },
   { key: 'uninvoiced', label: 'Uninvoiced' },
   { key: 'outstanding', label: 'Outstanding' },
   { key: 'invoiced', label: 'Invoiced' },

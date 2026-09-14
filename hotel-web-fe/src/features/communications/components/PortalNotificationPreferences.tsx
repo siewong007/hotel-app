@@ -15,7 +15,6 @@ import { PortalCommunicationsApi } from '../api';
 import { TOPIC_LABELS, type NotificationTopic } from '../types';
 import { portalSessionScope } from '../../promotions/utils';
 
-const FOREST = 'var(--hotel-text)';
 
 /** Per-topic email opt-in toggles shown on the guest portal dashboard. */
 export default function PortalNotificationPreferences({ token }: { token: string }) {
@@ -70,7 +69,7 @@ export default function PortalNotificationPreferences({ token }: { token: string
   return (
     <Card variant="outlined" sx={{ borderColor: 'var(--hotel-border)', borderRadius: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
-        <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700 }}>
+        <Typography variant="h6" sx={{ color: 'var(--hotel-text)', fontWeight: 700 }}>
           Email preferences
         </Typography>
         <Typography

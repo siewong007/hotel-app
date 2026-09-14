@@ -252,6 +252,7 @@ VALUES
     ('guest-config'),
     ('guest-relations'),
     ('guest-relations-detail'),
+    ('guest-relations-follow-ups'),
     ('help'),
     ('housekeeping'),
     ('insights'),
@@ -1171,8 +1172,9 @@ VALUES
     ('help', '/help', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('ekyc', '/ekyc', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('teams', '/teams', 'Teams', 'config', '["teams:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["teams:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
-    ('guest-relations', '/guest-relations/guests', 'Guest Relations', 'operations', '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
-    ('guest-relations-detail', '/guest-relations/guests/$guestId', NULL, NULL, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, false, true)
+    ('guest-relations', '/guest-relations', 'Guest Relations', 'operations', '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('guest-relations-detail', '/guest-relations/guests/$guestId', NULL, NULL, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, false, true),
+    ('guest-relations-follow-ups', '/guest-relations/follow-ups', NULL, NULL, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, false, true)
 ON CONFLICT (route_id) DO UPDATE SET
     path = EXCLUDED.path,
     nav_label = EXCLUDED.nav_label,

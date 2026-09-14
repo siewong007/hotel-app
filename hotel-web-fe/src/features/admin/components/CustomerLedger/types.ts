@@ -23,6 +23,7 @@ export type LedgerUiStatus =
 
 export type EntryStatusFilter =
   | 'all'
+  | 'draft'
   | 'uninvoiced'
   | 'outstanding'
   | 'invoiced'

@@ -95,6 +95,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { useExportDataMutation, useExportPreviewMutation, useImportDataMutation } from '../hooks/useDataTransferQueries';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import PageHeader from '../../../components/common/PageHeader';
 import { formatLocalDate } from '../../../utils/date';
 import { storage } from '../../../utils/storage';
 import {
@@ -668,7 +669,7 @@ const DataTransferPage: React.FC = () => {
               )}
             </Box>
           </Box>
-          <Checkbox checked={checked} size="small" sx={{ p: 0.25, mt: -0.25 }} onClick={(e) => e.stopPropagation()} onChange={() => toggle(meta.id)} />
+          <Checkbox checked={checked} size="small" sx={{ p: 0.25, mt: -0.25 }} onClick={(e) => e.stopPropagation()} onChange={() => toggle(meta.id)} slotProps={{ input: { 'aria-label': `Select ${meta.name}` } }} />
         </Box>
         <Typography
           variant="body2"
@@ -992,7 +993,7 @@ const DataTransferPage: React.FC = () => {
       <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', justifyContent: 'center' }}>
         <Button variant="contained" component="label" startIcon={<UploadIcon />} sx={{ fontWeight: 700 }}>
           Select JSON file
-          <input type="file" accept=".json,application/json" hidden onChange={handleFileSelect} />
+          <input type="file" accept=".json,application/json" hidden onChange={handleFileSelect} aria-label="Choose export file" />
         </Button>
         <Button variant="outlined" startIcon={<TemplateIcon />} onClick={downloadTemplate} sx={{ fontWeight: 700 }}>
           Download template
@@ -1164,12 +1165,11 @@ const DataTransferPage: React.FC = () => {
   return (
     <Box sx={{ p: 3, maxWidth: 1320, mx: 'auto' }}>
       {/* Title row */}
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-        <Box>
+      <PageHeader
+        sx={{ mb: 2 }}
+        title={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Typography variant="h5" sx={{ fontWeight: 800 }}>
-              Data Transfer
-            </Typography>
+            Data Transfer
             <Chip
               label="settings:manage"
               size="small"
@@ -1177,26 +1177,24 @@ const DataTransferPage: React.FC = () => {
               sx={{ height: 22, fontSize: 11, fontWeight: 600, fontFamily: 'monospace' }}
             />
           </Box>
-          <Typography
-            variant="body2"
-            sx={{
-              color: "text.secondary",
-              mt: 0.5,
-              maxWidth: 680
-            }}>
+        }
+        subtitle={
+          <Box component="span" sx={{ maxWidth: 680, display: 'inline-block' }}>
             Export, import, and migrate property data. System configuration and operational records are grouped so you
             can move exactly what you need without breaking references.
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Button variant="outlined" startIcon={<TemplateIcon />} onClick={downloadTemplate} sx={{ fontWeight: 700 }}>
-            Download template
-          </Button>
-          <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => setTab('history')} sx={{ fontWeight: 700 }}>
-            Transfer history
-          </Button>
-        </Box>
-      </Box>
+          </Box>
+        }
+        actions={
+          <>
+            <Button variant="outlined" startIcon={<TemplateIcon />} onClick={downloadTemplate} sx={{ fontWeight: 700 }}>
+              Download template
+            </Button>
+            <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => setTab('history')} sx={{ fontWeight: 700 }}>
+              Transfer history
+            </Button>
+          </>
+        }
+      />
       {/* Tabs */}
       <ToggleButtonGroup
         value={tab}
@@ -1454,7 +1452,7 @@ const DataTransferPage: React.FC = () => {
             onClick={() => setAck((a) => !a)}
             sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, p: 1.5, borderRadius: 2, bgcolor: theme.palette.action.hover, cursor: 'pointer', textAlign: 'left' }}
           >
-            <Checkbox checked={ack} size="small" sx={{ p: 0 }} onChange={() => setAck((a) => !a)} onClick={(e) => e.stopPropagation()} />
+            <Checkbox checked={ack} size="small" sx={{ p: 0 }} onChange={() => setAck((a) => !a)} onClick={(e) => e.stopPropagation()} slotProps={{ input: { 'aria-label': 'Acknowledge import warning' } }} />
             <Typography variant="body2">
               {importFile?.tables
                 ? 'I understand this restores credential and session material along with all other database records.'
@@ -1485,6 +1483,7 @@ const DataTransferPage: React.FC = () => {
         autoHideDuration={3800}
         onClose={() => setToast((t) => ({ ...t, open: false }))}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        sx={{ top: { xs: 72, sm: 88 } }}
       >
         <Alert
           onClose={() => setToast((t) => ({ ...t, open: false }))}

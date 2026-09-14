@@ -41,6 +41,7 @@ import {
 import { NightAuditRun, JournalSection, AuditDetailsResponse } from '../../../api';
 import { channelAbbreviation, PendingPreviewView, CompletedReportView } from './NightAuditReportViews';
 import { TabPanel, getTabA11yProps } from '../../../components/common/TabPanel';
+import PageHeader from '../../../components/common/PageHeader';
 import { formatLocalDate } from '../../../utils/date';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useIsPhone } from '../../../hooks/useIsPhone';
@@ -570,16 +571,15 @@ const NightAuditPage: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{
-          fontWeight: "bold"
-        }}>
-          Night Audit
-        </Typography>
-        <IconButton onClick={() => { fetchPreview(); fetchHistory(); }} aria-label="Refresh night audit">
-          <RefreshIcon />
-        </IconButton>
-      </Box>
+      <PageHeader
+        title="Night Audit"
+        sx={{ mb: 3 }}
+        actions={
+          <IconButton onClick={() => { fetchPreview(); fetchHistory(); }} aria-label="Refresh night audit">
+            <RefreshIcon />
+          </IconButton>
+        }
+      />
       {/* Alerts */}
       {effectiveError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>

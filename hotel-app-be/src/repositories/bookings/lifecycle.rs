@@ -1248,9 +1248,16 @@ pub async fn create_booking_handler(
     {
         let deposit_payment = CheckInPaymentRecord {
             amount: amount_paid,
+            // The deposit row records the tender actually collected for it
+            // (`deposit_payment_method`), falling back to the booking-level
+            // `payment_method` — the bill's tender — when absent or blank.
             payment_method: input
-                .payment_method
-                .clone()
+                .deposit_payment_method
+                .as_deref()
+                .map(str::trim)
+                .filter(|m| !m.is_empty())
+                .map(str::to_string)
+                .or_else(|| input.payment_method.clone())
                 .unwrap_or_else(|| "Cash".to_string()),
             payment_type: Some("deposit".to_string()),
             notes: Some("Deposit paid at booking".to_string()),
@@ -2438,6 +2445,69 @@ pub async fn void_booking_payments_tx(
     Ok(())
 }
 
+/// Void every open receivable the booking posted to the city ledger.
+///
+/// `auto_post_company_ledger` (and any manual ledger entry linked to the
+/// booking) creates a receivable that only exists because the booking does;
+/// once the booking is voided the debt basis is gone, so the row is voided
+/// with it inside the same transaction. Mirrors the manual `void_ledger`
+/// guard: rows with collected money (`paid_amount > 0`) are left untouched —
+/// voiding them would erase evidence of real payments, so they stay open for
+/// refund/reconciliation and are counted in the return value.
+///
+/// Returns `(voided, skipped_paid)` row counts.
+pub async fn void_booking_ledgers_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    user_id: Option<i64>,
+    reason: &str,
+) -> Result<(u64, u64), ApiError> {
+    let voided = sqlx::query(
+        r#"
+        UPDATE customer_ledgers
+        SET void_at = CURRENT_TIMESTAMP,
+            void_by = $2,
+            void_reason = $3,
+            status = 'void',
+            updated_at = CURRENT_TIMESTAMP,
+            updated_by = $2
+        WHERE booking_id = $1
+          AND void_at IS NULL
+          AND COALESCE(is_reversal, false) = false
+          AND COALESCE(paid_amount, 0) <= 0
+        "#,
+    )
+    .bind(booking_id)
+    .bind(user_id)
+    .bind(reason)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .rows_affected();
+
+    let skipped_paid: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM customer_ledgers \
+         WHERE booking_id = $1 AND void_at IS NULL \
+         AND COALESCE(is_reversal, false) = false \
+         AND COALESCE(paid_amount, 0) > 0",
+    )
+    .bind(booking_id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let skipped_paid = u64::try_from(skipped_paid).unwrap_or(0);
+
+    if skipped_paid > 0 {
+        log::warn!(
+            "void_booking: {} customer_ledgers row(s) for booking {} hold collected payments; left open for reconciliation",
+            skipped_paid,
+            booking_id
+        );
+    }
+
+    Ok((voided, skipped_paid))
+}
+
 /// Void only unfinished payment attempts. Guest self-service cancellation must
 /// retain completed payment records for reconciliation and any later refund.
 pub async fn void_uncompleted_booking_payments_tx(
@@ -2766,7 +2836,18 @@ pub async fn reconcile_booking_deposit_tx(
             if inserted {
                 // The assertion attests money physically collected at the
                 // desk; record it as a real deposit payment so the refund
-                // ceiling can draw on it.
+                // ceiling can draw on it. The tender on the row is the
+                // caller-supplied `deposit_payment_method` (what the desk
+                // actually collected), falling back to the booking-level
+                // `payment_method` — the bill's tender — only when the
+                // deposit tender is absent or blank.
+                let deposit_method = booking_update
+                    .deposit_payment_method
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|m| !m.is_empty())
+                    .or(booking_update.payment_method.as_deref())
+                    .unwrap_or("Cash");
                 sqlx::query(
                     "INSERT INTO payments \
                         (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by) \
@@ -2774,7 +2855,7 @@ pub async fn reconcile_booking_deposit_tx(
                 )
                 .bind(booking_id)
                 .bind(decimal_to_db(delta))
-                .bind(booking_update.payment_method.as_deref().unwrap_or("Cash"))
+                .bind(deposit_method)
                 .bind(
                     booking_update
                         .payment_note

@@ -14,9 +14,10 @@ use axum::{
 use serde_json::json;
 
 use super::models::{
-    GuestCommunicationsSummary, GuestInteraction, GuestInteractionInput, GuestInteractionUpdate,
-    GuestLoyaltySummary, GuestPreference, GuestPreferencesPut, GuestReviewResponseInput,
-    GuestReviewRow, GuestVoucherRow, InteractionListQuery, InteractionListResponse,
+    FollowUpQueueQuery, FollowUpQueueResponse, GuestCommunicationsSummary, GuestInteraction,
+    GuestInteractionInput, GuestInteractionUpdate, GuestLoyaltySummary, GuestPreference,
+    GuestPreferencesPut, GuestReviewResponseInput, GuestReviewRow, GuestVoucherRow,
+    InteractionListQuery, InteractionListResponse, OverviewResponse,
 };
 use super::service;
 use crate::core::db::DbPool;
@@ -152,4 +153,41 @@ pub async fn list_support_conversations_handler(
     Ok(Json(
         service::list_support_conversations(&pool, guest_id).await?,
     ))
+}
+
+/// `GET /guest-relations/overview` — cross-guest dashboard aggregate. The
+/// caller needs `guests:read`; the service further gates the `support` /
+/// `reviews` sections by `support:read` / `reviews:read`.
+pub async fn overview_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<OverviewResponse>, ApiError> {
+    let actor_id = require_permission_helper(&pool, &headers, "guests:read").await?;
+    Ok(Json(service::overview(&pool, actor_id).await?))
+}
+
+/// `GET /guest-relations/follow-ups` — paginated open follow-up queue in the
+/// shared `{ data, total, page, page_size }` envelope.
+pub async fn follow_ups_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Query(query): Query<FollowUpQueueQuery>,
+) -> Result<Json<FollowUpQueueResponse>, ApiError> {
+    let actor_id = require_permission_helper(&pool, &headers, "guests:read").await?;
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20);
+    let (total, data) = service::list_follow_ups(
+        &pool,
+        actor_id,
+        query.due.as_deref().unwrap_or("all"),
+        page,
+        page_size,
+    )
+    .await?;
+    Ok(Json(FollowUpQueueResponse {
+        data,
+        total,
+        page,
+        page_size,
+    }))
 }
