@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getAccessSnapshot: vi.fn(),
   listPasskeys: vi.fn(),
   loginWithGoogle: vi.fn(),
+  register: vi.fn(),
   disableGoogleAutoSelect: vi.fn(),
 }));
 
@@ -38,6 +39,14 @@ vi.mock('../api/client', () => {
     api: { post: (...args: unknown[]) => mocks.apiPost(...args) },
     refreshAccessToken: (...args: unknown[]) => mocks.refreshAccessToken(...args),
     APIError,
+    // Faithful replica of the real helper — ky parks the parsed error body on
+    // `error.data` after consuming the stream; non-object bodies normalize to
+    // {}. The login/register catches below read it for the rethrown APIError's
+    // `details`.
+    readErrorData: (error: { data?: unknown }) => {
+      const body: unknown = error.data;
+      return typeof body === 'object' && body !== null && !Array.isArray(body) ? body : {};
+    },
   };
 });
 
@@ -46,6 +55,7 @@ vi.mock('../api/auth.service', () => ({
     getAccessSnapshot: (...args: unknown[]) => mocks.getAccessSnapshot(...args),
     listPasskeys: (...args: unknown[]) => mocks.listPasskeys(...args),
     loginWithGoogle: (...args: unknown[]) => mocks.loginWithGoogle(...args),
+    register: (...args: unknown[]) => mocks.register(...args),
   },
 }));
 
@@ -56,6 +66,8 @@ vi.mock('../api/users.service', () => ({
 }));
 
 import { APIError } from '../api/client';
+import { buildKyHttpError } from '../api/testSupport/httpError';
+import { isTwoFactorEnrollmentRequired } from '../features/auth/twoFactorEnrollment';
 import { AuthProvider, useAuth } from './AuthContext';
 
 function createLocalStorageStub() {
@@ -129,6 +141,7 @@ describe('AuthContext', () => {
     mocks.listPasskeys.mockReset();
     mocks.listPasskeys.mockResolvedValue([]);
     mocks.loginWithGoogle.mockReset();
+    mocks.register.mockReset();
   });
 
   afterEach(() => {
@@ -397,6 +410,101 @@ describe('AuthContext', () => {
 
       expect(caught).toBeInstanceOf(APIError);
       expect(caught.statusCode).toBe(503);
+    });
+  });
+
+  describe('login error shape', () => {
+    // Pins the contract the sign-in page relies on: HTTP failures arrive as
+    // APIError so guestErrorMessage passes the server's own message through
+    // (and enrolment refusals still match on the stable body code), while a
+    // transport failure stays a plain Error that collapses to the friendly
+    // fallback instead of leaking ky noise like "Failed to fetch".
+    async function renderAndLogin(rejection: unknown) {
+      mocks.refreshAccessToken.mockResolvedValue(null);
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      // ky's ResponsePromise rejects when .json() is awaited, not at post().
+      mocks.apiPost.mockReturnValue({ json: () => Promise.reject(rejection) });
+
+      let caught: any;
+      await act(async () => {
+        try {
+          await result.current.login('jdoe', 'hunter2!');
+        } catch (err) {
+          caught = err;
+        }
+      });
+      return caught;
+    }
+
+    it('rethrows an HTTP rejection as APIError carrying status, message and body', async () => {
+      const caught = await renderAndLogin(
+        buildKyHttpError(401, { error: 'Invalid credentials. 4 attempts remaining' })
+      );
+
+      expect(caught).toBeInstanceOf(APIError);
+      expect(caught.statusCode).toBe(401);
+      expect(caught.message).toBe('Invalid credentials. 4 attempts remaining');
+      expect(caught.details).toEqual({ error: 'Invalid credentials. 4 attempts remaining' });
+      expect(isTwoFactorEnrollmentRequired(caught)).toBe(false);
+    });
+
+    it('keeps a non-HTTP rejection a plain Error', async () => {
+      const caught = await renderAndLogin(new TypeError('Failed to fetch'));
+
+      expect(caught).toBeInstanceOf(Error);
+      expect(caught).not.toBeInstanceOf(APIError);
+      expect(caught.message).toBe('Failed to fetch');
+    });
+
+    it('carries the two-factor enrolment code on details for the stable-code check', async () => {
+      const caught = await renderAndLogin(
+        buildKyHttpError(403, {
+          code: 'two_factor_enrollment_required',
+          error: 'Two-factor enrolment is overdue',
+        })
+      );
+
+      expect(caught).toBeInstanceOf(APIError);
+      expect(isTwoFactorEnrollmentRequired(caught)).toBe(true);
+    });
+  });
+
+  describe('register error shape', () => {
+    it('passes the service APIError through untouched', async () => {
+      mocks.refreshAccessToken.mockResolvedValue(null);
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      const serviceError = new APIError('Username or email already registered', 409, {
+        error: 'Username or email already registered',
+      });
+      mocks.register.mockRejectedValue(serviceError);
+
+      let caught: any;
+      await act(async () => {
+        try {
+          await result.current.register({
+            username: 'jdoe',
+            password: 'hunter2!',
+            first_name: 'Jane',
+            last_name: 'Doe',
+            phone: '0123456789',
+            consents: [],
+            marketing_opt_in: false,
+          });
+        } catch (err) {
+          caught = err;
+        }
+      });
+
+      // Same object, not a copy — the page needs the original statusCode/details.
+      expect(caught).toBe(serviceError);
+      expect(caught.statusCode).toBe(409);
+      expect(caught.message).toBe('Username or email already registered');
     });
   });
 
