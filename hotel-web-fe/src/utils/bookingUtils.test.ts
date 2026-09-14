@@ -13,9 +13,7 @@ import {
   formatDateForDisplay,
   getBookingStatistics,
   getBookingStatusColor,
-  getBookingStatusText,
   getPaymentStatusColor,
-  getPaymentStatusText,
   isBookingActive,
   sortBookingsByDate,
   validateBookingDates,
@@ -161,44 +159,40 @@ describe('formatDateForDisplay / formatCurrency', () => {
   });
 });
 
-describe('getBookingStatusColor / getBookingStatusText', () => {
+describe('getBookingStatusColor', () => {
   it.each([
-    [BookingStatus.CONFIRMED, 'success', 'Confirmed'],
-    [BookingStatus.PENDING, 'warning', 'Pending'],
-    [BookingStatus.CHECKED_IN, 'primary', 'Checked In'],
-    [BookingStatus.AUTO_CHECKED_IN, 'primary', 'Auto Checked In'],
-    [BookingStatus.CHECKED_OUT, 'info', 'Checked Out'],
-    [BookingStatus.PARTIAL_COMPLIMENTARY, 'secondary', 'Partial Complimentary'],
-    [BookingStatus.FULLY_COMPLIMENTARY, 'secondary', 'Fully Complimentary'],
-    [BookingStatus.VOIDED, 'default', 'Voided'],
-  ])('maps %s to color %s and text %s', (status, color, text) => {
+    [BookingStatus.CONFIRMED, 'success'],
+    [BookingStatus.PENDING, 'warning'],
+    [BookingStatus.CHECKED_IN, 'primary'],
+    [BookingStatus.AUTO_CHECKED_IN, 'primary'],
+    [BookingStatus.CHECKED_OUT, 'info'],
+    [BookingStatus.PARTIAL_COMPLIMENTARY, 'secondary'],
+    [BookingStatus.FULLY_COMPLIMENTARY, 'secondary'],
+    [BookingStatus.VOIDED, 'default'],
+  ])('maps %s to color %s', (status, color) => {
     expect(getBookingStatusColor(status)).toBe(color);
-    expect(getBookingStatusText(status)).toBe(text);
   });
 
-  it('falls back to default color and a humanized label for an unknown status', () => {
+  it('falls back to default color for an unknown status', () => {
     expect(getBookingStatusColor('mystery_status')).toBe('default');
-    expect(getBookingStatusText('mystery_status')).toBe('Mystery Status');
   });
 });
 
-describe('getPaymentStatusColor / getPaymentStatusText', () => {
+describe('getPaymentStatusColor', () => {
   it.each([
-    ['paid', 'success', 'Paid'],
-    ['paid_rate', 'info', 'Rate Paid'],
-    ['partial', 'warning', 'Partial'],
-    ['unpaid_deposit', 'warning', 'Unpaid Deposit'],
-    ['unpaid', 'error', 'Unpaid'],
-    ['refunded', 'secondary', 'Refunded'],
-    ['void', 'error', 'Void'],
-  ])('maps %s to color %s and text %s', (status, color, text) => {
+    ['paid', 'success'],
+    ['paid_rate', 'info'],
+    ['partial', 'warning'],
+    ['unpaid_deposit', 'warning'],
+    ['unpaid', 'error'],
+    ['refunded', 'secondary'],
+    ['void', 'error'],
+  ])('maps %s to color %s', (status, color) => {
     expect(getPaymentStatusColor(status)).toBe(color);
-    expect(getPaymentStatusText(status)).toBe(text);
   });
 
-  it('falls back to default color and "Unknown" text when status is undefined', () => {
+  it('falls back to default color when status is undefined', () => {
     expect(getPaymentStatusColor(undefined)).toBe('default');
-    expect(getPaymentStatusText(undefined)).toBe('Unknown');
   });
 });
 

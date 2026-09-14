@@ -152,19 +152,13 @@
     "depositRequiredError": "押金金额必须大于 0。如需不收押金，请选择“免收”。",
     "waiveReasonLabel": "免收押金原因",
     "waiveReasonPlaceholder": "例如：回头客、公司账户、经理批准…",
-    "waiveReasonPlaceholderShort": "例如：回头客、公司账户…",
     "waiveReasonHelper": "选填：填写免收押金的原因",
-    "waiveReasonHelperShort": "选填：填写原因",
-    "complimentaryStay": "免费住宿",
-    "complimentaryReason": "原因：{{reason}}",
-    "specialRequests": "特殊要求：",
     "checkInNow": "立即入住",
     "checkIn": "办理入住",
     "processing": "处理中…",
     "success": "客人已成功入住！",
     "failed": "客人入住办理失败",
-    "onlinePlatformFallback": "线上平台",
-    "guestFallback": "客人"
+    "onlinePlatformFallback": "线上平台"
   },
   "payment": {
     "titleRequired": "需先收款",
@@ -239,7 +233,9 @@
     "website": "官网",
     "mobile": "手机应用",
     "agent": "旅行社",
-    "corporate": "公司客户"
+    "corporate": "公司客户",
+    "fallbackWebsite": "官网",
+    "fallbackOnline": "线上"
   },
   "void": {
     "title": "作废预订",
@@ -282,7 +278,6 @@
     "refunded": "已退款",
     "timeline": "时间轴",
     "empty": "暂无工作流事件记录。",
-    "close": "关闭",
     "event": {
       "update": "更新",
       "payment": "支付",
@@ -389,7 +384,7 @@
       "roomNumber": "房号",
       "sectionRateCharges": "房价与费用",
       "rateCode": "房价代码",
-      "rateCodeSuffix": " - 标准门市价",
+      "rateCodeSuffix": "{{code}} - 标准门市价",
       "marketCode": "市场代码",
       "marketCodePlaceholder": "输入或选择…",
       "discountPercent": "折扣 %",
@@ -513,7 +508,6 @@
     "colRoomType": "房型",
     "editCredits": "编辑免费房晚",
     "deleteCredits": "删除免费房晚",
-    "creditReason": "原因",
     "addDialog": {
       "title": "添加免费房晚",
       "selectGuest": "选择客人 *",

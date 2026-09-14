@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BookingWithDetails } from '../../../../types';
-import { filterAndSortBookings, getStatusColor, getStatusLabel } from './utils';
+import { filterAndSortBookings, getStatusColor } from './utils';
 
 const booking = (overrides: Partial<BookingWithDetails>): BookingWithDetails =>
   ({ id: '0', ...overrides }) as BookingWithDetails;
@@ -13,12 +13,6 @@ describe('complimentary status helpers', () => {
     expect(getStatusColor('anything_else')).toBe('default');
   });
 
-  it('maps statuses to labels, humanizing any unmapped status', () => {
-    expect(getStatusLabel('fully_complimentary')).toBe('Fully Complimentary');
-    expect(getStatusLabel('partial_complimentary')).toBe('Partial');
-    expect(getStatusLabel('voided')).toBe('Voided');
-    expect(getStatusLabel('confirmed')).toBe('Confirmed');
-  });
 });
 
 describe('filterAndSortBookings', () => {

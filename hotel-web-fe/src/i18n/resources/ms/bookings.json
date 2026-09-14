@@ -58,7 +58,6 @@
   },
   "list": {
     "count_zero": "Tiada tempahan",
-    "count_one": "{{count}} tempahan",
     "count_other": "{{count}} tempahan",
     "sortButton": "Isih: {{field}}",
     "sortGuest": "Tetamu",
@@ -153,19 +152,13 @@
     "depositRequiredError": "Jumlah deposit mesti melebihi 0. Untuk melangkau deposit, pilih \"Ketepikan\".",
     "waiveReasonLabel": "Sebab Deposit Diketepikan",
     "waiveReasonPlaceholder": "cth., Tetamu berulang, Akaun syarikat, Kelulusan pengurus...",
-    "waiveReasonPlaceholderShort": "cth., Tetamu berulang, Akaun syarikat...",
     "waiveReasonHelper": "Pilihan: nyatakan sebab deposit diketepikan",
-    "waiveReasonHelperShort": "Pilihan: nyatakan sebab",
-    "complimentaryStay": "Penginapan Komplimentari",
-    "complimentaryReason": "Sebab: {{reason}}",
-    "specialRequests": "Permintaan Khas:",
     "checkInNow": "Daftar Masuk Sekarang",
     "checkIn": "Daftar Masuk",
     "processing": "Memproses...",
     "success": "Tetamu berjaya mendaftar masuk!",
     "failed": "Gagal mendaftarkan tetamu masuk",
-    "onlinePlatformFallback": "platform dalam talian",
-    "guestFallback": "Tetamu"
+    "onlinePlatformFallback": "platform dalam talian"
   },
   "payment": {
     "titleRequired": "Pembayaran Diperlukan",
@@ -240,7 +233,9 @@
     "website": "Laman Web",
     "mobile": "Aplikasi Mudah Alih",
     "agent": "Ejen Pelancongan",
-    "corporate": "Korporat"
+    "corporate": "Korporat",
+    "fallbackWebsite": "Laman Web",
+    "fallbackOnline": "Dalam Talian"
   },
   "void": {
     "title": "Batal Tempahan",
@@ -283,7 +278,6 @@
     "refunded": "Dibayar balik",
     "timeline": "Garis Masa",
     "empty": "Tiada acara aliran kerja direkodkan lagi.",
-    "close": "Tutup",
     "event": {
       "update": "Kemas Kini",
       "payment": "Pembayaran",
@@ -390,7 +384,7 @@
       "roomNumber": "Nombor Bilik",
       "sectionRateCharges": "Kadar & Caj",
       "rateCode": "Kod Kadar",
-      "rateCodeSuffix": " - Kadar Standard Rak",
+      "rateCodeSuffix": "{{code}} - Kadar Standard Rak",
       "marketCode": "Kod Pasaran",
       "marketCodePlaceholder": "Taip atau pilih...",
       "discountPercent": "Diskaun %",
@@ -497,9 +491,7 @@
     "colReason": "Sebab",
     "colStatus": "Status",
     "colActions": "Tindakan",
-    "compNights_one": "{{count}} malam komplimentari",
     "compNights_other": "{{count}} malam komplimentari",
-    "nights_one": "{{count}} malam",
     "nights_other": "{{count}} malam",
     "compPrefix": "Komp: {{range}}",
     "noReason": "Tiada sebab diberikan",
@@ -516,7 +508,6 @@
     "colRoomType": "Jenis Bilik",
     "editCredits": "Sunting kredit",
     "deleteCredits": "Padam kredit",
-    "creditReason": "Sebab",
     "addDialog": {
       "title": "Tambah Kredit Komplimentari",
       "selectGuest": "Pilih Tetamu *",

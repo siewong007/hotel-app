@@ -578,7 +578,7 @@ export default function EnhancedCheckInModal({
 
     // If there are validation errors, don't proceed
     if (Object.keys(errors).length > 0) {
-setError(t('enhancedCheckIn.validation.fixErrors'));
+      setError(t('enhancedCheckIn.validation.fixErrors'));
       // Switch to the tab with the first error
       if (errors.first_name || errors.last_name || errors.email || errors.phone || errors.alt_phone || errors.ic_number) {
         setActiveTab(0); // General Information tab
@@ -696,7 +696,7 @@ setError(t('enhancedCheckIn.validation.fixErrors'));
   // auto-records a payment for the outstanding balance when `source === 'online'`.
   // Gate the messaging on that exact source so the prompt matches backend behavior.
   const isOnlineReservation = (booking.source || '').trim().toLowerCase() === 'online';
-  const onlinePlatformName = getBookingChannelInfo(booking)?.name || 'the online platform';
+  const onlinePlatformName = getBookingChannelInfo(booking)?.name || t('checkIn.onlinePlatformFallback');
 
   return (
     <>
@@ -775,7 +775,7 @@ setError(t('enhancedCheckIn.validation.fixErrors'));
                 <Typography variant="body2" sx={{
                   fontWeight: 600
                 }}>
-                  {('room_number' in booking && booking.room_number) || booking.room_id} ({booking.room_type || 'N/A'})
+                  {('room_number' in booking && booking.room_number) || booking.room_id} ({booking.room_type || t('enhancedCheckIn.na')})
                 </Typography>
               </Grid>
               <Grid size={4}>

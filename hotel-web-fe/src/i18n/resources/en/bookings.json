@@ -153,19 +153,13 @@
     "depositRequiredError": "Deposit amount must be greater than 0. To skip the deposit, choose \"Waive\" instead.",
     "waiveReasonLabel": "Reason for Waiving Deposit",
     "waiveReasonPlaceholder": "e.g., Returning guest, Company account, Manager approval...",
-    "waiveReasonPlaceholderShort": "e.g., Returning guest, Company account...",
     "waiveReasonHelper": "Optional: provide a reason for waiving the deposit",
-    "waiveReasonHelperShort": "Optional: provide a reason",
-    "complimentaryStay": "Complimentary Stay",
-    "complimentaryReason": "Reason: {{reason}}",
-    "specialRequests": "Special Requests:",
     "checkInNow": "Check-In Now",
     "checkIn": "Check In",
     "processing": "Processing...",
     "success": "Guest checked in successfully!",
     "failed": "Failed to check in guest",
-    "onlinePlatformFallback": "the online platform",
-    "guestFallback": "Guest"
+    "onlinePlatformFallback": "the online platform"
   },
   "payment": {
     "titleRequired": "Payment Required",
@@ -240,7 +234,9 @@
     "website": "Website",
     "mobile": "Mobile App",
     "agent": "Travel Agent",
-    "corporate": "Corporate"
+    "corporate": "Corporate",
+    "fallbackWebsite": "Website",
+    "fallbackOnline": "Online"
   },
   "void": {
     "title": "Void Booking",
@@ -283,7 +279,6 @@
     "refunded": "Refunded",
     "timeline": "Timeline",
     "empty": "No workflow events recorded yet.",
-    "close": "Close",
     "event": {
       "update": "Update",
       "payment": "Payment",
@@ -390,7 +385,7 @@
       "roomNumber": "Room Number",
       "sectionRateCharges": "Rate & Charges",
       "rateCode": "Rate Code",
-      "rateCodeSuffix": " - Standard Rack Rate",
+      "rateCodeSuffix": "{{code}} - Standard Rack Rate",
       "marketCode": "Market Code",
       "marketCodePlaceholder": "Type or select...",
       "discountPercent": "Discount %",
@@ -516,7 +511,6 @@
     "colRoomType": "Room Type",
     "editCredits": "Edit credits",
     "deleteCredits": "Delete credits",
-    "creditReason": "Reason",
     "addDialog": {
       "title": "Add Complimentary Credits",
       "selectGuest": "Select Guest *",

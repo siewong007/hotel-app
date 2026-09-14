@@ -203,9 +203,6 @@
     "contactHint": "如需更改预订或有任何疑问，请直接联系我们。",
     "close": "关闭",
     "startNew": "开始新的在线办理入住",
-    "form": {
-      "submitFailed": "提交失败，请重试。"
-    },
     "wizard": {
       "title": "在线办理入住",
       "subtitle": "现在花几分钟，抵达时即可省去繁琐手续。",

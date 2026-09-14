@@ -1,5 +1,4 @@
 import type { BookingWithDetails } from '../../../../types';
-import { formatStatusLabel } from '../../../../utils/formatters';
 import type { SortField, SortOrder } from './types';
 
 export const getStatusColor = (status: string): 'success' | 'warning' | 'info' | 'default' => {
@@ -12,19 +11,6 @@ export const getStatusColor = (status: string): 'success' | 'warning' | 'info' |
       return 'info';
     default:
       return 'default';
-  }
-};
-
-export const getStatusLabel = (status: string): string => {
-  switch (status) {
-    case 'fully_complimentary':
-      return 'Fully Complimentary';
-    case 'partial_complimentary':
-      return 'Partial';
-    case 'voided':
-      return 'Voided';
-    default:
-      return formatStatusLabel(status);
   }
 };
 

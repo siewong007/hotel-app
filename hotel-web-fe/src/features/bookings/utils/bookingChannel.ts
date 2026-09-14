@@ -1,6 +1,7 @@
 import type { BookingWithDetails } from '../../../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { formatStatusLabel } from '../../../utils/formatters';
+import { t as translate } from '../../../i18n';
 
 export type BookingChannelInfo = {
   name: string;
@@ -97,7 +98,9 @@ export const getBookingChannelInfo = (
     return buildChannelInfo(configuredChannel.name, configuredChannel.abbreviation);
   }
 
-  const fallbackName = parsedName || (sourceKey.includes('website') || sourceKey.includes('web') ? 'Website' : 'Online');
+  const fallbackName = parsedName
+    || translate(sourceKey.includes('website') || sourceKey.includes('web')
+      ? 'channels.fallbackWebsite' : 'channels.fallbackOnline', undefined, 'bookings');
   return buildChannelInfo(fallbackName);
 };
 
