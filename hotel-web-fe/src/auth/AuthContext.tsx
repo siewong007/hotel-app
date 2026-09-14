@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, refreshAccessToken, APIError, readErrorData } from '../api/client';
+import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import { HTTPError } from 'ky';
 import { TWO_FACTOR_ENROLLMENT_REQUIRED_CODE } from '../features/auth/twoFactorEnrollment';
 import { errorMessage } from '../utils';
@@ -374,9 +375,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const data = await api.post('auth/login', {
         json: { username, password, totp_code: totpCode },
-        // Cloudflare Turnstile token, when this build challenges. Single-use:
-        // the 2FA leg calls login() a second time and must carry a fresh one.
-        ...(turnstileToken ? { headers: { 'cf-turnstile-response': turnstileToken } } : {}),
+        headers: {
+          // Cloudflare Turnstile token, when this build challenges. Single-use:
+          // the 2FA leg calls login() a second time and must carry a fresh one.
+          ...(turnstileToken ? { 'cf-turnstile-response': turnstileToken } : {}),
+          // The sign-in page renders the failure inline; the client's global
+          // toast would be a second notification for one error.
+          [SKIP_API_NOTIFICATION_HEADER]: 'true',
+        },
       }).json<AuthLoginResponse>();
 
       return applyAuthSession(data);
@@ -520,6 +526,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           ...(stepUp?.password ? { password: stepUp.password } : {}),
           ...(stepUp?.totpCode ? { totp_code: stepUp.totpCode } : {}),
         },
+        // Every caller (UserProfilePage, SecuritySection, FirstLoginPasskeyPrompt)
+        // surfaces the failure itself; suppress the duplicate global toast.
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
       }).json<{
         challenge: string;
         rp: { name: string; id: string };
@@ -583,6 +592,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           credential: JSON.stringify(credentialJson),
           challenge,
         },
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
       });
 
       // After successful registration, login the user
@@ -613,6 +623,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Start passkey authentication
       const startResponse = await api.post('auth/passkey/login/start', {
         json: { username },
+        // Callers own the failure feedback; suppress the duplicate global toast.
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
       }).json<{ challenge: string; allowCredentials: { id: string; type?: string }[] }>();
 
       const { challenge, allowCredentials } = startResponse;
@@ -681,6 +693,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           signature: btoa(String.fromCharCode(...assertionJson.response.signature)),
           challenge,
         },
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
       }).json<AuthLoginResponse>();
 
       // Shares the session write-through with the password and Google doors.

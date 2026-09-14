@@ -1,4 +1,5 @@
 import { api, toApiError } from './client';
+import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import {
   UserProfile,
   UserProfileUpdate,
@@ -16,7 +17,11 @@ export class AuthService {
   static async lookupLoginIdentifier(username: string): Promise<{ exists: boolean }> {
     try {
       return await api
-        .post('auth/login/lookup', { json: { username } })
+        .post('auth/login/lookup', {
+          json: { username },
+          // LoginPage renders the failure inline; the global toast would duplicate it.
+          headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        })
         .json<{ exists: boolean }>();
     } catch (error) {
       throw toApiError(error, 'Unable to verify username');
@@ -41,8 +46,12 @@ export class AuthService {
     try {
       await api.post('auth/register', {
         json: data,
-        // Cloudflare Turnstile token, when this build challenges.
-        ...(turnstileToken ? { headers: { 'cf-turnstile-response': turnstileToken } } : {}),
+        headers: {
+          // Cloudflare Turnstile token, when this build challenges.
+          ...(turnstileToken ? { 'cf-turnstile-response': turnstileToken } : {}),
+          // RegisterPage renders the failure inline; the global toast would duplicate it.
+          [SKIP_API_NOTIFICATION_HEADER]: 'true',
+        },
       });
     } catch (error) {
       throw toApiError(error, 'Registration failed');
@@ -63,6 +72,10 @@ export class AuthService {
               ? { consents: options.consents, marketing_opt_in: options.marketing_opt_in }
               : {}),
           },
+          // Both callers (LoginPage's inline alert, useGoogleOneTap's own
+          // translated toast) already surface the failure — the client's
+          // global toast would be a second notification for one error.
+          headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
         })
         .json<AuthResponse>();
     } catch (error) {
@@ -77,7 +90,13 @@ export class AuthService {
     address_line1?: string;
   }): Promise<UserProfile> {
     try {
-      return await api.post('profile/complete', { json: input }).json<UserProfile>();
+      return await api
+        .post('profile/complete', {
+          json: input,
+          // CompleteProfilePage renders the failure inline.
+          headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+        })
+        .json<UserProfile>();
     } catch (error) {
       throw toApiError(error, 'Profile completion failed');
     }
@@ -85,7 +104,11 @@ export class AuthService {
 
   static async verifyEmail(token: string): Promise<void> {
     try {
-      await api.post('auth/verify-email', { json: { token } });
+      await api.post('auth/verify-email', {
+        json: { token },
+        // EmailVerificationPage renders the failure as page-level state.
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+      });
     } catch (error) {
       throw toApiError(error, 'Email verification failed');
     }
