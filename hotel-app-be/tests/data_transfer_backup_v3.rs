@@ -1241,6 +1241,19 @@ async fn preview_diff_counts_new_and_existing_exactly() {
             .await
             .expect("the dev database has booking channels");
     assert!(channel_ids.len() >= 2, "need two booking channels");
+    // Snapshot whatever the pre-clean displaces so cleanup can restore the
+    // dev database byte-for-byte — this is a shared database.
+    let displaced_channels: Vec<Value> = sqlx::query_scalar(
+        "SELECT row_to_json(t) FROM (\
+             SELECT * FROM promotion_channels \
+             WHERE promotion_id = $1 AND booking_channel_id = ANY($2)\
+         ) t",
+    )
+    .bind(promotion_id)
+    .bind(&channel_ids)
+    .fetch_all(&pool)
+    .await
+    .expect("composite fixture snapshot must read");
     sqlx::query(
         "DELETE FROM promotion_channels WHERE promotion_id = $1 AND booking_channel_id = ANY($2)",
     )
@@ -1323,6 +1336,16 @@ async fn preview_diff_counts_new_and_existing_exactly() {
     .execute(&pool)
     .await
     .expect("composite fixture cleanup must run");
+    if !displaced_channels.is_empty() {
+        sqlx::query(
+            "INSERT INTO promotion_channels \
+             SELECT * FROM jsonb_populate_recordset(NULL::promotion_channels, $1::jsonb)",
+        )
+        .bind(serde_json::Value::Array(displaced_channels))
+        .execute(&pool)
+        .await
+        .expect("displaced promotion_channels rows must be restored");
+    }
     sqlx::query("DELETE FROM amenities WHERE id = 920946001")
         .execute(&pool)
         .await
