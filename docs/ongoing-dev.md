@@ -100,13 +100,12 @@ tree and removed per convention.
   already a deliberate, documented no-op (models/guest.rs — activation is an
   admin-only action via services/users.rs; approved 2026-08-22, removal
   deferred to the next contract bump). No action.
-- FE `CustomerLedger/helpers.ts::getLedgerUiStatus:81` has an unreachable
-  `'draft'` branch: line 76 returns `'paid'` for any non-positive balance.
-  Whether a zero-balance un-invoiced ledger should read "Draft" instead of
-  "Paid" is a product call. Note the backend `ui_status='draft'` filter
-  bucket already exists and *disagrees* with the chip today: the filter
-  catches zero-balance rows whose stored status isn't 'paid', but the chip
-  renders them "Paid".
+- ~~FE zero-balance un-invoiced ledgers read "Paid"~~ RESOLVED (Draft chosen):
+  `getLedgerUiStatus` now returns `'draft'` for `balance <= 0` rows whose
+  stored status never reached `'paid'` — matching the backend
+  `ui_status='draft'` bucket exactly. A "Draft" filter pill was added to
+  `LedgerEntriesTab` so the badge and filter agree. Reversal rows
+  (status='paid' hardcoded) correctly stay "Paid".
 - Branch protection on master: no rule exists (verified via `gh api`
   2026-07-26). Pick required checks, review count, and admin bypass — or
   delegate with the policy stated.

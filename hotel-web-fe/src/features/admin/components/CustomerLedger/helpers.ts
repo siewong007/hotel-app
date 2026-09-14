@@ -73,12 +73,14 @@ export const getLedgerUiStatus = (ledger: CustomerLedger): LedgerUiStatus => {
   // Balance-first: an entry is only "paid" when nothing is outstanding. If a
   // charge later increases the amount (balance > 0 again), the entry reopens to
   // partial/pending even if the stored status column still says 'paid'.
-  if (!isPositiveMoney(balance)) return 'paid';
+  // A zero-balance row whose stored status never reached 'paid' was never
+  // invoiced or collected — it reads "Draft", matching the backend
+  // ui_status='draft' filter bucket (balance <= 0 AND status <> 'paid').
+  if (!isPositiveMoney(balance)) return ledger.status === 'paid' ? 'paid' : 'draft';
   if (ledger.status === 'overdue' || isDateOverdue(ledger.due_date)) return 'overdue';
   if (isPositiveMoney(paid)) return 'partial';
   if (ledger.invoice_number) return 'invoiced';
-  if (isPositiveMoney(balance)) return 'ready_to_invoice';
-  return 'draft';
+  return 'ready_to_invoice';
 };
 
 export const TONE: Record<ToneName, { bg: string; fg: string; dot: string }> = {
