@@ -249,6 +249,7 @@ const PortalBookingPage: React.FC = () => {
   }, [canQuery, guestDetails.tourism_type, isQuoting, search, t, token]);
 
   const applyVoucher = useCallback(async (nextVoucherId: number | '') => {
+    if (isQuoting) return;
     if (nextVoucherId !== '' && !eligibleVoucherIds.has(nextVoucherId)) return;
     const eligibilityKey = nextVoucherId === '' || !selectedOffer ? null : voucherStayEligibilityKey(nextVoucherId, selectedOffer.room_type_id, search);
     if (eligibilityKey && ineligibleVoucherKeys.has(eligibilityKey)) return;
@@ -270,13 +271,13 @@ const PortalBookingPage: React.FC = () => {
       setVoucherId('');
       setError(guestErrorMessage(quoteError, t('book.errors.voucherFailed')));
     } finally { setIsQuoting(false); }
-  }, [complimentaryDates, eligibleVoucherIds, ineligibleVoucherKeys, search, selectedOffer, t, token]);
+  }, [complimentaryDates, eligibleVoucherIds, ineligibleVoucherKeys, isQuoting, search, selectedOffer, t, token]);
 
   // Complimentary nights are re-priced server-side on every toggle: the credit
   // is worth exactly the rate of the night it is spent on, so the guest sees
   // the real total before committing.
   const applyComplimentaryDates = useCallback(async (nextDates: string[]) => {
-    if (!token || !selectedOffer) return;
+    if (!token || !selectedOffer || isQuoting) return;
     const previousDates = complimentaryDates;
     setComplimentaryDates(nextDates);
     setIsQuoting(true); setError(null);
@@ -287,7 +288,7 @@ const PortalBookingPage: React.FC = () => {
       setComplimentaryDates(previousDates);
       setError(guestErrorMessage(quoteError, t('book.errors.creditsFailed')));
     } finally { setIsQuoting(false); }
-  }, [complimentaryDates, search, selectedOffer, t, token, voucherId]);
+  }, [complimentaryDates, isQuoting, search, selectedOffer, t, token, voucherId]);
 
   const submitAnonymousBooking = useCallback(async () => {
     if (!quote) return;
@@ -510,7 +511,7 @@ function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guest
   return (
     <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5">{t('book.reviewStay')}</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography sx={{
         color: "text.secondary"
-      }}>{t('book.staySummary', { checkIn: quote.check_in_date, checkOut: quote.check_out_date, nights: nightsLabel, adults: quote.adults, children: childrenLabel })}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} nicknameTaken={nicknameTaken} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} />{vouchersError ? <Alert severity="warning" role="alert" sx={{ mt: 3 }} action={<Button color="inherit" size="small" onClick={onRetryVouchers}>{t('common:actions.retry')}</Button>}>{vouchersError}</Alert> : null}<FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">{t('book.voucher')}</InputLabel><Select labelId="voucher-label" label={t('book.voucher')} value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">{t('book.noVoucher')}</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? t('book.notEligible') : ''}{voucher.is_cancellable === false ? t('book.voucherNonCancellable') : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" role="alert" sx={{ mt: 2 }}>{t('book.voucherApplied', { name: quote.voucher_name })}</Alert>}{quote.voucher_is_cancellable === false && <Alert severity="warning" role="alert" sx={{ mt: 2 }}>{t('book.voucherLocksCancellation')}</Alert>}</>}<ConsentBlock prompts={BOOKING_CONSENTS} state={consent} /><TextField label={t('book.specialRequests')} value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
+      }}>{t('book.staySummary', { checkIn: quote.check_in_date, checkOut: quote.check_out_date, nights: nightsLabel, adults: quote.adults, children: childrenLabel })}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} nicknameTaken={nicknameTaken} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} disabled={isSubmitting} />{vouchersError ? <Alert severity="warning" role="alert" sx={{ mt: 3 }} action={<Button color="inherit" size="small" onClick={onRetryVouchers}>{t('common:actions.retry')}</Button>}>{vouchersError}</Alert> : null}<FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">{t('book.voucher')}</InputLabel><Select labelId="voucher-label" label={t('book.voucher')} value={voucherId} disabled={isSubmitting} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">{t('book.noVoucher')}</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? t('book.notEligible') : ''}{voucher.is_cancellable === false ? t('book.voucherNonCancellable') : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" role="alert" sx={{ mt: 2 }}>{t('book.voucherApplied', { name: quote.voucher_name })}</Alert>}{quote.voucher_is_cancellable === false && <Alert severity="warning" role="alert" sx={{ mt: 2 }}>{t('book.voucherLocksCancellation')}</Alert>}</>}<ConsentBlock prompts={BOOKING_CONSENTS} state={consent} /><TextField label={t('book.specialRequests')} value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
         htmlInput: { maxLength: 1000 }
       }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label={t('book.dailyCleaning')} /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>
   );
@@ -579,7 +580,7 @@ function GuestDetailsForm({ details, onChange, nicknameTaken }: { details: Anony
  * the nights rather than the count — spending a credit on the expensive night
  * is worth more than on the cheap one, and that should be their call.
  */
-function ComplimentaryNights({ quote, onChange }: { quote: GuestBookingQuote; onChange: (value: string[]) => void }) {
+function ComplimentaryNights({ quote, onChange, disabled = false }: { quote: GuestBookingQuote; onChange: (value: string[]) => void; disabled?: boolean }) {
   const { t } = useTranslation('guestPortal');
   const selected = quote.complimentary_dates ?? [];
   const available = quote.credits_available ?? 0;
@@ -622,7 +623,7 @@ function ComplimentaryNights({ quote, onChange }: { quote: GuestBookingQuote; on
                 key={rate.date}
                 sx={{ display: 'flex', ml: 0, justifyContent: 'space-between' }}
                 labelPlacement="start"
-                control={<Checkbox checked={isSelected} disabled={!isSelected && atLimit} onChange={() => toggle(rate.date)} />}
+                control={<Checkbox checked={isSelected} disabled={disabled || (!isSelected && atLimit)} onChange={() => toggle(rate.date)} />}
                 label={<Typography variant="body2" sx={{ textDecoration: isSelected ? 'line-through' : undefined }}>{rate.date} · {money(rate.amount, quote.currency)}</Typography>}
               />
             );

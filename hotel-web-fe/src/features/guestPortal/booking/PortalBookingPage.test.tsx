@@ -229,6 +229,38 @@ describe('PortalBookingPage voucher eligibility', () => {
     expect(disabledVoucher.getAttribute('aria-disabled')).toBe('true');
   });
 
+  it('blocks a second voucher change while a re-quote is still in flight', async () => {
+    mocks.voucherOptions.mockResolvedValue({
+      quote,
+      eligible_voucher_ids: [31],
+    });
+    let release!: (nextQuote: unknown) => void;
+    mocks.quote.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Voucher' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Summer Saver (SAVE-10)' }));
+    await waitFor(() => expect(mocks.quote).toHaveBeenCalledTimes(1));
+
+    // The picker disables while the re-price runs, so no overlapping quote can
+    // start and resolve out of order over the newer one.
+    const voucherPicker = screen.getByRole('combobox', { name: 'Voucher' });
+    expect(voucherPicker.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.mouseDown(voucherPicker);
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(mocks.quote).toHaveBeenCalledTimes(1);
+
+    release(quote);
+    await waitFor(() =>
+      expect(voucherPicker.getAttribute('aria-disabled')).not.toBe('true'),
+    );
+  });
+
   it('warns at the voucher picker when vouchers fail to load, without masking the quote flow', async () => {
     mocks.listVouchers.mockReset().mockRejectedValue(new Error('Network down'));
 
@@ -476,6 +508,29 @@ describe('PortalBookingPage complimentary nights', () => {
       complimentary_dates: ['2026-07-18'],
     });
     expect(await screen.findByText('Complimentary nights (1)')).toBeTruthy();
+  });
+
+  it('ignores complimentary-night toggles while a re-quote is in flight', async () => {
+    let release!: (nextQuote: unknown) => void;
+    mocks.quote.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+
+    render(<PortalBookingPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Use your complimentary nights');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /2026-07-17/ }));
+    await waitFor(() => expect(mocks.quote).toHaveBeenCalledTimes(1));
+
+    // Disabled while the re-price runs: a second toggle would otherwise fire an
+    // overlapping quote that could resolve last and overwrite the newer one.
+    const otherNight = screen.getByRole('checkbox', { name: /2026-07-18/ }) as HTMLInputElement;
+    expect(otherNight.disabled).toBe(true);
+    fireEvent.click(otherNight);
+    expect(mocks.quote).toHaveBeenCalledTimes(1);
+
+    release(twoNightQuote);
+    await waitFor(() => expect(otherNight.disabled).toBe(false));
   });
 
   it('stops the guest selecting more nights than they hold credits for', async () => {
