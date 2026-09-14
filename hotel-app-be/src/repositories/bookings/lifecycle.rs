@@ -2438,6 +2438,69 @@ pub async fn void_booking_payments_tx(
     Ok(())
 }
 
+/// Void every open receivable the booking posted to the city ledger.
+///
+/// `auto_post_company_ledger` (and any manual ledger entry linked to the
+/// booking) creates a receivable that only exists because the booking does;
+/// once the booking is voided the debt basis is gone, so the row is voided
+/// with it inside the same transaction. Mirrors the manual `void_ledger`
+/// guard: rows with collected money (`paid_amount > 0`) are left untouched —
+/// voiding them would erase evidence of real payments, so they stay open for
+/// refund/reconciliation and are counted in the return value.
+///
+/// Returns `(voided, skipped_paid)` row counts.
+pub async fn void_booking_ledgers_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    user_id: Option<i64>,
+    reason: &str,
+) -> Result<(u64, u64), ApiError> {
+    let voided = sqlx::query(
+        r#"
+        UPDATE customer_ledgers
+        SET void_at = CURRENT_TIMESTAMP,
+            void_by = $2,
+            void_reason = $3,
+            status = 'void',
+            updated_at = CURRENT_TIMESTAMP,
+            updated_by = $2
+        WHERE booking_id = $1
+          AND void_at IS NULL
+          AND COALESCE(is_reversal, false) = false
+          AND COALESCE(paid_amount, 0) <= 0
+        "#,
+    )
+    .bind(booking_id)
+    .bind(user_id)
+    .bind(reason)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .rows_affected();
+
+    let skipped_paid: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM customer_ledgers \
+         WHERE booking_id = $1 AND void_at IS NULL \
+         AND COALESCE(is_reversal, false) = false \
+         AND COALESCE(paid_amount, 0) > 0",
+    )
+    .bind(booking_id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let skipped_paid = u64::try_from(skipped_paid).unwrap_or(0);
+
+    if skipped_paid > 0 {
+        log::warn!(
+            "void_booking: {} customer_ledgers row(s) for booking {} hold collected payments; left open for reconciliation",
+            skipped_paid,
+            booking_id
+        );
+    }
+
+    Ok((voided, skipped_paid))
+}
+
 /// Void only unfinished payment attempts. Guest self-service cancellation must
 /// retain completed payment records for reconciliation and any later refund.
 pub async fn void_uncompleted_booking_payments_tx(

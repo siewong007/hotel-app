@@ -22,13 +22,10 @@
 //! 910_2xx, rooms 910_3xx, room_types 910_4xx, companies 910_5xx. String
 //! uniques are prefixed "Lgr910"/"lgr910".
 //!
-//! While writing the void-booking test we found that `void_booking`
-//! (`src/services/bookings.rs`) never touches `customer_ledgers` at all: a
-//! company-billed booking's auto-posted city-ledger row is left exactly as
-//! it was (still `pending`, `void_at` still NULL) after the booking itself
-//! is voided. The test below asserts that CURRENT behavior rather than
-//! inventing a void-propagation policy that doesn't exist in the code --
-//! see the report back to the caller for the product-gap flag. Separately,
+//! `void_booking` (`src/services/bookings.rs`) cascades to `customer_ledgers`:
+//! open receivables linked to the booking are voided in the same transaction,
+//! while rows holding collected payments are left open for reconciliation
+//! (mirroring the manual `void_ledger` guard). Separately,
 //! `.claude/refs/ledger-workflow.md` line 23 claims `void_ledger` "stamps
 //! ... status `cancelled`"; the actual code (ledger.rs:961) sets
 //! `status = 'void'` (a distinct value in the `valid_status` CHECK
@@ -765,12 +762,13 @@ mod postgres_tests {
     }
 
     // -----------------------------------------------------------------
-    // Scenario 3: voiding a booking currently leaves its auto-posted ledger
-    // row completely untouched -- documents CURRENT behavior (see the file
-    // doc comment above); this is not an assertion of intended policy.
+    // Scenario 3: voiding a booking cascades to its open receivables --
+    // unpaid auto-posted ledger rows are voided in the same transaction,
+    // while a row holding collected payments stays open for
+    // reconciliation (the same guard `void_ledger` applies manually).
     // -----------------------------------------------------------------
     #[tokio::test]
-    async fn postgres_void_booking_leaves_auto_posted_ledger_row_untouched() {
+    async fn postgres_void_booking_voids_unpaid_ledger_rows_but_keeps_paid_ones() {
         let Some((pool, _guard)) = setup_pg_pool().await else {
             return;
         };
@@ -848,22 +846,113 @@ mod postgres_tests {
 
         let after = ledgers::get_customer_ledger(&pool, ledger_id)
             .await
-            .expect("ledger row must still exist -- void_booking has no ledger-side effect today");
+            .expect("ledger row must still exist after voiding");
         assert_eq!(
-            after.status, before.status,
-            "current behavior: void_booking does not cancel/void the associated ledger row"
+            after.status, "void",
+            "void_booking cascades: the open receivable is voided with its booking"
         );
         assert_eq!(after.amount, before.amount);
         assert_eq!(after.paid_amount, before.paid_amount);
-        assert_eq!(
-            after.void_at, None,
-            "void_booking never sets customer_ledgers.void_at -- the receivable stays open"
+        assert!(
+            after.void_at.is_some(),
+            "void_booking sets customer_ledgers.void_at"
         );
+        assert_eq!(after.void_by, Some(actor_id));
+        assert_eq!(after.void_reason.as_deref(), Some("Lgr910 test void"));
         assert_eq!(
             after.booking_id,
             Some(booking_id),
-            "customer_ledgers.booking_id is left pointing at the now-voided booking"
+            "customer_ledgers.booking_id still points at the voided booking for audit"
         );
+
+        // Paid-row guard: a receivable that has collected money must survive
+        // the cascade — voiding it would erase evidence of real payments.
+        let paid_booking_id = 910_104;
+        let paid_guest_id = 910_204;
+        let paid_room_id = 910_304;
+        let paid_room_type_id = 910_404;
+        let paid_company = "Lgr910 Void Paid Co";
+        cleanup_booking_fixture(
+            &pool,
+            paid_booking_id,
+            paid_guest_id,
+            paid_room_id,
+            paid_room_type_id,
+            paid_company,
+        )
+        .await;
+
+        seed_company_billed_booking(
+            &pool,
+            CompanyBilledBookingFixture {
+                actor_id,
+                booking_id: paid_booking_id,
+                guest_id: paid_guest_id,
+                room_id: paid_room_id,
+                room_type_id: paid_room_type_id,
+                company_name: paid_company,
+                room_rate: Decimal::new(12_000, 2),
+                nights: 1,
+                check_in,
+                check_out,
+            },
+        )
+        .await;
+
+        let Json(_) = bookings::update_booking_handler(
+            State(pool.clone()),
+            Extension(actor_id),
+            Path(paid_booking_id),
+            Json(BookingUpdateInput {
+                status: Some("checked_out".to_string()),
+                ..empty_booking_update()
+            }),
+        )
+        .await
+        .expect("checkout transition should succeed");
+
+        let paid_ledger_id = fetch_room_charge_ledger_id(&pool, paid_booking_id).await;
+        ledgers::create_ledger_payment(
+            &pool,
+            paid_ledger_id,
+            actor_id,
+            CustomerLedgerPaymentRequest {
+                payment_amount: 50.0,
+                payment_method: "bank_transfer".to_string(),
+                payment_reference: None,
+                receipt_number: Some("LGR910-RCT-VOID".to_string()),
+                receipt_file_url: None,
+                notes: None,
+                payment_date: None,
+                idempotency_key: "lgr910-void-paid-payment".to_string(),
+            },
+        )
+        .await
+        .expect("partial payment on the receivable should succeed");
+
+        bookings::void_booking(&pool, actor_id, paid_booking_id, None)
+            .await
+            .expect("voiding a booking whose ledger holds payments should still succeed");
+
+        let paid_after = ledgers::get_customer_ledger(&pool, paid_ledger_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            paid_after.status, "partial",
+            "a ledger row holding collected payments is left open for reconciliation"
+        );
+        assert_eq!(paid_after.void_at, None);
+        assert_eq!(paid_after.paid_amount, Decimal::new(50_000, 2));
+
+        cleanup_booking_fixture(
+            &pool,
+            paid_booking_id,
+            paid_guest_id,
+            paid_room_id,
+            paid_room_type_id,
+            paid_company,
+        )
+        .await;
 
         cleanup_booking_fixture(
             &pool,

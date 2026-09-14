@@ -87,17 +87,26 @@ tree and removed per convention.
 
 ## Decisions needed (user)
 
-- Voided bookings leave their receivable open: `services/bookings.rs::void_booking`
-  never touches the auto-posted company/city-ledger row — it stays `pending`
-  with `void_at` NULL. Cascade the void to the ledger row, or keep manual
-  reconciliation? (Money policy; `tests/ledger_service.rs` documents current
-  behavior.)
-- `GuestUpdateInput.is_active` is accepted by the API but never persisted — a
-  silent no-op. Removing it changes the request contract.
+- ~~Voided bookings leave their receivable open~~ RESOLVED (cascade chosen):
+  `void_booking_ledgers_tx` (repositories/bookings/lifecycle.rs) now voids
+  every open, non-reversal, unpaid ledger row linked to the booking inside
+  the same transaction — applied in all three void paths (staff void, guest
+  self-cancel, unpaid-hold release). Rows with `paid_amount > 0` are left
+  open for reconciliation (same guard as manual `void_ledger`) and counted
+  in the response as `ledger_entries_with_payments`; `ledger_entries_voided`
+  is also reported. Pinned by
+  `postgres_void_booking_voids_unpaid_ledger_rows_but_keeps_paid_ones`.
+- ~~`GuestUpdateInput.is_active` is accepted but never persisted~~ RESOLVED:
+  already a deliberate, documented no-op (models/guest.rs — activation is an
+  admin-only action via services/users.rs; approved 2026-08-22, removal
+  deferred to the next contract bump). No action.
 - FE `CustomerLedger/helpers.ts::getLedgerUiStatus:81` has an unreachable
   `'draft'` branch: line 76 returns `'paid'` for any non-positive balance.
   Whether a zero-balance un-invoiced ledger should read "Draft" instead of
-  "Paid" is a product call.
+  "Paid" is a product call. Note the backend `ui_status='draft'` filter
+  bucket already exists and *disagrees* with the chip today: the filter
+  catches zero-balance rows whose stored status isn't 'paid', but the chip
+  renders them "Paid".
 - Branch protection on master: no rule exists (verified via `gh api`
   2026-07-26). Pick required checks, review count, and admin bypass — or
   delegate with the policy stated.
