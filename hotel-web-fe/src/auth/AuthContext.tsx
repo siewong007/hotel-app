@@ -434,7 +434,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw error;
       }
 
-      throw new Error(errorMessage(error, 'Google sign-in failed'));
+      throw new Error(errorMessage(error, t('errors.googleSignInFailed', undefined, 'auth')));
     }
   }, [applyAuthSession]);
 
