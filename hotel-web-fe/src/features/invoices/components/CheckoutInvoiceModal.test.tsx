@@ -17,6 +17,7 @@ import type { CheckoutPaymentRecord } from '../types';
 const mocks = vi.hoisted(() => ({
   recordPayment: vi.fn(),
   createLedgerPayment: vi.fn(),
+  updatePayment: vi.fn(),
   setPayments: vi.fn(),
   reloadPayments: vi.fn(),
   updateBooking: vi.fn(),
@@ -37,7 +38,7 @@ vi.mock('../../../api', () => ({
 vi.mock('../../../api/invoices.service', () => ({
   InvoicesService: {
     recordPayment: (...args: unknown[]) => mocks.recordPayment(...args),
-    updatePayment: vi.fn(),
+    updatePayment: (...args: unknown[]) => mocks.updatePayment(...args),
     deletePayment: vi.fn(),
     refundDeposit: (...args: unknown[]) => mocks.refundDeposit(...args),
     forfeitDeposit: (...args: unknown[]) => mocks.forfeitDeposit(...args),
@@ -395,6 +396,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
 
   beforeEach(() => {
     mocks.forfeitDeposit.mockReset().mockResolvedValue({ id: 3, payment_status: 'completed', payment_type: 'deposit_forfeited', total_amount: 50 });
+    mocks.updatePayment.mockReset().mockResolvedValue({ ...depositRow, payment_method: 'bank_transfer' });
     mocks.reloadPayments.mockReset().mockResolvedValue(undefined);
     mocks.setPayments.mockReset();
     mocks.payments = [depositRow, billPayment];
@@ -527,5 +529,46 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
       (within(dialog).getByRole('button', { name: 'Forfeit Deposit' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(mocks.forfeitDeposit).not.toHaveBeenCalled();
+  });
+
+  // A wrong tender on a posted deposit row can't be voided (in-house deposit
+  // voids are guarded), so the row exposes a method-only correction: Edit
+  // opens a form with just the tender Select, and the PATCH sends only
+  // payment_method — amount/date/reference would 400 on a completed row.
+  it('lets staff correct a deposit row method — method-only form', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('Deposit held')).toBeDefined());
+    // Scope to the deposits section — the section header sits in its own Box
+    // directly above the rows, so two levels up is the section container.
+    const depositsHeader = within(dialog).getByText(/Deposits — collateral/i);
+    const depositSection = depositsHeader.parentElement!.parentElement!;
+    // The deposit row gets Edit but never Delete — the folio's only delete
+    // button still belongs to the bill payment.
+    expect(within(depositSection).queryByTestId('DeleteIcon')).toBeNull();
+    expect(within(dialog).getAllByTestId('DeleteIcon')).toHaveLength(1);
+
+    fireEvent.click(
+      within(depositSection).getByRole('button', { name: 'Edit deposit payment method' }),
+    );
+
+    // Method-only form: the tender Select renders; amount, date, reference
+    // and notes fields do not — the backend keeps them immutable.
+    await within(depositSection).findByRole('combobox');
+    expect(within(depositSection).queryByLabelText('Amount')).toBeNull();
+    expect(within(depositSection).queryByLabelText('Payment Date')).toBeNull();
+    expect(within(depositSection).queryByLabelText('Reference')).toBeNull();
+    expect(within(depositSection).queryByLabelText('Notes')).toBeNull();
+
+    fireEvent.mouseDown(within(depositSection).getByRole('combobox'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
+    fireEvent.click(within(depositSection).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mocks.updatePayment).toHaveBeenCalledTimes(1));
+    expect(mocks.updatePayment).toHaveBeenCalledWith(1, { payment_method: 'Bank Transfer' });
+    // No amount/payment_date/transaction_reference keys — sending them on a
+    // posted deposit row would be rejected server-side.
+    expect(Object.keys(mocks.updatePayment.mock.calls[0][1])).toEqual(['payment_method']);
   });
 });

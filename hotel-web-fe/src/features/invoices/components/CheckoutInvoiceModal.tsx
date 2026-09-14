@@ -362,7 +362,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   };
 
   const handleUpdatePayment = async () => {
-    if (!editingPayment || !isPositiveMoney(editAmount)) return;
+    if (!editingPayment) return;
+    // Deposit-like rows admit only a method correction — their amount and
+    // date are immutable once posted, so the positive-amount gate applies
+    // just to the full edit form.
+    const depositLike = isDepositLikePayment(editingPayment);
+    if (!depositLike && !isPositiveMoney(editAmount)) return;
     try {
       setUpdatingPayment(true);
       if (isLedgerView && ledger) {
@@ -375,6 +380,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         });
         await reloadPayments();
         onLedgerPaymentsChanged?.();
+      } else if (depositLike) {
+        // Method-only correction: PATCH /payments rejects amount/date edits
+        // on posted deposit rows, so the request sends just the tender.
+        const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {
+          payment_method: editMethod,
+        });
+        setPayments(prev => prev.map(p => p.id === editingPayment.id ? updatedPayment : p));
+        invalidateInvoiceState();
       } else {
         const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {
           amount: editAmount,
@@ -1651,9 +1664,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               )}
 
               {/* Deposit-type rows are held collateral / forfeited income, not
-                  bill settlement — grouped separately and deliberately given no
-                  Edit/Delete affordances: they resolve via refund or forfeit,
-                  never by voiding the row here. */}
+                  bill settlement — grouped separately with a method-only Edit
+                  (a wrong tender is the only honest correction now that
+                  in-house deposit voids are guarded) and still no Delete:
+                  they resolve via refund or forfeit, never by voiding the
+                  row here. */}
               {depositPayments.length > 0 && (
                 <Box sx={{ p: 0 }}>
                   <Box sx={{ px: 1.5, py: 0.75, bgcolor: '#eceff1', borderBottom: '1px solid #eee' }}>
@@ -1665,41 +1680,94 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     const forfeited = (p.payment_type || '').toLowerCase() === 'deposit_forfeited';
                     return (
                       <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee', bgcolor: '#fafafa' }}>
-                        <Grid container sx={{
-                          alignItems: "center"
-                        }}>
-                          <Grid size={4}>
-                            <Typography variant="body2">
-                              {formatStatusLabel(p.payment_method, '')}
-                            </Typography>
-                            <Typography variant="caption" sx={{
-                              color: "text.secondary"
-                            }}>
-                              {formatPaymentDateTime(p)}
-                            </Typography>
-                          </Grid>
-                          <Grid size={5}>
-                            <Chip
-                              label={forfeited ? 'Deposit forfeited' : 'Deposit held'}
-                              size="small"
-                              color={forfeited ? 'warning' : 'info'}
-                              sx={{ height: 20, fontSize: '0.7rem' }}
-                            />
-                            {(p.transaction_reference || p.notes) && (
-                              <Typography variant="caption" sx={{
-                                color: "text.secondary",
-                                display: 'block'
-                              }}>
-                                {p.transaction_reference || p.notes}
+                        {editingPayment?.id === p.id ? (
+                          // Method-only edit form — amount/date/reference are
+                          // immutable on a posted deposit row (the backend
+                          // rejects them), so the row swaps to just the tender
+                          // Select plus Save/Cancel.
+                          (<Box>
+                            <Grid container spacing={1} sx={{ mb: 1 }}>
+                              <Grid size={4}>
+                                <FormControl fullWidth size="small">
+                                  <InputLabel>Method</InputLabel>
+                                  <Select
+                                    value={editMethod}
+                                    label="Method"
+                                    onChange={(e) => setEditMethod(e.target.value)}
+                                  >
+                                    {hotelSettings.payment_methods.map((method) => (
+                                      <MenuItem key={method} value={method}>{method}</MenuItem>
+                                    ))}
+                                  </Select>
+                                </FormControl>
+                              </Grid>
+                            </Grid>
+                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                              <Button
+                                size="small"
+                                onClick={handleCancelEdit}
+                                disabled={updatingPayment}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={handleUpdatePayment}
+                                disabled={updatingPayment}
+                              >
+                                {updatingPayment ? 'Saving...' : 'Save'}
+                              </Button>
+                            </Box>
+                          </Box>)
+                        ) : (
+                          <Grid container sx={{
+                            alignItems: "center"
+                          }}>
+                            <Grid size={4}>
+                              <Typography variant="body2">
+                                {formatStatusLabel(p.payment_method, '')}
                               </Typography>
-                            )}
+                              <Typography variant="caption" sx={{
+                                color: "text.secondary"
+                              }}>
+                                {formatPaymentDateTime(p)}
+                              </Typography>
+                            </Grid>
+                            <Grid size={5}>
+                              <Chip
+                                label={forfeited ? 'Deposit forfeited' : 'Deposit held'}
+                                size="small"
+                                color={forfeited ? 'warning' : 'info'}
+                                sx={{ height: 20, fontSize: '0.7rem' }}
+                              />
+                              {(p.transaction_reference || p.notes) && (
+                                <Typography variant="caption" sx={{
+                                  color: "text.secondary",
+                                  display: 'block'
+                                }}>
+                                  {p.transaction_reference || p.notes}
+                                </Typography>
+                              )}
+                            </Grid>
+                            <Grid sx={{ textAlign: 'right' }} size={2}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#e65100' }}>
+                                {formatCurrency(toMoneyNumber(p.total_amount))}
+                              </Typography>
+                            </Grid>
+                            <Grid sx={{ textAlign: 'right' }} size={1}>
+                              <Button
+                                size="small"
+                                sx={{ minWidth: 'auto', p: 0.5 }}
+                                onClick={() => handleStartEdit(p)}
+                                disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
+                                aria-label="Edit deposit payment method"
+                              >
+                                <EditIcon fontSize="small" />
+                              </Button>
+                            </Grid>
                           </Grid>
-                          <Grid sx={{ textAlign: 'right' }} size={3}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#e65100' }}>
-                              {formatCurrency(toMoneyNumber(p.total_amount))}
-                            </Typography>
-                          </Grid>
-                        </Grid>
+                        )}
                       </Box>
                     );
                   })}

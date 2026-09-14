@@ -1248,9 +1248,16 @@ pub async fn create_booking_handler(
     {
         let deposit_payment = CheckInPaymentRecord {
             amount: amount_paid,
+            // The deposit row records the tender actually collected for it
+            // (`deposit_payment_method`), falling back to the booking-level
+            // `payment_method` — the bill's tender — when absent or blank.
             payment_method: input
-                .payment_method
-                .clone()
+                .deposit_payment_method
+                .as_deref()
+                .map(str::trim)
+                .filter(|m| !m.is_empty())
+                .map(str::to_string)
+                .or_else(|| input.payment_method.clone())
                 .unwrap_or_else(|| "Cash".to_string()),
             payment_type: Some("deposit".to_string()),
             notes: Some("Deposit paid at booking".to_string()),
@@ -2829,7 +2836,18 @@ pub async fn reconcile_booking_deposit_tx(
             if inserted {
                 // The assertion attests money physically collected at the
                 // desk; record it as a real deposit payment so the refund
-                // ceiling can draw on it.
+                // ceiling can draw on it. The tender on the row is the
+                // caller-supplied `deposit_payment_method` (what the desk
+                // actually collected), falling back to the booking-level
+                // `payment_method` — the bill's tender — only when the
+                // deposit tender is absent or blank.
+                let deposit_method = booking_update
+                    .deposit_payment_method
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|m| !m.is_empty())
+                    .or(booking_update.payment_method.as_deref())
+                    .unwrap_or("Cash");
                 sqlx::query(
                     "INSERT INTO payments \
                         (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by) \
@@ -2837,7 +2855,7 @@ pub async fn reconcile_booking_deposit_tx(
                 )
                 .bind(booking_id)
                 .bind(decimal_to_db(delta))
-                .bind(booking_update.payment_method.as_deref().unwrap_or("Cash"))
+                .bind(deposit_method)
                 .bind(
                     booking_update
                         .payment_note

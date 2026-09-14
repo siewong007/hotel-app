@@ -378,6 +378,7 @@ const ReceptionistDashboard: React.FC = () => {
         updateData.deposit_paid = true;
         updateData.deposit_amount = ciDepositAmount;
         updateData.payment_note = `Deposit received (${ciDepositMethod})`;
+        updateData.deposit_payment_method = ciDepositMethod;
       } else {
         updateData.deposit_paid = false;
         updateData.deposit_amount = 0;
