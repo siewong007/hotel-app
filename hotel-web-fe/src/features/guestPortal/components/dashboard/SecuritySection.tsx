@@ -51,8 +51,6 @@ import { formatHotelDate } from '../../../../utils/date';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 import { formatPortalDate } from './dashboardUtils';
 
-const FOREST = 'var(--hotel-text)';
-const GOLD_TEXT = 'var(--hotel-primary-text)';
 
 /** Matches `services::passkey`, which refuses an eleventh passkey per user. */
 export const MAX_PASSKEYS = 10;
@@ -110,9 +108,9 @@ function CredentialCard({
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, minWidth: 0 }}>
-          <Box sx={{ color: GOLD_TEXT, lineHeight: 0, mt: 0.25 }}>{icon}</Box>
+          <Box sx={{ color: 'var(--hotel-primary-text)', lineHeight: 0, mt: 0.25 }}>{icon}</Box>
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h6" component="h3" sx={{ color: FOREST, fontWeight: 700 }}>
+            <Typography variant="h6" component="h3" sx={{ color: 'var(--hotel-text)', fontWeight: 700 }}>
               {title}
             </Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
@@ -363,7 +361,7 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
                       }
                       sx={{ flex: '1 1 12rem', minWidth: 0, my: 0 }}
                       slotProps={{
-                        primary: { sx: { fontWeight: 600, color: FOREST } },
+                        primary: { sx: { fontWeight: 600, color: 'var(--hotel-text)' } },
                         secondary: { sx: { color: 'text.secondary' } },
                       }}
                     />

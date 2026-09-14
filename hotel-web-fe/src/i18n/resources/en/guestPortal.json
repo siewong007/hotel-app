@@ -30,7 +30,24 @@
     "credits": "Free nights",
     "identity": "Identity",
     "security": "Security",
-    "preferences": "Preferences"
+    "preferences": "Preferences",
+    "rewards": "Rewards"
+  },
+  "account": {
+    "title": "Account",
+    "signOut": "Sign out",
+    "guest": "Guest"
+  },
+  "groups": {
+    "rewards": "Rewards",
+    "account": "Account"
+  },
+  "preferences": {
+    "appearance": "Appearance",
+    "appearanceHint": "Choose how the portal looks on this device.",
+    "themeSystem": "System — follow browser",
+    "themeLight": "Light",
+    "themeDark": "Dark"
   },
   "actions": {
     "exploreHotel": "Explore hotel",

@@ -3,8 +3,8 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import { Box, Fab, IconButton, Paper, Portal, Slide, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { PortalSupportTab } from './PortalSupportTab';
+import { GUEST_BRAND } from '../theme/guestPortalTheme';
 
-const FOREST = 'var(--hotel-primary)';
 const WIDGET_Z_INDEX = 1200;
 
 interface PortalSupportWidgetProps {
@@ -58,7 +58,7 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
           display: open ? 'none' : 'inline-flex',
           textTransform: 'none',
           fontWeight: 700,
-          bgcolor: FOREST,
+          bgcolor: 'var(--hotel-primary)',
           color: 'var(--hotel-on-primary)',
           boxShadow: 'var(--hotel-shadow-md)',
           '&:hover': { bgcolor: 'var(--hotel-primary-hover)' },
@@ -108,8 +108,8 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
               py: 1.25,
               // Respect the notch/status bar when the sheet is full-screen on phones.
               pt: { xs: 'max(12px, env(safe-area-inset-top))', sm: 1.25 },
-              bgcolor: FOREST,
-              color: 'var(--hotel-on-primary)',
+              bgcolor: GUEST_BRAND.bg,
+              color: GUEST_BRAND.text,
               flexShrink: 0,
             }}
           >
@@ -124,7 +124,7 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
               onClick={() => onOpenChange(false)}
               aria-label="Close support"
               size="small"
-              sx={{ color: 'var(--hotel-on-primary)', '&:hover': { bgcolor: 'var(--hotel-active)' } }}
+              sx={{ color: GUEST_BRAND.text, '&:hover': { bgcolor: GUEST_BRAND.hover } }}
             >
               <CloseRoundedIcon />
             </IconButton>

@@ -6,6 +6,7 @@ import { getHotelSettings } from '../utils/hotelSettings';
 import { BootSplash, LoadingFallback } from '../router/RouteFallbacks';
 import { isPublicGuestPath } from './guestDocumentPaths';
 import { GuestOneTap } from '../features/auth/google/GuestOneTap';
+import { GuestPortalThemeProvider } from '../features/guestPortal/theme/GuestPortalThemeProvider';
 import { CrossAppRedirect } from './CrossAppRedirect';
 
 const GuestPortalShell = lazy(
@@ -24,10 +25,11 @@ export function GuestRootLayout() {
   const search = location.searchStr ? `?${location.searchStr.replace(/^\?+/, '')}` : '';
   const publicPath = isPublicGuestPath(pathname, search);
   const isPortal = pathname === '/guest-portal' || pathname === '/portal';
-  // Legal documents are part of the guest experience — they should carry the
-  // same shell and theme as the booking funnel that links to them, not fall
-  // back to the bare document chrome.
+  // Legal documents and the public offers catalog are part of the guest
+  // experience — they should carry the same shell and theme as the booking
+  // funnel that links to them, not fall back to the bare document chrome.
   const isLegal = pathname.startsWith('/legal/');
+  const isOffers = pathname === '/offers';
 
   const [hotelName, setHotelName] = useState(() => getHotelSettings().hotel_name);
 
@@ -75,7 +77,7 @@ export function GuestRootLayout() {
     );
   }
 
-  if (isPortal || isLegal) {
+  if (isPortal || isLegal || isOffers) {
     return (
       <>
         {oneTap}
@@ -88,10 +90,13 @@ export function GuestRootLayout() {
     );
   }
 
+  // Every remaining guest page — auth, check-in wizard, unsubscribe — renders
+  // bare (no chrome) but still inside the guest theme so the palette is the
+  // same product the portal shows.
   return (
     <>
       {oneTap}
-      {page}
+      <GuestPortalThemeProvider>{page}</GuestPortalThemeProvider>
     </>
   );
 }

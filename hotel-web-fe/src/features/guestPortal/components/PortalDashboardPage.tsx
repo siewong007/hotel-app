@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation, useNavigate } from '../../../router';
-import { Alert, Box, Button, Container, CircularProgress, Fade, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Container, CircularProgress, Fade, Stack, Typography } from '@mui/material';
 import { usePortalSessionBootstrap } from '../hooks/usePortalSessionBootstrap';
 import { BookingsSection, CreditsSection, EmbeddedSection, OverviewSection, PointsHistorySection } from './dashboard/PortalDashboardSections';
 import { IdentitySection } from './dashboard/IdentitySection';
@@ -9,22 +9,8 @@ import { SecuritySection } from './dashboard/SecuritySection';
 import { DevicesSection } from './dashboard/DevicesSection';
 import { parsePortalSection, type PortalSection } from './dashboard/dashboardUtils';
 
-// Navigation lives in GuestPortalShell (top bar on web, bottom bar on phones).
-// The heading is what tells the guest which section they landed on.
-const SECTION_TITLES: Record<PortalSection, string> = {
-  overview: 'My stay',
-  stays: 'My stays',
-  'points-history': 'Points history',
-  offers: 'Offers',
-  vouchers: 'Vouchers',
-  credits: 'Complimentary nights',
-  identity: 'Identity verification',
-  profile: 'My profile',
-  security: 'Sign-in & security',
-  preferences: 'Preferences',
-  support: 'My stay',
-};
-
+// Navigation and account chrome (profile, sign out) live in GuestPortalShell.
+// Each section renders its own SectionHeading — the page adds no second title.
 export const PortalDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const {
@@ -36,7 +22,6 @@ export const PortalDashboardPage: React.FC = () => {
     isStaffAccount,
     retry,
     restartSignIn,
-    signOut,
   } = usePortalSessionBootstrap();
   // Staff accounts belong in the admin portal, not the guest portal.
   if (isStaffAccount) {
@@ -79,14 +64,13 @@ export const PortalDashboardPage: React.FC = () => {
     );
   }
 
-  return <AuthenticatedDashboard token={token} navigate={navigate} signOut={signOut} />;
+  return <AuthenticatedDashboard token={token} navigate={navigate} />;
 };
 
 const AuthenticatedDashboard: React.FC<{
   token: string;
   navigate: ReturnType<typeof useNavigate>;
-  signOut: () => void;
-}> = ({ token, navigate, signOut }) => {
+}> = ({ token, navigate }) => {
   const location = useLocation();
   const activeSection = parsePortalSection(location.search);
   // Support is a floating panel owned by GuestPortalShell (one launcher on every
@@ -101,43 +85,29 @@ const AuthenticatedDashboard: React.FC<{
 
   return (
     <Container maxWidth="lg" sx={{ mt: { xs: 2, sm: 4 }, mb: 7, px: { xs: 2, sm: 3 } }}>
-      <Paper elevation={0} sx={{ overflow: 'hidden', border: '1px solid var(--hotel-border)', borderRadius: 3 }}>
-        <Box sx={{ p: { xs: 2.5, sm: 4 }, bgcolor: 'var(--hotel-surface-raised)', borderBottom: '1px solid var(--hotel-border-subtle)' }}>
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, gap: 2 }}>
-          {/* No hotel name here: GuestPortalShell's sticky header already shows
-              it as the logo wordmark directly above this card. */}
-          <Box><Typography variant="h4" component="h1" sx={{ color: 'var(--hotel-text)', fontWeight: 700 }}>{SECTION_TITLES[displaySection]}</Typography></Box>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <Button variant="outlined" onClick={signOut} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-              Sign Out
-            </Button>
+      <Fade in key={displaySection} timeout={220}><Box component="section" aria-live="polite">
+        {displaySection === 'overview' ? (
+          <OverviewSection
+            token={token}
+            onSectionChange={changeSection}
+          />
+        ) : null}
+        {displaySection === 'stays' ? <BookingsSection token={token} /> : null}
+        {displaySection === 'points-history' ? <PointsHistorySection token={token} /> : null}
+        {displaySection === 'credits' ? <CreditsSection token={token} /> : null}
+        {displaySection === 'identity' ? <IdentitySection token={token} /> : null}
+        {displaySection === 'profile' ? <ProfileSection token={token} /> : null}
+        {/* No token: this section acts on the guest's ACCOUNT credentials,
+            which authenticate with the ordinary account session rather than
+            the portal bearer token. See SecuritySection. */}
+        {displaySection === 'security' ? (
+          <Stack spacing={3}>
+            <SecuritySection />
+            <DevicesSection />
           </Stack>
-          </Box>
-        </Box>
-        <Fade in key={displaySection} timeout={220}><Box component="section" aria-live="polite" sx={{ p: { xs: 2.5, sm: 4 } }}>
-          {displaySection === 'overview' ? (
-            <OverviewSection
-              token={token}
-              onSectionChange={changeSection}
-            />
-          ) : null}
-          {displaySection === 'stays' ? <BookingsSection token={token} /> : null}
-          {displaySection === 'points-history' ? <PointsHistorySection token={token} /> : null}
-          {displaySection === 'credits' ? <CreditsSection token={token} /> : null}
-          {displaySection === 'identity' ? <IdentitySection token={token} /> : null}
-          {displaySection === 'profile' ? <ProfileSection token={token} /> : null}
-          {/* No token: this section acts on the guest's ACCOUNT credentials,
-              which authenticate with the ordinary account session rather than
-              the portal bearer token. See SecuritySection. */}
-          {displaySection === 'security' ? (
-            <Stack spacing={3}>
-              <SecuritySection />
-              <DevicesSection />
-            </Stack>
-          ) : null}
-          {['offers', 'vouchers', 'preferences'].includes(displaySection) ? <EmbeddedSection section={displaySection} token={token} /> : null}
-        </Box></Fade>
-      </Paper>
+        ) : null}
+        {['offers', 'vouchers', 'preferences'].includes(displaySection) ? <EmbeddedSection section={displaySection} token={token} /> : null}
+      </Box></Fade>
     </Container>
   );
 };

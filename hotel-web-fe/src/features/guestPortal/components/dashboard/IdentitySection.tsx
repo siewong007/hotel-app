@@ -26,7 +26,6 @@ import {
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 import { formatPortalDate } from './dashboardUtils';
 
-const FOREST = 'var(--hotel-text)';
 
 /** Document slots the guest uploads. `id_back` is conditional on the ID type. */
 const DOCUMENT_SLOTS = [
@@ -247,7 +246,7 @@ export function IdentitySection({ token }: { token: string }) {
                 </Typography>
               ) : null}
             </Stack>
-            <Typography sx={{ color: FOREST }}>{presentation.help}</Typography>
+            <Typography sx={{ color: 'var(--hotel-text)' }}>{presentation.help}</Typography>
             {status.customer_message ? (
               <Alert severity="info" sx={{ mt: 2 }}>
                 {status.customer_message}
@@ -259,7 +258,7 @@ export function IdentitySection({ token }: { token: string }) {
       {presentation?.blocking ? null : (
         <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }}>
           {status ? (
-            <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700, mb: 2 }}>
+            <Typography variant="h6" sx={{ color: 'var(--hotel-text)', fontWeight: 700, mb: 2 }}>
               Send us a new set of documents
             </Typography>
           ) : null}
@@ -352,7 +351,7 @@ export function IdentitySection({ token }: { token: string }) {
             </Grid>
           </Grid>
 
-          <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700, mt: 4, mb: 1 }}>
+          <Typography variant="h6" sx={{ color: 'var(--hotel-text)', fontWeight: 700, mt: 4, mb: 1 }}>
             Documents
           </Typography>
           <Typography

@@ -30,7 +30,24 @@
     "credits": "Malam Percuma",
     "identity": "Identiti",
     "security": "Keselamatan",
-    "preferences": "Keutamaan"
+    "preferences": "Keutamaan",
+    "rewards": "Ganjaran"
+  },
+  "account": {
+    "title": "Akaun",
+    "signOut": "Log keluar",
+    "guest": "Tetamu"
+  },
+  "groups": {
+    "rewards": "Ganjaran",
+    "account": "Akaun"
+  },
+  "preferences": {
+    "appearance": "Rupa",
+    "appearanceHint": "Pilih rupa portal pada peranti ini.",
+    "themeSystem": "Sistem — ikut pelayar",
+    "themeLight": "Cerah",
+    "themeDark": "Gelap"
   },
   "actions": {
     "exploreHotel": "Terokai Hotel",

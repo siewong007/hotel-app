@@ -24,8 +24,6 @@ import { errorMessage } from '../../../../utils/errorMessage';
 import { validatePhone } from '../../../../utils/validation';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 
-const FOREST = 'var(--hotel-text)';
-const GOLD_TEXT = 'var(--hotel-primary-text)';
 
 /**
  * How the backend's `missing_profile_fields` entries read to a guest.
@@ -97,7 +95,7 @@ function ReadOnlyRow({ label, value }: { label: string; value?: string | null })
       <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
         {label}
       </Typography>
-      <Typography sx={{ color: FOREST, fontWeight: 500, wordBreak: 'break-word' }}>
+      <Typography sx={{ color: 'var(--hotel-text)', fontWeight: 500, wordBreak: 'break-word' }}>
         {value?.trim() ? value : '—'}
       </Typography>
     </Grid>
@@ -264,7 +262,7 @@ export function ProfileSection({ token }: { token: string }) {
             }}
           >
             <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h6" component="h3" sx={{ color: FOREST, fontWeight: 700 }}>
+              <Typography variant="h6" component="h3" sx={{ color: 'var(--hotel-text)', fontWeight: 700 }}>
                 Contact details
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
@@ -335,7 +333,7 @@ export function ProfileSection({ token }: { token: string }) {
           variant="outlined"
           sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: 'var(--hotel-surface-raised)' }}
         >
-          <Typography variant="h6" component="h3" sx={{ color: FOREST, fontWeight: 700 }}>
+          <Typography variant="h6" component="h3" sx={{ color: 'var(--hotel-text)', fontWeight: 700 }}>
             Identity
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
@@ -350,7 +348,7 @@ export function ProfileSection({ token }: { token: string }) {
               <Chip
                 size="small"
                 label={`Display name: ${guest.nick_name}`}
-                sx={{ bgcolor: 'var(--hotel-primary-subtle)', color: GOLD_TEXT, fontWeight: 600 }}
+                sx={{ bgcolor: 'var(--hotel-primary-subtle)', color: 'var(--hotel-primary-text)', fontWeight: 600 }}
               />
             </Grid>
           </Grid>
