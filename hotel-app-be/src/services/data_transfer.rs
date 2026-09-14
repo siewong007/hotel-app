@@ -19,8 +19,10 @@ use crate::repositories::data_transfer::{
 /// Every transferable table in foreign-key-safe **insert** order (parents
 /// before children). Clearing for overwrite walks this in reverse. This is the
 /// single source of truth — the export struct, the import row loop, the
-/// overwrite clear, and column introspection all derive from it.
-const TABLE_INSERT_ORDER: &[&str] = &[
+/// overwrite clear, and column introspection all derive from it. The v2/v3
+/// insert order itself comes from `transfer_order` over live FK metadata; this
+/// constant's order still governs the V1 legacy path.
+pub const TABLE_INSERT_ORDER: &[&str] = &[
     // configuration / roots
     "amenities",
     "booking_channels",
@@ -29,14 +31,28 @@ const TABLE_INSERT_ORDER: &[&str] = &[
     "corporate_account_contacts",
     "email_templates",
     "guests",
+    // guest-derived configuration, consent and notification state — all of
+    // these reference `guests` (or nothing transferable) and the notification
+    // tables' only other parent, `users`, is excluded.
+    "guest_segments",
+    "email_suppressions",
+    "notification_subscriptions",
+    "notification_consent_events",
+    "staff_notifications",
+    "staff_notification_reads",
     "promotions",
     "vouchers",
+    "promotion_channels",
+    // campaigns reference `promotions` and `guest_segments` (RESTRICT) plus
+    // `email_templates`, so it cannot sit any earlier.
+    "email_campaigns",
     "guest_documents",
     "guest_notes",
     "guest_preferences",
     "loyalty_programs",
     "loyalty_program_rules",
     "loyalty_tiers",
+    "promotion_loyalty_tiers",
     "loyalty_memberships",
     "loyalty_members",
     "loyalty_accounts",
@@ -49,16 +65,24 @@ const TABLE_INSERT_ORDER: &[&str] = &[
     "room_status_transitions",
     "room_types",
     "promotion_room_types",
+    "online_inventory_allocations",
     "guest_complimentary_credits",
     "room_rates",
     "room_type_amenities",
     "rooms",
+    "room_events",
     "bookings",
     "voucher_redemptions",
     "voucher_redemption_allocations",
     "booking_guests",
     "booking_history",
     "booking_modifications",
+    // support threads reference `guests` (RESTRICT) and `bookings`;
+    // consent_records reference `guests`/`bookings`/`users`.
+    "support_conversations",
+    "support_messages",
+    "support_events",
+    "consent_records",
     "customer_ledgers",
     "customer_ledger_payments",
     "guest_reviews",
@@ -67,6 +91,7 @@ const TABLE_INSERT_ORDER: &[&str] = &[
     "maintenance_tickets",
     "night_audit_posted_nights",
     "payments",
+    "payment_receipt_requests",
     "loyalty_transactions",
     "reward_redemptions",
     "loyalty_redemptions",
@@ -77,7 +102,75 @@ const TABLE_INSERT_ORDER: &[&str] = &[
     "services",
     "booking_services",
     "system_settings",
+    // teams reference `users` (excluded) only; members/roles hang off `teams`.
+    "teams",
+    "team_members",
+    "team_roles",
     "user_guests",
+];
+
+/// Schema tables that must never cross the export/import boundary, as
+/// `name → reason` pairs. This is the source of truth for the v3 manifest's
+/// `exclusions` list: every table `transfer_tables()` can see that is not in
+/// [`TABLE_INSERT_ORDER`] must appear here — nothing is silently omitted.
+///
+/// Reason codes:
+/// - `credentials_and_auth_state` — password hashes, TOTP seeds, RBAC grants.
+/// - `session_or_token_material` — live sessions and token/challenge state.
+/// - `sensitive_ekyc_pii` — identity documents and biometric evidence.
+/// - `ephemeral_queue_state` — live send/request queues; re-import replays them.
+/// - `internal_system_table` — platform bookkeeping, not business data.
+#[allow(dead_code)] // Consumed by the v3 export manifest in the next task.
+pub const EXCLUDED_TABLES: &[(&str, &str)] = &[
+    ("public.users", "credentials_and_auth_state"),
+    ("public.roles", "credentials_and_auth_state"),
+    ("public.permissions", "credentials_and_auth_state"),
+    ("public.role_permissions", "credentials_and_auth_state"),
+    ("public.user_roles", "credentials_and_auth_state"),
+    ("public.user_permissions", "credentials_and_auth_state"),
+    ("public.route_access_policies", "credentials_and_auth_state"),
+    ("public.refresh_tokens", "session_or_token_material"),
+    ("public.user_sessions", "session_or_token_material"),
+    ("public.passkeys", "session_or_token_material"),
+    ("public.passkey_challenges", "session_or_token_material"),
+    ("public.two_factor_challenges", "session_or_token_material"),
+    ("public.guest_portal_sessions", "session_or_token_material"),
+    (
+        "public.payment_retry_capabilities",
+        "session_or_token_material",
+    ),
+    ("public.ekyc_verifications", "sensitive_ekyc_pii"),
+    ("public.ekyc_decision_history", "sensitive_ekyc_pii"),
+    ("public.ekyc_access_events", "sensitive_ekyc_pii"),
+    ("public.ekyc_sensitive_reveals", "sensitive_ekyc_pii"),
+    ("public.ekyc_idempotency_keys", "sensitive_ekyc_pii"),
+    ("public.ekyc_notes", "sensitive_ekyc_pii"),
+    ("public.ekyc_reason_codes", "sensitive_ekyc_pii"),
+    ("public.email_deliveries", "ephemeral_queue_state"),
+    (
+        "public.support_action_idempotency_keys",
+        "ephemeral_queue_state",
+    ),
+    (
+        "public.support_guest_request_idempotency_keys",
+        "ephemeral_queue_state",
+    ),
+    ("public.job_runs", "internal_system_table"),
+    ("public.hotel_schema_revisions", "internal_system_table"),
+    ("app.invalid_data_quarantine", "internal_system_table"),
+    ("public.audit_logs", "internal_system_table"),
+    ("public.audit_logs_default", "internal_system_table"),
+];
+
+/// Every reason code [`EXCLUDED_TABLES`] may use — keeps the manifest's
+/// vocabulary fixed instead of drifting per entry.
+#[allow(dead_code)] // Asserted in tests; the manifest builder validates against it.
+const KNOWN_EXCLUSION_REASONS: &[&str] = &[
+    "credentials_and_auth_state",
+    "session_or_token_material",
+    "sensitive_ekyc_pii",
+    "ephemeral_queue_state",
+    "internal_system_table",
 ];
 
 const ALL_IMPORT_TABLES: &[&str] = TABLE_INSERT_ORDER;
@@ -100,6 +193,12 @@ const COMPOSITE_PK_TABLES: &[&str] = &[
     "room_type_amenities",
     "room_status_transitions",
     "promotion_room_types",
+    "promotion_channels",
+    "promotion_loyalty_tiers",
+    "online_inventory_allocations",
+    "team_members",
+    "team_roles",
+    "staff_notification_reads",
 ];
 
 const TABLES_WITH_TRIGGERS: &[&str] = &[
@@ -1041,9 +1140,10 @@ fn expand_overwrite_clear_tables(selected_tables: &mut HashSet<String>) {
 #[cfg(test)]
 mod tests {
     use super::{
-        ALL_IMPORT_TABLES, COMPOSITE_PK_TABLES, RoomReferenceResolver, TABLE_INSERT_ORDER,
-        base_generated_columns, expand_overwrite_clear_tables, imported_room_refs,
-        remap_room_references, selected_import_tables,
+        ALL_IMPORT_TABLES, COMPOSITE_PK_TABLES, EXCLUDED_TABLES, KNOWN_EXCLUSION_REASONS,
+        QualifiedTable, RoomReferenceResolver, TABLE_INSERT_ORDER, base_generated_columns,
+        expand_overwrite_clear_tables, imported_room_refs, remap_room_references,
+        selected_import_tables,
     };
     use serde_json::{Value, json};
     use std::collections::{HashMap, HashSet};
@@ -1057,9 +1157,46 @@ mod tests {
             "TABLE_INSERT_ORDER must not contain duplicates"
         );
         // The full-backup set the API exports/imports.
-        assert_eq!(TABLE_INSERT_ORDER.len(), 56);
+        assert_eq!(TABLE_INSERT_ORDER.len(), 75);
         // Introspection list and the canonical order must stay in lock-step.
         assert_eq!(ALL_IMPORT_TABLES, TABLE_INSERT_ORDER);
+    }
+
+    #[test]
+    fn repository_allowlist_mirrors_table_insert_order() {
+        // `repositories::data_transfer::KNOWN_TABLES` is a hand-maintained
+        // mirror of the allowlist (a SQL-injection tripwire for interpolated
+        // table names); the two must never drift apart.
+        assert_eq!(
+            crate::repositories::data_transfer::KNOWN_TABLES,
+            TABLE_INSERT_ORDER,
+            "repositories::KNOWN_TABLES must stay identical to TABLE_INSERT_ORDER"
+        );
+    }
+
+    #[test]
+    fn excluded_tables_are_qualified_unique_and_reasoned() {
+        let mut names = HashSet::new();
+        for (name, reason) in EXCLUDED_TABLES {
+            assert!(
+                name.split_once('.').is_some(),
+                "excluded table '{name}' must be schema-qualified"
+            );
+            assert!(!reason.is_empty(), "excluded table '{name}' needs a reason");
+            assert!(
+                KNOWN_EXCLUSION_REASONS.contains(reason),
+                "excluded table '{name}' uses unknown reason '{reason}'"
+            );
+            assert!(names.insert(*name), "duplicate exclusion '{name}'");
+            let qualified = QualifiedTable::parse(name)
+                .unwrap_or_else(|_| panic!("excluded table '{name}' must parse"));
+            assert!(
+                !ALL_IMPORT_TABLES.contains(&qualified.name.as_str()),
+                "'{name}' is both transferable and excluded"
+            );
+        }
+        // The 29 pg_class-visible tables kept out of the transferable set.
+        assert_eq!(EXCLUDED_TABLES.len(), 29);
     }
 
     #[test]

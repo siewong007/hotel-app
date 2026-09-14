@@ -185,7 +185,10 @@ pub fn transfer_order(
 /// literal table names from that fixed list, so this check is a no-op in
 /// normal operation; it exists so a future caller that sources a table name
 /// from request data can't reopen SQL injection via table interpolation.
-const KNOWN_TABLES: &[&str] = &[
+///
+/// `pub(crate)` so the service-layer unit tests can assert the two lists stay
+/// identical — drift here is a silent transfer gap, not a compile error.
+pub(crate) const KNOWN_TABLES: &[&str] = &[
     "amenities",
     "booking_channels",
     "companies",
@@ -193,14 +196,23 @@ const KNOWN_TABLES: &[&str] = &[
     "corporate_account_contacts",
     "email_templates",
     "guests",
+    "guest_segments",
+    "email_suppressions",
+    "notification_subscriptions",
+    "notification_consent_events",
+    "staff_notifications",
+    "staff_notification_reads",
     "promotions",
     "vouchers",
+    "promotion_channels",
+    "email_campaigns",
     "guest_documents",
     "guest_notes",
     "guest_preferences",
     "loyalty_programs",
     "loyalty_program_rules",
     "loyalty_tiers",
+    "promotion_loyalty_tiers",
     "loyalty_memberships",
     "loyalty_members",
     "loyalty_accounts",
@@ -213,16 +225,22 @@ const KNOWN_TABLES: &[&str] = &[
     "room_status_transitions",
     "room_types",
     "promotion_room_types",
+    "online_inventory_allocations",
     "guest_complimentary_credits",
     "room_rates",
     "room_type_amenities",
     "rooms",
+    "room_events",
     "bookings",
     "voucher_redemptions",
     "voucher_redemption_allocations",
     "booking_guests",
     "booking_history",
     "booking_modifications",
+    "support_conversations",
+    "support_messages",
+    "support_events",
+    "consent_records",
     "customer_ledgers",
     "customer_ledger_payments",
     "guest_reviews",
@@ -231,6 +249,7 @@ const KNOWN_TABLES: &[&str] = &[
     "maintenance_tickets",
     "night_audit_posted_nights",
     "payments",
+    "payment_receipt_requests",
     "loyalty_transactions",
     "reward_redemptions",
     "loyalty_redemptions",
@@ -241,6 +260,9 @@ const KNOWN_TABLES: &[&str] = &[
     "services",
     "booking_services",
     "system_settings",
+    "teams",
+    "team_members",
+    "team_roles",
     "user_guests",
 ];
 
