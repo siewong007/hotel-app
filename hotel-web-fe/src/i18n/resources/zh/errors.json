@@ -5,5 +5,24 @@
   "forbidden": "您没有执行此操作的权限。",
   "notFound": "找不到您要查看的内容。",
   "validation": "请检查标出的字段后重试。",
-  "server": "服务器出现问题，我们的团队已收到通知。"
+  "server": "服务器出现问题，我们的团队已收到通知。",
+  "api": {
+    "server_error": "服务器出现问题，请稍后重试。",
+    "unauthorized": "请登录后继续。",
+    "forbidden": "您没有执行此操作的权限。",
+    "bad_request": "无法处理该请求，请检查输入后重试。",
+    "not_found": "未找到所请求的内容。",
+    "conflict": "该操作与当前状态冲突，请刷新后重试。",
+    "service_unavailable": "服务暂时不可用，请稍后重试。",
+    "rate_limited": "请求过于频繁，请稍后重试。",
+    "profile_incomplete": "请完善您的个人资料后继续。",
+    "two_factor_enrollment_required": "您的角色要求启用双重身份验证，请完成设置后继续。",
+    "guest_name_taken": "该昵称已被使用，请更换。"
+  },
+  "status": {
+    "serverError": "服务器出现问题，请稍后重试。",
+    "notFound": "未找到所请求的内容。",
+    "rateLimited": "请求过于频繁，请稍后重试。",
+    "requestFailed": "请求失败。"
+  }
 }

@@ -1,0 +1,12 @@
+{
+  "title": "Notifications",
+  "markAllRead": "Mark all as read",
+  "empty": "No notifications",
+  "toast": {
+    "saved": "Saved.",
+    "deleted": "Deleted.",
+    "updated": "Updated.",
+    "failed": "The action failed. Please try again.",
+    "copied": "Copied to clipboard."
+  }
+}

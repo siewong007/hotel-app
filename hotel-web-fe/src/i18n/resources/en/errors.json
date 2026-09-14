@@ -5,5 +5,24 @@
   "forbidden": "You do not have permission to do that.",
   "notFound": "We could not find what you were looking for.",
   "validation": "Please check the highlighted fields and try again.",
-  "server": "The server ran into a problem. Our team has been notified."
+  "server": "The server ran into a problem. Our team has been notified.",
+  "api": {
+    "server_error": "A server error occurred. Please try again later.",
+    "unauthorized": "Please sign in to continue.",
+    "forbidden": "You do not have permission to perform this action.",
+    "bad_request": "The request could not be completed. Please check your input and try again.",
+    "not_found": "The requested item could not be found.",
+    "conflict": "This action conflicts with the current state. Please refresh and try again.",
+    "service_unavailable": "The service is temporarily unavailable. Please try again later.",
+    "rate_limited": "Too many requests. Please try again shortly.",
+    "profile_incomplete": "Please complete your profile to continue.",
+    "two_factor_enrollment_required": "Your role requires two-factor authentication. Please set it up to continue.",
+    "guest_name_taken": "That nickname is already taken. Please choose another."
+  },
+  "status": {
+    "serverError": "A server error occurred. Please try again later.",
+    "notFound": "The requested item could not be found.",
+    "rateLimited": "Too many requests. Please try again shortly.",
+    "requestFailed": "Request failed."
+  }
 }

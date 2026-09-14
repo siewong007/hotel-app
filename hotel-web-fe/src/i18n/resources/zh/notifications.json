@@ -1,0 +1,12 @@
+{
+  "title": "通知",
+  "markAllRead": "全部标为已读",
+  "empty": "暂无通知",
+  "toast": {
+    "saved": "已保存。",
+    "deleted": "已删除。",
+    "updated": "已更新。",
+    "failed": "操作失败，请重试。",
+    "copied": "已复制到剪贴板。"
+  }
+}

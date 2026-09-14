@@ -5,5 +5,24 @@
   "forbidden": "Anda tiada kebenaran untuk melakukannya.",
   "notFound": "Kami tidak menjumpai apa yang anda cari.",
   "validation": "Sila semak medan yang ditandakan dan cuba lagi.",
-  "server": "Pelayan menghadapi masalah. Pasukan kami telah dimaklumkan."
+  "server": "Pelayan menghadapi masalah. Pasukan kami telah dimaklumkan.",
+  "api": {
+    "server_error": "Ralat pelayan berlaku. Sila cuba lagi kemudian.",
+    "unauthorized": "Sila log masuk untuk meneruskan.",
+    "forbidden": "Anda tiada kebenaran untuk melakukan tindakan ini.",
+    "bad_request": "Permintaan tidak dapat diproses. Sila semak input anda dan cuba lagi.",
+    "not_found": "Item yang diminta tidak dapat dijumpai.",
+    "conflict": "Tindakan ini bercanggah dengan keadaan semasa. Sila muat semula dan cuba lagi.",
+    "service_unavailable": "Perkhidmatan tidak tersedia buat masa ini. Sila cuba lagi kemudian.",
+    "rate_limited": "Terlalu banyak permintaan. Sila cuba lagi sebentar nanti.",
+    "profile_incomplete": "Sila lengkapkan profil anda untuk meneruskan.",
+    "two_factor_enrollment_required": "Peranan anda memerlukan pengesahan dua faktor. Sila sediakannya untuk meneruskan.",
+    "guest_name_taken": "Nama samaran itu sudah digunakan. Sila pilih yang lain."
+  },
+  "status": {
+    "serverError": "Ralat pelayan berlaku. Sila cuba lagi kemudian.",
+    "notFound": "Item yang diminta tidak dapat dijumpai.",
+    "rateLimited": "Terlalu banyak permintaan. Sila cuba lagi sebentar nanti.",
+    "requestFailed": "Permintaan gagal."
+  }
 }

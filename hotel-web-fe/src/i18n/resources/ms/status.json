@@ -1,0 +1,203 @@
+{
+  "booking": {
+    "pending": "Menunggu",
+    "pending_payment": "Menunggu bayaran",
+    "pending_confirmation": "Menunggu pengesahan",
+    "confirmed": "Disahkan",
+    "checked_in": "Daftar masuk",
+    "auto_checked_in": "Daftar masuk auto",
+    "checked_out": "Daftar keluar",
+    "late_checkout": "Daftar keluar lewat",
+    "no_show": "Tidak hadir",
+    "completed": "Selesai",
+    "cancelled": "Dibatalkan",
+    "comp_void": "Percuma terbatal",
+    "partial_complimentary": "Percuma separa",
+    "fully_complimentary": "Percuma penuh",
+    "voided": "Terbatal",
+    "held": "Ditahan",
+    "expired": "Tamat tempoh"
+  },
+  "payment": {
+    "pending": "Menunggu",
+    "processing": "Diproses",
+    "completed": "Selesai",
+    "failed": "Gagal",
+    "refunded": "Dibayar balik",
+    "void": "Terbatal",
+    "voided": "Terbatal",
+    "paid": "Dibayar",
+    "unpaid": "Belum dibayar",
+    "unpaid_deposit": "Deposit belum dibayar",
+    "paid_rate": "Kadar dibayar",
+    "partial": "Separa",
+    "forfeited": "Dilucutkan",
+    "deposit_forfeited": "Deposit dilucutkan"
+  },
+  "invoice": {
+    "draft": "Draf",
+    "issued": "Dikeluarkan",
+    "sent": "Dihantar",
+    "paid": "Dibayar",
+    "partial": "Separa",
+    "overdue": "Tertunggak",
+    "void": "Terbatal",
+    "cancelled": "Dibatalkan",
+    "refunded": "Dibayar balik"
+  },
+  "ledger": {
+    "pending": "Menunggu",
+    "partial": "Separa",
+    "paid": "Dibayar",
+    "overdue": "Tertunggak",
+    "void": "Terbatal"
+  },
+  "room": {
+    "available": "Tersedia",
+    "occupied": "Diduduki",
+    "reserved": "Ditempah",
+    "reserved_dirty": "Ditempah (kotor)",
+    "cleaning": "Sedang dibersihkan",
+    "dirty": "Kotor",
+    "clean": "Bersih",
+    "inspected": "Diperiksa",
+    "maintenance": "Penyelenggaraan",
+    "out_of_order": "Tidak berfungsi",
+    "out_of_service": "Tidak berkhidmat"
+  },
+  "housekeeping": {
+    "pending": "Menunggu",
+    "assigned": "Ditugaskan",
+    "in_progress": "Dalam proses",
+    "completed": "Selesai",
+    "inspected": "Diperiksa",
+    "cancelled": "Dibatalkan",
+    "void": "Terbatal"
+  },
+  "maintenance": {
+    "open": "Terbuka",
+    "in_progress": "Dalam proses",
+    "on_hold": "Ditangguhkan",
+    "resolved": "Diselesaikan",
+    "closed": "Ditutup",
+    "cancelled": "Dibatalkan"
+  },
+  "campaign": {
+    "draft": "Draf",
+    "scheduled": "Dijadualkan",
+    "running": "Sedang berjalan",
+    "active": "Aktif",
+    "paused": "Dijeda",
+    "completed": "Selesai",
+    "ended": "Berakhir",
+    "cancelled": "Dibatalkan",
+    "failed": "Gagal"
+  },
+  "promotion": {
+    "draft": "Draf",
+    "scheduled": "Dijadualkan",
+    "published": "Diterbitkan",
+    "live": "Berlangsung",
+    "paused": "Dijeda",
+    "expired": "Tamat tempoh",
+    "cancelled": "Dibatalkan",
+    "archived": "Diarkibkan"
+  },
+  "payroll": {
+    "draft": "Draf",
+    "processing": "Diproses",
+    "approved": "Diluluskan",
+    "paid": "Dibayar",
+    "cancelled": "Dibatalkan"
+  },
+  "employee": {
+    "active": "Aktif",
+    "inactive": "Tidak aktif",
+    "on_leave": "Bercuti",
+    "terminated": "Ditamatkan"
+  },
+  "notification": {
+    "unread": "Belum dibaca",
+    "read": "Sudah dibaca"
+  },
+  "ekyc": {
+    "draft": "Draf",
+    "submitted": "Dihantar",
+    "automated_review": "Semakan automatik",
+    "pending_manual_review": "Menunggu semakan manual",
+    "in_review": "Dalam semakan",
+    "additional_information_required": "Maklumat tambahan diperlukan",
+    "approved": "Diluluskan",
+    "rejected": "Ditolak",
+    "escalated": "Dinaikkan",
+    "expired": "Tamat tempoh",
+    "void": "Terbatal",
+    "on_hold": "Ditangguhkan",
+    "pending": "Menunggu",
+    "under_review": "Dalam semakan",
+    "verified": "Disahkan"
+  },
+  "email_delivery": {
+    "queued": "Dalam giliran",
+    "sending": "Menghantar",
+    "sent": "Dihantar",
+    "failed": "Gagal",
+    "suppressed": "Disekat",
+    "cancelled": "Dibatalkan"
+  },
+  "loyalty": {
+    "active": "Aktif",
+    "inactive": "Tidak aktif",
+    "suspended": "Digantung",
+    "closed": "Ditutup"
+  },
+  "loyalty_redemption": {
+    "pending": "Menunggu",
+    "approved": "Diluluskan",
+    "rejected": "Ditolak",
+    "fulfilled": "Ditunaikan"
+  },
+  "reward_redemption": {
+    "pending": "Menunggu",
+    "confirmed": "Disahkan",
+    "used": "Digunakan",
+    "void": "Terbatal",
+    "expired": "Tamat tempoh"
+  },
+  "support": {
+    "waiting_for_staff": "Menunggu kakitangan",
+    "waiting_for_guest": "Menunggu tetamu",
+    "resolved": "Diselesaikan",
+    "closed": "Ditutup"
+  },
+  "voucher": {
+    "available": "Tersedia",
+    "redeemed": "Ditebus",
+    "revoked": "Ditarik balik",
+    "expired": "Tamat tempoh"
+  },
+  "voucher_redemption": {
+    "applied": "Digunakan",
+    "reversed": "Dibalikkan"
+  },
+  "night_audit": {
+    "running": "Sedang berjalan",
+    "completed": "Selesai",
+    "failed": "Gagal"
+  },
+  "generic": {
+    "active": "Aktif",
+    "inactive": "Tidak aktif",
+    "pending": "Menunggu",
+    "approved": "Diluluskan",
+    "rejected": "Ditolak",
+    "enabled": "Didayakan",
+    "disabled": "Dilumpuhkan",
+    "success": "Berjaya",
+    "failed": "Gagal",
+    "warning": "Amaran",
+    "info": "Maklumat",
+    "error": "Ralat",
+    "unknown": "Tidak diketahui"
+  }
+}

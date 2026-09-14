@@ -1,0 +1,12 @@
+{
+  "title": "Pemberitahuan",
+  "markAllRead": "Tanda semua sebagai dibaca",
+  "empty": "Tiada pemberitahuan",
+  "toast": {
+    "saved": "Disimpan.",
+    "deleted": "Dipadam.",
+    "updated": "Dikemas kini.",
+    "failed": "Tindakan gagal. Sila cuba lagi.",
+    "copied": "Disalin ke papan klip."
+  }
+}
