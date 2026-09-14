@@ -16,7 +16,8 @@ import { UserMenu } from './UserMenu';
  * below `sm`, where the trail does not fit); command-palette trigger,
  * notification bell, language, account menu and a one-tap sign-out on the
  * right. Phones slim the right side to a search icon, the bell and the
- * avatar — language and Sign Out live inside their menus there. Below `md`
+ * avatar — Sign Out lives inside the account menu there, and language in
+ * the bottom nav's More sheet. Below `md`
  * navigation lives in the bottom bar — there is no drawer, so the header
  * carries no menu button.
  */
@@ -124,8 +125,9 @@ export const AppTopbar: React.FC = () => {
         <SearchIcon fontSize="small" />
       </IconButton>
       <NotificationCenter />
-      {/* Language and one-tap sign-out stay ≥sm — on phones the account menu
-          carries both, and four controls are all a 320px bar can afford. */}
+      {/* Language and one-tap sign-out stay ≥sm — on phones Sign Out lives in
+          the account menu, language in the More sheet, and four controls are
+          all a 320px bar can afford. */}
       <Box sx={{ display: { xs: 'none', sm: 'inline-flex' }, flexShrink: 0 }}>
         <LanguageSwitcher color="inherit" size="small" />
       </Box>

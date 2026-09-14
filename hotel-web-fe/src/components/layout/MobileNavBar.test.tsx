@@ -112,4 +112,16 @@ describe('MobileNavBar', () => {
     // Timeline isn't a tab, so it sits in the always-open first group.
     expect(screen.queryByText('Timeline')).toBeTruthy();
   });
+
+  it('offers a language switcher inside the More sheet on phones', () => {
+    grantAllPolicies();
+    render(<MobileNavBar />);
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    // The topbar globe hides below `sm`; the sheet's labeled list is the
+    // phone path to `setLocale`, one tap from the bottom bar.
+    expect(screen.getByText('Language')).toBeTruthy();
+    expect(screen.getByRole('list', { name: 'Change language' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'English' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Bahasa Melayu/ })).toBeTruthy();
+  });
 });

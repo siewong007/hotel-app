@@ -13,6 +13,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useTranslation } from '../../i18n';
 import { BottomSheet } from '../common/BottomSheet';
 import { CollapsibleSection } from '../common/CollapsibleSection';
+import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import {
   canAccessNavigationRoute,
   findRouteDefinition,
@@ -36,13 +37,16 @@ interface MobileMoreSheetProps {
  * behind a section header — the first two stay open so the ~25-row list does
  * not open as a wall of rows; label-less groups render bare as before. Item
  * visibility reuses `canAccessNavigationRoute`, so the sheet can never
- * expose a module the sidebar would hide.
+ * expose a module the sidebar would hide. The foot of the sheet carries the
+ * language list: the topbar globe hides below `sm`, so this is the phone
+ * shell's only locale control.
  */
 export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({ open, onClose, tabIds }) => {
   const { hasPermission, hasRole, getRoutePolicy } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { t: tNav } = useTranslation('nav');
+  const { t: tCommon } = useTranslation('common');
   const { navLabel, groupLabel } = useRouteLabels();
 
   const sections = React.useMemo(() => {
@@ -118,6 +122,23 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({ open, onClose,
             {renderItem(profileRoute, navLabel(profileRoute))}
           </Box>
         ) : null}
+        {/* Language lives here, not behind collapse: two locales never earn a
+            second tap, and the topbar globe is hidden below `sm`. */}
+        <Box component="li" sx={{ listStyle: 'none' }}>
+          <Typography
+            variant="overline"
+            sx={{
+              display: 'block',
+              px: 1.5,
+              pt: 1,
+              color: 'text.secondary',
+              fontSize: '0.68rem',
+            }}
+          >
+            {tCommon('language.label')}
+          </Typography>
+          <LanguageSwitcher variant="list" />
+        </Box>
       </List>
     </BottomSheet>
   );
