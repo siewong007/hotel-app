@@ -1,3 +1,4 @@
 # generation	version	name	checksum	file
 1	2	deposit-forfeited	sha256:3a2364128ce9a28292b92030cad3f35bf29afdf8b395d95569a90e6880c1b199	0002_deposit_forfeited.sql
 1	3	guest-relations-phase2	sha256:496943a4ea454697856c87bb941575647220f1c835384cc0ea94f688ee4e9936	0003_guest_relations_phase2.sql
+1	4	consent-locale-zh	sha256:c94054d6d4ffb66ed0161f1fdb655af46072757ef67921ec6cee51d00b7b28ae	0004_consent_locale_zh.sql
