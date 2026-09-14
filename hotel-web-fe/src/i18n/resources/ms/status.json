@@ -188,7 +188,8 @@
   },
   "night_audit": {
     "in_progress": "Dalam proses",
-    "completed": "Selesai"
+    "completed": "Selesai",
+    "failed": "Gagal"
   },
   "generic": {
     "active": "Aktif",

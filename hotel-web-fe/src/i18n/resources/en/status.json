@@ -188,7 +188,8 @@
   },
   "night_audit": {
     "in_progress": "In progress",
-    "completed": "Completed"
+    "completed": "Completed",
+    "failed": "Failed"
   },
   "generic": {
     "active": "Active",
