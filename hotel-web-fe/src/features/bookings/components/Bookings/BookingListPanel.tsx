@@ -16,7 +16,7 @@ import { BookingChannelChip, BillingChip, NightAuditChip } from './BookingMetaCh
 import type { BookingWithDetails } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
-import { getBookingStatusText, getPaymentStatusText } from '../../../../utils/bookingUtils';
+import { statusLabel, useTranslation } from '../../../../i18n';
 import { isPositiveMoney } from '../../../../utils/money';
 import { getBookingChannelInfo } from '../../utils/bookingChannel';
 import {
@@ -74,7 +74,9 @@ const PhoneBookingRow: React.FC<PhoneBookingRowProps> = ({
   isPaid,
   formatCurrency,
   onOpenBooking,
-}) => (
+}) => {
+  const { t } = useTranslation('bookings');
+  return (
   <Box
     onClick={() => onOpenBooking(booking)}
     sx={{
@@ -99,23 +101,24 @@ const PhoneBookingRow: React.FC<PhoneBookingRowProps> = ({
           {booking.guest_name}
         </Typography>
         <Typography component="span" variant="caption" noWrap sx={{ color: statusDotColor(booking.status), fontWeight: 800, flexShrink: 0 }}>
-          • {getBookingStatusText(booking.status)}
+          • {statusLabel(t, 'booking', booking.status)}
         </Typography>
       </Box>
       <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>
-        Room {booking.room_number || '-'} · {booking.room_type || 'Room'} · {formatShortDate(booking.check_in_date)} → {formatShortDate(booking.check_out_date)} · {getNights(booking)}N
+        {t('list.roomNumber', { number: booking.room_number || '-' })} · {booking.room_type || t('list.roomFallback')} · {formatShortDate(booking.check_in_date)} → {formatShortDate(booking.check_out_date)} · {t('list.nightsAbbrev', { count: getNights(booking) })}
       </Typography>
     </Box>
     <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
       <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
       {isPositiveMoney(balance) ? (
-        <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 800 }}>Due {formatCurrency(balance)}</Typography>
+        <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 800 }}>{t('list.due', { amount: formatCurrency(balance) })}</Typography>
       ) : (
-        <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 800 }}>✓ {isPaid ? 'Paid' : getPaymentStatusText(booking.payment_status)}</Typography>
+        <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 800 }}>✓ {isPaid ? statusLabel(t, 'payment', 'paid') : statusLabel(t, 'payment', booking.payment_status)}</Typography>
       )}
     </Box>
   </Box>
-);
+  );
+};
 
 const BookingListPanel: React.FC<BookingListPanelProps> = ({
   bookings,
@@ -130,6 +133,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
 }) => {
   const { format: formatCurrency } = useCurrency();
   const isPhone = useIsPhone();
+  const { t } = useTranslation('bookings');
 
   return (
     <>
@@ -140,15 +144,15 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
             color: "text.secondary",
             fontWeight: 800
           }}>
-          {bookings.length} bookings
+          {t('list.count', { count: bookings.length })}
         </Typography>
         <Button size="small" endIcon={<SwapVertIcon />} onClick={onToggleSort} sx={{ color: 'text.primary' }}>
-          Sort: {sortField === 'guest_name' ? 'Guest' : 'Priority'}
+          {t('list.sortButton', { field: t(sortField === 'guest_name' ? 'list.sortGuest' : 'list.sortPriority') })}
         </Button>
       </Box>
 
       {loading ? (
-        <Stack divider={<Divider />} sx={{ minHeight: 420 }} aria-busy="true" aria-label="Loading bookings">
+        <Stack divider={<Divider />} sx={{ minHeight: 420 }} aria-busy="true" aria-label={t('list.loadingAria')}>
           {Array.from({ length: 6 }).map((_, index) => (
             <Box
               key={index}
@@ -185,7 +189,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
           <Typography variant="h6" sx={{
             color: "text.secondary"
           }}>
-            {totalBookings === 0 ? 'No bookings yet' : 'No bookings match your filters'}
+            {totalBookings === 0 ? t('list.emptyTitle') : t('list.emptyFilteredTitle')}
           </Typography>
           <Typography
             variant="body2"
@@ -193,7 +197,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
               color: "text.secondary",
               mt: 1
             }}>
-            {totalBookings === 0 ? 'Create your first booking using the New booking button above' : 'Try adjusting your search or filter criteria'}
+            {totalBookings === 0 ? t('list.emptyHint') : t('list.emptyFilteredHint')}
           </Typography>
         </Box>
       ) : (
@@ -216,7 +220,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
             }
 
             const channelInfo = getBookingChannelInfo(booking);
-            const billingChipLabel = getBillingChipLabel(booking);
+            const billingChipLabel = getBillingChipLabel(booking, t);
 
             return (
               <Box
@@ -250,7 +254,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
                     {channelInfo && <BookingChannelChip channel={channelInfo} />}
                     {billingChipLabel && <BillingChip label={billingChipLabel} />}
                     <Typography variant="body2" sx={{ color: statusDotColor(booking.status), fontWeight: 800 }}>
-                      • {getBookingStatusText(booking.status)}
+                      • {statusLabel(t, 'booking', booking.status)}
                     </Typography>
                     {isNightAuditInvolved(booking) && <NightAuditChip />}
                   </Stack>
@@ -261,7 +265,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
                       mt: 0.35
                     }}>
                     <BedIcon sx={{ fontSize: 16, verticalAlign: 'text-bottom', mr: 0.5 }} />
-                    Room {booking.room_number || '-'} · {booking.room_type || 'Room'} · {formatShortDate(booking.check_in_date)} → {formatShortDate(booking.check_out_date)} · {getNights(booking)}N
+                    {t('list.roomNumber', { number: booking.room_number || '-' })} · {booking.room_type || t('list.roomFallback')} · {formatShortDate(booking.check_in_date)} → {formatShortDate(booking.check_out_date)} · {t('list.nightsAbbrev', { count: getNights(booking) })}
                   </Typography>
                 </Box>
                 <Box sx={{ textAlign: { xs: 'left', md: 'right' }, gridColumn: { xs: '2 / span 1', md: 'auto' } }}>
@@ -272,14 +276,14 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
                       sx={{
                         color: "error.main",
                         fontWeight: 800
-                      }}>Due {formatCurrency(balance)}</Typography>
+                      }}>{t('list.due', { amount: formatCurrency(balance) })}</Typography>
                   ) : (
                     <Typography
                       variant="body2"
                       sx={{
                         color: "success.main",
                         fontWeight: 800
-                      }}>✓ {isPaid ? 'Paid' : getPaymentStatusText(booking.payment_status)}</Typography>
+                      }}>✓ {isPaid ? statusLabel(t, 'payment', 'paid') : statusLabel(t, 'payment', booking.payment_status)}</Typography>
                   )}
                 </Box>
                 <Typography
@@ -312,7 +316,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            Showing {pagination.startItem}-{pagination.endItem} of {pagination.totalItems}
+            {t('list.showing', { from: pagination.startItem, to: pagination.endItem, total: pagination.totalItems })}
           </Typography>
           <Pagination
             count={pagination.totalPages}

@@ -19,6 +19,7 @@ import {
 } from '@mui/icons-material';
 import { formatShortDate, formatShortMonth, type BookingView } from '../../utils/bookingPageUtils';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { useTranslation } from '../../../../i18n';
 import { FilterSheet } from '../../../../components/common/FilterSheet';
 
 interface BookingFiltersBarProps {
@@ -67,13 +68,14 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
   monthOptions,
 }) => {
   const isPhone = useIsPhone();
+  const { t } = useTranslation('bookings');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const searchField = (
     <TextField
       fullWidth
       size="medium"
-      placeholder="Search booking, guest, invoice, or room number..."
+      placeholder={t('filters.searchPlaceholder')}
       value={searchQuery}
       onChange={(e) => onSearchQueryChange(e.target.value)}
       slotProps={{
@@ -98,7 +100,7 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
         value={paymentMethodFilter || null}
         onChange={(_, value) => onPaymentMethodFilterChange(value ?? '')}
         renderInput={(params) => (
-          <TextField {...params} label="Payment method" placeholder="Any" />
+          <TextField {...params} label={t('filters.paymentMethod')} placeholder={t('filters.any')} />
         )}
       />
       <Autocomplete<string, false, false, true>
@@ -109,13 +111,13 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
         value={onlineChannelFilter || null}
         onChange={(_, value) => onOnlineChannelFilterChange(value ?? '')}
         renderInput={(params) => (
-          <TextField {...params} label="Online channel" placeholder="Any" />
+          <TextField {...params} label={t('filters.onlineChannel')} placeholder={t('filters.any')} />
         )}
       />
       <TextField
         fullWidth
         size="medium"
-        label="Search date"
+        label={t('filters.searchDate')}
         type="date"
         value={searchDate}
         onChange={(e) => onSearchDateChange(e.target.value)}
@@ -125,12 +127,12 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
       />
       <FormControl fullWidth size="medium">
         <Select
-          aria-label="Search month"
+          aria-label={t('filters.searchMonth')}
           value={monthSearch}
           displayEmpty
           onChange={(e) => onMonthSearchChange(e.target.value as string)}
         >
-          <MenuItem value="">Any month</MenuItem>
+          <MenuItem value="">{t('filters.anyMonth')}</MenuItem>
           {monthOptions.map((option) => (
             <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
           ))}
@@ -164,13 +166,13 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
         mt: 1.5
       }}>
       {[
-        { key: 'all', label: 'All', count: viewCounts.all },
-        { key: 'arriving', label: 'Arriving', count: viewCounts.arriving },
-        { key: 'in_house', label: 'In House', count: viewCounts.inHouse },
-        { key: 'upcoming', label: 'Upcoming', count: viewCounts.upcoming },
-        { key: 'balance', label: 'Overdue Balance', count: viewCounts.due },
-        { key: 'normal_balance', label: 'Normal', count: viewCounts.normalDue },
-        { key: 'company_balance', label: 'Company', count: viewCounts.companyDue },
+        { key: 'all', label: t('filters.view.all'), count: viewCounts.all },
+        { key: 'arriving', label: t('filters.view.arriving'), count: viewCounts.arriving },
+        { key: 'in_house', label: t('filters.view.in_house'), count: viewCounts.inHouse },
+        { key: 'upcoming', label: t('filters.view.upcoming'), count: viewCounts.upcoming },
+        { key: 'balance', label: t('filters.view.balance'), count: viewCounts.due },
+        { key: 'normal_balance', label: t('filters.view.normal_balance'), count: viewCounts.normalDue },
+        { key: 'company_balance', label: t('filters.view.company_balance'), count: viewCounts.companyDue },
       ].map((filter) => (
         <Chip
           key={filter.key}
@@ -188,7 +190,7 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
       {hasActiveFilters && (
         <Chip
           icon={<ClearIcon />}
-          label="Clear"
+          label={t('filters.clear')}
           variant="outlined"
           onClick={onClearFilters}
           sx={{ height: 34, fontWeight: 800 }}
@@ -196,14 +198,14 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
       )}
       {searchDate && (
         <Chip
-          label={`Date ${formatShortDate(searchDate)}`}
+          label={t('filters.dateChip', { date: formatShortDate(searchDate) })}
           onDelete={onClearSearchDate}
           sx={{ height: 34, fontWeight: 800 }}
         />
       )}
       {monthSearch && (
         <Chip
-          label={`Month ${formatShortMonth(monthSearch)}`}
+          label={t('filters.monthChip', { month: formatShortMonth(monthSearch) })}
           onDelete={onClearMonthSearch}
           sx={{ height: 34, fontWeight: 800 }}
         />
@@ -218,7 +220,7 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
           <Box sx={{ flex: 1, minWidth: 0 }}>{searchField}</Box>
           <Badge badgeContent={sheetFilterCount} color="primary">
             <IconButton
-              aria-label="Open filters"
+              aria-label={t('filters.openAria')}
               onClick={() => setFiltersOpen(true)}
               sx={{
                 border: '1px solid',

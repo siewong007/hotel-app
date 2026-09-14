@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { useTranslation } from '../../../../i18n';
 import { isPositiveMoney } from '../../../../utils/money';
 import type { BookingView, SummaryStatCard } from '../../utils/bookingPageUtils';
 
@@ -45,43 +46,44 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
 }) => {
   const { format: formatCurrency } = useCurrency();
   const isPhone = useIsPhone();
+  const { t } = useTranslation('bookings');
 
   const summaryStatCards: SummaryStatCard[] = [
     {
-      title: 'Arrivals / Check-in',
-      shortTitle: 'Arriving',
+      title: t('summary.arrivals'),
+      shortTitle: t('summary.arrivalsShort'),
       value: stats.arrivingCount,
-      detail: `${stats.readyToCheckInCount} ready to check in`,
+      detail: t('summary.arrivalsDetail', { count: stats.readyToCheckInCount }),
       subValue: stats.arrivingCount || stats.todayCheckIns || 1,
       color: 'var(--hotel-primary)',
       icon: <ArrowForwardIcon fontSize="small" />,
       view: 'arriving',
     },
     {
-      title: 'In-house guests',
-      shortTitle: 'In-house',
+      title: t('summary.inHouse'),
+      shortTitle: t('summary.inHouseShort'),
       value: stats.totalGuestsInHouse,
-      detail: `across ${stats.inHouseCount} rooms`,
+      detail: t('summary.inHouseDetail', { count: stats.inHouseCount }),
       subValue: Math.max(stats.totalGuestsInHouse, stats.roomCount || 1),
       color: 'var(--hotel-info)',
       icon: <BedIcon fontSize="small" />,
       view: 'in_house',
     },
     {
-      title: 'Departures / Check-out',
-      shortTitle: 'Departing',
+      title: t('summary.departures'),
+      shortTitle: t('summary.departuresShort'),
       value: stats.departingCount,
-      detail: `${stats.departingCount} ready to check out`,
+      detail: t('summary.departuresDetail', { count: stats.departingCount }),
       subValue: stats.departingCount || 1,
       color: 'var(--hotel-warning)',
       icon: <ArrowBackIcon fontSize="small" />,
       view: 'departing',
     },
     {
-      title: 'Upcoming bookings',
-      shortTitle: 'Upcoming',
+      title: t('summary.upcoming'),
+      shortTitle: t('summary.upcomingShort'),
       value: stats.upcomingCount,
-      detail: `${stats.upcomingCount} future reservations`,
+      detail: t('summary.upcomingDetail', { count: stats.upcomingCount }),
       subValue: stats.upcomingCount || 1,
       color: 'var(--hotel-chart-4)',
       icon: <BookIcon fontSize="small" />,
@@ -89,10 +91,10 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
     },
     ...(isPositiveMoney(stats.normalOutstandingDue)
       ? [{
-        title: 'Normal outstanding',
-        shortTitle: 'Due',
+        title: t('summary.normalOutstanding'),
+        shortTitle: t('summary.normalOutstandingShort'),
         value: formatCurrency(stats.normalOutstandingDue),
-        detail: `${stats.normalDueCount} ${stats.normalBalanceScope}`,
+        detail: t('summary.dueCountScope', { count: stats.normalDueCount, scope: stats.normalBalanceScope }),
         color: 'var(--hotel-danger)',
         icon: <PaymentIcon fontSize="small" />,
         view: 'normal_balance' as BookingView,
@@ -101,10 +103,10 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
       : []),
     ...(isPositiveMoney(stats.companyOutstandingDue)
       ? [{
-        title: 'Company outstanding',
-        shortTitle: 'Company',
+        title: t('summary.companyOutstanding'),
+        shortTitle: t('summary.companyOutstandingShort'),
         value: formatCurrency(stats.companyOutstandingDue),
-        detail: `${stats.companyDueCount} ${stats.companyBalanceScope}`,
+        detail: t('summary.dueCountScope', { count: stats.companyDueCount, scope: stats.companyBalanceScope }),
         color: 'var(--hotel-chart-4)',
         icon: <ReceiptIcon fontSize="small" />,
         view: 'company_balance' as BookingView,
@@ -216,9 +218,9 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
                   <PaymentIcon />
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.1, color: 'inherit' }}>Take payment</Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.1, color: 'inherit' }}>{t('summary.takePayment')}</Typography>
                   <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>
-                    {formatCurrency(stats.normalOutstandingDue)} normal outstanding
+                    {t('summary.takePaymentDetail', { amount: formatCurrency(stats.normalOutstandingDue) })}
                   </Typography>
                 </Box>
                 <ArrowForwardIcon sx={{ color: 'inherit' }} />
