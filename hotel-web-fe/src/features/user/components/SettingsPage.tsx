@@ -609,7 +609,7 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label={t('settings.address')}
+                label={t('common:field.address')}
                 value={hotelAddress}
                 onChange={(e) => setHotelAddress(e.target.value)}
                 helperText={t('settings.addressHint')}
@@ -1325,7 +1325,7 @@ const SettingsPage: React.FC = () => {
         </Typography>
         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
           <Button variant="outlined" onClick={loadSettings} disabled={saving || (isAdmin && !isDirty)}>
-            {t('settings.discard')}
+            {t('common:actions.discardChanges')}
           </Button>
           <Button
             variant="contained"
@@ -1333,7 +1333,7 @@ const SettingsPage: React.FC = () => {
             disabled={saving || (isAdmin && !isDirty)}
             startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
           >
-            {saving ? t('settings.saving') : t('settings.saveSettings')}
+            {saving ? t('common:state.saving') : t('settings.saveSettings')}
           </Button>
         </Box>
       </Paper>

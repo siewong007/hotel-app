@@ -12,7 +12,6 @@
     "unsaved": "Anda mempunyai perubahan yang belum disimpan",
     "allSaved": "Semua perubahan disimpan",
     "saveSettings": "Simpan Tetapan",
-    "saving": "Menyimpan…",
     "tabs": {
       "hotel": "Hotel",
       "finance": "Caj & Cukai",
@@ -181,8 +180,6 @@
     "paymentMethods": "Kaedah Pembayaran",
     "paymentMethodsHint": "Konfigurasikan kaedah pembayaran yang tersedia untuk tetamu walk-in",
     "addPaymentMethod": "Tambah kaedah pembayaran baharu (cth., E-Wallet)",
-    "systemConfigNote": "Pilihan ini akan muncul dalam dropdown saluran tempahan (daftar masuk dalam talian) dan dropdown kaedah pembayaran (tetamu walk-in).",
-    "address": "Alamat",
-    "discard": "Buang perubahan"
+    "systemConfigNote": "Pilihan ini akan muncul dalam dropdown saluran tempahan (daftar masuk dalam talian) dan dropdown kaedah pembayaran (tetamu walk-in)."
   }
 }

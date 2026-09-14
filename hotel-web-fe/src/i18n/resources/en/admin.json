@@ -12,7 +12,6 @@
     "unsaved": "You have unsaved changes",
     "allSaved": "All changes saved",
     "saveSettings": "Save Settings",
-    "saving": "Saving...",
     "tabs": {
       "hotel": "Hotel",
       "finance": "Charges & Tax",
@@ -181,8 +180,6 @@
     "paymentMethods": "Payment Methods",
     "paymentMethodsHint": "Configure available payment methods for walk-in guests",
     "addPaymentMethod": "Add new payment method (e.g., E-Wallet)",
-    "systemConfigNote": "These options will appear in the booking channels dropdown (online check-in) and payment methods dropdown (walk-in guests).",
-    "address": "Address",
-    "discard": "Discard changes"
+    "systemConfigNote": "These options will appear in the booking channels dropdown (online check-in) and payment methods dropdown (walk-in guests)."
   }
 }

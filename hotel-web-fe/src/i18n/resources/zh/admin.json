@@ -12,7 +12,6 @@
     "unsaved": "您有未保存的更改",
     "allSaved": "所有更改已保存",
     "saveSettings": "保存设置",
-    "saving": "正在保存…",
     "tabs": {
       "hotel": "酒店",
       "finance": "费用与税费",
@@ -91,7 +90,7 @@
     "chargesNote": "这些金额将用作快速预订表单的默认值。旅游税对标记为游客的客人按每晚收取。",
     "guestCancelTitle": "客人预订取消",
     "guestCancelToggle": "允许客人在门户中取消符合条件的未来预订",
-    "guestCancelHint": "不可取消的优惠券条款以及已到达入住的预订仍会阻止取消。",
+    "guestCancelHint": "不可取消的优惠券条款以及已入住的预订仍会阻止取消。",
     "supportTitle": "客人支持工作流",
     "supportToggle": "允许客人在门户中发起支持会话",
     "supportHint": "暂停新的客人请求时，现有会话仍对员工可见。",
@@ -181,8 +180,6 @@
     "paymentMethods": "支付方式",
     "paymentMethodsHint": "配置上门客可用的支付方式",
     "addPaymentMethod": "添加新支付方式（如电子钱包）",
-    "systemConfigNote": "这些选项将显示在预订渠道下拉列表（在线入住）和支付方式下拉列表（上门客）中。",
-    "address": "地址",
-    "discard": "放弃更改"
+    "systemConfigNote": "这些选项将显示在预订渠道下拉列表（在线入住）和支付方式下拉列表（上门客）中。"
   }
 }

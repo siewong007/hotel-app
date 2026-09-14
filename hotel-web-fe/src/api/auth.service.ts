@@ -11,6 +11,7 @@ import {
   AuthResponse,
 } from '../types';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
+import { t } from '../i18n';
 
 /**
  * Per-call request options shared by the profile/security reads. Callers that
@@ -40,7 +41,7 @@ export class AuthService {
         })
         .json<{ exists: boolean }>();
     } catch (error) {
-      throw toApiError(error, 'Unable to verify username');
+      throw toApiError(error, t('errors.verifyUsernameFailed', undefined, 'auth'));
     }
   }
 
@@ -70,7 +71,7 @@ export class AuthService {
         },
       });
     } catch (error) {
-      throw toApiError(error, 'Registration failed');
+      throw toApiError(error, t('errors.registrationFailed', undefined, 'auth'));
     }
   }
 
@@ -95,7 +96,7 @@ export class AuthService {
         })
         .json<AuthResponse>();
     } catch (error) {
-      throw toApiError(error, 'Google sign-in failed');
+      throw toApiError(error, t('errors.googleSignInFailed', undefined, 'auth'));
     }
   }
 
@@ -114,7 +115,7 @@ export class AuthService {
         })
         .json<UserProfile>();
     } catch (error) {
-      throw toApiError(error, 'Profile completion failed');
+      throw toApiError(error, t('errors.profileCompletionFailed', undefined, 'auth'));
     }
   }
 
@@ -126,7 +127,7 @@ export class AuthService {
         headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
       });
     } catch (error) {
-      throw toApiError(error, 'Email verification failed');
+      throw toApiError(error, t('errors.emailVerificationFailed', undefined, 'auth'));
     }
   }
 

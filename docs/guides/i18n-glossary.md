@@ -166,7 +166,7 @@ bundle that committed the term.
 | guest reopen window | 客人重开窗口期 | tetingkap pembukaan semula tetamu | `admin:settings` — support workflow |
 | unpaid hold release | 未支付保留时长 | pelepasan hold belum dibayar | `admin:settings` — ms keeps "hold" |
 | support priority: low / normal / high / urgent | 低 / 普通 / 高 / 紧急 | rendah / normal / tinggi / segera | `admin:settings.supportPriority` |
-| report font preset: very small…very large | 很小/小/中/大/很大 | sangat kecil…sangat besar | `admin:settings.fontPresets` — check bundle for exact rows |
+| report font preset: very small…very large | 特小/小/中/大/特大 | sangat kecil…sangat besar | `admin:settings.fontPresets` |
 | turnstile verification states | 验证不可用/失败/超时 | pengesahan tidak tersedia/gagal/tamat | `auth.turnstile` — "verification" 验证 |
 
 ## 7. Accepted register variants
