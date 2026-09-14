@@ -578,6 +578,12 @@
     "/api/guest-portal/verify": {
       "POST": {}
     },
+    "/api/guest-relations/follow-ups": {
+      "GET": {}
+    },
+    "/api/guest-relations/overview": {
+      "GET": {}
+    },
     "/api/guests": {
       "GET": {},
       "POST": {}
@@ -1144,6 +1150,9 @@
     },
     {
       "name": "guest-portal"
+    },
+    {
+      "name": "guest-relations"
     },
     {
       "name": "guests"
