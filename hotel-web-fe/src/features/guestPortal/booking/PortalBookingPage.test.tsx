@@ -285,6 +285,25 @@ describe('PortalBookingPage voucher eligibility', () => {
     await waitFor(() => expect(mocks.listVouchers).toHaveBeenCalledTimes(2));
   });
 
+  it('moves focus to the form-level alert when booking creation fails', async () => {
+    mocks.createBooking.mockRejectedValue(new Error('Server unavailable'));
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+    acceptRequiredConsents();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+
+    // The Collapse keeps the alert hidden until it finishes opening, so grab
+    // the message and check where focus actually landed.
+    const message = await screen.findByText('Unable to create the booking.');
+    const alert = message.closest('[role="alert"]');
+    expect(alert).not.toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(alert));
+  });
+
   it('continues to payment without asking for a payment choice during review', async () => {
     mocks.paymentConfig.mockResolvedValue({
       paypal_enabled: false,

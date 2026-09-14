@@ -30,6 +30,7 @@ import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 import { useTranslation } from '../../../i18n';
 import { useTurnstile } from '../turnstile/useTurnstile';
 import { turnstileErrorMessage } from '../turnstile/turnstileError';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 import { ConsentNotice } from '../../legal/components/ConsentNotice';
 import { REGISTRATION_NOTICE } from '../../legal/content';
 import { buildNoticeConsentPayload } from '../../legal/noticeConsent';
@@ -64,6 +65,7 @@ const RegisterPage: React.FC = () => {
   const turnstile = useTurnstile();
   // See LoginPage: hold the button while the inline widget is still verifying.
   const awaitingTurnstile = turnstile.enabled && !turnstile.token && !turnstile.error;
+  const errorRef = useAutoFocusError(error);
 
   useEffect(() => {
     if (redirectCountdown === null) {
@@ -244,7 +246,7 @@ const RegisterPage: React.FC = () => {
 
             {/* Error Alert */}
             <Collapse in={!!error}>
-              <Alert severity="error" role="alert" sx={{ mb: 2 }} onClose={() => setError('')}>
+              <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }} onClose={() => setError('')}>
                 {error}
               </Alert>
             </Collapse>

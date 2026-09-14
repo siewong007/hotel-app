@@ -48,6 +48,7 @@ import {
 } from '../support/types';
 import { guestErrorMessage } from '../utils/feedback';
 import { useTranslation, type TranslationVars } from '../../../i18n';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 const MAX_MESSAGE_LENGTH = 4_000;
 
@@ -128,6 +129,7 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
   const [message, setMessage] = useState('');
   const [clientRequestId, setClientRequestId] = useState(() => newPortalSupportClientId());
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useAutoFocusError(error);
 
   useEffect(() => {
     if (!categories.includes(category)) {
@@ -181,7 +183,7 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
             {t('support.newDialog.safetyNote')}
           </Alert>
 
-          {error && <Alert severity="error" role="alert" sx={{ mb: 2 }}>{error}</Alert>}
+          {error && <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }}>{error}</Alert>}
 
           <TextField
             select
@@ -343,6 +345,7 @@ function ConversationDetail({
   const [message, setMessage] = useState('');
   const [clientMessageId, setClientMessageId] = useState(() => newPortalSupportClientId());
   const [sendError, setSendError] = useState<string | null>(null);
+  const sendErrorRef = useAutoFocusError(sendError);
 
   useEffect(() => {
     setMessage('');
@@ -387,7 +390,7 @@ function ConversationDetail({
       <Box>
         {mobileNavigation}
         <Box sx={{ p: 3 }}>
-          <Alert severity="error" action={<Button color="inherit" size="small" onClick={onRetry}>{t('common:actions.retry')}</Button>}>
+          <Alert severity="error" role="alert" action={<Button color="inherit" size="small" onClick={onRetry}>{t('common:actions.retry')}</Button>}>
             {guestErrorMessage(error, t('support.detailLoadFailed'))}
           </Alert>
         </Box>
@@ -473,7 +476,7 @@ function ConversationDetail({
       </Box>
       <Divider />
       <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: 'var(--hotel-surface-raised)', position: { xs: 'sticky', md: 'static' }, bottom: 0, pb: { xs: 'max(16px, env(safe-area-inset-bottom))', md: 3 }, boxShadow: { xs: 'var(--hotel-shadow-md)', md: 'none' } }}>
-        {sendError && <Alert severity="error" role="alert" sx={{ mb: 1.5 }} onClose={() => setSendError(null)}>{sendError}</Alert>}
+        {sendError && <Alert severity="error" role="alert" ref={sendErrorRef} tabIndex={-1} sx={{ mb: 1.5 }} onClose={() => setSendError(null)}>{sendError}</Alert>}
 
         {canReply && (
           <Box component="form" onSubmit={handleSend}>

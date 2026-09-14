@@ -16,6 +16,7 @@ import { PublicCommunicationsApi } from '../api';
 import { TOPIC_LABELS, type NotificationTopic } from '../types';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 const TOPIC_KEYS: Record<NotificationTopic, string> = {
   announcement: 'preferences.topics.announcement',
@@ -32,6 +33,7 @@ export default function UnsubscribePage({ token }: { token: string }) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const errorRef = useAutoFocusError(error);
 
   const prefs = useQuery({
     queryKey: ['unsubscribe', token],
@@ -90,7 +92,7 @@ export default function UnsubscribePage({ token }: { token: string }) {
             {t('unsubscribe.subtitle')}
           </Typography>
           {error && (
-            <Alert severity="error" role="alert" onClose={() => setError(null)} sx={{ mb: 2 }}>
+            <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} onClose={() => setError(null)} sx={{ mb: 2 }}>
               {error}
             </Alert>
           )}

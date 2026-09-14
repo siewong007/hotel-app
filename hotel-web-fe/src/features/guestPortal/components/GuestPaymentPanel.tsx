@@ -45,6 +45,7 @@ import { ConsentBlock } from '../../legal/components/ConsentBlock';
 import { PAYMENT_CONSENTS, PAYMENT_KEY_POINTS } from '../../legal/content';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
 import { useConsent } from '../../legal/useConsent';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 export interface GuestPaymentPanelProps {
   amount?: string | number | null;
@@ -113,6 +114,8 @@ export function GuestPaymentPanel({
   const [pendingPaypalPaymentId, setPendingPaypalPaymentId] = useState<number | null>(null);
   const [result, setResult] = useState<PaymentActionResponse | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'paypal' | null>(null);
+  const bankErrorRef = useAutoFocusError(bankError);
+  const paypalErrorRef = useAutoFocusError(paypalError);
   const consent = useConsent(PAYMENT_CONSENTS);
   const { locale: legalLocale } = useLegalLocale();
   // React state updates are asynchronous, so it cannot by itself prevent two
@@ -362,7 +365,7 @@ export function GuestPaymentPanel({
         </Alert>
       )}
       {bankError ? (
-        <Alert severity="error" role="alert" sx={{ mb: 1.5 }}>
+        <Alert severity="error" role="alert" ref={bankErrorRef} tabIndex={-1} sx={{ mb: 1.5 }}>
           {bankError}
         </Alert>
       ) : null}
@@ -400,7 +403,7 @@ export function GuestPaymentPanel({
             {t('recoverPayment.paypal')}
           </Typography>
           {paypalError ? (
-            <Alert severity="error" role="alert" sx={{ mb: 1.5 }}>
+            <Alert severity="error" role="alert" ref={paypalErrorRef} tabIndex={-1} sx={{ mb: 1.5 }}>
               {paypalError}
             </Alert>
           ) : null}

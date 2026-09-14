@@ -14,6 +14,7 @@ import { GuestPortalService } from '../../../../api';
 import type { Booking, Guest, GuestUpdateRequest } from '../../../../types';
 import { guestErrorMessage } from '../../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../../i18n';
+import { useAutoFocusError } from '../../../../hooks/useAutoFocusError';
 
 export interface PreCheckInDetailsStepProps {
   token: string;
@@ -51,6 +52,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useAutoFocusError(error);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -98,7 +100,7 @@ export const PreCheckInDetailsStep: React.FC<PreCheckInDetailsStepProps> = ({
       */}
 
       {error && (
-        <Alert severity="error" role="alert" sx={{ mb: 2 }} onClose={() => setError(null)}>
+        <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}

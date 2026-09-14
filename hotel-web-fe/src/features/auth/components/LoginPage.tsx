@@ -55,6 +55,7 @@ import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 import { useTranslation } from '../../../i18n';
 import { useTurnstile } from '../turnstile/useTurnstile';
 import { turnstileErrorMessage } from '../turnstile/turnstileError';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 /** The ways a second factor can be satisfied at sign-in. Both end up in the
  *  same request field — the backend tries TOTP first and falls back to the
@@ -96,6 +97,9 @@ const LoginPage: React.FC = () => {
   const awaitingTurnstile = turnstile.enabled && !turnstile.token && !turnstile.error;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Shared by the sign-in and 2FA renders — they are mutually exclusive, so the
+  // ref always lands on whichever alert is mounted.
+  const errorRef = useAutoFocusError(error);
 
   const completeSignIn = () => {
     // Route by the authenticated account's actual type. Guest and staff share
@@ -369,7 +373,7 @@ const LoginPage: React.FC = () => {
               </Box>
 
               <Collapse in={!!error}>
-                <Alert severity="error" role="alert" sx={{ mb: 2 }} onClose={() => setError('')}>
+                <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }} onClose={() => setError('')}>
                   {error}
                 </Alert>
               </Collapse>
@@ -536,7 +540,7 @@ const LoginPage: React.FC = () => {
             )}
 
             <Collapse in={!!error}>
-              <Alert severity="error" role="alert" sx={{ mb: 2 }} onClose={() => setError('')}>
+              <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }} onClose={() => setError('')}>
                 {error}
               </Alert>
             </Collapse>

@@ -14,6 +14,7 @@ import { GuestPortalService } from '../../../api';
 import { setBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 export const GuestCheckInLanding: React.FC = () => {
   const { t } = useTranslation('guestPortal');
@@ -22,6 +23,7 @@ export const GuestCheckInLanding: React.FC = () => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useAutoFocusError(error);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +66,7 @@ export const GuestCheckInLanding: React.FC = () => {
         </Box>
 
         {error && (
-          <Alert severity="error" role="alert" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 3 }} onClose={() => setError(null)}>
             {error}
           </Alert>
         )}

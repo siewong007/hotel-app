@@ -22,6 +22,7 @@ import { LoadingSpinner } from '../../../components';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
 import { safeGuestRedirect } from '../guestRedirect';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 // A Google account only ever supplies one combined name; split it into the
 // first/last fields this form (and the backend contract) expect.
@@ -52,6 +53,7 @@ const CompleteProfilePage: React.FC = () => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
+  const errorRef = useAutoFocusError(error);
 
   useEffect(() => {
     if (prefilled || !profile) {
@@ -161,7 +163,7 @@ const CompleteProfilePage: React.FC = () => {
           </Typography>
 
           <Collapse in={!!error}>
-            <Alert severity="error" role="alert" sx={{ mb: 2 }} onClose={() => setError('')}>
+            <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }} onClose={() => setError('')}>
               {error}
             </Alert>
           </Collapse>

@@ -25,6 +25,7 @@ import {
 } from '../../../ekyc/utils/ekycFieldRules';
 import { guestErrorMessage } from '../../utils/feedback';
 import { useTranslation } from '../../../../i18n';
+import { useAutoFocusError } from '../../../../hooks/useAutoFocusError';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 import { formatPortalDate } from './dashboardUtils';
 
@@ -108,6 +109,7 @@ export function IdentitySection({ token }: { token: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
+  const formErrorRef = useAutoFocusError(formError);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -275,7 +277,7 @@ export function IdentitySection({ token }: { token: string }) {
           ) : null}
 
           {formError ? (
-            <Alert severity="error" role="alert" sx={{ mb: 2 }}>
+            <Alert severity="error" role="alert" ref={formErrorRef} tabIndex={-1} sx={{ mb: 2 }}>
               {formError}
             </Alert>
           ) : null}

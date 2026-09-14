@@ -12,6 +12,7 @@ import {
 import { Fingerprint as FingerprintIcon } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 interface FirstLoginPasskeyPromptProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface FirstLoginPasskeyPromptProps {
 const FirstLoginPasskeyPrompt: React.FC<FirstLoginPasskeyPromptProps> = ({ open, username, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useAutoFocusError(error);
   const { registerPasskey } = useAuth();
 
   const handleRegisterPasskey = async () => {
@@ -77,7 +79,7 @@ const FirstLoginPasskeyPrompt: React.FC<FirstLoginPasskeyPromptProps> = ({ open,
           You can add up to 10 passkeys to your account and manage them in your profile settings.
         </Typography>
         {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
+          <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mt: 2 }}>
             {error}
           </Alert>
         )}

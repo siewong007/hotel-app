@@ -47,6 +47,7 @@ import { GuestPortalDashboardService } from "../../api/guestPortalDashboard.serv
 import { useGuestLoyaltySocket } from "../../hooks/useGuestLoyaltySocket";
 import { guestErrorMessage } from "../../utils/feedback";
 import { useTranslation } from "../../../../i18n";
+import { useAutoFocusError } from "../../../../hooks/useAutoFocusError";
 import { PromotionCatalog, VoucherWallet } from "../../../promotions";
 import PortalNotificationPreferences from "../../../communications/components/PortalNotificationPreferences";
 import { PortalSupportTab } from "../PortalSupportTab";
@@ -250,6 +251,7 @@ function RefundBookingDialog({
   );
   const [selectedReason, setSelectedReason] = useState("");
   const [customReason, setCustomReason] = useState("");
+  const errorRef = useAutoFocusError(error);
 
   useEffect(() => {
     if (open) {
@@ -315,7 +317,7 @@ function RefundBookingDialog({
             </Alert>
           )}
           {error ? (
-            <Alert severity="error" role="alert" sx={{ mt: 2 }}>
+            <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mt: 2 }}>
               {error}
             </Alert>
           ) : null}
@@ -673,6 +675,7 @@ function BookingDetailsDialog({
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [receiptUploadError, setReceiptUploadError] = useState<string | null>(null);
   const [receiptUploaded, setReceiptUploaded] = useState(false);
+  const receiptUploadErrorRef = useAutoFocusError(receiptUploadError);
   if (!booking) return null;
   const awaitingPayment = ["pending", "pending_payment"].includes(booking.status);
   const awaitingConfirmation = booking.status === "pending_confirmation";
@@ -802,7 +805,7 @@ function BookingDetailsDialog({
                   {receiptUploading ? t("dashboard.bookings.details.uploading") : t("dashboard.bookings.details.uploadButton")}
                 </Button>
             </Stack>
-            {receiptUploadError ? <Alert severity="error" role="alert" sx={{ mt: 1 }}>{receiptUploadError}</Alert> : null}
+            {receiptUploadError ? <Alert severity="error" role="alert" ref={receiptUploadErrorRef} tabIndex={-1} sx={{ mt: 1 }}>{receiptUploadError}</Alert> : null}
           </Box>
         ) : null}
         {awaitingPayment && booking.payment_rejection_reason ? (

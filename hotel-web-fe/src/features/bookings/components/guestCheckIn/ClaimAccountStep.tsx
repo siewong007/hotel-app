@@ -21,6 +21,7 @@ import { guestErrorMessage } from '../../../guestPortal/utils/feedback';
 import { ConsentBlock, REGISTRATION_CONSENTS, useConsent, useLegalLocale } from '../../../legal';
 import { setPortalToken } from '../../../guestPortal/api/portalTokenStore';
 import { useTranslation } from '../../../../i18n';
+import { useAutoFocusError } from '../../../../hooks/useAutoFocusError';
 
 export interface ClaimAccountStepProps {
   token: string;
@@ -50,6 +51,7 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [alreadyClaimed, setAlreadyClaimed] = useState(false);
+  const errorRef = useAutoFocusError(error);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -132,7 +134,7 @@ export const ClaimAccountStep: React.FC<ClaimAccountStepProps> = ({
       )}
 
       {error && (
-        <Alert severity={alreadyClaimed ? 'info' : 'error'} role="alert" sx={{ mb: 2 }}>
+        <Alert severity={alreadyClaimed ? 'info' : 'error'} role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }}>
           {error}
           {alreadyClaimed && (
             <Box sx={{ mt: 1 }}>

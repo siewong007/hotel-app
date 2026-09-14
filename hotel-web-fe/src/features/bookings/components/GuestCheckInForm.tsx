@@ -41,6 +41,7 @@ import { captureBookingAccessToken } from '../../guestPortal/api/bookingAccessTo
 import { getValidPortalToken } from '../../guestPortal/api/portalTokenStore';
 import { ClaimAccountStep } from './guestCheckIn/ClaimAccountStep';
 import { PreCheckInDetailsStep } from './guestCheckIn/PreCheckInDetailsStep';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 function needsOnlinePayment(status: string | undefined): boolean {
   return status === 'pending' || status === 'pending_payment';
@@ -74,6 +75,8 @@ export const GuestCheckInForm: React.FC = () => {
   const [checkinResult, setCheckinResult] = useState<GuestPortalAutoCheckinResponse | null>(null);
   const [checkinError, setCheckinError] = useState<string | null>(null);
   const [checkingIn, setCheckingIn] = useState(false);
+  const receiptUploadErrorRef = useAutoFocusError(receiptUploadError);
+  const checkinErrorRef = useAutoFocusError(checkinError);
 
   const loadBookingData = useCallback(
     async (options?: { keepStep?: boolean }) => {
@@ -366,7 +369,7 @@ export const GuestCheckInForm: React.FC = () => {
                   </Button>
                 </Stack>
                 {receiptUploadError ? (
-                  <Alert severity="error" role="alert" sx={{ mt: 1 }}>
+                  <Alert severity="error" role="alert" ref={receiptUploadErrorRef} tabIndex={-1} sx={{ mt: 1 }}>
                     {receiptUploadError}
                   </Alert>
                 ) : null}
@@ -481,7 +484,7 @@ export const GuestCheckInForm: React.FC = () => {
                 ) : (
                   <>
                     {checkinError && (
-                      <Alert severity="warning" role="alert">
+                      <Alert severity="warning" role="alert" ref={checkinErrorRef} tabIndex={-1}>
                         {checkinError}
                       </Alert>
                     )}

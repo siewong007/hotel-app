@@ -51,6 +51,7 @@ import {
 import { formatHotelDate } from '../../../../utils/date';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 import { formatPortalDate } from './dashboardUtils';
+import { useAutoFocusError } from '../../../../hooks/useAutoFocusError';
 
 const FOREST = 'var(--hotel-text)';
 const GOLD_TEXT = 'var(--hotel-primary-text)';
@@ -215,6 +216,7 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
   const [stepUpPassword, setStepUpPassword] = useState('');
   const [stepUpCode, setStepUpCode] = useState('');
   const [stepUpError, setStepUpError] = useState<string | null>(null);
+  const stepUpErrorRef = useAutoFocusError(stepUpError);
 
   const passkeys: PasskeyInfo[] = passkeysQuery.data ?? [];
   const atLimit = passkeys.length >= MAX_PASSKEYS;
@@ -444,7 +446,7 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
             {t('dashboard.security.passkeys.stepUpBody')}
           </Typography>
           {stepUpError ? (
-            <Alert severity="error" role="alert" sx={{ mb: 2 }}>
+            <Alert severity="error" role="alert" ref={stepUpErrorRef} tabIndex={-1} sx={{ mb: 2 }}>
               {stepUpError}
             </Alert>
           ) : null}

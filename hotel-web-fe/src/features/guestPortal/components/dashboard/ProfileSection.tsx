@@ -23,6 +23,7 @@ import type {
 import { guestErrorMessage } from '../../utils/feedback';
 import { validatePhoneKey } from '../../../../utils/validation';
 import { useTranslation } from '../../../../i18n';
+import { useAutoFocusError } from '../../../../hooks/useAutoFocusError';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 
 const FOREST = 'var(--hotel-text)';
@@ -127,6 +128,7 @@ export function ProfileSection({ token }: { token: string }) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const saveErrorRef = useAutoFocusError(saveError);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -294,7 +296,7 @@ export function ProfileSection({ token }: { token: string }) {
           {editing && values ? (
             <Box component="form" onSubmit={(event) => void submit(event)} noValidate>
               {saveError ? (
-                <Alert severity="error" role="alert" sx={{ mb: 2 }}>
+                <Alert severity="error" role="alert" ref={saveErrorRef} tabIndex={-1} sx={{ mb: 2 }}>
                   {saveError}
                 </Alert>
               ) : null}

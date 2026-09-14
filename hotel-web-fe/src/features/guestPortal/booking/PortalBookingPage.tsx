@@ -30,6 +30,7 @@ import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayO
 import { useAvailabilitySocket } from './useAvailabilitySocket';
 import { guestErrorMessage } from '../utils/feedback';
 import { apiUrl } from '../../../desktop/runtimeApi';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 const EMPTY_GUEST_DETAILS: AnonymousGuestDetails = {
   first_name: '', email: '', phone: '', tourism_type: '',
@@ -141,6 +142,9 @@ const PortalBookingPage: React.FC = () => {
   // authoritative regardless of this client-side value.
   const [profileComplete, setProfileComplete] = useState(true);
   const [guestDetails, setGuestDetails] = useState<AnonymousGuestDetails>(EMPTY_GUEST_DETAILS);
+  // Search, quote, voucher, credits and create failures all land on the one
+  // form-level alert below.
+  const errorRef = useAutoFocusError(error);
 
   // A visitor with no account books anonymously instead of being bounced to a
   // sign-up form — that detour is what made booking unreachable from the public
@@ -418,7 +422,7 @@ const PortalBookingPage: React.FC = () => {
         {steps.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
       </Stepper>
       <SearchStage search={search} isSearching={isSearching} onChange={setSearch} onSearch={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); void runSearch(); }} />
-      <Collapse in={Boolean(error)} timeout={animationTimeout}><Box sx={{ mt: 2 }}>{error && <Alert severity="error" role="alert">{error}</Alert>}</Box></Collapse>
+      <Collapse in={Boolean(error)} timeout={animationTimeout}><Box sx={{ mt: 2 }}>{error && <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1}>{error}</Alert>}</Box></Collapse>
       <Collapse in={!selectedOffer && offers.length > 0} timeout={animationTimeout} unmountOnExit>
         <Box sx={{ mt: 3 }}><Typography variant="h5" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} disabled={isQuoting} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
       </Collapse>
