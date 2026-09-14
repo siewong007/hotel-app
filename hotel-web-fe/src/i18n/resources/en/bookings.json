@@ -355,6 +355,10 @@
       "register": "Register Company",
       "registeredSuccess": "Company \"{{name}}\" registered successfully!",
       "registerFailed": "Failed to register company"
+    },
+    "notices": {
+      "checkInProcessing": "Check-in processing...",
+      "companyProcessing": "Company registration processing..."
     }
   },
   "checkInForm": {
@@ -446,7 +450,11 @@
       "extraBedCount": "Extra Bed Count",
       "extraBedCharge": "Extra Bed Charge",
       "perExtraBed": "{{rate}} per extra bed (max {{max}})",
-      "noExtraBeds": "This room type does not allow extra beds"
+      "noExtraBeds": "This room type does not allow extra beds",
+      "langMalay": "Bahasa Malaysia",
+      "langMandarin": "Mandarin",
+      "langTamil": "Tamil",
+      "extraBedChargeHelper": "Auto-calculated or manually adjust"
     },
     "notes": {
       "specialRequests": "Special Requests",

@@ -354,6 +354,10 @@
       "register": "注册公司",
       "registeredSuccess": "公司“{{name}}”注册成功！",
       "registerFailed": "注册公司失败"
+    },
+    "notices": {
+      "checkInProcessing": "正在办理入住…",
+      "companyProcessing": "正在注册公司…"
     }
   },
   "checkInForm": {
@@ -445,7 +449,11 @@
       "extraBedCount": "加床数量",
       "extraBedCharge": "加床费用",
       "perExtraBed": "每张加床 {{rate}}（最多 {{max}} 张）",
-      "noExtraBeds": "该房型不支持加床"
+      "noExtraBeds": "该房型不支持加床",
+      "langMalay": "马来语",
+      "langMandarin": "中文（华语）",
+      "langTamil": "泰米尔语",
+      "extraBedChargeHelper": "自动计算，也可手动调整"
     },
     "notes": {
       "specialRequests": "特殊要求",

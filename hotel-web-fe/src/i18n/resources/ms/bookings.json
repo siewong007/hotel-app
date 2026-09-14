@@ -355,6 +355,10 @@
       "register": "Daftar Syarikat",
       "registeredSuccess": "Syarikat \"{{name}}\" berjaya didaftarkan!",
       "registerFailed": "Gagal mendaftarkan syarikat"
+    },
+    "notices": {
+      "checkInProcessing": "Memproses daftar masuk...",
+      "companyProcessing": "Memproses pendaftaran syarikat..."
     }
   },
   "checkInForm": {
@@ -446,7 +450,11 @@
       "extraBedCount": "Bilangan Katil Tambahan",
       "extraBedCharge": "Caj Katil Tambahan",
       "perExtraBed": "{{rate}} setiap katil tambahan (maks {{max}})",
-      "noExtraBeds": "Jenis bilik ini tidak membenarkan katil tambahan"
+      "noExtraBeds": "Jenis bilik ini tidak membenarkan katil tambahan",
+      "langMalay": "Bahasa Malaysia",
+      "langMandarin": "Mandarin",
+      "langTamil": "Tamil",
+      "extraBedChargeHelper": "Dikira secara automatik atau laraskan secara manual"
     },
     "notes": {
       "specialRequests": "Permintaan Khas",

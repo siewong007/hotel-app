@@ -56,6 +56,14 @@ bundle that committed the term.
 | special requests | 特殊要求 | permintaan khas | `guestPortal.book` |
 | reservation timeline | 预订时间轴 | garis masa tempahan | `nav.timeline` |
 | booking terms / privacy notice | 《预订条款》/《隐私声明》 | Terma Tempahan / Notis Privasi | `guestPortal`, `auth` — 《》 marks document names |
+| folio | 账单 | folio | `bookings` — staff register; folio number 账单号 |
+| night audit | 夜审 | audit malam | `bookings.list` |
+| direct billing / company billing | 直接挂账 / 公司账单 | pengebilan terus / bil syarikat | `bookings` — city-ledger billing at check-in |
+| waive deposit | 免收押金 | ketepikan deposit | `bookings.checkIn` — waived state 已免收 / diketepikan |
+| complimentary credits | 免费房晚 | kredit komplimentari | `bookings.comp` — zh reuses the 免费房晚 row above; "comp nights" = 个免费房晚 / malam komplimentari |
+| pre-check-in | 在线办理入住 | daftar masuk awal | `guestPortal.checkin` — guest-facing register |
+| tourism tax | 旅游税 | cukai pelancongan | `bookings` — Malaysia TT, fixed statutory term |
+| extra bed | 加床 | katil tambahan | `bookings` — 加床数量/加床费用 |
 
 ## 3. Rooms & operations
 

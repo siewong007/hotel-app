@@ -1,6 +1,6 @@
 import React from 'react';
-import { format } from 'date-fns';
 import { toMoneyNumber } from '../../../../utils/money';
+import { dateFormatter, useTranslation } from '../../../../i18n';
 import {
   Typography,
   Grid,
@@ -20,7 +20,7 @@ import type { Booking, BookingUpdateRequest, BookingWithDetails } from '../../..
 
 const getDayOfWeek = (dateStr: string) => {
   try {
-    return format(new Date(dateStr), 'EEEE');
+    return dateFormatter({ weekday: 'long' }).format(new Date(dateStr));
   } catch {
     return '';
   }
@@ -77,18 +77,19 @@ export function StayInfoTab({
   weekdayRate,
   weekendRate,
 }: StayInfoTabProps) {
+  const { t } = useTranslation('bookings');
   return (
       <Grid container spacing={2}>
         <Grid size={12}>
           <Typography variant="subtitle2" color="primary" gutterBottom>
-            Check-in/Check-out
+            {t('checkInForm.stay.sectionCheckInOut')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Check-in Date"
+            label={t('checkInForm.stay.checkInDate')}
             type="date"
             value={booking.check_in_date}
             disabled
@@ -101,7 +102,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Check-in Time"
+            label={t('checkInForm.stay.checkInTime')}
             type="time"
             value={bookingData.check_in_time || '15:00'}
             onChange={(e) => handleBookingChange('check_in_time', e.target.value)}
@@ -113,7 +114,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Nights"
+            label={t('checkInForm.stay.nights')}
             value={calculateNights()}
             disabled
           />
@@ -121,7 +122,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Check-out Date"
+            label={t('checkInForm.stay.checkOutDate')}
             type="date"
             value={booking.check_out_date}
             disabled
@@ -134,7 +135,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Check-out Time"
+            label={t('checkInForm.stay.checkOutTime')}
             type="time"
             value={bookingData.check_out_time || '11:00'}
             onChange={(e) => handleBookingChange('check_out_time', e.target.value)}
@@ -147,7 +148,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Adults"
+            label={t('checkInForm.stay.adults')}
             type="number"
             value={booking.number_of_guests || 1}
             disabled
@@ -156,7 +157,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Extra Beds"
+            label={t('checkInForm.stay.extraBeds')}
             type="number"
             value={extraBedCount}
             disabled
@@ -165,7 +166,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Room Number"
+            label={t('checkInForm.stay.roomNumber')}
             value={booking.room_id}
             disabled
           />
@@ -173,21 +174,21 @@ export function StayInfoTab({
 
         <Grid size={12}>
           <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-            Rate & Charges
+            {t('checkInForm.stay.sectionRateCharges')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 4 }}>
           <FormControl fullWidth>
-            <InputLabel>Rate Code</InputLabel>
+            <InputLabel>{t('checkInForm.stay.rateCode')}</InputLabel>
             <Select
               value={bookingData.rate_code || 'RACK'}
               onChange={(e) => handleBookingChange('rate_code', e.target.value)}
-              label="Rate Code"
+              label={t('checkInForm.stay.rateCode')}
             >
               {rateCodes.map(code => (
-                <MenuItem key={code} value={code}>{code} - Standard Rack Rate</MenuItem>
+                <MenuItem key={code} value={code}>{t('checkInForm.stay.rateCodeSuffix', { code })}</MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -202,8 +203,8 @@ export function StayInfoTab({
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Market Code"
-                placeholder="Type or select..."
+                label={t('checkInForm.stay.marketCode')}
+                placeholder={t('checkInForm.stay.marketCodePlaceholder')}
               />
             )}
           />
@@ -211,7 +212,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Discount %"
+            label={t('checkInForm.stay.discountPercent')}
             type="number"
             value={bookingData.discount_percentage || 0}
             onChange={(e) => handleBookingChange('discount_percentage', parseFloat(e.target.value))}
@@ -224,7 +225,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Weekday Rate"
+            label={t('checkInForm.stay.weekdayRate')}
             type="number"
             value={weekdayRate}
             onChange={(e) => setWeekdayRate(e.target.value)}
@@ -239,7 +240,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Weekend Rate"
+            label={t('checkInForm.stay.weekendRate')}
             type="number"
             value={weekendRate}
             onChange={(e) => setWeekendRate(e.target.value)}
@@ -259,20 +260,20 @@ export function StayInfoTab({
                 onChange={(e) => setOverrideRate(e.target.checked)}
               />
             }
-            label="Override Rate"
+            label={t('checkInForm.stay.overrideRate')}
           />
         </Grid>
 
         <Grid size={12}>
           <Paper sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)' }}>
             <Typography variant="subtitle2" gutterBottom>
-              Room Charge Summary
+              {t('checkInForm.stay.roomChargeSummary')}
             </Typography>
             <Grid container spacing={1}>
               <Grid size={6}>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Total Amount:</Typography>
+                }}>{t('checkInForm.stay.totalAmountLabel')}</Typography>
               </Grid>
               <Grid size={6}>
                 <Typography variant="body2" sx={{
@@ -285,7 +286,7 @@ export function StayInfoTab({
 
         <Grid size={12}>
           <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-            Special Posting
+            {t('checkInForm.stay.sectionSpecialPosting')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
         </Grid>
@@ -293,7 +294,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="EPI Rate"
+            label={t('checkInForm.stay.epiRate')}
             type="number"
             value={epiRate}
             onChange={(e) => setEpiRate(Number(e.target.value))}
@@ -305,7 +306,7 @@ export function StayInfoTab({
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             fullWidth
-            label="Next Posting"
+            label={t('checkInForm.stay.nextPosting')}
             value={nextPosting}
             onChange={(e) => setNextPosting(e.target.value)}
           />
@@ -318,7 +319,7 @@ export function StayInfoTab({
                 onChange={(e) => setChargeIncidentals(e.target.checked)}
               />
             }
-            label="Charge Incidentals"
+            label={t('checkInForm.stay.chargeIncidentals')}
           />
           <FormControlLabel
             control={
@@ -327,7 +328,7 @@ export function StayInfoTab({
                 onChange={(e) => setVipGuest(e.target.checked)}
               />
             }
-            label="VIP Guest"
+            label={t('checkInForm.stay.vipGuest')}
           />
         </Grid>
       </Grid>
