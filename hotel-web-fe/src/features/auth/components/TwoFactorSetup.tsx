@@ -341,7 +341,13 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
             Use these codes to access your account if you lose your device. They will not be
             shown again.
           </Typography>
-          <Paper sx={{ p: 2, bgcolor: 'warning.light' }}>
+          <Paper
+            sx={{
+              p: 2,
+              bgcolor: 'var(--hotel-warning-bg)',
+              border: '1px solid var(--hotel-warning-border)',
+            }}
+          >
             <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
               ⚠️ Store these codes somewhere safe. Each code can only be used once.
             </Typography>
@@ -419,7 +425,14 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
           />
 
           {newBackupCodes.length > 0 && (
-            <Paper sx={{ p: 2, bgcolor: 'success.light', mt: 2 }}>
+            <Paper
+              sx={{
+                p: 2,
+                mt: 2,
+                bgcolor: 'var(--hotel-success-bg)',
+                border: '1px solid var(--hotel-success-border)',
+              }}
+            >
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
                 ✅ Your new backup codes:
               </Typography>
