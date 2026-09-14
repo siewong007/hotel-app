@@ -53,6 +53,10 @@ pub fn routes() -> Router<DbPool> {
             "/payments/revert-deposit-refund/{booking_id}",
             post(revert_deposit_refund),
         )
+        .route(
+            "/payments/revert-deposit-void/{booking_id}",
+            post(revert_deposit_void),
+        )
         .route("/payments/booking/{booking_id}", get(get_payment))
         .route("/payments/{payment_id}", patch(update_payment))
         .route("/payments/{payment_id}", delete(delete_payment))
@@ -169,6 +173,18 @@ async fn revert_deposit_refund(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_MANAGE).await?;
     handlers::payments::revert_deposit_refund_handler(State(pool), Extension(user_id), path).await
+}
+
+// Cancelling a deposit is desk work on payments:delete (collateral, not
+// settled revenue), so reverting the cancellation rides the same gate —
+// not the payments:manage gate revert-deposit-refund uses.
+async fn revert_deposit_void(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
+    handlers::payments::revert_deposit_void_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn get_invoice_preview(

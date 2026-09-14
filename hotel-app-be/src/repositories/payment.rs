@@ -1502,6 +1502,50 @@ impl PaymentRepository {
         Ok(refund_id)
     }
 
+    /// Revert a voided (cancelled) keycard deposit for a booking.
+    ///
+    /// Flips the newest `void` deposit row back to `completed` and resyncs the
+    /// booking mirror, so a deposit cancelled by mistake becomes held again.
+    /// The void's `processed_at`/`processed_by` stamps are left in place as
+    /// history of the void. One row per call — when several voided deposits
+    /// exist they are restored newest-first, so an older intentionally-voided
+    /// row is never resurrected by accident. Works on any booking status
+    /// (restoring a deposit on a checked-out stay is a legitimate correction).
+    /// Returns the id of the restored payment.
+    pub async fn revert_deposit_void(pool: &DbPool, booking_id: i64) -> Result<i64, ApiError> {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+        let deposit_id: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'deposit' \
+             AND status = 'void' ORDER BY id DESC LIMIT 1 FOR UPDATE",
+        )
+        .bind(booking_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        let deposit_id = match deposit_id {
+            Some(id) => id,
+            None => {
+                return Err(ApiError::BadRequest(
+                    "No voided deposit to revert".to_string(),
+                ));
+            }
+        };
+
+        sqlx::query("UPDATE payments SET status = 'completed' WHERE id = $1")
+            .bind(deposit_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
+
+        Self::sync_booking_deposit_mirror_tx(&mut tx, booking_id).await?;
+
+        tx.commit().await.map_err(ApiError::from)?;
+
+        Ok(deposit_id)
+    }
+
     /// Find payment by booking ID
     pub async fn find_by_booking_id(
         pool: &DbPool,

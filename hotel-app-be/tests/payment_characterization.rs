@@ -4892,3 +4892,132 @@ async fn update_payment_reference_ignores_legacy_rows_but_still_guards_keyed_own
         );
     }
 }
+
+/// Reverting a voided deposit flips the newest voided row back to completed
+/// and re-hangs the mirror — the cancel/revert pair round-trips without
+/// touching settled payments. Works on checked-out stays too, and errors
+/// when nothing voided exists.
+#[tokio::test]
+async fn revert_deposit_void_restores_the_newest_voided_row() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_970, 940_971, 940_972, 940_973, 940_974);
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "checked_in",
+            check_in: "2031-08-10",
+            check_out: "2031-08-12",
+            base_price: d("150.00"),
+            subtotal: d("300.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+
+    let older =
+        insert_completed_payment(&pool, booking_id, "deposit", d("50.00"), actor_id).await;
+    let newer =
+        insert_completed_payment(&pool, booking_id, "deposit", d("25.00"), actor_id).await;
+    for id in [older, newer] {
+        sqlx::query("UPDATE payments SET status = 'void' WHERE id = $1")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+
+    let first = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+    let first_id = first
+        .as_ref()
+        .ok()
+        .and_then(|v| v["reverted_payment_id"].as_i64());
+    let mirror_first: (bool, Option<Decimal>) = sqlx::query_as(
+        "SELECT COALESCE(deposit_paid, false), deposit_amount FROM bookings WHERE id = $1",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let second = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+    let second_id = second
+        .as_ref()
+        .ok()
+        .and_then(|v| v["reverted_payment_id"].as_i64());
+    let mirror_second: Option<Decimal> =
+        sqlx::query_scalar("SELECT deposit_amount FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    // A checked-out stay can still be corrected.
+    sqlx::query("UPDATE bookings SET status = 'checked_out' WHERE id = $1")
+        .bind(booking_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE payments SET status = 'void' WHERE id = $1")
+        .bind(newer)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let on_checked_out = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+
+    let drained = payments::revert_deposit_void(&pool, actor_id, booking_id).await;
+    let audit = audit_log_exists(&pool, "deposit_void_reverted", newer).await;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+
+    assert_eq!(
+        first_id,
+        Some(newer),
+        "the newest voided row restores first: {first:?}"
+    );
+    assert!(
+        mirror_first.0 && mirror_first.1 == Some(d("25.00")),
+        "the mirror must re-hang at the restored amount: {mirror_first:?}"
+    );
+    assert_eq!(
+        second_id,
+        Some(older),
+        "the next call restores the older row: {second:?}"
+    );
+    assert_eq!(mirror_second, Some(d("75.00")));
+    assert!(
+        on_checked_out.is_ok(),
+        "revert must work on checked-out stays: {on_checked_out:?}"
+    );
+    assert!(
+        matches!(drained, Err(ApiError::BadRequest(_))),
+        "reverting with nothing voided must fail: {drained:?}"
+    );
+    assert!(audit, "the revert must write a deposit_void_reverted audit row");
+}
