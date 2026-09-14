@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Button, Stack } from '@mui/material';
 import { BottomSheet } from './BottomSheet';
+import { useTranslation } from '../../i18n';
 
 export interface FilterSheetProps {
   open: boolean;
@@ -24,13 +25,15 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({
   onClose,
   onReset,
   onApply,
-  title = 'Filters',
+  title,
   children,
-}) => (
+}) => {
+  const { t } = useTranslation('common');
+  return (
   <BottomSheet
     open={open}
     onClose={onClose}
-    title={title}
+    title={title ?? t('filters.title')}
   >
     <Stack spacing={2}>{children}</Stack>
     <Stack
@@ -43,7 +46,7 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({
     >
       {onReset ? (
         <Button variant="outlined" onClick={onReset} fullWidth>
-          Reset
+          {t('actions.reset')}
         </Button>
       ) : null}
       <Button
@@ -51,11 +54,12 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({
         onClick={onApply ?? onClose}
         fullWidth
       >
-        Apply filters
+        {t('filters.apply')}
       </Button>
     </Stack>
     <Box sx={{ height: 4 }} />
   </BottomSheet>
-);
+  );
+};
 
 export default FilterSheet;

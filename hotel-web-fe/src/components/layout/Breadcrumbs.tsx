@@ -59,7 +59,9 @@ export const Breadcrumbs: React.FC = () => {
 
   const route = resolveRoute(pathname);
   const dashboardRoute = navigationRouteDefinitions.find((r) => r.id === 'dashboard');
-  const overviewLabel = dashboardRoute ? breadcrumbLabel(dashboardRoute) : 'Overview';
+  const overviewLabel = dashboardRoute
+    ? breadcrumbLabel(dashboardRoute)
+    : tNav('routes.dashboard.breadcrumb');
 
   const currentLabel = pageLabel(route, pathname, breadcrumbLabel);
 

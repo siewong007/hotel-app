@@ -4,13 +4,15 @@ import { Box, Button, Typography, Paper, Alert, AlertTitle } from '@mui/material
 import RefreshIcon from '@mui/icons-material/Refresh';
 import HomeIcon from '@mui/icons-material/Home';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import { useTranslation } from '../../i18n';
 
 interface ErrorFallbackProps extends FallbackProps {
   title?: string;
   detailMessage?: string;
 }
 
-function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wrong', detailMessage }: ErrorFallbackProps) {
+function ErrorFallback({ error, resetErrorBoundary, title, detailMessage }: ErrorFallbackProps) {
+  const { t } = useTranslation('errors');
   const isDevelopment = import.meta.env.DEV;
   // react-error-boundary 6 types the thrown value as `unknown` (anything can
   // be thrown), so narrow it before reading Error fields.
@@ -40,12 +42,12 @@ function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wron
         <BugReportIcon sx={{ fontSize: 64, color: 'error.main', mb: 2 }} />
 
         <Typography variant="h4" gutterBottom color="error">
-          {title}
+          {title ?? t('common:state.error')}
         </Typography>
 
         <Alert severity="error" sx={{ mt: 2, mb: 3, textAlign: 'left' }}>
-          <AlertTitle>Error Details</AlertTitle>
-          {detailMessage ?? (errorMessage || 'An unexpected error occurred')}
+          <AlertTitle>{t('boundary.details')}</AlertTitle>
+          {detailMessage ?? (errorMessage || t('boundary.unexpected'))}
         </Alert>
 
         {isDevelopment && errorStack && (
@@ -73,14 +75,14 @@ function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wron
             startIcon={<RefreshIcon />}
             onClick={resetErrorBoundary}
           >
-            Try Again
+            {t('common:actions.retry')}
           </Button>
           <Button
             variant="outlined"
             startIcon={<HomeIcon />}
             onClick={() => window.location.href = '/'}
           >
-            Go Home
+            {t('common:actions.goHome')}
           </Button>
         </Box>
 
@@ -91,7 +93,7 @@ function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wron
             mt: 3,
             display: 'block'
           }}>
-          If this problem persists, please contact support
+          {t('boundary.persistHint')}
         </Typography>
       </Paper>
     </Box>
@@ -147,9 +149,10 @@ export function ErrorBoundary({ children, title, detailMessage, onError, onReset
 
 // Page-level error boundary with custom styling
 export function PageErrorBoundary({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation('errors');
   return (
     <ErrorBoundary
-      title="Page Error"
+      title={t('boundary.page')}
       onError={(error, errorInfo) => {
         console.error('Page Error:', error, errorInfo);
       }}
@@ -166,9 +169,10 @@ export function PageErrorBoundary({ children }: { children: React.ReactNode }) {
 
 // Component-level error boundary (less intrusive)
 export function ComponentErrorBoundary({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation('errors');
   return (
     <ErrorBoundary
-      title="Component Error"
+      title={t('boundary.component')}
       onError={(error) => {
         console.warn('Component Error:', error);
       }}

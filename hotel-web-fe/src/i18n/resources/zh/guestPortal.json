@@ -152,5 +152,9 @@
     "uploading": "上传中…",
     "uploaded": "凭证已收到。谢谢——我们将尽快确认您的付款。",
     "uploadFailed": "无法接收该文件。请发送 10MB 以内的 JPEG、PNG、WebP 或 PDF 文件。"
+  },
+  "errorBoundary": {
+    "title": "页面出现问题",
+    "detail": "加载此页面时出现问题，请重试。"
   }
 }

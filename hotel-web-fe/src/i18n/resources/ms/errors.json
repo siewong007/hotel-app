@@ -24,5 +24,23 @@
     "notFound": "Item yang diminta tidak dapat dijumpai.",
     "rateLimited": "Terlalu banyak permintaan. Sila cuba lagi sebentar nanti.",
     "requestFailed": "Permintaan gagal."
+  },
+  "boundary": {
+    "guest": "Ralat Halaman Tetamu",
+    "auth": "Ralat Pengesahan",
+    "page": "Ralat Halaman",
+    "component": "Ralat Komponen",
+    "details": "Butiran Ralat",
+    "unexpected": "Berlaku ralat yang tidak dijangka",
+    "persistHint": "Jika masalah ini berterusan, sila hubungi sokongan"
+  },
+  "page": {
+    "errorLabel": "Ralat {{code}}",
+    "forbiddenTitle": "Akses ditolak",
+    "forbiddenMessage": "Anda tidak mempunyai kebenaran untuk melihat halaman ini.",
+    "notFoundTitle": "Halaman tidak ditemui",
+    "notFoundMessage": "Halaman yang anda minta tidak wujud atau mungkin telah dialihkan.",
+    "lockedTitle": "Sumber dikunci",
+    "lockedMessage": "Sumber ini sedang dikunci. Sila cuba lagi nanti atau hubungi pentadbir."
   }
 }

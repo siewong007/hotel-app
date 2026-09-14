@@ -54,7 +54,10 @@
     "manage": "Manage",
     "filter": "Filter",
     "sort": "Sort",
-    "more": "More"
+    "more": "More",
+    "viewAll": "View all",
+    "goHome": "Go home",
+    "goBack": "Go back"
   },
   "state": {
     "loading": "Loading…",
@@ -66,7 +69,8 @@
     "processing": "Processing…",
     "deleting": "Deleting…",
     "unavailable": "Unavailable",
-    "retry": "Retry"
+    "retry": "Retry",
+    "searching": "Searching…"
   },
   "field": {
     "name": "Name",
@@ -95,7 +99,10 @@
     "page": "Page",
     "of": "of",
     "rowsPerPage": "Rows per page",
-    "showing": "Showing {{from}}–{{to}} of {{total}}"
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "pageOf": "Page {{page}} of {{pages}}",
+    "previous": "Previous page",
+    "next": "Next page"
   },
   "time": {
     "today": "Today",
@@ -106,7 +113,10 @@
     "custom": "Custom",
     "dateRange": "Date range",
     "startDate": "Start date",
-    "endDate": "End date"
+    "endDate": "End date",
+    "justNow": "just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago"
   },
   "language": {
     "label": "Language",
@@ -127,5 +137,25 @@
     "rooms_zero": "No rooms",
     "rooms_one": "{{count}} room",
     "rooms_other": "{{count}} rooms"
+  },
+  "filters": {
+    "title": "Filters",
+    "apply": "Apply filters",
+    "byStatus": "Filter by status",
+    "allStatuses": "All statuses"
+  },
+  "table": {
+    "empty": "No rows"
+  },
+  "aria": {
+    "loading": "Loading",
+    "loadingPage": "Loading index page"
+  },
+  "confirm": {
+    "areYouSure": "Are you sure?",
+    "pleaseConfirm": "Please confirm"
+  },
+  "app": {
+    "title": "Hotel ERP System"
   }
 }

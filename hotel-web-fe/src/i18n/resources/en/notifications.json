@@ -1,5 +1,7 @@
 {
   "title": "Notifications",
+  "pageTitle": "Guest Deliveries",
+  "pageSubtitle": "Outbound messages sent to guests — staff alerts live under the topbar bell",
   "markAllRead": "Mark all as read",
   "empty": "No notifications",
   "toast": {
@@ -8,5 +10,28 @@
     "updated": "Updated.",
     "failed": "The action failed. Please try again.",
     "copied": "Copied to clipboard."
-  }
+  },
+  "center": {
+    "alerts": "Alerts",
+    "system": "System",
+    "clearAll": "Clear all",
+    "viewAllAria": "View all notifications",
+    "noSystemAlerts": "No system alerts",
+    "allCaughtUp": "You're all caught up",
+    "dismiss": "Dismiss notification",
+    "unreadAria": "Notifications ({{count}} unread)"
+  },
+  "priority": {
+    "info": "Info",
+    "warning": "Warning",
+    "critical": "Critical"
+  },
+  "meta": "{{priority}} priority · {{time}}",
+  "tier": {
+    "transactional": "Transactional",
+    "marketing": "Marketing"
+  },
+  "tierEmpty": "{{tier}}: nothing here yet",
+  "noDeliveries": "No deliveries match the current filters",
+  "forbidden": "You do not have permission to view the delivery feed."
 }

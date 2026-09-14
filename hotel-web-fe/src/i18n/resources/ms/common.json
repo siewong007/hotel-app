@@ -54,7 +54,10 @@
     "manage": "Urus",
     "filter": "Tapis",
     "sort": "Isih",
-    "more": "Lagi"
+    "more": "Lagi",
+    "viewAll": "Lihat semua",
+    "goHome": "Kembali ke laman utama",
+    "goBack": "Kembali"
   },
   "state": {
     "loading": "Memuatkan…",
@@ -66,7 +69,8 @@
     "processing": "Memproses…",
     "deleting": "Memadam…",
     "unavailable": "Tidak tersedia",
-    "retry": "Cuba lagi"
+    "retry": "Cuba lagi",
+    "searching": "Mencari…"
   },
   "field": {
     "name": "Nama",
@@ -95,7 +99,10 @@
     "page": "Halaman",
     "of": "daripada",
     "rowsPerPage": "Baris setiap halaman",
-    "showing": "Memaparkan {{from}}–{{to}} daripada {{total}}"
+    "showing": "Memaparkan {{from}}–{{to}} daripada {{total}}",
+    "pageOf": "Halaman {{page}} daripada {{pages}}",
+    "previous": "Halaman sebelumnya",
+    "next": "Halaman seterusnya"
   },
   "time": {
     "today": "Hari ini",
@@ -106,7 +113,10 @@
     "custom": "Tersuai",
     "dateRange": "Julat tarikh",
     "startDate": "Tarikh mula",
-    "endDate": "Tarikh tamat"
+    "endDate": "Tarikh tamat",
+    "justNow": "baru sahaja",
+    "minutesAgo": "{{count}} min lalu",
+    "hoursAgo": "{{count}} jam lalu"
   },
   "language": {
     "label": "Bahasa",
@@ -123,5 +133,25 @@
     "guests_other": "{{count}} orang tetamu",
     "rooms_zero": "Tiada bilik",
     "rooms_other": "{{count}} bilik"
+  },
+  "filters": {
+    "title": "Tapis",
+    "apply": "Guna penapis",
+    "byStatus": "Tapis mengikut status",
+    "allStatuses": "Semua status"
+  },
+  "table": {
+    "empty": "Tiada baris"
+  },
+  "aria": {
+    "loading": "Memuatkan",
+    "loadingPage": "Memuatkan halaman utama"
+  },
+  "confirm": {
+    "areYouSure": "Adakah anda pasti?",
+    "pleaseConfirm": "Sila sahkan"
+  },
+  "app": {
+    "title": "Sistem ERP Hotel"
   }
 }

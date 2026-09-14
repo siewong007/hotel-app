@@ -24,5 +24,23 @@
     "notFound": "The requested item could not be found.",
     "rateLimited": "Too many requests. Please try again shortly.",
     "requestFailed": "Request failed."
+  },
+  "boundary": {
+    "guest": "Guest Experience Error",
+    "auth": "Authentication Error",
+    "page": "Page Error",
+    "component": "Component Error",
+    "details": "Error Details",
+    "unexpected": "An unexpected error occurred",
+    "persistHint": "If this problem persists, please contact support"
+  },
+  "page": {
+    "errorLabel": "Error {{code}}",
+    "forbiddenTitle": "Access denied",
+    "forbiddenMessage": "You do not have permission to view this page.",
+    "notFoundTitle": "Page not found",
+    "notFoundMessage": "The page you requested does not exist or may have moved.",
+    "lockedTitle": "Resource locked",
+    "lockedMessage": "This resource is currently locked. Please try again later or contact an administrator."
   }
 }

@@ -46,6 +46,10 @@
       "label": "Data Transfer",
       "breadcrumb": "Data Transfer"
     },
+    "ekyc": {
+      "label": "eKYC",
+      "breadcrumb": "Identity Verification"
+    },
     "ekyc-admin": {
       "label": "eKYC Admin",
       "breadcrumb": "eKYC Admin"
@@ -66,9 +70,21 @@
       "label": "Housekeeping",
       "breadcrumb": "Housekeeping"
     },
+    "insights": {
+      "label": "Insights",
+      "breadcrumb": "Insights"
+    },
+    "jobs": {
+      "label": "Jobs",
+      "breadcrumb": "Jobs"
+    },
     "loyalty": {
       "label": "Loyalty",
       "breadcrumb": "Loyalty"
+    },
+    "my-rewards": {
+      "label": "My Rewards",
+      "breadcrumb": "My Rewards"
     },
     "night-audit": {
       "label": "Night Audit",
@@ -102,6 +118,10 @@
       "label": "Reports",
       "breadcrumb": "Reports"
     },
+    "revenue": {
+      "label": "Revenue",
+      "breadcrumb": "Revenue"
+    },
     "room-config": {
       "label": "Room Configuration",
       "breadcrumb": "Room Configuration"
@@ -122,6 +142,10 @@
       "label": "Support",
       "breadcrumb": "Guest Support"
     },
+    "system-health": {
+      "label": "System Health",
+      "breadcrumb": "System Health"
+    },
     "timeline": {
       "label": "Timeline",
       "breadcrumb": "Reservation Timeline"
@@ -131,7 +155,8 @@
     "profile": "My Profile",
     "settings": "Settings",
     "logout": "Log out",
-    "signedInAs": "Signed in as {{name}}"
+    "signedInAs": "Signed in as {{name}}",
+    "defaultRole": "Staff"
   },
   "aria": {
     "mainNavigation": "Main navigation",
@@ -140,7 +165,31 @@
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "breadcrumbs": "Breadcrumbs",
-    "userMenu": "Account menu"
+    "userMenu": "Account menu",
+    "brand": "Hotel"
+  },
+  "palette": {
+    "placeholder": "Search bookings, guests, rooms, pages…",
+    "placeholderGuest": "Search pages…",
+    "noMatches": "No matches",
+    "searching": "Searching…",
+    "hint": "Type at least 2 characters, or browse below",
+    "newBookingHint": "Create a reservation",
+    "groups": {
+      "recent": "Recent",
+      "actions": "Actions",
+      "pages": "Pages",
+      "help": "Help"
+    },
+    "scopes": {
+      "all": "All",
+      "bookings": "Bookings",
+      "guests": "Guests",
+      "ledgers": "Ledger",
+      "rooms": "Rooms",
+      "pages": "Pages",
+      "help": "Help"
+    }
   },
   "mobile": {
     "primary": "Primary navigation",

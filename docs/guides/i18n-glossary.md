@@ -149,6 +149,12 @@ bundle that committed the term.
 | email | 电子邮箱 | e-mel | `common.field`, `auth`, `email` |
 | dashboard / overview | 概览 | papan pemuka / utama | `nav`, `dashboard.title` — en ambiguous, §8 |
 | verified / verify | 已验证 / 验证 | disahkan / sahkan | `status.ekyc`, `email.cta` |
+| app title (fallback document.title) | 酒店管理系统 | Sistem ERP Hotel | `common.app.title` — used only when `hotel_name` is blank |
+| notification priority: info / warning / critical | 提示 / 警告 / 严重 | Maklumat / Amaran / Kritikal | `notifications.priority` — chip/tooltip register, not `status.*` |
+| email delivery tier: transactional / marketing | 事务 / 营销 | Transaksi / Pemasaran | `notifications.tier` — tab labels |
+| error page: access denied / page not found / resource locked | 无权访问 / 页面未找到 / 资源已锁定 | Akses ditolak / Halaman tidak ditemui / Sumber dikunci | `errors.page` — StatusPage 403/404/423 |
+| error boundary scope titles | 访客页面出错 / 认证错误 / 页面错误 / 组件错误 | Ralat Halaman Tetamu / Pengesahan / Halaman / Komponen | `errors.boundary` — guest/auth/page/component |
+| staff (role fallback label) | 员工 | Kakitangan | `nav.userMenu.defaultRole` — renders only when no role/username |
 
 ## 7. Accepted register variants
 
