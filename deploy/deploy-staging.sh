@@ -51,6 +51,7 @@ flock -n 9 || die "another saliminn deployment is already running"
 required_payload=(
   deploy.sh
   database-backup.sh
+  check-backup-health.sh
   docker-compose.prod.yml
   SHA256SUMS
   images/backend.tar.gz
@@ -273,6 +274,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/docker-compose.prod.yml" "$COMPOSE_FILE"
   install -m 0750 "$RELEASE_DIR/deploy.sh" "$APP_DIR/deploy.sh"
   install -m 0750 "$RELEASE_DIR/database-backup.sh" "$APP_DIR/database-backup.sh"
+  install -m 0750 "$RELEASE_DIR/check-backup-health.sh" "$APP_DIR/check-backup-health.sh"
   # The official PostgreSQL entrypoint processes these files as its non-root
   # postgres user, so this read-only directory must be traversable by it.
   install -d -m 0755 "$APP_DIR/initdb"
@@ -342,8 +344,36 @@ Persistent=true
 WantedBy=timers.target
 BACKUP_TIMER
 
+  # Mirrors the production backup-health timer. The shared check script takes its
+  # status-file path from the environment, so staging points at its own directory
+  # rather than shipping a near-duplicate copy of the script.
+  cat > /etc/systemd/system/saliminn-staging-backup-health.service <<'HEALTH_SERVICE'
+[Unit]
+Description=Check the Saliminn staging database backup health (backup-status.json)
+After=network.target
+
+[Service]
+Type=oneshot
+Environment=CHECK_BACKUP_STATUS_FILE=/opt/saliminn-staging/backups/backup-status.json
+ExecStart=/opt/saliminn-staging/check-backup-health.sh
+HEALTH_SERVICE
+
+  cat > /etc/systemd/system/saliminn-staging-backup-health.timer <<'HEALTH_TIMER'
+[Unit]
+Description=Run the Saliminn staging backup health check periodically
+
+[Timer]
+OnCalendar=*-*-* *:10,25,40,55:00
+Persistent=true
+Unit=saliminn-staging-backup-health.service
+
+[Install]
+WantedBy=timers.target
+HEALTH_TIMER
+
   systemctl daemon-reload
   systemctl enable --now saliminn-staging-backup.timer
+  systemctl enable --now saliminn-staging-backup-health.timer
 }
 
 load_release_images() {
