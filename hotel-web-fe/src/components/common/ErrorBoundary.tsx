@@ -176,6 +176,11 @@ export function ComponentErrorBoundary({ children }: { children: React.ReactNode
       onError={(error) => {
         console.warn('Component Error:', error);
       }}
+      onReset={() => {
+        // For a failed lazy import, re-rendering replays the cached rejection
+        // — only a document reload clears the browser's module-map entry.
+        window.location.reload();
+      }}
     >
       {children}
     </ErrorBoundary>
