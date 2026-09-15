@@ -11,8 +11,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useState } from 'react';
-import { useTranslation } from '../../../i18n';
-import { VOUCHER_STATUS_LABELS } from '../constants';
+import { useTranslation, statusLabel } from '../../../i18n';
 import type { Voucher } from '../types';
 import { formatPromotionDate } from '../utils';
 
@@ -64,7 +63,7 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
   const statusKey = isExpired ? 'vouchers.status.expired' : STATUS_KEYS[voucher.status];
   const displayStatus = statusKey
     ? t(statusKey)
-    : (VOUCHER_STATUS_LABELS[voucher.status] ?? voucher.status);
+    : statusLabel(t, 'voucher', voucher.status);
   const statusStyle = isExpired
     ? { backgroundColor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', accent: 'var(--hotel-warning)' }
     : STATUS_STYLES[voucher.status];

@@ -25,7 +25,8 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { CAMPAIGN_LIFECYCLE_LABELS } from "../constants";
+import { useTranslation } from "../../../i18n";
+import { CAMPAIGN_LIFECYCLE_KEYS } from "../constants";
 import type { Promotion, PromotionLifecycle, PromotionLifecycleAction } from "../types";
 import { formatPromotionDate, formatPromotionDiscount } from "../utils";
 import { useIsPhone } from "../../../hooks/useIsPhone";
@@ -88,19 +89,20 @@ export function PromotionAdminTable({
   onPageChange,
   onPageSizeChange,
 }: PromotionAdminTableProps) {
+  const { t } = useTranslation("promotions");
   const isPhone = useIsPhone();
 
   const rowActions = (promotion: Promotion) => (
     <>
       {onViewVouchers ? (
-        <Tooltip title="View vouchers">
+        <Tooltip title={t("admin.viewVouchers")}>
           <IconButton size="small" onClick={() => onViewVouchers(promotion)}>
             <ConfirmationNumberOutlinedIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       ) : null}
       {onViewPerformance ? (
-        <Tooltip title="Campaign performance">
+        <Tooltip title={t("admin.viewPerformance")}>
           <IconButton size="small" onClick={() => onViewPerformance(promotion)}>
             <InsightsOutlinedIcon fontSize="small" />
           </IconButton>
@@ -108,7 +110,7 @@ export function PromotionAdminTable({
       ) : null}
       {canManage ? (
         <>
-          <Tooltip title="Edit">
+          <Tooltip title={t("common:actions.edit")}>
             <IconButton size="small" onClick={() => onEdit(promotion)}>
               <EditIcon fontSize="small" />
             </IconButton>
@@ -116,7 +118,7 @@ export function PromotionAdminTable({
           {canApprove &&
           (promotion.status === "draft" ||
           promotion.status === "paused") ? (
-            <Tooltip title="Publish">
+            <Tooltip title={t("admin.publish")}>
               <IconButton
                 size="small"
                 color="success"
@@ -128,7 +130,7 @@ export function PromotionAdminTable({
             </Tooltip>
           ) : null}
           {promotion.status === "published" ? (
-            <Tooltip title="Pause">
+            <Tooltip title={t("admin.pause")}>
               <IconButton
                 size="small"
                 color="warning"
@@ -142,7 +144,7 @@ export function PromotionAdminTable({
           {promotion.status === "draft" ||
           promotion.status === "published" ||
           promotion.status === "paused" ? (
-            <Tooltip title="Cancel campaign">
+            <Tooltip title={t("admin.cancelCampaign")}>
               <IconButton
                 size="small"
                 color="error"
@@ -155,7 +157,7 @@ export function PromotionAdminTable({
           ) : null}
           {promotion.status !== "archived" &&
           promotion.status !== "cancelled" ? (
-            <Tooltip title="Archive">
+            <Tooltip title={t("common:actions.archive")}>
               <IconButton
                 size="small"
                 disabled={isTransitioning}
@@ -170,7 +172,7 @@ export function PromotionAdminTable({
         <Typography variant="caption" sx={{
           color: "text.secondary"
         }}>
-          Read only
+          {t("admin.readOnly")}
         </Typography>
       )}
     </>
@@ -190,7 +192,7 @@ export function PromotionAdminTable({
         <CircularProgress size={28} />
         <Typography sx={{
           color: "text.secondary"
-        }}>Loading promotions…</Typography>
+        }}>{t("admin.loading")}</Typography>
       </Box>
     );
   }
@@ -218,6 +220,15 @@ export function PromotionAdminTable({
               promotion.lifecycle ??
               (promotion.status === "published" ? "live" : promotion.status);
             const availabilityEnd = formatPromotionDate(promotion.claim_ends_at);
+            const claimsText = promotion.claim_limit
+              ? t("labels.claimedOf", {
+                  claimed: promotion.claimed_count,
+                  limit: promotion.claim_limit,
+                })
+              : t("labels.claimedCount", { count: promotion.claimed_count });
+            const visibilityText = promotion.is_public
+              ? t("labels.public")
+              : t("labels.private");
             return (
               <Box
                 key={promotion.id}
@@ -232,12 +243,27 @@ export function PromotionAdminTable({
               >
                 <MobileCardRow
                   title={promotion.name}
-                  subtitle={`${promotion.slug} · ${promotion.promotion_kind === "voucher" ? "Voucher offer" : "Deal"} · ${formatPromotionDiscount(promotion)}`}
-                  meta={`${promotion.claimed_count}${promotion.claim_limit ? ` of ${promotion.claim_limit}` : ''} claimed${availabilityEnd ? ` · until ${availabilityEnd}` : ''}${promotion.is_public ? ' · Public' : ' · Private'}`}
+                  subtitle={t("admin.subtitleKind", {
+                    slug: promotion.slug,
+                    kind: promotion.promotion_kind === "voucher"
+                      ? t("kind.voucherOffer")
+                      : t("kind.deal"),
+                    discount: formatPromotionDiscount(promotion),
+                  })}
+                  meta={availabilityEnd
+                    ? t("admin.cardMetaWithEnd", {
+                        claims: claimsText,
+                        date: availabilityEnd,
+                        visibility: visibilityText,
+                      })
+                    : t("admin.cardMeta", {
+                        claims: claimsText,
+                        visibility: visibilityText,
+                      })}
                   status={
                     <Chip
                       size="small"
-                      label={CAMPAIGN_LIFECYCLE_LABELS[lifecycle] ?? lifecycle}
+                      label={CAMPAIGN_LIFECYCLE_KEYS[lifecycle] ? t(CAMPAIGN_LIFECYCLE_KEYS[lifecycle]) : lifecycle}
                       color={lifecycleColor[lifecycle] ?? "default"}
                     />
                   }
@@ -249,9 +275,9 @@ export function PromotionAdminTable({
           {promotions.length === 0 ? (
             <Box sx={{ py: 8, textAlign: 'center' }}>
               <CampaignOutlinedIcon color="disabled" sx={{ fontSize: 44, mb: 1 }} />
-              <Typography sx={{ fontWeight: 650 }}>No promotions found</Typography>
+              <Typography sx={{ fontWeight: 650 }}>{t("admin.noPromotions")}</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Try changing your search or status filter.
+                {t("admin.noPromotionsHint")}
               </Typography>
             </Box>
           ) : null}
@@ -267,13 +293,13 @@ export function PromotionAdminTable({
         <Table size="small" sx={{ minWidth: 920 }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ width: "29%" }}>Promotion</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Discount</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell sx={{ minWidth: 130 }}>Claims</TableCell>
-              <TableCell>Visibility</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell sx={{ width: "29%" }}>{t("admin.colPromotion")}</TableCell>
+              <TableCell>{t("admin.colType")}</TableCell>
+              <TableCell>{t("admin.colDiscount")}</TableCell>
+              <TableCell>{t("admin.colStatus")}</TableCell>
+              <TableCell sx={{ minWidth: 130 }}>{t("admin.colClaims")}</TableCell>
+              <TableCell>{t("admin.colVisibility")}</TableCell>
+              <TableCell align="right">{t("admin.colActions")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -348,8 +374,8 @@ export function PromotionAdminTable({
                       variant="outlined"
                       label={
                         promotion.promotion_kind === "voucher"
-                          ? "Voucher offer"
-                          : "Deal"
+                          ? t("kind.voucherOffer")
+                          : t("kind.deal")
                       }
                     />
                   </TableCell>
@@ -366,8 +392,7 @@ export function PromotionAdminTable({
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
                       }}>
-                        {promotion.min_nights}+ night
-                        {promotion.min_nights === 1 ? "" : "s"}
+                        {t("admin.minNights", { count: promotion.min_nights })}
                       </Typography>
                     ) : null}
                   </TableCell>
@@ -375,7 +400,9 @@ export function PromotionAdminTable({
                     <Chip
                       size="small"
                       label={
-                        CAMPAIGN_LIFECYCLE_LABELS[lifecycle] ?? lifecycle
+                        CAMPAIGN_LIFECYCLE_KEYS[lifecycle]
+                          ? t(CAMPAIGN_LIFECYCLE_KEYS[lifecycle])
+                          : lifecycle
                       }
                       color={lifecycleColor[lifecycle] ?? "default"}
                     />
@@ -387,7 +414,7 @@ export function PromotionAdminTable({
                           display: "block",
                           mt: 0.5
                         }}>
-                        Until {availabilityEnd}
+                        {t("labels.until", { date: availabilityEnd })}
                       </Typography>
                     ) : null}
                   </TableCell>
@@ -396,23 +423,25 @@ export function PromotionAdminTable({
                       <Typography variant="body2" sx={{
                         fontWeight: 600
                       }}>
-                        {promotion.claimed_count}
                         {promotion.claim_limit
-                          ? ` of ${promotion.claim_limit}`
-                          : ""}
+                          ? t("admin.claimsOf", {
+                              claimed: promotion.claimed_count,
+                              limit: promotion.claim_limit,
+                            })
+                          : promotion.claimed_count}
                       </Typography>
                       {claimProgress !== null ? (
                         <LinearProgress
                           variant="determinate"
                           value={claimProgress}
-                          aria-label={`${Math.round(claimProgress)}% of claim limit used`}
+                          aria-label={t("labels.claimLimitUsed", { percent: Math.round(claimProgress) })}
                           sx={{ height: 5, borderRadius: 99 }}
                         />
                       ) : (
                         <Typography variant="caption" sx={{
                           color: "text.secondary"
                         }}>
-                          No total limit
+                          {t("labels.noTotalLimit")}
                         </Typography>
                       )}
                     </Stack>
@@ -428,7 +457,7 @@ export function PromotionAdminTable({
                           <LockOutlinedIcon />
                         )
                       }
-                      label={promotion.is_public ? "Public" : "Private"}
+                      label={promotion.is_public ? t("labels.public") : t("labels.private")}
                       color={promotion.is_public ? "success" : "default"}
                     />
                   </TableCell>
@@ -456,11 +485,11 @@ export function PromotionAdminTable({
                   />
                   <Typography sx={{
                     fontWeight: 650
-                  }}>No promotions found</Typography>
+                  }}>{t("admin.noPromotions")}</Typography>
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
                   }}>
-                    Try changing your search or status filter.
+                    {t("admin.noPromotionsHint")}
                   </Typography>
                 </TableCell>
               </TableRow>

@@ -58,7 +58,7 @@ import { useCurrency } from '../../../hooks/useCurrency';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { errorMessage } from '../../../utils';
-import { useTranslation } from '../../../i18n/useTranslation';
+import { useTranslation, statusLabel } from '../../../i18n';
 import {
   canRedeem as rewardIsRedeemable,
   formatDate,
@@ -103,7 +103,7 @@ const CATEGORY_ICONS: Record<string, React.ReactElement> = {
 };
 
 const LoyaltyDashboard: React.FC = () => {
-  const { t, tOr } = useTranslation('loyalty');
+  const { t } = useTranslation('loyalty');
   const isPhone = useIsPhone();
   const { hasPermission } = useAuth();
   const { symbol: currencySymbol } = useCurrency();
@@ -139,7 +139,7 @@ const LoyaltyDashboard: React.FC = () => {
           setAllRewards(allRewardsData);
         } catch (err) {
           console.error('Failed to load rewards:', err);
-          setError(errorMessage(err, 'Failed to load rewards'));
+          setError(errorMessage(err, t('dashboard.loadRewardsFailed')));
         }
       } else {
         // Check eKYC status for guests
@@ -196,11 +196,11 @@ const LoyaltyDashboard: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load loyalty data:', err);
-      setError(errorMessage(err, 'Failed to load loyalty information'));
+      setError(errorMessage(err, t('dashboard.loadFailed')));
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, t]);
 
   useEffect(() => {
     if (!loadingRef.current) {
@@ -225,7 +225,7 @@ const LoyaltyDashboard: React.FC = () => {
         notes: redeemNotes || undefined,
       });
 
-      setSuccessMessage(`Successfully redeemed: ${selectedReward.name}`);
+      setSuccessMessage(t('dashboard.redeemed', { name: selectedReward.name }));
       setRedeemDialogOpen(false);
       setSelectedReward(null);
       setRedeemNotes('');
@@ -233,7 +233,7 @@ const LoyaltyDashboard: React.FC = () => {
       // Reload data
       await loadLoyaltyData();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to redeem reward'));
+      setError(errorMessage(err, t('dashboard.redeemFailed')));
     } finally {
       setLoading(false);
     }
@@ -274,7 +274,7 @@ const LoyaltyDashboard: React.FC = () => {
           terms_conditions: editingReward.terms_conditions,
         };
         await LoyaltyService.updateReward(editingReward.id, updateData);
-        setSuccessMessage('Reward updated successfully');
+        setSuccessMessage(t('dashboard.rewardUpdated'));
       } else {
         await LoyaltyService.createReward({
           name: editingReward.name ?? '',
@@ -287,12 +287,12 @@ const LoyaltyDashboard: React.FC = () => {
           image_url: editingReward.image_url,
           terms_conditions: editingReward.terms_conditions,
         });
-        setSuccessMessage('Reward created successfully');
+        setSuccessMessage(t('dashboard.rewardCreated'));
       }
       setEditDialogOpen(false);
       await loadLoyaltyData();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to save reward'));
+      setError(errorMessage(err, t('dashboard.rewardSaveFailed')));
     } finally {
       setLoading(false);
     }
@@ -308,12 +308,12 @@ const LoyaltyDashboard: React.FC = () => {
     try {
       setLoading(true);
       await LoyaltyService.deleteReward(selectedReward.id);
-      setSuccessMessage('Reward deleted successfully');
+      setSuccessMessage(t('dashboard.rewardDeleted'));
       setDeleteDialogOpen(false);
       setSelectedReward(null);
       await loadLoyaltyData();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to delete reward'));
+      setError(errorMessage(err, t('dashboard.rewardDeleteFailed')));
     } finally {
       setLoading(false);
     }
@@ -341,35 +341,37 @@ const LoyaltyDashboard: React.FC = () => {
       <Box sx={{ m: 3 }}>
         <Alert severity="warning" sx={{ mb: 2 }}>
           <Typography variant="h6" gutterBottom>
-            eKYC Verification Required
+            {t('dashboard.ekycTitle')}
           </Typography>
           <Typography variant="body2" sx={{
             marginBottom: "16px"
           }}>
-            To participate in our Loyalty Rewards Program, you must complete the eKYC (Electronic Know Your Customer) verification process.
+            {t('dashboard.ekycBody')}
           </Typography>
           <Typography variant="body2" sx={{
             marginBottom: "16px"
           }}>
-            Current Status: <strong>{ekycStatus || 'Not Started'}</strong>
+            {t('dashboard.ekycStatus', {
+              status: statusLabel(t, 'ekyc', ekycStatus ?? 'not_started'),
+            })}
           </Typography>
           {(ekycStatus === 'pending' || ekycStatus === 'under_review') && (
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Your eKYC submission is under review. You'll be able to access loyalty rewards once it's approved.
+              {t('dashboard.ekycUnderReview')}
             </Typography>
           )}
           {ekycStatus === 'rejected' && (
             <Typography variant="body2" color="error">
-              Your eKYC submission was rejected. Please resubmit with correct information.
+              {t('dashboard.ekycRejected')}
             </Typography>
           )}
           {(!ekycStatus || ekycStatus === 'not_started' || ekycStatus === 'unverified') && (
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Please complete the eKYC verification to unlock loyalty rewards.
+              {t('dashboard.ekycComplete')}
             </Typography>
           )}
         </Alert>
@@ -380,7 +382,7 @@ const LoyaltyDashboard: React.FC = () => {
             href="/profile"
             sx={{ mt: 2 }}
           >
-            Go to Profile to Complete eKYC
+            {t('dashboard.ekycGoToProfile')}
           </Button>
         )}
       </Box>
@@ -407,12 +409,12 @@ const LoyaltyDashboard: React.FC = () => {
         )}
         <Box sx={{ mb: 4 }}>
           <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
-            Loyalty Rewards
+            {t('dashboard.title')}
           </Typography>
           <Typography variant="body1" sx={{
             color: "text.secondary"
           }}>
-            Discover rewards you can earn through our loyalty program
+            {t('dashboard.guestSubtitle')}
           </Typography>
         </Box>
         {/* Current Points Card - Showing 0 for non-enrolled users */}
@@ -428,7 +430,7 @@ const LoyaltyDashboard: React.FC = () => {
                   </Avatar>
                   <Box>
                     <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>
-                      Current Points Balance
+                      {t('dashboard.pointsBalance')}
                     </Typography>
                     <Typography variant="h3" sx={{ fontWeight: 700 }}>
                       0
@@ -439,7 +441,7 @@ const LoyaltyDashboard: React.FC = () => {
               <Grid size={{ xs: 12, md: 6 }}>
                 <Alert severity="info" sx={{ bgcolor: 'var(--hotel-hover)', color: 'var(--hotel-text)', '& .MuiAlert-icon': { color: 'var(--hotel-text)' } }}>
                   <Typography variant="body2">
-                    <strong>Not enrolled yet?</strong> Contact support to join our loyalty program and start earning points with every booking!
+                    <strong>{t('dashboard.notEnrolledTitle')}</strong> {t('dashboard.notEnrolledBody')}
                   </Typography>
                 </Alert>
               </Grid>
@@ -449,7 +451,7 @@ const LoyaltyDashboard: React.FC = () => {
         {/* Available Rewards */}
         <Box sx={{ mb: 3 }}>
           <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-            Available Rewards
+            {t('dashboard.availableRewards')}
           </Typography>
           <Typography
             variant="body2"
@@ -457,12 +459,12 @@ const LoyaltyDashboard: React.FC = () => {
               color: "text.secondary",
               marginBottom: "16px"
             }}>
-            Here are the rewards you can earn once you join our loyalty program
+            {t('dashboard.availableRewardsHint')}
           </Typography>
         </Box>
         {rewards.length === 0 ? (
           <Alert severity="info">
-            No rewards available at the moment. Check back later!
+            {t('dashboard.noRewards')}
           </Alert>
         ) : (
           <Grid container spacing={3}>
@@ -494,7 +496,7 @@ const LoyaltyDashboard: React.FC = () => {
                       }}
                     >
                       <Chip
-                        label={tierConfig.name}
+                        label={t(tierConfig.nameKey)}
                         size="small"
                         sx={{
                           bgcolor: tierConfig.bgColor,
@@ -515,7 +517,7 @@ const LoyaltyDashboard: React.FC = () => {
                         }}
                       >
                         <Chip
-                          label={`${reward.stock_quantity} left`}
+                          label={t('dashboard.stockLeft', { count: reward.stock_quantity })}
                           size="small"
                           color={reward.stock_quantity < 10 ? 'error' : 'default'}
                           sx={{ fontWeight: 600 }}
@@ -570,7 +572,7 @@ const LoyaltyDashboard: React.FC = () => {
                             <Typography variant="caption" sx={{
                               color: "text.secondary"
                             }}>
-                              points
+                              {t('dashboard.pointsUnit')}
                             </Typography>
                           </Box>
                           {reward.monetary_value && (
@@ -580,7 +582,10 @@ const LoyaltyDashboard: React.FC = () => {
                                 color: "success.main",
                                 fontWeight: 600
                               }}>
-                              {currencySymbol}{reward.monetary_value} value
+                              {t('dashboard.valueSuffix', {
+                                symbol: currencySymbol,
+                                amount: reward.monetary_value,
+                              })}
                             </Typography>
                           )}
                         </Box>
@@ -591,7 +596,7 @@ const LoyaltyDashboard: React.FC = () => {
                           disabled
                           startIcon={<LockIcon />}
                         >
-                          Join to Redeem
+                          {t('dashboard.joinToRedeem')}
                         </Button>
                       </Box>
                     </CardContent>
@@ -622,12 +627,12 @@ const LoyaltyDashboard: React.FC = () => {
         <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box>
             <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
-              Rewards Management
+              {t('dashboard.adminTitle')}
             </Typography>
             <Typography variant="body1" sx={{
               color: "text.secondary"
             }}>
-              Manage all loyalty rewards and redemptions
+              {t('dashboard.adminSubtitle')}
             </Typography>
           </Box>
           <Button
@@ -635,7 +640,7 @@ const LoyaltyDashboard: React.FC = () => {
             startIcon={<AddIcon />}
             onClick={handleCreateClick}
           >
-            Create Reward
+            {t('dashboard.createReward')}
           </Button>
         </Box>
         <Card>
@@ -648,14 +653,29 @@ const LoyaltyDashboard: React.FC = () => {
                 >
                   <MobileCardRow
                     title={reward.name}
-                    subtitle={`${formatCategoryLabel(reward.category)} · ${formatNumber(reward.points_cost)} pts`}
-                    meta={`${getTierConfig(reward.minimum_tier_level).name}+ tier · ${reward.stock_quantity !== null && reward.stock_quantity !== undefined ? reward.stock_quantity : '∞'} in stock${reward.monetary_value ? ` · ${currencySymbol}${reward.monetary_value}` : ''}`}
+                    subtitle={t('dashboard.subtitlePts', {
+                      category: formatCategoryLabel(reward.category),
+                      points: reward.points_cost,
+                    })}
+                    meta={
+                      reward.monetary_value
+                        ? t('dashboard.metaStockValue', {
+                            tier: t(getTierConfig(reward.minimum_tier_level).nameKey),
+                            stock: reward.stock_quantity ?? '∞',
+                            symbol: currencySymbol,
+                            amount: reward.monetary_value,
+                          })
+                        : t('dashboard.metaStock', {
+                            tier: t(getTierConfig(reward.minimum_tier_level).nameKey),
+                            stock: reward.stock_quantity ?? '∞',
+                          })
+                    }
                     footer={
                       <>
-                        <IconButton size="small" onClick={() => handleEditClick(reward)} color="primary" aria-label={`Edit reward ${reward.name}`}>
+                        <IconButton size="small" onClick={() => handleEditClick(reward)} color="primary" aria-label={t('dashboard.editRewardAria', { name: reward.name })}>
                           <EditIcon />
                         </IconButton>
-                        <IconButton size="small" onClick={() => handleDeleteClick(reward)} color="error" aria-label={`Delete reward ${reward.name}`}>
+                        <IconButton size="small" onClick={() => handleDeleteClick(reward)} color="error" aria-label={t('dashboard.deleteRewardAria', { name: reward.name })}>
                           <DeleteIcon />
                         </IconButton>
                       </>
@@ -669,13 +689,13 @@ const LoyaltyDashboard: React.FC = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Category</TableCell>
-                  <TableCell>Points Cost</TableCell>
-                  <TableCell>Min. Tier</TableCell>
-                  <TableCell>Stock</TableCell>
-                  <TableCell>Value</TableCell>
-                  <TableCell>Actions</TableCell>
+                  <TableCell>{t('dashboard.colName')}</TableCell>
+                  <TableCell>{t('dashboard.colCategory')}</TableCell>
+                  <TableCell>{t('dashboard.colPointsCost')}</TableCell>
+                  <TableCell>{t('dashboard.colMinTier')}</TableCell>
+                  <TableCell>{t('dashboard.colStock')}</TableCell>
+                  <TableCell>{t('dashboard.colValue')}</TableCell>
+                  <TableCell>{t('dashboard.colActions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -703,7 +723,7 @@ const LoyaltyDashboard: React.FC = () => {
                     <TableCell>{formatNumber(reward.points_cost)}</TableCell>
                     <TableCell>
                       <Chip
-                        label={getTierConfig(reward.minimum_tier_level).name}
+                        label={t(getTierConfig(reward.minimum_tier_level).nameKey)}
                         size="small"
                         sx={{
                           bgcolor: getTierConfig(reward.minimum_tier_level).bgColor,
@@ -718,10 +738,10 @@ const LoyaltyDashboard: React.FC = () => {
                       {reward.monetary_value ? `${currencySymbol}${reward.monetary_value}` : '-'}
                     </TableCell>
                     <TableCell>
-                      <IconButton size="small" onClick={() => handleEditClick(reward)} color="primary" aria-label={`Edit reward ${reward.name}`}>
+                      <IconButton size="small" onClick={() => handleEditClick(reward)} color="primary" aria-label={t('dashboard.editRewardAria', { name: reward.name })}>
                         <EditIcon />
                       </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteClick(reward)} color="error" aria-label={`Delete reward ${reward.name}`}>
+                      <IconButton size="small" onClick={() => handleDeleteClick(reward)} color="error" aria-label={t('dashboard.deleteRewardAria', { name: reward.name })}>
                         <DeleteIcon />
                       </IconButton>
                     </TableCell>
@@ -735,14 +755,14 @@ const LoyaltyDashboard: React.FC = () => {
         {/* Edit/Create Dialog */}
         <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
           <DialogTitle>
-            {editingReward.id ? 'Edit Reward' : 'Create Reward'}
+            {editingReward.id ? t('dashboard.editReward') : t('dashboard.createReward')}
           </DialogTitle>
           <DialogContent>
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Name"
+                  label={t('dashboard.fieldName')}
                   value={editingReward.name || ''}
                   onChange={(e) => setEditingReward({ ...editingReward, name: e.target.value })}
                 />
@@ -750,7 +770,7 @@ const LoyaltyDashboard: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Description"
+                  label={t('dashboard.fieldDescription')}
                   multiline
                   rows={3}
                   value={editingReward.description || ''}
@@ -760,7 +780,7 @@ const LoyaltyDashboard: React.FC = () => {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
-                  label="Category"
+                  label={t('dashboard.fieldCategory')}
                   select
                   value={editingReward.category || 'service'}
                   onChange={(e) => setEditingReward({ ...editingReward, category: e.target.value as LoyaltyReward['category'] })}
@@ -768,19 +788,19 @@ const LoyaltyDashboard: React.FC = () => {
                     select: { native: true }
                   }}
                 >
-                  <option value="service">Service</option>
-                  <option value="room_upgrade">Room Upgrade</option>
-                  <option value="dining">Dining</option>
-                  <option value="spa">Spa</option>
-                  <option value="discount">Discount</option>
-                  <option value="gift">Gift</option>
-                  <option value="experience">Experience</option>
+                  <option value="service">{t('categories.service')}</option>
+                  <option value="room_upgrade">{t('categories.room_upgrade')}</option>
+                  <option value="dining">{t('categories.dining')}</option>
+                  <option value="spa">{t('categories.spa')}</option>
+                  <option value="discount">{t('categories.discount')}</option>
+                  <option value="gift">{t('categories.gift')}</option>
+                  <option value="experience">{t('categories.experience')}</option>
                 </TextField>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
-                  label="Points Cost"
+                  label={t('dashboard.fieldPointsCost')}
                   type="number"
                   value={editingReward.points_cost || 0}
                   onChange={(e) => setEditingReward({ ...editingReward, points_cost: parseInt(e.target.value) })}
@@ -789,7 +809,7 @@ const LoyaltyDashboard: React.FC = () => {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
-                  label="Minimum Tier Level"
+                  label={t('dashboard.fieldMinTier')}
                   type="number"
                   value={editingReward.minimum_tier_level || 1}
                   onChange={(e) => setEditingReward({ ...editingReward, minimum_tier_level: parseInt(e.target.value) })}
@@ -801,7 +821,7 @@ const LoyaltyDashboard: React.FC = () => {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
-                  label="Stock Quantity"
+                  label={t('dashboard.fieldStock')}
                   type="number"
                   value={editingReward.stock_quantity || ''}
                   onChange={(e) => setEditingReward({ ...editingReward, stock_quantity: e.target.value ? parseInt(e.target.value) : undefined })}
@@ -810,7 +830,7 @@ const LoyaltyDashboard: React.FC = () => {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
-                  label={`Monetary Value (${currencySymbol})`}
+                  label={t('dashboard.fieldMonetary', { symbol: currencySymbol })}
                   type="number"
                   value={editingReward.monetary_value || ''}
                   onChange={(e) => setEditingReward({ ...editingReward, monetary_value: e.target.value ? parseFloat(e.target.value) : undefined })}
@@ -819,7 +839,7 @@ const LoyaltyDashboard: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Terms & Conditions"
+                  label={t('dashboard.fieldTerms')}
                   multiline
                   rows={2}
                   value={editingReward.terms_conditions || ''}
@@ -829,24 +849,24 @@ const LoyaltyDashboard: React.FC = () => {
             </Grid>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => setEditDialogOpen(false)}>{t('common:actions.cancel')}</Button>
             <Button onClick={handleSaveReward} variant="contained" disabled={loading}>
-              {editingReward.id ? 'Update' : 'Create'}
+              {editingReward.id ? t('common:actions.update') : t('common:actions.create')}
             </Button>
           </DialogActions>
         </Dialog>
         {/* Delete Confirmation Dialog */}
         <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-          <DialogTitle>Delete Reward</DialogTitle>
+          <DialogTitle>{t('dashboard.deleteTitle')}</DialogTitle>
           <DialogContent>
             <Typography>
-              Are you sure you want to delete "{selectedReward?.name}"? This action cannot be undone.
+              {t('dashboard.deleteConfirm', { name: selectedReward?.name })}
             </Typography>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => setDeleteDialogOpen(false)}>{t('common:actions.cancel')}</Button>
             <Button onClick={handleDeleteConfirm} color="error" variant="contained" disabled={loading}>
-              Delete
+              {t('common:actions.delete')}
             </Button>
           </DialogActions>
         </Dialog>
@@ -877,12 +897,12 @@ const LoyaltyDashboard: React.FC = () => {
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
-          Loyalty Rewards
+          {t('dashboard.title')}
         </Typography>
         <Typography variant="body1" sx={{
           color: "text.secondary"
         }}>
-          Earn points with every stay and unlock exclusive rewards
+          {t('dashboard.memberSubtitle')}
         </Typography>
       </Box>
       {/* Tier Status Card */}
@@ -925,10 +945,10 @@ const LoyaltyDashboard: React.FC = () => {
                 </Avatar>
                 <Box>
                   <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                    {tierConfig.name} Member
+                    {t('dashboard.tierMember', { tier: t(tierConfig.nameKey) })}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Member since {formatDate(membership.enrolled_date)}
+                    {t('dashboard.memberSince', { date: formatDate(membership.enrolled_date) })}
                   </Typography>
                   <Typography variant="caption" sx={{ opacity: 0.8 }}>
                     #{membership.membership_number}
@@ -943,10 +963,10 @@ const LoyaltyDashboard: React.FC = () => {
                   {formatNumber(membership.points_balance)}
                 </Typography>
                 <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                  Available Points
+                  {t('dashboard.availablePoints')}
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                  {formatNumber(membership.lifetime_points)} lifetime points earned
+                  {t('dashboard.lifetimePoints', { count: membership.lifetime_points })}
                 </Typography>
               </Box>
             </Grid>
@@ -956,7 +976,7 @@ const LoyaltyDashboard: React.FC = () => {
                 <Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">
-                      Progress to {membership.next_tier.tier_name}
+                      {t('dashboard.progressTo', { tier: membership.next_tier.tier_name })}
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {Math.round(tierProgress)}%
@@ -976,14 +996,14 @@ const LoyaltyDashboard: React.FC = () => {
                     }}
                   />
                   <Typography variant="caption" sx={{ opacity: 0.8, mt: 1, display: 'block' }}>
-                    {formatNumber(membership.points_to_next_tier || 0)} more points needed
+                    {t('dashboard.morePointsNeeded', { count: membership.points_to_next_tier || 0 })}
                   </Typography>
                 </Box>
               ) : (
                 <Box sx={{ textAlign: 'center' }}>
                   <TrophyIcon sx={{ fontSize: 48, mb: 1 }} />
                   <Typography variant="body1">
-                    You've reached the highest tier!
+                    {t('dashboard.highestTier')}
                   </Typography>
                 </Box>
               )}
@@ -1002,9 +1022,9 @@ const LoyaltyDashboard: React.FC = () => {
             borderColor: 'divider',
           }}
         >
-          <Tab icon={<GiftIcon />} label="Rewards Catalog" iconPosition="start" />
-          <Tab icon={<TrophyIcon />} label="My Benefits" iconPosition="start" />
-          <Tab icon={<HistoryIcon />} label="Points History" iconPosition="start" />
+          <Tab icon={<GiftIcon />} label={t('dashboard.tabRewards')} iconPosition="start" />
+          <Tab icon={<TrophyIcon />} label={t('dashboard.tabBenefits')} iconPosition="start" />
+          <Tab icon={<HistoryIcon />} label={t('dashboard.tabHistory')} iconPosition="start" />
         </Tabs>
       </Card>
       {/* Rewards Catalog Tab */}
@@ -1012,7 +1032,7 @@ const LoyaltyDashboard: React.FC = () => {
         {/* Category Filter */}
         <Box sx={{ mb: 3, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Chip
-            label="All Rewards"
+            label={t('dashboard.allRewards')}
             onClick={() => setFilterCategory('all')}
             color={filterCategory === 'all' ? 'primary' : 'default'}
             sx={{ fontWeight: filterCategory === 'all' ? 600 : 400 }}
@@ -1060,10 +1080,10 @@ const LoyaltyDashboard: React.FC = () => {
                         zIndex: 1,
                       }}
                     >
-                      <Tooltip title={`Requires ${getTierConfig(reward.minimum_tier_level).name} tier`}>
+                      <Tooltip title={t('dashboard.requiresTier', { tier: t(getTierConfig(reward.minimum_tier_level).nameKey) })}>
                         <Chip
                           icon={<LockIcon />}
-                          label={getTierConfig(reward.minimum_tier_level).name}
+                          label={t(getTierConfig(reward.minimum_tier_level).nameKey)}
                           size="small"
                           sx={{
                             bgcolor: 'var(--hotel-scrim)',
@@ -1084,7 +1104,7 @@ const LoyaltyDashboard: React.FC = () => {
                       }}
                     >
                       <Chip
-                        label={`${reward.stock_quantity} left`}
+                        label={t('dashboard.stockLeft', { count: reward.stock_quantity })}
                         size="small"
                         color={reward.stock_quantity < 10 ? 'error' : 'default'}
                         sx={{ fontWeight: 600 }}
@@ -1138,14 +1158,17 @@ const LoyaltyDashboard: React.FC = () => {
                           <Typography variant="caption" sx={{
                             color: "text.secondary"
                           }}>
-                            points
+                            {t('dashboard.pointsUnit')}
                           </Typography>
                         </Box>
                         {reward.monetary_value && (
                           <Typography variant="caption" sx={{
                             color: "text.secondary"
                           }}>
-                            Value: {currencySymbol}{reward.monetary_value}
+                            {t('dashboard.value', {
+                              symbol: currencySymbol,
+                              amount: reward.monetary_value,
+                            })}
                           </Typography>
                         )}
                       </Box>
@@ -1158,10 +1181,10 @@ const LoyaltyDashboard: React.FC = () => {
                         startIcon={isLocked ? <LockIcon /> : <RedeemIcon />}
                       >
                         {isLocked
-                          ? 'Tier Locked'
+                          ? t('dashboard.tierLocked')
                           : !canRedeem
-                          ? 'Insufficient Points'
-                          : 'Redeem Now'}
+                          ? t('dashboard.insufficientPoints')
+                          : t('dashboard.redeemNow')}
                       </Button>
 
                       {reward.terms_conditions && (
@@ -1181,7 +1204,7 @@ const LoyaltyDashboard: React.FC = () => {
 
         {filteredRewards.length === 0 && (
           <Alert severity="info">
-            No rewards available in this category.
+            {t('dashboard.noRewardsInCategory')}
           </Alert>
         )}
       </TabPanel>
@@ -1193,7 +1216,7 @@ const LoyaltyDashboard: React.FC = () => {
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <TrophyIcon color="primary" />
-                  Current Tier Benefits
+                  {t('dashboard.currentTierBenefits')}
                 </Typography>
                 <List>
                   {membership.current_tier_benefits.map((benefit, index) => (
@@ -1217,7 +1240,7 @@ const LoyaltyDashboard: React.FC = () => {
                 <CardContent>
                   <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <TrendingUpIcon color="primary" />
-                    Unlock at {membership.next_tier.tier_name}
+                    {t('dashboard.unlockAt', { tier: membership.next_tier.tier_name })}
                   </Typography>
                   <Box sx={{ mb: 2 }}>
                     <LinearProgress
@@ -1228,11 +1251,14 @@ const LoyaltyDashboard: React.FC = () => {
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      {formatNumber(membership.points_to_next_tier || 0)} points away
+                      {t('dashboard.pointsAway', { count: membership.points_to_next_tier || 0 })}
                     </Typography>
                   </Box>
                   <Alert severity="info" icon={<TrophyIcon />}>
-                    Earn <strong>{membership.next_tier.points_multiplier}x</strong> points on all stays at {membership.next_tier.tier_name} level!
+                    {t('dashboard.multiplierAlert', {
+                      multiplier: membership.next_tier.points_multiplier,
+                      tier: membership.next_tier.tier_name,
+                    })}
                   </Alert>
                 </CardContent>
               </Card>
@@ -1244,7 +1270,7 @@ const LoyaltyDashboard: React.FC = () => {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                  Tier Comparison
+                  {t('dashboard.tierComparison')}
                 </Typography>
                 <Grid container spacing={2}>
                   {[1, 2, 3, 4].map((tier) => {
@@ -1267,11 +1293,11 @@ const LoyaltyDashboard: React.FC = () => {
                             <Box sx={{ textAlign: 'center' }}>
                               <Typography variant="h2">{config.icon}</Typography>
                               <Typography variant="h6" sx={{ fontWeight: 600, mt: 1 }}>
-                                {config.name}
+                                {t(config.nameKey)}
                               </Typography>
                               {isCurrent && (
                                 <Chip
-                                  label="Current"
+                                  label={t('dashboard.current')}
                                   size="small"
                                   sx={{ mt: 1, bgcolor: 'var(--hotel-active)', color: 'var(--hotel-text)' }}
                                 />
@@ -1279,7 +1305,7 @@ const LoyaltyDashboard: React.FC = () => {
                               {isLocked && (
                                 <Chip
                                   icon={<LockIcon />}
-                                  label="Locked"
+                                  label={t('dashboard.locked')}
                                   size="small"
                                   sx={{ mt: 1 }}
                                 />
@@ -1301,7 +1327,7 @@ const LoyaltyDashboard: React.FC = () => {
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
-              Recent Transactions
+              {t('dashboard.recentTransactions')}
             </Typography>
             <List>
               {membership.recent_transactions.map((transaction, index) => {
@@ -1326,7 +1352,7 @@ const LoyaltyDashboard: React.FC = () => {
                         primary={
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography variant="body1">
-                              {transaction.description || transaction.transaction_type}
+                              {transaction.description || statusLabel(t, 'loyalty_tx', transaction.transaction_type)}
                             </Typography>
                             <Typography
                               variant="h6"
@@ -1349,7 +1375,7 @@ const LoyaltyDashboard: React.FC = () => {
                             <Typography variant="caption" sx={{
                               color: "text.secondary"
                             }}>
-                              Balance: {formatNumber(transaction.balance_after)}
+                              {t('dashboard.balance', { amount: transaction.balance_after })}
                             </Typography>
                           </Box>
                         }
@@ -1362,7 +1388,7 @@ const LoyaltyDashboard: React.FC = () => {
 
             {membership.recent_transactions.length === 0 && (
               <Alert severity="info">
-                No transactions yet. Start earning points with your first booking!
+                {t('dashboard.noTransactions')}
               </Alert>
             )}
           </CardContent>
@@ -1376,7 +1402,7 @@ const LoyaltyDashboard: React.FC = () => {
         fullWidth
       >
         <DialogTitle>
-          Confirm Reward Redemption
+          {t('dashboard.redeemTitle')}
         </DialogTitle>
         <DialogContent>
           {selectedReward && (
@@ -1395,33 +1421,33 @@ const LoyaltyDashboard: React.FC = () => {
 
               <Box sx={{ bgcolor: 'background.default', p: 2, borderRadius: 2, mb: 2 }}>
                 <Typography variant="body2" gutterBottom>
-                  Points to be deducted:
+                  {t('dashboard.pointsToDeduct')}
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                  {formatNumber(selectedReward.points_cost)} points
+                  {t('dashboard.pointsCount', { count: selectedReward.points_cost })}
                 </Typography>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
                 }}>
-                  New balance: {formatNumber((membership?.points_balance || 0) - selectedReward.points_cost)} points
+                  {t('dashboard.newBalance', { count: (membership?.points_balance || 0) - selectedReward.points_cost })}
                 </Typography>
               </Box>
 
               <TextField
                 fullWidth
-                label="Notes (optional)"
+                label={t('dashboard.notesLabel')}
                 multiline
                 rows={3}
                 value={redeemNotes}
                 onChange={(e) => setRedeemNotes(e.target.value)}
-                placeholder="Add any special requests or notes..."
+                placeholder={t('dashboard.notesPlaceholder')}
                 sx={{ mb: 2 }}
               />
 
               {selectedReward.terms_conditions && (
                 <Alert severity="info" icon={<InfoIcon />}>
                   <Typography variant="caption">
-                    <strong>Terms & Conditions:</strong> {selectedReward.terms_conditions}
+                    <strong>{t('dashboard.termsLabel')}</strong> {selectedReward.terms_conditions}
                   </Typography>
                 </Alert>
               )}
@@ -1430,7 +1456,7 @@ const LoyaltyDashboard: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRedeemDialogOpen(false)}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             onClick={handleRedeemConfirm}
@@ -1438,7 +1464,7 @@ const LoyaltyDashboard: React.FC = () => {
             disabled={loading}
             startIcon={loading ? <LoadingSpinner size={20} /> : <RedeemIcon />}
           >
-            Confirm Redemption
+            {t('dashboard.confirmRedemption')}
           </Button>
         </DialogActions>
       </Dialog>

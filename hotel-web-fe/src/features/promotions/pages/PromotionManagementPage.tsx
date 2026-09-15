@@ -25,7 +25,8 @@ import { useDeferredValue, useMemo, useState } from "react";
 import { getQueryErrorMessage } from "../../../api/queryConfig";
 import { useAuth } from "../../../auth/AuthContext";
 import { emitApiNotification } from "../../../utils/apiNotifications";
-import { CAMPAIGN_LIFECYCLE_LABELS } from "../constants";
+import { CAMPAIGN_LIFECYCLE_KEYS } from "../constants";
+import { useTranslation } from "../../../i18n";
 import {
   useAdminPromotions,
   useAdminVouchers,
@@ -61,28 +62,29 @@ type WorkspaceTab = "campaigns" | "vouchers";
 
 const CAMPAIGN_FILTERS: Array<{
   value: PromotionLifecycle | "all";
-  label: string;
+  labelKey: string;
 }> = [
-  { value: "all", label: "All" },
-  ...Object.entries(CAMPAIGN_LIFECYCLE_LABELS).map(([value, label]) => ({
+  { value: "all", labelKey: "filters.all" },
+  ...Object.entries(CAMPAIGN_LIFECYCLE_KEYS).map(([value, labelKey]) => ({
     value: value as PromotionLifecycle,
-    label,
+    labelKey,
   })),
 ];
 
 const VOUCHER_FILTERS: Array<{
   value: VoucherStatusFilter | "all";
-  label: string;
+  labelKey: string;
 }> = [
-  { value: "all", label: "All" },
-  { value: "available", label: "Available" },
-  { value: "expiring_soon", label: "Expiring soon" },
-  { value: "expired", label: "Expired" },
-  { value: "redeemed", label: "Redeemed" },
-  { value: "revoked", label: "Revoked" },
+  { value: "all", labelKey: "filters.all" },
+  { value: "available", labelKey: "status:voucher.available" },
+  { value: "expiring_soon", labelKey: "filters.expiringSoon" },
+  { value: "expired", labelKey: "status:voucher.expired" },
+  { value: "redeemed", labelKey: "status:voucher.redeemed" },
+  { value: "revoked", labelKey: "status:voucher.revoked" },
 ];
 
 export default function PromotionManagementPage() {
+  const { t } = useTranslation("promotions");
   const { hasPermission } = useAuth();
   const confirm = useConfirm();
   const canReadPromotions =
@@ -189,7 +191,7 @@ export default function PromotionManagementPage() {
           onSuccess: () => {
             setEditorOpen(false);
             emitApiNotification({
-              message: "Promotion updated",
+              message: t("notify.promotionUpdated"),
               severity: "success",
             });
           },
@@ -202,7 +204,7 @@ export default function PromotionManagementPage() {
       onSuccess: () => {
         setEditorOpen(false);
         emitApiNotification({
-          message: "Promotion draft created",
+          message: t("notify.draftCreated"),
           severity: "success",
         });
       },
@@ -216,6 +218,7 @@ export default function PromotionManagementPage() {
     archive: "archived",
   };
 
+
   const transitionPromotion = async (
     promotion: Promotion,
     action: PromotionLifecycleAction,
@@ -225,9 +228,9 @@ export default function PromotionManagementPage() {
     if (
       action === "archive" &&
       !(await confirm({
-        title: "Archive promotion",
-        message: `Archive “${promotion.name}”? It will no longer be available to guests.`,
-        confirmText: "Archive",
+        title: t("confirm.archiveTitle"),
+        message: t("confirm.archiveMessage", { name: promotion.name }),
+        confirmText: t("common:actions.archive"),
         severity: "warning",
       }))
     ) {
@@ -243,7 +246,9 @@ export default function PromotionManagementPage() {
       {
         onSuccess: () => {
           emitApiNotification({
-            message: `Campaign ${LIFECYCLE_PAST_TENSE[action]}`,
+            message: t("notify.campaignTransition", {
+              status: t(`status:promotion.${LIFECYCLE_PAST_TENSE[action]}`),
+            }),
             severity: "success",
           });
         },
@@ -263,7 +268,10 @@ export default function PromotionManagementPage() {
       onSuccess: (voucher) => {
         setIssueDialogOpen(false);
         setDrawerVoucherId(voucher.id);
-        emitApiNotification({ message: "Voucher issued", severity: "success" });
+        emitApiNotification({
+          message: t("notify.voucherIssued"),
+          severity: "success",
+        });
       },
     });
   };
@@ -274,7 +282,7 @@ export default function PromotionManagementPage() {
       {
         onSuccess: () => {
           emitApiNotification({
-            message: "Voucher revoked",
+            message: t("notify.voucherRevoked"),
             severity: "success",
           });
         },
@@ -286,15 +294,15 @@ export default function PromotionManagementPage() {
     if (!canManageVouchers) return;
     if (
       !(await confirm({
-        title: "Revoke voucher",
-        message: `Revoke voucher ${label}? The guest will no longer be able to use it.`,
-        confirmText: "Revoke voucher",
+        title: t("confirm.revokeTitle"),
+        message: t("confirm.revokeMessage", { code: label }),
+        confirmText: t("vouchers.revoke"),
         severity: "error",
       }))
     ) {
       return;
     }
-    performRevoke(voucherId, "Revoked by administrator");
+    performRevoke(voucherId, t("vouchers.revokedByAdmin"));
   };
 
   /** The drawer already ran its own inline confirm — revoke directly. */
@@ -350,8 +358,8 @@ export default function PromotionManagementPage() {
     const match = [...promotionsQuery.data?.items ?? [], ...availablePromotions].find(
       (promotion) => promotion.id === voucherPromotionId,
     );
-    return match?.name ?? `Offer #${voucherPromotionId}`;
-  }, [voucherPromotionId, promotionsQuery.data?.items, availablePromotions]);
+    return match?.name ?? t("labels.offerFallback", { id: voucherPromotionId });
+  }, [voucherPromotionId, promotionsQuery.data?.items, availablePromotions, t]);
   const activeStatus = tab === "campaigns" ? promotionStatus : voucherStatus;
   const hasActiveFilters =
     search.trim().length > 0 ||
@@ -363,79 +371,79 @@ export default function PromotionManagementPage() {
       ? [
           {
             key: "total",
-            label: "Total vouchers",
+            label: t("stats.totalVouchers"),
             value: summaryValue(summary?.total),
-            hint: "Issued across all offers",
+            hint: t("stats.totalVouchersHint"),
           },
           {
             key: "available",
-            label: "Available now",
+            label: t("stats.availableNow"),
             value: summaryValue(summary?.available),
-            hint: "Ready for guest use",
+            hint: t("stats.availableNowHint"),
             onClick: () => applyVoucherStatus("available"),
             active: voucherStatus === "available",
           },
           {
             key: "expiring",
-            label: "Expiring soon",
+            label: t("stats.expiringSoon"),
             value: summaryValue(summary?.expiring_soon),
-            hint: "Within 7 days",
+            hint: t("stats.expiringSoonHint"),
             onClick: () => applyVoucherStatus("expiring_soon"),
             active: voucherStatus === "expiring_soon",
           },
           {
             key: "expired",
-            label: "Expired",
+            label: t("stats.expired"),
             value: summaryValue(summary?.expired),
-            hint: "Past their expiry",
+            hint: t("stats.expiredHint"),
             onClick: () => applyVoucherStatus("expired"),
             active: voucherStatus === "expired",
           },
           {
             key: "redeemed",
-            label: "Redeemed",
+            label: t("stats.redeemed"),
             value: summaryValue(summary?.redeemed),
-            hint: `${summary?.redemption_count ?? 0} redemption${
-              summary?.redemption_count === 1 ? "" : "s"
-            }`,
+            hint: t("stats.redeemedHint", {
+              count: summary?.redemption_count ?? 0,
+            }),
             onClick: () => applyVoucherStatus("redeemed"),
             active: voucherStatus === "redeemed",
           },
           {
             key: "discounts",
-            label: "Discounts given",
+            label: t("stats.discountsGiven"),
             value: discountsGiven,
-            hint: "Across redemptions",
+            hint: t("stats.discountsGivenHint"),
           },
         ]
       : [
           {
             key: "campaigns",
-            label: "Campaigns",
+            label: t("stats.campaigns"),
             value: promotionsQuery.isLoading
               ? "…"
               : String(promotionsQuery.data?.total ?? 0),
             hint: hasActiveFilters
-              ? "Matching current filters"
-              : "All campaigns in this workspace",
+              ? t("stats.campaignsHintFiltered")
+              : t("stats.campaignsHintAll"),
           },
           {
             key: "vouchers",
-            label: "Vouchers issued",
+            label: t("stats.vouchersIssued"),
             value: summaryValue(summary?.total),
-            hint: "Across all offers",
+            hint: t("stats.vouchersIssuedHint"),
           },
           {
             key: "redemptions",
-            label: "Redemptions",
+            label: t("stats.redemptions"),
             value: summaryValue(summary?.redemption_count),
-            hint: "Vouchers applied to bookings",
+            hint: t("stats.redemptionsHint"),
           },
           {
             key: "discounts",
-            label: "Discounts given",
+            label: t("stats.discountsGiven"),
             value: discountsGiven,
-            hint: "Across redemptions",
+            hint: t("stats.discountsGivenHint"),
           },
         ];
 
@@ -454,12 +462,12 @@ export default function PromotionManagementPage() {
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3 } }}>
       <PageHeader
-        kicker="Revenue &amp; marketing"
-        title={tab === "campaigns" ? "Campaigns" : "Vouchers"}
+        kicker={t("page.kicker")}
+        title={tab === "campaigns" ? t("tabs.campaigns") : t("tabs.vouchers")}
         subtitle={
           tab === "campaigns"
-            ? "Plan deals and voucher campaigns, target channels and loyalty tiers, and track real redemption performance."
-            : "Issue, track, and manage guest vouchers across every campaign."
+            ? t("page.subtitleCampaigns")
+            : t("page.subtitleVouchers")
         }
         sx={{ mb: 0 }}
         actions={
@@ -471,7 +479,7 @@ export default function PromotionManagementPage() {
                 onClick={openCreate}
                 sx={{ whiteSpace: "nowrap" }}
               >
-                Create campaign
+                {t("page.createCampaign")}
               </Button>
             ) : null}
             {tab === "vouchers" && canManageVouchers ? (
@@ -481,7 +489,7 @@ export default function PromotionManagementPage() {
                 onClick={() => setIssueDialogOpen(true)}
                 sx={{ whiteSpace: "nowrap" }}
               >
-                Issue voucher
+                {t("issue.title")}
               </Button>
             ) : null}
           </>
@@ -491,12 +499,10 @@ export default function PromotionManagementPage() {
         <StatStrip items={statItems} />
 
         {tab === "campaigns" && !canManagePromotions ? (
-          <Alert severity="info">
-            You have read-only access to campaigns.
-          </Alert>
+          <Alert severity="info">{t("page.readOnlyCampaigns")}</Alert>
         ) : null}
         {tab === "vouchers" && !canManageVouchers ? (
-          <Alert severity="info">You have read-only access to vouchers.</Alert>
+          <Alert severity="info">{t("page.readOnlyVouchers")}</Alert>
         ) : null}
         {queryError ? (
           <Alert
@@ -508,18 +514,21 @@ export default function PromotionManagementPage() {
                 onClick={() => void activeQuery.refetch()}
                 disabled={activeQuery.isFetching}
               >
-                Retry
+                {t("common:actions.retry")}
               </Button>
             }
           >
-            {getQueryErrorMessage(queryError, `Unable to load ${tab}`)}
+            {getQueryErrorMessage(
+              queryError,
+              t("page.loadFailed", { tab: t(`tabs.${tab}`) }),
+            )}
           </Alert>
         ) : null}
         {tab === "campaigns" && promotionMutationError ? (
           <Alert severity="error">
             {getQueryErrorMessage(
               promotionMutationError,
-              "Unable to update campaign",
+              t("page.updateCampaignFailed"),
             )}
           </Alert>
         ) : null}
@@ -527,7 +536,7 @@ export default function PromotionManagementPage() {
           <Alert severity="error">
             {getQueryErrorMessage(
               voucherMutationError,
-              "Unable to update voucher",
+              t("page.updateVoucherFailed"),
             )}
           </Alert>
         ) : null}
@@ -552,14 +561,14 @@ export default function PromotionManagementPage() {
               value="campaigns"
               icon={<CampaignOutlinedIcon fontSize="small" />}
               iconPosition="start"
-              label="Campaigns"
+              label={t("tabs.campaigns")}
             />
             {canReadVouchers ? (
               <Tab
                 value="vouchers"
                 icon={<ConfirmationNumberOutlinedIcon fontSize="small" />}
                 iconPosition="start"
-                label="Vouchers"
+                label={t("tabs.vouchers")}
               />
             ) : null}
           </Tabs>
@@ -583,12 +592,12 @@ export default function PromotionManagementPage() {
                 size="small"
                 placeholder={
                   tab === "campaigns"
-                    ? "Search by name or offer code"
-                    : "Search by offer name or exact voucher code"
+                    ? t("page.searchCampaigns")
+                    : t("page.searchVouchers")
                 }
                 value={search}
                 onChange={(event) => resetPageForSearch(event.target.value)}
-                aria-label={`Search ${tab}`}
+                aria-label={t("page.searchAria", { tab: t(`tabs.${tab}`) })}
                 slotProps={{
                   input: {
                     startAdornment: (
@@ -600,7 +609,7 @@ export default function PromotionManagementPage() {
                       <InputAdornment position="end">
                         <IconButton
                           size="small"
-                          aria-label="Clear search"
+                          aria-label={t("page.clearSearch")}
                           onClick={() => resetPageForSearch("")}
                         >
                           <CloseIcon fontSize="small" />
@@ -611,12 +620,12 @@ export default function PromotionManagementPage() {
                 }}
                 sx={{ minWidth: { md: 320 }, flex: 1 }}
               />
-              <Tooltip title="Refresh results">
+              <Tooltip title={t("page.refreshResults")}>
                 <span>
                   <IconButton
                     onClick={() => void activeQuery.refetch()}
                     disabled={activeQuery.isFetching}
-                    aria-label={`Refresh ${tab}`}
+                    aria-label={t("page.refreshAria", { tab: t(`tabs.${tab}`) })}
                     sx={{
                       border: 1,
                       borderColor: "divider",
@@ -654,7 +663,7 @@ export default function PromotionManagementPage() {
                       applyVoucherStatus(value as VoucherStatusFilter | "all");
                     }
                   }}
-                  aria-label={`${tab} status filter`}
+                  aria-label={t("page.statusFilterAria", { tab: t(`tabs.${tab}`) })}
                   sx={{ whiteSpace: "nowrap" }}
                 >
                   {(tab === "campaigns"
@@ -666,7 +675,7 @@ export default function PromotionManagementPage() {
                       value={filter.value}
                       sx={{ px: 1.5 }}
                     >
-                      {filter.label}
+                      {t(filter.labelKey)}
                     </ToggleButton>
                   ))}
                 </ToggleButtonGroup>
@@ -679,7 +688,9 @@ export default function PromotionManagementPage() {
                     size="small"
                     color="primary"
                     variant="outlined"
-                    label={`Offer: ${voucherPromotionName ?? `#${voucherPromotionId}`}`}
+                    label={t("page.offerChip", {
+                      name: voucherPromotionName ?? `#${voucherPromotionId}`,
+                    })}
                     onDelete={() => {
                       setVoucherPromotionId(null);
                       setVoucherPage(0);
@@ -689,11 +700,11 @@ export default function PromotionManagementPage() {
                 <Chip
                   size="small"
                   variant="outlined"
-                  label={`${activeTotal} result${activeTotal === 1 ? "" : "s"}`}
+                  label={t("page.results", { count: activeTotal })}
                 />
                 {hasActiveFilters ? (
                   <Button size="small" color="inherit" onClick={clearFilters}>
-                    Clear filters
+                    {t("page.clearFilters")}
                   </Button>
                 ) : null}
               </Stack>
@@ -756,10 +767,7 @@ export default function PromotionManagementPage() {
         isSaving={issueMutation.isPending}
         errorMessage={
           issueMutation.error
-            ? getQueryErrorMessage(
-                issueMutation.error,
-                "Unable to issue voucher",
-              )
+            ? getQueryErrorMessage(issueMutation.error, t("issue.failed"))
             : null
         }
         onClose={() => setIssueDialogOpen(false)}

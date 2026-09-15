@@ -150,7 +150,9 @@
     "on_hold": "Ditangguhkan",
     "pending": "Menunggu",
     "under_review": "Dalam semakan",
-    "verified": "Disahkan"
+    "verified": "Disahkan",
+    "not_started": "Belum bermula",
+    "unverified": "Belum disahkan"
   },
   "email_delivery": {
     "queued": "Dalam giliran",
@@ -171,6 +173,18 @@
     "approved": "Diluluskan",
     "rejected": "Ditolak",
     "fulfilled": "Ditunaikan"
+  },
+  "loyalty_tx": {
+    "pending": "Menunggu",
+    "earned": "Diperoleh",
+    "earn": "Diperoleh",
+    "redeemed": "Ditebus",
+    "redeem": "Ditebus",
+    "expired": "Tamat tempoh",
+    "expire": "Tamat tempoh",
+    "adjusted": "Disesuaikan",
+    "adjust": "Disesuaikan",
+    "reversed": "Diterbalikkan"
   },
   "reward_redemption": {
     "pending": "Menunggu",

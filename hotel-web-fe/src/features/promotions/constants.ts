@@ -10,68 +10,70 @@ import type {
   VoucherStatusFilter,
 } from './types';
 
-export const PROMOTION_STATUS_LABELS: Record<PromotionStatus, string> = {
-  draft: 'Draft',
-  published: 'Published',
-  paused: 'Paused',
-  cancelled: 'Cancelled',
-  archived: 'Archived',
+/** i18n keys (`status:promotion.*`) for stored promotion statuses — render
+ *  with `t(PROMOTION_STATUS_KEYS[status])`. */
+export const PROMOTION_STATUS_KEYS: Record<PromotionStatus, string> = {
+  draft: 'status:promotion.draft',
+  published: 'status:promotion.published',
+  paused: 'status:promotion.paused',
+  cancelled: 'status:promotion.cancelled',
+  archived: 'status:promotion.archived',
 };
 
-/** Operator-facing lifecycle labels — what the campaigns list filters and
- *  status chips display. `scheduled`/`live`/`expired` are derived, never
- *  stored. */
-export const CAMPAIGN_LIFECYCLE_LABELS: Record<PromotionLifecycle, string> = {
-  draft: 'Draft',
-  scheduled: 'Scheduled',
-  live: 'Live',
-  paused: 'Paused',
-  expired: 'Expired',
-  cancelled: 'Cancelled',
-  archived: 'Archived',
+/** Operator-facing lifecycle keys (`status:promotion.*`) — what the campaigns
+ *  list filters and status chips display. `scheduled`/`live`/`expired` are
+ *  derived, never stored. */
+export const CAMPAIGN_LIFECYCLE_KEYS: Record<PromotionLifecycle, string> = {
+  draft: 'status:promotion.draft',
+  scheduled: 'status:promotion.scheduled',
+  live: 'status:promotion.live',
+  paused: 'status:promotion.paused',
+  expired: 'status:promotion.expired',
+  cancelled: 'status:promotion.cancelled',
+  archived: 'status:promotion.archived',
 };
 
 export const CAMPAIGN_OBJECTIVE_OPTIONS: Array<{
   value: CampaignObjective;
-  label: string;
+  labelKey: string;
 }> = [
-  { value: 'occupancy', label: 'Fill occupancy' },
-  { value: 'acquisition', label: 'Acquire guests' },
-  { value: 'retention', label: 'Retain guests' },
-  { value: 'upsell', label: 'Upsell' },
-  { value: 'loyalty', label: 'Loyalty' },
-  { value: 'other', label: 'Other' },
+  { value: 'occupancy', labelKey: 'objectives.occupancy' },
+  { value: 'acquisition', labelKey: 'objectives.acquisition' },
+  { value: 'retention', labelKey: 'objectives.retention' },
+  { value: 'upsell', labelKey: 'objectives.upsell' },
+  { value: 'loyalty', labelKey: 'objectives.loyalty' },
+  { value: 'other', labelKey: 'objectives.other' },
 ];
 
-export const VOUCHER_STATUS_LABELS: Record<VoucherStatus, string> = {
-  available: 'Available',
-  redeemed: 'Redeemed',
-  revoked: 'Revoked',
+export const VOUCHER_STATUS_KEYS: Record<VoucherStatus, string> = {
+  available: 'status:voucher.available',
+  redeemed: 'status:voucher.redeemed',
+  revoked: 'status:voucher.revoked',
 };
 
-export const VOUCHER_DISPLAY_STATUS_LABELS: Record<VoucherDisplayStatus, string> = {
-  available: 'Available',
-  expired: 'Expired',
-  redeemed: 'Redeemed',
-  revoked: 'Revoked',
+export const VOUCHER_DISPLAY_STATUS_KEYS: Record<VoucherDisplayStatus, string> = {
+  available: 'status:voucher.available',
+  expired: 'status:voucher.expired',
+  redeemed: 'status:voucher.redeemed',
+  revoked: 'status:voucher.revoked',
 };
 
-export const VOUCHER_STATUS_FILTER_LABELS: Record<VoucherStatusFilter, string> = {
-  ...VOUCHER_DISPLAY_STATUS_LABELS,
-  expiring_soon: 'Expiring soon',
+export const VOUCHER_STATUS_FILTER_KEYS: Record<VoucherStatusFilter, string> = {
+  ...VOUCHER_DISPLAY_STATUS_KEYS,
+  expiring_soon: 'promotions:filters.expiringSoon',
 };
 
-export const PROMOTION_KIND_OPTIONS: Array<{ value: PromotionKind; label: string }> = [
-  { value: 'deal', label: 'Deal' },
-  { value: 'voucher', label: 'Voucher' },
+export const PROMOTION_KIND_OPTIONS: Array<{ value: PromotionKind; labelKey: string }> = [
+  { value: 'deal', labelKey: 'kind.deal' },
+  { value: 'voucher', labelKey: 'kind.voucher' },
 ];
 
 export const DISCOUNT_TYPE_OPTIONS: Array<{
   value: PromotionDiscountType;
-  label: string;
+  labelKey: string;
 }> = [
-  { value: 'percentage', label: 'Percentage' },
-  { value: 'fixed_amount', label: 'Fixed amount' },
+  { value: 'percentage', labelKey: 'discountType.percentage' },
+  { value: 'fixed_amount', labelKey: 'discountType.fixedAmount' },
 ];
 
 export const EMPTY_PROMOTION_INPUT: PromotionInput = {

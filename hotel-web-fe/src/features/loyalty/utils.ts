@@ -6,6 +6,7 @@
 import { formatStatusLabel } from '../../utils/formatters';
 import { formatNumber as formatLocaleNumber } from '../../i18n/format';
 import { formatHotelDate } from '../../utils/date';
+import { t } from '../../i18n';
 
 export interface UserLoyaltyMembership {
   id: number;
@@ -122,9 +123,12 @@ export function isTierLocked(
   return membership.tier_level < reward.minimum_tier_level;
 }
 
-/** `dining_discount` → `Dining Discount`. */
+/** Localized reward-category label (`loyalty:categories.*`); an unmapped or
+ *  custom category falls back to the humanized raw value. */
 export function formatCategoryLabel(category: string): string {
-  return formatStatusLabel(category);
+  const translated = t(`loyalty:categories.${category}`);
+  // The engine renders the last key segment — the raw value — on a miss.
+  return translated === category ? formatStatusLabel(category) : translated;
 }
 
 /** Locale-aware number formatting (delegates to `src/i18n/format`). */

@@ -56,7 +56,7 @@
     "deleteRewardAria": "删除奖励 {{name}}",
     "subtitlePts": "{{category}} · {{points}} 积分",
     "metaStock": "{{tier}}+ 等级 · 库存 {{stock}}",
-    "metaValue": " · {{symbol}}{{amount}}",
+    "metaStockValue": "{{tier}}+ 等级 · 库存 {{stock}} · {{symbol}}{{amount}}",
     "colName": "名称",
     "colCategory": "类别",
     "colPointsCost": "积分成本",

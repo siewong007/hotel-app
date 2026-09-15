@@ -60,15 +60,29 @@ import {
 import { useLoyaltySocket } from '../hooks/useLoyaltySocket';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import { useTranslation, formatNumber, statusLabel, type UseTranslationResult } from '../../../i18n';
+import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
+import { formatCategoryLabel } from '../utils';
 
 const fmt = (n: number | null | undefined): string =>
-  typeof n === 'number' ? n.toLocaleString() : '—';
+  typeof n === 'number' ? formatNumber(n) : '—';
 
 const fmtMoney = (n: number | null | undefined): string =>
-  typeof n === 'number' ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  typeof n === 'number' ? formatNumber(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 
-const fmtDate = (iso?: string | null): string => (iso ? new Date(iso).toLocaleDateString() : '—');
-const fmtDateTime = (iso?: string | null): string => (iso ? new Date(iso).toLocaleString() : '—');
+const fmtDate = (iso?: string | null): string => (iso ? formatHotelDate(iso, '—') : '—');
+const fmtDateTime = (iso?: string | null): string => (iso ? formatHotelDateTime(iso, '—') : '—');
+
+const TIER_METRIC_KEYS: Record<TierQualificationMetric, string> = {
+  points: 'portal.rules.metricPoints',
+  nights: 'portal.rules.metricNights',
+  spend: 'portal.rules.metricSpend',
+};
+
+const tierMetricLabel = (t: UseTranslationResult['t'], metric: string): string =>
+  TIER_METRIC_KEYS[metric as TierQualificationMetric]
+    ? t(TIER_METRIC_KEYS[metric as TierQualificationMetric])
+    : statusLabel(t, 'generic', metric);
 
 const errMessage = (e: unknown, fallback: string): string =>
   e instanceof APIError ? e.message : e ? fallback : '';
@@ -104,6 +118,7 @@ const StatCard: React.FC<{ label: string; value: string; hint?: string }> = ({ l
 );
 
 const OverviewTab: React.FC = () => {
+  const { t } = useTranslation('loyalty');
   const membersQuery = useLoyaltyMembers();
   const pendingQuery = useLoyaltyRedemptions({ status: 'pending' });
 
@@ -118,28 +133,28 @@ const OverviewTab: React.FC = () => {
   }, [members]);
 
   if (membersQuery.isLoading) return <Loading />;
-  if (membersQuery.error) return <Alert severity="error">{errMessage(membersQuery.error, 'Failed to load members')}</Alert>;
+  if (membersQuery.error) return <Alert severity="error">{errMessage(membersQuery.error, t('portal.overview.loadMembersFailed'))}</Alert>;
 
   return (
     <Stack spacing={3}>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-        <StatCard label="Total members" value={fmt(members.length)} hint={`${stats.active} active`} />
-        <StatCard label="Available points" value={fmt(stats.availablePoints)} />
-        <StatCard label="Lifetime points" value={fmt(stats.lifetimePoints)} />
+        <StatCard label={t('portal.overview.totalMembers')} value={fmt(members.length)} hint={t('portal.overview.activeHint', { count: stats.active })} />
+        <StatCard label={t('portal.overview.availablePoints')} value={fmt(stats.availablePoints)} />
+        <StatCard label={t('portal.overview.lifetimePoints')} value={fmt(stats.lifetimePoints)} />
         <StatCard
-          label="Pending redemptions"
+          label={t('portal.overview.pendingRedemptions')}
           value={fmt(pendingQuery.data?.length ?? 0)}
-          hint="awaiting review"
+          hint={t('portal.overview.pendingHint')}
         />
       </Box>
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-          Members by tier
+          {t('portal.overview.byTier')}
         </Typography>
         {stats.byTier.length === 0 ? (
           <Typography sx={{
             color: "text.secondary"
-          }}>No members enrolled yet.</Typography>
+          }}>{t('portal.overview.noMembers')}</Typography>
         ) : (
           <Stack spacing={1}>
             {stats.byTier.map(([tier, count]) => {
@@ -170,6 +185,7 @@ const OverviewTab: React.FC = () => {
 // ---------------------------------------------------------------------------
 
 const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => void }> = ({ memberId, onClose }) => {
+  const { t } = useTranslation('loyalty');
   const isPhone = useIsPhone();
   const detailQuery = useLoyaltyMemberDetail(memberId);
   const giftPoints = useGiftPoints();
@@ -183,11 +199,11 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
     setGiftError('');
     const pointsToGift = parseInt(points, 10);
     if (Number.isNaN(pointsToGift) || pointsToGift <= 0) {
-      setGiftError('Enter a positive number of points');
+      setGiftError(t('portal.members.giftInvalidPoints'));
       return;
     }
     if (reason.trim().length < 5) {
-      setGiftError('Reason must be at least 5 characters');
+      setGiftError(t('portal.members.giftReasonShort'));
       return;
     }
     try {
@@ -195,28 +211,28 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
       setPoints('');
       setReason('');
     } catch (e) {
-      setGiftError(errMessage(e, 'Failed to gift points'));
+      setGiftError(errMessage(e, t('portal.members.giftFailed')));
     }
   };
 
   return (
     <Dialog open={memberId != null} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Member details</DialogTitle>
+      <DialogTitle>{t('portal.members.detailTitle')}</DialogTitle>
       <DialogContent dividers>
         {detailQuery.isLoading && <Loading />}
-        {detailQuery.error && <Alert severity="error">{errMessage(detailQuery.error, 'Failed to load member')}</Alert>}
+        {detailQuery.error && <Alert severity="error">{errMessage(detailQuery.error, t('portal.members.loadMemberFailed'))}</Alert>}
         {detail && (
           <Stack spacing={3}>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <StatCard label="Member" value={detail.member.guest_name} hint={detail.member.member_number} />
-              <StatCard label="Tier" value={detail.member.tier_name} />
-              <StatCard label="Available points" value={fmt(detail.member.available_points)} />
-              <StatCard label="Lifetime points" value={fmt(detail.member.lifetime_points)} />
+              <StatCard label={t('portal.members.member')} value={detail.member.guest_name} hint={detail.member.member_number} />
+              <StatCard label={t('portal.members.tier')} value={detail.member.tier_name} />
+              <StatCard label={t('portal.members.availablePoints')} value={fmt(detail.member.available_points)} />
+              <StatCard label={t('portal.members.lifetimePoints')} value={fmt(detail.member.lifetime_points)} />
             </Box>
 
             <Box>
               <Typography variant="subtitle2" gutterBottom>
-                Tier progress ({detail.tier_progress.metric})
+                {t('portal.members.tierProgress', { metric: tierMetricLabel(t, detail.tier_progress.metric) })}
               </Typography>
               <LinearProgress
                 variant="determinate"
@@ -227,8 +243,11 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
                 color: "text.secondary"
               }}>
                 {detail.tier_progress.next_tier_name
-                  ? `${fmt(detail.tier_progress.remaining_to_next_tier ?? 0)} to ${detail.tier_progress.next_tier_name}`
-                  : 'Highest tier reached'}
+                  ? t('portal.members.toNextTier', {
+                      count: fmt(detail.tier_progress.remaining_to_next_tier ?? 0),
+                      tier: detail.tier_progress.next_tier_name,
+                    })
+                  : t('portal.members.highestTier')}
               </Typography>
             </Box>
 
@@ -236,7 +255,7 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
 
             <Box>
               <Typography variant="subtitle2" gutterBottom>
-                Gift points
+                {t('portal.members.giftPoints')}
               </Typography>
               {giftError && (
                 <Alert severity="error" sx={{ mb: 1 }}>
@@ -247,7 +266,7 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
                 alignItems: "flex-start"
               }}>
                 <TextField
-                  label="Points"
+                  label={t('portal.members.points')}
                   type="number"
                   size="small"
                   value={points}
@@ -258,14 +277,14 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
                   }}
                 />
                 <TextField
-                  label="Reason (required)"
+                  label={t('portal.members.reason')}
                   size="small"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   fullWidth
                 />
                 <Button variant="contained" onClick={handleGiftPoints} disabled={giftPoints.isPending}>
-                  Gift points
+                  {t('portal.members.giftPoints')}
                 </Button>
               </Stack>
             </Box>
@@ -274,30 +293,33 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
 
             <Box>
               <Typography variant="subtitle2" gutterBottom>
-                Recent activity
+                {t('portal.members.recentActivity')}
               </Typography>
               {isPhone ? (
                 <Box>
                   {detail.recent_activity.length === 0 ? (
                     <Typography variant="body2" align="center" sx={{ color: 'text.secondary', py: 3 }}>
-                      No activity yet
+                      {t('portal.members.noActivity')}
                     </Typography>
                   ) : (
-                    detail.recent_activity.map((t) => (
+                    detail.recent_activity.map((tx) => (
                       <Box
-                        key={t.id}
+                        key={tx.id}
                         sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
                       >
                         <MobileCardRow
-                          title={t.transaction_type}
-                          subtitle={fmtDateTime(t.created_at)}
-                          meta={`${t.description ?? '—'} · balance ${fmt(t.balance_after)}`}
+                          title={statusLabel(t, 'loyalty_tx', tx.transaction_type)}
+                          subtitle={fmtDateTime(tx.created_at)}
+                          meta={t('portal.members.activityMeta', {
+                            description: tx.description ?? '—',
+                            balance: fmt(tx.balance_after),
+                          })}
                           status={
                             <Typography
                               variant="body2"
-                              sx={{ fontWeight: 700, color: t.points_delta < 0 ? 'error.main' : 'success.main' }}
+                              sx={{ fontWeight: 700, color: tx.points_delta < 0 ? 'error.main' : 'success.main' }}
                             >
-                              {t.points_delta > 0 ? `+${fmt(t.points_delta)}` : fmt(t.points_delta)}
+                              {tx.points_delta > 0 ? `+${fmt(tx.points_delta)}` : fmt(tx.points_delta)}
                             </Typography>
                           }
                         />
@@ -310,30 +332,30 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell align="right">Points</TableCell>
-                      <TableCell align="right">Balance</TableCell>
-                      <TableCell>Description</TableCell>
+                      <TableCell>{t('portal.members.colDate')}</TableCell>
+                      <TableCell>{t('portal.members.colType')}</TableCell>
+                      <TableCell align="right">{t('portal.members.colPoints')}</TableCell>
+                      <TableCell align="right">{t('portal.members.colBalance')}</TableCell>
+                      <TableCell>{t('portal.members.colDescription')}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {detail.recent_activity.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} align="center">
-                          No activity yet
+                          {t('portal.members.noActivity')}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      detail.recent_activity.map((t) => (
-                        <TableRow key={t.id}>
-                          <TableCell>{fmtDateTime(t.created_at)}</TableCell>
-                          <TableCell>{t.transaction_type}</TableCell>
-                          <TableCell align="right" sx={{ color: t.points_delta < 0 ? 'error.main' : 'success.main' }}>
-                            {t.points_delta > 0 ? `+${fmt(t.points_delta)}` : fmt(t.points_delta)}
+                      detail.recent_activity.map((tx) => (
+                        <TableRow key={tx.id}>
+                          <TableCell>{fmtDateTime(tx.created_at)}</TableCell>
+                          <TableCell>{statusLabel(t, 'loyalty_tx', tx.transaction_type)}</TableCell>
+                          <TableCell align="right" sx={{ color: tx.points_delta < 0 ? 'error.main' : 'success.main' }}>
+                            {tx.points_delta > 0 ? `+${fmt(tx.points_delta)}` : fmt(tx.points_delta)}
                           </TableCell>
-                          <TableCell align="right">{fmt(t.balance_after)}</TableCell>
-                          <TableCell>{t.description ?? '—'}</TableCell>
+                          <TableCell align="right">{fmt(tx.balance_after)}</TableCell>
+                          <TableCell>{tx.description ?? '—'}</TableCell>
                         </TableRow>
                       ))
                     )}
@@ -346,13 +368,14 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t('common:actions.close')}</Button>
       </DialogActions>
     </Dialog>
   );
 };
 
 const MembersTab: React.FC = () => {
+  const { t } = useTranslation('loyalty');
   const isPhone = useIsPhone();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'' | LoyaltyMemberStatus>('');
@@ -369,30 +392,30 @@ const MembersTab: React.FC = () => {
     <Stack spacing={2}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
         <TextField
-          label="Search name, email or member #"
+          label={t('portal.members.searchPlaceholder')}
           size="small"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           sx={{ flex: 1 }}
         />
         <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>Status</InputLabel>
-          <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value as '' | LoyaltyMemberStatus)}>
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="closed">Closed</MenuItem>
+          <InputLabel>{t('portal.members.statusLabel')}</InputLabel>
+          <Select label={t('portal.members.statusLabel')} value={status} onChange={(e) => setStatus(e.target.value as '' | LoyaltyMemberStatus)}>
+            <MenuItem value="">{t('portal.members.all')}</MenuItem>
+            <MenuItem value="active">{statusLabel(t, 'loyalty', 'active')}</MenuItem>
+            <MenuItem value="closed">{statusLabel(t, 'loyalty', 'closed')}</MenuItem>
           </Select>
         </FormControl>
       </Stack>
       {membersQuery.isLoading ? (
         <Loading />
       ) : membersQuery.error ? (
-        <Alert severity="error">{errMessage(membersQuery.error, 'Failed to load members')}</Alert>
+        <Alert severity="error">{errMessage(membersQuery.error, t('portal.overview.loadMembersFailed'))}</Alert>
       ) : isPhone ? (
         <Paper variant="outlined">
           {members.length === 0 ? (
             <Typography variant="body2" align="center" sx={{ color: 'text.secondary', py: 4 }}>
-              No members found
+              {t('portal.members.noMembers')}
             </Typography>
           ) : (
             members.map((m) => (
@@ -403,11 +426,15 @@ const MembersTab: React.FC = () => {
                 <MobileCardRow
                   title={m.guest_name}
                   subtitle={`#${m.member_number} · ${m.tier_name}${m.guest_email || m.guest_phone ? ` · ${m.guest_email ?? m.guest_phone}` : ''}`}
-                  meta={`${fmt(m.available_points)} pts available · ${fmt(m.lifetime_points)} lifetime · enrolled ${fmtDate(m.enrolled_at)}`}
+                  meta={t('portal.members.memberMeta', {
+                    available: fmt(m.available_points),
+                    lifetime: fmt(m.lifetime_points),
+                    date: fmtDate(m.enrolled_at),
+                  })}
                   status={
                     <Chip
                       size="small"
-                      label={m.status}
+                      label={statusLabel(t, 'loyalty', m.status)}
                       color={m.status === 'active' ? 'success' : 'default'}
                       variant="outlined"
                     />
@@ -423,20 +450,20 @@ const MembersTab: React.FC = () => {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Member #</TableCell>
-                <TableCell>Guest</TableCell>
-                <TableCell>Tier</TableCell>
-                <TableCell align="right">Available</TableCell>
-                <TableCell align="right">Lifetime</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Enrolled</TableCell>
+                <TableCell>{t('portal.members.colMemberNumber')}</TableCell>
+                <TableCell>{t('portal.members.colGuest')}</TableCell>
+                <TableCell>{t('portal.members.colTier')}</TableCell>
+                <TableCell align="right">{t('portal.members.colAvailable')}</TableCell>
+                <TableCell align="right">{t('portal.members.colLifetime')}</TableCell>
+                <TableCell>{t('portal.members.colStatus')}</TableCell>
+                <TableCell>{t('portal.members.colEnrolled')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {members.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center">
-                    No members found
+                    {t('portal.members.noMembers')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -457,7 +484,7 @@ const MembersTab: React.FC = () => {
                     <TableCell>
                       <Chip
                         size="small"
-                        label={m.status}
+                        label={statusLabel(t, 'loyalty', m.status)}
                         color={m.status === 'active' ? 'success' : 'default'}
                         variant="outlined"
                       />
@@ -493,6 +520,7 @@ const RewardDialog: React.FC<{
   reward: AdminLoyaltyReward | null;
   onClose: () => void;
 }> = ({ open, reward, onClose }) => {
+  const { t } = useTranslation('loyalty');
   const create = useCreateLoyaltyReward();
   const update = useUpdateLoyaltyReward();
   const [form, setForm] = useState<AdminRewardInput>(emptyReward);
@@ -527,15 +555,15 @@ const RewardDialog: React.FC<{
   const handleSave = async () => {
     setError('');
     if (form.name.trim().length < 2) {
-      setError('Name must be at least 2 characters');
+      setError(t('portal.rewards.nameTooShort'));
       return;
     }
     if (form.category.trim().length < 2) {
-      setError('Category is required');
+      setError(t('portal.rewards.categoryRequired'));
       return;
     }
     if (!form.points_cost || form.points_cost < 1) {
-      setError('Points cost must be at least 1');
+      setError(t('portal.rewards.pointsMin'));
       return;
     }
     try {
@@ -546,7 +574,7 @@ const RewardDialog: React.FC<{
       }
       onClose();
     } catch (e) {
-      setError(errMessage(e, 'Failed to save reward'));
+      setError(errMessage(e, t('portal.rewards.saveFailed')));
     }
   };
 
@@ -554,13 +582,13 @@ const RewardDialog: React.FC<{
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{reward ? 'Edit reward' : 'New reward'}</DialogTitle>
+      <DialogTitle>{reward ? t('portal.rewards.editTitle') : t('portal.rewards.newTitle')}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2} sx={{ mt: 0.5 }}>
           {error && <Alert severity="error">{error}</Alert>}
-          <TextField label="Name" value={form.name} onChange={(e) => set('name', e.target.value)} fullWidth />
+          <TextField label={t('portal.rewards.fieldName')} value={form.name} onChange={(e) => set('name', e.target.value)} fullWidth />
           <TextField
-            label="Description"
+            label={t('portal.rewards.fieldDescription')}
             value={form.description ?? ''}
             onChange={(e) => set('description', e.target.value)}
             fullWidth
@@ -569,13 +597,13 @@ const RewardDialog: React.FC<{
           />
           <Stack direction="row" spacing={2}>
             <TextField
-              label="Category"
+              label={t('portal.rewards.fieldCategory')}
               value={form.category}
               onChange={(e) => set('category', e.target.value)}
               fullWidth
             />
             <TextField
-              label="Points cost"
+              label={t('portal.rewards.fieldPointsCost')}
               type="number"
               value={form.points_cost}
               onChange={(e) => set('points_cost', parseInt(e.target.value, 10) || 0)}
@@ -584,14 +612,14 @@ const RewardDialog: React.FC<{
           </Stack>
           <Stack direction="row" spacing={2}>
             <TextField
-              label="Inventory (optional)"
+              label={t('portal.rewards.fieldInventory')}
               type="number"
               value={form.inventory_count ?? ''}
               onChange={(e) => set('inventory_count', e.target.value === '' ? null : parseInt(e.target.value, 10))}
               fullWidth
             />
             <TextField
-              label="Min tier id (optional)"
+              label={t('portal.rewards.fieldMinTierId')}
               type="number"
               value={form.minimum_tier_id ?? ''}
               onChange={(e) => set('minimum_tier_id', e.target.value === '' ? null : parseInt(e.target.value, 10))}
@@ -600,7 +628,7 @@ const RewardDialog: React.FC<{
           </Stack>
           <Stack direction="row" spacing={2}>
             <TextField
-              label="Valid from"
+              label={t('portal.rewards.fieldValidFrom')}
               type="date"
               value={form.valid_from ?? ''}
               onChange={(e) => set('valid_from', e.target.value || null)}
@@ -610,7 +638,7 @@ const RewardDialog: React.FC<{
               }}
             />
             <TextField
-              label="Valid to"
+              label={t('portal.rewards.fieldValidTo')}
               type="date"
               value={form.valid_to ?? ''}
               onChange={(e) => set('valid_to', e.target.value || null)}
@@ -621,7 +649,7 @@ const RewardDialog: React.FC<{
             />
           </Stack>
           <TextField
-            label="Terms & conditions"
+            label={t('portal.rewards.fieldTerms')}
             value={form.terms_conditions ?? ''}
             onChange={(e) => set('terms_conditions', e.target.value)}
             fullWidth
@@ -633,19 +661,19 @@ const RewardDialog: React.FC<{
               control={
                 <Switch checked={!!form.requires_approval} onChange={(e) => set('requires_approval', e.target.checked)} />
               }
-              label="Requires approval"
+              label={t('portal.rewards.requiresApproval')}
             />
             <FormControlLabel
               control={<Switch checked={!!form.is_active} onChange={(e) => set('is_active', e.target.checked)} />}
-              label="Active"
+              label={t('portal.rewards.activeSwitch')}
             />
           </Stack>
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button variant="contained" onClick={handleSave} disabled={busy}>
-          {reward ? 'Save' : 'Create'}
+          {reward ? t('common:actions.save') : t('common:actions.create')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -653,6 +681,7 @@ const RewardDialog: React.FC<{
 };
 
 const RewardsTab: React.FC = () => {
+  const { t } = useTranslation('loyalty');
   const isPhone = useIsPhone();
   const [includeInactive, setIncludeInactive] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -680,21 +709,21 @@ const RewardsTab: React.FC = () => {
         }}>
         <FormControlLabel
           control={<Switch checked={includeInactive} onChange={(e) => setIncludeInactive(e.target.checked)} />}
-          label="Show inactive"
+          label={t('portal.rewards.showInactive')}
         />
         <Button variant="contained" onClick={openNew}>
-          New reward
+          {t('portal.rewards.newReward')}
         </Button>
       </Stack>
       {rewardsQuery.isLoading ? (
         <Loading />
       ) : rewardsQuery.error ? (
-        <Alert severity="error">{errMessage(rewardsQuery.error, 'Failed to load rewards')}</Alert>
+        <Alert severity="error">{errMessage(rewardsQuery.error, t('portal.rewards.loadFailed'))}</Alert>
       ) : isPhone ? (
         <Paper variant="outlined">
           {rewards.length === 0 ? (
             <Typography variant="body2" align="center" sx={{ color: 'text.secondary', py: 4 }}>
-              No rewards configured
+              {t('portal.rewards.noRewards')}
             </Typography>
           ) : (
             rewards.map((r) => (
@@ -704,12 +733,19 @@ const RewardsTab: React.FC = () => {
               >
                 <MobileCardRow
                   title={r.name}
-                  subtitle={`${r.category} · ${fmt(r.points_cost)} pts`}
-                  meta={`${r.minimum_tier_name ?? 'Any tier'} · ${r.requires_approval ? 'Approval required' : 'No approval'} · ${r.inventory_count != null ? fmt(r.inventory_count) : '∞'} in stock`}
+                  subtitle={t('dashboard.subtitlePts', {
+                    category: formatCategoryLabel(r.category),
+                    points: fmt(r.points_cost),
+                  })}
+                  meta={t('portal.rewards.metaLine', {
+                    tier: r.minimum_tier_name ?? t('portal.rewards.anyTier'),
+                    approval: r.requires_approval ? t('portal.rewards.approvalRequired') : t('portal.rewards.noApproval'),
+                    stock: r.inventory_count != null ? fmt(r.inventory_count) : '∞',
+                  })}
                   status={
                     <Chip
                       size="small"
-                      label={r.is_active ? 'active' : 'inactive'}
+                      label={r.is_active ? t('portal.rewards.active') : t('portal.rewards.inactive')}
                       color={r.is_active ? 'success' : 'default'}
                       variant="outlined"
                     />
@@ -725,35 +761,35 @@ const RewardsTab: React.FC = () => {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Category</TableCell>
-                <TableCell align="right">Points</TableCell>
-                <TableCell>Min tier</TableCell>
-                <TableCell>Approval</TableCell>
-                <TableCell align="right">Inventory</TableCell>
-                <TableCell>Active</TableCell>
+                <TableCell>{t('portal.rewards.colName')}</TableCell>
+                <TableCell>{t('portal.rewards.colCategory')}</TableCell>
+                <TableCell align="right">{t('portal.rewards.colPoints')}</TableCell>
+                <TableCell>{t('portal.rewards.colMinTier')}</TableCell>
+                <TableCell>{t('portal.rewards.colApproval')}</TableCell>
+                <TableCell align="right">{t('portal.rewards.colInventory')}</TableCell>
+                <TableCell>{t('portal.rewards.colActive')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {rewards.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center">
-                    No rewards configured
+                    {t('portal.rewards.noRewards')}
                   </TableCell>
                 </TableRow>
               ) : (
                 rewards.map((r) => (
                   <TableRow key={r.id} hover sx={{ cursor: 'pointer' }} onClick={() => openEdit(r)}>
                     <TableCell>{r.name}</TableCell>
-                    <TableCell>{r.category}</TableCell>
+                    <TableCell>{formatCategoryLabel(r.category)}</TableCell>
                     <TableCell align="right">{fmt(r.points_cost)}</TableCell>
                     <TableCell>{r.minimum_tier_name ?? '—'}</TableCell>
-                    <TableCell>{r.requires_approval ? 'Yes' : 'No'}</TableCell>
+                    <TableCell>{r.requires_approval ? t('common:actions.yes') : t('common:actions.no')}</TableCell>
                     <TableCell align="right">{r.inventory_count != null ? fmt(r.inventory_count) : '∞'}</TableCell>
                     <TableCell>
                       <Chip
                         size="small"
-                        label={r.is_active ? 'active' : 'inactive'}
+                        label={r.is_active ? t('portal.rewards.active') : t('portal.rewards.inactive')}
                         color={r.is_active ? 'success' : 'default'}
                         variant="outlined"
                       />
@@ -775,6 +811,7 @@ const RewardsTab: React.FC = () => {
 // ---------------------------------------------------------------------------
 
 const RedemptionsTab: React.FC = () => {
+  const { t } = useTranslation('loyalty');
   const isPhone = useIsPhone();
   const [status, setStatus] = useState<'' | LoyaltyRedemptionStatus>('pending');
   const params = useMemo(() => ({ status: status || undefined }), [status]);
@@ -793,14 +830,14 @@ const RedemptionsTab: React.FC = () => {
     try {
       await approve.mutateAsync(id);
     } catch (e) {
-      setActionError(errMessage(e, 'Failed to approve redemption'));
+      setActionError(errMessage(e, t('portal.redemptions.approveFailed')));
     }
   };
 
   const handleReject = async () => {
     if (!rejectTarget) return;
     if (rejectReason.trim().length < 5) {
-      setActionError('Rejection reason must be at least 5 characters');
+      setActionError(t('portal.redemptions.rejectReasonShort'));
       return;
     }
     setActionError('');
@@ -809,31 +846,31 @@ const RedemptionsTab: React.FC = () => {
       setRejectTarget(null);
       setRejectReason('');
     } catch (e) {
-      setActionError(errMessage(e, 'Failed to reject redemption'));
+      setActionError(errMessage(e, t('portal.redemptions.rejectFailed')));
     }
   };
 
   return (
     <Stack spacing={2}>
       <FormControl size="small" sx={{ minWidth: 180 }}>
-        <InputLabel>Status</InputLabel>
-        <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value as '' | LoyaltyRedemptionStatus)}>
-          <MenuItem value="">All</MenuItem>
-          <MenuItem value="pending">Pending</MenuItem>
-          <MenuItem value="approved">Approved</MenuItem>
-          <MenuItem value="rejected">Rejected</MenuItem>
+        <InputLabel>{t('portal.redemptions.statusLabel')}</InputLabel>
+        <Select label={t('portal.redemptions.statusLabel')} value={status} onChange={(e) => setStatus(e.target.value as '' | LoyaltyRedemptionStatus)}>
+          <MenuItem value="">{t('portal.redemptions.all')}</MenuItem>
+          <MenuItem value="pending">{statusLabel(t, 'loyalty_redemption', 'pending')}</MenuItem>
+          <MenuItem value="approved">{statusLabel(t, 'loyalty_redemption', 'approved')}</MenuItem>
+          <MenuItem value="rejected">{statusLabel(t, 'loyalty_redemption', 'rejected')}</MenuItem>
         </Select>
       </FormControl>
       {actionError && <Alert severity="error">{actionError}</Alert>}
       {redemptionsQuery.isLoading ? (
         <Loading />
       ) : redemptionsQuery.error ? (
-        <Alert severity="error">{errMessage(redemptionsQuery.error, 'Failed to load redemptions')}</Alert>
+        <Alert severity="error">{errMessage(redemptionsQuery.error, t('portal.redemptions.loadFailed'))}</Alert>
       ) : isPhone ? (
         <Paper variant="outlined">
           {redemptions.length === 0 ? (
             <Typography variant="body2" align="center" sx={{ color: 'text.secondary', py: 4 }}>
-              No redemptions
+              {t('portal.redemptions.noRedemptions')}
             </Typography>
           ) : (
             redemptions.map((r) => (
@@ -843,11 +880,17 @@ const RedemptionsTab: React.FC = () => {
               >
                 <MobileCardRow
                   title={r.guest_name}
-                  subtitle={`${r.reward_name} · ${fmt(r.points_spent)} pts`}
-                  meta={`${r.member_number} · ${fmtDateTime(r.requested_at)}`}
+                  subtitle={t('portal.redemptions.subtitlePts', {
+                    reward: r.reward_name,
+                    points: fmt(r.points_spent),
+                  })}
+                  meta={t('portal.redemptions.meta', {
+                    member: r.member_number,
+                    date: fmtDateTime(r.requested_at),
+                  })}
                   status={
                     <Tooltip title={r.rejection_reason ?? ''} disableHoverListener={!r.rejection_reason}>
-                      <Chip size="small" label={r.status} color={REDEMPTION_STATUS_COLOR[r.status]} variant="outlined" />
+                      <Chip size="small" label={statusLabel(t, 'loyalty_redemption', r.status)} color={REDEMPTION_STATUS_COLOR[r.status]} variant="outlined" />
                     </Tooltip>
                   }
                   footer={
@@ -860,7 +903,7 @@ const RedemptionsTab: React.FC = () => {
                           disabled={approve.isPending}
                           onClick={() => handleApprove(r.id)}
                         >
-                          Approve
+                          {t('portal.redemptions.approve')}
                         </Button>
                         <Button
                           size="small"
@@ -872,7 +915,7 @@ const RedemptionsTab: React.FC = () => {
                             setActionError('');
                           }}
                         >
-                          Reject
+                          {t('portal.redemptions.reject')}
                         </Button>
                       </>
                     ) : undefined
@@ -887,19 +930,19 @@ const RedemptionsTab: React.FC = () => {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Requested</TableCell>
-                <TableCell>Member</TableCell>
-                <TableCell>Reward</TableCell>
-                <TableCell align="right">Points</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell>{t('portal.redemptions.colRequested')}</TableCell>
+                <TableCell>{t('portal.redemptions.colMember')}</TableCell>
+                <TableCell>{t('portal.redemptions.colReward')}</TableCell>
+                <TableCell align="right">{t('portal.redemptions.colPoints')}</TableCell>
+                <TableCell>{t('portal.redemptions.colStatus')}</TableCell>
+                <TableCell align="right">{t('portal.redemptions.colActions')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {redemptions.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} align="center">
-                    No redemptions
+                    {t('portal.redemptions.noRedemptions')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -918,7 +961,7 @@ const RedemptionsTab: React.FC = () => {
                     <TableCell align="right">{fmt(r.points_spent)}</TableCell>
                     <TableCell>
                       <Tooltip title={r.rejection_reason ?? ''} disableHoverListener={!r.rejection_reason}>
-                        <Chip size="small" label={r.status} color={REDEMPTION_STATUS_COLOR[r.status]} variant="outlined" />
+                        <Chip size="small" label={statusLabel(t, 'loyalty_redemption', r.status)} color={REDEMPTION_STATUS_COLOR[r.status]} variant="outlined" />
                       </Tooltip>
                     </TableCell>
                     <TableCell align="right">
@@ -933,7 +976,7 @@ const RedemptionsTab: React.FC = () => {
                             disabled={approve.isPending}
                             onClick={() => handleApprove(r.id)}
                           >
-                            Approve
+                            {t('portal.redemptions.approve')}
                           </Button>
                           <Button
                             size="small"
@@ -945,7 +988,7 @@ const RedemptionsTab: React.FC = () => {
                               setActionError('');
                             }}
                           >
-                            Reject
+                            {t('portal.redemptions.reject')}
                           </Button>
                         </Stack>
                       )}
@@ -958,13 +1001,13 @@ const RedemptionsTab: React.FC = () => {
         </TableContainer>
       )}
       <Dialog open={rejectTarget != null} onClose={() => setRejectTarget(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Reject redemption</DialogTitle>
+        <DialogTitle>{t('portal.redemptions.rejectTitle')}</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" sx={{ mb: 2 }}>
             {rejectTarget?.guest_name} — {rejectTarget?.reward_name}
           </Typography>
           <TextField
-            label="Reason"
+            label={t('portal.redemptions.reason')}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             fullWidth
@@ -974,9 +1017,9 @@ const RedemptionsTab: React.FC = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRejectTarget(null)}>Cancel</Button>
+          <Button onClick={() => setRejectTarget(null)}>{t('common:actions.cancel')}</Button>
           <Button color="error" variant="contained" onClick={handleReject} disabled={reject.isPending}>
-            Reject
+            {t('portal.redemptions.reject')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -989,6 +1032,7 @@ const RedemptionsTab: React.FC = () => {
 // ---------------------------------------------------------------------------
 
 const RulesTab: React.FC = () => {
+  const { t } = useTranslation('loyalty');
   const rulesQuery = useLoyaltyRules();
   const updateRules = useUpdateLoyaltyRules();
   const [form, setForm] = useState<LoyaltyRulesInput | null>(null);
@@ -1010,7 +1054,7 @@ const RulesTab: React.FC = () => {
   }, [rulesQuery.data]);
 
   if (rulesQuery.isLoading) return <Loading />;
-  if (rulesQuery.error) return <Alert severity="error">{errMessage(rulesQuery.error, 'Failed to load rules')}</Alert>;
+  if (rulesQuery.error) return <Alert severity="error">{errMessage(rulesQuery.error, t('portal.rules.loadFailed'))}</Alert>;
   if (!form) return null;
 
   const set = <K extends keyof LoyaltyRulesInput>(key: K, value: LoyaltyRulesInput[K]) =>
@@ -1023,7 +1067,7 @@ const RulesTab: React.FC = () => {
       await updateRules.mutateAsync(form);
       setSaved(true);
     } catch (e) {
-      setError(errMessage(e, 'Failed to save rules'));
+      setError(errMessage(e, t('portal.rules.saveFailed')));
     }
   };
 
@@ -1031,45 +1075,45 @@ const RulesTab: React.FC = () => {
     <Paper variant="outlined" sx={{ p: 3, maxWidth: 560 }}>
       <Stack spacing={2}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-          Program rules
+          {t('portal.rules.title')}
         </Typography>
         {error && <Alert severity="error">{error}</Alert>}
-        {saved && <Alert severity="success">Rules saved</Alert>}
+        {saved && <Alert severity="success">{t('portal.rules.saved')}</Alert>}
 
         <TextField
-          label="Points per currency unit"
+          label={t('portal.rules.pointsPerUnit')}
           type="number"
           value={form.points_per_currency_unit}
           onChange={(e) => set('points_per_currency_unit', parseFloat(e.target.value) || 0)}
         />
         <FormControl fullWidth>
-          <InputLabel>Tier qualification metric</InputLabel>
+          <InputLabel>{t('portal.rules.tierMetric')}</InputLabel>
           <Select
-            label="Tier qualification metric"
+            label={t('portal.rules.tierMetric')}
             value={form.tier_qualification_metric}
             onChange={(e) => set('tier_qualification_metric', e.target.value as TierQualificationMetric)}
           >
-            <MenuItem value="points">Points</MenuItem>
-            <MenuItem value="nights">Nights</MenuItem>
-            <MenuItem value="spend">Spend</MenuItem>
+            <MenuItem value="points">{t('portal.rules.metricPoints')}</MenuItem>
+            <MenuItem value="nights">{t('portal.rules.metricNights')}</MenuItem>
+            <MenuItem value="spend">{t('portal.rules.metricSpend')}</MenuItem>
           </Select>
         </FormControl>
         <TextField
-          label="Point expiry (months, blank = never)"
+          label={t('portal.rules.pointExpiry')}
           type="number"
           value={form.point_expiry_months ?? ''}
           onChange={(e) => set('point_expiry_months', e.target.value === '' ? null : parseInt(e.target.value, 10))}
         />
         <TextField
-          label="Minimum eligible amount"
+          label={t('portal.rules.minAmount')}
           type="number"
           value={form.min_eligible_amount}
           onChange={(e) => set('min_eligible_amount', parseFloat(e.target.value) || 0)}
-          helperText={`Stays under ${fmtMoney(form.min_eligible_amount)} earn no points`}
+          helperText={t('portal.rules.minAmountHelper', { amount: fmtMoney(form.min_eligible_amount) })}
         />
         <FormControlLabel
           control={<Switch checked={form.earning_enabled} onChange={(e) => set('earning_enabled', e.target.checked)} />}
-          label="Earning enabled"
+          label={t('portal.rules.earningEnabled')}
         />
         <FormControlLabel
           control={
@@ -1078,11 +1122,11 @@ const RulesTab: React.FC = () => {
               onChange={(e) => set('redemption_approval_required', e.target.checked)}
             />
           }
-          label="Redemptions require approval"
+          label={t('portal.rules.approvalRequired')}
         />
         <Box>
           <Button variant="contained" onClick={handleSave} disabled={updateRules.isPending}>
-            Save rules
+            {t('portal.rules.save')}
           </Button>
         </Box>
       </Stack>
@@ -1105,6 +1149,7 @@ const Loading: React.FC = () => (
 // ---------------------------------------------------------------------------
 
 const LoyaltyPortal: React.FC = () => {
+  const { t } = useTranslation('loyalty');
   useLoyaltySocket();
   const [tab, setTab] = useState(0);
 
@@ -1118,21 +1163,21 @@ const LoyaltyPortal: React.FC = () => {
           mb: 2
         }}>
         <Typography variant="h4" sx={{ fontWeight: 600 }}>
-          Loyalty
+          {t('portal.title')}
         </Typography>
-        <Tooltip title="Refresh">
+        <Tooltip title={t('portal.refresh')}>
           <Button startIcon={<RefreshIcon />} onClick={() => window.location.reload()} size="small">
-            Refresh
+            {t('portal.refresh')}
           </Button>
         </Tooltip>
       </Stack>
       <Paper variant="outlined" sx={{ mb: 2 }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
-          <Tab label="Overview" />
-          <Tab label="Members" />
-          <Tab label="Rewards" />
-          <Tab label="Redemptions" />
-          <Tab label="Rules" />
+          <Tab label={t('portal.tabs.overview')} />
+          <Tab label={t('portal.tabs.members')} />
+          <Tab label={t('portal.tabs.rewards')} />
+          <Tab label={t('portal.tabs.redemptions')} />
+          <Tab label={t('portal.tabs.rules')} />
         </Tabs>
       </Paper>
       {tab === 0 && <OverviewTab />}

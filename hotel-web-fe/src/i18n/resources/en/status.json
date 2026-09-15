@@ -150,7 +150,9 @@
     "on_hold": "On hold",
     "pending": "Pending",
     "under_review": "Under review",
-    "verified": "Verified"
+    "verified": "Verified",
+    "not_started": "Not started",
+    "unverified": "Unverified"
   },
   "email_delivery": {
     "queued": "Queued",
@@ -171,6 +173,18 @@
     "approved": "Approved",
     "rejected": "Rejected",
     "fulfilled": "Fulfilled"
+  },
+  "loyalty_tx": {
+    "pending": "Pending",
+    "earned": "Earned",
+    "earn": "Earned",
+    "redeemed": "Redeemed",
+    "redeem": "Redeemed",
+    "expired": "Expired",
+    "expire": "Expired",
+    "adjusted": "Adjusted",
+    "adjust": "Adjusted",
+    "reversed": "Reversed"
   },
   "reward_redemption": {
     "pending": "Pending",

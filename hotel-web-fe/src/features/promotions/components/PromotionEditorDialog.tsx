@@ -20,6 +20,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
+import { useTranslation } from "../../../i18n";
 import { useAllRoomTypes } from "../../rooms/hooks";
 import { formatLocalDate } from "../../../utils/date";
 import {
@@ -157,6 +158,7 @@ export function PromotionEditorDialog({
   onClose,
   onSave,
 }: PromotionEditorDialogProps) {
+  const { t } = useTranslation("promotions");
   const [form, setForm] = useState<EditorState>(() =>
     initialEditorState(promotion),
   );
@@ -187,15 +189,15 @@ export function PromotionEditorDialog({
     const discountValue = Number(form.discountValue);
     const perGuestLimit = Number(form.perGuestLimit);
     if (!form.name.trim() || !form.slug.trim()) {
-      setValidationError("Name and offer code are required.");
+      setValidationError(t("editor.nameSlugRequired"));
       return;
     }
     if (!Number.isFinite(discountValue) || discountValue <= 0) {
-      setValidationError("Discount value must be greater than zero.");
+      setValidationError(t("editor.discountPositive"));
       return;
     }
     if (!Number.isInteger(perGuestLimit) || perGuestLimit < 1) {
-      setValidationError("Per-guest limit must be at least one.");
+      setValidationError(t("editor.perGuestMin"));
       return;
     }
 
@@ -245,25 +247,25 @@ export function PromotionEditorDialog({
         <Typography variant="h6" sx={{
           fontWeight: 750
         }}>
-          {promotion ? "Edit promotion" : "Create promotion"}
+          {promotion ? t("editor.titleEdit") : t("editor.titleCreate")}
         </Typography>
         <Typography variant="body2" sx={{
           color: "text.secondary"
         }}>
           {promotion
-            ? "Update the offer details and save your changes. Publishing is managed from the promotion list."
-            : "Set up the offer details now, then publish the draft when it is ready for guests."}
+            ? t("editor.subtitleEdit")
+            : t("editor.subtitleCreate")}
         </Typography>
       </DialogTitle>
       <DialogContent dividers>
         <Grid container spacing={2} sx={{ pt: 0.5 }}>
           <FormSection
-            title="Offer basics"
-            description="Give staff and guests a clear name, code, and description."
+            title={t("editor.sectionBasics")}
+            description={t("editor.sectionBasicsDesc")}
           />
           <Grid size={{ xs: 12, sm: 7 }}>
             <TextField
-              label="Promotion name"
+              label={t("editor.fieldName")}
               value={form.name}
               onChange={(event) => handleNameChange(event.target.value)}
               required
@@ -273,8 +275,8 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12, sm: 5 }}>
             <TextField
-              label="Offer code"
-              helperText="A short URL-safe identifier"
+              label={t("editor.fieldSlug")}
+              helperText={t("editor.fieldSlugHelper")}
               value={form.slug}
               onChange={(event) =>
                 setForm({ ...form, slug: event.target.value })
@@ -285,7 +287,7 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12 }}>
             <TextField
-              label="Description"
+              label={t("editor.fieldDescription")}
               value={form.description}
               onChange={(event) =>
                 setForm({ ...form, description: event.target.value })
@@ -296,15 +298,15 @@ export function PromotionEditorDialog({
             />
           </Grid>
           <FormSection
-            title="Discount"
-            description="Choose how the offer is applied and the value guests receive."
+            title={t("editor.sectionDiscount")}
+            description={t("editor.sectionDiscountDesc")}
           />
           <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
-              <InputLabel id="promotion-kind-label">Offer type</InputLabel>
+              <InputLabel id="promotion-kind-label">{t("editor.fieldKind")}</InputLabel>
               <Select
                 labelId="promotion-kind-label"
-                label="Offer type"
+                label={t("editor.fieldKind")}
                 value={form.promotionKind}
                 onChange={(event) =>
                   setForm({
@@ -316,7 +318,7 @@ export function PromotionEditorDialog({
               >
                 {PROMOTION_KIND_OPTIONS.map((option) => (
                   <MenuItem key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </MenuItem>
                 ))}
               </Select>
@@ -324,10 +326,10 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
-              <InputLabel id="discount-type-label">Discount type</InputLabel>
+              <InputLabel id="discount-type-label">{t("editor.fieldDiscountType")}</InputLabel>
               <Select
                 labelId="discount-type-label"
-                label="Discount type"
+                label={t("editor.fieldDiscountType")}
                 value={form.discountType}
                 onChange={(event) =>
                   setForm({
@@ -339,7 +341,7 @@ export function PromotionEditorDialog({
               >
                 {DISCOUNT_TYPE_OPTIONS.map((option) => (
                   <MenuItem key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </MenuItem>
                 ))}
               </Select>
@@ -360,7 +362,7 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
-              label="Maximum discount"
+              label={t("editor.fieldMaxDiscount")}
               type="number"
               value={form.maxDiscountAmount}
               onChange={(event) =>
@@ -372,7 +374,7 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
-              label="Currency"
+              label={t("editor.fieldCurrency")}
               value={form.currency}
               onChange={(event) =>
                 setForm({ ...form, currency: event.target.value })
@@ -382,12 +384,12 @@ export function PromotionEditorDialog({
             />
           </Grid>
           <FormSection
-            title="Availability"
-            description="Control when guests may claim the offer and which stay dates qualify. Leave dates blank for no restriction."
+            title={t("editor.sectionAvailability")}
+            description={t("editor.sectionAvailabilityDesc")}
           />
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Claim starts"
+              label={t("editor.fieldClaimStarts")}
               type="datetime-local"
               value={form.claimStartsAt}
               onChange={(event) =>
@@ -399,7 +401,7 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Claim ends"
+              label={t("editor.fieldClaimEnds")}
               type="datetime-local"
               value={form.claimEndsAt}
               onChange={(event) =>
@@ -411,7 +413,7 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Eligible stay starts"
+              label={t("editor.fieldStayStarts")}
               type="date"
               value={form.stayStartsOn}
               onChange={(event) =>
@@ -423,7 +425,7 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Eligible stay ends"
+              label={t("editor.fieldStayEnds")}
               type="date"
               value={form.stayEndsOn}
               onChange={(event) =>
@@ -434,12 +436,12 @@ export function PromotionEditorDialog({
             />
           </Grid>
           <FormSection
-            title="Eligibility & limits"
-            description="Set booking requirements and protect inventory with sensible usage limits."
+            title={t("editor.sectionLimits")}
+            description={t("editor.sectionLimitsDesc")}
           />
           <Grid size={{ xs: 6, sm: 3 }}>
             <TextField
-              label="Minimum nights"
+              label={t("editor.fieldMinNights")}
               type="number"
               value={form.minNights}
               onChange={(event) =>
@@ -451,7 +453,7 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 6, sm: 3 }}>
             <TextField
-              label="Maximum nights"
+              label={t("editor.fieldMaxNights")}
               type="number"
               value={form.maxNights}
               onChange={(event) =>
@@ -463,7 +465,7 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 6, sm: 3 }}>
             <TextField
-              label="Total claim limit"
+              label={t("editor.fieldClaimLimit")}
               type="number"
               value={form.claimLimit}
               onChange={(event) =>
@@ -475,7 +477,7 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 6, sm: 3 }}>
             <TextField
-              label="Per-guest limit"
+              label={t("editor.fieldPerGuestLimit")}
               type="number"
               value={form.perGuestLimit}
               onChange={(event) =>
@@ -488,7 +490,7 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Minimum booking subtotal"
+              label={t("editor.fieldMinSubtotal")}
               type="number"
               value={form.minSubtotal}
               onChange={(event) =>
@@ -501,17 +503,17 @@ export function PromotionEditorDialog({
           <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
               <InputLabel id="eligible-room-type-label">
-                Eligible room type
+                {t("editor.fieldRoomType")}
               </InputLabel>
               <Select
                 labelId="eligible-room-type-label"
-                label="Eligible room type"
+                label={t("editor.fieldRoomType")}
                 value={form.roomTypeId}
                 onChange={(event) =>
                   setForm({ ...form, roomTypeId: event.target.value })
                 }
               >
-                <MenuItem value="">All room types</MenuItem>
+                <MenuItem value="">{t("editor.allRoomTypes")}</MenuItem>
                 {(roomTypesQuery.data ?? []).map((roomType) => (
                   <MenuItem key={roomType.id} value={String(roomType.id)}>
                     {roomType.name}
@@ -521,13 +523,13 @@ export function PromotionEditorDialog({
             </FormControl>
           </Grid>
           <FormSection
-            title="Campaign targeting"
-            description="Restrict who can claim and where the campaign redeems. Leave a list empty for no restriction."
+            title={t("editor.sectionTargeting")}
+            description={t("editor.sectionTargetingDesc")}
           />
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Internal code"
-              helperText="Staff-only operations reference"
+              label={t("editor.fieldInternalCode")}
+              helperText={t("editor.fieldInternalCodeHelper")}
               value={form.internalCode}
               onChange={(event) =>
                 setForm({ ...form, internalCode: event.target.value })
@@ -538,19 +540,19 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
-              <InputLabel id="campaign-objective-label">Objective</InputLabel>
+              <InputLabel id="campaign-objective-label">{t("editor.fieldObjective")}</InputLabel>
               <Select
                 labelId="campaign-objective-label"
-                label="Objective"
+                label={t("editor.fieldObjective")}
                 value={form.objective}
                 onChange={(event) =>
                   setForm({ ...form, objective: event.target.value })
                 }
               >
-                <MenuItem value="">No objective</MenuItem>
+                <MenuItem value="">{t("editor.noObjective")}</MenuItem>
                 {CAMPAIGN_OBJECTIVE_OPTIONS.map((option) => (
                   <MenuItem key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </MenuItem>
                 ))}
               </Select>
@@ -559,11 +561,11 @@ export function PromotionEditorDialog({
           <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
               <InputLabel id="campaign-channels-label">
-                Booking channels
+                {t("editor.fieldChannels")}
               </InputLabel>
               <Select
                 labelId="campaign-channels-label"
-                label="Booking channels"
+                label={t("editor.fieldChannels")}
                 multiple
                 value={form.bookingChannelIds}
                 onChange={(event) =>
@@ -577,8 +579,8 @@ export function PromotionEditorDialog({
                 }
                 renderValue={(selected) =>
                   selected.length === 0
-                    ? "All channels"
-                    : `${selected.length} selected`
+                    ? t("editor.allChannels")
+                    : t("editor.selectedCount", { count: selected.length })
                 }
               >
                 {(targetingQuery.data?.channels ?? []).map((channel) => (
@@ -599,10 +601,10 @@ export function PromotionEditorDialog({
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
-              <InputLabel id="campaign-tiers-label">Loyalty tiers</InputLabel>
+              <InputLabel id="campaign-tiers-label">{t("editor.fieldTiers")}</InputLabel>
               <Select
                 labelId="campaign-tiers-label"
-                label="Loyalty tiers"
+                label={t("editor.fieldTiers")}
                 multiple
                 value={form.loyaltyTierIds}
                 onChange={(event) =>
@@ -616,8 +618,8 @@ export function PromotionEditorDialog({
                 }
                 renderValue={(selected) =>
                   selected.length === 0
-                    ? "All guests"
-                    : `${selected.length} selected`
+                    ? t("editor.allGuests")
+                    : t("editor.selectedCount", { count: selected.length })
                 }
               >
                 {(targetingQuery.data?.loyalty_tiers ?? []).map((tier) => (
@@ -632,12 +634,12 @@ export function PromotionEditorDialog({
             </FormControl>
           </Grid>
           <FormSection
-            title="Guest experience"
-            description="Explain the conditions clearly and choose how the promotion appears to guests."
+            title={t("editor.sectionExperience")}
+            description={t("editor.sectionExperienceDesc")}
           />
           <Grid size={{ xs: 12 }}>
             <TextField
-              label="Terms and conditions"
+              label={t("editor.fieldTerms")}
               value={form.terms}
               onChange={(event) =>
                 setForm({ ...form, terms: event.target.value })
@@ -657,7 +659,7 @@ export function PromotionEditorDialog({
                   }
                 />
               }
-              label="Bookings using this offer can be cancelled by the guest"
+              label={t("editor.cancellable")}
             />
           </Grid>
           <Grid size={{ xs: 12 }}>
@@ -670,7 +672,7 @@ export function PromotionEditorDialog({
                   }
                 />
               }
-              label="Show in the public offers catalog"
+              label={t("editor.publicCatalog")}
             />
           </Grid>
         </Grid>
@@ -682,10 +684,14 @@ export function PromotionEditorDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 1.5 }}>
         <Button onClick={onClose} disabled={isSaving}>
-          Cancel
+          {t("common:actions.cancel")}
         </Button>
         <Button variant="contained" onClick={handleSave} disabled={isSaving}>
-          {isSaving ? "Saving…" : promotion ? "Save changes" : "Create draft"}
+          {isSaving
+            ? t("editor.saving")
+            : promotion
+              ? t("editor.saveChanges")
+              : t("editor.createDraft")}
         </Button>
       </DialogActions>
     </Dialog>
