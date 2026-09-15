@@ -9,7 +9,8 @@ The hot files are huge (measured 2026-09-15): the V1 baseline SQL 10.3k lines,
 `repositories/bookings/lifecycle.rs` ~3.4k, `services/payments.rs` ~3.0k,
 `repositories/analytics.rs` ~2.5k, `repositories/payment.rs` ~2.3k,
 `invoices/components/CheckoutInvoiceModal.tsx` ~2.2k, `src-tauri/src/postgres.rs` ~2.2k,
-`CustomerLedgerPage.tsx` ~2.2k, `repositories/ledger.rs` ~2.1k, `staging.sql` ~1.7k,
+`features/admin/components/CustomerLedger/CustomerLedgerPage.tsx` ~2.2k,
+`repositories/ledger.rs` ~2.1k, `staging.sql` ~1.7k,
 `seed.sql` ~1.6k. Reading one whole can burn 30–60k tokens in a single call. Handlers are
 thin wrappers now — `handlers/bookings.rs` is 262 lines, and `BookingsPage.tsx` was split
 down to ~490, so neither is worth avoiding any more.
@@ -41,8 +42,13 @@ behaves differently (e.g. `NOW()`, `$1` vs `?1`, Decimal handling) ships silentl
 1. Placeholders: use `param!(1)`, `param!(2)` — never literal `$1` or `?1`.
 2. Time: use `sql_compat::current_timestamp()` / `current_date()` — never `NOW()` / `CURRENT_DATE`.
 3. DB-divergent values: use `core/db.rs` helpers (`decimal_to_db`, `opt_decimal_to_db`, `generate_uuid`).
-4. Schema changes: update BOTH `hotel-app-be/database/postgres/` AND
-   `hotel-app-be/database/README.md`). One engine without the other = incomplete task.
+4. Schema changes: land in BOTH the baseline
+   (`hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql`, for fresh
+   installs) AND a new catalog patch registered in `patches/manifest.tsv` (for
+   installed databases). One without the other = incomplete task: a baseline-only
+   change skips every live database, a patch-only change skips every fresh install.
+   Then mirror to desktop (item 10 below). ("One engine without the other" here was
+   a leftover from the removed SQLite/Postgres dual-engine era — corrected 2026-09-15.)
 5. Before claiming done: `cargo check --all-features` MUST pass. This is the minimum
    bar; `cargo clippy --all-features -- -D warnings` is what CI actually runs.
 

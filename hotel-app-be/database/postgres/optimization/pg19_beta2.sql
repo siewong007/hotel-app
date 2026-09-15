@@ -1,8 +1,12 @@
 \set ON_ERROR_STOP on
 
--- PostgreSQL 19 Beta 2, opt-in physical and planner tuning.
+-- PostgreSQL 19 Beta 2/Beta 3, opt-in physical and planner tuning.
 --
--- Beta 2 is prerelease software: apply this only to a disposable or
+-- Filename kept as pg19_beta2 for continuity (Makefile targets, the pg19-tuned
+-- Compose profile and docs reference it by name); the guard below now accepts
+-- beta2 and beta3. The tuning values were measured on beta2 only.
+--
+-- Beta builds are prerelease software: apply this only to a disposable or
 -- benchmark-validated environment. This script deliberately avoids host-wide
 -- memory and worker settings; those require workload and hardware evidence.
 -- Run pg19_beta2_benchmark.sql before and after applying this script.
@@ -16,9 +20,14 @@ BEGIN;
 
 DO $$
 BEGIN
-    IF version() !~ '^PostgreSQL 19beta2 ' THEN
+    -- Widened 2026-09-15 from '19beta2' only: the server stack moved to
+    -- 19beta3 (docker-compose*.yml, deploy/, ci.yml) while this profile still
+    -- refused anything but beta2, so `make db-pg19-tune` and the pg19-tuned
+    -- Compose profile could never apply. The settings below have NOT been
+    -- re-benchmarked on beta3 — run pg19_beta2_benchmark.sql before and after.
+    IF version() !~ '^PostgreSQL 19beta[23] ' THEN
         RAISE EXCEPTION
-            'pg19_beta2.sql requires PostgreSQL 19 Beta 2 exactly; connected to %',
+            'pg19_beta2.sql requires PostgreSQL 19 Beta 2 or Beta 3; connected to %',
             version();
     END IF;
 END;

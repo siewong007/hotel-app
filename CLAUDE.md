@@ -44,7 +44,7 @@ and local; `codegraph.json` (tracked) holds its exclude list.
 # hotel-app-be/
 cargo check --all-features                    # minimum bar before claiming done
 cargo clippy --all-features -- -D warnings    # what CI runs — copy verbatim
-cargo test --all-features                     # set DATABASE_URL or 45 of 50 test files skip
+cargo test --all-features                     # set DATABASE_URL or the PG suites silently skip
 cargo run --bin hotel-app-be                  # :3030 (bare `cargo run` errors: multiple bins)
 # hotel-web-fe/  — four independent gates; vitest is weakest (transpiles without type info)
 bun run start                                 # Vite :3000, proxies to 127.0.0.1:3030
@@ -53,18 +53,17 @@ bun run typecheck && bun run lint:strict && bun run test && bun run build
 bun run dev | build | build:no-bundle | desktop:prepare:force | sync:resources
 ```
 
-Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lint-all`, `test-all`,
-`docker-up`, `docs-check`, and the `db-*` targets.
+Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lint-all`, `test-all`, `docker-up`, `docs-check`, `db-*`.
 
 ## Database — PostgreSQL only
 
 `make db-baseline` (baseline + seed.sql + patches = structure & system bootstrap) initializes an
 empty DB **once**; `make db-seed` loads `staging.sql` demo data (optional, never production);
-`make db-patch` converges an existing V1 database. `db-setup` is a deprecated alias. Legacy schemas
-are exported and rebuilt, never migrated in place. **There is no second migration file** — the only
+`make db-patch` converges an existing V1 database. **There is no second migration file** — the only
 forward path is `hotel-app-be/database/postgres/patches/`, a checksum-verified catalog driven by
 `manifest.tsv` (today: generation 1, versions 2 `deposit_forfeited`, 3 `guest_relations_phase2`),
-applied by `apply-patches.sh` and `hotel-desktop/src-tauri/src/postgres/patches.rs`.
+applied by `apply-patches.sh` and `hotel-desktop/src-tauri/src/postgres/patches.rs`. Lifecycle
+details (deprecated `db-setup` alias, legacy rebuild path): `hotel-app-be/database/README.md`.
 
 - **Nothing discovers loose SQL.** A new `000N_*.sql` is dead until registered in `patches/manifest.tsv`, `deploy/deploy.sh`, `deploy/deploy-staging.sh`, **and both** `.github/workflows/deploy*.yml`. `tests/postgres_patch_catalog.rs` enforces that parity.
 - Additive change → baseline (fresh installs) **and** a new patch (installed DBs). A patch must converge *both* the current baseline and the previous one: guard on exact `pg_get_constraintdef`/`pg_get_functiondef` text like `0002` does, and `RAISE` otherwise.
@@ -104,13 +103,14 @@ live-PostgreSQL test that actually fetches it.
 
 ## Testing
 
-Backend: 50 files in `hotel-app-be/tests/`; **45 of them skip silently without `DATABASE_URL`
-while the suite still exits 0** — assert the run count, never the exit code. Patch/drift suites need
-`psql` on PATH. Fix-gated tests carry `#[ignore]`; CI fails when one starts passing.
-Characterization tests must assert *correct* values — a test that pins a bug passes forever.
-Frontend: Vitest + Testing Library (235 files); build ky errors with
-`src/api/testSupport/httpError.ts` (a fixture leaving the body readable lets the bug pass), and
-never run two vitest suites concurrently here — they starve each other's timeouts.
+Backend: 50 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0,
+and each skip counts as a PASS** — a no-DB run reports *more* (1,317; `payment_characterization`
+44-in-0.01s vs a real 29 passed / 2 ignored), so run count cannot detect it: judge by wall-clock +
+per-suite counts. Patch/drift suites need `psql`. Fix-gated tests carry `#[ignore]`; CI fails when
+one starts passing. Characterization tests must assert *correct* values — one pinning a bug passes
+forever. Frontend: Vitest + Testing Library (235 files); build ky errors with
+`src/api/testSupport/httpError.ts` (a readable-body fixture lets the bug pass); never run two
+vitest suites concurrently here — they starve each other's timeouts.
 
 ## CI, deployment, environment
 

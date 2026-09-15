@@ -7,9 +7,9 @@
 # this stack uses :3031 and :8083 so it never collides with prod :3030/:8081. Its PostgreSQL
 # port is not published at all; maintenance uses `docker exec saliminn-db`.
 #
-# deploy/deploy.sh supplies IMAGE_TAG, POSTGRES_PASSWORD, and JWT_SECRET. The
+# deploy/deploy-staging.sh supplies IMAGE_TAG, POSTGRES_PASSWORD, and JWT_SECRET. The
 # application images are loaded directly from the GitHub Actions release bundle;
-# no registry or additional AWS service is involved.
+# no container registry or managed cloud service is involved.
 
 x-logging: &default-logging
   driver: json-file

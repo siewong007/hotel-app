@@ -34,7 +34,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Campaigns (deals + vouchers) | Delivered | ✓ `features/promotions` (`/campaigns`; `/promotions` redirects) | ✓ `modules/promotions` | Derived lifecycle, channel + loyalty-tier targeting, `promotions:approve` publish gate, performance report |
 | Vouchers | Delivered | ✓ (via promotions) | ✓ `/api/admin/vouchers*`, guest endpoints | Issue/revoke, summary, portal claim/options |
 | Guest segments | Delivered | ✓ `features/segments` (`/segments`) | ✓ `modules/segments` | JSONB rules compiled to bound-parameter SQL; live evaluation, never materialized |
-| Loyalty | Delivered | ✓ `features/loyalty` (`/loyalty`, `/my-rewards`) | ✓ `modules/loyalty` | Member portal + admin; realtime hub |
+| Loyalty | Delivered | ✓ `features/loyalty` (`/loyalty`, `/my-rewards`) | ✓ `modules/loyalty` | Member portal + admin; realtime hub. Includes **point redemption with an approval workflow**: `POST /api/loyalty/rewards/{id}/redeem`, `GET /api/admin/loyalty/redemptions`, `PUT …/{id}/{approve,reject}` |
 | Night audit | Delivered | ✓ `features/night-audit` + `features/admin/components/NightAuditPage` | ✓ `routes/night_audit.rs` | Scheduler loop in `main.rs` |
 | Insights / report catalog | Delivered | ✓ `features/insights` (`/insights`; `/reports` redirects) | ✓ `modules/insights`, `routes/analytics.rs` | `report_catalog.rs` registry; arrivals/departures rosters |
 | Audit log viewer | Delivered | ✓ `features/audit-log` + `features/admin/components/AuditLogPage` | ✓ `routes/audit.rs` | Partitioned append-only store |
@@ -55,11 +55,12 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Internationalization (EN + BM) | Delivered | ✓ `src/i18n` | ✓ `core/i18n.rs` + `core/locales/` | Intl-based, in-house (ADR 012); parity tests both sides |
 | Simplified Chinese locale | In progress | branch `feat/i18n-zh` (worktree) | — | Not merged; `docs/superpowers/plans/2026-09-14-i18n-zh.md` |
 | Search (global) | Delivered | ✓ | ✓ `routes/search.rs` | |
-| Desktop app (Tauri + embedded PG) | Delivered | ✓ shared | ✓ `hotel-desktop/src-tauri` | Sidecar backend; bundled postgres; updater plugin wired but **not armed** (`hotel-desktop/UPDATER.md`) |
+| Desktop app (Tauri + embedded PG) | Delivered | ✓ shared | ✓ `hotel-desktop/src-tauri` | Sidecar backend; bundled postgres **19beta2** while the server stack runs 19beta3 (see `ARCHITECTURE.md` → Desktop flow); updater plugin wired but **not armed** (`hotel-desktop/UPDATER.md`) |
 | Realtime (WebSocket) | Delivered | ✓ | ✓ `modules/realtime`, loyalty/support hubs | `/api/updates/socket` (staff), `/api/admin/loyalty/socket`, `/api/guest-portal/me/{loyalty,support}/socket`; reconnect + lag-drop logging |
 | Turnstile bot protection | Delivered | ✓ | ✓ `services/turnstile.rs` | Public guest forms |
 | Unpaid online-hold release | Delivered | — | ✓ `services/unpaid_hold_scheduler.rs` | `unpaid_hold_release_hours` (24 default, 0 disables) |
-| Phone/tablet UX | Delivered | ✓ `useIsPhone`, `MobileNavBar`, per-page phone layouts | — | Phone-first pass across staff + guest surfaces; bookings + online-inventory grids |
+| Phone/tablet UX | Delivered | ✓ `useIsPhone`, `MobileNavBar`, per-page phone layouts | — | Phone-first pass across staff + guest surfaces; bookings + online-inventory grids. Shared primitives in `components/common/`: `ActionsMenu`, `BottomSheet`, `CollapsibleSection`, `ResponsiveTabs`, `StickyActionBar` |
+| Row-detail drawers | Delivered | ✓ `BookingDetailDrawer`, `GuestDetailDrawer` | — | Row clicks in `/bookings` and `/guest-relations/guests` open a right-side drawer (details + quick-edit + actions); full detail pages still reachable from inside the drawer |
 | Auto-refresh | Delivered | ✓ | — | Live pages poll/invalidate on a cadence; sockets cover the realtime domains |
 | MCP server | Not delivered | — | — | ADR 009: recorded historically, never implemented |
 
@@ -71,4 +72,13 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 - **No external rate-limit store** — in-memory limiter bounds deployment to a
   single backend instance; see ADR 005.
 - **No payroll/HR module** — staff management stops at `teams`/`team_members`;
-  `staging.sql` deliberately seeds no payroll tables.
+  `staging.sql` deliberately seeds no payroll tables. (Re-verified 2026-09-15:
+  zero `payroll` matches in `src/`, zero payroll tables in the baseline.)
+- **No inventory / purchasing / stock module** — no purchase orders, suppliers,
+  or stock items exist in the schema or code. The only "supplier" matches are
+  prose in the privacy notice.
+- **No separate "Hot Deals" module** — public offers are promotions.
+  `features/promotions` (`/campaigns`, public `/offers`) covers deals and
+  vouchers; there is no distinct hot-deals entity.
+- **No "Front Desk" module** — front-desk work is served by the bookings, rooms
+  and housekeeping features rather than a dedicated surface.

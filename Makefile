@@ -161,12 +161,12 @@ db-reset: ## Reset and re-create PostgreSQL database structure only (no staging 
 	psql "$$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 	$(MAKE) db-baseline
 
-db-pg19-tune: ## Apply opt-in PostgreSQL 19 Beta 2 physical/planner tuning
+db-pg19-tune: ## Apply opt-in PostgreSQL 19 Beta 2/3 physical/planner tuning (values benchmarked on beta2 only)
 	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/optimization/pg19_beta2.sql
 	psql "$$DATABASE_URL" -c "ALTER SYSTEM SET autovacuum_max_parallel_workers = 4;"
 	psql "$$DATABASE_URL" -c "SELECT pg_reload_conf();"
 
-db-pg19-tune-rollback: ## Revert the opt-in PostgreSQL 19 Beta 2 schema tuning
+db-pg19-tune-rollback: ## Revert the opt-in PostgreSQL 19 Beta 2/3 schema tuning
 	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/optimization/pg19_beta2_rollback.sql
 	psql "$$DATABASE_URL" -c "ALTER SYSTEM RESET autovacuum_max_parallel_workers;"
 	psql "$$DATABASE_URL" -c "SELECT pg_reload_conf();"

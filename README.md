@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/siewong007/hotel-app/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/siewong007/hotel-app/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/siewong007/hotel-app/actions/workflows/docker.yml"><img alt="Docker" src="https://github.com/siewong007/hotel-app/actions/workflows/docker.yml/badge.svg"></a>
+  <a href="https://github.com/siewong007/hotel-app/actions/workflows/security.yml"><img alt="Security" src="https://github.com/siewong007/hotel-app/actions/workflows/security.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-blue">
   <img alt="Top language" src="https://img.shields.io/github/languages/top/siewong007/hotel-app">
@@ -67,10 +67,10 @@ This project addresses that problem by implementing a centralized administrative
 | Backend API | Rust 1.95.0, Axum 0.8, Tokio, SQLx 0.9, Serde, Validator |
 | Frontend | React 19, TypeScript 6, Vite 8, MUI v9, TanStack Router, TanStack Query, TanStack Table, ky |
 | Desktop | Tauri 2, Rust commands, backend sidecar, bundled PostgreSQL resources |
-| Database | PostgreSQL 19, V1 baseline + seed + checksum-verified patch catalog, parameterized SQLx queries |
+| Database | PostgreSQL 19 — `19beta3` on the server/CI stack, `19beta2` still bundled in the desktop app; V1 baseline + seed + checksum-verified patch catalog, parameterized SQLx queries |
 | Security | JWT, refresh tokens, RBAC, TOTP 2FA, passkey endpoints, rate limiting, CORS, and security headers |
 | Reporting | Nivo charts, jsPDF, jsPDF AutoTable, backend analytics endpoints |
-| CI/CD | GitHub Actions: secret scan and `cargo audit`, frontend typecheck/lint/test/build, backend check/test/clippy/release, PostgreSQL schema and workflow smoke, desktop compile check; separate Docker image, desktop build, security, and production deploy workflows |
+| CI/CD | GitHub Actions — six CI jobs: secret scan + `cargo audit`, Markdown link check, frontend typecheck/lint/test/build, backend check/test/clippy/release, PostgreSQL schema and workflow smoke, and a desktop compile check. Separate workflows for security (CodeQL, dependency review), a real desktop Tauri build, the legacy Docker publisher, and staging/production deploy |
 
 ## 🧱 Architecture
 
@@ -212,7 +212,12 @@ hotel-app/
 │   │   ├── services/             # Business workflow logic
 │   │   └── utils/                # Sanitization and validation helpers
 │   ├── database/
-│   │   └── postgres/             # V1 baseline, one-time data/seed, PG19 tuning
+│   │   └── postgres/
+│   │       ├── migrations/       # 0001_v1_baseline.sql — fresh-install schema
+│   │       ├── patches/          # manifest.tsv-ordered, sha256-verified catalog
+│   │       ├── seed.sql          # one-time system/bootstrap records
+│   │       ├── staging.sql       # optional rerunnable demo dataset
+│   │       └── optimization/     # opt-in PG19 tuning + benchmark + rollback
 │   └── tests/                    # Integration tests (most require DATABASE_URL)
 ├── hotel-web-fe/                 # React frontend
 │   ├── src/
@@ -303,9 +308,9 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 
 - ✅ **Docker Compose full-stack setup** — One-command startup with PostgreSQL + backend + frontend
 - ✅ **OCI Always Free Terraform** — Ampere A1 development VM, networking, Vault access, and Compose bootstrap
-- ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts
+- ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts (`optimization/pg19_beta2*.sql`; guards accept 19beta2/19beta3, but the values were benchmarked on beta2 only — re-run the benchmark script before trusting them on beta3)
 - ✅ **Project Makefile** — Convenience commands for all development workflows
-- ✅ **Frontend test suite** — Vitest + Testing Library across ~230 test files
+- ✅ **Frontend test suite** — Vitest + Testing Library: 235 test files / 1,902 tests green (`bun run test`, 2026-09-15)
 - ✅ **Backend integration tests** — 50 test files covering auth/RBAC, bookings, payments, ledgers, rooms, night audit, data transfer, and portal flows
 - ✅ **Security CI gate** — Committed-secret scan, `cargo audit`, CodeQL, and dependency review
 - ✅ **Generated OpenAPI spec** — `docs/api/openapi.json`, regenerated from the router and enforced by the `openapi_drift` CI test
@@ -329,7 +334,7 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 
 - The project is not presented as production-ready; security, compliance, deployment hardening, and operational procedures require additional validation.
 - Automated test coverage is uneven — core money, booking, and auth paths are covered, but several feature pages and portal flows are not.
-- Backend integration tests skip silently unless `DATABASE_URL` is set, so a green `cargo test` is only meaningful alongside its run count.
+- Backend integration tests skip silently unless `DATABASE_URL` is set, and because a skipped test early-returns (which libtest counts as a pass) the run count goes *up*, not down — a green `cargo test` is only meaningful alongside wall-clock time and per-suite counts. See [DEVELOPMENT.md](docs/DEVELOPMENT.md#validate).
 - Some desktop operational commands are still limited; for example, database backup behavior is not a complete managed backup solution.
 - Desktop packaging is built and verified for macOS only; Windows and Linux are built manually.
 - eKYC document handling is implemented as an application workflow, not a certified identity verification service.

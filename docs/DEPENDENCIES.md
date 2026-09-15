@@ -22,15 +22,18 @@ lockfile dump. Last reviewed during the 2026-09-13 modernization pass.
 | qrcode.react | QR rendering | 2FA enrollment, share links |
 | web-vitals 6 | RUM metrics | `onINP` (FID removed in v6) |
 | vitest 5 + jsdom 30 + @testing-library/* | Tests | Three independent gates: `typecheck`, `lint`, `test` |
-| eslint 10 + typescript-eslint | Lint | `typescript-eslint` peer range `<6.1.0` is the TypeScript 7 blocker — see below |
+| eslint 10 + `@typescript-eslint/parser` | Lint | Parser only — neither the `typescript-eslint` meta-package nor `@typescript-eslint/eslint-plugin` is installed; `eslint.config.js` pairs the parser with `eslint-plugin-react-hooks` and `eslint-plugin-react-compiler`. The parser's `typescript` peer range `<6.1.0` is the TypeScript 7 blocker — see below |
 
 ### Why TypeScript 6, not 7
 
-TypeScript 7 exists, but the installed `typescript-eslint` declares a peer range
-of `<6.1.0` for TypeScript. Upgrading `typescript` ahead of the linter's
-support would leave `eslint` parsing on an unsupported compiler. TS 6 + full
-strictness is the correct stable point until `typescript-eslint` declares TS 7
-support.
+TypeScript 7 exists, but `@typescript-eslint/parser` (8.70.0 installed) declares
+`peerDependencies.typescript: ">=4.8.4 <6.1.0"`, and `@typescript-eslint/typescript-estree`
+hard-codes the same range as `SUPPORTED_TYPESCRIPT_VERSIONS`. On TS 7 the parser
+throws at module load, so `lint`/`lint:strict` — a CI gate — die even though
+`tsc --noEmit` passes. TS 6 + full strictness is the correct stable point until
+the parser declares TS 7 support (upstream: typescript-eslint#10940, aimed at
+TS ≥ 7.1). **Re-verified 2026-09-15** against the installed packages: the boundary
+has not moved. Do not retry the bump until that issue closes.
 
 ## Backend (`hotel-app-be`)
 

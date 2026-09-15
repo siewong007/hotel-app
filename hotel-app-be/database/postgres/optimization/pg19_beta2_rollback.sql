@@ -8,9 +8,14 @@ BEGIN;
 
 DO $$
 BEGIN
-    IF version() !~ '^PostgreSQL 19beta2 ' THEN
+    -- Widened 2026-09-15 from '19beta2' only: the server stack moved to
+    -- 19beta3 (docker-compose*.yml, deploy/, ci.yml) while this profile still
+    -- refused anything but beta2, so `make db-pg19-tune` and the pg19-tuned
+    -- Compose profile could never apply. The settings below have NOT been
+    -- re-benchmarked on beta3 — run pg19_beta2_benchmark.sql before and after.
+    IF version() !~ '^PostgreSQL 19beta[23] ' THEN
         RAISE EXCEPTION
-            'pg19_beta2_rollback.sql requires PostgreSQL 19 Beta 2 exactly; connected to %',
+            'pg19_beta2_rollback.sql requires PostgreSQL 19 Beta 2 or Beta 3; connected to %',
             version();
     END IF;
 END;

@@ -36,6 +36,13 @@ Browser (React / MUI / TanStack Router and Query)
                               └─ PostgreSQL
 ```
 
+In production the edge is two hops, not one: **Caddy** terminates TLS and applies
+the security headers, then splits by path — `/api/*`, `/uploads/*`, `/health`,
+`/ws*` go to `backend:3030`, and everything else to `frontend:80`, an
+**nginx:1.28-alpine** container serving the built SPA (`hotel-web-fe/Dockerfile`,
+`hotel-web-fe/nginx.conf`). Caddy's `@backend` matcher must stay in sync with
+`PROXY_PREFIXES` in `hotel-web-fe/vite.config.ts`.
+
 ### Desktop flow
 
 ```text
@@ -49,6 +56,16 @@ Desktop mode is signalled by `HOTEL_DESKTOP_MODE`. The webview learns the backen
 port through IPC; the sidecar receives an explicit `ALLOWED_ORIGINS` list rather
 than the wildcard. Embedded PostgreSQL is initialized through the same baseline
 → seed → ordered-patches lifecycle as the server.
+
+> **Engine versions differ by surface.** Server/Docker/CI run `postgres:19beta3`;
+> the desktop bundle is still **19beta2**, pinned by
+> `CONFIGURED_POSTGRES_BUILD_IDENTITY` in `hotel-desktop/src-tauri/src/postgres.rs`
+> and enforced by `scripts/provision-pgsql.mjs`. The bundled `pgsql/` tree is
+> git-ignored and provisioned locally, so only that constant is authoritative.
+> Bumping it requires re-provisioning the tree *and* a data-directory migration —
+> beta on-disk formats have no supported in-place upgrade, which is why the
+> build-identity gate refuses a mismatched `pgdata`. Tracked in
+> [`ongoing-dev.md`](ongoing-dev.md) under the PostgreSQL 19 GA item.
 
 ## Repository structure
 
@@ -135,7 +152,8 @@ utils/              date.ts, errorMessage, pagination, sanitization, …
   HttpOnly refresh cookie, idempotent-GET retry, one refresh-and-retry on 401,
   `Retry-After` honored). `fetch` is never called directly.
 - UI: MUI 9 + Emotion; shared `DataTable` on TanStack Table 9; charts via Nivo
-  wrapped in `src/components/charts/` (`Hotel{Bar,Line,Pie,Sparkline}Chart`);
+  wrapped in `src/components/charts/` (`HotelBarChart`, `HotelLineChart`,
+  `HotelPieChart`, and `HotelSparkline` — the last has no `Chart` suffix);
   PDFs via jsPDF (+autotable); forms use controlled MUI inputs with
   `validator`-equivalent checks server-side.
 - i18n: `useTranslation(ns)` → `{ t }`, i18next-shaped but implemented on

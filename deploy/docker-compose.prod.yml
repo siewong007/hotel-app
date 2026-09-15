@@ -8,7 +8,7 @@
 #
 # deploy/deploy.sh supplies IMAGE_TAG, POSTGRES_PASSWORD, and JWT_SECRET. The
 # application images are loaded directly from the GitHub Actions release bundle;
-# no registry or additional AWS service is involved.
+# no container registry or managed cloud service is involved.
 
 x-logging: &default-logging
   driver: json-file
