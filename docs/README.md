@@ -49,10 +49,9 @@ Kept for context; they describe the state when written and are **not** updated
 to track the current system. Check `git log` or current code before trusting a
 claim in these.
 
-- `superpowers/plans/` — implementation plans (all shipped or superseded unless
-  marked otherwise; see `superpowers/README.md` for the per-plan status index).
-- `superpowers/specs/` — design specs behind those plans.
-- `superpowers/reports/` — completed-work reports.
+- `superpowers/` — **active** implementation plans/specs/reports only. Shipped
+  artifacts are deleted on merge; `FEATURES.md` is the record of what exists
+  and git history preserves the plans themselves.
 - `guides/postgres-beta3-cutover.md` — completed runbook (kept: same drill
   repeats at the next engine bump).
 - `claude-design-page-sync.md` — reconciliation snapshot (component sync
@@ -73,10 +72,11 @@ claim in these.
 3. **Status labels.** `FEATURES.md` is the only place a feature's
    delivered/partial/experimental/not-delivered status is recorded. Other docs
    link to it instead of re-classifying.
-4. **Plans archive, not linger.** When a `superpowers/plans/*` item merges, mark
-   it shipped in `superpowers/README.md` and move any lasting design rationale
-   into the owning doc (usually `architecture/` or `ADRS.md`). Delete finished
-   items from `ongoing-dev.md`.
+4. **Plans delete on merge, not linger.** When a `superpowers/plans/*` item
+   merges, move any lasting design rationale into the owning doc (usually
+   `architecture/` or `ADRS.md`), confirm `FEATURES.md` covers the feature,
+   then delete the plan/spec/report — git history is the archive. Delete
+   finished items from `ongoing-dev.md`.
 5. **Numbers rot.** Counts (tables, endpoints, tests, modules) in prose must be
    rechecked with the same command shown beside them, or dropped in favour of a
    link. If a doc asserts a number, say how it was produced.

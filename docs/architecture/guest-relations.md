@@ -2,11 +2,10 @@
 
 Staff-facing CRM workspace: find a guest → understand their situation → take
 action → follow up. Lives in `modules/guest_relations/` (backend) and
-`src/features/guestRelations/` (frontend). Design spec:
-`docs/superpowers/specs/2026-09-13-guest-relations-design.md` (Phase 1 shipped
-2026-09-13) and `docs/superpowers/specs/2026-09-14-guest-relations-p2-design.md`
-(Phase 2 — overview dashboard, follow-up queue, list segments, open-issue
-badge — shipped 2026-09-14).
+`src/features/guestRelations/` (frontend). Phase 1 shipped 2026-09-13; Phase 2
+(overview dashboard, follow-up queue, list segments, open-issue badge) shipped
+2026-09-14. This document is the canonical record — the design specs were
+removed after shipping (git history has them if needed).
 
 ## Boundary — what the module owns vs links to
 

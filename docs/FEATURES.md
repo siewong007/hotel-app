@@ -21,7 +21,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Revenue overview | Delivered | ✓ `features/revenue` (`/revenue`) | ✓ `modules/revenue` | ADR/RevPAR, occupancy, channel mix, receivables ageing, period comparison |
 | Rates, rate plans, rate codes | Delivered | ✓ `features/rates` (`/rates`) | ✓ `routes/rates.rs` | Plan CRUD, rate calendar, bulk bands; market/rate codes, channel net revenue |
 | Booking channels | Delivered | ✓ | ✓ `routes/booking_channels.rs` | `bookings.booking_channel_id` is canonical attribution |
-| Guests & companies | Delivered | ✓ `features/guests` | ✓ `routes/{guests,companies}.rs` | Corporate accounts + city-ledger links |
+| Guests & companies | Delivered | ✓ `features/guests` | ✓ `routes/{guests,companies}.rs` | Corporate accounts + city-ledger links; `nick_name` booking display name + `guest_name_taken` conflict code |
 | Guest relations (CRM 360) | Delivered | ✓ `features/guestRelations` (`/guest-relations/*`) | ✓ `modules/guest_relations` | Overview dashboard, follow-up queue, interactions, preferences, reviews — see `architecture/guest-relations.md` |
 | Invoices & folio | Delivered | ✓ `features/invoices` | ✓ (`services/invoice_numbers.rs`) | Numbered invoices, checkout receipts |
 | Payments (PayPal + staff-recorded) | Delivered | ✓ | ✓ `routes/payments.rs` | Idempotency keys + fingerprints; conflict audit events |
@@ -39,7 +39,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Insights / report catalog | Delivered | ✓ `features/insights` (`/insights`; `/reports` redirects) | ✓ `modules/insights`, `routes/analytics.rs` | `report_catalog.rs` registry; arrivals/departures rosters |
 | Audit log viewer | Delivered | ✓ `features/audit-log` + `features/admin/components/AuditLogPage` | ✓ `routes/audit.rs` | Partitioned append-only store |
 | eKYC | Delivered | ✓ `features/ekyc` (`/ekyc`, `/ekyc-admin`) | ✓ `modules/ekyc` | Submission + staff review queue; sensitive-field reveal permissions |
-| Guest portal (booking, pre-check-in, docs) | Delivered | ✓ `guest/` entry + `features/guestPortal` | ✓ `routes/guest_portal.rs`, `modules/guest_booking` | Booking access tokens, consent gate, portal WS sockets |
+| Guest portal (booking, pre-check-in, docs) | Delivered | ✓ `guest/` entry + `features/guestPortal` | ✓ `routes/guest_portal.rs`, `modules/guest_booking` | Booking access tokens, consent gate, portal WS sockets, guest feedback submission |
 | Guest self check-in wizard | Delivered | ✓ `/guest-checkin/*` | ✓ | Token-gated multi-step flow; `auto_checkin` + eKYC-gated auto check-in |
 | Communications (email campaigns) | Delivered | ✓ `features/communications` (`/communications`) | ✓ `modules/communications` | lettre SMTP worker; per-guest preferences; transactional sends; `segment_id` audience intersection |
 | SMS channel | Not delivered | — | — | Open item; no implementation |
@@ -59,6 +59,8 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Realtime (WebSocket) | Delivered | ✓ | ✓ `modules/realtime`, loyalty/support hubs | `/api/updates/socket` (staff), `/api/admin/loyalty/socket`, `/api/guest-portal/me/{loyalty,support}/socket`; reconnect + lag-drop logging |
 | Turnstile bot protection | Delivered | ✓ | ✓ `services/turnstile.rs` | Public guest forms |
 | Unpaid online-hold release | Delivered | — | ✓ `services/unpaid_hold_scheduler.rs` | `unpaid_hold_release_hours` (24 default, 0 disables) |
+| Phone/tablet UX | Delivered | ✓ `useIsPhone`, `MobileNavBar`, per-page phone layouts | — | Phone-first pass across staff + guest surfaces; bookings + online-inventory grids |
+| Auto-refresh | Delivered | ✓ | — | Live pages poll/invalidate on a cadence; sockets cover the realtime domains |
 | MCP server | Not delivered | — | — | ADR 009: recorded historically, never implemented |
 
 ## Intentional absences

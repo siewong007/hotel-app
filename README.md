@@ -232,7 +232,7 @@ hotel-app/
 │   ├── architecture/             # ADRs, request/data flows, domain boundaries
 │   ├── guides/                   # Deployment, data transfer, i18n, VPS access
 │   ├── security/                 # Production ops + backup/restore runbooks
-│   └── superpowers/              # Historical plans/specs (status index inside)
+│   └── superpowers/              # Active implementation plans only (shipped ones are removed)
 ├── deploy/                       # Production/staging deploy scripts, Caddyfile, backups
 ├── infra/terraform/oci/          # Oracle Cloud Always Free development infrastructure
 ├── .github/workflows/            # CI, security, Docker, deploy, desktop-build workflows

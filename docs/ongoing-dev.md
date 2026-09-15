@@ -58,8 +58,9 @@ tree and removed per convention.
   testing, not a lockfile bump.
 - Notifications v2 remaining: SMS channel (separate spec), DB-editable
   transactional templates, PDF receipts.
-- UI/UX consolidation follow-ups (audit: docs/superpowers/specs/2026-09-13-ui-ux-consolidation-audit.md;
-  earlier sessions shipped dead-code removal, task-based nav regroup,
+- UI/UX consolidation follow-ups (the 2026-09-13 audit spec was removed with
+  the shipped-plan cleanup — git history has it; earlier sessions shipped
+  dead-code removal, task-based nav regroup,
   /reports→/insights, ledger payment-dialog merge). Status after the
   2026-09-14 pass:
   1. DONE — GuestProfileDialog/GuestDetailsDialog already share
