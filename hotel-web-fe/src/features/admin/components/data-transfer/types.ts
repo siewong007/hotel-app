@@ -7,28 +7,27 @@ export type ToastSeverity = 'success' | 'error' | 'info' | 'warning';
 export type NotifyFn = (message: string, severity?: ToastSeverity) => void;
 
 /**
- * One device-local transfer-history row (localStorage `dataTransferHistory`).
- * `mode` keeps the legacy `'import'`/`'overwrite'` values readable for entries
- * written before the staged-import redesign; new entries use
- * `'merge'`/`'restore'`.
+ * One transfer-history display row. The source is `GET /data-transfer/history`
+ * (audit-log events); `mapServerHistoryEntry` in `utils.ts` does the
+ * projection. The legacy localStorage fields stay in the union so entries
+ * written before the server-backed history still render.
  */
 export interface TransferHistoryEntry {
   id: string;
-  type: 'export' | 'import';
+  /** `security` covers the step-up audit rows (granted + denied). */
+  type: 'export' | 'import' | 'security';
   mode?: 'import' | 'overwrite' | 'merge' | 'restore';
-  /** What moved — e.g. "Business data backup" or "42 entities". */
+  /** Precomputed title when the action needs more than type+mode to describe
+   * (e.g. "Re-authentication denied"). Wins over `describeHistoryAction`. */
+  actionLabel?: string;
+  /** What moved — e.g. "Full export" or "42 entities". */
   categories: string;
-  /** Rows exported/applied; undefined when unknown (e.g. export without a preview). */
+  /** Rows exported/applied; undefined when unknown (e.g. an in-flight import). */
   records?: number;
   by: string;
   at: number; // epoch ms
-  status: 'success' | 'partial' | 'failed';
+  status: 'success' | 'partial' | 'failed' | 'started';
   error?: string;
-  /** Backend import job id, for cross-referencing the server-side audit log. */
+  /** Backend import job id or export id, for cross-referencing the audit log. */
   jobId?: string;
 }
-
-export type NewHistoryEntry = Omit<TransferHistoryEntry, 'id' | 'at' | 'by'>;
-
-/** Append a row to the transfer history. */
-export type RecordHistoryFn = (entry: NewHistoryEntry) => void;

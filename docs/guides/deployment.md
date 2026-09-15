@@ -322,10 +322,13 @@ is the canonical reference for how it works.
 **The catalog was reset, then reopened.** The original 22-patch lineage
 (revisions 1.2–1.23) was folded into the V1 baseline and `manifest.tsv` was
 reset to empty; generation 1 then reopened at version 2 — the catalog currently
-publishes `1.2 deposit-forfeited` and `1.3 guest-relations-phase2`, both
+publishes `1.2 deposit-forfeited`, `1.3 guest-relations-phase2`, and
+`1.4 data-transfer-permissions` (the `data_transfer:*` permission set plus the
+route-policy repoint — it also widens the `valid_action` check constraint, so
+it must run before any code that checks the new permissions), all
 converge-style (idempotent over a database that already carries the baseline
 objects). A fresh install needs no convergence step, and a database that
-recorded the post-reset lineage skips both as already applied.
+recorded the post-reset lineage skips them as already applied.
 
 A database that recorded **pre-reset** revisions (`1.2`/`1.3` under the old
 names and checksums, e.g. `1.2 google-subject`) no longer converges silently —
@@ -378,7 +381,7 @@ psql "$DATABASE_URL" -X -At -v ON_ERROR_STOP=1 -c \
 ```
 
 Expect `1.1` (the baseline) through the highest version in the manifest —
-currently `1.1`–`1.3`.
+currently `1.1`–`1.4`.
 
 #### One-time reset: stale pre-fold patch lineage
 

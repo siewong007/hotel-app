@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Box,
   Chip,
+  CircularProgress,
   Paper,
   Table,
   TableBody,
@@ -17,29 +18,51 @@ import {
 import {
   Download as DownloadIcon,
   History as HistoryIcon,
+  Shield as ShieldIcon,
   Upload as UploadIcon,
 } from '@mui/icons-material';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { useTranslation } from '../../../../i18n';
 import { MobileCardRow } from '../../../../components/data-table/MobileCardRow';
 import type { TransferHistoryEntry } from './types';
 import { describeHistoryAction, formatNum, formatWhen } from './utils';
 
 interface TransferHistoryListProps {
   entries: TransferHistoryEntry[];
+  /** Server query in flight — shows a spinner instead of the empty state. */
+  loading?: boolean;
 }
+
+const STATUS_LABEL: Record<TransferHistoryEntry['status'], string> = {
+  success: 'Success',
+  partial: 'Partial',
+  failed: 'Failed',
+  started: 'Started',
+};
+
+const STATUS_COLOR: Record<TransferHistoryEntry['status'], 'success' | 'warning' | 'error' | 'info'> = {
+  success: 'success',
+  partial: 'warning',
+  failed: 'error',
+  started: 'info',
+};
 
 const statusChip = (status: TransferHistoryEntry['status']) => (
   <Chip
-    label={status === 'success' ? 'Success' : status === 'partial' ? 'Partial' : 'Failed'}
+    label={STATUS_LABEL[status]}
     size="small"
-    color={status === 'success' ? 'success' : status === 'partial' ? 'warning' : 'error'}
+    color={STATUS_COLOR[status]}
     sx={{ height: 20, fontSize: 11, fontWeight: 700 }}
   />
 );
 
-const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries }) => {
+const typeIcon = (type: TransferHistoryEntry['type']) =>
+  type === 'import' ? <UploadIcon /> : type === 'security' ? <ShieldIcon /> : <DownloadIcon />;
+
+const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, loading }) => {
   const theme = useTheme();
   const isPhone = useIsPhone();
+  const { t } = useTranslation('dataTransfer');
 
   const metaLine = (entry: TransferHistoryEntry) =>
     [
@@ -64,13 +87,19 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries }) =>
       <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
         <Typography sx={{ fontWeight: 800, fontSize: 15 }}>Transfer History</Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 12.5 }}>
-          Every export and import performed on this device is logged with the user, time, and outcome.
+          {t('history.serverBacked')}
         </Typography>
       </Box>
       {entries.length === 0 ? (
         <Box sx={{ p: 6, textAlign: 'center', color: 'text.secondary' }}>
-          <HistoryIcon sx={{ fontSize: 40, opacity: 0.4, mb: 1 }} />
-          <Typography variant="body2">No transfers recorded yet.</Typography>
+          {loading ? (
+            <CircularProgress size={28} aria-label="Loading transfer history" />
+          ) : (
+            <>
+              <HistoryIcon sx={{ fontSize: 40, opacity: 0.4, mb: 1 }} />
+              <Typography variant="body2">No transfers recorded yet.</Typography>
+            </>
+          )}
         </Box>
       ) : isPhone ? (
         <Box>
@@ -121,7 +150,7 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries }) =>
                           '& svg': { fontSize: 16 },
                         }}
                       >
-                        {entry.type === 'import' ? <UploadIcon /> : <DownloadIcon />}
+                        {typeIcon(entry.type)}
                       </Box>
                       {describeHistoryAction(entry)}
                     </Box>

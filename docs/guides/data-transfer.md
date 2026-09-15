@@ -1,7 +1,7 @@
 # Data Transfer — JSON Backup and Restore
 
 The data-transfer feature exports the hotel's business data as a single
-versioned JSON document (`hotel-backup` v3) and restores it through a staged
+versioned JSON document (`hotel-backup` v1) and restores it through a staged
 `upload → preview → execute → poll` pipeline. It is the operator-facing backup
 format: portable across environments, self-describing (every file carries a
 manifest of what it contains and what was deliberately excluded), and safe to
@@ -18,16 +18,18 @@ environments and to restore into a database that already has users.
 ## Table of Contents
 
 1. [Architecture](#architecture)
-2. [The `hotel-backup` v3 file format](#the-hotel-backup-v3-file-format)
-3. [Entity coverage](#entity-coverage)
-4. [API endpoints](#api-endpoints)
-5. [Import semantics](#import-semantics)
-6. [Large-data strategy](#large-data-strategy)
-7. [Configuration](#configuration)
-8. [Security and retention](#security-and-retention)
-9. [Recovery runbook](#recovery-runbook)
-10. [Troubleshooting](#troubleshooting)
-11. [Older file formats (v1, v2)](#older-file-formats-v1-v2)
+2. [Permissions and step-up authentication](#permissions-and-step-up-authentication)
+3. [Export scopes](#export-scopes)
+4. [The `hotel-backup` v1 file format](#the-hotel-backup-v1-file-format)
+5. [Entity coverage](#entity-coverage)
+6. [API endpoints](#api-endpoints)
+7. [Import semantics](#import-semantics)
+8. [Large-data strategy](#large-data-strategy)
+9. [Configuration](#configuration)
+10. [Security and retention](#security-and-retention)
+11. [Recovery runbook](#recovery-runbook)
+12. [Troubleshooting](#troubleshooting)
+13. [Retired file formats](#retired-file-formats)
 
 ---
 
@@ -39,19 +41,21 @@ one extra service file for the staged-import pipeline:
 
 | Layer | File | Role |
 |---|---|---|
-| Routes | `src/routes/data_transfer.rs` | Path registration, auth guards, the 256 MB `DefaultBodyLimit` on the upload route |
+| Routes | `src/routes/data_transfer.rs` | Path registration, `data_transfer:*` permission guards, the 256 MB `DefaultBodyLimit` on the upload route, the sensitive rate limiter on `/step-up` |
 | Handlers | `src/handlers/data_transfer.rs` | Thin HTTP translation; maps `StageUploadError::PayloadTooLarge` to 413 (the `ApiError` enum has no such variant) |
-| Service | `src/services/data_transfer.rs` | Entity catalog (`TABLE_INSERT_ORDER`, `EXCLUDED_TABLES`, `EXCLUDED_EXPORT_COLUMNS`), the streaming v3 export writer, the legacy v1/v2 import paths |
-| Service | `src/services/data_transfer_jobs.rs` | Staged uploads, format detection, import preview, the process-local job registry, and the background import runner |
+| Service | `src/services/data_transfer.rs` | Entity catalog (`TABLE_INSERT_ORDER`, `EXCLUDED_TABLES`, `EXCLUDED_EXPORT_COLUMNS`), the `SENSITIVE_TABLES` registry, the streaming v1 export writer |
+| Service | `src/services/data_transfer_jobs.rs` | Staged uploads, format detection, import preview, conditional permission enforcement, the process-local job registry, and the background import runner |
+| Service | `src/services/data_transfer_step_up.rs` | Step-up re-authentication: password (+TOTP) verification, the 120 s `X-Step-Up` token check, step-up audit events |
 | Repository | `src/repositories/data_transfer.rs` | All SQL: catalog introspection (`pg_class`/`pg_constraint`/`information_schema`), the export cursor, `insert_transfer_row`, FK relax/restore, sequence resets |
-| Models | `src/models/data_transfer.rs` | The v3 document structs (`BackupFile` et al.) and every request/response DTO |
+| Models | `src/models/data_transfer.rs` | The v1 document structs (`BackupFile` et al.) and every request/response DTO |
 
-Request flow for an export: route guard (`settings:manage`) →
-`export_booking_data_handler` → `export_booking_data_body` → `stream_export`,
-which returns a `Body` stream the handler wraps with a `Content-Disposition`
-attachment filename.
+Request flow for an export: route guard (`data_transfer:export` for
+`?scope=standard`, `data_transfer:export_sensitive` + `X-Step-Up` for
+`full`/`backup`) → `export_booking_data_handler` → `export_booking_data_body`
+→ `stream_export`, which returns a `Body` stream the handler wraps with a
+`Content-Disposition` attachment filename.
 
-Request flow for an import: route guard (super-admin) → handler →
+Request flow for an import: route guard (`data_transfer:import`) → handler →
 `data_transfer_jobs`, which writes/reads staged files under
 `private_uploads/data-transfer/` and — for `execute` — spawns a `tokio` task
 rather than holding the request open. The job's state lives in a process-local
@@ -69,7 +73,60 @@ Two registries matter operationally:
   left for the sweep; the database itself is untouched mid-job only if the
   transaction had already committed — see [Import semantics](#import-semantics)).
 
-## The `hotel-backup` v3 file format
+## Permissions and step-up authentication
+
+Every endpoint runs on a dedicated `data_transfer:*` permission set, seeded
+for the `admin`/`super_admin` roles by patch `0004_data_transfer_permissions`.
+Neither `settings:manage` nor `users.is_super_admin` opens this surface any
+more — access is an explicit grant, and `data_transfer:manage` implies every
+action of the resource through the usual `<resource>:manage` rule.
+
+| Action | Required permission |
+|---|---|
+| Open the page, standard export preview, transfer history | `data_transfer:view` |
+| Standard export | `data_transfer:export` |
+| Full / backup export | `data_transfer:export_sensitive` **+ step-up** |
+| Upload, import preview, execute, poll, discard staged file | `data_transfer:import` |
+| Import a file containing sensitive entities (any retired-format file fails closed as sensitive) | `+ data_transfer:import_sensitive` |
+| Execute with `onConflict: "update"` | `+ data_transfer:override` |
+| Execute with `mode: "restore"` | `+ data_transfer:restore` **+ step-up** |
+
+The conditional import checks live in
+`data_transfer_jobs::enforce_import_permissions`, which runs *after* the
+route's `data_transfer:import` gate and *before* a job is registered: the file
+is sniffed for sensitivity without a full parse (a missing or unreadable
+staged file fails closed and demands `import_sensitive`). Denials are 403
+naming the missing permission; a missing or invalid step-up is 401.
+
+**Step-up.** `POST /data-transfer/step-up` re-authenticates the caller —
+password, plus the TOTP code when the account has TOTP enrolled
+(passwordless/passkey-only accounts step up on TOTP alone; an account with
+neither credential can never step up). Success mints a 120-second token sent
+as the `X-Step-Up` header on the gated call; the token carries its own JWT
+audience (so it can never act as an access token), and is bound to the same
+user *and* session (`sid`) — a token minted on another device is rejected.
+Failures return a generic 401, rate-limited per IP (10 / 5 min), and both
+outcomes are audited as `data_transfer_step_up` /
+`data_transfer_step_up_denied`.
+
+## Export scopes
+
+`GET /data-transfer/export` and `/export/preview` take `?scope=`:
+
+| Scope | Permission | Step-up | Contents |
+|---|---|---|---|
+| `standard` (default) | `data_transfer:export` | — | All transferable entities **except** the `SENSITIVE_TABLES` set; the manifest lists them by name under `omitted` |
+| `full` | `data_transfer:export_sensitive` | `X-Step-Up` | Every transferable entity, sensitive included; `includesSensitiveData: true` |
+| `backup` | `data_transfer:export_sensitive` | `X-Step-Up` | `full` plus `manifest.relationships` — the column-level FK edge list between emitted entities, for migration tooling |
+
+`SENSITIVE_TABLES` (in `services/data_transfer.rs`) is the registry that
+decides what "sensitive" means — guest, payment, ledger, support, consent,
+and other confidential business tables. Secrets are never in scope for *any*
+tier: `users`/RBAC/session/token/eKYC tables are excluded outright and the
+`bookings.pre_checkin_token` columns are stripped at the `SELECT` projection.
+Every file declares `includesSecrets: false` — see the format below.
+
+## The `hotel-backup` v1 file format
 
 One JSON object, emitted in a fixed key order. Downloaded as
 `saliminn-backup-<YYYYmmddTHHMMSSZ>.json` (UTC timestamp) with
@@ -78,8 +135,11 @@ One JSON object, emitted in a fixed key order. Downloaded as
 ```json
 {
   "format": "hotel-backup",
-  "version": 3,
+  "version": 1,
   "kind": "business-data",
+  "exportType": "full",
+  "includesSensitiveData": true,
+  "includesSecrets": false,
   "exportId": "3f8a2c1e-7b9d-4e5f-9a1c-0d2e4f6a8b0c",
   "exportedAt": "2026-09-14T09:25:30.123456+00:00",
   "applicationVersion": "0.2.0",
@@ -90,6 +150,9 @@ One JSON object, emitted in a fixed key order. Downloaded as
     ],
     "exclusions": [
       {"name": "public.users", "reason": "credentials_and_auth_state"}
+    ],
+    "relationships": [
+      {"entity": "public.bookings", "column": "guest_id", "referencedEntity": "public.guests", "referencedColumn": "id"}
     ]
   },
   "tables": {
@@ -110,15 +173,20 @@ Field by field:
 | Field | Value |
 |---|---|
 | `format` | Always `"hotel-backup"`. Anything else → the import reports `unsupported backup format '<value>'`. |
-| `version` | Integer `3`. Any other value → `unsupported hotel-backup version <n> — this build understands version 3`. |
+| `version` | Integer `1`. Any other value → `unsupported hotel-backup version <n> — this build understands version 1` — including `3`, which is a retired version stamp, not a newer one. |
 | `kind` | Payload class; only `"business-data"` exists. Other values are rejected at import. |
+| `exportType` | The scope the file was generated with: `"standard"`, `"full"`, or `"backup"`. Echoed by the import preview. |
+| `includesSensitiveData` | `true` when the file carries `SENSITIVE_TABLES` entities — computed from the actual entity set, not just the declared scope. Execute requires `data_transfer:import_sensitive` when this (or a sensitive entity key) is present. |
+| `includesSecrets` | Always `false` — credentials, tokens, and key material are never exported by any scope. A file declaring `true` produces a preview warning and still imports only the transferable set. |
 | `exportId` | UUIDv4 identifying this exact file. Also recorded on the `data_export` audit row, so a download can be tied to its event. |
 | `exportedAt` | RFC 3339 export start timestamp (UTC). |
 | `applicationVersion` | The backend's `CARGO_PKG_VERSION`. Preview warns when it differs from the importing build. |
 | `source.environment` | The exporter's `ENVIRONMENT`/`APP_ENV`, lowercased: `development`, `staging`, or `production`. Preview warns when it differs from the destination's. |
 | `source.databaseProvider` | Always `"postgresql"`. |
-| `manifest.entities` | One entry per transferable entity, in the same alphabetical order `tables` uses: `name` (schema-qualified), `primaryKey` (column list; `[]` for keyless tables), `columns` (the exported columns, schema order). Carries **no** row counts — those land in `integrity`. |
+| `manifest.entities` | One entry per emitted entity, in the same alphabetical order `tables` uses: `name` (schema-qualified), `primaryKey` (column list; `[]` for keyless tables), `columns` (the exported columns, schema order). Carries **no** row counts — those land in `integrity`. |
 | `manifest.exclusions` | Every schema table **not** in the transferable set, with a reason code — nothing is silently omitted. See [Entity coverage](#entity-coverage). |
+| `manifest.omitted` | Standard scope only: the `SENSITIVE_TABLES` entity names left out of the file — names only, never rows. |
+| `manifest.relationships` | Backup scope only: column-level FK edges between emitted entities (`entity`, `column`, `referencedEntity`, `referencedColumn`) — edges to excluded parents like `public.users` are deliberately absent. |
 | `tables` | `entity → [row objects]`, alphabetical by entity name. Row key order is schema column order; each row is produced by `row_to_json`, so `timestamptz`/`jsonb`/`bytea`/`uuid`/`numeric` round-trip through PostgreSQL's JSON rendering. |
 | `integrity` | Trailer written last: `entities` (count of keys in `tables`), `rows` (total rows actually streamed), `entityRows` (per-entity counts actually written), `completedAt`. |
 
@@ -137,6 +205,15 @@ that whitelist-checks every table name interpolated into SQL — a test fails if
 the two lists drift. Which entities a given database actually exports is
 introspected live from `pg_class`, so the manifest always describes the real
 schema.
+
+Each transferable table is additionally classified in `SENSITIVE_TABLES`
+(same file): the sensitive set carries guest identity/contact data, bookings,
+payments, ledgers, loyalty movement, operational history, support threads,
+consent records, and staff-linked records — 56 tables today. The remainder
+(amenities, rate plans, room types, promotions definitions, …) is the
+non-sensitive set a `standard` export emits. The classification is explicit,
+not derived: the registry test fails when a new transferable table lands
+without a sensitivity decision.
 
 Grouped by domain:
 
@@ -174,7 +251,7 @@ reason codes:
 
 | Reason | Tables | Why |
 |---|---|---|
-| `credentials_and_auth_state` | `public.users`, `public.roles`, `public.permissions`, `public.role_permissions`, `public.user_roles`, `public.user_permissions`, `public.route_access_policies` | Password hashes, TOTP seeds, RBAC grants — exporting hands every `settings:manage` holder the credential store; importing could plant a forged `is_super_admin` account |
+| `credentials_and_auth_state` | `public.users`, `public.roles`, `public.permissions`, `public.role_permissions`, `public.user_roles`, `public.user_permissions`, `public.route_access_policies` | Password hashes, TOTP seeds, RBAC grants — exporting hands every export holder the credential store; importing could plant a forged `is_super_admin` account |
 | `session_or_token_material` | `public.refresh_tokens`, `public.user_sessions`, `public.passkeys`, `public.passkey_challenges`, `public.two_factor_challenges`, `public.guest_portal_sessions`, `public.payment_retry_capabilities` | Live sessions and token/challenge state |
 | `sensitive_ekyc_pii` | `public.ekyc_verifications`, `public.ekyc_decision_history`, `public.ekyc_access_events`, `public.ekyc_sensitive_reveals`, `public.ekyc_idempotency_keys`, `public.ekyc_notes`, `public.ekyc_reason_codes` | Identity documents and biometric evidence |
 | `ephemeral_queue_state` | `public.email_deliveries`, `public.support_action_idempotency_keys`, `public.support_guest_request_idempotency_keys` | Live send/request queues — re-importing would replay sends |
@@ -206,28 +283,33 @@ knowing before you restore:
 
 ## API endpoints
 
-All paths live under `/api`. Export routes need the grantable
-`settings:manage` permission; every import route additionally requires a
-super-admin account (`users.is_super_admin`) — imports clear whole tables and
-remap references, so they sit above the permission hierarchy.
+All paths live under `/api`. The `data_transfer:*` permissions below are
+enforced server-side on every request; `full`/`backup` exports and `restore`
+executes additionally require a fresh `X-Step-Up` token — see
+[Permissions and step-up authentication](#permissions-and-step-up-authentication).
 
 | Method & path | Auth | Purpose |
 |---|---|---|
-| `GET /data-transfer/export` | `settings:manage` | Streamed v3 download; `Content-Disposition: attachment; filename="saliminn-backup-<ts>.json"` |
-| `GET /data-transfer/export/preview` | `settings:manage` | `{generated_at, counts, total_records, tables[], entities[], exclusions[]}` — live per-entity counts plus the manifest an export would declare (the legacy wrapper keeps snake_case keys; the `entities`/`exclusions` entries inside are camelCase) |
-| `POST /data-transfer/import/uploads` | super-admin | Streams the request body to `private_uploads/data-transfer/upload-<uuid>.json` (via `.part`); returns `{uploadId, bytes, detectedFormat}` where `detectedFormat` is `"v3"`, `"v2"`, `"v1"`, or `"unknown"` |
-| `POST /data-transfer/import/preview` | super-admin | `{uploadId}` → `ImportPreview` — the pre-flight diff below |
-| `POST /data-transfer/import/execute` | super-admin | `{uploadId, mode, onConflict?, tables?, confirm}` → `202 {jobId}`; `confirm` must be `true` |
-| `GET /data-transfer/import/jobs/{jobId}` | super-admin | `{status: "running"\|"succeeded"\|"failed", progress: {entity, rowsApplied, totalRows}, result?, error?}`; finished jobs are retained 1 h, then 404 |
-| `DELETE /data-transfer/import/uploads/{uploadId}` | super-admin | Discard a staged file → `204`; 409 while a running job reads it, 404 when absent |
+| `GET /data-transfer/export?scope=` | `data_transfer:export` (`standard`) or `export_sensitive` + step-up (`full`, `backup`) | Streamed v1 download; `Content-Disposition: attachment; filename="saliminn-backup-<ts>.json"` |
+| `GET /data-transfer/export/preview?scope=` | `data_transfer:view` (`standard`) or `export_sensitive` (sensitive scopes) | `{generated_at, counts, total_records, tables[], entities[], exclusions[]}` — live per-entity counts plus the manifest an export would declare (the legacy wrapper keeps snake_case keys; the `entities`/`exclusions` entries inside are camelCase) |
+| `POST /data-transfer/step-up` | any authenticated session, IP rate-limited | `{password, totpCode?}` → `{stepUpToken, expiresAt}` — the 120 s token for `X-Step-Up`; generic 401 on failure |
+| `GET /data-transfer/history?limit=` | `data_transfer:view` | `{entries: [{id, action, userId, username, createdAt, details}], total}` — recent `data_import`/`data_export`/`data_transfer_step_up*` audit rows (90-day window, limit clamped) |
+| `POST /data-transfer/import/uploads` | `data_transfer:import` | Streams the request body to `private_uploads/data-transfer/upload-<uuid>.json` (via `.part`); returns `{uploadId, bytes, detectedFormat}` where `detectedFormat` is `"v1"`, `"legacy"` (any retired shape: flat v1/v2 or `hotel-backup` v3), or `"unknown"` |
+| `POST /data-transfer/import/preview` | `data_transfer:import` | `{uploadId}` → `ImportPreview` — the pre-flight diff below |
+| `POST /data-transfer/import/execute` | `data_transfer:import` (+ `import_sensitive` for sensitive files, `override` for `onConflict:"update"`, `restore` + step-up for `mode:"restore"`) | `{uploadId, mode, onConflict?, tables?, confirm}` → `202 {jobId}`; `confirm` must be `true` |
+| `GET /data-transfer/import/jobs/{jobId}` | `data_transfer:import` | `{status: "running"\|"succeeded"\|"failed", progress: {entity, rowsApplied, totalRows}, result?, error?}`; finished jobs are retained 1 h, then 404 |
+| `DELETE /data-transfer/import/uploads/{uploadId}` | `data_transfer:import` | Discard a staged file → `204`; 409 while a running job reads it, 404 when absent |
 
 `ImportPreview` (returned by `POST /import/preview`):
 
 ```json
 {
   "uploadId": "…",
-  "format": "v3",
-  "version": 3,
+  "format": "v1",
+  "version": 1,
+  "exportType": "full",
+  "sensitive": true,
+  "requiresPermissions": ["data_transfer:import_sensitive"],
   "exportedAt": "2026-09-14T09:25:30.123456+00:00",
   "sourceEnvironment": "production",
   "applicationVersion": "0.2.0",
@@ -346,7 +428,7 @@ and — under `restore` — still expands to dependents.
 - **Container headroom:** the production backend `mem_limit` is `384m`
   (`deploy/docker-compose.prod.yml`, raised from 192m for exactly this feature);
   the staging backend stays at `128m` — stage only modest backups there.
-- **Known bound:** v3 rows become `Map<String, Value>` at insert, so numbers go
+- **Known bound:** rows become `Map<String, Value>` at insert, so numbers go
   through `f64` — a `numeric` beyond ~15 significant digits would drift. Every
   schema numeric is ≤ `numeric(12,2)`, so this cannot bite today; it is a bound
   on the format, not a live defect.
@@ -371,18 +453,28 @@ and — under `restore` — still expands to dependents.
   `saliminn-backup-*.json` like the database itself: the directory is
   bind-mounted on the host, is **not publicly served** (only authenticated
   handlers ever read it), and staged files self-delete 24 h after abandonment.
-- **Exports** run under `settings:manage`; the streamed document never contains
-  credential/session/eKYC material — the table-level exclusions above plus the
-  `bookings.pre_checkin_token` column exclusion are enforced at the `SELECT`
-  projection, so the values cannot leak into the file.
-- **Every import endpoint is super-admin only** (`is_super_admin` on an active,
-  non-deleted account), and execute requires `confirm: true`.
+- **Exports** run under `data_transfer:export` (standard) or
+  `data_transfer:export_sensitive` + step-up (full/backup); the streamed
+  document never contains credential/session/eKYC material — the table-level
+  exclusions above plus the `bookings.pre_checkin_token` column exclusion are
+  enforced at the `SELECT` projection, so the values cannot leak into the
+  file, and `includesSecrets` is always `false`.
+- **Imports** require `data_transfer:import`, with `import_sensitive`,
+  `override`, and `restore` layered per file and mode (see the permission
+  matrix); `restore` additionally demands a step-up token. Execute requires
+  `confirm: true`.
+- **Step-up** tokens live 120 s, bind to the session that minted them, and
+  their dedicated audience means they can never serve as access tokens.
 - **Audit:** `data_export` is logged once the export body was fully produced
-  (with `export_id`, entity and row counts — a client disconnect skips the
-  audit). `data_import` is logged at job start, completion, and failure (with
-  `job_id`, mode, conflict policy, per-entity counts). `job_runs` records each
-  `data_transfer_import` outcome for the admin Jobs page. No secrets or row
-  contents reach logs or error responses.
+  (with `export_id`, `exportType`, entity and row counts — a client
+  disconnect skips the audit). `data_import` is logged at job start,
+  completion, and failure (with `job_id`, mode, conflict policy, per-entity
+  counts). `data_transfer_step_up` and `data_transfer_step_up_denied` record
+  every re-authentication attempt (reason only — never credentials).
+  `job_runs` records each `data_transfer_import` outcome for the admin Jobs
+  page, and `GET /data-transfer/history` exposes the same audit rows to
+  `data_transfer:view` holders. No secrets or row contents reach logs or
+  error responses.
 - **Token-in-log caveat:** the host Caddy access log (journald) redacts
   `?token=` query params only; URLs themselves are otherwise logged. Do not put
   bearer tokens in URLs.
@@ -402,20 +494,25 @@ recovery. Rehearse on staging first (`staging.saliminn.my`, database
      -U hotel_admin hotel_management > predeploy-restore-$(date -u +%Y%m%dT%H%M%SZ).dump
    ```
 2. **Export (or locate) the backup.** Admin → Data Transfer → Export, or
-   `GET /api/data-transfer/export` with a `settings:manage` token. Verify the
-   download ends with the `integrity` trailer — a file without it is truncated.
+   `GET /api/data-transfer/export?scope=backup` with an
+   `export_sensitive`-holding token plus `X-Step-Up` (mint one via
+   `POST /data-transfer/step-up`). Verify the download ends with the
+   `integrity` trailer — a file without it is truncated.
 3. **Upload.** `POST /api/data-transfer/import/uploads` with the file as the
-   raw request body → `{uploadId}`. Nothing is parsed or written to the
-   database yet.
+   raw request body → `{uploadId}` (`data_transfer:import`). Nothing is
+   parsed or written to the database yet.
 4. **Preview.** `POST /api/data-transfer/import/preview` `{uploadId}` → read
-   `validationErrors` (must be empty to proceed), `relationshipProblems`,
-   `warnings`, `unsupportedEntities`, and the per-entity `new`/`existing`/
-   `skipped` counts. An environment or version mismatch here is a signal to
-   stop and think, not to click through.
+   `validationErrors` (must be empty to proceed), `sensitive` and
+   `requiresPermissions`, `relationshipProblems`, `warnings`,
+   `unsupportedEntities`, and the per-entity `new`/`existing`/`skipped`
+   counts. An environment or version mismatch here is a signal to stop and
+   think, not to click through.
 5. **Execute.** `POST /api/data-transfer/import/execute` with
    `{uploadId, mode: "restore"|"merge", onConflict: "skip"|"update"|"fail",
    confirm: true}` → `202 {jobId}`. For a full recovery use `mode: "restore"`
-   with no `tables` filter.
+   with no `tables` filter — that path requires `data_transfer:restore` and a
+   fresh `X-Step-Up` header, and sensitive files require
+   `data_transfer:import_sensitive`.
 6. **Poll.** `GET /api/data-transfer/import/jobs/{jobId}` until `succeeded` or
    `failed`. A large restore takes minutes; progress reports the current entity
    and rows applied.
@@ -430,10 +527,14 @@ recovery. Rehearse on staging first (`staging.saliminn.my`, database
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| `403 Missing permission: data_transfer:<action>` | The account lacks the named grant | Assign the permission (or `data_transfer:manage`) via Roles — `settings:manage` and the super-admin flag no longer open this surface |
+| `401 "requires recent re-authentication"` / `"Step-up token is invalid or expired"` | Missing, expired (>120 s), or foreign-session `X-Step-Up` token | `POST /data-transfer/step-up` again and retry immediately — the token is short-lived by design |
+| `401` on `POST /step-up` | Wrong password, missing/wrong TOTP, or an account with no step-up credential | Re-enter credentials; an enrolled TOTP account must send `totpCode`; passwordless accounts need TOTP enrolled |
+| `429` on `POST /step-up` | >10 attempts in 5 min from the IP | Wait out the retry-after window |
 | `413` on upload | Body exceeded 256 MiB | Split the export (export per-entity subsets is not yet a feature — use `pg_dump`/`pg_restore` for very large databases) |
 | `400 "the uploaded file is not a JSON document"` | First non-whitespace byte is not `{` | Upload the `.json` file itself, not a zip/dump |
 | `400 "confirm must be true"` | Execute sent without `confirm: true` | Deliberate gate — the operation is destructive; send `confirm: true` |
-| `400 "unsupported hotel-backup version N"` / `unsupported backup format` / `unsupported backup kind` | File parses as v3-shaped but carries an unknown version/format/kind | Check what produced the file; preview reports the same under `validationErrors` before you execute |
+| `400 "unsupported hotel-backup version N"` / `unsupported backup format` / `unsupported backup kind` | File parses as `hotel-backup`-shaped but carries an unknown version/format/kind | Check what produced the file; preview reports the same under `validationErrors` before you execute |
 | `400 "the staged upload could not be parsed"` | Truncated or malformed file (missing `integrity` trailer, bad JSON) | Re-download/re-export; do not hand-edit mid-document |
 | `404 "staged upload not found"` | Upload id unknown, consumed by a finished job, swept (>24 h), or deleted | Re-upload; upload ids are single-use for execute |
 | `404 "import job not found or expired"` | Job id unknown, or finished >1 h ago | Finished results are also in the `data_import` audit event and `job_runs` |
@@ -444,20 +545,20 @@ recovery. Rehearse on staging first (`staging.saliminn.my`, database
 | `upload-*.part` / old `upload-*.json` files under `private_uploads/data-transfer/` | Orphaned staging (crashed upload, never executed, dead job) | Harmless — swept after 24 h; or delete manually |
 | Export returns 502 / times out through Cloudflare | Should not happen since the streaming rewrite — a regression means the backend restarted mid-export | Check `journalctl -u caddy` for `connection refused`/`EOF` and `docker logs saliminn-backend`; the export is a read transaction, safe to retry |
 
-## Older file formats (v1, v2)
+## Retired file formats
 
-The upload pipeline still accepts the two legacy shapes; detection is a
-first-4 KB sniff confirmed by a full parse (preview and execute trust the
-parse, not the sniff):
+Only `hotel-backup` **version 1** is accepted. Every other shape is retired —
+the upload still stages it (the guard only sniffs), preview returns `400` with
+`the file uses a retired export format`, and an execute attempt fails the job
+the same way. Nothing in a retired file is ever written.
 
-- **v2** — `{version: "2.0", exported_at, tables: {…}}` (the schema-driven
-  export). Imports through the same engine as v3 — modes, conflict policies,
-  missing-reference handling — but parses rows into `Value` trees, so a v2 file
-  costs ~3.5× its byte size in memory inside the job (bounded by the same
-  256 MB upload cap).
-- **v1** — the legacy flat `BookingDataExport` (`{version: "1.x", guests: [],
-  bookings: [], …}`). Runs through the historical importer: `merge`/`restore`
-  map to its `import`/`overwrite` modes, conflicts always `skip`, and it keeps
-  its room-number-based room remapping. Preview returns row counts only — the
-  per-row `new`/`existing` diff and missing-reference scan do not exist for
-  this format.
+- **`hotel-backup` v3** — the pre-rename stamp of the current format (detected
+  as `"legacy"`). Export a fresh backup from the source system and import that
+  instead.
+- **v2** — `{version: "2.0", exported_at, tables: {…}}`.
+- **flat v1** — the legacy `BookingDataExport` (`{version: "1.x", guests: [],
+  bookings: [], …}`).
+
+All three fail closed as *sensitive* for permission purposes, so executing one
+also requires `data_transfer:import_sensitive` before the rejection even
+surfaces.

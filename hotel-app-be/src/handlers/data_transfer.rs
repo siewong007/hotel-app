@@ -1,30 +1,36 @@
 //! Data transfer handlers for export + the staged backup-import pipeline
-//! (`upload → preview → execute → poll`). All import endpoints are
-//! super-admin only; the guard itself lives in `routes/data_transfer.rs`.
+//! (`upload → preview → execute → poll`). All endpoints are guarded by the
+//! `data_transfer:*` permission set in `routes/data_transfer.rs`.
 
+use crate::core::auth::Claims;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    ExportPreview, ImportExecuteRequest, ImportJobStatus, ImportPreview, ImportPreviewRequest,
+    ExportPreview, ExportScope, ImportExecuteRequest, ImportJobStatus, ImportPreview,
+    ImportPreviewRequest, StepUpRequest, StepUpResponse, TransferHistory,
 };
 use crate::services::data_transfer as data_transfer_service;
 use crate::services::data_transfer_jobs::{self, StageUploadError};
+use crate::services::data_transfer_step_up;
 use axum::{
     body::Body,
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
 };
 use uuid::Uuid;
 
-/// Export all booking-related data as a `hotel-backup` v3 file
+/// Export transferable data as a `hotel-backup` v1 file in the requested
+/// scope (`standard`, `full`, or `backup`).
 pub async fn export_booking_data_handler(
     State(pool): State<DbPool>,
     user_id: i64,
+    scope: ExportScope,
 ) -> Result<Response, ApiError> {
-    let body = data_transfer_service::export_booking_data_body(&pool, user_id).await?;
+    let body = data_transfer_service::export_booking_data_body(&pool, user_id, scope).await?;
     let filename = format!(
-        "saliminn-backup-{}.json",
+        "saliminn-backup-{}-{}.json",
+        scope.label(),
         chrono::Utc::now().format("%Y%m%dT%H%M%SZ")
     );
     Ok(Response::builder()
@@ -38,13 +44,59 @@ pub async fn export_booking_data_handler(
         .unwrap())
 }
 
-/// Preview record counts for all transferable tables
+/// Preview record counts for the entities the requested scope would emit.
 pub async fn preview_export_counts_handler(
     State(pool): State<DbPool>,
+    scope: ExportScope,
 ) -> Result<Json<ExportPreview>, ApiError> {
     Ok(Json(
-        data_transfer_service::preview_export_counts(&pool).await?,
+        data_transfer_service::preview_export_counts(&pool, scope).await?,
     ))
+}
+
+/// Re-authentication for privileged data-transfer operations — verifies the
+/// caller's credentials and mints a short-lived `X-Step-Up` token.
+pub async fn step_up_handler(
+    State(pool): State<DbPool>,
+    claims: Claims,
+    request: StepUpRequest,
+) -> Result<Json<StepUpResponse>, ApiError> {
+    Ok(Json(
+        data_transfer_step_up::issue_step_up(&pool, &claims, &request).await?,
+    ))
+}
+
+/// Audited export/import activity for the transfer-history panel — capped at
+/// 500 rows and always pinned to the data-transfer audit actions.
+pub async fn transfer_history_handler(
+    State(pool): State<DbPool>,
+    limit: Option<i64>,
+) -> Result<Json<TransferHistory>, ApiError> {
+    let limit = limit.unwrap_or(100).clamp(1, 500);
+    let (rows, total) = crate::services::audit::get_recent_events_by_actions(
+        &pool,
+        &[
+            "data_export",
+            "data_import",
+            data_transfer_step_up::STEP_UP_ACTION,
+            data_transfer_step_up::STEP_UP_DENIED_ACTION,
+        ],
+        90,
+        limit,
+    )
+    .await?;
+    let entries = rows
+        .into_iter()
+        .map(|row| crate::models::TransferHistoryEntry {
+            id: row.id,
+            action: row.action,
+            user_id: row.user_id,
+            username: row.username,
+            created_at: row.created_at.to_rfc3339(),
+            details: row.details,
+        })
+        .collect();
+    Ok(Json(TransferHistory { entries, total }))
 }
 
 /// Stage an uploaded backup under `private_uploads/data-transfer/` — the body
@@ -79,8 +131,10 @@ pub async fn preview_import_handler(
 pub async fn execute_import_handler(
     State(pool): State<DbPool>,
     user_id: i64,
+    headers: HeaderMap,
     Json(request): Json<ImportExecuteRequest>,
 ) -> Result<Response, ApiError> {
+    data_transfer_jobs::enforce_import_permissions(&pool, user_id, &headers, &request).await?;
     let response = data_transfer_jobs::start_import_job(&pool, user_id, request).await?;
     Ok((StatusCode::ACCEPTED, Json(response)).into_response())
 }

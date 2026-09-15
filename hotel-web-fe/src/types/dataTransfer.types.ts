@@ -12,6 +12,12 @@
 
 // ----- Export -------------------------------------------------------------
 
+/** Export breadth selected by `?scope=` on the export endpoints. `full` and
+ * `backup` carry sensitive entities and require `data_transfer:export_sensitive`
+ * plus a fresh step-up token; `backup` additionally emits the FK
+ * `manifest.relationships` edge list for migration tooling. */
+export type ExportScope = 'standard' | 'full' | 'backup';
+
 /** One transferable entity's manifest entry — name, primary-key columns and
  * the exported column list, in schema order. */
 export interface BackupEntityDescriptor {
@@ -47,9 +53,11 @@ export interface ExportPreview {
 
 // ----- Import pipeline ----------------------------------------------------
 
-/** Detected backup file format (`"v3"` is the current `hotel-backup` format;
- * `"v2"`/`"v1"` are legacy export shapes; `"unknown"` failed the sniff). */
-export type BackupDetectedFormat = 'v3' | 'v2' | 'v1' | 'unknown';
+/** Detected backup file format. `"v1"` is the only accepted format — the
+ * structured `hotel-backup` version-1 document; `"legacy"` is any retired
+ * export shape (the flat v1/v2 exports and older `hotel-backup` versions),
+ * which the server rejects at preview/execute; `"unknown"` failed the sniff. */
+export type BackupDetectedFormat = 'v1' | 'legacy' | 'unknown';
 
 /** `POST data-transfer/import/uploads` response — the staged file's handle. */
 export interface UploadResponse {
@@ -59,8 +67,8 @@ export interface UploadResponse {
 }
 
 /** Per-entity diff between a staged backup and this database. `new`/`existing`/
- * `skipped` are `null` when the format cannot support the diff (v1 files carry
- * counts only). */
+ * `skipped` are `null` when the server could not diff that entity (the only
+ * accepted format, `hotel-backup` v1, always diffs). */
 export interface ImportPreviewEntity {
   name: string;
   rows: number;
@@ -84,6 +92,16 @@ export interface ImportPreview {
   uploadId: string;
   format: BackupDetectedFormat;
   version: number | null;
+  /** The export's declared breadth (`standard`/`full`/`backup`) for tiered
+   * exports; `null` when the file predates tiering or does not declare it. */
+  exportType: string | null;
+  /** True when the file carries sensitive entities (computed server-side
+   * from entity names — never the producer's claim alone). */
+  sensitive: boolean;
+  /** Permissions execution requires beyond `data_transfer:import` — for
+   * example `data_transfer:import_sensitive` on a sensitive upload. The
+   * server re-checks regardless of what the client shows. */
+  requiresPermissions: string[];
   exportedAt: string | null;
   sourceEnvironment: string | null;
   applicationVersion: string | null;
@@ -158,4 +176,41 @@ export interface ImportJobStatus {
   progress: JobProgress;
   result?: ImportJobResult;
   error?: string;
+}
+
+// ----- Step-up re-authentication ------------------------------------------
+
+/** `POST data-transfer/step-up` request. `totpCode` is required when the
+ * account has two-factor authentication enabled. */
+export interface StepUpRequest {
+  password: string;
+  totpCode?: string;
+}
+
+/** Short-lived proof of re-authentication, sent as the `X-Step-Up` header on
+ * the gated operation it unlocks (full/backup export, restore execute). */
+export interface StepUpResponse {
+  stepUpToken: string;
+  expiresAt: string;
+}
+
+// ----- Server-backed transfer history --------------------------------------
+
+/** One `GET data-transfer/history` row — an audit event projected for the
+ * transfer page. `details` carries job id/mode/counts, never row data. */
+export interface TransferHistoryEntry {
+  id: number;
+  /** `data_export` | `data_import` | `data_transfer_step_up` |
+   * `data_transfer_step_up_denied`. */
+  action: string;
+  userId: number | null;
+  username: string | null;
+  createdAt: string;
+  details: Record<string, unknown> | null;
+}
+
+/** `GET data-transfer/history` response. */
+export interface TransferHistory {
+  entries: TransferHistoryEntry[];
+  total: number;
 }

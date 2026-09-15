@@ -45,7 +45,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | SMS channel | Not delivered | — | — | Open item; no implementation |
 | Support tickets | Delivered | ✓ `features/support` (`/support`) | ✓ `modules/support` | Incl. guest-portal support widget + WS |
 | Notifications | Delivered | ✓ `features/notifications` (`/notifications` "Guest Deliveries") + topbar bell | ✓ `staff_notifications`, `email_deliveries` | Checkout receipt + pre-arrival reminder triggers |
-| Data transfer (backup/restore) | Delivered | ✓ `features/data-transfer` + `features/admin/components/DataTransferPage` | ✓ `routes/data_transfer.rs` | Versioned `hotel-backup` v3 JSON: streamed export + staged upload→preview→execute→poll import; super-admin imports, credentials/eKYC never exported — see `guides/data-transfer.md` |
+| Data transfer (backup/restore) | Delivered | ✓ `features/data-transfer` + `features/admin/components/DataTransferPage` | ✓ `routes/data_transfer.rs` | Versioned `hotel-backup` v1 JSON: streamed export (standard/full/backup scopes) + staged upload→preview→execute→poll import; dedicated `data_transfer:*` permissions + step-up re-auth; credentials/eKYC never exported — see `guides/data-transfer.md` |
 | System settings | Delivered | ✓ `features/user` (`/settings`) | ✓ `modules/settings` | Timezone drives hotel business day |
 | System health & jobs | Delivered | ✓ `features/admin/system` (`/system-health`, `/jobs`) | ✓ `modules/system`, `core/job_runs.rs` | `/api/system/health`, job-failure feed, `job_runs` records |
 | Help centre | Delivered | ✓ `features/help` (`/help`, `/help/$slug`) | — (content bundles) | |

@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Chip,
   Snackbar,
   ToggleButton,
@@ -16,24 +15,38 @@ import {
   History as HistoryIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
+import { useTranslation } from '../../../i18n';
 import PageHeader from '../../../components/common/PageHeader';
 import ExportPanel from './data-transfer/ExportPanel';
 import ImportWizard from './data-transfer/ImportWizard';
 import TransferHistoryList from './data-transfer/TransferHistoryList';
-import { useTransferHistory } from './data-transfer/useTransferHistory';
+import { useTransferHistoryQuery } from '../hooks/useDataTransferQueries';
+import { mapServerHistoryEntry } from './data-transfer/utils';
 import type { ToastSeverity } from './data-transfer/types';
 
 type Tab = 'export' | 'import' | 'history';
 
 const DataTransferPage: React.FC = () => {
   const theme = useTheme();
-  const { hasPermission, hasRole, user } = useAuth();
+  const { t } = useTranslation('dataTransfer');
+  const { hasPermission } = useAuth();
 
-  // Import clears whole tables and remaps references — the backend restricts it
-  // to `users.is_super_admin`. The seeded admin account carries that flag but
-  // the `admin` role, so check both signals; the flag alone misses nobody who
-  // can actually call the endpoints.
-  const isSuperAdmin = user?.is_super_admin === true || hasRole('super_admin');
+  // Each section maps to its server-enforced permission — the client gates
+  // mirror the API checks, never replace them.
+  const canView = hasPermission('data_transfer:view');
+  const canExport =
+    hasPermission('data_transfer:export') || hasPermission('data_transfer:export_sensitive');
+  const canImport = hasPermission('data_transfer:import');
+
+  const visibleTabs = useMemo(
+    () =>
+      ([
+        canExport ? 'export' : null,
+        canImport ? 'import' : null,
+        'history',
+      ] as const).filter((tab): tab is Tab => tab !== null),
+    [canExport, canImport],
+  );
 
   const [tab, setTab] = useState<Tab>('export');
   const [toast, setToast] = useState<{ open: boolean; msg: string; severity: ToastSeverity }>({
@@ -42,16 +55,36 @@ const DataTransferPage: React.FC = () => {
     severity: 'success',
   });
 
-  const performedBy = user?.full_name || user?.username || 'Unknown user';
-  const { entries, pushEntry } = useTransferHistory(performedBy);
+  const historyQuery = useTransferHistoryQuery(100);
+  const historyEntries = useMemo(
+    () =>
+      (historyQuery.data?.entries ?? []).map((row) =>
+        mapServerHistoryEntry(row, {
+          exportType: (exportType) =>
+            exportType === 'full' || exportType === 'backup'
+              ? t(`history.exportTypes.${exportType}`)
+              : t('history.exportTypes.standard'),
+          reAuth: t('history.reAuth'),
+          reAuthDenied: t('history.reAuthDenied'),
+          importStarted: t('history.importStarted'),
+          entities: (count) => `${count} entities`,
+          unknownUser: 'system',
+        }),
+      ),
+    [historyQuery.data, t],
+  );
 
-  if (!hasPermission('settings:manage')) {
+  if (!canView) {
     return (
       <Box sx={{ p: 3 }}>
-        <Alert severity="warning">You do not have permission to manage data transfer.</Alert>
+        <Alert severity="warning">{t('page.noPermission')}</Alert>
       </Box>
     );
   }
+
+  // Fall back to the first visible tab when a permission the current tab
+  // needed isn't held (e.g. import-only account landing on 'export').
+  const activeTab: Tab = visibleTabs.includes(tab) ? tab : visibleTabs[0];
 
   const notify = (msg: string, severity: ToastSeverity = 'success') =>
     setToast({ open: true, msg, severity });
@@ -64,7 +97,7 @@ const DataTransferPage: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             Data Transfer
             <Chip
-              label="settings:manage"
+              label={t('page.permissionChip')}
               size="small"
               variant="outlined"
               sx={{ height: 22, fontSize: 11, fontWeight: 600, fontFamily: 'monospace' }}
@@ -73,27 +106,15 @@ const DataTransferPage: React.FC = () => {
         }
         subtitle={
           <Box component="span" sx={{ maxWidth: 680, display: 'inline-block' }}>
-            Download a complete business-data backup, or restore one on this server. Imports are staged, previewed,
+            Download a backup of this system's data, or restore one on this server. Imports are staged, previewed,
             and confirmed before any data is written.
           </Box>
         }
-        actions={
-          isSuperAdmin ? (
-            <Button
-              variant="outlined"
-              startIcon={<HistoryIcon />}
-              onClick={() => setTab('history')}
-              sx={{ fontWeight: 700 }}
-            >
-              Transfer history
-            </Button>
-          ) : undefined
-        }
       />
 
-      {isSuperAdmin && (
+      {visibleTabs.length > 1 && (
         <ToggleButtonGroup
-          value={tab}
+          value={activeTab}
           exclusive
           onChange={(_, v) => v && setTab(v)}
           sx={{
@@ -117,34 +138,39 @@ const DataTransferPage: React.FC = () => {
             },
           }}
         >
-          <ToggleButton value="export">
-            <DownloadIcon sx={{ fontSize: 18, mr: 0.75 }} /> Export
-          </ToggleButton>
-          <ToggleButton value="import">
-            <UploadIcon sx={{ fontSize: 18, mr: 0.75 }} /> Import
-          </ToggleButton>
+          {canExport && (
+            <ToggleButton value="export">
+              <DownloadIcon sx={{ fontSize: 18, mr: 0.75 }} /> Export
+            </ToggleButton>
+          )}
+          {canImport && (
+            <ToggleButton value="import">
+              <UploadIcon sx={{ fontSize: 18, mr: 0.75 }} /> Import
+            </ToggleButton>
+          )}
           <ToggleButton value="history">
             <HistoryIcon sx={{ fontSize: 18, mr: 0.75 }} /> History
           </ToggleButton>
         </ToggleButtonGroup>
       )}
 
-      {/* Non-super-admins see the export workflow only — no tab strip. */}
-      {(tab === 'export' || !isSuperAdmin) && <ExportPanel notify={notify} onRecord={pushEntry} />}
-      {isSuperAdmin && tab === 'import' && (
-        <ImportWizard notify={notify} onRecord={pushEntry} onFinished={() => setTab('history')} />
+      {activeTab === 'export' && canExport && <ExportPanel notify={notify} />}
+      {activeTab === 'import' && canImport && (
+        <ImportWizard notify={notify} onFinished={() => setTab('history')} />
       )}
-      {isSuperAdmin && tab === 'history' && <TransferHistoryList entries={entries} />}
+      {activeTab === 'history' && (
+        <TransferHistoryList entries={historyEntries} loading={historyQuery.isLoading} />
+      )}
 
       <Snackbar
         open={toast.open}
         autoHideDuration={3800}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
+        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         sx={{ top: { xs: 72, sm: 88 } }}
       >
         <Alert
-          onClose={() => setToast((t) => ({ ...t, open: false }))}
+          onClose={() => setToast((prev) => ({ ...prev, open: false }))}
           severity={toast.severity}
           variant="filled"
           sx={{ borderRadius: 2 }}

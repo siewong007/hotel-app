@@ -16,6 +16,8 @@ pub mod data_transfer;
 // Import staging/jobs for data transfer — kept in a sibling file so
 // data_transfer.rs does not grow past its maintainable size.
 pub mod data_transfer_jobs;
+// Step-up re-authentication for privileged data-transfer operations.
+pub mod data_transfer_step_up;
 // eKYC service logic lives in modules::ekyc.
 pub mod google_identity;
 pub mod guest_portal;

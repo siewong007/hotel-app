@@ -385,6 +385,9 @@
     "/api/data-transfer/export/preview": {
       "GET": {}
     },
+    "/api/data-transfer/history": {
+      "GET": {}
+    },
     "/api/data-transfer/import/execute": {
       "POST": {}
     },
@@ -399,6 +402,9 @@
     },
     "/api/data-transfer/import/uploads/{upload_id}": {
       "DELETE": {}
+    },
+    "/api/data-transfer/step-up": {
+      "POST": {}
     },
     "/api/ekyc/admin/applications": {
       "GET": {},

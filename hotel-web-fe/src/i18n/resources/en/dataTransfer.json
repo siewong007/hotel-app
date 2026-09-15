@@ -1,0 +1,64 @@
+{
+  "page": {
+    "noPermission": "You do not have permission to access data transfer.",
+    "permissionChip": "data_transfer:view"
+  },
+  "export": {
+    "standard": {
+      "title": "Standard export",
+      "description": "Operational and configuration data only — rooms, rate plans, promotions, loyalty programmes, settings. Guest, booking, payment, and staff records are excluded.",
+      "tagline": "Routine transfer between environments"
+    },
+    "full": {
+      "title": "Full export",
+      "restriction": "Restricted",
+      "description": "Every transferable entity including sensitive business data — guests, bookings, payments, ledgers, staff and operational history.",
+      "tagline": "Confidential — contains guest and financial data"
+    },
+    "backup": {
+      "title": "Full system backup",
+      "restriction": "Highly restricted",
+      "description": "The complete transferable dataset plus relationship metadata, in a migration-ready format. Use for disaster recovery or moving to a new server.",
+      "tagline": "Confidential — the whole dataset with FK metadata"
+    },
+    "secretsExcluded": "Passwords, sessions, tokens, passkeys, and other secrets are never included in any export.",
+    "sensitiveConfirmTitle": "This export contains confidential data",
+    "sensitiveConfirmBody": "The file includes guest profiles, bookings, payments, and operational records. Store it securely and share it only through approved channels.",
+    "sensitiveConfirmAck": "I understand this file contains confidential data and must be handled securely.",
+    "stepUpRequired": "Re-authentication required",
+    "missingPermission": "Requires {{permission}}",
+    "preview": "Preview counts",
+    "download": "Download",
+    "previewScope": "{{scope}} export contents",
+    "neverIncluded": "Never included — {{count}} protected tables"
+  },
+  "stepUp": {
+    "title": "Confirm your identity",
+    "description": "This is a privileged operation. Re-enter your credentials to continue — verification is valid for 2 minutes and bound to this session.",
+    "password": "Password",
+    "totp": "Two-factor code",
+    "totpHint": "Required if your account has two-factor authentication enabled.",
+    "confirm": "Verify & continue",
+    "verifying": "Verifying…"
+  },
+  "import": {
+    "sensitiveTitle": "This file contains sensitive data",
+    "sensitiveWarning": "This file contains sensitive business data — guest, booking, payment, or staff records. Importing it requires the data_transfer:import_sensitive permission.",
+    "missingTitle": "Additional permission required",
+    "missingPermissions": "Your account cannot run this import — it requires: {{permissions}}",
+    "restoreRequiresPermission": "Restore requires the data_transfer:restore permission and re-authentication.",
+    "updateRequiresPermission": "Requires data_transfer:override",
+    "restoreStepUp": "Restore requires re-authentication — verify your identity to continue."
+  },
+  "history": {
+    "serverBacked": "Every export, import, and re-authentication on this server is recorded in the audit log.",
+    "reAuth": "Re-authentication",
+    "reAuthDenied": "Re-authentication denied",
+    "importStarted": "Import started",
+    "exportTypes": {
+      "standard": "Standard export",
+      "full": "Full export",
+      "backup": "Full system backup"
+    }
+  }
+}

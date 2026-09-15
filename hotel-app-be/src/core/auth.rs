@@ -47,6 +47,12 @@ pub struct ActiveSessionRecord {
 }
 
 const ACCESS_TOKEN_TTL_MINUTES: i64 = 30;
+/// `aud` claim pinned on step-up tokens — they prove recent re-authentication
+/// for a single privileged operation and are never accepted as access tokens.
+const STEP_UP_AUDIENCE: &str = "data-transfer-step-up";
+/// Step-up lifetime: long enough to cover the confirm dialog + file picker,
+/// short enough that "re-authenticated recently" stays meaningful.
+const STEP_UP_TTL_SECS: i64 = 120;
 static JWT_SECRET: OnceLock<String> = OnceLock::new();
 
 fn jwt_secret() -> &'static str {
@@ -282,6 +288,55 @@ impl AuthService {
             token,
             &DecodingKey::from_secret(jwt_secret().as_ref()),
             &jwt_validation(is_desktop_mode()),
+        )
+        .map(|data| data.claims)
+    }
+
+    /// Mint a short-lived step-up token proving recent re-authentication for
+    /// one privileged operation (full/backup data export, restore import).
+    /// The token carries the dedicated [`STEP_UP_AUDIENCE`] so it is useless
+    /// as an access token, is bound to the caller's refresh session (`sid`),
+    /// and always expires — desktop mode never disables this expiry.
+    pub fn issue_step_up_token(
+        user_id: i64,
+        username: String,
+        session_id: Option<String>,
+    ) -> Result<String, jsonwebtoken::errors::Error> {
+        let now = Utc::now();
+        let claims = Claims {
+            sub: user_id.to_string(),
+            username,
+            iss: config::try_get()
+                .map(|config| config.jwt_issuer.clone())
+                .unwrap_or_else(|| "hotel-app-be".to_string()),
+            aud: STEP_UP_AUDIENCE.to_string(),
+            exp: Some((now + Duration::seconds(STEP_UP_TTL_SECS)).timestamp() as usize),
+            iat: now.timestamp() as usize,
+            roles: Vec::new(),
+            sid: session_id,
+        };
+        encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(jwt_secret().as_ref()),
+        )
+    }
+
+    /// Verify a step-up token: signature, expiry, and the pinned step-up
+    /// audience. Returns the claims so the caller can compare `sub` and `sid`
+    /// against the live session token — audience alone does not prove the
+    /// token belongs to this user.
+    pub fn verify_step_up_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
+        let mut validation = Validation::default();
+        let issuer = config::try_get()
+            .map(|config| config.jwt_issuer.clone())
+            .unwrap_or_else(|| "hotel-app-be".to_string());
+        validation.set_issuer(&[issuer]);
+        validation.set_audience(&[STEP_UP_AUDIENCE]);
+        decode::<Claims>(
+            token,
+            &DecodingKey::from_secret(jwt_secret().as_ref()),
+            &validation,
         )
         .map(|data| data.claims)
     }

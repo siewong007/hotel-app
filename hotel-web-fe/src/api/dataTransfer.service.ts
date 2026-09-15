@@ -5,9 +5,13 @@ import type {
   BackupImportMode,
   ConflictPolicy,
   ExportPreview,
+  ExportScope,
   ImportExecuteResponse,
   ImportJobStatus,
   ImportPreview,
+  StepUpRequest,
+  StepUpResponse,
+  TransferHistory,
   UploadResponse,
 } from '../types';
 
@@ -44,11 +48,20 @@ function filenameFromDisposition(disposition: string | null): string {
   return plain?.[1]?.trim() || fallback;
 }
 
+/** Header carrying the step-up token on gated operations — mirrors
+ * `STEP_UP_HEADER` in `services/data_transfer_step_up.rs`. */
+const stepUpHeaders = (stepUpToken?: string) =>
+  stepUpToken ? { 'X-Step-Up': stepUpToken } : {};
+
 export class DataTransferService {
-  static async previewExport(): Promise<ExportPreview> {
+  static async previewExport(scope: ExportScope = 'standard'): Promise<ExportPreview> {
     try {
       return await api
-        .get('data-transfer/export/preview', { timeout: false, headers: SKIP_NOTIFICATION })
+        .get('data-transfer/export/preview', {
+          timeout: false,
+          headers: SKIP_NOTIFICATION,
+          searchParams: { scope },
+        })
         .json<ExportPreview>();
     } catch (error) {
       throw toApiError(error, 'Failed to preview export data');
@@ -58,13 +71,15 @@ export class DataTransferService {
   /**
    * Streamed `hotel-backup` download — the response is read as a Blob (never
    * `.json()`, which would buffer the whole backup as text), then saved via an
-   * object-URL anchor so the browser handles the file write.
+   * object-URL anchor so the browser handles the file write. `full`/`backup`
+   * scopes need a fresh `stepUpToken` from `stepUp`.
    */
-  static async exportData(): Promise<ExportDownload> {
+  static async exportData(scope: ExportScope = 'standard', stepUpToken?: string): Promise<ExportDownload> {
     try {
       const response = await api.get('data-transfer/export', {
         timeout: false,
-        headers: SKIP_NOTIFICATION,
+        headers: { ...SKIP_NOTIFICATION, ...stepUpHeaders(stepUpToken) },
+        searchParams: { scope },
       });
       const blob = await response.blob();
       const filename = filenameFromDisposition(response.headers.get('content-disposition'));
@@ -120,18 +135,54 @@ export class DataTransferService {
     }
   }
 
-  /** Start an import job for a staged upload — resolves to `202 {jobId}`. */
-  static async executeImport(input: {
-    uploadId: string;
-    mode: BackupImportMode;
-    onConflict?: ConflictPolicy;
-    tables?: string[];
-  }): Promise<ImportExecuteResponse> {
+  /**
+   * Re-authenticate for a privileged operation (full/backup export, restore).
+   * Returns a ~2-minute token bound to the current session — send it as
+   * `X-Step-Up` on the gated call that follows.
+   */
+  static async stepUp(input: StepUpRequest): Promise<StepUpResponse> {
+    try {
+      return await api
+        .post('data-transfer/step-up', {
+          json: input,
+          headers: SKIP_NOTIFICATION,
+        })
+        .json<StepUpResponse>();
+    } catch (error) {
+      throw toApiError(error, 'Verification failed — check your credentials and try again');
+    }
+  }
+
+  /** Audited export/import activity for the transfer-history panel. */
+  static async transferHistory(limit = 100): Promise<TransferHistory> {
+    try {
+      return await api
+        .get('data-transfer/history', {
+          headers: SKIP_NOTIFICATION,
+          searchParams: { limit },
+        })
+        .json<TransferHistory>();
+    } catch (error) {
+      throw toApiError(error, 'Failed to load transfer history');
+    }
+  }
+
+  /** Start an import job for a staged upload — resolves to `202 {jobId}`.
+   * `mode: 'restore'` additionally needs a fresh `stepUpToken`. */
+  static async executeImport(
+    input: {
+      uploadId: string;
+      mode: BackupImportMode;
+      onConflict?: ConflictPolicy;
+      tables?: string[];
+    },
+    stepUpToken?: string,
+  ): Promise<ImportExecuteResponse> {
     try {
       return await api
         .post('data-transfer/import/execute', {
           json: { ...input, confirm: true },
-          headers: SKIP_NOTIFICATION,
+          headers: { ...SKIP_NOTIFICATION, ...stepUpHeaders(stepUpToken) },
         })
         .json<ImportExecuteResponse>();
     } catch (error) {

@@ -16,12 +16,14 @@
 
 import enAuth from './en/auth.json';
 import enCommon from './en/common.json';
+import enDataTransfer from './en/dataTransfer.json';
 import enErrors from './en/errors.json';
 import enGuestPortal from './en/guestPortal.json';
 import enHelp from './en/help.json';
 import enNav from './en/nav.json';
 import msAuth from './ms/auth.json';
 import msCommon from './ms/common.json';
+import msDataTransfer from './ms/dataTransfer.json';
 import msErrors from './ms/errors.json';
 import msGuestPortal from './ms/guestPortal.json';
 import msHelp from './ms/help.json';
@@ -36,6 +38,7 @@ export type Namespace = keyof typeof enResources;
 const enResources = {
   auth: enAuth as TranslationBundle,
   common: enCommon as TranslationBundle,
+  dataTransfer: enDataTransfer as TranslationBundle,
   errors: enErrors as TranslationBundle,
   guestPortal: enGuestPortal as TranslationBundle,
   help: enHelp as TranslationBundle,
@@ -45,6 +48,7 @@ const enResources = {
 const msResources = {
   auth: msAuth as TranslationBundle,
   common: msCommon as TranslationBundle,
+  dataTransfer: msDataTransfer as TranslationBundle,
   errors: msErrors as TranslationBundle,
   guestPortal: msGuestPortal as TranslationBundle,
   help: msHelp as TranslationBundle,

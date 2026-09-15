@@ -24,7 +24,7 @@ files > tests > docs. Documentation never overrides the implementation.
 | Dependency rationale | [`DEPENDENCIES.md`](DEPENDENCIES.md) |
 | Design tokens and UI rules | [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) |
 | Deployment, patching, backup/restore | [`guides/deployment.md`](guides/deployment.md) |
-| Data transfer (hotel-backup v3) | [`guides/data-transfer.md`](guides/data-transfer.md) |
+| Data transfer (hotel-backup v1) | [`guides/data-transfer.md`](guides/data-transfer.md) |
 | i18n engine and adding languages | [`guides/internationalization.md`](guides/internationalization.md) |
 | VPS/production host access | [`guides/vps-access.md`](guides/vps-access.md) |
 | Staging environment | [`staging.md`](staging.md) |

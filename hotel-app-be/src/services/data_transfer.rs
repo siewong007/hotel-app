@@ -3,27 +3,24 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use axum::body::{Body, Bytes};
-use serde_json::Value;
 use uuid::Uuid;
 
-use crate::constants::ImportMode;
 use crate::core::config::Environment;
-use crate::core::db::{DbPool, DbTransaction};
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    BackupEntityDescriptor, BackupExclusion, BackupIntegrity, BackupManifest, BackupSource,
-    BookingDataExport, ConflictPolicy, ExportPreview, TransferTablePreview,
+    BackupEntityDescriptor, BackupExclusion, BackupIntegrity, BackupManifest, BackupRelationship,
+    BackupSource, ExportPreview, ExportScope, TransferTablePreview,
 };
 use crate::repositories::data_transfer::{
-    DataTransferRepository, ImportRowPolicy, QualifiedTable, TransferTable,
+    DataTransferRepository, QualifiedTable, TransferTable,
 };
 
 /// Every transferable table in foreign-key-safe **insert** order (parents
-/// before children). Clearing for overwrite walks this in reverse. This is the
-/// single source of truth — the export struct, the import row loop, the
-/// overwrite clear, and column introspection all derive from it. The v2/v3
-/// insert order itself comes from `transfer_order` over live FK metadata; this
-/// constant's order still governs the V1 legacy path.
+/// before children). Clearing for restore walks this in reverse. This is the
+/// single source of truth — the export entity set, the import allowlist, and
+/// column introspection all derive from it; the import's actual order comes
+/// from `transfer_order` over live FK metadata.
 pub const TABLE_INSERT_ORDER: &[&str] = &[
     // configuration / roots
     "amenities",
@@ -111,8 +108,88 @@ pub const TABLE_INSERT_ORDER: &[&str] = &[
     "user_guests",
 ];
 
+/// Transferable tables carrying sensitive business data — guest PII,
+/// financial movements, staff records, and operational history. Everything
+/// in [`TABLE_INSERT_ORDER`] not listed here is configuration/reference data
+/// that a `standard` export may emit; anything listed here requires the
+/// `full`/`backup` scopes (and `data_transfer:export_sensitive`).
+///
+/// The list is deliberately explicit rather than derived from name prefixes:
+/// classification is a per-table decision, and an explicit list fails loudly
+/// (via the subset test) when a new transferable table is added without a
+/// sensitivity call being made.
+pub const SENSITIVE_TABLES: &[&str] = &[
+    // guest identity, contact, and derived state
+    "guests",
+    "guest_segments",
+    "guest_documents",
+    "guest_notes",
+    "guest_preferences",
+    "guest_complimentary_credits",
+    "guest_reviews",
+    "user_guests",
+    "email_suppressions",
+    "consent_records",
+    // corporate billing accounts and their contacts
+    "companies",
+    "corporate_accounts",
+    "corporate_account_contacts",
+    // bookings and everything hanging off them
+    "bookings",
+    "booking_guests",
+    "booking_history",
+    "booking_modifications",
+    "booking_services",
+    "self_checkin_events",
+    // payments, ledgers, invoicing
+    "payments",
+    "payment_receipt_requests",
+    "invoices",
+    "customer_ledgers",
+    "customer_ledger_payments",
+    "voucher_redemptions",
+    "voucher_redemption_allocations",
+    // loyalty accounts and movement history
+    "loyalty_memberships",
+    "loyalty_members",
+    "loyalty_accounts",
+    "loyalty_transactions",
+    "loyalty_redemptions",
+    "reward_redemptions",
+    "points_transactions",
+    // operational history and staff-linked records
+    "housekeeping_tasks",
+    "maintenance_tickets",
+    "night_audit_runs",
+    "night_audit_details",
+    "night_audit_posted_nights",
+    "room_events",
+    "room_changes",
+    "room_history",
+    "room_status_change_log",
+    "support_conversations",
+    "support_messages",
+    "support_events",
+    "teams",
+    "team_members",
+    // notification and marketing send state tied to people
+    "notification_subscriptions",
+    "notification_consent_events",
+    "staff_notifications",
+    "staff_notification_reads",
+    "email_campaigns",
+    "online_inventory_allocations",
+];
+
+/// Whether a qualified (`public.guests`) or bare (`guests`) table name is in
+/// [`SENSITIVE_TABLES`].
+pub fn table_is_sensitive(name_or_key: &str) -> bool {
+    let bare = name_or_key.rsplit('.').next().unwrap_or(name_or_key);
+    SENSITIVE_TABLES.contains(&bare)
+}
+
 /// Schema tables that must never cross the export/import boundary, as
-/// `name → reason` pairs. This is the source of truth for the v3 manifest's
+/// `name → reason` pairs. This is the source of truth for the manifest's
 /// `exclusions` list: every table `transfer_tables()` can see that is not in
 /// [`TABLE_INSERT_ORDER`] must appear here — nothing is silently omitted.
 ///
@@ -206,52 +283,19 @@ const ALL_IMPORT_TABLES: &[&str] = TABLE_INSERT_ORDER;
 /// True when a `schema.name` transfer-table key may cross the export/import
 /// boundary. Only `public` business-data tables may move: `users`, `roles`,
 /// `refresh_tokens`, session and audit tables carry credentials and grant
-/// state, so exporting them would hand a `settings:manage` holder every
-/// password hash and TOTP seed, and importing them could plant a forged
-/// `is_super_admin` account.
+/// state, so exporting them would hand a `data_transfer:export_sensitive`
+/// holder every password hash and TOTP seed, and importing them could plant a
+/// forged `is_super_admin` account.
 pub(crate) fn is_transferable_key(key: &str) -> bool {
     QualifiedTable::parse(key)
         .map(|table| table.schema == "public" && ALL_IMPORT_TABLES.contains(&table.name.as_str()))
         .unwrap_or(false)
 }
 
-/// Tables keyed by a composite primary key (no serial `id`): excluded from
-/// sequence resets, and exported with an explicit key order.
-const COMPOSITE_PK_TABLES: &[&str] = &[
-    "room_type_amenities",
-    "room_status_transitions",
-    "promotion_room_types",
-    "promotion_channels",
-    "promotion_loyalty_tiers",
-    "online_inventory_allocations",
-    "team_members",
-    "team_roles",
-    "staff_notification_reads",
-];
-
-const TABLES_WITH_TRIGGERS: &[&str] = &[
-    "bookings",
-    "rooms",
-    "guests",
-    "customer_ledgers",
-    "payments",
-];
-
-const ROOM_REFERENCE_COLUMNS: &[(&str, &[&str])] = &[
-    ("bookings", &["room_id"]),
-    ("room_history", &["room_id"]),
-    ("housekeeping_tasks", &["room_id"]),
-    ("maintenance_tickets", &["room_id"]),
-    ("room_changes", &["from_room_id", "to_room_id"]),
-    ("room_status_change_log", &["room_id"]),
-];
-
 /// User-FK columns that record *who caused* a row rather than *what the row
 /// belongs to*. On import, a missing user in one of these remaps to the
 /// importing admin instead of nulling or dropping the row — the attribution
-/// survives the fact that the original account cannot. `pub(crate)` so the
-/// upload/preview/execute pipeline (`data_transfer_jobs`) applies the same
-/// list the V1 legacy path does.
+/// survives the fact that the original account cannot.
 pub(crate) const AUDIT_USER_FK_COLUMNS: &[&str] = &[
     "created_by",
     "updated_by",
@@ -285,77 +329,12 @@ pub(crate) const AUDIT_USER_FK_COLUMNS: &[&str] = &[
     "reversed_by",
 ];
 
-/// Child -> parent relationships where deleting the parent either deletes the
-/// child too (`CASCADE`) or is blocked until the child is removed
-/// (`NO ACTION`/`RESTRICT`). Overwrite expands through this graph so old export
-/// files that predate newer dependent tables can still clear a selected parent
-/// without hitting FK violations mid-transaction.
-const OVERWRITE_DELETE_DEPENDENCIES: &[(&str, &str)] = &[
-    ("rooms", "room_types"),
-    ("bookings", "companies"),
-    ("bookings", "guests"),
-    ("bookings", "rooms"),
-    ("bookings", "booking_channels"),
-    ("promotion_room_types", "promotions"),
-    ("promotion_room_types", "room_types"),
-    ("vouchers", "promotions"),
-    ("vouchers", "guests"),
-    ("voucher_redemptions", "vouchers"),
-    ("voucher_redemptions", "promotions"),
-    ("voucher_redemptions", "bookings"),
-    ("voucher_redemptions", "guests"),
-    ("voucher_redemption_allocations", "voucher_redemptions"),
-    ("voucher_redemption_allocations", "bookings"),
-    ("booking_guests", "bookings"),
-    ("booking_modifications", "bookings"),
-    ("booking_history", "bookings"),
-    ("payments", "bookings"),
-    ("invoices", "bookings"),
-    ("customer_ledger_payments", "customer_ledgers"),
-    ("night_audit_details", "night_audit_runs"),
-    ("room_changes", "bookings"),
-    ("room_changes", "rooms"),
-    ("user_guests", "guests"),
-    ("guest_complimentary_credits", "guests"),
-    ("guest_complimentary_credits", "room_types"),
-    ("room_rates", "rate_plans"),
-    ("room_rates", "room_types"),
-    ("room_type_amenities", "amenities"),
-    ("room_type_amenities", "room_types"),
-    ("loyalty_tiers", "loyalty_programs"),
-    ("loyalty_memberships", "guests"),
-    ("loyalty_memberships", "loyalty_programs"),
-    ("loyalty_memberships", "loyalty_tiers"),
-    ("points_transactions", "loyalty_memberships"),
-    ("reward_catalog", "loyalty_programs"),
-    ("reward_redemptions", "loyalty_memberships"),
-    ("reward_redemptions", "reward_catalog"),
-    ("corporate_account_contacts", "corporate_accounts"),
-    ("booking_services", "bookings"),
-    ("booking_services", "services"),
-    ("room_history", "rooms"),
-    ("room_status_change_log", "rooms"),
-    ("loyalty_members", "guests"),
-    ("loyalty_accounts", "loyalty_members"),
-    ("loyalty_accounts", "loyalty_tiers"),
-    ("loyalty_rewards", "loyalty_tiers"),
-    ("loyalty_transactions", "loyalty_members"),
-    ("loyalty_transactions", "loyalty_accounts"),
-    ("loyalty_redemptions", "loyalty_members"),
-    ("loyalty_redemptions", "loyalty_rewards"),
-    ("loyalty_redemptions", "loyalty_transactions"),
-    ("housekeeping_tasks", "rooms"),
-    ("guest_documents", "guests"),
-    ("guest_notes", "guests"),
-    ("guest_preferences", "guests"),
-    ("guest_reviews", "guests"),
-    ("self_checkin_events", "bookings"),
-    ("night_audit_posted_nights", "bookings"),
-];
-
-pub async fn preview_export_counts(pool: &DbPool) -> Result<ExportPreview, ApiError> {
-    let tables = transferable_export_tables(pool).await?;
-    let manifest = build_backup_manifest(&tables)?;
+pub async fn preview_export_counts(
+    pool: &DbPool,
+    scope: ExportScope,
+) -> Result<ExportPreview, ApiError> {
+    let tables = transferable_export_tables(pool, scope).await?;
+    let manifest = build_backup_manifest(&tables, scope)?;
 
     let mut counts = HashMap::new();
     let mut total_records = 0_i64;
@@ -390,14 +369,19 @@ pub async fn preview_export_counts(pool: &DbPool) -> Result<ExportPreview, ApiEr
 /// to the body before the next fetch.
 const EXPORT_CURSOR_BATCH: i64 = 500;
 
-/// The transferable tables in the order the v3 document emits them —
+/// The transferable tables in the order the backup document emits them —
 /// alphabetical by schema-qualified key, matching the previous `BTreeMap`
-/// serialization order.
-async fn transferable_export_tables(pool: &DbPool) -> Result<Vec<TransferTable>, ApiError> {
+/// serialization order. `ExportScope::Standard` drops every
+/// [`SENSITIVE_TABLES`] entry; `full` and `backup` emit the complete set.
+async fn transferable_export_tables(
+    pool: &DbPool,
+    scope: ExportScope,
+) -> Result<Vec<TransferTable>, ApiError> {
     let mut tables: Vec<TransferTable> = DataTransferRepository::transfer_tables(pool)
         .await?
         .into_iter()
         .filter(|table| is_transferable_key(&table.table.key()))
+        .filter(|table| scope.includes_sensitive() || !table_is_sensitive(&table.table.name))
         .collect();
     tables.sort_by_key(|table| table.table.key());
     Ok(tables)
@@ -420,12 +404,20 @@ fn environment_name(environment: Environment) -> &'static str {
     }
 }
 
-/// The `manifest` block of a v3 export: one entity descriptor per
-/// transferable table (name, primary key, exported columns — no row counts;
-/// those land in `integrity`) plus every [`EXCLUDED_TABLES`] entry so nothing
-/// is silently omitted. `tables` must be the export's sorted list so the
-/// manifest order matches the `tables` payload order.
-fn build_backup_manifest(tables: &[TransferTable]) -> Result<BackupManifest, ApiError> {
+/// The `manifest` block of an export: one entity descriptor per emitted
+/// table (name, primary key, exported columns — no row counts; those land in
+/// `integrity`) plus every [`EXCLUDED_TABLES`] entry so nothing is silently
+/// omitted. `tables` must be the export's sorted list so the manifest order
+/// matches the `tables` payload order.
+///
+/// Standard exports additionally record `omitted` — the sensitive entity
+/// names left out (names only, never rows). `backup` exports also record
+/// `relationships`, but that needs the schema so the header builder fills it
+/// in — this function stays synchronous for tests.
+fn build_backup_manifest(
+    tables: &[TransferTable],
+    scope: ExportScope,
+) -> Result<BackupManifest, ApiError> {
     let entities = tables
         .iter()
         .map(|table| BackupEntityDescriptor {
@@ -448,32 +440,96 @@ fn build_backup_manifest(tables: &[TransferTable]) -> Result<BackupManifest, Api
         });
     }
 
+    let omitted = if scope.includes_sensitive() {
+        None
+    } else {
+        // Name-only record of the sensitive entities a standard export skips —
+        // catalog names, so the file explains its own coverage without
+        // leaking row data.
+        let emitted: HashSet<&str> =
+            tables.iter().map(|table| table.table.name.as_str()).collect();
+        Some(
+            SENSITIVE_TABLES
+                .iter()
+                .filter(|name| !emitted.contains(**name))
+                .map(|name| format!("public.{name}"))
+                .collect(),
+        )
+    };
+
     Ok(BackupManifest {
         entities,
         exclusions,
+        omitted,
+        relationships: None,
     })
 }
 
-/// Everything a v3 document emits before the streamed `tables` payload.
+/// Column-level FK edges between emitted entities — `backup` scope only.
+/// References to excluded parents (users, ekyc_*) are an import-time concern,
+/// not something a backup file should map.
+async fn backup_relationships(
+    pool: &DbPool,
+    tables: &[TransferTable],
+) -> Result<Vec<BackupRelationship>, ApiError> {
+    let children: Vec<QualifiedTable> =
+        tables.iter().map(|table| table.table.clone()).collect();
+    let emitted_keys: HashSet<String> =
+        tables.iter().map(|table| table.table.key()).collect();
+    let edges = DataTransferRepository::foreign_key_refs(pool, &children).await?;
+    Ok(edges
+        .into_iter()
+        .filter(|edge| emitted_keys.contains(&edge.parent.key()))
+        .map(|edge| BackupRelationship {
+            table: edge.child.key(),
+            column: edge.column,
+            references_table: edge.parent.key(),
+            references_column: edge.parent_column,
+        })
+        .collect())
+}
+
+/// Everything a backup document emits before the streamed `tables` payload.
 /// `export_id` identifies this exact file — it also lands on the audit row so
-/// a download can be tied to its event.
+/// a download can be tied to its event. `export_type` and
+/// `includes_sensitive_data` describe the tier; `includes_secrets` is always
+/// `false` — credentials never leave the database at any scope.
 struct ExportHeader {
     export_id: Uuid,
     exported_at: String,
+    export_type: &'static str,
+    includes_sensitive_data: bool,
     source: BackupSource,
     manifest: BackupManifest,
 }
 
-fn build_export_header(tables: &[TransferTable]) -> Result<ExportHeader, ApiError> {
+fn build_export_header_inner(
+    tables: &[TransferTable],
+    scope: ExportScope,
+) -> Result<ExportHeader, ApiError> {
     Ok(ExportHeader {
         export_id: Uuid::new_v4(),
         exported_at: chrono::Utc::now().to_rfc3339(),
+        export_type: scope.label(),
+        includes_sensitive_data: scope.includes_sensitive(),
         source: BackupSource {
             environment: backup_environment(),
             database_provider: "postgresql".to_string(),
         },
-        manifest: build_backup_manifest(tables)?,
+        manifest: build_backup_manifest(tables, scope)?,
     })
+}
+
+async fn build_export_header(
+    pool: &DbPool,
+    tables: &[TransferTable],
+    scope: ExportScope,
+) -> Result<ExportHeader, ApiError> {
+    let mut header = build_export_header_inner(tables, scope)?;
+    if scope == ExportScope::Backup {
+        header.manifest.relationships = Some(backup_relationships(pool, tables).await?);
+    }
+    Ok(header)
 }
 
 /// `{"format":"hotel-backup",…,"tables":{` — the document through the opening
@@ -492,7 +548,10 @@ fn export_doc_prefix(header: &ExportHeader) -> Result<String, ApiError> {
     let manifest = serde_json::to_string(&header.manifest)
         .map_err(|error| ApiError::Internal(error.to_string()))?;
     Ok(format!(
-        "{{\"format\":\"hotel-backup\",\"version\":3,\"kind\":\"business-data\",\"exportId\":{export_id},\"exportedAt\":{exported_at},\"applicationVersion\":{application_version},\"source\":{source},\"manifest\":{manifest},\"tables\":{{"
+        "{{\"format\":\"hotel-backup\",\"version\":1,\"kind\":\"business-data\",\"exportType\":{},\"includesSensitiveData\":{},\"includesSecrets\":false,\"exportId\":{export_id},\"exportedAt\":{exported_at},\"applicationVersion\":{application_version},\"source\":{source},\"manifest\":{manifest},\"tables\":{{",
+        serde_json::to_string(header.export_type)
+            .map_err(|error| ApiError::Internal(error.to_string()))?,
+        header.includes_sensitive_data,
     ))
 }
 
@@ -504,7 +563,7 @@ fn export_doc_suffix(integrity: &BackupIntegrity) -> Result<String, ApiError> {
     Ok(format!("}},\"integrity\":{integrity}}}"))
 }
 
-/// The shared export generator: emits the v3 `hotel-backup` document as a
+/// The shared export generator: emits the `hotel-backup` document as a
 /// bounded byte stream — header and manifest first, then each table's rows
 /// through a SQL cursor, then the `integrity` trailer with the counts
 /// actually written.
@@ -518,11 +577,12 @@ fn export_doc_suffix(integrity: &BackupIntegrity) -> Result<String, ApiError> {
 fn stream_export(
     pool: DbPool,
     tables: Vec<TransferTable>,
+    scope: ExportScope,
     audit_user_id: Option<i64>,
 ) -> futures_core::stream::BoxStream<'static, Result<Bytes, ApiError>> {
     Box::pin(async_stream::try_stream! {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        let header = build_export_header(&tables)?;
+        let header = build_export_header(&pool, &tables, scope).await?;
         yield Bytes::from(export_doc_prefix(&header)?);
 
         let mut entity_rows: BTreeMap<String, u64> = BTreeMap::new();
@@ -581,6 +641,8 @@ fn stream_export(
                     resource_type: "data_transfer",
                     details: Some(serde_json::json!({
                         "export_id": header.export_id.to_string(),
+                        "export_type": header.export_type,
+                        "includes_sensitive_data": header.includes_sensitive_data,
                         "table_count": tables.len(),
                         "record_count": record_count,
                     })),
@@ -598,21 +660,26 @@ fn stream_export(
 /// serialized it in one shot — behind Cloudflare the request produced no
 /// bytes for the duration of the dump, so large exports surfaced as "the
 /// origin returned an invalid or incomplete response", and peak RSS scaled
-/// with database size. [`stream_export`] emits the v3 `hotel-backup`
+/// with database size. [`stream_export`] emits the `hotel-backup`
 /// document: the header and manifest go out immediately, then each table's
 /// rows are pulled through a SQL cursor and written in bounded batches, and
 /// the `integrity` trailer closes the document so a truncated download is
 /// detectable.
-pub async fn export_booking_data_body(pool: &DbPool, user_id: i64) -> Result<Body, ApiError> {
-    let tables = transferable_export_tables(pool).await?;
+pub async fn export_booking_data_body(
+    pool: &DbPool,
+    user_id: i64,
+    scope: ExportScope,
+) -> Result<Body, ApiError> {
+    let tables = transferable_export_tables(pool, scope).await?;
     Ok(Body::from_stream(stream_export(
         pool.clone(),
         tables,
+        scope,
         Some(user_id),
     )))
 }
 
-/// Collect a full export into one in-memory v3 document.
+/// Collect a full export into one in-memory document.
 ///
 /// Test-only counterpart to [`export_booking_data_body`]: it buffers the
 /// output of the same [`stream_export`] generator, so the streamed and
@@ -621,257 +688,15 @@ pub async fn export_booking_data_body(pool: &DbPool, user_id: i64) -> Result<Bod
 /// rest byte for byte. Never wire this to a handler: buffering is exactly
 /// what the streamed path exists to avoid.
 #[allow(dead_code)] // used by tests/data_transfer_export.rs
-pub async fn export_booking_data(pool: &DbPool) -> Result<String, ApiError> {
-    let tables = transferable_export_tables(pool).await?;
-    let body = Body::from_stream(stream_export(pool.clone(), tables, None));
+pub async fn export_booking_data(pool: &DbPool, scope: ExportScope) -> Result<String, ApiError> {
+    let tables = transferable_export_tables(pool, scope).await?;
+    let body = Body::from_stream(stream_export(pool.clone(), tables, scope, None));
     let bytes = axum::body::to_bytes(body, usize::MAX)
         .await
         .map_err(|error| ApiError::Internal(error.to_string()))?;
     String::from_utf8(bytes.to_vec()).map_err(|error| ApiError::Internal(error.to_string()))
 }
 
-/// The `(table, rows)` pairs a `BookingDataExport` carries, in foreign-key-safe
-/// insert order. The legacy import loop and the v1 preview both derive from
-/// this so the two can never disagree about which struct field maps to which
-/// table.
-pub(crate) fn legacy_tables_and_data(data: &BookingDataExport) -> Vec<(&'static str, &[Value])> {
-    vec![
-        ("amenities", &data.amenities),
-        ("booking_channels", &data.booking_channels),
-        ("companies", &data.companies),
-        ("corporate_accounts", &data.corporate_accounts),
-        (
-            "corporate_account_contacts",
-            &data.corporate_account_contacts,
-        ),
-        ("email_templates", &data.email_templates),
-        ("guests", &data.guests),
-        ("promotions", &data.promotions),
-        ("vouchers", &data.vouchers),
-        ("guest_documents", &data.guest_documents),
-        ("guest_notes", &data.guest_notes),
-        ("guest_preferences", &data.guest_preferences),
-        ("loyalty_programs", &data.loyalty_programs),
-        ("loyalty_program_rules", &data.loyalty_program_rules),
-        ("loyalty_tiers", &data.loyalty_tiers),
-        ("loyalty_memberships", &data.loyalty_memberships),
-        ("loyalty_members", &data.loyalty_members),
-        ("loyalty_accounts", &data.loyalty_accounts),
-        ("loyalty_rewards", &data.loyalty_rewards),
-        ("night_audit_runs", &data.night_audit_runs),
-        ("night_audit_details", &data.night_audit_details),
-        ("points_transactions", &data.points_transactions),
-        ("rate_plans", &data.rate_plans),
-        ("reward_catalog", &data.reward_catalog),
-        ("room_status_transitions", &data.room_status_transitions),
-        ("room_types", &data.room_types),
-        ("promotion_room_types", &data.promotion_room_types),
-        (
-            "guest_complimentary_credits",
-            &data.guest_complimentary_credits,
-        ),
-        ("room_rates", &data.room_rates),
-        ("room_type_amenities", &data.room_type_amenities),
-        ("rooms", &data.rooms),
-        ("bookings", &data.bookings),
-        ("voucher_redemptions", &data.voucher_redemptions),
-        (
-            "voucher_redemption_allocations",
-            &data.voucher_redemption_allocations,
-        ),
-        ("booking_guests", &data.booking_guests),
-        ("booking_history", &data.booking_history),
-        ("booking_modifications", &data.booking_modifications),
-        ("customer_ledgers", &data.customer_ledgers),
-        ("customer_ledger_payments", &data.customer_ledger_payments),
-        ("guest_reviews", &data.guest_reviews),
-        ("housekeeping_tasks", &data.housekeeping_tasks),
-        ("invoices", &data.invoices),
-        ("maintenance_tickets", &data.maintenance_tickets),
-        ("night_audit_posted_nights", &data.night_audit_posted_nights),
-        ("payments", &data.payments),
-        ("loyalty_transactions", &data.loyalty_transactions),
-        ("reward_redemptions", &data.reward_redemptions),
-        ("loyalty_redemptions", &data.loyalty_redemptions),
-        ("room_changes", &data.room_changes),
-        ("room_history", &data.room_history),
-        ("room_status_change_log", &data.room_status_change_log),
-        ("self_checkin_events", &data.self_checkin_events),
-        ("services", &data.services),
-        ("booking_services", &data.booking_services),
-        ("system_settings", &data.system_settings),
-        ("user_guests", &data.user_guests),
-    ]
-}
-
-/// The V1 legacy import. Still the dispatch target for `BookingDataExport`
-/// files staged through the upload pipeline; the job runner calls it with the
-/// struct parsed inside the job task.
-pub(crate) async fn import_legacy_booking_data(
-    pool: &DbPool,
-    import_user_id: i64,
-    mode: ImportMode,
-    data: BookingDataExport,
-    tables: Vec<String>,
-) -> Result<Value, ApiError> {
-    let is_overwrite = mode == ImportMode::Overwrite;
-
-    let mut generated_columns = base_generated_columns();
-    let existing_user_ids = DataTransferRepository::existing_user_ids(pool).await?;
-    let table_columns = DataTransferRepository::table_columns(pool, ALL_IMPORT_TABLES).await?;
-    let required_columns =
-        DataTransferRepository::required_columns(pool, ALL_IMPORT_TABLES).await?;
-    let user_fk_columns = DataTransferRepository::user_fk_columns(pool, ALL_IMPORT_TABLES).await?;
-    for (table, columns) in
-        DataTransferRepository::generated_columns(pool, ALL_IMPORT_TABLES).await?
-    {
-        generated_columns.entry(table).or_default().extend(columns);
-    }
-
-    let empty_skip = HashSet::new();
-    let empty_columns = HashSet::new();
-    // Foreign-key-safe insert order; the import loop and overwrite clear both
-    // derive from this so a table never lands before its parents.
-    let tables_and_data = legacy_tables_and_data(&data);
-    let mut selected_tables = selected_import_tables(&tables, &tables_and_data)?;
-    if is_overwrite {
-        expand_overwrite_clear_tables(&mut selected_tables);
-    }
-
-    let mut tx = pool.begin().await.map_err(ApiError::from)?;
-
-    if is_overwrite {
-        // Clear selected tables in reverse (child-before-parent) order. The UI
-        // sends this list explicitly so an overwrite can intentionally restore
-        // a table to empty rows.
-        let clear_tables: Vec<&str> = tables_and_data
-            .iter()
-            .rev()
-            .filter(|(table, _)| selected_tables.contains(*table))
-            .map(|(table, _)| *table)
-            .collect();
-        if let Err(error) = DataTransferRepository::clear_tables(&mut tx, &clear_tables).await {
-            let error_detail = import_error_detail(&error);
-            let message = format!(
-                "Overwrite failed while clearing selected data: {}. Include dependent tables in the overwrite selection or remove the blocked references before retrying. No changes were saved.",
-                error_detail
-            );
-            log::warn!("{}", message);
-            let _ = tx.rollback().await;
-            return Err(ApiError::BadRequest(message));
-        }
-        log::info!(
-            "Phase 1: cleared {} table(s) for overwrite",
-            clear_tables.len()
-        );
-    }
-
-    let room_references =
-        RoomReferenceResolver::build(&mut tx, &selected_tables, &data.rooms).await?;
-    validate_room_references(
-        &mut tx,
-        &selected_tables,
-        &tables_and_data,
-        &room_references,
-    )
-    .await?;
-
-    DataTransferRepository::align_status_constraints(&mut tx).await?;
-    DataTransferRepository::set_user_triggers(&mut tx, TABLES_WITH_TRIGGERS, false).await?;
-
-    let mut counts = serde_json::Map::new();
-
-    for (table, rows) in tables_and_data {
-        if !selected_tables.contains(table) {
-            continue;
-        }
-
-        let skip = generated_columns.get(table).unwrap_or(&empty_skip);
-        let mut inserted = 0usize;
-
-        for (row_index, row) in rows.iter().enumerate() {
-            let Some(obj) = row.as_object() else {
-                let message = format!(
-                    "Import failed for table {} row {} because the row is not a JSON object. No changes were saved.",
-                    table,
-                    row_index + 1
-                );
-                log::warn!("{}", message);
-                let _ = tx.rollback().await;
-                return Err(ApiError::BadRequest(message));
-            };
-            let remapped_row;
-            let obj = if room_reference_columns(table).is_some() {
-                remapped_row = remap_room_references(table, obj, &room_references)?;
-                &remapped_row
-            } else {
-                obj
-            };
-
-            match DataTransferRepository::insert_json_row(
-                &mut tx,
-                table,
-                obj,
-                ImportRowPolicy {
-                    skip_columns: skip,
-                    valid_columns: table_columns.get(table),
-                    required_columns: required_columns.get(table),
-                    user_fk_columns: user_fk_columns.get(table).unwrap_or(&empty_columns),
-                    audit_user_fk_columns: AUDIT_USER_FK_COLUMNS,
-                    existing_user_ids: &existing_user_ids,
-                    fallback_user_id: import_user_id,
-                    primary_key_columns: &[],
-                },
-                // V1 files keep their historical duplicate handling.
-                ConflictPolicy::Skip,
-            )
-            .await
-            {
-                Ok(rows_affected) => {
-                    if rows_affected > 0 {
-                        inserted += 1;
-                    }
-                }
-                Err(error) => {
-                    let error_detail = import_error_detail(&error);
-                    let message = format!(
-                        "Import failed for table {} row {}{}: {}. No changes were saved.",
-                        table,
-                        row_index + 1,
-                        row_reference(obj),
-                        error_detail
-                    );
-                    log::warn!("{}", message);
-                    let _ = tx.rollback().await;
-                    return Err(ApiError::BadRequest(message));
-                }
-            }
-        }
-
-        counts.insert(table.into(), Value::Number(inserted.into()));
-        if inserted > 0 {
-            log::info!("Inserted {} rows into {}", inserted, table);
-        }
-    }
-
-    DataTransferRepository::set_user_triggers(&mut tx, TABLES_WITH_TRIGGERS, true).await?;
-    let sequence_reset_tables: Vec<&str> = TABLE_INSERT_ORDER
-        .iter()
-        .copied()
-        .filter(|table| !COMPOSITE_PK_TABLES.contains(table))
-        .collect();
-    DataTransferRepository::reset_sequences(&mut tx, &sequence_reset_tables).await?;
-
-    tx.commit().await.map_err(ApiError::from)?;
-
-    let response = serde_json::json!({
-        "success": true,
-        "mode": if is_overwrite { "overwrite" } else { "import" },
-        "records_imported": counts,
-    });
-
-    Ok(response)
-}
 
 pub(crate) fn expand_full_overwrite_tables(
     selected: &mut HashSet<String>,
@@ -891,229 +716,6 @@ pub(crate) fn expand_full_overwrite_tables(
     }
 }
 
-fn base_generated_columns() -> HashMap<String, HashSet<String>> {
-    [
-        (
-            "bookings",
-            ["nights", "total_guests", "tourism_billable_amount"].as_slice(),
-        ),
-        ("invoices", ["balance_due"].as_slice()),
-        ("customer_ledgers", ["balance_due"].as_slice()),
-    ]
-    .into_iter()
-    .map(|(table, columns)| {
-        (
-            table.to_string(),
-            columns.iter().map(|column| (*column).to_string()).collect(),
-        )
-    })
-    .collect()
-}
-
-fn row_reference(row: &serde_json::Map<String, Value>) -> String {
-    for key in [
-        "id",
-        "booking_number",
-        "invoice_number",
-        "room_number",
-        "company_name",
-        "full_name",
-        "audit_date",
-    ] {
-        if let Some(value) = row.get(key) {
-            return format!(" ({key}: {})", format_reference_value(value));
-        }
-    }
-
-    String::new()
-}
-
-fn format_reference_value(value: &Value) -> String {
-    match value {
-        Value::String(value) => value.clone(),
-        other => other.to_string(),
-    }
-}
-
-struct RoomReferenceResolver {
-    imported_room_ids: HashMap<i64, i64>,
-}
-
-impl RoomReferenceResolver {
-    async fn build(
-        tx: &mut DbTransaction<'_>,
-        selected_tables: &HashSet<String>,
-        imported_rooms: &[Value],
-    ) -> Result<Self, ApiError> {
-        let mut imported_room_ids = HashMap::new();
-        if !selected_tables.contains("rooms") {
-            return Ok(Self { imported_room_ids });
-        }
-
-        let room_refs = imported_room_refs(imported_rooms);
-        let room_numbers: Vec<String> = room_refs
-            .iter()
-            .filter_map(|(_, room_number)| room_number.clone())
-            .collect();
-        let existing_by_number =
-            DataTransferRepository::room_ids_by_number(tx, &room_numbers).await?;
-
-        for (imported_id, room_number) in room_refs {
-            let resolved_id = room_number
-                .as_ref()
-                .and_then(|number| existing_by_number.get(number))
-                .copied()
-                .unwrap_or(imported_id);
-            imported_room_ids.insert(imported_id, resolved_id);
-        }
-
-        Ok(Self { imported_room_ids })
-    }
-
-    fn resolve_room_id(&self, room_id: i64) -> i64 {
-        self.imported_room_ids
-            .get(&room_id)
-            .copied()
-            .unwrap_or(room_id)
-    }
-
-    fn contains_imported_room_id(&self, room_id: i64) -> bool {
-        self.imported_room_ids.contains_key(&room_id)
-    }
-}
-
-fn imported_room_refs(imported_rooms: &[Value]) -> Vec<(i64, Option<String>)> {
-    imported_rooms
-        .iter()
-        .filter_map(|row| {
-            let obj = row.as_object()?;
-            let id = obj.get("id").and_then(value_as_i64)?;
-            let room_number = obj
-                .get("room_number")
-                .and_then(Value::as_str)
-                .map(str::to_string);
-            Some((id, room_number))
-        })
-        .collect()
-}
-
-async fn validate_room_references(
-    tx: &mut DbTransaction<'_>,
-    selected_tables: &HashSet<String>,
-    tables_and_data: &[(&str, &[Value])],
-    room_references: &RoomReferenceResolver,
-) -> Result<(), ApiError> {
-    let mut room_ids = Vec::new();
-    let mut seen = HashSet::new();
-    for (table, rows) in tables_and_data {
-        if !selected_tables.contains(*table) {
-            continue;
-        }
-        let Some(columns) = room_reference_columns(table) else {
-            continue;
-        };
-
-        for row in *rows {
-            let Some(obj) = row.as_object() else {
-                continue;
-            };
-            for column in columns {
-                if let Some(room_id) = obj.get(*column).and_then(value_as_i64) {
-                    let resolved_room_id = room_references.resolve_room_id(room_id);
-                    if seen.insert(resolved_room_id) {
-                        room_ids.push(resolved_room_id);
-                    }
-                }
-            }
-        }
-    }
-
-    let existing_room_ids = DataTransferRepository::existing_ids(tx, "rooms", &room_ids).await?;
-    for (table, rows) in tables_and_data {
-        if !selected_tables.contains(*table) {
-            continue;
-        };
-        let Some(columns) = room_reference_columns(table) else {
-            continue;
-        };
-
-        for (row_index, row) in rows.iter().enumerate() {
-            let Some(obj) = row.as_object() else {
-                continue;
-            };
-            for column in columns {
-                let Some(room_id) = obj.get(*column).and_then(value_as_i64) else {
-                    continue;
-                };
-                let resolved_room_id = room_references.resolve_room_id(room_id);
-                if !room_references.contains_imported_room_id(room_id)
-                    && !existing_room_ids.contains(&resolved_room_id)
-                {
-                    return Err(ApiError::BadRequest(format!(
-                        "Import failed for table {} row {}{}: {} references room id {}, but that room is not present in the import file and does not exist in this database. Include Rooms in the import file, import a full backup, or create the missing room before retrying. No changes were saved.",
-                        table,
-                        row_index + 1,
-                        row_reference(obj),
-                        column,
-                        room_id
-                    )));
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn remap_room_references(
-    table: &str,
-    row: &serde_json::Map<String, Value>,
-    room_references: &RoomReferenceResolver,
-) -> Result<serde_json::Map<String, Value>, ApiError> {
-    let Some(columns) = room_reference_columns(table) else {
-        return Ok(row.clone());
-    };
-
-    let mut remapped = row.clone();
-    let mut changed = false;
-    for column in columns {
-        let Some(room_id_value) = row.get(*column) else {
-            continue;
-        };
-        let Some(room_id) = value_as_i64(room_id_value) else {
-            continue;
-        };
-        let resolved_room_id = room_references.resolve_room_id(room_id);
-        if resolved_room_id != room_id {
-            remapped.insert(
-                (*column).to_string(),
-                Value::Number(resolved_room_id.into()),
-            );
-            changed = true;
-        }
-    }
-
-    if changed {
-        Ok(remapped)
-    } else {
-        Ok(row.clone())
-    }
-}
-
-fn room_reference_columns(table: &str) -> Option<&'static [&'static str]> {
-    ROOM_REFERENCE_COLUMNS
-        .iter()
-        .find_map(|(candidate, columns)| (*candidate == table).then_some(*columns))
-}
-
-fn value_as_i64(value: &Value) -> Option<i64> {
-    match value {
-        Value::Number(number) => number.as_i64(),
-        Value::String(value) => value.parse().ok(),
-        _ => None,
-    }
-}
-
 pub(crate) fn import_error_detail(error: &ApiError) -> String {
     match error {
         ApiError::BadRequest(message)
@@ -1123,60 +725,16 @@ pub(crate) fn import_error_detail(error: &ApiError) -> String {
     }
 }
 
-fn selected_import_tables(
-    requested_tables: &[String],
-    tables_and_data: &[(&str, &[Value])],
-) -> Result<HashSet<String>, ApiError> {
-    if requested_tables.is_empty() {
-        return Ok(tables_and_data
-            .iter()
-            .filter(|(_, rows)| !rows.is_empty())
-            .map(|(table, _)| (*table).to_string())
-            .collect());
-    }
-
-    let known_tables: HashSet<&str> = tables_and_data.iter().map(|(table, _)| *table).collect();
-    let mut selected = HashSet::new();
-
-    for table in requested_tables {
-        if !known_tables.contains(table.as_str()) {
-            return Err(ApiError::BadRequest(format!(
-                "Unknown import table '{}' was requested",
-                table
-            )));
-        }
-        selected.insert(table.clone());
-    }
-
-    Ok(selected)
-}
-
-fn expand_overwrite_clear_tables(selected_tables: &mut HashSet<String>) {
-    let mut changed = true;
-    while changed {
-        changed = false;
-
-        for (child, parent) in OVERWRITE_DELETE_DEPENDENCIES {
-            if selected_tables.contains(*parent) && selected_tables.insert((*child).to_string()) {
-                changed = true;
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        ALL_IMPORT_TABLES, COMPOSITE_PK_TABLES, EXCLUDED_TABLES, Environment,
-        KNOWN_EXCLUSION_REASONS, QualifiedTable, RoomReferenceResolver, TABLE_INSERT_ORDER,
-        TransferTable, backup_environment, base_generated_columns, build_backup_manifest,
-        build_export_header, environment_name, expand_overwrite_clear_tables, export_columns,
-        export_doc_prefix, export_doc_suffix, imported_room_refs, remap_room_references,
-        selected_import_tables,
+        ALL_IMPORT_TABLES, EXCLUDED_TABLES, Environment, KNOWN_EXCLUSION_REASONS,
+        QualifiedTable, SENSITIVE_TABLES, TABLE_INSERT_ORDER, TransferTable, backup_environment,
+        build_backup_manifest, build_export_header_inner, environment_name, export_columns,
+        export_doc_prefix, export_doc_suffix, table_is_sensitive,
     };
-    use crate::models::BackupIntegrity;
-    use serde_json::{Value, json};
-    use std::collections::{BTreeMap, HashMap, HashSet};
+    use crate::models::{BackupIntegrity, ExportScope};
+    use std::collections::{BTreeMap, HashSet};
 
     #[test]
     fn table_insert_order_is_unique_and_covers_known_tables() {
@@ -1190,18 +748,6 @@ mod tests {
         assert_eq!(TABLE_INSERT_ORDER.len(), 75);
         // Introspection list and the canonical order must stay in lock-step.
         assert_eq!(ALL_IMPORT_TABLES, TABLE_INSERT_ORDER);
-    }
-
-    #[test]
-    fn repository_allowlist_mirrors_table_insert_order() {
-        // `repositories::data_transfer::KNOWN_TABLES` is a hand-maintained
-        // mirror of the allowlist (a SQL-injection tripwire for interpolated
-        // table names); the two must never drift apart.
-        assert_eq!(
-            crate::repositories::data_transfer::KNOWN_TABLES,
-            TABLE_INSERT_ORDER,
-            "repositories::KNOWN_TABLES must stay identical to TABLE_INSERT_ORDER"
-        );
     }
 
     #[test]
@@ -1230,25 +776,6 @@ mod tests {
     }
 
     #[test]
-    fn composite_pk_tables_are_part_of_the_order_but_excluded_from_sequence_reset() {
-        let sequence_reset: Vec<&str> = TABLE_INSERT_ORDER
-            .iter()
-            .copied()
-            .filter(|table| !COMPOSITE_PK_TABLES.contains(table))
-            .collect();
-        for table in COMPOSITE_PK_TABLES {
-            assert!(
-                TABLE_INSERT_ORDER.contains(table),
-                "{table} should be transferred"
-            );
-            assert!(
-                !sequence_reset.contains(table),
-                "{table} has no serial id and must be skipped on sequence reset"
-            );
-        }
-    }
-
-    #[test]
     fn promotion_tables_follow_foreign_key_safe_insert_order() {
         let position = |table: &str| {
             TABLE_INSERT_ORDER
@@ -1272,153 +799,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn base_generated_columns_include_pg19_booking_virtual_column() {
-        let generated_columns = base_generated_columns();
-        let booking_columns = generated_columns
-            .get("bookings")
-            .expect("bookings generated columns should be listed");
-
-        assert!(booking_columns.contains("nights"));
-        assert!(booking_columns.contains("total_guests"));
-        assert!(booking_columns.contains("tourism_billable_amount"));
-    }
-
-    #[test]
-    fn selected_import_tables_uses_explicit_table_list_even_when_rows_are_empty() {
-        let empty_rows: Vec<Value> = vec![];
-        let guest_rows = vec![json!({"id": 1})];
-        let tables_and_data = vec![
-            ("guests", guest_rows.as_slice()),
-            ("loyalty_rewards", empty_rows.as_slice()),
-        ];
-
-        let selected = selected_import_tables(
-            &["guests".to_string(), "loyalty_rewards".to_string()],
-            &tables_and_data,
-        )
-        .expect("explicit table selection should be accepted");
-
-        assert!(selected.contains("guests"));
-        assert!(selected.contains("loyalty_rewards"));
-    }
-
-    #[test]
-    fn selected_import_tables_keeps_legacy_non_empty_payload_behavior() {
-        let empty_rows: Vec<Value> = vec![];
-        let guest_rows = vec![json!({"id": 1})];
-        let tables_and_data = vec![
-            ("guests", guest_rows.as_slice()),
-            ("loyalty_rewards", empty_rows.as_slice()),
-        ];
-
-        let selected =
-            selected_import_tables(&[], &tables_and_data).expect("legacy selection should work");
-
-        assert!(selected.contains("guests"));
-        assert!(!selected.contains("loyalty_rewards"));
-    }
-
-    #[test]
-    fn overwrite_clear_expands_through_fk_blocking_dependents() {
-        let mut selected = HashSet::from(["loyalty_tiers".to_string()]);
-
-        expand_overwrite_clear_tables(&mut selected);
-
-        assert!(selected.contains("loyalty_tiers"));
-        assert!(selected.contains("loyalty_rewards"));
-        assert!(selected.contains("loyalty_redemptions"));
-        assert!(selected.contains("loyalty_accounts"));
-        assert!(selected.contains("loyalty_transactions"));
-        assert!(selected.contains("loyalty_memberships"));
-        assert!(selected.contains("points_transactions"));
-        assert!(!selected.contains("payments"));
-    }
-
-    #[test]
-    fn overwrite_clear_expands_through_promotion_dependents() {
-        let mut selected = HashSet::from(["promotions".to_string()]);
-
-        expand_overwrite_clear_tables(&mut selected);
-
-        for table in [
-            "promotions",
-            "promotion_room_types",
-            "vouchers",
-            "voucher_redemptions",
-            "voucher_redemption_allocations",
-        ] {
-            assert!(selected.contains(table), "{table} should be cleared");
-        }
-        assert!(!selected.contains("bookings"));
-    }
-
-    #[test]
-    fn imported_room_refs_collect_ids_and_room_numbers() {
-        let rows = vec![
-            json!({"id": 1094, "room_number": "101"}),
-            json!({"id": "1095", "room_number": "102"}),
-            json!({"room_number": "missing-id"}),
-        ];
-
-        let refs = imported_room_refs(&rows);
-
-        assert_eq!(
-            refs,
-            vec![
-                (1094, Some("101".to_string())),
-                (1095, Some("102".to_string()))
-            ]
-        );
-    }
-
-    #[test]
-    fn remap_room_references_uses_resolved_room_id() {
-        let resolver = RoomReferenceResolver {
-            imported_room_ids: HashMap::from([(1094, 7)]),
-        };
-        let row = serde_json::Map::from_iter([
-            ("id".to_string(), json!(2)),
-            ("room_id".to_string(), json!(1094)),
-        ]);
-
-        let remapped =
-            remap_room_references("housekeeping_tasks", &row, &resolver).expect("row should remap");
-
-        assert_eq!(remapped.get("room_id"), Some(&json!(7)));
-        assert_eq!(remapped.get("id"), Some(&json!(2)));
-    }
-
-    #[test]
-    fn remap_room_references_remaps_multiple_room_columns() {
-        let resolver = RoomReferenceResolver {
-            imported_room_ids: HashMap::from([(1094, 7), (1095, 8)]),
-        };
-        let row = serde_json::Map::from_iter([
-            ("from_room_id".to_string(), json!(1094)),
-            ("to_room_id".to_string(), json!(1095)),
-        ]);
-
-        let remapped =
-            remap_room_references("room_changes", &row, &resolver).expect("row should remap");
-
-        assert_eq!(remapped.get("from_room_id"), Some(&json!(7)));
-        assert_eq!(remapped.get("to_room_id"), Some(&json!(8)));
-    }
-
-    #[test]
-    fn remap_room_references_leaves_unmapped_room_id() {
-        let resolver = RoomReferenceResolver {
-            imported_room_ids: HashMap::new(),
-        };
-        let row = serde_json::Map::from_iter([("room_id".to_string(), json!(1094))]);
-
-        let remapped =
-            remap_room_references("bookings", &row, &resolver).expect("row should remain valid");
-
-        assert_eq!(remapped.get("room_id"), Some(&json!(1094)));
-    }
-
     fn transfer_table(name: &str, columns: &[&str], primary_key: &[&str]) -> TransferTable {
         let ordered_columns: Vec<String> =
             columns.iter().map(|column| (*column).to_string()).collect();
@@ -1440,8 +820,40 @@ mod tests {
     }
 
     #[test]
+    fn sensitive_tables_partition_the_transferable_set() {
+        // Every sensitive name must be a real transferable table — a stale
+        // entry here means a new table got classified without being added to
+        // the catalog, or the catalog shrank under the registry.
+        for name in SENSITIVE_TABLES {
+            assert!(
+                TABLE_INSERT_ORDER.contains(name),
+                "'{name}' is marked sensitive but is not in TABLE_INSERT_ORDER"
+            );
+        }
+        // And nothing excluded can also be sensitive — excluded tables never
+        // reach either side of the tiered export.
+        for (excluded, _) in EXCLUDED_TABLES {
+            assert!(
+                !table_is_sensitive(excluded),
+                "'{excluded}' is both excluded and sensitive"
+            );
+        }
+        // Standard scope emits exactly the non-sensitive remainder.
+        let standard_count = TABLE_INSERT_ORDER
+            .iter()
+            .filter(|name| !table_is_sensitive(name))
+            .count();
+        assert_eq!(
+            standard_count + SENSITIVE_TABLES.len(),
+            TABLE_INSERT_ORDER.len(),
+            "sensitive + standard must partition the transferable set"
+        );
+    }
+
+    #[test]
     fn manifest_builder_lists_every_exclusion_with_its_reason() {
-        let manifest = build_backup_manifest(&[]).expect("manifest should build");
+        let manifest =
+            build_backup_manifest(&[], ExportScope::Full).expect("manifest should build");
 
         assert!(manifest.entities.is_empty());
         assert_eq!(manifest.exclusions.len(), EXCLUDED_TABLES.len());
@@ -1464,7 +876,8 @@ mod tests {
             &["id"],
         );
 
-        let manifest = build_backup_manifest(&[table]).expect("manifest should build");
+        let manifest =
+            build_backup_manifest(&[table], ExportScope::Full).expect("manifest should build");
         let entity = &manifest.entities[0];
 
         assert_eq!(entity.name, "public.bookings");
@@ -1491,15 +904,18 @@ mod tests {
 
     #[test]
     fn export_header_emits_spec_key_order() {
-        let header = build_export_header(&[transfer_table("amenities", &["id", "name"], &["id"])])
-            .expect("header should build");
+        let header = build_export_header_inner(
+            &[transfer_table("amenities", &["id", "name"], &["id"])],
+            ExportScope::Full,
+        )
+        .expect("header should build");
         let prefix = export_doc_prefix(&header).expect("prefix should render");
 
         assert!(
             prefix.starts_with(
-                "{\"format\":\"hotel-backup\",\"version\":3,\"kind\":\"business-data\",\"exportId\":\""
+                "{\"format\":\"hotel-backup\",\"version\":1,\"kind\":\"business-data\",\"exportType\":\"full\",\"includesSensitiveData\":true,\"includesSecrets\":false,\"exportId\":\""
             ),
-            "prefix must open with the v3 header: {prefix}"
+            "prefix must open with the v1 header: {prefix}"
         );
         let mut cursor = 0;
         for key in [
@@ -1537,8 +953,9 @@ mod tests {
     }
 
     #[test]
-    fn empty_export_document_is_valid_v3_json() {
-        let header = build_export_header(&[]).expect("header should build");
+    fn empty_export_document_is_valid_v1_json() {
+        let header =
+            build_export_header_inner(&[], ExportScope::Full).expect("header should build");
         let prefix = export_doc_prefix(&header).expect("prefix should render");
         let suffix = export_doc_suffix(&BackupIntegrity {
             entities: 0,
@@ -1549,9 +966,9 @@ mod tests {
         .expect("suffix should render");
 
         let parsed: crate::models::BackupFile = serde_json::from_str(&format!("{prefix}{suffix}"))
-            .expect("an empty export must parse as a v3 document");
+            .expect("an empty export must parse as a v1 document");
         assert_eq!(parsed.format, "hotel-backup");
-        assert_eq!(parsed.version, 3);
+        assert_eq!(parsed.version, 1);
         assert_eq!(parsed.kind, "business-data");
         assert_eq!(parsed.export_id, header.export_id);
         assert_eq!(parsed.application_version, env!("CARGO_PKG_VERSION"));

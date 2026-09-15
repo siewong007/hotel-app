@@ -4,12 +4,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   hasPermission: vi.fn(),
-  hasRole: vi.fn(),
-  user: { id: 'u1', username: 'admin', is_super_admin: true } as Record<string, unknown>,
+  user: { id: 'u1', username: 'admin' } as Record<string, unknown>,
 }));
 
 vi.mock('../../../auth/AuthContext', () => ({
-  useAuth: () => ({ hasPermission: mocks.hasPermission, hasRole: mocks.hasRole, user: mocks.user }),
+  useAuth: () => ({ hasPermission: mocks.hasPermission, user: mocks.user }),
+}));
+
+vi.mock('../../../api', () => ({
+  DataTransferService: {
+    previewExport: vi.fn(),
+    exportData: vi.fn(),
+    stepUp: vi.fn(),
+    transferHistory: vi.fn(() => Promise.resolve({ entries: [], total: 0 })),
+    uploadBackup: vi.fn(),
+    previewImport: vi.fn(),
+    executeImport: vi.fn(),
+    getImportJob: vi.fn(),
+    deleteUpload: vi.fn(),
+  },
 }));
 
 vi.mock('../../../hooks/useIsPhone', () => ({
@@ -19,53 +32,93 @@ vi.mock('../../../hooks/useIsPhone', () => ({
 import DataTransferPage from './DataTransferPage';
 import { expectNoCriticalAxeViolations } from '../../../test/axe';
 
+const ALL_PERMISSIONS = [
+  'data_transfer:view',
+  'data_transfer:export',
+  'data_transfer:export_sensitive',
+  'data_transfer:import',
+  'data_transfer:import_sensitive',
+  'data_transfer:override',
+  'data_transfer:restore',
+];
+
+const grant = (...permissions: string[]) => {
+  const held = new Set(permissions);
+  // Mirror `hasPermission`'s manage-derivation: `data_transfer:manage` unlocks
+  // every data_transfer:* action.
+  mocks.hasPermission.mockImplementation(
+    (p: string) => held.has(p) || (held.has('data_transfer:manage') && p.startsWith('data_transfer:')),
+  );
+};
+
 const renderPage = () =>
   render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <DataTransferPage />
     </QueryClientProvider>,
   );
 
 describe('DataTransferPage', () => {
   beforeEach(() => {
-    mocks.hasPermission.mockReset().mockReturnValue(true);
-    mocks.hasRole.mockReset().mockReturnValue(false);
-    mocks.user = { id: 'u1', username: 'admin', is_super_admin: true };
+    mocks.hasPermission.mockReset().mockReturnValue(false);
+    mocks.user = { id: 'u1', username: 'admin' };
   });
 
   afterEach(cleanup);
 
-  it('denies access without settings:manage', () => {
-    mocks.hasPermission.mockReturnValue(false);
+  it('denies access without data_transfer:view', () => {
+    grant('data_transfer:export', 'data_transfer:import');
     renderPage();
-    expect(screen.queryByRole('button', { name: /download backup/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /download/i })).toBeNull();
     expect(screen.getByText(/do not have permission/i)).toBeTruthy();
   });
 
-  it('renders the export panel with tabs for a super admin (flag)', () => {
+  it('renders all three sections for a fully privileged account', () => {
+    grant(...ALL_PERMISSIONS);
     renderPage();
-    expect(screen.getByRole('button', { name: /download backup/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'History' })).toBeTruthy();
+    // All three export tiers render their download actions.
+    expect(screen.getAllByRole('button', { name: /download/i })).toHaveLength(3);
+  });
+
+  it('manage implies every data_transfer action', () => {
+    grant('data_transfer:manage');
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeTruthy();
+  });
+
+  it('shows export + history only when import is not granted', () => {
+    grant('data_transfer:view', 'data_transfer:export');
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'History' })).toBeTruthy();
+    // Standard tier is actionable; the sensitive tiers show their permission requirement.
+    expect(screen.getAllByRole('button', { name: /download/i })).toHaveLength(1);
+    expect(screen.getAllByText(/data_transfer:export_sensitive/)).toHaveLength(2);
+  });
+
+  it('shows history only for a view-only account', () => {
+    grant('data_transfer:view');
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Export' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull();
+    expect(screen.getByText('Transfer History')).toBeTruthy();
+  });
+
+  it('shows import + history for an import-only account', () => {
+    grant('data_transfer:view', 'data_transfer:import');
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Export' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Import' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'History' })).toBeTruthy();
   });
 
-  it('shows the import tab for the super_admin role without the flag', () => {
-    mocks.user = { id: 'u2', username: 'super', is_super_admin: false };
-    mocks.hasRole.mockImplementation((role: string) => role === 'super_admin');
-    renderPage();
-    expect(screen.getByRole('button', { name: 'Import' })).toBeTruthy();
-  });
-
-  it('shows export only — no import/history tabs — for a plain admin', () => {
-    mocks.user = { id: 'u3', username: 'admin2', is_super_admin: false };
-    renderPage();
-    expect(screen.getByRole('button', { name: /download backup/i })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Transfer history' })).toBeNull();
-  });
-
   it('reports no critical axe violations', async () => {
+    grant(...ALL_PERMISSIONS);
     const { container } = renderPage();
     await expectNoCriticalAxeViolations(container);
   });

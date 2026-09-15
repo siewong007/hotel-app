@@ -146,6 +146,7 @@ export const queryKeys = {
     export: () => [...dataTransfer, 'export'] as const,
     exportPreview: () => [...dataTransfer, 'export-preview'] as const,
     importJob: (jobId: string) => [...dataTransfer, 'import-job', jobId] as const,
+    history: () => [...dataTransfer, 'history'] as const,
   },
   settings: {
     all: settings,

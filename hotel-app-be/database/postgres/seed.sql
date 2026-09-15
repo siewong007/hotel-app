@@ -68,6 +68,14 @@ VALUES
     ('companies:manage'),
     ('companies:read'),
     ('companies:update'),
+    ('data_transfer:export'),
+    ('data_transfer:export_sensitive'),
+    ('data_transfer:import'),
+    ('data_transfer:import_sensitive'),
+    ('data_transfer:manage'),
+    ('data_transfer:override'),
+    ('data_transfer:restore'),
+    ('data_transfer:view'),
     ('ekyc:approve'),
     ('ekyc:assign'),
     ('ekyc:download_documents'),
@@ -548,10 +556,20 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('ekyc:manage_risk_rules', 'ekyc', 'manage_risk_rules', 'Manage eKYC risk rules', true),
 ('ekyc:view_provider_raw', 'ekyc', 'view_provider_raw', 'View raw eKYC provider responses', true),
 ('ekyc:manage', 'ekyc', 'manage', 'Full eKYC administration', true),
--- Mirrored by patch 0019 for databases installed before it existed. Kept last:
--- patched databases append it after every prior seeded permission, so it must
--- take the next identity value here too.
-('guests:reveal', 'guests', 'reveal', 'Reveal sensitive guest identification fields', true)
+-- Mirrored by patch 0019 for databases installed before it existed. It must
+-- stay after every prior seeded permission so patched databases and fresh
+-- seeds agree on its identity value.
+('guests:reveal', 'guests', 'reveal', 'Reveal sensitive guest identification fields', true),
+-- Mirrored by patch 0004 for databases installed before these existed; they
+-- append after guests:reveal there, so they sit after it here too.
+('data_transfer:view', 'data_transfer', 'view', 'View the data transfer page and transfer history', true),
+('data_transfer:export', 'data_transfer', 'export', 'Export standard (non-sensitive) data', true),
+('data_transfer:export_sensitive', 'data_transfer', 'export_sensitive', 'Export sensitive and full-system backup data', true),
+('data_transfer:import', 'data_transfer', 'import', 'Import non-sensitive data', true),
+('data_transfer:import_sensitive', 'data_transfer', 'import_sensitive', 'Import files containing sensitive data', true),
+('data_transfer:override', 'data_transfer', 'override', 'Update existing records during import', true),
+('data_transfer:restore', 'data_transfer', 'restore', 'Run destructive restore/replace imports', true),
+('data_transfer:manage', 'data_transfer', 'manage', 'Full data transfer management', true)
 ON CONFLICT (name) DO UPDATE SET
     description = EXCLUDED.description,
     resource = EXCLUDED.resource,
@@ -1163,7 +1181,7 @@ VALUES
     ('audit-log', '/audit-log', 'Audit Log', 'admin', '["audit:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["audit:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('loyalty', '/loyalty', 'Loyalty', 'admin', '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
-    ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["data_transfer:view"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["data_transfer:view","data_transfer:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('system-health', '/system-health', 'System Health', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('jobs', '/jobs', 'Jobs', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('ekyc-admin', '/ekyc-admin', 'eKYC Admin', 'admin', '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
@@ -1222,7 +1240,8 @@ BEGIN
                   'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
                   'override', 'export', 'download', 'reveal', 'request_resubmission',
                   'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
-                  'compose', 'send'
+                  'compose', 'send', 'view', 'import', 'import_sensitive',
+                  'export_sensitive', 'restore'
               )
           )
         UNION ALL

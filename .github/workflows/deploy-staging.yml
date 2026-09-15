@@ -184,6 +184,8 @@ jobs:
             "$bundle_dir/database/patches/0002_deposit_forfeited.sql"
           cp hotel-app-be/database/postgres/patches/0003_guest_relations_phase2.sql \
             "$bundle_dir/database/patches/0003_guest_relations_phase2.sql"
+          cp hotel-app-be/database/postgres/patches/0004_data_transfer_permissions.sql \
+            "$bundle_dir/database/patches/0004_data_transfer_permissions.sql"
 
           (
             cd "$bundle_dir"
@@ -201,6 +203,7 @@ jobs:
               database/patches/_end.sql \
               database/patches/0002_deposit_forfeited.sql \
               database/patches/0003_guest_relations_phase2.sql \
+              database/patches/0004_data_transfer_permissions.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

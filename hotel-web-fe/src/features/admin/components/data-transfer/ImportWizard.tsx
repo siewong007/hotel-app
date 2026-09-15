@@ -34,11 +34,13 @@ import {
   CloudUpload as CloudUploadIcon,
   Error as ErrorIcon,
   InsertDriveFile as FileIcon,
+  Lock as LockIcon,
   Upload as UploadIcon,
   Warning as WarningIcon,
 } from '@mui/icons-material';
 import type { ImportPreview, UploadResponse } from '../../../../types';
 import { invalidateImportedData } from '../../../../api/queryInvalidation';
+import { queryKeys } from '../../../../api/queryKeys';
 import {
   useDeleteUploadMutation,
   useExecuteImportMutation,
@@ -46,16 +48,18 @@ import {
   useImportPreviewMutation,
   useUploadBackupMutation,
 } from '../../hooks/useDataTransferQueries';
+import { useAuth } from '../../../../auth/AuthContext';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { useTranslation } from '../../../../i18n';
 import { MobileCardRow } from '../../../../components/data-table/MobileCardRow';
 import { IMPORT_JOB_POLL_MS, MAX_BACKUP_FILE_BYTES } from './constants';
-import type { NotifyFn, RecordHistoryFn } from './types';
+import StepUpDialog from './StepUpDialog';
+import type { NotifyFn } from './types';
 import { formatBytes, formatNum, shortEntityName } from './utils';
 import type { BackupImportMode, ConflictPolicy } from '../../../../types';
 
 interface ImportWizardProps {
   notify: NotifyFn;
-  onRecord: RecordHistoryFn;
   /** Switch to the History tab once a job reaches a terminal state. */
   onFinished: () => void;
   /** Test seam for the job poll interval; production uses IMPORT_JOB_POLL_MS. */
@@ -82,10 +86,17 @@ const errorMessage = (error: unknown, fallback: string) =>
 
 const nullableCount = (value: number | null): string => (value === null ? '—' : formatNum(value));
 
-const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinished, pollIntervalMs }) => {
+const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollIntervalMs }) => {
   const theme = useTheme();
   const isPhone = useIsPhone();
   const queryClient = useQueryClient();
+  const { hasPermission } = useAuth();
+  const { t } = useTranslation('dataTransfer');
+
+  // The backend re-checks all of these at execute time — the client gates are
+  // for honest UI, not security.
+  const canOverride = hasPermission('data_transfer:override');
+  const canRestore = hasPermission('data_transfer:restore');
 
   const [step, setStep] = useState<WizardStep>('select');
   const [file, setFile] = useState<File | null>(null);
@@ -95,6 +106,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
   const [onConflict, setOnConflict] = useState<ConflictPolicy>('skip');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [ack, setAck] = useState(false);
+  const [stepUpOpen, setStepUpOpen] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   // The wizard's single error surface — services send the skip-notification
   // header, so nothing else (global toast) reports these failures.
@@ -108,46 +120,27 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
   const job = jobQuery.data;
   const recordedJobRef = useRef<string | null>(null);
 
-  const scopeLabel = preview ? `${formatNum(preview.entities.length)} entities` : (file?.name ?? 'Backup file');
-
-  // Record + surface terminal job states exactly once per job.
+  // Surface terminal job states exactly once per job — the server writes the
+  // audit row itself, so the history query just needs invalidating.
   useEffect(() => {
     if (!jobId || !job || job.status === 'running' || recordedJobRef.current === jobId) return;
     recordedJobRef.current = jobId;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dataTransfer.history() });
 
     if (job.status === 'succeeded') {
       const inserted = job.result?.inserted ?? 0;
       const updated = job.result?.updated ?? 0;
       const skipped = job.result?.skipped ?? 0;
       invalidateImportedData(queryClient);
-      onRecord({
-        type: 'import',
-        mode,
-        jobId,
-        categories: scopeLabel,
-        records: inserted + updated + skipped,
-        status: skipped > 0 ? 'partial' : 'success',
-        error: skipped > 0 ? `${formatNum(skipped)} row(s) skipped — references could not be resolved.` : undefined,
-      });
       notify(
         skipped > 0
           ? `Import finished — ${formatNum(skipped)} row(s) skipped.`
           : `Import completed — ${formatNum(inserted + updated)} row(s) applied.`,
         skipped > 0 ? 'warning' : 'success',
       );
-    } else {
-      onRecord({
-        type: 'import',
-        mode,
-        jobId,
-        categories: scopeLabel,
-        records: 0,
-        status: 'failed',
-        error: job.error ?? 'Import failed',
-      });
     }
     setStep('done');
-  }, [job, jobId, mode, scopeLabel, notify, onRecord, queryClient]);
+  }, [job, jobId, notify, queryClient]);
 
   const reset = () => {
     setFile(null);
@@ -158,6 +151,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
     setOnConflict('skip');
     setAck(false);
     setConfirmOpen(false);
+    setStepUpOpen(false);
     setError(null);
     setStep('select');
     recordedJobRef.current = null;
@@ -223,13 +217,14 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
     setConfirmOpen(true);
   };
 
-  const execute = async () => {
+  const execute = async (stepUpToken?: string) => {
     if (!upload || !ack) return;
     try {
       const response = await executeMutation.mutateAsync({
         uploadId: upload.uploadId,
         mode,
         onConflict: mode === 'merge' ? onConflict : undefined,
+        stepUpToken,
       });
       setJobId(response.jobId);
       setConfirmOpen(false);
@@ -240,7 +235,23 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
     }
   };
 
+  // Restore leaves the confirm dialog via the step-up dialog first — the
+  // server demands a fresh `X-Step-Up` token for `mode: "restore"`.
+  const confirmAndContinue = () => {
+    if (mode === 'restore') {
+      setStepUpOpen(true);
+    } else {
+      void execute();
+    }
+  };
+
   const blockedByValidation = (preview?.validationErrors.length ?? 0) > 0;
+  // Permissions the file's contents demand beyond `data_transfer:import`
+  // (today: `import_sensitive` on a sensitive upload), filtered to the ones
+  // this account actually lacks.
+  const missingPermissions = (preview?.requiresPermissions ?? []).filter(
+    (permission) => !hasPermission(permission),
+  );
   const busy = uploadMutation.isPending || previewMutation.isPending || executeMutation.isPending;
 
   const cardSx = {
@@ -426,7 +437,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
                 <Chip
                   label={preview.format.toUpperCase()}
                   size="small"
-                  color={preview.format === 'v3' ? 'primary' : 'default'}
+                  color={preview.format === 'v1' ? 'primary' : 'default'}
                   variant="outlined"
                   sx={{ height: 20, fontSize: 11, fontWeight: 700 }}
                 />
@@ -464,6 +475,20 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
           </Alert>
         )}
 
+        {preview.sensitive && (
+          <Alert severity="warning" icon={<LockIcon />} sx={{ borderRadius: 2 }}>
+            <AlertTitle sx={{ fontWeight: 700 }}>{t('import.sensitiveTitle')}</AlertTitle>
+            {t('import.sensitiveWarning')}
+          </Alert>
+        )}
+
+        {missingPermissions.length > 0 && (
+          <Alert severity="error" sx={{ borderRadius: 2 }}>
+            <AlertTitle sx={{ fontWeight: 700 }}>{t('import.missingTitle')}</AlertTitle>
+            {t('import.missingPermissions', { permissions: missingPermissions.join(', ') })}
+          </Alert>
+        )}
+
         {preview.warnings.map((warning) => (
           <Alert key={warning} severity="warning" icon={<WarningIcon />} sx={{ borderRadius: 2 }}>
             {warning}
@@ -490,12 +515,6 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
             <AlertTitle sx={{ fontWeight: 700 }}>Unrecognized entities are ignored</AlertTitle>
             {preview.unsupportedEntities.map(shortEntityName).join(', ')} — present in the file but not part of the
             transferable set; they are never applied.
-          </Alert>
-        )}
-
-        {preview.format !== 'v3' && (
-          <Alert severity="info" sx={{ borderRadius: 2 }}>
-            Legacy {preview.format} backup — per-row new/existing counts are unavailable for this format.
           </Alert>
         )}
 
@@ -528,10 +547,19 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
             <ToggleButton value="merge" sx={{ textTransform: 'none', fontWeight: 700 }}>
               Merge — add to existing data
             </ToggleButton>
-            <ToggleButton value="restore" sx={{ textTransform: 'none', fontWeight: 700 }}>
+            <ToggleButton
+              value="restore"
+              disabled={!canRestore}
+              sx={{ textTransform: 'none', fontWeight: 700 }}
+            >
               Restore — replace existing data
             </ToggleButton>
           </ToggleButtonGroup>
+          {!canRestore && (
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
+              {t('import.restoreRequiresPermission')}
+            </Typography>
+          )}
 
           {mode === 'merge' && (
             <Box>
@@ -548,7 +576,12 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
                     key={policy}
                     value={policy}
                     control={<Radio size="small" />}
-                    label={CONFLICT_LABELS[policy]}
+                    label={
+                      policy === 'update' && !canOverride
+                        ? `${CONFLICT_LABELS[policy]} (${t('import.updateRequiresPermission')})`
+                        : CONFLICT_LABELS[policy]
+                    }
+                    disabled={policy === 'update' && !canOverride}
                   />
                 ))}
               </RadioGroup>
@@ -574,7 +607,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
           <Button
             variant="contained"
             onClick={openConfirm}
-            disabled={blockedByValidation || busy}
+            disabled={blockedByValidation || missingPermissions.length > 0 || busy}
             sx={{ fontWeight: 700 }}
           >
             Review &amp; import
@@ -805,13 +838,25 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onRecord, onFinishe
             fullWidth
             disabled={!ack || busy}
             startIcon={executeMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <UploadIcon />}
-            onClick={execute}
+            onClick={confirmAndContinue}
             sx={{ fontWeight: 700 }}
           >
             {mode === 'restore' ? 'Restore & import' : 'Start import'}
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Restore exits through re-authentication — the step-up token goes out
+          as `X-Step-Up` on the execute call that follows. */}
+      <StepUpDialog
+        open={stepUpOpen}
+        reason={t('import.restoreStepUp')}
+        onClose={() => setStepUpOpen(false)}
+        onVerified={(token) => {
+          setStepUpOpen(false);
+          void execute(token);
+        }}
+      />
     </Box>
   );
 };

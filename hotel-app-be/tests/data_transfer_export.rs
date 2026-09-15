@@ -1,4 +1,4 @@
-//! Regression tests for the streamed `hotel-backup` v3 export.
+//! Regression tests for the streamed `hotel-backup` v1 export.
 //!
 //! `transfer_tables` introspects `pg_class`/`pg_constraint` and is the first
 //! thing both `GET /api/data-transfer/export` and its preview call, so a
@@ -35,7 +35,7 @@ async fn setup_pg_pool() -> Option<PgPool> {
 /// The raw text of one streamed export — key order checks need the bytes, not
 /// a parsed `Value` (a deserialized map cannot prove field order).
 async fn streamed_export_text(pool: &PgPool) -> String {
-    let body = export_booking_data_body(pool, 0)
+    let body = export_booking_data_body(pool, 0, hotel_app_be::models::ExportScope::Full)
         .await
         .expect("streamed export must build");
     let bytes = axum::body::to_bytes(body, usize::MAX)
@@ -78,6 +78,11 @@ fn assert_no_secret_keys(value: &Value, path: &str) {
     match value {
         Value::Object(map) => {
             for (key, nested) in map {
+                // The v1 header's `includesSecrets:false` is a declaration that
+                // the file carries none — a boolean flag, not credential data.
+                if path == "$" && key == "includesSecrets" {
+                    continue;
+                }
                 let lowered = key.to_lowercase();
                 for pattern in SECRET_KEY_PATTERNS {
                     assert!(
@@ -148,12 +153,12 @@ async fn transfer_tables_introspects_the_live_catalog() {
     }
 }
 
-/// The streamed body must be exactly the v3 `hotel-backup` document: header
+/// The streamed body must be exactly the v1 `hotel-backup` document: header
 /// fields in spec order, the manifest declaring all transferable entities and
 /// every exclusion, alphabetical `tables`, and a truthful `integrity`
 /// trailer.
 #[tokio::test]
-async fn export_emits_the_v3_document() {
+async fn export_emits_the_v1_document() {
     let Some(pool) = setup_pg_pool().await else {
         return;
     };
@@ -163,7 +168,7 @@ async fn export_emits_the_v3_document() {
 
     // --- header ---
     assert_eq!(document["format"], "hotel-backup");
-    assert_eq!(document["version"], 3);
+    assert_eq!(document["version"], 1);
     assert_eq!(document["kind"], "business-data");
     let export_id = document["exportId"]
         .as_str()
@@ -371,7 +376,7 @@ async fn export_emits_the_v3_document() {
         "completedAt must be RFC 3339"
     );
 
-    // The whole document must round-trip through the import side's v3 parse
+    // The whole document must round-trip through the import side's v1 parse
     // target — writer and reader must never drift apart.
     let parsed: hotel_app_be::models::BackupFile =
         serde_json::from_str(&text).expect("export must deserialize as BackupFile");
@@ -410,7 +415,7 @@ async fn streamed_export_matches_materialized_export() {
     };
 
     let streamed = streamed_export_text(&pool).await;
-    let materialized = export_booking_data(&pool)
+    let materialized = export_booking_data(&pool, hotel_app_be::models::ExportScope::Full)
         .await
         .expect("materialized export must succeed");
 

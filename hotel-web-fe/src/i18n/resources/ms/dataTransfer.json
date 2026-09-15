@@ -1,0 +1,64 @@
+{
+  "page": {
+    "noPermission": "Anda tidak mempunyai kebenaran untuk mengakses pemindahan data.",
+    "permissionChip": "data_transfer:view"
+  },
+  "export": {
+    "standard": {
+      "title": "Eksport standard",
+      "description": "Data operasi dan konfigurasi sahaja — bilik, pelan kadar, promosi, program kesetiaan, tetapan. Rekod tetamu, tempahan, pembayaran dan kakitangan dikecualikan.",
+      "tagline": "Pemindahan rutin antara persekitaran"
+    },
+    "full": {
+      "title": "Eksport penuh",
+      "restriction": "Terhad",
+      "description": "Setiap entiti boleh pindah termasuk data perniagaan sensitif — tetamu, tempahan, pembayaran, lejar, kakitangan dan sejarah operasi.",
+      "tagline": "Sulit — mengandungi data tetamu dan kewangan"
+    },
+    "backup": {
+      "title": "Sandaran sistem penuh",
+      "restriction": "Sangat terhad",
+      "description": "Set data boleh pindah lengkap bersama metadata hubungan, dalam format sedia migrasi. Gunakan untuk pemulihan bencana atau berpindah ke pelayan baharu.",
+      "tagline": "Sulit — keseluruhan set data dengan metadata FK"
+    },
+    "secretsExcluded": "Kata laluan, sesi, token, passkey dan rahsia lain tidak pernah disertakan dalam mana-mana eksport.",
+    "sensitiveConfirmTitle": "Eksport ini mengandungi data sulit",
+    "sensitiveConfirmBody": "Fail ini merangkumi profil tetamu, tempahan, pembayaran dan rekod operasi. Simpan dengan selamat dan kongsi hanya melalui saluran yang diluluskan.",
+    "sensitiveConfirmAck": "Saya faham fail ini mengandungi data sulit dan mesti dikendalikan dengan selamat.",
+    "stepUpRequired": "Pengesahan semula diperlukan",
+    "missingPermission": "Memerlukan {{permission}}",
+    "preview": "Pratonton bilangan",
+    "download": "Muat turun",
+    "previewScope": "Kandungan eksport {{scope}}",
+    "neverIncluded": "Tidak pernah disertakan — {{count}} jadual dilindungi"
+  },
+  "stepUp": {
+    "title": "Sahkan identiti anda",
+    "description": "Ini ialah operasi istimewa. Masukkan semula kelayakan anda untuk meneruskan — pengesahan sah selama 2 minit dan terikat pada sesi ini.",
+    "password": "Kata laluan",
+    "totp": "Kod dua faktor",
+    "totpHint": "Diperlukan jika akaun anda mendayakan pengesahan dua faktor.",
+    "confirm": "Sahkan & teruskan",
+    "verifying": "Mengesahkan…"
+  },
+  "import": {
+    "sensitiveTitle": "Fail ini mengandungi data sensitif",
+    "sensitiveWarning": "Fail ini mengandungi data perniagaan sensitif — rekod tetamu, tempahan, pembayaran atau kakitangan. Mengimpotnya memerlukan kebenaran data_transfer:import_sensitive.",
+    "missingTitle": "Kebenaran tambahan diperlukan",
+    "missingPermissions": "Akaun anda tidak boleh menjalankan import ini — ia memerlukan: {{permissions}}",
+    "restoreRequiresPermission": "Pemulihan memerlukan kebenaran data_transfer:restore dan pengesahan semula.",
+    "updateRequiresPermission": "Memerlukan data_transfer:override",
+    "restoreStepUp": "Pemulihan memerlukan pengesahan semula — sahkan identiti anda untuk meneruskan."
+  },
+  "history": {
+    "serverBacked": "Setiap eksport, import dan pengesahan semula pada pelayan ini direkodkan dalam log audit.",
+    "reAuth": "Pengesahan semula",
+    "reAuthDenied": "Pengesahan semula ditolak",
+    "importStarted": "Import dimulakan",
+    "exportTypes": {
+      "standard": "Eksport standard",
+      "full": "Eksport penuh",
+      "backup": "Sandaran sistem penuh"
+    }
+  }
+}

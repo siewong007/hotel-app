@@ -122,12 +122,3 @@ impl std::fmt::Display for EkycStatus {
     }
 }
 
-/// Import behavior for booking data transfers.
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum ImportMode {
-    /// Append new records (skip duplicates by booking_number).
-    Import,
-    /// Delete all existing booking data and replace with imported data.
-    Overwrite,
-}

@@ -1,4 +1,4 @@
-//! Deeper end-to-end coverage for the `hotel-backup` v3 pipeline that the
+//! Deeper end-to-end coverage for the `hotel-backup` v1 pipeline that the
 //! sibling suites do not exercise:
 //!
 //! - special-type round-trips (`uuid`, `numeric`, `timestamptz`, `bool`,
@@ -45,7 +45,7 @@ async fn setup_pg_pool() -> Option<PgPool> {
     let database_url = match std::env::var("DATABASE_URL") {
         Ok(url) => url,
         Err(_) => {
-            eprintln!("Skipping PostgreSQL data-transfer v3 test because DATABASE_URL is not set");
+            eprintln!("Skipping PostgreSQL data-transfer v1 test because DATABASE_URL is not set");
             return None;
         }
     };
@@ -60,17 +60,17 @@ async fn setup_pg_pool() -> Option<PgPool> {
 
 /// One entity in a fixture document: qualified name, primary-key columns
 /// (for the manifest descriptor), and the file's rows.
-struct V3Entity<'a> {
+struct V1Entity<'a> {
     name: &'a str,
     primary_key: &'a [&'a str],
     rows: Vec<Value>,
 }
 
-/// Serialize a v3 `hotel-backup` document whose manifest and integrity
+/// Serialize a v1 `hotel-backup` document whose manifest and integrity
 /// trailer agree with the `tables` payload — preview cross-checks both, so a
 /// fixture that lies about its own contents would produce trailer warnings
 /// rather than the signal under test.
-fn v3_document(entities: &[V3Entity]) -> Vec<u8> {
+fn v1_document(entities: &[V1Entity]) -> Vec<u8> {
     let mut tables = Map::new();
     let mut entity_rows = Map::new();
     let mut manifest_entities = Vec::new();
@@ -100,7 +100,7 @@ fn v3_document(entities: &[V3Entity]) -> Vec<u8> {
 
     serde_json::to_vec(&json!({
         "format": "hotel-backup",
-        "version": 3,
+        "version": 1,
         "kind": "business-data",
         "exportId": "11111111-2222-3333-4444-555555555555",
         "exportedAt": "2026-09-14T12:00:00Z",
@@ -115,7 +115,7 @@ fn v3_document(entities: &[V3Entity]) -> Vec<u8> {
             "completedAt": "2026-09-14T12:00:01Z"
         }
     }))
-    .expect("v3 fixture serializes")
+    .expect("v1 fixture serializes")
 }
 
 /// Poll the registry until the job leaves `running` (or time out).
@@ -230,7 +230,7 @@ async fn special_types_survive_export_and_reimport() {
     .expect("template row_to_json must run");
 
     // The real export path — the fixture rows must appear verbatim.
-    let body = export_booking_data_body(&pool, 0)
+    let body = export_booking_data_body(&pool, 0, hotel_app_be::models::ExportScope::Full)
         .await
         .expect("streamed export must build");
     let bytes = axum::body::to_bytes(body, usize::MAX)
@@ -271,13 +271,13 @@ async fn special_types_survive_export_and_reimport() {
         .await
         .expect("cleaning the guest fixture must run");
 
-    let file = v3_document(&[
-        V3Entity {
+    let file = v1_document(&[
+        V1Entity {
             name: "public.email_templates",
             primary_key: &["id"],
             rows: vec![exported_template],
         },
-        V3Entity {
+        V1Entity {
             name: "public.guests",
             primary_key: &["id"],
             rows: vec![exported_guest],
@@ -347,7 +347,7 @@ async fn special_types_survive_export_and_reimport() {
 /// `NULL` ride along on the same row. Everything happens inside a
 /// transaction that rolls back, so the scratch table never persists.
 ///
-/// Note the fidelity bound this test respects: v3 rows keep their raw JSON
+/// Note the fidelity bound this test respects: v1 rows keep their raw JSON
 /// text until `insert_transfer_row` converts each into a `Map<String,
 /// Value>`, and `Value` numbers are f64 — a `numeric` with more significant
 /// digits than f64 carries (~15) would not survive. Every schema `numeric`
@@ -521,13 +521,13 @@ async fn foreign_keys_survive_export_and_reimport() {
         .await
         .expect("guest cleanup must run");
 
-    let file = v3_document(&[
-        V3Entity {
+    let file = v1_document(&[
+        V1Entity {
             name: "public.guest_notes",
             primary_key: &["id"],
             rows: vec![note_row],
         },
-        V3Entity {
+        V1Entity {
             name: "public.guests",
             primary_key: &["id"],
             rows: vec![guest_row],
@@ -660,18 +660,18 @@ async fn restore_clears_the_selection_and_expanded_dependents() {
         json!({"id": 920_943_001_i64, "code": "dt_restore_a", "name": "DT Restore A"}),
         json!({"id": 920_943_002_i64, "code": "dt_restore_b", "name": "DT Restore B"}),
     ]);
-    let file = v3_document(&[
-        V3Entity {
+    let file = v1_document(&[
+        V1Entity {
             name: "public.teams",
             primary_key: &["id"],
             rows: team_rows,
         },
-        V3Entity {
+        V1Entity {
             name: "public.team_members",
             primary_key: &["team_id", "user_id"],
             rows: pre_members.clone(),
         },
-        V3Entity {
+        V1Entity {
             name: "public.team_roles",
             primary_key: &["team_id", "role_id"],
             rows: pre_role_links.clone(),
@@ -805,8 +805,8 @@ async fn missing_user_refs_remap_or_skip_and_are_reported() {
     .expect("guest fixture must insert");
     let real_guest: i64 = 920_944_013;
 
-    let file = v3_document(&[
-        V3Entity {
+    let file = v1_document(&[
+        V1Entity {
             name: "public.teams",
             primary_key: &["id"],
             rows: vec![json!({
@@ -817,7 +817,7 @@ async fn missing_user_refs_remap_or_skip_and_are_reported() {
                 "updated_by": missing_user
             })],
         },
-        V3Entity {
+        V1Entity {
             name: "public.user_guests",
             primary_key: &["id"],
             rows: vec![
@@ -982,7 +982,7 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
     // Truncated JSON: the upload guard only demands a leading `{`, so it
     // stages — preview must refuse it (400) and the job must fail.
     let truncated = data_transfer_jobs::stage_backup_upload(Body::from(
-        br#"{"format":"hotel-backup","version":3,"tables":{"public.amenities":[{"#.to_vec(),
+        br#"{"format":"hotel-backup","version":1,"tables":{"public.amenities":[{"#.to_vec(),
     ))
     .await
     .expect("a truncated object still stages");
@@ -1005,8 +1005,8 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
         "the staged file must be removed even when the job fails"
     );
 
-    // version: 99 — parses as a v3-shaped document but is not understood.
-    let mut v99 = serde_json::from_slice::<Value>(&v3_document(&[V3Entity {
+    // version: 99 — parses as a v1-shaped document but is not understood.
+    let mut v99 = serde_json::from_slice::<Value>(&v1_document(&[V1Entity {
         name: "public.amenities",
         primary_key: &["id"],
         rows: vec![],
@@ -1041,7 +1041,7 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
     );
 
     // Wrong format marker — same path.
-    let mut wrong_format = serde_json::from_slice::<Value>(&v3_document(&[V3Entity {
+    let mut wrong_format = serde_json::from_slice::<Value>(&v1_document(&[V1Entity {
         name: "public.amenities",
         primary_key: &["id"],
         rows: vec![],
@@ -1071,7 +1071,7 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
     // An entity that is not in this schema at all: preview reports a
     // validation error rather than silently dropping it; execute still
     // completes and reports it under `unsupportedEntities`.
-    let upload = data_transfer_jobs::stage_backup_upload(Body::from(v3_document(&[V3Entity {
+    let upload = data_transfer_jobs::stage_backup_upload(Body::from(v1_document(&[V1Entity {
         name: "public.no_such_table",
         primary_key: &["id"],
         rows: vec![json!({"id": 1})],
@@ -1128,13 +1128,13 @@ async fn excluded_entities_in_a_file_are_never_imported() {
         .await
         .expect("fixture pre-clean must run");
 
-    let file = v3_document(&[
-        V3Entity {
+    let file = v1_document(&[
+        V1Entity {
             name: "public.amenities",
             primary_key: &["id"],
             rows: vec![json!({"id": 920_945_001_i64, "name": "dt-real-row", "category": "ok"})],
         },
-        V3Entity {
+        V1Entity {
             name: "public.users",
             primary_key: &["id"],
             rows: vec![json!({
@@ -1268,7 +1268,7 @@ async fn credential_columns_cannot_be_written_by_an_import() {
     let guest_id: i64 = 920_947_011;
     let room_id: i64 = 920_947_022;
 
-    let file = v3_document(&[V3Entity {
+    let file = v1_document(&[V1Entity {
         name: "public.bookings",
         primary_key: &["id"],
         rows: vec![json!({
@@ -1410,8 +1410,8 @@ async fn preview_diff_counts_new_and_existing_exactly() {
     .await
     .expect("seeded composite row must insert");
 
-    let file = v3_document(&[
-        V3Entity {
+    let file = v1_document(&[
+        V1Entity {
             name: "public.amenities",
             primary_key: &["id"],
             rows: vec![
@@ -1421,7 +1421,7 @@ async fn preview_diff_counts_new_and_existing_exactly() {
                 json!({"id": 920_946_002_i64, "name": "dt-diff-new", "category": "new"}),
             ],
         },
-        V3Entity {
+        V1Entity {
             name: "public.promotion_channels",
             primary_key: &["promotion_id", "booking_channel_id"],
             rows: vec![
@@ -1512,7 +1512,7 @@ async fn job_reports_running_then_succeeded_and_removes_the_staged_file() {
         .await
         .expect("fixture pre-clean must run");
 
-    let file = v3_document(&[V3Entity {
+    let file = v1_document(&[V1Entity {
         name: "public.amenities",
         primary_key: &["id"],
         rows: vec![
@@ -1589,7 +1589,7 @@ async fn in_file_duplicate_ids_skip_the_second_row() {
         .await
         .expect("fixture pre-clean must run");
 
-    let file = v3_document(&[V3Entity {
+    let file = v1_document(&[V1Entity {
         name: "public.amenities",
         primary_key: &["id"],
         rows: vec![
@@ -1675,13 +1675,13 @@ async fn failed_import_rolls_back_every_entity() {
     // `guest_notes` row references a guest in neither the file nor the
     // database, so it detonates at the deferred-constraint check — after the
     // amenity row already inserted inside the same transaction.
-    let file = v3_document(&[
-        V3Entity {
+    let file = v1_document(&[
+        V1Entity {
             name: "public.amenities",
             primary_key: &["id"],
             rows: vec![json!({"id": 920_949_001_i64, "name": "dt-rollback", "category": "x"})],
         },
-        V3Entity {
+        V1Entity {
             name: "public.guest_notes",
             primary_key: &["id"],
             rows: vec![
@@ -1739,7 +1739,7 @@ async fn failed_import_rolls_back_every_entity() {
 // JWTs.
 // ---------------------------------------------------------------------------
 
-const TEST_JWT_SECRET: &str = "hotel-app-be-dt-backup-v3-secret-32chars";
+const TEST_JWT_SECRET: &str = "hotel-app-be-dt-backup-v1-secret-32chars";
 const ADMIN_ACTOR_ID: i64 = 920_950_001;
 const PRIVILEGED_ACTOR_ID: i64 = 920_950_002;
 const PLAIN_ACTOR_ID: i64 = 920_950_003;
@@ -1788,24 +1788,33 @@ impl AuthFixture {
             .expect("auth test database must connect");
 
         Self::cleanup(&pool).await;
-        // Three actors: a super admin, a `settings:manage` holder without the
-        // flag (admin role confers every permission), and a login with no
-        // roles at all. The middle one is the real assertion — passing the
-        // permission check but still refused by `ensure_super_admin`.
+        // Three actors: an admin (blanket `data_transfer:*` grants through the
+        // role), a `settings:manage` holder with no data-transfer permission —
+        // the assertion that the legacy gate no longer opens this surface —
+        // and a login with no roles at all.
         Self::upsert_actor(&pool, ADMIN_ACTOR_ID, "dt_backup_admin", true).await;
         Self::upsert_actor(&pool, PRIVILEGED_ACTOR_ID, "dt_backup_privileged", false).await;
         Self::upsert_actor(&pool, PLAIN_ACTOR_ID, "dt_backup_plain", false).await;
-        for user_id in [ADMIN_ACTOR_ID, PRIVILEGED_ACTOR_ID] {
-            sqlx::query(
-                "INSERT INTO user_roles (user_id, role_id) \
-                 SELECT $1, id FROM roles WHERE name = 'admin' \
-                 ON CONFLICT (user_id, role_id) DO NOTHING",
-            )
-            .bind(user_id)
-            .execute(&pool)
-            .await
-            .expect("role grant must insert");
-        }
+        sqlx::query(
+            "INSERT INTO user_roles (user_id, role_id) \
+             SELECT $1, id FROM roles WHERE name = 'admin' \
+             ON CONFLICT (user_id, role_id) DO NOTHING",
+        )
+        .bind(ADMIN_ACTOR_ID)
+        .execute(&pool)
+        .await
+        .expect("role grant must insert");
+        // `settings:manage` directly — no role — so the actor provably holds
+        // the legacy data-transfer gate and nothing else.
+        sqlx::query(
+            "INSERT INTO user_permissions (user_id, permission_id) \
+             SELECT $1, id FROM permissions WHERE name = 'settings:manage' \
+             ON CONFLICT (user_id, permission_id) DO NOTHING",
+        )
+        .bind(PRIVILEGED_ACTOR_ID)
+        .execute(&pool)
+        .await
+        .expect("permission grant must insert");
         core::rbac_cache::invalidate_all();
 
         let admin_auth = Self::bearer(&pool, ADMIN_ACTOR_ID, "dt_backup_admin", "admin").await;
@@ -1856,7 +1865,7 @@ impl AuthFixture {
             &refresh_token,
             1,
             Some("127.0.0.1"),
-            Some("dt-backup-v3-test"),
+            Some("dt-backup-v1-test"),
             None,
         )
         .await
@@ -1927,11 +1936,12 @@ impl AuthFixture {
 }
 
 /// Every import endpoint must deny unauthenticated callers (401) and
-/// authenticated non-super-admins (403) — including a user who holds the
-/// `settings:manage` permission but not the flag. The super-admin reaches the
-/// handlers (unknown ids answer 404, a real upload answers 200/204).
+/// authenticated users without `data_transfer:import` (403) — including a
+/// user who still holds the legacy `settings:manage` permission, proving the
+/// old gate no longer opens this surface. The admin (blanket grants) reaches
+/// the handlers: unknown ids answer 404.
 #[tokio::test]
-async fn import_endpoints_require_authentication_and_super_admin() {
+async fn import_endpoints_require_authentication_and_data_transfer_import() {
     use axum::http::StatusCode;
 
     // The fixture seeds users/roles/sessions — hold the lock across fixture
@@ -1983,8 +1993,7 @@ async fn import_endpoints_require_authentication_and_super_admin() {
         );
     }
 
-    // Authenticated but holding no permissions -> 403 (the permission check
-    // fires before the super-admin check).
+    // Authenticated but holding no permissions -> 403.
     for (method, uri, body) in &endpoints {
         let status = fixture
             .request(method, uri, Some(&fixture.plain_auth), body)
@@ -1996,8 +2005,9 @@ async fn import_endpoints_require_authentication_and_super_admin() {
         );
     }
 
-    // Holds `settings:manage` but not `is_super_admin` -> 403 on every import
-    // endpoint. This is the guard's actual purpose: import clears tables.
+    // Holds `settings:manage` but no `data_transfer:*` permission -> 403 on
+    // every import endpoint. This is the regression that matters: the legacy
+    // settings gate must not keep opening data transfer.
     for (method, uri, body) in &endpoints {
         let status = fixture
             .request(method, uri, Some(&fixture.privileged_auth), body)
@@ -2005,12 +2015,13 @@ async fn import_endpoints_require_authentication_and_super_admin() {
         assert_eq!(
             status,
             StatusCode::FORBIDDEN,
-            "{method} {uri} must reject a non-super-admin with 403"
+            "{method} {uri} must reject a settings:manage-only user with 403"
         );
     }
 
-    // The super-admin passes the gate — unknown ids then answer 404, proving
-    // the request reached the handler rather than dying in auth.
+    // The admin role carries the `data_transfer:*` grants — unknown ids then
+    // answer 404, proving the request reached the handler rather than dying
+    // in auth.
     let status = fixture
         .request(
             "GET",
@@ -2067,7 +2078,7 @@ async fn import_endpoints_require_authentication_and_super_admin() {
                     .method("POST")
                     .uri("/api/data-transfer/import/uploads")
                     .header(header::AUTHORIZATION, fixture.admin_auth.as_str())
-                    .body(Body::from(v3_document(&[V3Entity {
+                    .body(Body::from(v1_document(&[V1Entity {
                         name: "public.amenities",
                         primary_key: &["id"],
                         rows: vec![],

@@ -13,7 +13,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
-use std::io::{BufReader, Read, Seek, SeekFrom};
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime};
@@ -25,13 +25,12 @@ use serde_json::{Map, Value};
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
-use crate::constants::ImportMode;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    AuditEvent, BackupFile, BackupImportMode, BookingDataExport, ConflictPolicy, FullDataExport,
-    ImportEntityOutcome, ImportExecuteRequest, ImportExecuteResponse, ImportJobReport,
-    ImportJobResult, ImportJobState, ImportJobStatus, ImportPreview, ImportPreviewEntity,
+    AuditEvent, BackupFile, BackupImportMode, ConflictPolicy, ImportEntityOutcome,
+    ImportExecuteRequest, ImportExecuteResponse, ImportJobReport, ImportJobResult,
+    ImportJobState, ImportJobStatus, ImportPreview, ImportPreviewEntity,
     ImportRelationshipProblem, JobProgress, UploadResponse,
 };
 use crate::repositories::data_transfer::{
@@ -40,7 +39,7 @@ use crate::repositories::data_transfer::{
 };
 use crate::services::data_transfer::{
     AUDIT_USER_FK_COLUMNS, EXCLUDED_TABLES, backup_environment, expand_full_overwrite_tables,
-    import_legacy_booking_data, is_transferable_key, legacy_tables_and_data,
+    is_transferable_key, table_is_sensitive,
 };
 
 /// Staging root for in-flight backup uploads — `private_uploads` resolves
@@ -273,22 +272,29 @@ pub async fn delete_staged_upload(upload_id: Uuid) -> Result<(), ApiError> {
 
 /// Classify a staged backup from its first bytes. This is a sniff — upload
 /// reports it as `detectedFormat`, while preview and execute re-parse fully
-/// and trust the parse, not this verdict.
+/// and trust the parse, not this verdict. Retired export shapes (the legacy
+/// v1/v2 documents and earlier `hotel-backup` versions) get the `"legacy"`
+/// label only so the parse error can name what was uploaded.
 pub fn detect_backup_format(prefix: &[u8]) -> &'static str {
     let text = String::from_utf8_lossy(prefix);
     let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-    if compact.contains("\"format\":\"hotel-backup\"")
-        && (compact.contains("\"version\":3,") || compact.contains("\"version\":3}"))
-    {
-        "v3"
-    } else if compact.contains("\"version\":\"2.0\"") && compact.contains("\"tables\":") {
-        "v2"
-    } else if compact.contains("\"version\":\"1.")
+    if compact.contains("\"format\":\"hotel-backup\"") {
+        // The retired v3 shape shares the format marker — flag it here so the
+        // parse error can say "retired" instead of the generic version gate.
+        // Anything else (missing/unknown versions) parses and the version
+        // check names what it found.
+        if compact.contains("\"version\":3") || compact.contains("\"version\":2") {
+            "legacy"
+        } else {
+            "v1"
+        }
+    } else if (compact.contains("\"version\":\"2.0\"") && compact.contains("\"tables\":"))
+        || compact.contains("\"version\":\"1.")
         || compact.contains("\"guests\":")
         || compact.contains("\"bookings\":")
         || compact.contains("\"companies\":")
     {
-        "v1"
+        "legacy"
     } else {
         "unknown"
     }
@@ -298,64 +304,32 @@ pub fn detect_backup_format(prefix: &[u8]) -> &'static str {
 // Staged-file parsing
 // ---------------------------------------------------------------------------
 
-/// A staged file parsed into the struct matching its real format. The parser
-/// tries formats in sniff order and falls through on failure, so a
-/// misdetected file still lands in the right shape.
-enum ParsedBackup {
-    V3(Box<BackupFile>),
-    V2(Box<FullDataExport>),
-    V1(Box<BookingDataExport>),
-}
-
 fn parse_reader<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, String> {
     let file = fs::File::open(path).map_err(|error| error.to_string())?;
     serde_json::from_reader(BufReader::new(file)).map_err(|error| error.to_string())
 }
 
-/// Read the first [`SNIFF_PREFIX_BYTES`] for detection, rewind, then try each
-/// known format — the sniff's pick first, the rest in newest-first order.
+/// Parse a staged upload as the only supported document — a `hotel-backup`
+/// file. Retired shapes get a named error; anything else fails the parse.
 /// Runs inside `spawn_blocking`: a 256 MB parse must not sit on a runtime
 /// worker.
-fn parse_staged_file(path: &Path) -> Result<ParsedBackup, String> {
+fn parse_staged_file(path: &Path) -> Result<BackupFile, String> {
     let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
     let mut prefix = Vec::new();
     file.by_ref()
         .take(SNIFF_PREFIX_BYTES as u64)
         .read_to_end(&mut prefix)
         .map_err(|error| error.to_string())?;
-    let detected = detect_backup_format(&prefix);
-    let _ = file.seek(SeekFrom::Start(0));
-
-    let order: &[&str] = match detected {
-        "v3" => &["v3", "v2", "v1"],
-        "v2" => &["v2", "v3", "v1"],
-        "v1" => &["v1", "v3", "v2"],
-        _ => &["v3", "v2", "v1"],
-    };
-
-    for format in order {
-        match *format {
-            "v3" => {
-                if let Ok(file) = parse_reader::<BackupFile>(path) {
-                    return Ok(ParsedBackup::V3(Box::new(file)));
-                }
-            }
-            "v2" => {
-                if let Ok(file) = parse_reader::<FullDataExport>(path) {
-                    return Ok(ParsedBackup::V2(Box::new(file)));
-                }
-            }
-            _ => {
-                if let Ok(file) = parse_reader::<BookingDataExport>(path) {
-                    return Ok(ParsedBackup::V1(Box::new(file)));
-                }
-            }
-        }
+    if detect_backup_format(&prefix) == "legacy" {
+        return Err("the file uses a retired export format (legacy v1/v2 or hotel-backup v3) — export a fresh backup from the source system and import that instead".to_string());
     }
-    Err("the file is not a recognized hotel backup (expected a hotel-backup v3 document, a schema-driven \"2.0\" export, or a legacy booking export)".to_string())
+    parse_reader::<BackupFile>(path).map_err(|_| {
+        "the file is not a recognized hotel backup (expected a hotel-backup v1 document)"
+            .to_string()
+    })
 }
 
-async fn read_staged_backup(upload_id: Uuid) -> Result<ParsedBackup, ApiError> {
+async fn read_staged_backup(upload_id: Uuid) -> Result<BackupFile, ApiError> {
     let path = staged_upload_path(upload_id);
     if !path.exists() {
         return Err(ApiError::NotFound(
@@ -370,51 +344,22 @@ async fn read_staged_backup(upload_id: Uuid) -> Result<ParsedBackup, ApiError> {
         })
 }
 
-/// Rows of one entity inside a backup file: raw JSON text for v3 (the ~1×
-/// file-size memory bound), already-parsed values for v2.
-enum BackupRows {
-    Raw(Vec<Box<RawValue>>),
-    Json(Vec<Value>),
-}
-
-impl BackupRows {
-    fn len(&self) -> usize {
-        match self {
-            BackupRows::Raw(rows) => rows.len(),
-            BackupRows::Json(rows) => rows.len(),
-        }
-    }
-
-    /// Convert each stored row to a JSON object, one at a time — the laziness
-    /// is load-bearing: the v3 file keeps rows as raw text (~1x file size) and
-    /// only the row currently being inserted ever becomes a `Map`.
-    fn into_objects(
-        self,
-        entity: &str,
-    ) -> Box<dyn Iterator<Item = Result<Map<String, Value>, ApiError>> + Send> {
-        let entity = entity.to_string();
-        match self {
-            BackupRows::Raw(rows) => {
-                Box::new(rows.into_iter().enumerate().map(move |(index, raw)| {
-                    serde_json::from_str::<Map<String, Value>>(raw.get()).map_err(|error| {
-                        ApiError::BadRequest(format!(
-                            "{entity} row {} is not a JSON object: {error}",
-                            index + 1
-                        ))
-                    })
-                }))
-            }
-            BackupRows::Json(rows) => Box::new(rows.into_iter().enumerate().map(
-                move |(index, value)| match value {
-                    Value::Object(object) => Ok(object),
-                    _ => Err(ApiError::BadRequest(format!(
-                        "{entity} row {} is not a JSON object",
-                        index + 1
-                    ))),
-                },
-            )),
-        }
-    }
+/// Convert each raw row to a JSON object, one at a time — the laziness is
+/// load-bearing: the file keeps rows as raw text (~1x file size) and only
+/// the row currently being inspected or inserted ever becomes a `Map`.
+fn rows_into_objects(
+    rows: Vec<Box<RawValue>>,
+    entity: &str,
+) -> Box<dyn Iterator<Item = Result<Map<String, Value>, ApiError>> + Send> {
+    let entity = entity.to_string();
+    Box::new(rows.into_iter().enumerate().map(move |(index, raw)| {
+        serde_json::from_str::<Map<String, Value>>(raw.get()).map_err(|error| {
+            ApiError::BadRequest(format!(
+                "{entity} row {} is not a JSON object: {error}",
+                index + 1
+            ))
+        })
+    }))
 }
 
 /// Which fate a row value on a dangling-reference column gets.
@@ -435,8 +380,7 @@ enum RefDecision {
 
 /// One foreign-key column on a transferable table whose parent sits outside
 /// the transferable set (`users`, `roles`, `ekyc_verifications`, …). A backup
-/// can carry ids the destination never had — the generalized form of the V1
-/// path's `user_fk_columns` handling.
+/// can carry ids the destination never had.
 struct DanglingRef {
     column: String,
     parent_key: String,
@@ -708,49 +652,10 @@ impl PkBinding {
 /// What a staged backup would do — the pre-flight diff behind
 /// `POST /data-transfer/import/preview`.
 pub async fn preview_import(pool: &DbPool, upload_id: Uuid) -> Result<ImportPreview, ApiError> {
-    match read_staged_backup(upload_id).await? {
-        ParsedBackup::V3(file) => preview_structured(pool, upload_id, *file).await,
-        ParsedBackup::V2(file) => {
-            let tables = file
-                .tables
-                .into_iter()
-                .map(|(key, rows)| (key, BackupRows::Json(rows)))
-                .collect();
-            let preview = preview_table_map(
-                pool,
-                upload_id,
-                FileHeader {
-                    format: "v2",
-                    version: Some(2),
-                    exported_at: Some(file.exported_at.clone()),
-                    source_environment: None,
-                    application_version: None,
-                },
-                tables,
-            )
-            .await?;
-            if file.version != "2.0" {
-                return Ok(with_validation_error(
-                    preview,
-                    format!(
-                        "unsupported schema-driven export version '{}' — this build understands \"2.0\"",
-                        file.version
-                    ),
-                ));
-            }
-            Ok(preview)
-        }
-        ParsedBackup::V1(file) => preview_legacy(pool, upload_id, *file).await,
-    }
+    preview_structured(pool, upload_id, read_staged_backup(upload_id).await?).await
 }
 
-fn with_validation_error(mut preview: ImportPreview, error: String) -> ImportPreview {
-    preview.validation_errors.push(error);
-    preview
-}
-
-/// Diff one structured (`tables`-keyed) file against the destination. Shared
-/// by the v3 and v2 preview paths.
+/// Diff the staged `hotel-backup` file against the destination.
 async fn preview_structured(
     pool: &DbPool,
     upload_id: Uuid,
@@ -781,20 +686,25 @@ async fn preview_structured(
         ));
     }
 
+    // Sensitivity is computed from the entity names actually present — the
+    // declared flag can only ever RAISE it (a crafted file cannot downgrade
+    // itself by writing `includesSensitiveData: false`).
+    let sensitive = file.includes_sensitive_data == Some(true)
+        || file.tables.keys().any(|key| table_is_sensitive(key));
+    let export_type = file.export_type.clone();
     let mut preview = preview_table_map(
         pool,
         upload_id,
         FileHeader {
-            format: "v3",
+            format: "v1",
             version: Some(file.version),
+            export_type,
+            sensitive,
             exported_at: Some(file.exported_at.clone()),
             source_environment: Some(file.source.environment.clone()),
             application_version: Some(file.application_version.clone()),
         },
-        file.tables
-            .into_iter()
-            .map(|(key, rows)| (key, BackupRows::Raw(rows)))
-            .collect(),
+        file.tables,
     )
     .await?;
     preview.warnings.extend(trailer_warnings);
@@ -804,9 +714,9 @@ async fn preview_structured(
             .validation_errors
             .push(format!("unsupported backup format '{}'", file.format));
     }
-    if file.version != 3 {
+    if file.version != 1 {
         preview.validation_errors.push(format!(
-            "unsupported hotel-backup version {} — this build understands version 3",
+            "unsupported hotel-backup version {} — this build understands version 1",
             file.version
         ));
     }
@@ -814,6 +724,12 @@ async fn preview_structured(
         preview
             .validation_errors
             .push(format!("unsupported backup kind '{}'", file.kind));
+    }
+    if file.includes_secrets == Some(true) {
+        preview.warnings.push(
+            "the file declares it may contain secrets — no legitimate export sets includesSecrets; inspect it before importing"
+                .to_string(),
+        );
     }
     Ok(preview)
 }
@@ -847,7 +763,7 @@ async fn diff_entity_rows(
     pool: &DbPool,
     descriptor: &TransferTable,
     key: &str,
-    rows: BackupRows,
+    rows: Vec<Box<RawValue>>,
     scan: &MissingRefScan,
     entity: &mut ImportPreviewEntity,
     accum: &mut PreviewAccum<'_>,
@@ -861,7 +777,7 @@ async fn diff_entity_rows(
     // for the single-column keys every large table uses.
     let mut single_keys: Vec<Option<String>> = Vec::new();
     let mut composite_keys: Vec<Option<Vec<(String, String)>>> = Vec::new();
-    for object in rows.into_objects(key) {
+    for object in rows_into_objects(rows, key) {
         let object = match object {
             Ok(object) => object,
             Err(_) => {
@@ -989,23 +905,27 @@ async fn diff_entity_rows(
     Ok(())
 }
 
-/// File-level header fields a structured (`tables`-keyed) backup carries —
-/// v3 fills all of them, v2 only version/export timestamp.
+/// File-level header fields a `hotel-backup` document carries.
 struct FileHeader<'a> {
     format: &'a str,
     version: Option<u32>,
+    /// The export's declared breadth (`standard`/`full`/`backup`).
+    export_type: Option<String>,
+    /// Whether the file carries sensitive entities — computed from the
+    /// parsed entity names (never trusting the declared flag alone).
+    sensitive: bool,
     exported_at: Option<String>,
     source_environment: Option<String>,
     application_version: Option<String>,
 }
 
-/// Shared preview engine for v3/v2 files: classify each entity, diff the
-/// transferable ones, and aggregate warnings, problems and totals.
+/// The preview engine: classify each entity, diff the transferable ones, and
+/// aggregate warnings, problems and totals.
 async fn preview_table_map(
     pool: &DbPool,
     upload_id: Uuid,
     header: FileHeader<'_>,
-    tables: BTreeMap<String, BackupRows>,
+    tables: BTreeMap<String, Vec<Box<RawValue>>>,
 ) -> Result<ImportPreview, ApiError> {
     let descriptors = DataTransferRepository::transfer_tables(pool).await?;
     let descriptor_by_name: HashMap<String, TransferTable> = descriptors
@@ -1016,7 +936,7 @@ async fn preview_table_map(
 
     // Split the file's entity list up front so the reference scan only
     // inspects tables that will actually import.
-    let mut transferable: Vec<(String, BackupRows)> = Vec::new();
+    let mut transferable: Vec<(String, Vec<Box<RawValue>>)> = Vec::new();
     let mut unsupported_entities = Vec::new();
     let mut warnings = Vec::new();
     let mut validation_errors = Vec::new();
@@ -1033,8 +953,8 @@ async fn preview_table_map(
             if descriptor_by_name.contains_key(&key) {
                 transferable.push((key, rows));
             } else {
-                // Cannot happen while KNOWN_TABLES mirrors the catalog, but
-                // never silently drop an entity.
+                // Cannot happen while the catalog mirrors the transferable
+                // list, but never silently drop an entity.
                 unsupported_entities.push(key);
             }
         } else if excluded_names.contains(key.as_str()) {
@@ -1200,10 +1120,18 @@ async fn preview_table_map(
             .then(left.reason.cmp(&right.reason))
     });
 
+    let mut requires_permissions = Vec::new();
+    if header.sensitive {
+        requires_permissions.push("data_transfer:import_sensitive".to_string());
+    }
+
     Ok(ImportPreview {
         upload_id,
         format: header.format.to_string(),
         version: header.version,
+        export_type: header.export_type,
+        sensitive: header.sensitive,
+        requires_permissions,
         exported_at: header.exported_at,
         source_environment: header.source_environment,
         application_version: header.application_version,
@@ -1212,46 +1140,6 @@ async fn preview_table_map(
         validation_errors,
         relationship_problems,
         warnings,
-        total_rows,
-    })
-}
-
-/// A v1 `BookingDataExport` predates the schema-driven layout — row counts
-/// exist, but a new/existing diff or missing-reference scan does not.
-async fn preview_legacy(
-    _pool: &DbPool,
-    upload_id: Uuid,
-    file: BookingDataExport,
-) -> Result<ImportPreview, ApiError> {
-    let mut entities: Vec<ImportPreviewEntity> = legacy_tables_and_data(&file)
-        .into_iter()
-        .filter(|(_, rows)| !rows.is_empty())
-        .map(|(table, rows)| ImportPreviewEntity {
-            name: format!("public.{table}"),
-            rows: rows.len() as u64,
-            new: None,
-            existing: None,
-            skipped: None,
-        })
-        .collect();
-    entities.sort_by(|left, right| left.name.cmp(&right.name));
-    let total_rows = entities.iter().map(|entity| entity.rows).sum();
-
-    Ok(ImportPreview {
-        upload_id,
-        format: "v1".to_string(),
-        version: None,
-        exported_at: Some(file.exported_at.clone()),
-        source_environment: None,
-        application_version: None,
-        entities,
-        unsupported_entities: Vec::new(),
-        validation_errors: Vec::new(),
-        relationship_problems: Vec::new(),
-        warnings: vec![
-            "legacy v1 export — per-row new/existing diff is not available for this format"
-                .to_string(),
-        ],
         total_rows,
     })
 }
@@ -1391,6 +1279,113 @@ pub fn import_job_status(job_id: Uuid) -> Option<ImportJobStatus> {
 /// Validate the execute request, register the job, and spawn the import task.
 /// The actual file parse happens inside the job — the response is 202 as soon
 /// as the job exists.
+/// Needle scanned for in a staged file: `"public.<sensitive-table>"` as a
+/// JSON key. Row *values* containing the same text produce a false positive —
+/// the file is then treated as sensitive, which fails closed.
+const ENTITY_KEY_PREFIX: &[u8] = b"\"public.";
+/// The header flag — matched loosely (the value is checked separately).
+const SENSITIVE_FLAG_KEY: &[u8] = b"\"includesSensitiveData\"";
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return None;
+    }
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
+
+/// Whether the staged file carries sensitive content — decides if execute
+/// needs `data_transfer:import_sensitive` without paying for a full parse.
+///
+/// A `hotel-backup` file is sensitive when the header declares it or any
+/// `"public.<name>"` entity key names a [`SENSITIVE_TABLES`] entry. Legacy
+/// files always carried guest data, and anything unrecognizable fails closed.
+fn staged_file_is_sensitive_sync(path: &Path) -> bool {
+    let Ok(bytes) = fs::read(path) else {
+        // Unreadable files fail closed; execute surfaces the real error later.
+        return true;
+    };
+    let head = &bytes[..bytes.len().min(SNIFF_PREFIX_BYTES)];
+    if detect_backup_format(head) != "v1" {
+        return true;
+    }
+
+    // `"includesSensitiveData": true` — whitespace between key/colon/value is
+    // tolerated so pretty-printed foreign files are still caught.
+    if let Some(index) = find_subslice(&bytes, SENSITIVE_FLAG_KEY) {
+        let mut cursor = index + SENSITIVE_FLAG_KEY.len();
+        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+        if cursor < bytes.len() && bytes[cursor] == b':' {
+            cursor += 1;
+            while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+                cursor += 1;
+            }
+            if bytes[cursor..].starts_with(b"true") {
+                return true;
+            }
+        }
+    }
+
+    let mut cursor = 0_usize;
+    while let Some(found) = find_subslice(&bytes[cursor..], ENTITY_KEY_PREFIX) {
+        let name_start = cursor + found + ENTITY_KEY_PREFIX.len();
+        let name_end = bytes[name_start..]
+            .iter()
+            .position(|byte| *byte == b'"')
+            .map(|offset| name_start + offset)
+            .unwrap_or(bytes.len());
+        if let Ok(name) = std::str::from_utf8(&bytes[name_start..name_end])
+            && table_is_sensitive(name)
+        {
+            return true;
+        }
+        cursor = name_start;
+    }
+    false
+}
+
+async fn staged_file_is_sensitive(upload_id: Uuid) -> bool {
+    let path = staged_upload_path(upload_id);
+    if !path.exists() {
+        // Missing uploads fail closed; execute reports NotFound separately.
+        return true;
+    }
+    tokio::task::spawn_blocking(move || staged_file_is_sensitive_sync(&path))
+        .await
+        .unwrap_or(true)
+}
+
+/// The permission checks that depend on the file and the requested mode —
+/// layered on top of the route's `data_transfer:import` guard:
+///
+/// - sensitive file contents → `data_transfer:import_sensitive`
+/// - `onConflict: "update"` → `data_transfer:override`
+/// - `mode: "restore"` → `data_transfer:restore` **and** a fresh step-up token
+///
+/// Every denial is a 403 naming the missing permission, except step-up which
+/// is a 401 — the standard "re-authenticate" signal.
+pub async fn enforce_import_permissions(
+    pool: &DbPool,
+    user_id: i64,
+    headers: &axum::http::HeaderMap,
+    request: &ImportExecuteRequest,
+) -> Result<(), ApiError> {
+    if staged_file_is_sensitive(request.upload_id).await {
+        crate::core::middleware::check_permission(pool, user_id, "data_transfer:import_sensitive")
+            .await?;
+    }
+    if request.on_conflict == Some(ConflictPolicy::Update) {
+        crate::core::middleware::check_permission(pool, user_id, "data_transfer:override").await?;
+    }
+    if request.mode == BackupImportMode::Restore {
+        crate::core::middleware::check_permission(pool, user_id, "data_transfer:restore").await?;
+        let claims = crate::core::middleware::extract_claims(headers).await?;
+        crate::services::data_transfer_step_up::require_step_up(headers, &claims)?;
+    }
+    Ok(())
+}
+
 pub async fn start_import_job(
     pool: &DbPool,
     import_user_id: i64,
@@ -1561,9 +1556,9 @@ async fn audit_import_event(
     .await;
 }
 
-/// Parse the staged file inside the job and dispatch on its real format:
-/// v1 keeps its legacy import path; v2/v3 share the structured engine with
-/// the execute-time mode and conflict policy.
+/// Parse the staged file inside the job, validate the `hotel-backup` header,
+/// then hand the raw row maps to the import engine with the execute-time
+/// mode and conflict policy.
 async fn execute_staged_import(
     pool: &DbPool,
     job_id: Uuid,
@@ -1572,131 +1567,41 @@ async fn execute_staged_import(
     import_user_id: i64,
 ) -> Result<ImportJobResult, ApiError> {
     let file_path = path.to_path_buf();
-    let parsed = tokio::task::spawn_blocking(move || parse_staged_file(&file_path))
+    let file = tokio::task::spawn_blocking(move || parse_staged_file(&file_path))
         .await
         .map_err(|error| ApiError::Internal(format!("backup parse task failed: {error}")))?
         .map_err(ApiError::BadRequest)?;
 
-    match parsed {
-        ParsedBackup::V1(data) => {
-            import_v1_backup(pool, job_id, *data, request, import_user_id).await
-        }
-        ParsedBackup::V2(file) => {
-            if file.version != "2.0" {
-                return Err(ApiError::BadRequest(format!(
-                    "unsupported schema-driven export version '{}' — this build understands \"2.0\"",
-                    file.version
-                )));
-            }
-            let tables = file
-                .tables
-                .into_iter()
-                .map(|(key, rows)| (key, BackupRows::Json(rows)))
-                .collect();
-            import_structured_backup(pool, job_id, import_user_id, request, tables).await
-        }
-        ParsedBackup::V3(file) => {
-            if file.format != "hotel-backup" {
-                return Err(ApiError::BadRequest(format!(
-                    "unsupported backup format '{}'",
-                    file.format
-                )));
-            }
-            if file.version != 3 {
-                return Err(ApiError::BadRequest(format!(
-                    "unsupported hotel-backup version {} — this build understands version 3",
-                    file.version
-                )));
-            }
-            if file.kind != "business-data" {
-                return Err(ApiError::BadRequest(format!(
-                    "unsupported backup kind '{}'",
-                    file.kind
-                )));
-            }
-            let tables = file
-                .tables
-                .into_iter()
-                .map(|(key, rows)| (key, BackupRows::Raw(rows)))
-                .collect();
-            import_structured_backup(pool, job_id, import_user_id, request, tables).await
-        }
+    if file.format != "hotel-backup" {
+        return Err(ApiError::BadRequest(format!(
+            "unsupported backup format '{}'",
+            file.format
+        )));
     }
+    if file.version != 1 {
+        return Err(ApiError::BadRequest(format!(
+            "unsupported hotel-backup version {} — this build understands version 1",
+            file.version
+        )));
+    }
+    if file.kind != "business-data" {
+        return Err(ApiError::BadRequest(format!(
+            "unsupported backup kind '{}'",
+            file.kind
+        )));
+    }
+    import_structured_backup(pool, job_id, import_user_id, request, file.tables).await
 }
 
-/// A v1 file runs through the legacy importer untouched — same row policy,
-/// same `ON CONFLICT DO NOTHING` semantics, just mapped onto the job result
-/// shape afterwards.
-async fn import_v1_backup(
-    pool: &DbPool,
-    job_id: Uuid,
-    data: BookingDataExport,
-    request: &ImportExecuteRequest,
-    import_user_id: i64,
-) -> Result<ImportJobResult, ApiError> {
-    let mode = match request.mode {
-        BackupImportMode::Merge => ImportMode::Import,
-        BackupImportMode::Restore => ImportMode::Overwrite,
-    };
-    let tables: Vec<String> = request
-        .tables
-        .iter()
-        .map(|key| {
-            key.strip_prefix("public.")
-                .unwrap_or(key.as_str())
-                .to_string()
-        })
-        .collect();
-
-    // The legacy importer runs its whole loop internally, so the best the
-    // status endpoint can offer is an honest denominator up front.
-    let selected: HashSet<&str> = tables.iter().map(String::as_str).collect();
-    let total_rows: u64 = legacy_tables_and_data(&data)
-        .iter()
-        .filter(|(table, _)| selected.is_empty() || selected.contains(*table))
-        .map(|(_, rows)| rows.len() as u64)
-        .sum();
-    set_job_progress(job_id, None, 0, total_rows);
-
-    let response = import_legacy_booking_data(pool, import_user_id, mode, data, tables).await?;
-
-    let mut entities = Vec::new();
-    let mut inserted = 0_u64;
-    if let Some(counts) = response.get("records_imported").and_then(Value::as_object) {
-        for (table, count) in counts {
-            let count = count.as_u64().unwrap_or(0);
-            inserted += count;
-            entities.push(ImportEntityOutcome {
-                entity: format!("public.{table}"),
-                inserted: count,
-                updated: 0,
-                skipped: 0,
-            });
-        }
-    }
-    entities.sort_by(|left, right| left.entity.cmp(&right.entity));
-
-    Ok(ImportJobResult {
-        inserted,
-        updated: 0,
-        skipped: 0,
-        report: ImportJobReport {
-            entities,
-            relationship_problems: Vec::new(),
-            unsupported_entities: Vec::new(),
-        },
-    })
-}
-
-/// The shared v2/v3 import engine: clear (restore) then insert every selected
-/// entity in FK-safe order inside one transaction, with the execute-time
-/// conflict policy and the missing-reference policy applied per row.
+/// The import engine: clear (restore) then insert every selected entity in
+/// FK-safe order inside one transaction, with the execute-time conflict
+/// policy and the missing-reference policy applied per row.
 async fn import_structured_backup(
     pool: &DbPool,
     job_id: Uuid,
     import_user_id: i64,
     request: &ImportExecuteRequest,
-    file_tables: BTreeMap<String, BackupRows>,
+    file_tables: BTreeMap<String, Vec<Box<RawValue>>>,
 ) -> Result<ImportJobResult, ApiError> {
     let descriptors = DataTransferRepository::transfer_tables(pool).await?;
     let descriptor_by_name: HashMap<String, TransferTable> = descriptors
@@ -1710,7 +1615,7 @@ async fn import_structured_backup(
 
     // The file decides what can import; anything else in `tables` is carried
     // into the report so nothing is silently dropped.
-    let mut importable: BTreeMap<String, BackupRows> = BTreeMap::new();
+    let mut importable: BTreeMap<String, Vec<Box<RawValue>>> = BTreeMap::new();
     let mut unsupported_entities = Vec::new();
     for (key, rows) in file_tables {
         let known = QualifiedTable::parse(&key)
@@ -1827,7 +1732,7 @@ async fn import_structured_backup(
             continue;
         };
 
-        for (index, object) in rows.into_objects(&name).enumerate() {
+        for (index, object) in rows_into_objects(rows, &name).enumerate() {
             let mut object = object.map_err(|error| row_error(&name, index, &error))?;
             if let Some((column, parent)) = scan.apply(&name, &mut object) {
                 outcome.skipped += 1;
@@ -1917,28 +1822,37 @@ mod tests {
     #[test]
     fn sniff_classifies_each_backup_shape() {
         assert_eq!(
-            detect_backup_format(br#"{"format":"hotel-backup","version":3,"kind":"business-data""#),
-            "v3"
+            detect_backup_format(br#"{"format":"hotel-backup","version":1,"kind":"business-data""#),
+            "v1"
         );
         // Whitespace/formatting must not change the verdict.
         assert_eq!(
-            detect_backup_format(b"{ \"format\": \"hotel-backup\", \"version\": 3 }"),
-            "v3"
+            detect_backup_format(b"{ \"format\": \"hotel-backup\", \"version\": 1 }"),
+            "v1"
+        );
+        // Retired shapes are flagged as legacy so the parse error can name
+        // them: schema-driven "2.0" exports, the flat booking export, and the
+        // retired hotel-backup v3 document all land here.
+        assert_eq!(
+            detect_backup_format(br#"{"format":"hotel-backup","version":3,"kind":"business-data""#),
+            "legacy"
         );
         assert_eq!(
             detect_backup_format(br#"{"version":"2.0","exported_at":"x","tables":{}}"#),
-            "v2"
+            "legacy"
         );
         assert_eq!(
             detect_backup_format(br#"{"version":"1.0","guests":[]}"#),
-            "v1"
+            "legacy"
         );
-        // A v1-shaped body with no version still detects by its table fields.
-        assert_eq!(detect_backup_format(br#"{"bookings":[]}"#), "v1");
-        // "public.guests" in a v2 map must not trip the v1 `"guests"` sniff.
+        // A legacy v1-shaped body with no version still detects by its table
+        // fields.
+        assert_eq!(detect_backup_format(br#"{"bookings":[]}"#), "legacy");
+        // "public.guests" in a tables map must not trip the legacy `"guests"`
+        // sniff — but it is still a "2.0" export, hence legacy.
         assert_eq!(
             detect_backup_format(br#"{"version":"2.0","tables":{"public.guests":[]}}"#),
-            "v2"
+            "legacy"
         );
         assert_eq!(detect_backup_format(br#"{"hello":"world"}"#), "unknown");
         assert_eq!(detect_backup_format(b""), "unknown");
@@ -2027,13 +1941,14 @@ mod tests {
     }
 
     #[test]
-    fn staged_file_parse_falls_through_format_order() {
+    fn staged_file_parse_accepts_a_v1_document_and_tolerates_unknown_fields() {
         let dir = std::env::temp_dir();
         let path = dir.join(format!("data-transfer-parse-test-{}.json", Uuid::new_v4()));
-        // Sniffs as v1 (guests field) but parses as v3 — the parse order must
-        // land on the format that actually validates.
+        // A document carrying fields this build does not know (like the stray
+        // `guests` key) must still parse — forward compatibility means newer
+        // fields never block an import.
         let document = br#"{
-            "format":"hotel-backup","version":3,"kind":"business-data",
+            "format":"hotel-backup","version":1,"kind":"business-data",
             "exportId":"11111111-1111-1111-1111-111111111111",
             "exportedAt":"x","applicationVersion":"0","guests":[],
             "source":{"environment":"test","databaseProvider":"postgresql"},
@@ -2042,8 +1957,22 @@ mod tests {
             "integrity":{"entities":0,"rows":0,"entityRows":{},"completedAt":"x"}
         }"#;
         fs::write(&path, document).expect("fixture writes");
-        let parsed = parse_staged_file(&path).expect("v3 document parses");
-        assert!(matches!(parsed, ParsedBackup::V3(_)));
+        let parsed = parse_staged_file(&path).expect("v1 document parses");
+        assert_eq!(parsed.version, 1);
+        fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn staged_file_parse_rejects_a_legacy_document_with_a_named_error() {
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("data-transfer-parse-test-{}.json", Uuid::new_v4()));
+        fs::write(&path, br#"{"version":"2.0","exported_at":"x","tables":{}}"#)
+            .expect("fixture writes");
+        let error = parse_staged_file(&path).expect_err("legacy files must be rejected");
+        assert!(
+            error.contains("retired export format"),
+            "the error must name the legacy format: {error}"
+        );
         fs::remove_file(&path).ok();
     }
 
@@ -2114,7 +2043,7 @@ mod tests {
         let staged = stage_backup_upload_to(Body::from(document), &dir, 1024)
             .await
             .expect("a small whitespace-prefixed JSON document still stages");
-        assert_eq!(staged.detected_format, "v1");
+        assert_eq!(staged.detected_format, "legacy");
 
         let _ = fs::remove_dir_all(&dir);
     }

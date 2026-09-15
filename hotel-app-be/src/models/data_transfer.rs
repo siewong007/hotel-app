@@ -7,127 +7,8 @@ use serde_json::Value;
 use serde_json::value::RawValue;
 use uuid::Uuid;
 
-/// Represents all booking-related data for export/import.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BookingDataExport {
-    pub version: String,
-    pub exported_at: String,
-    pub guests: Vec<Value>,
-    pub guest_complimentary_credits: Vec<Value>,
-    pub companies: Vec<Value>,
-    pub bookings: Vec<Value>,
-    pub payments: Vec<Value>,
-    pub invoices: Vec<Value>,
-    pub booking_guests: Vec<Value>,
-    pub booking_modifications: Vec<Value>,
-    pub booking_history: Vec<Value>,
-    pub night_audit_runs: Vec<Value>,
-    pub night_audit_details: Vec<Value>,
-    pub customer_ledgers: Vec<Value>,
-    pub customer_ledger_payments: Vec<Value>,
-    pub room_changes: Vec<Value>,
-    #[serde(default)]
-    pub user_guests: Vec<Value>,
-    #[serde(default)]
-    pub rooms: Vec<Value>,
-    #[serde(default)]
-    pub room_types: Vec<Value>,
-    #[serde(default)]
-    pub promotions: Vec<Value>,
-    #[serde(default)]
-    pub promotion_room_types: Vec<Value>,
-    #[serde(default)]
-    pub vouchers: Vec<Value>,
-    #[serde(default)]
-    pub voucher_redemptions: Vec<Value>,
-    #[serde(default)]
-    pub voucher_redemption_allocations: Vec<Value>,
-
-    // ----- Extended full-backup tables (business config + operational). -----
-    // All default to empty so older export files (and partial exports) still
-    // deserialize cleanly.
-    #[serde(default)]
-    pub system_settings: Vec<Value>,
-    #[serde(default)]
-    pub rate_plans: Vec<Value>,
-    #[serde(default)]
-    pub room_rates: Vec<Value>,
-    #[serde(default)]
-    pub amenities: Vec<Value>,
-    #[serde(default)]
-    pub room_type_amenities: Vec<Value>,
-    #[serde(default)]
-    pub services: Vec<Value>,
-    #[serde(default)]
-    pub booking_services: Vec<Value>,
-    #[serde(default)]
-    pub booking_channels: Vec<Value>,
-    #[serde(default)]
-    pub room_status_transitions: Vec<Value>,
-    #[serde(default)]
-    pub room_history: Vec<Value>,
-    #[serde(default)]
-    pub room_status_change_log: Vec<Value>,
-    #[serde(default)]
-    pub email_templates: Vec<Value>,
-    #[serde(default)]
-    pub loyalty_programs: Vec<Value>,
-    #[serde(default)]
-    pub loyalty_tiers: Vec<Value>,
-    #[serde(default)]
-    pub loyalty_memberships: Vec<Value>,
-    #[serde(default)]
-    pub loyalty_members: Vec<Value>,
-    #[serde(default)]
-    pub loyalty_accounts: Vec<Value>,
-    #[serde(default)]
-    pub points_transactions: Vec<Value>,
-    #[serde(default)]
-    pub loyalty_transactions: Vec<Value>,
-    #[serde(default)]
-    pub reward_catalog: Vec<Value>,
-    #[serde(default)]
-    pub loyalty_rewards: Vec<Value>,
-    #[serde(default)]
-    pub reward_redemptions: Vec<Value>,
-    #[serde(default)]
-    pub loyalty_redemptions: Vec<Value>,
-    #[serde(default)]
-    pub loyalty_program_rules: Vec<Value>,
-    #[serde(default)]
-    pub corporate_accounts: Vec<Value>,
-    #[serde(default)]
-    pub corporate_account_contacts: Vec<Value>,
-    #[serde(default)]
-    pub housekeeping_tasks: Vec<Value>,
-    #[serde(default)]
-    pub maintenance_tickets: Vec<Value>,
-    #[serde(default)]
-    pub guest_documents: Vec<Value>,
-    #[serde(default)]
-    pub guest_notes: Vec<Value>,
-    #[serde(default)]
-    pub guest_preferences: Vec<Value>,
-    #[serde(default)]
-    pub guest_reviews: Vec<Value>,
-    #[serde(default)]
-    pub self_checkin_events: Vec<Value>,
-    #[serde(default)]
-    pub night_audit_posted_nights: Vec<Value>,
-}
-
-/// Schema-driven full database export. Table keys are always schema-qualified
-/// (for example, `public.users`) so rows from application schemas cannot
-/// collide with public tables of the same name.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct FullDataExport {
-    pub version: String,
-    pub exported_at: String,
-    pub tables: BTreeMap<String, Vec<Value>>,
-}
-
 /// Count preview for all transferable tables before generating an export file.
-/// `entities`/`exclusions` mirror the v3 manifest embedded in every export, so
+/// `entities`/`exclusions` mirror the manifest embedded in every export, so
 /// the preview shows exactly what a backup would declare.
 #[derive(Debug, Serialize)]
 pub struct ExportPreview {
@@ -146,9 +27,8 @@ pub struct TransferTablePreview {
     pub dependencies: Vec<String>,
 }
 
-// ----- `hotel-backup` v3 file format + upload/preview/execute/job API. -----
-// The JSON format is camelCase; legacy structs above keep their snake_case
-// fields untouched.
+// ----- `hotel-backup` file format + upload/preview/execute/job API. -----
+// The JSON format is camelCase throughout.
 
 /// Where a backup file was produced. `environment` is the lowercased
 /// `config::Environment`; `database_provider` is always `"postgresql"`.
@@ -178,14 +58,33 @@ pub struct BackupExclusion {
     pub reason: String,
 }
 
-/// Coverage declaration embedded in every v3 file: what was exported and what
+/// One foreign-key edge between transferable entities, emitted on `backup`
+/// scope exports so a migration can order inserts without introspecting the
+/// destination schema.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupRelationship {
+    pub table: String,
+    pub column: String,
+    pub references_table: String,
+    pub references_column: String,
+}
+
+/// Coverage declaration embedded in every backup file: what was exported and what
 /// was intentionally left behind, so a restore can see the difference between
-/// "absent" and "excluded".
+/// "absent" and "excluded". `omitted` names the sensitive entities a standard
+/// export deliberately skipped; `relationships` is emitted on `backup`
+/// exports only. Both are absent on files written before the tiered-export
+/// release, so importers compute sensitivity from entity names instead.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupManifest {
     pub entities: Vec<BackupEntityDescriptor>,
     pub exclusions: Vec<BackupExclusion>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub omitted: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relationships: Option<Vec<BackupRelationship>>,
 }
 
 /// Trailer written after the last table: the entity count and row counts
@@ -200,7 +99,7 @@ pub struct BackupIntegrity {
     pub completed_at: String,
 }
 
-/// A parsed `hotel-backup` v3 document — the import side's parse target.
+/// A parsed `hotel-backup` document — the import side's parse target.
 ///
 /// Only ever deserialized: the export writer emits the bytes by hand so a
 /// large backup never materializes as a `Value`. `tables` keeps every row as
@@ -211,7 +110,8 @@ pub struct BackupIntegrity {
 pub struct BackupFile {
     /// Always `"hotel-backup"` — anything else is rejected before this parse.
     pub format: String,
-    /// Always `3` for this struct.
+    /// Always `1` for this struct — earlier `hotel-backup` snapshots carried
+    /// `3` and are rejected like any other unrecognized version.
     pub version: u32,
     /// Payload class; only `"business-data"` exists today.
     pub kind: String,
@@ -219,8 +119,22 @@ pub struct BackupFile {
     /// itself is never read by the import.
     #[allow(dead_code)]
     pub export_id: Uuid,
-    /// RFC 3339 timestamp, kept as text (matches `exported_at` on the legacy
-    /// structs — the import never does date math on it).
+    /// Export breadth — `"standard"`, `"full"`, or `"backup"`. Sensitivity is
+    /// computed from entity names rather than trusting this label.
+    #[serde(default)]
+    pub export_type: Option<String>,
+    /// Producer's declaration that sensitive entities are present. Checked
+    /// alongside the entity list — a crafted file cannot drop the requirement
+    /// by flipping this flag off.
+    #[serde(default)]
+    pub includes_sensitive_data: Option<bool>,
+    /// Always `false` on files this system writes — credentials and secrets
+    /// never leave the database. A file declaring `true` surfaces a preview
+    /// warning since no legitimate producer emits it.
+    #[serde(default)]
+    pub includes_secrets: Option<bool>,
+    /// RFC 3339 timestamp, kept as text — the import never does date math on
+    /// it.
     pub exported_at: String,
     pub application_version: String,
     pub source: BackupSource,
@@ -236,8 +150,9 @@ pub struct BackupFile {
 pub struct UploadResponse {
     pub upload_id: Uuid,
     pub bytes: u64,
-    /// `"v3"`, `"v2"`, `"v1"`, or `"unknown"`. Detection is a first-kilobytes
-    /// sniff, not a verdict — preview reports the real parse errors.
+    /// `"v1"` (a `hotel-backup` document), `"legacy"` (a retired v1/v2/v3
+    /// export shape), or `"unknown"`. Detection is a first-kilobytes sniff,
+    /// not a verdict — preview reports the real parse errors.
     pub detected_format: String,
 }
 
@@ -255,8 +170,8 @@ pub struct ImportPreviewEntity {
     pub name: String,
     /// Rows the file carries for this entity.
     pub rows: u64,
-    /// Rows whose primary key does not exist in the destination — `None` when
-    /// the format cannot support the diff (v1 files carry counts only).
+    /// Rows whose primary key does not exist in the destination — `None` only
+    /// for entities the diff could not classify.
     pub new: Option<u64>,
     pub existing: Option<u64>,
     /// Rows the import would skip (for example references to excluded parents
@@ -281,12 +196,22 @@ pub struct ImportRelationshipProblem {
 #[serde(rename_all = "camelCase")]
 pub struct ImportPreview {
     pub upload_id: Uuid,
-    /// `"v3"`, `"v2"`, `"v1"`, or `"unknown"`.
+    /// `"v1"` — the only format that parses far enough to produce a preview.
     pub format: String,
-    /// Numeric format version when the file carries one (v3 -> 3, v2 -> 2).
+    /// Numeric format version the file declares (`1` today).
     pub version: Option<u32>,
+    /// The export's declared breadth (`"standard"`/`"full"`/`"backup"`).
+    pub export_type: Option<String>,
+    /// True when the file carries sensitive entities — anything listed in
+    /// `SENSITIVE_TABLES` or a `includesSensitiveData: true` declaration.
+    pub sensitive: bool,
+    /// Permissions the caller still needs to execute this file (for example
+    /// `data_transfer:import_sensitive` on a sensitive upload). Echoed so the
+    /// UI can warn before the execute call fails; the server re-checks
+    /// regardless of what the client shows.
+    pub requires_permissions: Vec<String>,
     pub exported_at: Option<String>,
-    /// `source.environment` for v3 files; `None` for older formats.
+    /// `source.environment` the file was exported from.
     pub source_environment: Option<String>,
     pub application_version: Option<String>,
     pub entities: Vec<ImportPreviewEntity>,
@@ -346,6 +271,92 @@ pub struct ImportExecuteRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ImportExecuteResponse {
     pub job_id: Uuid,
+}
+
+/// Export breadth selected by `?scope=` on `GET /data-transfer/export` and
+/// `GET /data-transfer/export/preview`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExportScope {
+    /// Non-sensitive entities only — the routine operational transfer.
+    #[default]
+    Standard,
+    /// Every transferable entity, including sensitive business data.
+    /// Requires `data_transfer:export_sensitive` + step-up.
+    Full,
+    /// `full` plus a `manifest.relationships` FK edge list, for migration
+    /// tooling. Same permission requirements as `full`.
+    Backup,
+}
+
+impl ExportScope {
+    /// The `exportType` label written into the document header.
+    pub fn label(self) -> &'static str {
+        match self {
+            ExportScope::Standard => "standard",
+            ExportScope::Full => "full",
+            ExportScope::Backup => "backup",
+        }
+    }
+
+    /// Whether this scope emits sensitive entities.
+    pub fn includes_sensitive(self) -> bool {
+        !matches!(self, ExportScope::Standard)
+    }
+}
+
+/// `?scope=` query for the export endpoints.
+#[derive(Debug, Deserialize)]
+pub struct ExportScopeQuery {
+    #[serde(default)]
+    pub scope: ExportScope,
+}
+
+/// `POST /data-transfer/step-up` — re-authentication for privileged
+/// operations (full/backup export, restore execute). When the account has
+/// TOTP enabled, `totp_code` is required alongside the password.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StepUpRequest {
+    pub password: String,
+    pub totp_code: Option<String>,
+}
+
+/// Short-lived proof of re-authentication, sent as the `X-Step-Up` header on
+/// the gated operation it unlocks.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StepUpResponse {
+    pub step_up_token: String,
+    pub expires_at: String,
+}
+
+/// One transfer-history row — an audit event projected for the data-transfer
+/// page (`details` carries job id/mode/counts, never row data).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferHistoryEntry {
+    pub id: i64,
+    pub action: String,
+    pub user_id: Option<i64>,
+    pub username: Option<String>,
+    pub created_at: String,
+    pub details: Option<Value>,
+}
+
+/// `GET /data-transfer/history` response.
+#[derive(Debug, Serialize)]
+pub struct TransferHistory {
+    pub entries: Vec<TransferHistoryEntry>,
+    pub total: i64,
+}
+
+/// `?limit=` query for the transfer-history endpoint (server clamps to a
+/// sane range).
+#[derive(Debug, Deserialize)]
+pub struct TransferHistoryQuery {
+    #[serde(default)]
+    pub limit: Option<i64>,
 }
 
 /// Lifecycle states of a background import job.
@@ -415,94 +426,9 @@ pub struct ImportJobStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        BackupFile, BackupImportMode, BookingDataExport, ConflictPolicy, FullDataExport,
-        ImportJobState, UploadResponse,
-    };
-    use serde_json::{Value, json};
+    use super::{BackupFile, BackupImportMode, ConflictPolicy, ImportJobState, UploadResponse};
+    use serde_json::{json, Value};
     use uuid::Uuid;
-
-    fn legacy_payload() -> Value {
-        json!({
-            "version": "1.0",
-            "exported_at": "2026-07-15T00:00:00Z",
-            "guests": [],
-            "guest_complimentary_credits": [],
-            "companies": [],
-            "bookings": [],
-            "payments": [],
-            "invoices": [],
-            "booking_guests": [],
-            "booking_modifications": [],
-            "booking_history": [],
-            "night_audit_runs": [],
-            "night_audit_details": [],
-            "customer_ledgers": [],
-            "customer_ledger_payments": [],
-            "room_changes": []
-        })
-    }
-
-    #[test]
-    fn legacy_payload_defaults_promotion_tables_to_empty() {
-        let export: BookingDataExport =
-            serde_json::from_value(legacy_payload()).expect("legacy payload should deserialize");
-
-        assert!(export.promotions.is_empty());
-        assert!(export.promotion_room_types.is_empty());
-        assert!(export.vouchers.is_empty());
-        assert!(export.voucher_redemptions.is_empty());
-        assert!(export.voucher_redemption_allocations.is_empty());
-    }
-
-    #[test]
-    fn promotion_payload_tables_deserialize_and_serialize() {
-        let mut payload = legacy_payload();
-        let object = payload
-            .as_object_mut()
-            .expect("test payload should be an object");
-        object.insert("promotions".to_string(), json!([{"id": 1}]));
-        object.insert(
-            "promotion_room_types".to_string(),
-            json!([{"promotion_id": 1, "room_type_id": 2}]),
-        );
-        object.insert("vouchers".to_string(), json!([{"id": 3}]));
-        object.insert("voucher_redemptions".to_string(), json!([{"id": 4}]));
-        object.insert(
-            "voucher_redemption_allocations".to_string(),
-            json!([{"id": 5}]),
-        );
-
-        let export: BookingDataExport =
-            serde_json::from_value(payload).expect("promotion payload should deserialize");
-        assert_eq!(export.promotions, vec![json!({"id": 1})]);
-        assert_eq!(export.promotion_room_types.len(), 1);
-        assert_eq!(export.vouchers.len(), 1);
-        assert_eq!(export.voucher_redemptions.len(), 1);
-        assert_eq!(export.voucher_redemption_allocations.len(), 1);
-
-        let serialized = serde_json::to_value(export).expect("payload should serialize");
-        assert_eq!(serialized["voucher_redemption_allocations"][0]["id"], 5);
-    }
-
-    #[test]
-    fn v2_payload_preserves_schema_qualified_credential_rows() {
-        let payload = json!({
-            "version": "2.0",
-            "exported_at": "2026-07-27T00:00:00Z",
-            "tables": {
-                "public.users": [{"id": 1, "password_hash": "stored-hash"}]
-            }
-        });
-
-        let export: FullDataExport =
-            serde_json::from_value(payload).expect("v2 payload should deserialize");
-
-        assert_eq!(
-            export.tables["public.users"][0]["password_hash"],
-            "stored-hash"
-        );
-    }
 
     #[test]
     fn backup_import_mode_uses_exact_wire_strings() {
@@ -558,11 +484,11 @@ mod tests {
     }
 
     #[test]
-    fn backup_file_deserializes_v3_document_with_raw_rows() {
+    fn backup_file_deserializes_v1_document_with_raw_rows() {
         let export_id = Uuid::new_v4();
         let document = json!({
             "format": "hotel-backup",
-            "version": 3,
+            "version": 1,
             "kind": "business-data",
             "exportId": export_id,
             "exportedAt": "2026-09-14T12:00:00Z",
@@ -579,10 +505,10 @@ mod tests {
         });
 
         let file: BackupFile =
-            serde_json::from_value(document).expect("v3 document should deserialize");
+            serde_json::from_value(document).expect("v1 document should deserialize");
 
         assert_eq!(file.format, "hotel-backup");
-        assert_eq!(file.version, 3);
+        assert_eq!(file.version, 1);
         assert_eq!(file.kind, "business-data");
         assert_eq!(file.export_id, export_id);
         assert_eq!(file.source.database_provider, "postgresql");
@@ -606,13 +532,13 @@ mod tests {
         let response = UploadResponse {
             upload_id,
             bytes: 42,
-            detected_format: "v3".to_string(),
+            detected_format: "v1".to_string(),
         };
 
         let value = serde_json::to_value(response).expect("response should serialize");
         assert_eq!(value["uploadId"], json!(upload_id));
         assert_eq!(value["bytes"], json!(42));
-        assert_eq!(value["detectedFormat"], json!("v3"));
+        assert_eq!(value["detectedFormat"], json!("v1"));
         assert!(value.get("upload_id").is_none());
     }
 }

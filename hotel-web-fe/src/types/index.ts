@@ -109,6 +109,7 @@ export type {
   BackupImportMode,
   ConflictPolicy,
   ExportPreview,
+  ExportScope,
   ImportEntityOutcome,
   ImportExecuteRequest,
   ImportExecuteResponse,
@@ -120,6 +121,10 @@ export type {
   ImportPreviewEntity,
   ImportRelationshipProblem,
   JobProgress,
+  StepUpRequest,
+  StepUpResponse,
+  TransferHistory,
+  TransferHistoryEntry,
   TransferTablePreview,
   UploadResponse,
 } from './dataTransfer.types';
