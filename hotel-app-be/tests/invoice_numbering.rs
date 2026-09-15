@@ -31,7 +31,7 @@
 //! decode paths can never silently regress again.
 
 use hotel_app_be::core::error::ApiError;
-use hotel_app_be::models::guest::display_guest_name;
+use hotel_app_be::modules::guests::models::display_guest_name;
 use hotel_app_be::repositories::invoice_numbers as invoice_repo;
 use hotel_app_be::services::invoice_numbers::{
     backfill_missing_booking_invoices, next_invoice_number,

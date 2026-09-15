@@ -16,7 +16,7 @@ use crate::modules::consent::service::{self as consent_service, ConsentContext, 
 use crate::modules::consent::validation as consent_validation;
 use crate::modules::settings::repository::SettingsRepository;
 use crate::repositories::auth::AuthRepository;
-use crate::repositories::guest::GuestRepository;
+use crate::modules::guests::repository::GuestRepository;
 use crate::modules::passkey::repository::PasskeyRepository;
 use crate::modules::rbac::repository::RbacRepository;
 use crate::services::account_emails;

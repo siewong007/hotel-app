@@ -5,7 +5,7 @@ use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::repositories::guest::GuestRepository;
+use super::repository::GuestRepository;
 use crate::services::audit::AuditLog;
 use crate::services::auto_checkin;
 use crate::utils::pagination::normalize_pagination;

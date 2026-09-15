@@ -5,7 +5,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::services::guests as svc;
+use super::service as svc;
 use axum::{
     extract::{Extension, Path, Query, State},
     response::Json,

@@ -634,7 +634,7 @@ pub async fn update_my_profile(
         .normalize_and_validate()
         .map_err(|error| ApiError::BadRequest(error.to_string()))?;
 
-    crate::repositories::guest::GuestRepository::update_contact_profile(pool, guest_id, &input)
+    crate::modules::guests::repository::GuestRepository::update_contact_profile(pool, guest_id, &input)
         .await?;
 
     // Which fields moved is not recorded: the values are the guest's own

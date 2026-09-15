@@ -15,7 +15,7 @@ pub mod channel_net_revenue;
 // company persistence live in modules::companies.
 pub mod data_transfer;
 pub mod ekyc;
-pub mod guest;
+// guest persistence live in modules::guests.
 pub mod guest_portal;
 pub mod guest_portal_session;
 // housekeeping persistence live in modules::housekeeping.

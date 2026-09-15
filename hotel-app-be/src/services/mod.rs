@@ -21,7 +21,7 @@ pub mod data_transfer_step_up;
 // eKYC service logic lives in modules::ekyc.
 pub mod google_identity;
 pub mod guest_portal;
-pub mod guests;
+// guests service logic live in modules::guests.
 // housekeeping service logic live in modules::housekeeping.
 pub mod invoice_numbers;
 pub mod ledgers;

@@ -5,7 +5,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -50,7 +50,7 @@ async fn get_guests(
     query: Query<models::GuestPaginationParams>,
 ) -> Result<Json<models::GuestPaginatedResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::guests::get_guests_handler(State(pool), Extension(user_id), query).await
+    handlers::get_guests_handler(State(pool), Extension(user_id), query).await
 }
 
 async fn create_guest(
@@ -62,7 +62,7 @@ async fn create_guest(
     // reveals the matching guest's ID so staff can pick the existing profile,
     // which would otherwise be a guest-directory enumeration oracle.
     let user_id = require_permission_helper(&pool, &headers, "guests:create").await?;
-    handlers::guests::create_guest_handler(State(pool), Extension(user_id), Json(input)).await
+    handlers::create_guest_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn get_guest(
@@ -71,7 +71,7 @@ async fn get_guest(
     path: Path<i64>,
 ) -> Result<Json<models::Guest>, ApiError> {
     require_permission_helper(&pool, &headers, "guests:read").await?;
-    handlers::guests::get_guest_handler(State(pool), path).await
+    handlers::get_guest_handler(State(pool), path).await
 }
 
 async fn get_guest_profile(
@@ -80,7 +80,7 @@ async fn get_guest_profile(
     path: Path<i64>,
 ) -> Result<Json<models::GuestProfile>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "guests:read").await?;
-    handlers::guests::get_guest_profile_handler(State(pool), Extension(user_id), path).await
+    handlers::get_guest_profile_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn get_my_guests(
@@ -88,7 +88,7 @@ async fn get_my_guests(
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Guest>>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::guests::get_my_guests_handler(State(pool), Extension(user_id)).await
+    handlers::get_my_guests_handler(State(pool), Extension(user_id)).await
 }
 
 async fn link_guest(
@@ -102,7 +102,7 @@ async fn link_guest(
     // flags. Verified self-service access goes through the portal claim flow,
     // which proves knowledge of a booking instead.
     let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
-    handlers::guests::link_guest_handler(State(pool), Extension(user_id), Json(input)).await
+    handlers::link_guest_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn unlink_guest(
@@ -111,7 +111,7 @@ async fn unlink_guest(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::guests::unlink_guest_handler(State(pool), Extension(user_id), path).await
+    handlers::unlink_guest_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn upgrade_guest(
@@ -122,7 +122,7 @@ async fn upgrade_guest(
     // Creates a login account on the target guest profile — staff only. The
     // can_modify link check inside the service stays as a second layer.
     let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
-    handlers::guests::upgrade_guest_to_user_handler(State(pool), Extension(user_id), Json(input))
+    handlers::upgrade_guest_to_user_handler(State(pool), Extension(user_id), Json(input))
         .await
 }
 
@@ -133,7 +133,7 @@ async fn transfer_guest_portal_account(
     Json(input): Json<models::TransferGuestPortalAccountInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
-    handlers::guests::transfer_guest_portal_account_handler(
+    handlers::transfer_guest_portal_account_handler(
         State(pool),
         Extension(user_id),
         path,
@@ -149,7 +149,7 @@ async fn update_guest(
     Json(input): Json<models::GuestUpdateInput>,
 ) -> Result<Json<models::Guest>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
-    handlers::guests::update_guest_handler(State(pool), Extension(user_id), path, Json(input))
+    handlers::update_guest_handler(State(pool), Extension(user_id), path, Json(input))
         .await
 }
 
@@ -159,7 +159,7 @@ async fn apply_tourism_type_from_last_check_in(
     path: Path<i64>,
 ) -> Result<Json<models::GuestTourismConversionResponse>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
-    handlers::guests::apply_tourism_type_from_last_check_in_handler(
+    handlers::apply_tourism_type_from_last_check_in_handler(
         State(pool),
         Extension(user_id),
         path,
@@ -173,7 +173,7 @@ async fn delete_guest(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "guests:delete").await?;
-    handlers::guests::delete_guest_handler(State(pool), path).await
+    handlers::delete_guest_handler(State(pool), path).await
 }
 
 async fn get_guest_bookings(
@@ -182,7 +182,7 @@ async fn get_guest_bookings(
     path: Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     require_permission_helper(&pool, &headers, "guests:read").await?;
-    handlers::guests::get_guest_bookings_handler(State(pool), path).await
+    handlers::get_guest_bookings_handler(State(pool), path).await
 }
 
 async fn get_guest_credits(
@@ -191,7 +191,7 @@ async fn get_guest_credits(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::guests::get_guest_credits_handler(State(pool), Extension(user_id), path).await
+    handlers::get_guest_credits_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn get_my_guests_with_credits(
@@ -199,5 +199,5 @@ async fn get_my_guests_with_credits(
     headers: HeaderMap,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::guests::get_my_guests_with_credits_handler(State(pool), Extension(user_id)).await
+    handlers::get_my_guests_with_credits_handler(State(pool), Extension(user_id)).await
 }

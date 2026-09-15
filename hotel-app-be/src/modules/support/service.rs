@@ -22,7 +22,7 @@ use crate::core::error::ApiError;
 use crate::core::middleware::check_permission;
 use crate::core::settings_cache;
 use crate::models::AuditEvent;
-use crate::repositories::guest::GuestRepository;
+use crate::modules::guests::repository::GuestRepository;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 

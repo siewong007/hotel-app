@@ -12,7 +12,7 @@ pub mod bookings;
 pub mod data_transfer;
 // eKYC handlers live in modules::ekyc.
 pub mod guest_portal;
-pub mod guests;
+// guests handlers live in modules::guests.
 // housekeeping handlers live in modules::housekeeping.
 pub mod ledgers;
 // Loyalty handlers live in modules::loyalty::handlers.

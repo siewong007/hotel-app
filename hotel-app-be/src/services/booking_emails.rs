@@ -61,7 +61,7 @@ impl BookingEmailSource {
     /// rule as invoices: the legal name once check-in has supplied both halves,
     /// the booking nickname until then.
     fn guest_name(&self, locale: Locale) -> String {
-        let display = crate::models::guest::display_guest_name(
+        let display = crate::modules::guests::models::display_guest_name(
             self.guest_name.as_deref().unwrap_or_default(),
             self.guest_first_name.as_deref(),
             self.guest_last_name.as_deref(),

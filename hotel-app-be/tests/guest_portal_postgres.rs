@@ -8,7 +8,7 @@ mod postgres_tests {
     use chrono::Utc;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::GuestPortalClaimAccountRequest;
-    use hotel_app_be::models::guest::GuestUpdateInput;
+    use hotel_app_be::modules::guests::models::GuestUpdateInput;
     use hotel_app_be::modules::consent::models::{ConsentAcceptance, ConsentDocument};
     use hotel_app_be::modules::consent::service::ConsentContext;
     use hotel_app_be::modules::guest_booking::repository::GuestBookingRepository;
