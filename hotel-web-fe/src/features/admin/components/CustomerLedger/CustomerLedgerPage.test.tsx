@@ -529,7 +529,7 @@ describe('CustomerLedgerPage', () => {
 
     render(<CustomerLedgerPage />);
 
-    expect(screen.getByRole('progressbar')).toBeDefined();
+    expect(screen.getByRole('status')).toBeDefined();
     expect(mocks.captured.companyListPane).toBeNull();
   });
 

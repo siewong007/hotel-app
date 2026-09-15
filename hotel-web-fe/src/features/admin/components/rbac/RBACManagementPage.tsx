@@ -30,6 +30,7 @@ import {
   People as PeopleIcon,
   ViewModule as ModulesIcon,
 } from '@mui/icons-material';
+import { LogoLoader } from '../../../../components';
 import type { Permission, Role, User } from '../../../../types';
 import { useRBACData } from './hooks/useRBACData';
 import {
@@ -471,9 +472,7 @@ const RBACManagementPage: React.FC = () => {
         <PtabBtn id="users" label={t('rbac.usersTab')} count={`${users.length}`} />
       </Box>
       {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
-          <CircularProgress />
-        </Box>
+        <LogoLoader variant="page" />
       )}
       {!loading && tab === 'roles' && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '300px 1fr' }, gap: 2, alignItems: 'start' }}>

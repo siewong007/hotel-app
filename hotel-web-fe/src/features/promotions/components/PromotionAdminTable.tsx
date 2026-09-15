@@ -11,7 +11,6 @@ import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
 import {
   Box,
   Chip,
-  CircularProgress,
   IconButton,
   LinearProgress,
   Stack,
@@ -29,6 +28,7 @@ import type { Promotion, PromotionLifecycle, PromotionLifecycleAction } from "..
 import { formatPromotionDate, formatPromotionDiscount } from "../utils";
 import { statusLabel, useTranslation } from "../../../i18n";
 import { useIsPhone } from "../../../hooks/useIsPhone";
+import { LogoLoader } from "../../../components";
 import { MobileCardRow } from "../../../components/data-table/MobileCardRow";
 
 interface PromotionAdminTableProps {
@@ -188,10 +188,7 @@ export function PromotionAdminTable({
           py: 9,
         }}
       >
-        <CircularProgress size={28} />
-        <Typography sx={{
-          color: "text.secondary"
-        }}>{t('campaigns.loading')}</Typography>
+        <LogoLoader variant="inline" label={t('campaigns.loading')} />
       </Box>
     );
   }

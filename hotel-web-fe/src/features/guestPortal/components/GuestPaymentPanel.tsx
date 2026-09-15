@@ -41,6 +41,7 @@ import { guestErrorMessage } from '../utils/feedback';
 import { useTranslation } from '../../../i18n';
 import { formatCurrency, getCurrentCurrency } from '../../../utils/currency';
 import type { GuestPaymentConfig, PaymentActionResponse } from '../../../types';
+import { LogoLoader } from '../../../components';
 import { ConsentBlock } from '../../legal/components/ConsentBlock';
 import { PAYMENT_CONSENTS, PAYMENT_KEY_POINTS } from '../../legal/content';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
@@ -244,14 +245,7 @@ export function GuestPaymentPanel({
 
   if (configLoading) {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
-        <CircularProgress size={20} />
-        <Typography variant="body2" sx={{
-          color: "text.secondary"
-        }}>
-          {t('payment.loading')}
-        </Typography>
-      </Box>
+      <LogoLoader variant="inline" label={t('payment.loading')} sx={{ py: 2 }} />
     );
   }
 

@@ -19,6 +19,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 
 import { useJobFailures, useSystemHealth } from './hooks';
 import { JobsTable } from './JobsTable';
+import { LogoLoader } from '../../../components';
 import PageHeader from '../../../components/common/PageHeader';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
@@ -69,9 +70,7 @@ const JobsPage: React.FC = () => {
       )}
 
       {isPending ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
+        <LogoLoader variant="page" />
       ) : health.data && !health.data.job_runs_enabled ? (
         <Alert severity="info">
           {t('jobs.notInstalledStart')}

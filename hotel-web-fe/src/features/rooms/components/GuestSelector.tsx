@@ -10,7 +10,6 @@ import {
   Alert,
   Autocomplete,
   createFilterOptions,
-  CircularProgress,
   FormControl,
   FormHelperText,
   InputLabel,
@@ -22,6 +21,7 @@ import {
   Star as MemberIcon,
 } from '@mui/icons-material';
 import { Guest, GuestType, TourismType, GUEST_TYPE_CONFIG } from '../../../types';
+import { LogoLoader } from '../../../components';
 import CollapsibleSection from '../../../components/common/CollapsibleSection';
 import { useTranslation } from '../../../i18n/useTranslation';
 
@@ -160,8 +160,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
       <Box>
         {loadingGuestsWithCredits ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 2, gap: 1 }}>
-            <CircularProgress size={24} />
-            <Typography>{t('guestSelector.loadingCredits')}</Typography>
+            <LogoLoader variant="inline" label={t('guestSelector.loadingCredits')} />
           </Box>
         ) : (
           <>

@@ -117,7 +117,7 @@ describe('SettingsPage', () => {
 
     render(<SettingsPage />);
 
-    expect(screen.getByRole('progressbar')).toBeTruthy();
+    expect(screen.getByRole('status')).toBeTruthy();
     expect(screen.queryByText('Hotel Settings')).toBeNull();
   });
 

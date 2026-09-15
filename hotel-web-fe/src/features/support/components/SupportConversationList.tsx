@@ -1,6 +1,5 @@
 import {
   Box,
-  CircularProgress,
   Divider,
   List,
   ListItemButton,
@@ -8,6 +7,7 @@ import {
   TablePagination,
   Typography,
 } from '@mui/material';
+import { LogoLoader } from '../../../components';
 import type { SupportConversationSummary } from '../types';
 import { useTranslation } from '../../../i18n/useTranslation';
 import {
@@ -73,18 +73,7 @@ export default function SupportConversationList({
           overflow: "auto"
         }}>
         {isLoading ? (
-          <Stack
-            spacing={1}
-            sx={{
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: 240
-            }}>
-            <CircularProgress size={28} />
-            <Typography variant="body2" sx={{
-              color: "text.secondary"
-            }}>{t('list.loading')}</Typography>
-          </Stack>
+          <LogoLoader variant="page" minHeight={240} label={t('list.loading')} />
         ) : conversations.length === 0 ? (
           <Stack
             spacing={0.5}

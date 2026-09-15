@@ -21,6 +21,8 @@ export interface LogoLoaderProps {
   delayMs?: number;
   /** Region floor for `page` (default 240px) and `overlay` (default 100%). */
   minHeight?: number | string;
+  /** Spacing tweaks for the outer container. */
+  sx?: SxProps<Theme>;
 }
 
 // ── Motion ─────────────────────────────────────────────────────────────
@@ -88,6 +90,7 @@ const LogoLoader: React.FC<LogoLoaderProps> = ({
   label,
   delayMs,
   minHeight,
+  sx,
 }) => {
   const { t } = useTranslation('common');
   const isFullScreen = variant === 'fullScreen';
@@ -182,6 +185,7 @@ const LogoLoader: React.FC<LogoLoaderProps> = ({
       sx={[
         containerSx,
         effectiveDelay > 0 && { animation: `${loaderReveal} 0.2s ease-out both` },
+        ...(Array.isArray(sx) ? sx : [sx]),
         // Component-level reduced-motion: static mark, entrance only — the
         // global 0.01ms rule in index.css is the backstop, not the contract.
         {

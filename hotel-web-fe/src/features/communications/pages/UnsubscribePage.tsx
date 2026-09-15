@@ -5,13 +5,13 @@ import {
   Button,
   Card,
   CardContent,
-  CircularProgress,
   Divider,
   Stack,
   Switch,
   Typography,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { LogoLoader } from '../../../components';
 import { PublicCommunicationsApi } from '../api';
 import { type NotificationTopic } from '../types';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
@@ -59,11 +59,7 @@ export default function UnsubscribePage({ token }: { token: string }) {
   });
 
   if (prefs.isLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
-      </Box>
-    );
+    return <LogoLoader variant="page" sx={{ mt: 8 }} />;
   }
   if (prefs.isError) {
     return (

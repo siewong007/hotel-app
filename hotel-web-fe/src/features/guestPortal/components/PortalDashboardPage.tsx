@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation, useNavigate } from '../../../router';
-import { Alert, Box, Button, Container, CircularProgress, Fade, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Container, Fade, Stack, Typography } from '@mui/material';
+import { LogoLoader } from '../../../components';
 import { usePortalSessionBootstrap } from '../hooks/usePortalSessionBootstrap';
 import { BookingsSection, CreditsSection, EmbeddedSection, OverviewSection, PointsHistorySection } from './dashboard/PortalDashboardSections';
 import { IdentitySection } from './dashboard/IdentitySection';
@@ -55,12 +56,10 @@ export const PortalDashboardPage: React.FC = () => {
           </Alert>
         ) : (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
-            <CircularProgress size={24} />
-            <Typography>
-              {sessionStatus === 'checking-account'
-                ? t('book.checkingAccount')
-                : t('book.openingPortal')}
-            </Typography>
+            <LogoLoader
+              variant="inline"
+              label={sessionStatus === 'checking-account' ? t('book.checkingAccount') : t('book.openingPortal')}
+            />
           </Box>
         )}
       </Container>

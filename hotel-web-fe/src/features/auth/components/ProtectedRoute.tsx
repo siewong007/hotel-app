@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
-import { CircularProgress, Box } from '@mui/material';
+import { LogoLoader } from '../../../components';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -18,17 +18,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
 
   if (isLoading) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "100vh"
-        }}>
-        <CircularProgress />
-      </Box>
-    );
+    return <LogoLoader variant="page" minHeight="100vh" />;
   }
 
   if (!isAuthenticated) {

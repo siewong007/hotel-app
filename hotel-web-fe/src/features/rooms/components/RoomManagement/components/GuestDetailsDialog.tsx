@@ -30,6 +30,7 @@ import {
   Login as LoginIcon,
   Block as BlockIcon,
 } from '@mui/icons-material';
+import { LogoLoader } from '../../../../../components';
 import { Guest, Room } from '../../../../../types';
 import { useTranslation } from '../../../../../i18n/useTranslation';
 import { intlTag } from '../../../../../i18n/format';
@@ -256,14 +257,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
         {tab === 1 && (
           <Box>
             {loadingCredits ? (
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "center",
-                  py: 4
-                }}>
-                <CircularProgress />
-              </Box>
+              <LogoLoader variant="page" minHeight={120} />
             ) : creditsBookingSuccess ? (
               /* Booking Success - Show Check-in Option */
               (<Box>

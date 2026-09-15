@@ -1,3 +1,4 @@
+import { LogoLoader } from '../../../components';
 import { errorMessage } from '../../../utils/errorMessage';
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
@@ -511,15 +512,7 @@ const SettingsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "400px"
-        }}>
-        <CircularProgress />
-      </Box>
+      <LogoLoader variant="page" minHeight={400} />
     );
   }
 

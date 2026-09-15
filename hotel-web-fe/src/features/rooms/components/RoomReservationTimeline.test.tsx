@@ -71,7 +71,7 @@ describe('RoomReservationTimeline', () => {
     mocks.rooms = { ...queryLoading(), refetch: vi.fn() } as never;
     mocks.bookings = { ...queryLoading(), refetch: vi.fn() } as never;
     renderPage(<RoomReservationTimeline />, { route: '/timeline' });
-    expect(await screen.findByRole('progressbar')).toBeTruthy();
+    expect(await screen.findByRole('status')).toBeTruthy();
   });
 
   it('shows the error state when a query fails', async () => {

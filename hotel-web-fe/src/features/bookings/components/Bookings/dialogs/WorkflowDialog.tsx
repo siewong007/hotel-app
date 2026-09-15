@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -20,6 +19,7 @@ import {
   Login as LoginIcon,
   Edit as EditIcon,
 } from '@mui/icons-material';
+import { LogoLoader } from '../../../../../components';
 import type { BookingTimelineEntry, BookingWithDetails, PaymentWorkflowSummary } from '../../../../../types';
 import { useCurrency } from '../../../../../hooks/useCurrency';
 import { statusLabel, useTranslation } from '../../../../../i18n';
@@ -109,9 +109,7 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
       </DialogTitle>
       <DialogContent dividers>
         {loading ? (
-          <Box sx={{ py: 5, display: 'flex', justifyContent: 'center' }}>
-            <CircularProgress />
-          </Box>
+          <LogoLoader variant="page" minHeight={120} />
         ) : (
           <Stack spacing={2.5}>
             {summary && (

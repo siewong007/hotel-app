@@ -3,7 +3,6 @@ import {
   Badge,
   Box,
   Button,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -18,6 +17,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
 import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import { LogoLoader } from '../../../components';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { GUEST_BRAND } from '../theme/guestPortalTheme';
 import { guestErrorMessage } from '../utils/feedback';
@@ -220,8 +220,8 @@ export function GuestPortalNotificationBell({
 
         <Box sx={{ maxHeight: 420, overflowY: 'auto', p: pendingCount > 0 ? 1.25 : 0 }}>
           {isLoading && bookings.length === 0 ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }} role="status">
-              <CircularProgress size={24} />
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <LogoLoader variant="inline" />
             </Box>
           ) : loadError ? (
             <Box sx={{ px: 2.25, py: 3 }} role="alert">

@@ -12,13 +12,13 @@ import {
   Stack,
   Chip,
   Button,
-  CircularProgress,
 } from '@mui/material';
 import {
   CalendarMonth as CalendarIcon,
   Login as LoginIcon,
   CardGiftcard as GiftIcon,
 } from '@mui/icons-material';
+import { LogoLoader } from '../../../../../components';
 import { BookingWithDetails } from '../../../../../types';
 import { toMoneyNumber } from '../../../../../utils/money';
 import { useTranslation } from '../../../../../i18n/useTranslation';
@@ -72,15 +72,7 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
       </DialogTitle>
       <DialogContent sx={{ pt: 3 }}>
         {loading ? (
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              py: 4
-            }}>
-            <CircularProgress />
-          </Box>
+          <LogoLoader variant="page" minHeight={120} />
         ) : bookings.length === 0 ? (
           <Alert severity="info" sx={{ mt: 2 }}>
             {t('upcoming.empty')}

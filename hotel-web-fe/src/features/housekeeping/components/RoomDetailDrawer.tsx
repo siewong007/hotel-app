@@ -2,7 +2,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Divider,
   Drawer,
   IconButton,
@@ -19,6 +18,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import Alert from '@mui/material/Alert';
 import type { ReactNode } from 'react';
+import { LogoLoader } from '../../../components';
 import StatusChip from '../../../components/common/StatusChip';
 import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
 import { statusLabel } from '../../../i18n/statusLabel';
@@ -149,7 +149,7 @@ export default function RoomDetailDrawer({
             {t('drawer.openTasks')}
           </Typography>
           {tasksQuery.isLoading ? (
-            <CircularProgress size={20} />
+            <LogoLoader variant="inline" />
           ) : openTasks.length === 0 ? (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {t('drawer.noOpenTasksBody')}
@@ -254,7 +254,7 @@ export default function RoomDetailDrawer({
         </Box>
 
         {detailQuery.isLoading ? (
-          <CircularProgress size={20} />
+          <LogoLoader variant="inline" />
         ) : detail ? (
           <>
             <Divider />

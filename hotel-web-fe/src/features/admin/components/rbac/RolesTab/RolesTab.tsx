@@ -15,6 +15,7 @@ import {
   Stack,
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
+import { LogoLoader } from '../../../../../components';
 import type { Permission, Role, RouteAccessPolicy, RoleInput } from '../../../../../types';
 import type { RoleWithStats } from '../types';
 import RoleCard from './RoleCard';
@@ -133,9 +134,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
       </Box>
       {/* Role cards */}
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
+        <LogoLoader variant="page" />
       ) : roles.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <Typography sx={{

@@ -5,10 +5,10 @@ import {
   Card,
   CardActionArea,
   CardContent,
-  CircularProgress,
   Grid,
   Typography,
 } from '@mui/material';
+import { LogoLoader } from '../../../components';
 import { ReportFilterBar } from '../components/ReportFilterBar';
 import { ReportShell } from '../components/ReportShell';
 import { useReportCatalog, useReportEnvelope } from '../hooks';
@@ -47,11 +47,7 @@ export default function ReportLibraryPage() {
   };
 
   if (catalog.isPending) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-        <CircularProgress />
-      </Box>
-    );
+    return <LogoLoader variant="page" />;
   }
   if (catalog.error) {
     return <Alert severity="error">{getQueryErrorMessage(catalog.error, t('errors:api.server_error'))}</Alert>;

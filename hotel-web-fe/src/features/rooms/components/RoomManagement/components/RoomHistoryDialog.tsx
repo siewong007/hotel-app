@@ -7,7 +7,6 @@ import {
   Box,
   Typography,
   IconButton,
-  CircularProgress,
   Alert,
   Paper,
   Grid,
@@ -26,6 +25,7 @@ import {
   Build as MaintenanceIcon,
   EventAvailable as BookingIcon,
 } from '@mui/icons-material';
+import { LogoLoader } from '../../../../../components';
 import { Room, RoomHistory, BookingWithDetails } from '../../../../../types';
 import { useTranslation } from '../../../../../i18n/useTranslation';
 import { formatHotelDate, formatHotelDateTime } from '../../../../../utils/date';
@@ -77,9 +77,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
       </DialogTitle>
       <DialogContent sx={{ p: 0 }}>
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-            <CircularProgress />
-          </Box>
+          <LogoLoader variant="page" minHeight={120} />
         ) : history.length === 0 ? (
           <Alert severity="info" sx={{ m: 2 }}>
             {t('history.empty')}

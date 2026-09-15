@@ -183,7 +183,7 @@ describe('PromotionCatalog', () => {
     mocks.guestCatalog.isLoading = true;
     const { rerender } = render(<PromotionCatalog token="guest-session-token" />);
 
-    expect(screen.getByRole('progressbar')).toBeTruthy();
+    expect(screen.getByRole('status')).toBeTruthy();
 
     mocks.guestCatalog.isLoading = false;
     mocks.guestCatalog.data = { items: [], total: 0, page: 1, page_size: 50 };

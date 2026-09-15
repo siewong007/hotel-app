@@ -5,7 +5,6 @@ import {
   Button,
   Card,
   CardContent,
-  CircularProgress,
   Divider,
   Stack,
   Typography,
@@ -16,6 +15,7 @@ import {
   PayPalScriptProvider,
   usePayPalScriptReducer,
 } from '@paypal/react-paypal-js';
+import { LogoLoader } from '../../components';
 import { PaymentRecoveryApi } from './api';
 import { useAutoFocusError } from '../../hooks/useAutoFocusError';
 import { useTranslation } from '../../i18n';
@@ -110,11 +110,7 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
   const paypalErrorRef = useAutoFocusError(paypalFailed);
 
   if (recovery.isLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress aria-label={t('recoverPayment.loading')} />
-      </Box>
-    );
+    return <LogoLoader variant="page" sx={{ mt: 8 }} />;
   }
 
   if (recovery.isError || !recovery.data) {

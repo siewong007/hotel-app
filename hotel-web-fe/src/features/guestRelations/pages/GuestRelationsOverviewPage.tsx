@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Box, Button, CircularProgress, Grid } from '@mui/material';
+import { Alert, Box, Button, Grid } from '@mui/material';
 import {
   FlightLandOutlined as ArrivalsIcon,
   FlightTakeoffOutlined as DeparturesIcon,
@@ -17,7 +17,7 @@ import type {
   OverviewSupportItem,
 } from '../../../types';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
-import { PageHeader, StatStrip } from '../../../components';
+import { LogoLoader, PageHeader, StatStrip } from '../../../components';
 import type { StatStripItem } from '../../../components';
 import { useAuth } from '../../../auth/AuthContext';
 import { useNavigate } from '../../../router';
@@ -198,9 +198,7 @@ const GuestRelationsOverviewPage: React.FC = () => {
       />
 
       {overviewQuery.isPending || !overview ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-          <CircularProgress />
-        </Box>
+        <LogoLoader variant="page" />
       ) : (
         <>
           <StatStrip items={statItems} sx={{ mb: 2 }} />
