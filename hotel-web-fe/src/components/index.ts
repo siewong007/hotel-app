@@ -8,6 +8,8 @@ export { StatusPage } from './common/StatusPage';
 export { ConfirmDialog } from './common/ConfirmDialog';
 export type { ConfirmDialogProps, ConfirmOptions, ConfirmSeverity } from './common/ConfirmDialog';
 export { ConfirmProvider, useConfirm } from './common/ConfirmProvider';
+export { default as BrandMark } from './common/BrandMark';
+export type { BrandMarkProps } from './common/BrandMark';
 export { default as HotelSpinner } from './common/HotelSpinner';
 export { default as LoadingSpinner } from './common/LoadingSpinner';
 export { default as ModernDatePicker } from './common/ModernDatePicker';
