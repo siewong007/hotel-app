@@ -192,6 +192,22 @@ jobs:
           psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
           psql "$DATABASE_URL" -f database/postgres/seed.sql
 
+      # Backup-format regression gate: production recovery depends on
+      # pg_dump --format=custom output that pg_restore can actually consume.
+      # A schema/role change that silently breaks the dump->restore path must
+      # fail here, not during an incident. Same check the deploy and nightly
+      # scripts apply to every dump they produce.
+      - name: Verify pg_dump/pg_restore round-trip
+        run: |
+          RESTORE_URL="${DATABASE_URL%/*}/hotel_ci_restore"
+          pg_dump --format=custom --no-owner --no-acl -f /tmp/hotel_ci.dump "$DATABASE_URL"
+          pg_restore --list /tmp/hotel_ci.dump >/dev/null
+          psql "$DATABASE_URL" -c "DROP DATABASE IF EXISTS hotel_ci_restore" \
+                             -c "CREATE DATABASE hotel_ci_restore"
+          pg_restore --no-owner --no-acl -d "$RESTORE_URL" /tmp/hotel_ci.dump
+          diff <(pg_dump --schema-only "$DATABASE_URL") \
+               <(pg_dump --schema-only "$RESTORE_URL")
+
       - name: Verify PostgreSQL patch lifecycle
         run: cargo test --test postgres_patch_lifecycle -- --nocapture
 

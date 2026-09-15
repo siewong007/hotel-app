@@ -66,6 +66,7 @@ required_payload=(
   database/patches/0003_guest_relations_phase2.sql
   database/patches/0004_consent_locale_zh.sql
   database/patches/0005_data_transfer_permissions.sql
+  database/patches/0006_channel_pricing.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -290,6 +291,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/0003_guest_relations_phase2.sql" "$APP_DIR/database/patches/0003_guest_relations_phase2.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0004_consent_locale_zh.sql" "$APP_DIR/database/patches/0004_consent_locale_zh.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0005_data_transfer_permissions.sql" "$APP_DIR/database/patches/0005_data_transfer_permissions.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0006_channel_pricing.sql" "$APP_DIR/database/patches/0006_channel_pricing.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.
@@ -301,8 +303,8 @@ install_release_files() {
     "$APP_DIR/data/private_uploads/ekyc" \
     "$APP_DIR/logs"
 
-  cat > /etc/logrotate.d/saliminn <<'LOGROTATE'
-/opt/saliminn/logs/*.log {
+  cat > /etc/logrotate.d/saliminn-staging <<'LOGROTATE'
+/opt/saliminn-staging/logs/*.log {
     daily
     maxsize 10M
     rotate 7
@@ -313,7 +315,7 @@ install_release_files() {
     copytruncate
 }
 LOGROTATE
-  chmod 0644 /etc/logrotate.d/saliminn
+  chmod 0644 /etc/logrotate.d/saliminn-staging
 }
 
 # Nightly database backups. Before this timer existed, dumps only ran inside
@@ -323,13 +325,13 @@ LOGROTATE
 install_backup_schedule() {
   cat > /etc/systemd/system/saliminn-staging-backup.service <<'BACKUP_SERVICE'
 [Unit]
-Description=Saliminn nightly database backup
+Description=Saliminn staging nightly database backup
 After=docker.service
 Requires=docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/opt/saliminn/database-backup.sh
+ExecStart=/opt/saliminn-staging/database-backup.sh
 BACKUP_SERVICE
 
   # 18:10 UTC = 02:10 Malaysia time: the lowest-traffic window for a hotel.

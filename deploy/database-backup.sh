@@ -4,7 +4,9 @@
 # Before this existed, backups only ran inside the deploy sequence and lived
 # on the same host filesystem as Postgres — so between deploys there was no
 # recovery point at all. This keeps a rolling window of verified dumps under
-# /opt/saliminn/backups. Off-host shipping/encryption remains a manual step
+# /opt/saliminn/backups, plus a tar.gz of the upload trees (eKYC identity
+# images, payment receipts, room-type photos) that pg_dump cannot cover.
+# Off-host shipping/encryption remains a manual step
 # (see docs/guides/deployment.md); until it exists, these dumps are the
 # recovery point of last resort.
 #
@@ -14,11 +16,14 @@
 # /opt/online-shopping/backup.sh, which streams pg_dump through `age` so a
 # plaintext dump never touches disk, uploads with `rclone copy`, verifies a
 # sha256 sidecar, and prunes daily/weekly tiers remotely. The one thing that is
-# NOT decided is the destination: the only configured rclone remote points at
-# another business's bucket, and hotel dumps carry guest PII and payment
-# records, so they need their own bucket/prefix and access list before this is
-# wired up. `offsite: false` in backup-status.json is deliberately reported so
-# the health check can be tightened to require off-site once it exists.
+# decided by the operator is the destination: the only configured rclone
+# remote on the host points at another business's bucket, and hotel dumps
+# carry guest PII and payment records, so they need their own bucket/prefix
+# and access list. The mechanism IS wired: set SALIMINN_OFFSITE_REMOTE to an
+# rclone `remote:path` and SALIMINN_AGE_RECIPIENTS_FILE to an age recipients
+# file and every artifact is age-encrypted, shipped with `rclone copy`, and
+# verified with `rclone check`. Without both variables nothing ships and
+# `offsite` stays false so the health check can tighten once it is on.
 #
 # archive_mode is also off, so there is no PITR: the recovery point is the last
 # nightly. Measured 2026-09-15, restoring the newest nightly would have lost
@@ -42,8 +47,12 @@ set -euo pipefail
 # exercised against a scratch directory without touching production, matching the
 # override convention the online-shopping backup scripts on this host already use.
 readonly BACKUP_DIR=${SALIMINN_BACKUP_DIR:-/opt/saliminn/backups}
+readonly UPLOADS_DIR=${SALIMINN_UPLOADS_DIR:-/opt/saliminn/data}
 readonly NIGHTLY_RETENTION=${SALIMINN_NIGHTLY_RETENTION:-14}
 readonly PREDEPLOY_RETENTION=${SALIMINN_PREDEPLOY_RETENTION:-5}
+readonly UPLOADS_RETENTION=${SALIMINN_UPLOADS_RETENTION:-7}
+readonly OFFSITE_REMOTE=${SALIMINN_OFFSITE_REMOTE:-}
+readonly AGE_RECIPIENTS_FILE=${SALIMINN_AGE_RECIPIENTS_FILE:-}
 readonly STATUS_FILE="$BACKUP_DIR/backup-status.json"
 
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
@@ -52,7 +61,8 @@ backup_path="$BACKUP_DIR/nightly-$timestamp.dump"
 install -d -m 0700 "$BACKUP_DIR"
 
 # $1 = status (ok|error), $2 = error_category (empty when ok), $3 = message,
-# $4 = filename (empty on failure), $5 = size bytes (0 on failure).
+# $4 = filename (empty on failure), $5 = size bytes (0 on failure),
+# $6 = offsite flag (default false).
 write_status() {
     local tmp
     tmp=$(mktemp "$BACKUP_DIR/.status.XXXXXX")
@@ -67,7 +77,7 @@ write_status() {
     } ),
   "filename": $( [ -n "$4" ] && printf '"%s"' "$4" || printf 'null' ),
   "size_bytes": $5,
-  "offsite": false
+  "offsite": ${6:-false}
 }
 STATUS
     # A malformed or truncated status file must never read as a healthy backup.
@@ -118,9 +128,72 @@ prune_class() {
 prune_class 'nightly-*.dump'   "$NIGHTLY_RETENTION"
 prune_class 'predeploy-*.dump' "$PREDEPLOY_RETENTION"
 
+# Uploads are a second, independent data-loss class: pg_dump never covers them.
+# private_uploads holds eKYC identity images and payment receipts — the
+# regulated evidence behind verified bookings — and uploads holds room-type
+# photos. On failure the run must still report the database dump as fresh
+# (write ok first) and only then flip status to error so the health check
+# pages without the "stale backup" branch masking the real cause.
+uploads_failed=""
+if [ -d "$UPLOADS_DIR" ]; then
+    uploads_tmp=$(mktemp "$BACKUP_DIR/.uploads.XXXXXX")
+    if tar -czf "$uploads_tmp" -C "$UPLOADS_DIR" uploads private_uploads 2>/dev/null \
+        && [ -s "$uploads_tmp" ]; then
+        chmod 0600 "$uploads_tmp"
+        mv "$uploads_tmp" "$BACKUP_DIR/uploads-$timestamp.tar.gz"
+    else
+        rm -f -- "$uploads_tmp"
+        uploads_failed="tar of $UPLOADS_DIR failed"
+    fi
+else
+    uploads_failed="uploads directory missing: $UPLOADS_DIR"
+fi
+prune_class 'uploads-*.tar.gz' "$UPLOADS_RETENTION"
+
 backup_size=$(stat -c %s "$backup_path" 2>/dev/null || echo 0)
+
+# Off-site shipping, opt-in: no remote configured means nothing ships and the
+# status keeps reporting offsite:false. Configured means age-encrypt every
+# artifact produced this run into a staging dir, rclone copy it to the remote,
+# then rclone check the copy — a copy that cannot be verified is treated as
+# not shipped. Like uploads_failed, a failure alerts the health check without
+# lying about the local recovery point's freshness.
+offsite_failed=""
+if [ -n "$OFFSITE_REMOTE" ] || [ -n "$AGE_RECIPIENTS_FILE" ]; then
+    if [ -z "$OFFSITE_REMOTE" ] || [ -z "$AGE_RECIPIENTS_FILE" ]; then
+        offsite_failed="offsite misconfigured: SALIMINN_OFFSITE_REMOTE and SALIMINN_AGE_RECIPIENTS_FILE must be set together"
+    else
+        ship_dir=$(mktemp -d "$BACKUP_DIR/.offsite.XXXXXX")
+        for artifact in "$BACKUP_DIR"/nightly-"$timestamp".dump \
+                        "$BACKUP_DIR"/uploads-"$timestamp".tar.gz; do
+            [ -f "$artifact" ] || continue
+            age -R "$AGE_RECIPIENTS_FILE" -o "$ship_dir/$(basename "$artifact").age" \
+                "$artifact" 2>/dev/null \
+                || { offsite_failed="age encryption failed for $(basename "$artifact")"; break; }
+        done
+        if [ -z "$offsite_failed" ]; then
+            rclone copy "$ship_dir" "$OFFSITE_REMOTE" >/dev/null 2>&1 \
+                && rclone check "$ship_dir" "$OFFSITE_REMOTE" --one-way >/dev/null 2>&1 \
+                || offsite_failed="rclone copy/check to $OFFSITE_REMOTE failed"
+        fi
+        rm -rf -- "$ship_dir"
+    fi
+fi
+
 trap - ERR
-write_status ok "" "nightly backup verified" "$(basename "$backup_path")" "$backup_size"
+if [ -n "$uploads_failed" ] || [ -n "$offsite_failed" ]; then
+    write_status ok "" "database dump verified; ${uploads_failed:+uploads archive failed}${offsite_failed:+ offsite ship failed}" \
+        "$(basename "$backup_path")" "$backup_size"
+    write_status error \
+        "$( [ -n "$uploads_failed" ] && echo uploads_failed || echo offsite_failed )" \
+        "${uploads_failed:-$offsite_failed}" \
+        "$(basename "$backup_path")" "$backup_size"
+    printf '%s backup degraded (uploads:%s offsite:%s); database dump %s is intact\n' \
+        "$(date -u +%FT%TZ)" "${uploads_failed:-ok}" "${offsite_failed:-ok}" "$(basename "$backup_path")" >&2
+    exit 1
+fi
+write_status ok "" "nightly backup verified (database + uploads${OFFSITE_REMOTE:+, offsite})" \
+    "$(basename "$backup_path")" "$backup_size" "${OFFSITE_REMOTE:+true}"
 
 printf '%s nightly database backup complete (%s, %s bytes)\n' \
     "$(date -u +%FT%TZ)" "$(basename "$backup_path")" "$backup_size"

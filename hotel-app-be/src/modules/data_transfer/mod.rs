@@ -1,5 +1,6 @@
 //! data_transfer domain.
 
+pub mod crypto;
 pub mod handlers;
 pub mod jobs;
 pub mod models;
