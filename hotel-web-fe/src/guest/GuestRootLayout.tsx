@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Outlet, useLocation } from '@tanstack/react-router';
-import { ErrorBoundary } from '../components';
+import { ErrorBoundary, LogoLoader } from '../components';
 import { useAuth } from '../auth/AuthContext';
 import { getHotelSettings } from '../utils/hotelSettings';
 import { BootSplash, LoadingFallback } from '../router/RouteFallbacks';
@@ -87,7 +87,7 @@ export function GuestRootLayout() {
     return (
       <>
         {oneTap}
-        <Suspense fallback={null}>
+        <Suspense fallback={<LogoLoader variant="page" />}>
           <GuestPortalShell showAccountNav={Boolean(isAuthenticated && user?.user_type === 'guest')}>
             {page}
           </GuestPortalShell>

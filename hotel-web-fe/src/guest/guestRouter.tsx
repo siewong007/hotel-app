@@ -28,7 +28,7 @@ function page(
     path,
     component: function GuestPage() {
       const inner = (
-        <Suspense fallback={null}>
+        <Suspense fallback={<LogoLoader variant="page" />}>
           <Page />
         </Suspense>
       );
@@ -68,7 +68,7 @@ const guestPortalRoute = createRoute({
     const view = new URLSearchParams(window.location.search).get('view');
     const Page = view === 'booking' ? PortalBookingPage : PortalDashboardPage;
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<LogoLoader variant="page" />}>
         <Page />
       </Suspense>
     );
