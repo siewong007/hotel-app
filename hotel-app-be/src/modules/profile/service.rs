@@ -141,7 +141,7 @@ pub async fn update_password(
     // change, so a passkey enrolled by a session hijacker outlives every
     // password rotation. Re-enrollment requires step-up re-auth.
     let revoked_passkeys =
-        crate::repositories::passkey::PasskeyRepository::revoke_all_for_user(pool, user_id)
+        crate::modules::passkey::repository::PasskeyRepository::revoke_all_for_user(pool, user_id)
             .await
             .map_err(|error| {
                 ApiError::Database(format!("Failed to revoke passkeys after change: {error}"))

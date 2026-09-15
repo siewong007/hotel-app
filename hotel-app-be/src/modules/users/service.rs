@@ -177,7 +177,7 @@ pub async fn update_user(
                 ApiError::Database(format!("Failed to revoke password-reset sessions: {error}"))
             })?;
         let revoked =
-            crate::repositories::passkey::PasskeyRepository::revoke_all_for_user(pool, user_id)
+            crate::modules::passkey::repository::PasskeyRepository::revoke_all_for_user(pool, user_id)
                 .await
                 .map_err(|error| {
                     ApiError::Database(format!("Failed to revoke passkeys after reset: {error}"))

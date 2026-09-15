@@ -119,7 +119,7 @@ async fn list_passkeys(
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::PasskeyInfo>>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    crate::handlers::passkey::list_passkeys_handler(State(pool), Extension(user_id)).await
+    crate::modules::passkey::handlers::list_passkeys_handler(State(pool), Extension(user_id)).await
 }
 
 async fn delete_passkey(
@@ -128,7 +128,7 @@ async fn delete_passkey(
     path: Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    crate::handlers::passkey::delete_passkey_handler(State(pool), Extension(user_id), path).await
+    crate::modules::passkey::handlers::delete_passkey_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn update_passkey(
@@ -138,7 +138,7 @@ async fn update_passkey(
     Json(input): Json<models::PasskeyUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    crate::handlers::passkey::update_passkey_handler(State(pool), Extension(user_id), path, Json(input))
+    crate::modules::passkey::handlers::update_passkey_handler(State(pool), Extension(user_id), path, Json(input))
         .await
 }
 

@@ -10,6 +10,7 @@ pub mod housekeeping;
 pub mod insights;
 pub mod loyalty;
 pub mod maintenance;
+pub mod passkey;
 pub mod profile;
 pub mod promotions;
 pub mod rates;

@@ -24,7 +24,7 @@ pub mod ledger;
 // Loyalty persistence lives in modules::loyalty::repository.
 // maintenance persistence live in modules::maintenance.
 pub mod night_audit;
-pub mod passkey;
+// passkey persistence live in modules::passkey.
 pub mod payment;
 pub mod payment_retry;
 // rate persistence live in modules::rates.

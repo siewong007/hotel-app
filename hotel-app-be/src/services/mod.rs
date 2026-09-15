@@ -29,7 +29,7 @@ pub mod ledgers;
 // maintenance service logic live in modules::maintenance.
 pub mod night_audit;
 pub mod night_audit_scheduler;
-pub mod passkey;
+// passkey service logic live in modules::passkey.
 pub mod payment_receipt_scheduler;
 pub mod payment_retry;
 pub mod payments;

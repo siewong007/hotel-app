@@ -1,11 +1,11 @@
 //! Passkey (WebAuthn) authentication routes
 
-use super::extract_client_ip;
+use crate::routes::extract_client_ip;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::core::rate_limiter::RateLimiters;
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -44,7 +44,7 @@ async fn register_start(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::passkey::passkey_register_start_handler(State(pool), Extension(user_id), Json(req))
+    handlers::passkey_register_start_handler(State(pool), Extension(user_id), Json(req))
         .await
 }
 
@@ -67,7 +67,7 @@ async fn register_finish(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::passkey::passkey_register_finish_handler(State(pool), Extension(user_id), Json(req))
+    handlers::passkey_register_finish_handler(State(pool), Extension(user_id), Json(req))
         .await
 }
 
@@ -89,7 +89,7 @@ async fn login_start(
             retry_after,
         ));
     }
-    handlers::passkey::passkey_login_start_handler(State(pool), Json(req)).await
+    handlers::passkey_login_start_handler(State(pool), Json(req)).await
 }
 
 async fn login_finish(
@@ -115,13 +115,13 @@ async fn login_finish(
         .get(axum::http::header::USER_AGENT)
         .and_then(|value| value.to_str().ok())
         .map(|value| value.chars().take(512).collect());
-    handlers::passkey::passkey_login_finish_handler(
+    handlers::passkey_login_finish_handler(
         State(pool),
         jar,
         Json(req),
         Some(ip.to_string()),
         user_agent,
-        super::extract_client_timezone(&headers),
+        crate::routes::extract_client_timezone(&headers),
     )
     .await
 }

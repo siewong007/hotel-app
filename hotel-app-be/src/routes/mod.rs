@@ -19,7 +19,7 @@ pub mod ledgers;
 // Loyalty routes live in modules::loyalty::routes (merged below).
 // maintenance routes live in modules::maintenance.
 pub mod night_audit;
-pub mod passkey;
+// passkey routes live in modules::passkey.
 pub mod payment_retry;
 pub mod payments;
 // profile routes live in modules::profile.
@@ -421,7 +421,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::search::routes::routes())
         .merge(night_audit::routes())
         .merge(data_transfer::routes())
-        .merge(passkey::routes())
+        .merge(crate::modules::passkey::routes::routes())
         .merge(two_factor::routes())
         .merge(webhooks::routes())
         .merge(crate::modules::realtime::routes::routes())

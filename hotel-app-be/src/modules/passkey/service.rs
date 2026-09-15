@@ -9,7 +9,7 @@ use crate::models::{
     AuthResponse, PasskeyInfo, PasskeyLoginFinish, PasskeyLoginStart, PasskeyRegistrationFinish,
     PasskeyRegistrationStart, PasskeyUpdateInput,
 };
-use crate::repositories::passkey::PasskeyRepository;
+use super::repository::PasskeyRepository;
 use crate::services::audit::AuditLog;
 use base64::Engine;
 use base64::engine::general_purpose;
