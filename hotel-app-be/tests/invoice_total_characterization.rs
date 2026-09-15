@@ -80,8 +80,9 @@ use axum::Json;
 use axum::extract::{Extension, Path, State};
 use chrono::NaiveDate;
 use hotel_app_be::models::BookingUpdateInput;
-use hotel_app_be::repositories::payment::PaymentRepository;
-use hotel_app_be::services::{bookings, payments};
+use hotel_app_be::modules::payments::repository::PaymentRepository;
+use hotel_app_be::modules::bookings::service as bookings;
+use hotel_app_be::modules::payments::service as payments;
 use rust_decimal::Decimal;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 

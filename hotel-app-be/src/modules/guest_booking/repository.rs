@@ -950,7 +950,7 @@ impl GuestBookingRepository {
                     .map_err(ApiError::from)?;
                 Ok(guest_id)
             }
-            Err(error) if crate::repositories::auth::is_guest_name_unique_violation(&error) => {
+            Err(error) if crate::modules::auth::repository::is_guest_name_unique_violation(&error) => {
                 sqlx::query("ROLLBACK TO SAVEPOINT anon_guest_name")
                     .execute(&mut **tx)
                     .await
@@ -983,7 +983,7 @@ impl GuestBookingRepository {
                 WHERE id = $3
             "#,
         )
-        .bind(crate::services::guest_portal::persist_booking_access_token(
+        .bind(crate::modules::guest_portal::service::persist_booking_access_token(
             token,
         ))
         .bind(expires_at)

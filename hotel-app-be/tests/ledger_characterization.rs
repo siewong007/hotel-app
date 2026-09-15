@@ -48,7 +48,7 @@ mod postgres_tests {
         CustomerLedgerCreateRequest, CustomerLedgerPaymentRequest, CustomerLedgerUpdateRequest,
         LedgerReversalRequest, LedgerVoidRequest, UpdateLedgerPaymentRequest,
     };
-    use hotel_app_be::services::ledgers;
+    use hotel_app_be::modules::ledgers::service as ledgers;
     use rust_decimal::Decimal;
     use sqlx::{PgPool, postgres::PgPoolOptions};
     use std::str::FromStr;

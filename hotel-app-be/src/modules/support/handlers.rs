@@ -22,7 +22,7 @@ use crate::core::middleware::{
     require_any_permission_helper, require_auth, require_permission_helper,
 };
 use crate::core::rate_limiter::RateLimiters;
-use crate::services::guest_portal;
+use crate::modules::guest_portal::service as guest_portal;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct GuestSupportListQuery {

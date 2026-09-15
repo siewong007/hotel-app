@@ -4,7 +4,6 @@
 
 mod constants;
 mod core;
-mod handlers;
 mod models;
 mod modules;
 mod repositories;
@@ -240,14 +239,14 @@ async fn main() {
     // Start the background night-audit scheduler. Inert unless the
     // `night_audit_auto_enabled` setting is turned on; runs for the process
     // lifetime and never blocks startup.
-    services::night_audit_scheduler::spawn(pool.clone());
+    modules::night_audit::scheduler::spawn(pool.clone());
 
     // Automatically expire receipt requests that remain unanswered for 24 hours.
-    services::payment_receipt_scheduler::spawn(pool.clone());
+    modules::payments::receipt_scheduler::spawn(pool.clone());
 
     // Releases stale unpaid ONLINE holds after `unpaid_hold_release_hours`
     // (ships at 24; 0 switches it off). Front-desk holds are never touched.
-    services::unpaid_hold_scheduler::spawn(pool.clone());
+    modules::bookings::unpaid_hold_scheduler::spawn(pool.clone());
 
     // Start the durable email delivery worker. Inert when SMTP_* env vars are
     // absent; otherwise leases due outbox rows and sends with retry/backoff.
@@ -260,8 +259,8 @@ async fn main() {
     // Drop staged backup uploads abandoned for >24h — crashed uploads and
     // files whose owner never ran the import. Finished jobs already delete
     // their own file; this only collects the leftovers.
-    services::data_transfer_jobs::sweep_staged_uploads(
-        &services::data_transfer_jobs::staged_upload_dir(),
+    modules::data_transfer::jobs::sweep_staged_uploads(
+        &modules::data_transfer::jobs::staged_upload_dir(),
     );
 
     // Create router with all routes and middleware

@@ -3,32 +3,32 @@
 //! Repositories encapsulate all database queries and provide a clean interface
 //! for the service/handler layers to interact with the database.
 
-pub mod analytics;
+// analytics persistence live in modules::analytics.
 pub mod audit;
-pub mod auth;
-pub mod booking;
-pub mod booking_channels;
-pub mod booking_list;
-pub mod bookings;
-pub mod bookings_queries;
-pub mod channel_net_revenue;
-pub mod company;
-pub mod data_transfer;
-pub mod ekyc;
-pub mod guest;
-pub mod guest_portal;
-pub mod guest_portal_session;
-pub mod housekeeping;
+// auth persistence live in modules::auth.
+// booking persistence live in modules::bookings.
+// booking_channels persistence live in modules::booking_channels.
+// booking_list persistence live in modules::bookings.
+// bookings persistence live in modules::bookings.
+// bookings_queries persistence live in modules::bookings.
+// channel_net_revenue persistence live in modules::analytics.
+// company persistence live in modules::companies.
+// data_transfer persistence live in modules::data_transfer.
+// ekyc persistence live in modules::ekyc.
+// guest persistence live in modules::guests.
+// guest_portal persistence live in modules::guest_portal.
+// guest_portal_session persistence live in modules::guest_portal.
+// housekeeping persistence live in modules::housekeeping.
 pub mod invoice_numbers;
-pub mod ledger;
+// ledger persistence live in modules::ledgers.
 // Loyalty persistence lives in modules::loyalty::repository.
-pub mod maintenance;
-pub mod night_audit;
-pub mod passkey;
-pub mod payment;
-pub mod payment_retry;
-pub mod rate;
-pub mod rbac;
-pub mod rooms_queries;
-pub mod search;
-pub mod user;
+// maintenance persistence live in modules::maintenance.
+// night_audit persistence live in modules::night_audit.
+// passkey persistence live in modules::passkey.
+// payment persistence live in modules::payments.
+// payment_retry persistence live in modules::payment_retry.
+// rate persistence live in modules::rates.
+// rbac persistence live in modules::rbac.
+// rooms_queries persistence live in modules::rooms.
+// search persistence live in modules::search.
+// user persistence live in modules::users.

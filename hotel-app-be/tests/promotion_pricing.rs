@@ -1,6 +1,6 @@
 //! Public API coverage for promotion money calculations.
 
-use hotel_app_be::services::promotion_pricing::{
+use hotel_app_be::modules::promotions::pricing::{
     PromotionDiscount, PromotionPricing, calculate_promotion_pricing,
 };
 use rust_decimal::Decimal;

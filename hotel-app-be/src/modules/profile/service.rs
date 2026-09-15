@@ -1,0 +1,395 @@
+//! User profile workflows
+
+use crate::constants::UserType;
+use crate::core::auth::AuthService;
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::models::AuditEvent;
+use crate::models::{PasswordUpdateInput, UserProfile, UserProfileUpdate, UserSessionInfo};
+use crate::modules::guests::repository::GuestRepository;
+use crate::modules::users::repository::UserRepository;
+use crate::services::audit::AuditLog;
+use crate::services::google_identity::{self, ProfileCompletion};
+use crate::utils::sanitization::Sanitizer;
+use validator::Validate;
+
+const UNCONFIGURED_EMAIL_SUFFIX: &str = "@no-email.invalid";
+
+pub async fn get_user_profile(pool: &DbPool, user_id: i64) -> Result<UserProfile, ApiError> {
+    let mut profile = UserRepository::get_profile(pool, user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+
+    let completion = completion_for_user(pool, user_id).await?;
+    profile.profile_complete = completion.complete;
+    profile.missing_profile_fields = completion
+        .missing_fields
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+
+    Ok(profile)
+}
+
+pub async fn update_user_profile(
+    pool: &DbPool,
+    user_id: i64,
+    mut input: UserProfileUpdate,
+) -> Result<UserProfile, ApiError> {
+    if let Some(full_name) = &input.full_name {
+        input.full_name = Some(Sanitizer::sanitize_guest_name(full_name));
+    }
+    if let Some(email) = &input.email {
+        input.email = Some(Sanitizer::sanitize_email(email));
+    }
+    if let Some(phone) = &input.phone {
+        input.phone = Some(Sanitizer::sanitize_phone(phone));
+    }
+    if let Some(avatar_url) = &input.avatar_url {
+        input.avatar_url = Sanitizer::sanitize_url(avatar_url);
+    }
+
+    input
+        .validate()
+        .map_err(|error| ApiError::BadRequest(error.to_string()))?;
+
+    if let Some(full_name) = input.full_name {
+        UserRepository::update_full_name(pool, user_id, &full_name).await?;
+    }
+    if let Some(email) = input.email {
+        let account = UserRepository::find_by_id(pool, user_id)
+            .await?
+            .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+        let email_changed = !account.email.eq_ignore_ascii_case(&email);
+        let is_guest = account.user_type == Some(UserType::Guest);
+        let email_configured = !account
+            .email
+            .to_ascii_lowercase()
+            .ends_with(UNCONFIGURED_EMAIL_SUFFIX);
+
+        if is_guest && email_changed {
+            if email_configured {
+                return Err(ApiError::BadRequest(
+                    "Your email is already configured and cannot be changed here".to_string(),
+                ));
+            }
+            if UserRepository::email_exists_for_other_user(pool, user_id, &email).await? {
+                return Err(ApiError::Conflict(
+                    "An account with this email already exists".to_string(),
+                ));
+            }
+
+            let configured = UserRepository::configure_guest_email(pool, user_id, &email).await?;
+            if !configured {
+                return Err(ApiError::Conflict(
+                    "Email has already been configured".to_string(),
+                ));
+            }
+            // The address is now on the account and unverified, so `login` will
+            // refuse it until the guest clicks the link. Sending that link is
+            // not optional decoration: without it, configuring an email locks
+            // the guest out of the account they just completed.
+            crate::services::account_emails::try_send_email_verification(pool, user_id).await;
+        } else if email_changed {
+            UserRepository::update_email(pool, user_id, &email).await?;
+        }
+    }
+    if let Some(phone) = input.phone {
+        UserRepository::update_phone(pool, user_id, &phone).await?;
+    }
+    if let Some(avatar_url) = input.avatar_url {
+        UserRepository::update_avatar_url(pool, user_id, &avatar_url).await?;
+    }
+
+    get_user_profile(pool, user_id).await
+}
+
+pub async fn update_password(
+    pool: &DbPool,
+    user_id: i64,
+    input: PasswordUpdateInput,
+) -> Result<(), ApiError> {
+    input
+        .validate()
+        .map_err(|error| ApiError::BadRequest(error.to_string()))?;
+    AuthService::validate_password(&input.new_password).map_err(ApiError::BadRequest)?;
+
+    let current_hash = UserRepository::get_password_hash(pool, user_id).await?;
+    let valid = AuthService::verify_password(&input.current_password, &current_hash)
+        .await
+        .map_err(|_| ApiError::Internal("Password verification failed".to_string()))?;
+
+    if !valid {
+        return Err(ApiError::Unauthorized(
+            "Current password is incorrect".to_string(),
+        ));
+    }
+
+    let new_hash = AuthService::hash_password(&input.new_password)
+        .await
+        .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
+
+    UserRepository::update_password_hash(pool, user_id, &new_hash).await?;
+    AuthService::revoke_all_user_tokens(pool, user_id)
+        .await
+        .map_err(|error| {
+            ApiError::Database(format!(
+                "Failed to revoke password-change sessions: {error}"
+            ))
+        })?;
+    // Passkeys satisfy 2FA on their own and would otherwise survive the
+    // change, so a passkey enrolled by a session hijacker outlives every
+    // password rotation. Re-enrollment requires step-up re-auth.
+    let revoked_passkeys =
+        crate::modules::passkey::repository::PasskeyRepository::revoke_all_for_user(pool, user_id)
+            .await
+            .map_err(|error| {
+                ApiError::Database(format!("Failed to revoke passkeys after change: {error}"))
+            })?;
+
+    let _ = AuditLog::log_password_changed(pool, user_id).await;
+    if revoked_passkeys > 0 {
+        let _ = AuditLog::log_event(
+            pool,
+            crate::models::AuditEvent {
+                user_id: Some(user_id),
+                action: "passkeys_revoked_by_password_change",
+                resource_type: "user",
+                resource_id: Some(user_id),
+                details: Some(serde_json::json!({ "revoked": revoked_passkeys })),
+                ..Default::default()
+            },
+        )
+        .await;
+    }
+
+    Ok(())
+}
+
+pub async fn list_sessions(
+    pool: &DbPool,
+    user_id: i64,
+    current_session_id: Option<&str>,
+) -> Result<Vec<UserSessionInfo>, ApiError> {
+    let sessions = AuthService::list_active_sessions(pool, user_id)
+        .await
+        .map_err(|error| ApiError::Database(format!("Failed to list sessions: {error}")))?;
+
+    Ok(sessions
+        .into_iter()
+        .map(|session| UserSessionInfo {
+            is_current: current_session_id.is_some_and(|id| id == session.id),
+            id: session.id,
+            user_agent: session.user_agent,
+            ip_address: session.ip_address.map(mask_ip_address),
+            created_at: session.created_at,
+            last_used_at: session.last_used_at,
+            expires_at: session.expires_at,
+            location: session
+                .client_timezone
+                .as_deref()
+                .and_then(location_from_timezone),
+            timezone: session.client_timezone,
+        })
+        .collect())
+}
+
+pub async fn revoke_session(pool: &DbPool, user_id: i64, session_id: &str) -> Result<(), ApiError> {
+    let revoked = AuthService::revoke_user_session(pool, user_id, session_id)
+        .await
+        .map_err(|error| ApiError::Database(format!("Failed to revoke session: {error}")))?;
+    if !revoked {
+        return Err(ApiError::NotFound("Active session not found".to_string()));
+    }
+
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "session_revoked",
+            resource_type: "user",
+            resource_id: Some(user_id),
+            details: Some(serde_json::json!({ "session_id": session_id })),
+            ..Default::default()
+        },
+    )
+    .await;
+
+    Ok(())
+}
+
+/// The single source of the guest profile-completion verdict. All three
+/// surfaces — the login response (`AuthResponse::profile_complete`/
+/// `missing_profile_fields`, wired from `services::auth::issue_authenticated_response`),
+/// the standalone `GET /profile` endpoint, and the guest-booking creation guard
+/// (`modules::guest_booking::service::create`) — MUST resolve through this one
+/// primitive rather than re-deriving completeness themselves — otherwise the
+/// booking guard and the profile endpoint could disagree about whether a guest
+/// still owes contact details.
+///
+/// Guest fields only — no `users.phone` fallback. `AuthRepository::register_guest_user`
+/// and `GuestRepository::complete_profile` both keep `guests.phone`/`users.phone`
+/// in sync, so falling back here would only mask stale rows and would make this
+/// helper disagree with a guard that only ever has a `guest_id` to work from.
+pub(crate) async fn completion_for_guest(
+    pool: &DbPool,
+    guest_id: i64,
+) -> Result<ProfileCompletion, ApiError> {
+    let (first_name, last_name, phone) = GuestRepository::completion_fields(pool, guest_id).await?;
+
+    Ok(google_identity::profile_completion(
+        first_name.as_deref(),
+        last_name.as_deref(),
+        phone.as_deref(),
+    ))
+}
+
+/// Resolves the calling user's linked guest (if any) and delegates to
+/// `completion_for_guest`. Non-guest accounts (or a `user_id` that no longer
+/// resolves to a guest) are exempt and always report complete.
+pub(crate) async fn completion_for_user(
+    pool: &DbPool,
+    user_id: i64,
+) -> Result<ProfileCompletion, ApiError> {
+    let Some(guest_id) = UserRepository::guest_id_for_user(pool, user_id).await? else {
+        // Not a guest account (or the user no longer exists) — the
+        // completion rule only applies to guests, so there is nothing to complete.
+        return Ok(ProfileCompletion {
+            complete: true,
+            missing_fields: Vec::new(),
+        });
+    };
+
+    completion_for_guest(pool, guest_id).await
+}
+
+/// `POST /profile/complete` — the Google-guest profile-completion write path.
+/// Guest-only: non-guest accounts have nothing to complete and are rejected.
+pub async fn complete_guest_profile(
+    pool: &DbPool,
+    user_id: i64,
+    mut input: crate::models::CompleteGuestProfileRequest,
+) -> Result<UserProfile, ApiError> {
+    input
+        .normalize_and_validate()
+        .map_err(|error| ApiError::BadRequest(error.to_string()))?;
+
+    let Some(guest_id) = UserRepository::guest_id_for_user(pool, user_id).await? else {
+        return Err(ApiError::Forbidden("Guest account required".to_string()));
+    };
+
+    let full_name = format!("{} {}", input.first_name, input.last_name);
+    if GuestRepository::nick_name_conflict_id(pool, &full_name, Some(guest_id))
+        .await?
+        .is_some()
+    {
+        return Err(ApiError::Conflict(
+            "A guest profile with this name already exists. Please sign in with your existing account or contact the hotel for help."
+                .to_string(),
+        ));
+    }
+
+    GuestRepository::complete_profile(pool, guest_id, user_id, &input).await?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "guest_profile_completed",
+            resource_type: "user",
+            resource_id: Some(user_id),
+            details: Some(serde_json::json!({ "guest_id": guest_id })),
+            ..Default::default()
+        },
+    )
+    .await;
+
+    get_user_profile(pool, user_id).await
+}
+
+/// Turns an IANA zone into the place name a person recognises:
+/// `Asia/Kuala_Lumpur` -> `Kuala Lumpur`, `America/Argentina/Salta` -> `Salta`.
+///
+/// Deliberately coarse. The zone is the only location signal stored (see
+/// `refresh_tokens.client_timezone`), so the label is an approximation of where
+/// the device was, not a position — callers must present it as such.
+pub(crate) fn location_from_timezone(timezone: &str) -> Option<String> {
+    let city = timezone.rsplit('/').next()?.trim();
+    if city.is_empty() {
+        return None;
+    }
+    // `Etc/GMT+8` and friends name no place; showing "GMT+8" as a location
+    // would be worse than showing nothing.
+    if timezone.starts_with("Etc/") || city.eq_ignore_ascii_case("UTC") {
+        return None;
+    }
+    Some(city.replace('_', " "))
+}
+
+pub(crate) fn mask_ip_address(ip: String) -> String {
+    if let Some((prefix, _)) = ip.rsplit_once('.') {
+        return format!("{prefix}.•••");
+    }
+    if let Some((prefix, _)) = ip.rsplit_once(':') {
+        return format!("{prefix}:••••");
+    }
+    "•••".to_string()
+}
+
+#[cfg(test)]
+mod location_from_timezone_tests {
+    use super::location_from_timezone;
+
+    #[test]
+    fn renders_the_city_segment_of_a_zone() {
+        assert_eq!(
+            location_from_timezone("Asia/Kuala_Lumpur").as_deref(),
+            Some("Kuala Lumpur")
+        );
+        assert_eq!(
+            location_from_timezone("Europe/London").as_deref(),
+            Some("London")
+        );
+    }
+
+    #[test]
+    fn uses_the_last_segment_of_a_three_part_zone() {
+        assert_eq!(
+            location_from_timezone("America/Argentina/Salta").as_deref(),
+            Some("Salta")
+        );
+    }
+
+    #[test]
+    fn declines_zones_that_name_no_place() {
+        assert_eq!(location_from_timezone("UTC"), None);
+        assert_eq!(location_from_timezone("Etc/GMT+8"), None);
+        assert_eq!(location_from_timezone(""), None);
+    }
+}
+
+#[cfg(test)]
+mod complete_guest_profile_request_tests {
+    use crate::models::CompleteGuestProfileRequest;
+
+    fn request(phone: &str, address_line1: Option<String>) -> CompleteGuestProfileRequest {
+        CompleteGuestProfileRequest {
+            first_name: "Jane".to_string(),
+            last_name: "Doe".to_string(),
+            phone: phone.to_string(),
+            address_line1,
+        }
+    }
+
+    #[test]
+    fn completion_request_rejects_a_blank_phone() {
+        let mut input = request(" ", None);
+        assert!(input.normalize_and_validate().is_err());
+    }
+
+    #[test]
+    fn completion_request_accepts_a_missing_address() {
+        let mut input = request("+60123456789", None);
+        assert!(input.normalize_and_validate().is_ok());
+    }
+}

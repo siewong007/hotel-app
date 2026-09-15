@@ -81,8 +81,11 @@ mod postgres_tests {
         CreateHousekeepingTaskRequest, CreateMaintenanceTicketRequest, ListHousekeepingTasksQuery,
         RoomStatusUpdateInput, UpdateHousekeepingTaskRequest, UpdateMaintenanceTicketRequest,
     };
-    use hotel_app_be::repositories::rooms_queries as rq;
-    use hotel_app_be::services::{bookings, housekeeping, maintenance, rooms};
+    use hotel_app_be::modules::rooms::queries as rq;
+    use hotel_app_be::modules::housekeeping::service as housekeeping;
+    use hotel_app_be::modules::maintenance::service as maintenance;
+    use hotel_app_be::modules::bookings::service as bookings;
+    use hotel_app_be::modules::rooms::service as rooms;
     use sqlx::{PgPool, postgres::PgPoolOptions};
 
     async fn setup_pg_pool() -> Option<(PgPool, tokio::sync::OwnedMutexGuard<()>)> {

@@ -32,8 +32,8 @@ use crate::modules::consent::service::{self as consent_service, ConsentContext, 
 use crate::modules::consent::validation as consent_validation;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity::ProfileCompletion;
-use crate::services::profile::completion_for_guest;
-use crate::services::promotion_pricing::{
+use crate::modules::profile::service::completion_for_guest;
+use crate::modules::promotions::pricing::{
     PromotionDiscount, PromotionPricing, calculate_promotion_pricing,
 };
 use crate::utils::sanitization::Sanitizer;
@@ -423,7 +423,7 @@ async fn quote_for_inventory(
     let total_amount = room_total + tax_amount;
     // The window the unpaid-hold sweep actually enforces, surfaced so the
     // review step can tell the guest how long an unpaid booking keeps its room.
-    let hold_release_hours = crate::services::bookings::unpaid_hold_window_hours(pool).await;
+    let hold_release_hours = crate::modules::bookings::service::unpaid_hold_window_hours(pool).await;
     Ok(GuestBookingQuote {
         room_type_id: room_type.id,
         room_type_code: room_type.code,
@@ -1021,7 +1021,7 @@ pub async fn create(
             .collect::<std::collections::BTreeMap<_, _>>()
     );
     let booking_number =
-        crate::services::booking::generate_booking_number_for_date(quote.check_in_date);
+        crate::modules::bookings::helpers::generate_booking_number_for_date(quote.check_in_date);
     let stay_nights = (quote.check_out_date - quote.check_in_date).num_days();
     let complimentary_reason = (quote.complimentary_nights > 0).then(|| {
         let dates = quote
@@ -1126,7 +1126,7 @@ pub async fn create(
     }
 
     Repository::mark_room_reserved_tx(&mut tx, room_id, &booking_number).await?;
-    crate::repositories::bookings::record_booking_history_tx(
+    crate::modules::bookings::record_booking_history_tx(
         &mut tx,
         booking_id,
         None,
@@ -1267,13 +1267,13 @@ pub async fn create_anonymous(
     if let Some(mut existing) =
         Repository::find_anonymous_by_request_id(pool, &request_id, &guest.email).await?
     {
-        let access_token = crate::services::guest_portal::generate_session_token();
+        let access_token = crate::modules::guest_portal::service::generate_session_token();
         let access_token_expires_at = replay_anonymous_access_token_expiry(
             chrono::Utc::now(),
             existing.check_in_date,
             existing.access_token_expires_at,
         );
-        crate::repositories::guest_portal::GuestPortalRepository::update_precheckin_token(
+        crate::modules::guest_portal::repository::GuestPortalRepository::update_precheckin_token(
             pool,
             existing.booking_id,
             &access_token,
@@ -1326,8 +1326,8 @@ pub async fn create_anonymous(
             .collect::<std::collections::BTreeMap<_, _>>()
     );
     let booking_number =
-        crate::services::booking::generate_booking_number_for_date(quote.check_in_date);
-    let access_token = crate::services::guest_portal::generate_session_token();
+        crate::modules::bookings::helpers::generate_booking_number_for_date(quote.check_in_date);
+    let access_token = crate::modules::guest_portal::service::generate_session_token();
     let access_token_expires_at =
         anonymous_access_token_expiry(chrono::Utc::now(), quote.check_in_date);
 
@@ -1380,7 +1380,7 @@ pub async fn create_anonymous(
     Repository::issue_access_token_tx(&mut tx, booking_id, &access_token, access_token_expires_at)
         .await?;
     Repository::mark_room_reserved_tx(&mut tx, room_id, &booking_number).await?;
-    crate::repositories::bookings::record_booking_history_tx(
+    crate::modules::bookings::record_booking_history_tx(
         &mut tx,
         booking_id,
         None,

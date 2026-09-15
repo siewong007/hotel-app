@@ -13,14 +13,14 @@ owns it.
 
 ### Backend
 
-`routes/<domain>.rs` → auth/rate-limit guards → `handlers/<domain>.rs` →
-`services/<domain>.rs` → `repositories/<domain>.rs` → `models/<domain>.rs`
+`modules/<domain>/routes.rs` → auth/rate-limit guards → `handlers.rs` →
+`service.rs` → `repository.rs` → `models.rs` inside the same module directory.
 
-- `routes/`: HTTP path registration, route ordering, auth/rate-limit guards, extraction wiring. No business logic or SQL.
-- `handlers/`: Translate HTTP inputs into domain calls and domain results into HTTP responses. Keep thin.
-- `services/`: Business workflows, validation orchestration, transactions, audit decisions, cross-entity rules, domain invariants. Not every domain has one; some handlers call repositories directly.
-- `repositories/`: SQL only. Parameter binding, row fetching, persistence, row mapping.
-- `models/`: Request/response DTOs and domain structs, with their serialization and validation annotations.
+- `routes.rs`: HTTP path registration, route ordering, auth/rate-limit guards, extraction wiring. No business logic or SQL.
+- `handlers.rs`: Translate HTTP inputs into domain calls and domain results into HTTP responses. Keep thin.
+- `service.rs`: Business workflows, validation orchestration, transactions, audit decisions, cross-entity rules, domain invariants. Not every domain has one; some handlers call repositories directly.
+- `repository.rs`: SQL only. Parameter binding, row fetching, persistence, row mapping.
+- `models.rs`: Request/response DTOs and domain structs, with their serialization and validation annotations.
 - `core/`: Cross-cutting infrastructure — auth, DB pool, errors, middleware, rate limiting, metrics, SQL compatibility.
 - `utils/`: Small pure helpers such as sanitization and date parsing.
 
@@ -50,19 +50,24 @@ sections, and pure helpers before changing behavior.
 
 ## Folder structure targets
 
-New backend domains use the domain-module layout already adopted by
-`modules/communications`, `ekyc`, `guest_booking`, `guest_relations`, `insights`,
-`loyalty`, `promotions`, `realtime`, `revenue`, `segments`, `settings`, `support`,
-`system`, and `teams` (`consent` is an internal module with no routes):
+All backend domains use the domain-module layout:
 
 ```text
 src/modules/<domain>/
   mod.rs  routes.rs  handlers.rs  service.rs  repository.rs  queries.rs  models.rs  validation.rs
 ```
 
-The older flat-by-layer directories (`routes/`, `handlers/`, `services/`,
-`repositories/`, `models/`) still hold most domains. Migrate one domain at a time,
-preserving public routes and response shapes; never do a repo-wide move in one change.
+Thirty-nine directories live in `modules/<domain>/` — thirty-eight are merged into
+the router; `consent` is an internal module with no routes. Extra domain files are
+allowed when a domain needs them (e.g. `bookings/{lifecycle,credits,complimentary,
+checkin_advisory,queries,list,helpers,emails,auto_checkin,unpaid_hold_scheduler}.rs`,
+`payments/{paypal_client,receipt_scheduler}.rs`, `guest_portal/session_repository.rs`,
+`data_transfer/{jobs,step_up}.rs`, `promotions/pricing.rs`).
+
+The flat-by-layer directories no longer hold domain code. What remains there is
+deliberately global: `routes/mod.rs` (router composition + shared extractors),
+`services/{audit,account_emails,google_identity,invoice_numbers}.rs`,
+`repositories/{audit,invoice_numbers}.rs`, and `models/{audit,common,row_mappers}.rs`.
 
 Keep these global areas: `core/`, `services/audit.rs`,
 `database/postgres/migrations/0001_v1_baseline.sql`, `database/postgres/seed.sql`.

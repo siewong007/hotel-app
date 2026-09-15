@@ -1,0 +1,455 @@
+//! Guest portal API models.
+
+use chrono::{DateTime, NaiveDate, Utc};
+use serde::{Deserialize, Serialize};
+use validator::Validate;
+
+use crate::models::{Booking, Guest, GuestEkycStatusSummary};
+use crate::utils::sanitization::Sanitizer;
+
+/// Request for verifying a guest booking.
+#[derive(Debug, Deserialize)]
+pub struct GuestPortalVerifyRequest {
+    pub booking_number: String,
+    /// Guest name as registered on the booking (matched case-insensitively).
+    pub name: String,
+}
+
+/// Response for guest portal verification.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalVerifyResponse {
+    pub token: String,
+    pub expires_at: String,
+    pub booking_id: String,
+}
+
+/// Guest-facing subset of a booking. Portal endpoints are reachable with only
+/// the pre-check-in token, so internal fields (staff remarks, rates, payment
+/// state, overrides) must not appear here.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalBookingView {
+    pub id: i64,
+    pub booking_number: String,
+    pub check_in_date: NaiveDate,
+    pub check_out_date: NaiveDate,
+    pub status: String,
+    pub adults: Option<i32>,
+    pub children: Option<i32>,
+    pub special_requests: Option<String>,
+    pub market_code: Option<String>,
+    pub pre_checkin_completed: Option<bool>,
+    pub pre_checkin_completed_at: Option<DateTime<Utc>>,
+}
+
+impl From<Booking> for GuestPortalBookingView {
+    fn from(booking: Booking) -> Self {
+        GuestPortalBookingView {
+            id: booking.id,
+            booking_number: booking.booking_number,
+            check_in_date: booking.check_in_date,
+            check_out_date: booking.check_out_date,
+            status: booking.status,
+            adults: booking.adults,
+            children: booking.children,
+            special_requests: booking.special_requests,
+            market_code: booking.market_code,
+            pre_checkin_completed: booking.pre_checkin_completed,
+            pre_checkin_completed_at: booking.pre_checkin_completed_at,
+        }
+    }
+}
+
+/// Guest-facing subset of a guest profile: the contact/identity fields the
+/// pre-check-in form pre-fills, nothing operational (credits, discounts,
+/// account flags).
+#[derive(Debug, Serialize)]
+pub struct GuestPortalGuestView {
+    pub nick_name: String,
+    /// Split name parts. The portal's profile form edits these directly;
+    /// `nick_name` is the derived display name kept in sync alongside them
+    /// (see `GuestRepository::update_contact_profile`).
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub title: Option<String>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub alt_phone: Option<String>,
+    pub ic_number: Option<String>,
+    pub nationality: Option<String>,
+    pub address_line1: Option<String>,
+    pub city: Option<String>,
+    pub state_province: Option<String>,
+    pub postal_code: Option<String>,
+    pub country: Option<String>,
+}
+
+impl From<Guest> for GuestPortalGuestView {
+    fn from(guest: Guest) -> Self {
+        GuestPortalGuestView {
+            nick_name: guest.nick_name,
+            first_name: guest.first_name,
+            last_name: guest.last_name,
+            title: guest.title,
+            email: guest.email,
+            phone: guest.phone,
+            alt_phone: guest.alt_phone,
+            ic_number: guest.ic_number,
+            nationality: guest.nationality,
+            address_line1: guest.address_line1,
+            city: guest.city,
+            state_province: guest.state_province,
+            postal_code: guest.postal_code,
+            country: guest.country,
+        }
+    }
+}
+
+/// Body for `PATCH /guest-portal/me/profile` — the contact details a signed-in
+/// guest may maintain themselves.
+///
+/// Deliberately excludes `email` and `ic_number`: email is the login identifier
+/// (changing it is an account operation with its own verification), and the IC
+/// number is identity data the hotel verifies through eKYC. `nick_name` is not
+/// accepted either — it is derived from the name parts so the display name can
+/// never drift from them.
+#[derive(Debug, Deserialize, Validate)]
+pub struct GuestPortalProfileUpdate {
+    #[validate(
+        length(max = 50, message = "First name must be at most 50 characters"),
+        custom(function = "crate::modules::auth::models::validate_trimmed_guest_name")
+    )]
+    pub first_name: String,
+    #[validate(
+        length(max = 50, message = "Last name must be at most 50 characters"),
+        custom(function = "crate::modules::auth::models::validate_trimmed_guest_name")
+    )]
+    pub last_name: String,
+    #[validate(custom(function = "crate::modules::auth::models::validate_guest_phone"))]
+    pub phone: String,
+    #[validate(custom(function = "validate_optional_guest_phone"))]
+    pub alt_phone: Option<String>,
+    #[validate(length(max = 20, message = "Title is too long"))]
+    pub title: Option<String>,
+    #[validate(length(max = 100, message = "Nationality is too long"))]
+    pub nationality: Option<String>,
+    #[validate(length(max = 255, message = "Address is too long"))]
+    pub address_line1: Option<String>,
+    #[validate(length(max = 100, message = "City is too long"))]
+    pub city: Option<String>,
+    #[validate(length(max = 100, message = "State or province is too long"))]
+    pub state_province: Option<String>,
+    #[validate(length(max = 20, message = "Postal code is too long"))]
+    pub postal_code: Option<String>,
+    #[validate(length(max = 100, message = "Country is too long"))]
+    pub country: Option<String>,
+}
+
+/// An absent or blank alternate phone clears the field; a present one must be
+/// as valid as the primary.
+fn validate_optional_guest_phone(value: &str) -> Result<(), validator::ValidationError> {
+    if value.trim().is_empty() {
+        return Ok(());
+    }
+    crate::modules::auth::models::validate_guest_phone(value)
+}
+
+impl GuestPortalProfileUpdate {
+    /// Validates, then sanitizes, then re-validates — the same order as
+    /// `CompleteGuestProfileRequest::normalize_and_validate`, so sanitizing can
+    /// never turn an accepted value into one that violates its own rule.
+    pub fn normalize_and_validate(&mut self) -> Result<(), validator::ValidationErrors> {
+        self.validate()?;
+
+        self.first_name = Sanitizer::sanitize_guest_name(&self.first_name);
+        self.last_name = Sanitizer::sanitize_guest_name(&self.last_name);
+        self.phone = Sanitizer::sanitize_phone(&self.phone);
+        self.alt_phone = take_optional(&mut self.alt_phone, |value| {
+            Sanitizer::sanitize_phone(value.trim())
+        });
+        for (field, limit) in [
+            (&mut self.title, 20usize),
+            (&mut self.nationality, 100),
+            (&mut self.address_line1, 255),
+            (&mut self.city, 100),
+            (&mut self.state_province, 100),
+            (&mut self.postal_code, 20),
+            (&mut self.country, 100),
+        ] {
+            // Truncation is by CHARACTER, not byte: these map to varchar(N)
+            // columns, and a byte slice would both overshoot the limit for
+            // multi-byte names and be able to split one mid-character.
+            *field = take_optional(field, |value| {
+                Sanitizer::sanitize_text(value.trim())
+                    .chars()
+                    .take(limit)
+                    .collect()
+            });
+        }
+
+        self.validate()
+    }
+
+    /// The display name kept in step with the name parts.
+    pub fn nick_name(&self) -> String {
+        format!("{} {}", self.first_name, self.last_name)
+    }
+}
+
+/// Applies `transform` to a present value and drops it when the result is empty,
+/// so a cleared field becomes `NULL` rather than an empty string.
+fn take_optional(field: &mut Option<String>, transform: impl Fn(&str) -> String) -> Option<String> {
+    field
+        .take()
+        .map(|value| transform(&value))
+        .filter(|value| !value.is_empty())
+}
+
+/// Response for guest portal booking details.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalBookingResponse {
+    pub booking: GuestPortalBookingView,
+    pub guest: GuestPortalGuestView,
+    pub ekyc_summary: GuestEkycStatusSummary,
+    /// Outstanding bank-transfer receipt request, if staff require proof.
+    /// Same fields the signed-in dashboard already exposes; the token flow
+    /// needs them so an anonymous booker can upload without an account.
+    pub receipt_request_payment_id: Option<i64>,
+    pub receipt_request_message: Option<String>,
+    pub receipt_uploaded: bool,
+}
+
+// ============================================================================
+// Guest portal session login + guest-scoped read views
+// ============================================================================
+
+/// Successful portal session response. The raw token is returned exactly once; it is
+/// never persisted (only its SHA-256 hash is stored) and never serialized again.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalLoginResponse {
+    pub token: String,
+    pub expires_at: DateTime<Utc>,
+    pub guest: GuestPortalGuestView,
+}
+
+/// Create a portal account for the guest a booking access token already
+/// authenticates, without inserting a second `guests` row.
+///
+/// `POST /auth/register` cannot serve this case: it always inserts a new guest
+/// profile and rejects the request when one already carries that name
+/// (`nick_name_conflict_id`), which every guest who has booked does. The
+/// account minted here is bound to `bookings.guest_id`, so the eKYC domain —
+/// keyed on `users.id` and resolved back through `guest_id` — sees the same
+/// guest the booking does.
+#[derive(Debug, Deserialize, Validate)]
+pub struct GuestPortalClaimAccountRequest {
+    /// Re-typed by the guest. The access token alone already authenticates the
+    /// booking, but it lives in an email that can be forwarded; asking for the
+    /// booking number and the name on the booking means a leaked link is not
+    /// by itself enough to mint an account over that guest profile.
+    #[validate(length(min = 1, max = 50, message = "Booking number is required"))]
+    pub booking_number: String,
+    #[validate(length(min = 1, max = 200, message = "Guest name is required"))]
+    pub guest_name: String,
+    #[validate(regex(
+        path = *crate::models::USERNAME_PATTERN,
+        message = "Username may only contain letters, digits, dots, underscores and dashes"
+    ))]
+    #[validate(length(
+        min = 3,
+        max = 50,
+        message = "Username must be between 3 and 50 characters"
+    ))]
+    pub username: String,
+    #[validate(length(
+        min = 8,
+        max = 100,
+        message = "Password must be at least 8 characters long"
+    ))]
+    pub password: String,
+    #[validate(email(message = "Invalid email format"))]
+    pub email: Option<String>,
+    /// Same mandatory set as registration — `consent::validation` rejects the
+    /// request when the Booking Terms or Privacy Notice is missing, refused or
+    /// pinned to a superseded version, so this path cannot create an account
+    /// with weaker consent than `/auth/register`.
+    #[serde(default)]
+    pub consents: Vec<crate::modules::consent::models::ConsentAcceptance>,
+    #[serde(default)]
+    pub marketing_opt_in: bool,
+}
+
+/// Result of a successful account claim.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalClaimAccountResponse {
+    /// Portal session for the new account, so pre-check-in and eKYC continue
+    /// in the same visit rather than waiting on an email round-trip.
+    pub session: GuestPortalLoginResponse,
+    pub username: String,
+    /// True when a verification link was mailed. Password login stays blocked
+    /// until the guest clicks it (`services::auth::login` refuses unverified
+    /// accounts); the portal session above is unaffected.
+    pub email_verification_required: bool,
+}
+
+/// Wrapper for GET /guest-portal/me.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalMeResponse {
+    pub guest: GuestPortalGuestView,
+    /// Resolved via `services::profile::completion_for_guest` — the same
+    /// primitive backing the login response and the booking-creation guard,
+    /// so the portal session never disagrees with them.
+    pub profile_complete: bool,
+    pub missing_profile_fields: Vec<String>,
+}
+
+/// One booking row in the guest's booking history.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalBookingSummary {
+    pub id: i64,
+    pub booking_number: String,
+    pub check_in_date: NaiveDate,
+    pub check_out_date: NaiveDate,
+    pub status: String,
+    pub total_amount: rust_decimal::Decimal,
+    /// The completed booking payment, when one exists. These fields let the
+    /// guest portal render a receipt without exposing staff-only payment data.
+    pub completed_payment_id: Option<i64>,
+    pub completed_payment_method: Option<String>,
+    pub completed_payment_amount: Option<rust_decimal::Decimal>,
+    pub can_cancel: bool,
+    pub cancellation_unavailable_reason: Option<String>,
+    /// An open staff-review cancellation request exists for this booking. Paid
+    /// bookings are never voided directly — the portal files a support request
+    /// instead — so this is what tells the guest their request is in flight.
+    pub cancellation_pending: bool,
+    /// Reason from the most recently rejected payment claim on this booking,
+    /// if any. The frontend only renders it while the booking is still
+    /// awaiting payment, so a rejection reason from before a later successful
+    /// payment is simply never shown.
+    pub payment_rejection_reason: Option<String>,
+    /// Outstanding bank-transfer receipt request, if staff require proof.
+    pub receipt_request_payment_id: Option<i64>,
+    pub receipt_request_message: Option<String>,
+    pub receipt_uploaded: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GuestBookingCancellationRequest {
+    pub reason: Option<String>,
+}
+
+/// Paginated list wrapper used by the guest history endpoints.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalPage<T> {
+    pub items: Vec<T>,
+    pub total: i64,
+}
+
+/// One transaction row (payment or invoice) in the guest's financial history.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalTransaction {
+    /// "payment" or "invoice".
+    pub kind: String,
+    pub date: DateTime<Utc>,
+    pub amount: rust_decimal::Decimal,
+    /// Payment method (payments only, else null).
+    pub method: Option<String>,
+    pub reference: Option<String>,
+    /// Invoice number (invoices only, else null).
+    pub invoice_number: Option<String>,
+    pub booking_number: Option<String>,
+    pub status: Option<String>,
+}
+
+/// Membership summary block for GET /guest-portal/me/membership.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalMembership {
+    pub member_number: String,
+    pub tier_name: String,
+    pub tier_level: i32,
+    pub points_balance: i32,
+    pub lifetime_points: i32,
+    pub status: String,
+}
+
+/// One points-activity row for the membership endpoint.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalPointsActivity {
+    pub date: DateTime<Utc>,
+    pub transaction_type: String,
+    pub points: i32,
+    pub balance_after: i32,
+    /// Guest-safe explanation recorded when the transaction was created.
+    pub reason: Option<String>,
+    /// Booking reference for stay-related earnings or reversals.
+    pub booking_number: Option<String>,
+    /// Staff display name for an administrative points adjustment.
+    pub adjusted_by: Option<String>,
+}
+
+/// Response for GET /guest-portal/me/membership.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalMembershipResponse {
+    pub membership: Option<GuestPortalMembership>,
+    pub recent_activity: Vec<GuestPortalPointsActivity>,
+}
+
+/// One tier-benefit row for the benefits endpoint.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalTierBenefit {
+    pub tier_name: String,
+    pub discount_percentage: rust_decimal::Decimal,
+}
+
+/// One reward-catalog row for the benefits endpoint.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalReward {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub points_required: i32,
+    pub affordable: bool,
+}
+
+/// Response for GET /guest-portal/me/benefits.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalBenefitsResponse {
+    pub tier_benefits: Vec<GuestPortalTierBenefit>,
+    pub rewards: Vec<GuestPortalReward>,
+}
+
+/// One room type's complimentary-night balance for the signed-in guest.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalRoomTypeCredit {
+    pub room_type_id: i64,
+    pub room_type_code: String,
+    pub room_type_name: String,
+    pub nights_available: i32,
+}
+
+/// Response for GET /guest-portal/me/credits.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalCreditsResponse {
+    pub total_nights_available: i32,
+    pub credits_by_room_type: Vec<GuestPortalRoomTypeCredit>,
+}
+
+/// Pagination query params for the guest history endpoints.
+#[derive(Debug, Deserialize)]
+pub struct GuestPortalPageQuery {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+    /// Free-text filter, used by the guest's stays list.
+    pub search: Option<String>,
+}
+
+impl GuestPortalPageQuery {
+    /// Clamp page to >= 1 and per_page to 1..=100 (default 20), returning
+    /// (limit, offset).
+    pub fn limit_offset(&self) -> (i64, i64) {
+        let per_page = self.per_page.unwrap_or(20).clamp(1, 100);
+        let page = self.page.unwrap_or(1).max(1);
+        (per_page, (page - 1) * per_page)
+    }
+}

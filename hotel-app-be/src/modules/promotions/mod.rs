@@ -8,6 +8,7 @@
 pub mod handlers;
 pub mod lifecycle;
 pub mod models;
+pub mod pricing;
 pub mod repository;
 pub mod routes;
 pub mod service;

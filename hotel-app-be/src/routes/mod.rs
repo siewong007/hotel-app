@@ -3,33 +3,33 @@
 //! This module provides a modular structure for routes.
 //! Each submodule defines routes for a specific domain.
 
-pub mod analytics;
-pub mod audit;
-pub mod auth;
-pub mod booking_channels;
-pub mod bookings;
-pub mod companies;
-pub mod data_transfer;
+// analytics routes live in modules::analytics.
+// audit routes live in modules::audit.
+// auth routes live in modules::auth.
+// booking_channels routes live in modules::booking_channels.
+// bookings routes live in modules::bookings.
+// companies routes live in modules::companies.
+// data_transfer routes live in modules::data_transfer.
 // eKYC routes now live in modules::ekyc::routes
 // (the old routes/ekyc.rs file is preserved for backward reference during migration)
-pub mod guest_portal;
-pub mod guests;
-pub mod housekeeping;
-pub mod ledgers;
+// guest_portal routes live in modules::guest_portal.
+// guests routes live in modules::guests.
+// housekeeping routes live in modules::housekeeping.
+// ledgers routes live in modules::ledgers.
 // Loyalty routes live in modules::loyalty::routes (merged below).
-pub mod maintenance;
-pub mod night_audit;
-pub mod passkey;
-pub mod payment_retry;
-pub mod payments;
-pub mod profile;
-pub mod rates;
-pub mod rbac;
-pub mod rooms;
-pub mod search;
-pub mod two_factor;
-pub mod users;
-pub mod webhooks;
+// maintenance routes live in modules::maintenance.
+// night_audit routes live in modules::night_audit.
+// passkey routes live in modules::passkey.
+// payment_retry routes live in modules::payment_retry.
+// payments routes live in modules::payments.
+// profile routes live in modules::profile.
+// rates routes live in modules::rates.
+// rbac routes live in modules::rbac.
+// rooms routes live in modules::rooms.
+// search routes live in modules::search.
+// two_factor routes live in modules::two_factor.
+// users routes live in modules::users.
+// webhooks routes live in modules::webhooks.
 
 use crate::core::config::{self, AllowedOrigins};
 use crate::core::db::DbPool;
@@ -358,7 +358,7 @@ pub fn create_router(pool: DbPool) -> Router {
                     // the development branch above allows any header, so this is
                     // the kind of gap that ships green and 403s in production.
                     axum::http::HeaderName::from_static(
-                        crate::services::turnstile::TURNSTILE_HEADER,
+                        crate::modules::auth::turnstile::TURNSTILE_HEADER,
                     ),
                     axum::http::HeaderName::from_static(CLIENT_TIMEZONE_HEADER),
                 ])
@@ -387,26 +387,26 @@ pub fn create_router(pool: DbPool) -> Router {
     // `/uploads`) stay at the root because Docker/desktop healthchecks and
     // static asset URLs depend on them.
     let api_routes = Router::new()
-        .merge(auth::routes())
-        .merge(payment_retry::routes())
-        .merge(booking_channels::routes())
-        .merge(rooms::routes())
-        .merge(guests::routes())
-        .merge(housekeeping::routes())
-        .merge(maintenance::routes())
-        .merge(bookings::routes())
-        .merge(rates::routes())
-        .merge(payments::routes())
-        .merge(ledgers::routes())
+        .merge(crate::modules::auth::routes::routes())
+        .merge(crate::modules::payment_retry::routes::routes())
+        .merge(crate::modules::booking_channels::routes::routes())
+        .merge(crate::modules::rooms::routes::routes())
+        .merge(crate::modules::guests::routes::routes())
+        .merge(crate::modules::housekeeping::routes::routes())
+        .merge(crate::modules::maintenance::routes::routes())
+        .merge(crate::modules::bookings::routes::routes())
+        .merge(crate::modules::rates::routes::routes())
+        .merge(crate::modules::payments::routes::routes())
+        .merge(crate::modules::ledgers::routes::routes())
         .merge(crate::modules::loyalty::routes::routes())
         .merge(crate::modules::promotions::routes::routes())
         .merge(crate::modules::communications::routes::routes())
         .merge(crate::modules::revenue::routes::routes())
         .merge(crate::modules::segments::routes::routes())
-        .merge(rbac::routes())
-        .merge(users::routes())
-        .merge(profile::routes())
-        .merge(analytics::routes())
+        .merge(crate::modules::rbac::routes::routes())
+        .merge(crate::modules::users::routes::routes())
+        .merge(crate::modules::profile::routes::routes())
+        .merge(crate::modules::analytics::routes::routes())
         .merge(crate::modules::settings::routes::routes())
         .merge(crate::modules::system::routes::routes())
         .merge(crate::modules::insights::routes::routes())
@@ -415,15 +415,15 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::guest_relations::routes::routes())
         .merge(crate::modules::teams::routes::routes())
         .merge(crate::modules::guest_booking::routes::routes())
-        .merge(guest_portal::routes())
-        .merge(companies::routes())
-        .merge(audit::routes())
-        .merge(search::routes())
-        .merge(night_audit::routes())
-        .merge(data_transfer::routes())
-        .merge(passkey::routes())
-        .merge(two_factor::routes())
-        .merge(webhooks::routes())
+        .merge(crate::modules::guest_portal::routes::routes())
+        .merge(crate::modules::companies::routes::routes())
+        .merge(crate::modules::audit::routes::routes())
+        .merge(crate::modules::search::routes::routes())
+        .merge(crate::modules::night_audit::routes::routes())
+        .merge(crate::modules::data_transfer::routes::routes())
+        .merge(crate::modules::passkey::routes::routes())
+        .merge(crate::modules::two_factor::routes::routes())
+        .merge(crate::modules::webhooks::routes::routes())
         .merge(crate::modules::realtime::routes::routes())
         .layer(axum::middleware::from_fn_with_state(
             data_change_hub.clone(),

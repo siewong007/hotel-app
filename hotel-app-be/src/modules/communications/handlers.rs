@@ -19,7 +19,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
 use crate::core::rate_limiter::RateLimiters;
-use crate::services::guest_portal;
+use crate::modules::guest_portal::service as guest_portal;
 use axum::Extension;
 
 fn client_ip(headers: &HeaderMap, peer_addr: SocketAddr) -> Option<String> {

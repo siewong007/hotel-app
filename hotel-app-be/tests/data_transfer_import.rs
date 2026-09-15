@@ -11,7 +11,7 @@
 //! safe against the shared test database and against other test binaries
 //! running concurrently. Runs only with `DATABASE_URL` set.
 
-use hotel_app_be::repositories::data_transfer::{DataTransferRepository, transfer_order};
+use hotel_app_be::modules::data_transfer::repository::{DataTransferRepository, transfer_order};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use std::collections::{HashMap, HashSet};
@@ -197,7 +197,7 @@ async fn relaxed_foreign_keys_allow_cyclic_rows_and_are_restored_afterwards() {
 async fn staged_import_never_writes_credential_tables() {
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::{BackupImportMode, ImportExecuteRequest, ImportJobState};
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -417,7 +417,7 @@ fn legacy_v1_fixture() -> Vec<u8> {
 /// Poll the registry until the job leaves `running` (or time out).
 async fn wait_for_job(job_id: uuid::Uuid) -> hotel_app_be::models::ImportJobStatus {
     use hotel_app_be::models::ImportJobState;
-    use hotel_app_be::services::data_transfer_jobs::import_job_status;
+    use hotel_app_be::modules::data_transfer::jobs::import_job_status;
     use std::time::{Duration, Instant};
 
     let deadline = Instant::now() + Duration::from_secs(30);
@@ -442,7 +442,7 @@ async fn staged_v1_upload_previews_executes_and_cleans_up() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -537,7 +537,7 @@ async fn staged_v1_merge_update_and_fail_conflict_policies() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -673,7 +673,7 @@ async fn retired_backup_formats_are_rejected() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -766,7 +766,7 @@ async fn retired_backup_formats_are_rejected() {
 async fn staged_upload_guardrails() {
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::{BackupImportMode, ImportExecuteRequest};
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -831,7 +831,7 @@ async fn staged_upload_guardrails() {
 /// synthetic descriptor pointing at `amenities.name`.
 #[tokio::test]
 async fn text_key_columns_bind_text_even_for_numeric_keys() {
-    use hotel_app_be::repositories::data_transfer::{
+    use hotel_app_be::modules::data_transfer::repository::{
         DataTransferRepository, PkLookup, QualifiedTable, TransferTable,
     };
 
@@ -900,7 +900,7 @@ async fn preview_flags_transferable_parent_keys_absent_from_file_and_database() 
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;

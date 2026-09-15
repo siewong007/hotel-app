@@ -66,7 +66,7 @@ pub async fn check_permission(
 ///
 /// Super admins are the ceiling of the authorization hierarchy: they bypass
 /// the role-priority and permission-superset guards in
-/// [`crate::services::rbac`], and they alone may mutate system roles and the
+/// [`crate::modules::rbac::service`], and they alone may mutate system roles and the
 /// permission catalogue. Soft-deleted and deactivated accounts never qualify.
 pub async fn is_super_admin(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
     sqlx::query_scalar::<_, bool>(

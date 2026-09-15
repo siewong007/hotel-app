@@ -17,7 +17,7 @@ use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use crate::services::guest_portal;
+use crate::modules::guest_portal::service as guest_portal;
 
 fn client_ip(headers: &HeaderMap, peer_addr: SocketAddr) -> Option<String> {
     Some(crate::routes::extract_client_ip(headers, peer_addr).to_string())

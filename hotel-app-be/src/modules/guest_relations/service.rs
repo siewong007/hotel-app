@@ -24,7 +24,7 @@ use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::modules::support::models::SupportConversationSummary;
-use crate::repositories::guest::GuestRepository;
+use crate::modules::guests::repository::GuestRepository;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 

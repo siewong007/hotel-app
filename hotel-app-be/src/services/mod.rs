@@ -3,44 +3,44 @@
 //! Services that encapsulate complex business logic.
 
 pub mod account_emails;
-pub mod analytics;
+// analytics service logic live in modules::analytics.
 pub mod audit;
-pub mod auth;
-pub mod auto_checkin;
-pub mod booking;
-pub mod booking_channels;
-pub mod booking_emails;
-pub mod bookings;
-pub mod companies;
-pub mod data_transfer;
+// auth service logic live in modules::auth.
+// auto_checkin service logic live in modules::bookings.
+// booking service logic live in modules::bookings.
+// booking_channels service logic live in modules::booking_channels.
+// booking_emails service logic live in modules::bookings.
+// bookings service logic live in modules::bookings.
+// companies service logic live in modules::companies.
+// data_transfer service logic live in modules::data_transfer.
 // Import staging/jobs for data transfer — kept in a sibling file so
 // data_transfer.rs does not grow past its maintainable size.
-pub mod data_transfer_jobs;
+// data_transfer_jobs service logic live in modules::data_transfer.
 // Step-up re-authentication for privileged data-transfer operations.
-pub mod data_transfer_step_up;
+// data_transfer_step_up service logic live in modules::data_transfer.
 // eKYC service logic lives in modules::ekyc.
 pub mod google_identity;
-pub mod guest_portal;
-pub mod guests;
-pub mod housekeeping;
+// guest_portal service logic live in modules::guest_portal.
+// guests service logic live in modules::guests.
+// housekeeping service logic live in modules::housekeeping.
 pub mod invoice_numbers;
-pub mod ledgers;
+// ledgers service logic live in modules::ledgers.
 // Loyalty service logic lives in modules::loyalty::service.
-pub mod maintenance;
-pub mod night_audit;
-pub mod night_audit_scheduler;
-pub mod passkey;
-pub mod payment_receipt_scheduler;
-pub mod payment_retry;
-pub mod payments;
-pub mod paypal_client;
-pub mod profile;
-pub mod promotion_pricing;
-pub mod rates;
-pub mod rbac;
-pub mod rooms;
-pub mod search;
-pub mod turnstile;
-pub mod two_factor;
-pub mod unpaid_hold_scheduler;
-pub mod users;
+// maintenance service logic live in modules::maintenance.
+// night_audit service logic live in modules::night_audit.
+// night_audit_scheduler service logic live in modules::night_audit.
+// passkey service logic live in modules::passkey.
+// payment_receipt_scheduler service logic live in modules::payments.
+// payment_retry service logic live in modules::payment_retry.
+// payments service logic live in modules::payments.
+// paypal_client service logic live in modules::payments.
+// profile service logic live in modules::profile.
+// promotion_pricing service logic live in modules::promotions.
+// rates service logic live in modules::rates.
+// rbac service logic live in modules::rbac.
+// rooms service logic live in modules::rooms.
+// search service logic live in modules::search.
+// turnstile service logic live in modules::auth.
+// two_factor service logic live in modules::two_factor.
+// unpaid_hold_scheduler service logic live in modules::bookings.
+// users service logic live in modules::users.

@@ -7,7 +7,7 @@
 use hotel_app_be::core::error::ApiError;
 use hotel_app_be::modules::consent::models::{ConsentAcceptance, ConsentDocument};
 use hotel_app_be::modules::consent::service::ConsentContext;
-use hotel_app_be::repositories::auth::{AuthRepository, NewGoogleAccountConsent};
+use hotel_app_be::modules::auth::repository::{AuthRepository, NewGoogleAccountConsent};
 use hotel_app_be::services::google_identity::{GoogleIdentity, google_username};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 
@@ -27,7 +27,7 @@ fn registration_consents() -> Vec<ConsentAcceptance> {
 async fn resolve_new(
     pool: &PgPool,
     identity: &GoogleIdentity,
-) -> Result<hotel_app_be::repositories::auth::GoogleGuestResolution, ApiError> {
+) -> Result<hotel_app_be::modules::auth::repository::GoogleGuestResolution, ApiError> {
     let consents = registration_consents();
     let context = ConsentContext::default();
     let locale = "en".to_string();

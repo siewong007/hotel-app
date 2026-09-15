@@ -75,8 +75,8 @@ Full lifecycle reference, including failure recovery:
 ## Payments and PayPal webhooks
 
 Two capture paths converge on one policy: the synchronous capture
-(`services/payments.rs::capture_paypal_payment`) and the inbound webhook
-(`/api/webhooks/paypal` → `routes/webhooks.rs` → `handlers/webhooks.rs`). Both
+(`modules/payments/service.rs::capture_paypal_payment`) and the inbound webhook
+(`/api/webhooks/paypal` → `modules/webhooks/routes.rs` → `modules/webhooks/handlers.rs`). Both
 verify the captured amount against the stored payment row — never the editable
 booking total. On a mismatch after money has moved they write a
 `paypal_capture_conflict` / `paypal_webhook_conflict` audit event and leave the
@@ -86,7 +86,7 @@ cryptographically verified and IP rate-limited; unhandled event types are
 audit-logged as `paypal_webhook_ignored` and acknowledged. Conflicts surface on
 the admin Payment Approvals page via `GET /api/admin/payments/paypal-conflicts`
 (`payments:read`).
-Payments RBAC lives at the route layer: every wrapper in `routes/payments.rs`
+Payments RBAC lives at the route layer: every wrapper in `modules/payments/routes.rs`
 calls `require_permission_helper` before its handler.
 
 ## Payment idempotency and deposit refunds
@@ -142,7 +142,7 @@ decisions (due dates, occupancy gating, report windows) — never
   spreads each redemption across stay nights; per-night `discount_amount`
   combines the complimentary-credit share and the voucher share so the rows
   always reconcile with the parent redemption.
-- All discount math lives in `services/promotion_pricing.rs`
+- All discount math lives in `modules/promotions/pricing.rs`
   (`calculate_promotion_pricing`) — the single engine used by guest-booking
   quotes and redemption writes. Do not reimplement percentage/fixed discount
   math elsewhere.

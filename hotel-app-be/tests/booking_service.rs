@@ -3,7 +3,7 @@
 //! Pure unit tests run without a database; PostgreSQL workflow tests use
 //! `DATABASE_URL` when it is available.
 
-use hotel_app_be::services::booking;
+use hotel_app_be::modules::bookings::helpers as booking;
 
 // The PostgreSQL workflow tests share a single database and exercise DDL on the
 // `audit_logs` table (installing/dropping failure triggers). Run in parallel
@@ -63,7 +63,7 @@ fn booking_numbers_are_unique() {
 
 mod postgres_tests {
     use hotel_app_be::core::error::ApiError;
-    use hotel_app_be::services::bookings;
+    use hotel_app_be::modules::bookings::service as bookings;
     use rust_decimal::Decimal;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
@@ -1139,7 +1139,7 @@ mod postgres_tests {
 mod postgres_reactivation_tests {
     use axum::extract::{Extension, Path, State};
     use hotel_app_be::core::error::ApiError;
-    use hotel_app_be::services::bookings;
+    use hotel_app_be::modules::bookings::service as bookings;
     use sqlx::postgres::PgPoolOptions;
     use sqlx::{PgPool, Row};
 
@@ -1500,7 +1500,7 @@ mod postgres_creation_tests {
     use axum::extract::{Extension, State};
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::BookingInput;
-    use hotel_app_be::repositories::bookings::create_booking_handler;
+    use hotel_app_be::modules::bookings::create_booking_handler;
     use sqlx::PgPool;
     use sqlx::postgres::PgPoolOptions;
 

@@ -7,7 +7,7 @@
 //! membership checks from memory — turning a 3-table join per request into an
 //! occasional one.
 //!
-//! Correctness: the RBAC mutation handlers in [`crate::handlers::rbac`] call
+//! Correctness: the RBAC mutation handlers in [`crate::modules::rbac::handlers`] call
 //! [`invalidate_all`] after a successful change, so revocations take effect
 //! immediately. The TTL (`RBAC_CACHE_TTL_SECS`, default 30s) only bounds drift
 //! from out-of-band database edits.

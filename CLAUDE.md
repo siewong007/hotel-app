@@ -74,11 +74,12 @@ details (deprecated `db-setup` alias, legacy rebuild path): `hotel-app-be/databa
 
 ## Backend
 
-`routes/<domain>.rs` (RBAC gate) → auth middleware → `handlers/` (thin) → `services/` (where a
-domain has one) → `repositories/` → `models/`. Fourteen routed domains use the newer
-`modules/<domain>/` layout (communications, ekyc, guest_booking, guest_relations, insights,
-loyalty, promotions, realtime, revenue, segments, settings, support, system, teams; `consent` is
-routeless) — **put new domains there**.
+`modules/<domain>/routes.rs` (RBAC gate) → auth middleware → `handlers.rs` (thin) →
+`service.rs` (where a domain has one) → `repository.rs` → `models.rs`. **All domains live in
+`modules/<domain>/`** — 38 are merged in `routes/mod.rs::create_router`; `consent` is the only
+routeless module — **put new domains there**. The residual flat files are shared globals only:
+`routes/mod.rs` composition, `services/{audit,account_emails,google_identity,invoice_numbers}.rs`,
+`repositories/{audit,invoice_numbers}.rs`, `models/{audit,common,row_mappers}.rs`.
 
 - `routes/mod.rs::create_router` — every router must be `.merge()`d here (38 today) or it is dead. Wires CORS, rate limits, security headers.
 - `core/middleware.rs` — `require_auth(&headers) -> i64`, `check_permission(pool, user_id, "<resource>:<action>")`, `check_any_permission`, `ensure_super_admin`. `<resource>:manage` implies every action of that resource.

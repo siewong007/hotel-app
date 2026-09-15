@@ -1,0 +1,58 @@
+//! Housekeeping HTTP handlers
+
+use axum::{
+    Json,
+    extract::{Extension, Path, Query, State},
+};
+
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::models::{
+    AssignableStaffMember, AssignableStaffQuery, CreateHousekeepingTaskRequest,
+    HousekeepingBoardResponse, HousekeepingTask, HousekeepingTaskListResponse,
+    ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
+};
+use super::service;
+
+pub async fn list_tasks_handler(
+    State(pool): State<DbPool>,
+    Query(params): Query<ListHousekeepingTasksQuery>,
+) -> Result<Json<HousekeepingTaskListResponse>, ApiError> {
+    Ok(Json(service::list_tasks(&pool, params).await?))
+}
+
+pub async fn create_task_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Json(input): Json<CreateHousekeepingTaskRequest>,
+) -> Result<Json<HousekeepingTask>, ApiError> {
+    Ok(Json(
+        service::create_task(&pool, user_id, input).await?,
+    ))
+}
+
+pub async fn update_task_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(task_id): Path<i64>,
+    Json(input): Json<UpdateHousekeepingTaskRequest>,
+) -> Result<Json<HousekeepingTask>, ApiError> {
+    Ok(Json(
+        service::update_task(&pool, user_id, task_id, input).await?,
+    ))
+}
+
+pub async fn assignable_staff_handler(
+    State(pool): State<DbPool>,
+    Query(params): Query<AssignableStaffQuery>,
+) -> Result<Json<Vec<AssignableStaffMember>>, ApiError> {
+    Ok(Json(
+        service::assignable_staff(&pool, params.scope.as_deref()).await?,
+    ))
+}
+
+pub async fn board_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<HousekeepingBoardResponse>, ApiError> {
+    Ok(Json(service::board(&pool).await?))
+}

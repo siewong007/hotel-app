@@ -4,7 +4,6 @@
 
 pub mod constants;
 pub mod core;
-pub mod handlers;
 pub mod models;
 pub mod modules;
 pub mod repositories;

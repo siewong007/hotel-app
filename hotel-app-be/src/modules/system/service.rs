@@ -11,7 +11,7 @@ use crate::modules::system::models::{
     JobRunRow, StaffNotificationItem, StaffNotificationsResponse, SystemHealthResponse,
 };
 use crate::modules::system::repository;
-use crate::repositories::rbac::RbacRepository;
+use crate::modules::rbac::repository::RbacRepository;
 
 /// Process start, initialized on first read — close enough to process birth
 /// for an uptime display, and impossible to get wrong at startup.

@@ -17,7 +17,7 @@ use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
-use crate::services::guest_portal;
+use crate::modules::guest_portal::service as guest_portal;
 
 fn user_agent(headers: &HeaderMap) -> Option<String> {
     headers
