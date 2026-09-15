@@ -27,6 +27,9 @@ import {
   EventAvailable as BookingIcon,
 } from '@mui/icons-material';
 import { Room, RoomHistory, BookingWithDetails } from '../../../../../types';
+import { useTranslation } from '../../../../../i18n/useTranslation';
+import { formatHotelDate, formatHotelDateTime } from '../../../../../utils/date';
+import { getLocalizedStatusLabel } from '../../../config';
 
 interface RoomHistoryDialogProps {
   open: boolean;
@@ -47,6 +50,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
   currentBooking,
   onViewGuestDetails,
 }) => {
+  const { t } = useTranslation('rooms');
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ bgcolor: 'primary.main', color: 'var(--hotel-on-primary)', py: 2, px: 3 }}>
@@ -55,17 +59,17 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <HistoryIcon sx={{ fontSize: 28 }} />
               <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-                Room History - {room?.room_number}
+                {t('history.title', { room: room?.room_number })}
               </Typography>
             </Box>
             <Typography variant="caption" sx={{ opacity: 0.9, ml: 5 }}>
-              {room?.room_type} • Current Status: {room?.status || 'Unknown'}
+              {room?.room_type} • {t('history.currentStatus')}: {room?.status ? getLocalizedStatusLabel(t, room.status) : t('history.unknown')}
             </Typography>
           </Box>
           <IconButton
             onClick={onClose}
             sx={{ color: 'var(--hotel-on-primary)' }}
-            aria-label="Close room history"
+            aria-label={t('history.closeAria')}
           >
             <CancelIcon />
           </IconButton>
@@ -78,7 +82,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
           </Box>
         ) : history.length === 0 ? (
           <Alert severity="info" sx={{ m: 2 }}>
-            No history records found for this room
+            {t('history.empty')}
           </Alert>
         ) : (
           <Box sx={{ p: 2 }}>
@@ -88,34 +92,34 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                 <Typography variant="subtitle2" gutterBottom sx={{
                   fontWeight: 600
                 }}>
-                  Current Status
+                  {t('history.currentStatus')}
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={6}>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Status</Typography>
+                    }}>{t('fields.status')}</Typography>
                     <Typography variant="body2" sx={{
                       fontWeight: 600
                     }}>
-                      {room.status?.toUpperCase() || 'UNKNOWN'}
+                      {room.status ? getLocalizedStatusLabel(t, room.status).toUpperCase() : t('history.unknown').toUpperCase()}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Available</Typography>
+                    }}>{t('history.availableFlag')}</Typography>
                     <Typography variant="body2" sx={{
                       fontWeight: 600
                     }}>
-                      {room.available ? 'Yes' : 'No'}
+                      {room.available ? t('common:actions.yes') : t('common:actions.no')}
                     </Typography>
                   </Grid>
                   {room.status_notes && (
                     <Grid size={12}>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
-                      }}>Notes</Typography>
+                      }}>{t('fields.notes')}</Typography>
                       <Typography variant="body2">{room.status_notes}</Typography>
                     </Grid>
                   )}
@@ -127,7 +131,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                       <Grid size={6}>
                         <Typography variant="caption" sx={{
                           color: "text.secondary"
-                        }}>Guest</Typography>
+                        }}>{t('fields.guest')}</Typography>
                         <Typography variant="body2" sx={{
                           fontWeight: 600
                         }}>
@@ -137,9 +141,9 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                       <Grid size={6}>
                         <Typography variant="caption" sx={{
                           color: "text.secondary"
-                        }}>Booking Period</Typography>
+                        }}>{t('history.bookingPeriod')}</Typography>
                         <Typography variant="body2">
-                          {new Date(currentBooking.check_in_date).toLocaleDateString()} - {new Date(currentBooking.check_out_date).toLocaleDateString()}
+                          {formatHotelDate(currentBooking.check_in_date)} - {formatHotelDate(currentBooking.check_out_date)}
                         </Typography>
                       </Grid>
                       <Grid size={12}>
@@ -149,7 +153,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                           startIcon={<PersonIcon />}
                           onClick={() => onViewGuestDetails(currentBooking.guest_id)}
                         >
-                          View Guest Details
+                          {t('history.viewGuestDetails')}
                         </Button>
                       </Grid>
                     </>
@@ -167,7 +171,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                 mt: 2,
                 mb: 1
               }}>
-              History Timeline
+              {t('history.timeline')}
             </Typography>
             <Stack spacing={1}>
               {history.map((entry) => {
@@ -223,13 +227,13 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                         <Typography variant="body2" sx={{
                           fontWeight: 600
                         }}>
-                          {entry.from_status ? `${entry.from_status.toUpperCase()} → ${entry.to_status.toUpperCase()}` : entry.to_status.toUpperCase()}
+                          {entry.from_status ? `${getLocalizedStatusLabel(t, entry.from_status).toUpperCase()} → ${getLocalizedStatusLabel(t, entry.to_status).toUpperCase()}` : getLocalizedStatusLabel(t, entry.to_status).toUpperCase()}
                         </Typography>
                         <Typography variant="caption" sx={{
                           color: "text.secondary"
                         }}>
-                          {new Date(entry.created_at).toLocaleString()}
-                          {entry.changed_by_name && ` • By: ${entry.changed_by_name}`}
+                          {formatHotelDateTime(entry.created_at)}
+                          {entry.changed_by_name && ` • ${t('history.by', { name: entry.changed_by_name })}`}
                         </Typography>
                         {entry.guest_name && (
                           <Typography
@@ -238,9 +242,9 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                               display: "block",
                               mt: 0.5
                             }}>
-                            Guest: {entry.guest_name}
+                            {t('fields.guest')}: {entry.guest_name}
                             {entry.start_date && entry.end_date && (
-                              <> • {new Date(entry.start_date).toLocaleDateString()} - {new Date(entry.end_date).toLocaleDateString()}</>
+                              <> • {formatHotelDate(entry.start_date)} - {formatHotelDate(entry.end_date)}</>
                             )}
                           </Typography>
                         )}
@@ -257,7 +261,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                         )}
                         {entry.guest_id && (
                           <Chip
-                            label="Click to view guest details"
+                            label={t('history.viewGuestChip')}
                             size="small"
                             sx={{ mt: 1 }}
                             icon={<PersonIcon />}
@@ -273,7 +277,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-raised)', borderTop: 1, borderColor: 'divider' }}>
-        <Button onClick={onClose} variant="outlined">Close</Button>
+        <Button onClick={onClose} variant="outlined">{t('common:actions.close')}</Button>
       </DialogActions>
     </Dialog>
   );

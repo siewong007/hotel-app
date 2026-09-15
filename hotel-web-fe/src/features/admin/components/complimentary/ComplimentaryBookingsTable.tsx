@@ -23,8 +23,10 @@ import {
   Search as SearchIcon,
 } from '@mui/icons-material';
 import type { BookingWithDetails } from '../../../../types';
-import { filterAndSortBookings, getStatusColor, getStatusLabel } from './utils';
+import { filterAndSortBookings, getStatusColor } from './utils';
 import { formatDateRange } from '../../../../utils/formatters';
+import { formatHotelDate } from '../../../../utils/date';
+import { statusLabel, useTranslation } from '../../../../i18n';
 import type { SortField, SortOrder } from './types';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../../components/data-table/MobileCardRow';
@@ -42,6 +44,7 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
   onEdit,
   onRemove,
 }) => {
+  const { t } = useTranslation('bookings');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -76,7 +79,7 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
       <TextField
         fullWidth
         variant="outlined"
-        placeholder="Search by guest, booking number, or room..."
+        placeholder={t('comp.searchPlaceholder')}
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         sx={{ mb: 2 }}
@@ -102,35 +105,35 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
             ))
           ) : filteredBookings.length === 0 ? (
             <Typography sx={{ color: 'text.secondary', py: 4, textAlign: 'center' }}>
-              No complimentary bookings found
+              {t('comp.empty')}
             </Typography>
           ) : (
             filteredBookings.map((booking) => (
               <MobileCardRow
                 key={booking.id}
                 title={`${booking.guest_name} · ${booking.booking_number}`}
-                subtitle={`Room ${booking.room_number} ${booking.room_type ?? ''} · ${new Date(booking.check_in_date).toLocaleDateString()} – ${new Date(booking.check_out_date).toLocaleDateString()}`}
+                subtitle={`${t('list.roomNumber', { number: booking.room_number })} ${booking.room_type ?? ''} · ${formatHotelDate(booking.check_in_date)} – ${formatHotelDate(booking.check_out_date)}`}
                 meta={
                   booking.complimentary_start_date && booking.complimentary_end_date
-                    ? `${booking.complimentary_nights || 0} comp nights · ${formatDateRange(booking.complimentary_start_date, booking.complimentary_end_date)}`
-                    : `${booking.complimentary_nights || 0} comp nights`
+                    ? `${t('comp.compNights', { count: booking.complimentary_nights || 0 })} · ${formatDateRange(booking.complimentary_start_date, booking.complimentary_end_date)}`
+                    : t('comp.compNights', { count: booking.complimentary_nights || 0 })
                 }
                 status={
                   <Chip
-                    label={getStatusLabel(booking.status as string)}
+                    label={statusLabel(t, 'booking', booking.status as string)}
                     size="small"
                     color={getStatusColor(booking.status as string)}
                   />
                 }
                 footer={
                   <>
-                    <Tooltip title="Edit complimentary details">
-                      <IconButton size="small" color="primary" aria-label="Edit complimentary details" onClick={() => onEdit(booking)}>
+                    <Tooltip title={t('comp.editAria')}>
+                      <IconButton size="small" color="primary" aria-label={t('comp.editAria')} onClick={() => onEdit(booking)}>
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Remove complimentary status">
-                      <IconButton size="small" color="error" aria-label="Remove complimentary status" onClick={() => onRemove(booking)}>
+                    <Tooltip title={t('comp.removeAria')}>
+                      <IconButton size="small" color="error" aria-label={t('comp.removeAria')} onClick={() => onRemove(booking)}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
@@ -145,14 +148,14 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
         <Table aria-busy={loading || undefined}>
           <TableHead>
             <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
-              <TableCell>{sortableHeader('created_at', 'Booking #')}</TableCell>
-              <TableCell>{sortableHeader('guest_name', 'Guest')}</TableCell>
-              <TableCell>{sortableHeader('room_number', 'Room')}</TableCell>
-              <TableCell><strong>Dates</strong></TableCell>
-              <TableCell>{sortableHeader('complimentary_nights', 'Comp. Nights')}</TableCell>
-              <TableCell><strong>Reason</strong></TableCell>
-              <TableCell>{sortableHeader('status', 'Status')}</TableCell>
-              <TableCell><strong>Actions</strong></TableCell>
+              <TableCell>{sortableHeader('created_at', t('comp.colBooking'))}</TableCell>
+              <TableCell>{sortableHeader('guest_name', t('comp.colGuest'))}</TableCell>
+              <TableCell>{sortableHeader('room_number', t('comp.colRoom'))}</TableCell>
+              <TableCell><strong>{t('comp.colDates')}</strong></TableCell>
+              <TableCell>{sortableHeader('complimentary_nights', t('comp.colCompNights'))}</TableCell>
+              <TableCell><strong>{t('comp.colReason')}</strong></TableCell>
+              <TableCell>{sortableHeader('status', t('comp.colStatus'))}</TableCell>
+              <TableCell><strong>{t('comp.colActions')}</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -174,7 +177,7 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
                       color: "text.secondary",
                       py: 4
                     }}>
-                    No complimentary bookings found
+                    {t('comp.empty')}
                   </Typography>
                 </TableCell>
               </TableRow>
@@ -200,26 +203,26 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {new Date(booking.check_in_date).toLocaleDateString()} -{' '}
-                      {new Date(booking.check_out_date).toLocaleDateString()}
+                      {formatHotelDate(booking.check_in_date)} -{' '}
+                      {formatHotelDate(booking.check_out_date)}
                     </Typography>
                     {booking.complimentary_start_date && booking.complimentary_end_date && (
                       <Typography variant="caption" sx={{
                         color: "success.main"
                       }}>
-                        Comp: {formatDateRange(booking.complimentary_start_date, booking.complimentary_end_date)}
+                        {t('comp.compPrefix', { range: formatDateRange(booking.complimentary_start_date, booking.complimentary_end_date) })}
                       </Typography>
                     )}
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={`${booking.complimentary_nights || 0} nights`}
+                      label={t('comp.nights', { count: booking.complimentary_nights || 0 })}
                       size="small"
                       color="success"
                     />
                   </TableCell>
                   <TableCell>
-                    <Tooltip title={booking.complimentary_reason || 'No reason provided'}>
+                    <Tooltip title={booking.complimentary_reason || t('comp.noReason')}>
                       <Typography
                         variant="body2"
                         sx={{
@@ -235,14 +238,14 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={getStatusLabel(booking.status as string)}
+                      label={statusLabel(t, 'booking', booking.status as string)}
                       size="small"
                       color={getStatusColor(booking.status as string)}
                     />
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      <Tooltip title="Edit complimentary details">
+                      <Tooltip title={t('comp.editAria')}>
                         <IconButton
                           size="small"
                           color="primary"
@@ -251,7 +254,7 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Remove complimentary status">
+                      <Tooltip title={t('comp.removeAria')}>
                         <IconButton
                           size="small"
                           color="error"

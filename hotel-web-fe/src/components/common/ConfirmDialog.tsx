@@ -14,6 +14,7 @@ import {
   InfoOutlined as InfoIcon,
   WarningAmberOutlined as WarningIcon,
 } from '@mui/icons-material';
+import { useTranslation } from '../../i18n';
 
 /**
  * Drives the icon, the accent colour, and the confirm button colour. `error` is
@@ -47,11 +48,11 @@ const SEVERITY_ICON = {
   info: InfoIcon,
 } as const;
 
-const DEFAULT_TITLE = {
-  error: 'Are you sure?',
-  warning: 'Please confirm',
-  info: 'Please confirm',
-} as const;
+const DEFAULT_TITLE_KEY: Record<ConfirmSeverity, string> = {
+  error: 'confirm.areYouSure',
+  warning: 'confirm.pleaseConfirm',
+  info: 'confirm.pleaseConfirm',
+};
 
 /**
  * The app's replacement for `window.confirm`. Rendered by `ConfirmProvider` —
@@ -62,12 +63,13 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText,
+  cancelText,
   severity = 'warning',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const { t } = useTranslation('common');
   const Icon = SEVERITY_ICON[severity];
   const confirmColor = severity === 'info' ? 'primary' : severity;
 
@@ -99,7 +101,7 @@ export function ConfirmDialog({
             <Icon fontSize="small" />
           </Box>
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-            {title ?? DEFAULT_TITLE[severity]}
+            {title ?? t(DEFAULT_TITLE_KEY[severity])}
           </Typography>
         </Stack>
       </DialogTitle>
@@ -118,10 +120,10 @@ export function ConfirmDialog({
 
       <DialogActions sx={{ px: 3, pb: 2.5, pt: 1 }}>
         <Button onClick={onCancel} color="inherit">
-          {cancelText}
+          {cancelText ?? t('actions.cancel')}
         </Button>
         <Button onClick={onConfirm} variant="contained" color={confirmColor} autoFocus>
-          {confirmText}
+          {confirmText ?? t('actions.confirm')}
         </Button>
       </DialogActions>
     </Dialog>

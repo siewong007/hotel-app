@@ -1,6 +1,12 @@
 import React from 'react';
 import { Card, CardContent, Box, Typography } from '@mui/material';
-import { RoomStatusType, getStatusConfig } from '../../config';
+import {
+  RoomStatusType,
+  getStatusConfig,
+  getLocalizedStatusLabel,
+  getLocalizedStatusAction,
+} from '../../config';
+import { useTranslation } from '../../../../i18n/useTranslation';
 
 interface RoomStatusSummaryCardProps {
   status: RoomStatusType;
@@ -25,6 +31,7 @@ const RoomStatusSummaryCard: React.FC<RoomStatusSummaryCardProps> = ({
   compact = false,
   animated = false,
 }) => {
+  const { t } = useTranslation('rooms');
   const config = getStatusConfig(status);
   const IconComponent = config.icon;
 
@@ -85,7 +92,7 @@ const RoomStatusSummaryCard: React.FC<RoomStatusSummaryCardProps> = ({
                 fontSize: compact ? '0.65rem' : '0.75rem',
               }}
             >
-              {config.label}
+              {getLocalizedStatusLabel(t, status)}
             </Typography>
             <Typography
               variant={compact ? 'h5' : 'h4'}
@@ -123,7 +130,7 @@ const RoomStatusSummaryCard: React.FC<RoomStatusSummaryCardProps> = ({
                   fontSize: '0.7rem',
                 }}
               >
-                ⚠️ {config.actionLabel}
+                ⚠️ {getLocalizedStatusAction(t, status)}
               </Typography>
             )}
           </Box>

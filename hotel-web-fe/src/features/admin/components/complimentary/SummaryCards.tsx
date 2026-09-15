@@ -7,6 +7,7 @@ import {
   AttachMoney as MoneyIcon,
 } from '@mui/icons-material';
 import { useCurrency } from '../../../../hooks/useCurrency';
+import { useTranslation } from '../../../../i18n';
 import type { ComplimentarySummary } from './types';
 
 interface SummaryCardsProps {
@@ -14,6 +15,7 @@ interface SummaryCardsProps {
 }
 
 const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
+  const { t } = useTranslation('bookings');
   const { format: formatCurrency } = useCurrency();
 
   return (
@@ -31,7 +33,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
               <Typography variant="subtitle2" sx={{
                 color: "text.secondary"
               }}>
-                Complimentary Bookings
+                {t('comp.summaryBookings')}
               </Typography>
             </Box>
             <Typography variant="h4" color="primary">
@@ -53,7 +55,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
               <Typography variant="subtitle2" sx={{
                 color: "text.secondary"
               }}>
-                Total Nights Given
+                {t('comp.summaryNights')}
               </Typography>
             </Box>
             <Typography variant="h4" color="secondary">
@@ -75,7 +77,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
               <Typography variant="subtitle2" sx={{
                 color: "text.secondary"
               }}>
-                Credits Available
+                {t('comp.summaryCredits')}
               </Typography>
             </Box>
             <Typography variant="h4" sx={{
@@ -86,7 +88,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
             <Typography variant="caption" sx={{
               color: "text.secondary"
             }}>
-              (room-type specific credits)
+              {t('comp.summaryCreditsHint')}
             </Typography>
           </CardContent>
         </Card>
@@ -104,7 +106,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
               <Typography variant="subtitle2" sx={{
                 color: "text.secondary"
               }}>
-                Value Given
+                {t('comp.summaryValue')}
               </Typography>
             </Box>
             <Typography variant="h4" sx={{

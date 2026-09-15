@@ -1,0 +1,23 @@
+{
+  "required": "{{field}} is required.",
+  "email": "Please enter a valid email address.",
+  "phone": "Please enter a valid phone number.",
+  "minLength": "{{field}} must be at least {{min}} characters.",
+  "minLength_one": "{{field}} must be at least {{min}} character.",
+  "minLength_other": "{{field}} must be at least {{min}} characters.",
+  "maxLength": "{{field}} must be at most {{max}} characters.",
+  "maxLength_one": "{{field}} must be at most {{max}} character.",
+  "maxLength_other": "{{field}} must be at most {{max}} characters.",
+  "min": "{{field}} must be at least {{min}}.",
+  "max": "{{field}} must be at most {{max}}.",
+  "invalidDate": "Please enter a valid date.",
+  "endBeforeStart": "The end date must be after the start date.",
+  "invalid": "{{field}} is invalid.",
+  "mustBePositive": "{{field}} must be greater than zero.",
+  "mustBeInteger": "{{field}} must be a whole number.",
+  "dateInPast": "{{field}} cannot be in the past.",
+  "passwordTooShort": "Password must be at least {{min}} characters.",
+  "passwordMismatch": "Passwords do not match.",
+  "minDigits": "{{field}} must be at least {{min}} digits.",
+  "maxDigits": "{{field}} cannot exceed {{max}} digits."
+}

@@ -18,6 +18,7 @@ import {
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
+import { useTranslation } from '../../../i18n';
 
 interface AccountDeactivationProps {
   onDeactivate: (reason?: string) => Promise<void>;
@@ -30,6 +31,7 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
   isDeactivated = false,
   onReactivate,
 }) => {
+  const { t } = useTranslation('auth');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
@@ -48,7 +50,7 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
         setReason('');
       }, 2000);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to deactivate account'));
+      setError(errorMessage(err, t('deactivation.failed')));
     } finally {
       setLoading(false);
     }
@@ -66,7 +68,7 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
         setSuccess(false);
       }, 2000);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to reactivate account'));
+      setError(errorMessage(err, t('deactivation.reactivateFailed')));
     } finally {
       setLoading(false);
     }
@@ -84,12 +86,12 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
             }}>
             <WarningIcon sx={{ color: 'warning.main', mr: 1, fontSize: 28 }} />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Account Deactivated
+              {t('deactivation.deactivatedTitle')}
             </Typography>
           </Box>
 
           <Alert severity="warning" sx={{ mb: 2 }}>
-            Your account is currently deactivated. You won't be able to make new bookings or access certain features.
+            {t('deactivation.deactivatedAlert')}
           </Alert>
 
           <Typography
@@ -98,7 +100,7 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
               color: "text.secondary",
               marginBottom: "16px"
             }}>
-            You can reactivate your account at any time to restore full access.
+            {t('deactivation.reactivateHint')}
           </Typography>
 
           {error && (
@@ -109,7 +111,7 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
 
           {success && (
             <Alert severity="success" sx={{ mb: 2 }} icon={<CheckCircleIcon />}>
-              Account reactivated successfully!
+              {t('deactivation.reactivated')}
             </Alert>
           )}
 
@@ -119,7 +121,7 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
             onClick={handleReactivate}
             disabled={loading}
           >
-            {loading ? 'Reactivating...' : 'Reactivate Account'}
+            {loading ? t('deactivation.reactivating') : t('deactivation.reactivate')}
           </Button>
         </CardContent>
       </Card>
@@ -138,7 +140,7 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
             }}>
             <WarningIcon sx={{ color: 'error.main', mr: 1, fontSize: 28 }} />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Deactivate Account
+              {t('deactivation.title')}
             </Typography>
           </Box>
 
@@ -148,34 +150,34 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
               color: "text.secondary",
               marginBottom: "16px"
             }}>
-            Deactivating your account will:
+            {t('deactivation.effectsIntro')}
           </Typography>
 
           <Box component="ul" sx={{ pl: 2, mb: 2 }}>
             <Typography component="li" variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Mark your account as inactive
+              {t('deactivation.effectInactive')}
             </Typography>
             <Typography component="li" variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Prevent new bookings
+              {t('deactivation.effectBookings')}
             </Typography>
             <Typography component="li" variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Preserve your booking history
+              {t('deactivation.effectHistory')}
             </Typography>
             <Typography component="li" variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Allow you to reactivate anytime
+              {t('deactivation.effectReactivate')}
             </Typography>
           </Box>
 
           <Alert severity="info" sx={{ mb: 2 }}>
-            <strong>Note:</strong> Your data will be preserved and you can reactivate your account at any time.
+            <strong>{t('deactivation.noteLabel')}</strong> {t('deactivation.noteBody')}
           </Alert>
 
           <Button
@@ -184,7 +186,7 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
             onClick={() => setDialogOpen(true)}
             startIcon={<WarningIcon />}
           >
-            Deactivate Account
+            {t('deactivation.title')}
           </Button>
         </CardContent>
       </Card>
@@ -196,13 +198,13 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
               alignItems: "center"
             }}>
             <WarningIcon sx={{ color: 'error.main', mr: 1 }} />
-            Confirm Account Deactivation
+            {t('deactivation.confirmTitle')}
           </Box>
         </DialogTitle>
 
         <DialogContent>
           <Alert severity="warning" sx={{ mb: 3 }}>
-            Are you sure you want to deactivate your account? You can reactivate it anytime.
+            {t('deactivation.confirmMessage')}
           </Alert>
 
           <Typography
@@ -211,17 +213,17 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
               color: "text.secondary",
               marginBottom: "16px"
             }}>
-            Optionally, let us know why you're deactivating your account:
+            {t('deactivation.reasonPrompt')}
           </Typography>
 
           <TextField
             fullWidth
             multiline
             rows={4}
-            label="Reason (Optional)"
+            label={t('deactivation.reasonLabel')}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Tell us why you're leaving..."
+            placeholder={t('deactivation.reasonPlaceholder')}
             sx={{ mb: 2 }}
           />
 
@@ -233,14 +235,14 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
 
           {success && (
             <Alert severity="success" sx={{ mb: 2 }} icon={<CheckCircleIcon />}>
-              Account deactivated successfully!
+              {t('deactivation.deactivated')}
             </Alert>
           )}
         </DialogContent>
 
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)} disabled={loading}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             onClick={handleDeactivate}
@@ -248,7 +250,7 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
             variant="contained"
             disabled={loading || success}
           >
-            {loading ? 'Deactivating...' : 'Deactivate Account'}
+            {loading ? t('deactivation.deactivating') : t('deactivation.title')}
           </Button>
         </DialogActions>
       </Dialog>

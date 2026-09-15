@@ -5,6 +5,7 @@ import { getHotelSettings } from '../../../utils/hotelSettings';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 type PaymentChoice = 'pay_now' | 'pay_later';
 type DepositChoice = 'receive' | 'waive';
@@ -18,6 +19,7 @@ export function useReservedCheckInWorkflow({
   reload,
   showSnackbar,
 }: UseReservedCheckInWorkflowArgs) {
+  const { t } = useTranslation('rooms');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [booking, setBooking] = useState<BookingWithDetails | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -87,17 +89,17 @@ export function useReservedCheckInWorkflow({
 
   const checkIn = useCallback(async () => {
     if (!booking) {
-      showSnackbar('No booking selected', 'warning');
+      showSnackbar(t('notifications.noBookingSelected'), 'warning');
       return;
     }
 
     if (!icNumber.trim()) {
-      showSnackbar('IC / passport number is required to complete check-in.', 'warning');
+      showSnackbar(t('bookings:checkIn.icRequiredError'), 'warning');
       return;
     }
 
     if (depositChoice === 'receive' && !isPositiveMoney(depositAmount)) {
-      showSnackbar('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.', 'warning');
+      showSnackbar(t('bookings:checkIn.depositRequiredError'), 'warning');
       return;
     }
 
@@ -141,14 +143,14 @@ export function useReservedCheckInWorkflow({
 
       await BookingsService.checkInGuest(String(booking.id), checkinPayload);
 
-      showSnackbar(`Guest ${booking.guest_name} checked in successfully to Room ${booking.room_number}`, 'success');
+      showSnackbar(t('notifications.checkedInGuest', { guest: booking.guest_name, room: booking.room_number }), 'success');
       setDialogOpen(false);
       setBooking(null);
       setIcNumber('');
       setPhone('');
       await reload();
     } catch (error) {
-      showSnackbar(errorMessage(error, 'Failed to check in guest'), 'error');
+      showSnackbar(errorMessage(error, t('errors.checkIn')), 'error');
     } finally {
       setProcessing(false);
     }
@@ -164,6 +166,7 @@ export function useReservedCheckInWorkflow({
     phone,
     reload,
     showSnackbar,
+    t,
     waiveReason,
   ]);
 

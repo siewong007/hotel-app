@@ -10,6 +10,7 @@ import {
   Button,
 } from '@mui/material';
 import { Edit as EditIcon } from '@mui/icons-material';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 
 interface RoomNotesDialogProps {
   open: boolean;
@@ -30,13 +31,14 @@ const RoomNotesDialog: React.FC<RoomNotesDialogProps> = ({
   onSave,
   saving,
 }) => {
+  const { t } = useTranslation('rooms');
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ bgcolor: 'primary.main', color: 'var(--hotel-on-primary)', py: 2, px: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <EditIcon sx={{ fontSize: 24 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-            Room Notes - {roomNumber}
+            {t('notesDialog.title', { room: roomNumber })}
           </Typography>
         </Box>
       </DialogTitle>
@@ -47,17 +49,17 @@ const RoomNotesDialog: React.FC<RoomNotesDialogProps> = ({
           multiline
           minRows={3}
           maxRows={6}
-          label="Notes"
+          label={t('fields.notes')}
           value={notes}
           onChange={(e) => onNotesChange(e.target.value)}
           sx={{ mt: 2 }}
-          placeholder="Enter room notes..."
+          placeholder={t('notesDialog.placeholder')}
         />
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-raised)', borderTop: 1, borderColor: 'divider' }}>
-        <Button onClick={onClose} variant="outlined">Cancel</Button>
+        <Button onClick={onClose} variant="outlined">{t('common:actions.cancel')}</Button>
         <Button onClick={onSave} variant="contained" disabled={saving}>
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? t('common:state.saving') : t('common:actions.save')}
         </Button>
       </DialogActions>
     </Dialog>

@@ -1,0 +1,38 @@
+{
+  "title": "通知",
+  "pageTitle": "宾客投递",
+  "pageSubtitle": "发送给宾客的外发消息——员工提醒在顶栏铃铛下",
+  "markAllRead": "全部标为已读",
+  "empty": "暂无通知",
+  "toast": {
+    "saved": "已保存。",
+    "deleted": "已删除。",
+    "updated": "已更新。",
+    "failed": "操作失败，请重试。",
+    "copied": "已复制到剪贴板。",
+    "copyFailed": "复制到剪贴板失败。"
+  },
+  "center": {
+    "alerts": "提醒",
+    "system": "系统",
+    "clearAll": "全部清除",
+    "viewAllAria": "查看所有通知",
+    "noSystemAlerts": "暂无系统告警",
+    "allCaughtUp": "您已读完所有通知",
+    "dismiss": "忽略此通知",
+    "unreadAria": "通知（{{count}} 条未读）"
+  },
+  "priority": {
+    "info": "提示",
+    "warning": "警告",
+    "critical": "严重"
+  },
+  "meta": "{{priority}} 优先级 · {{time}}",
+  "tier": {
+    "transactional": "事务",
+    "marketing": "营销"
+  },
+  "tierEmpty": "{{tier}}：暂无记录",
+  "noDeliveries": "没有符合当前筛选条件的投递记录",
+  "forbidden": "您没有权限查看投递动态。"
+}

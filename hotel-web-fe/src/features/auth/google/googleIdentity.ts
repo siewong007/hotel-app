@@ -58,6 +58,12 @@ declare global {
               /** `standard` carries a label; `icon` is the G logo alone. */
               type?: 'standard' | 'icon';
               shape?: 'rectangular' | 'pill' | 'circle' | 'square';
+              /**
+               * BCP-47 tag for the button's own text — GSI localises
+               * "Continue with Google" itself; we only pass the tag so it
+               * follows the app's active language.
+               */
+              locale?: string;
             }
           ) => void;
           /** Shows the One Tap prompt. No-op while one is already open. */

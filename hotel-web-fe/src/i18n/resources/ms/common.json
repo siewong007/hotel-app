@@ -17,13 +17,111 @@
     "openFilters": "Buka penapis",
     "expand": "Kembangkan",
     "collapse": "Runtuhkan",
-    "sections": "Bahagian"
+    "sections": "Bahagian",
+    "submit": "Hantar",
+    "add": "Tambah",
+    "create": "Cipta",
+    "update": "Kemas kini",
+    "remove": "Buang",
+    "view": "Lihat",
+    "viewDetails": "Lihat butiran",
+    "export": "Eksport",
+    "import": "Import",
+    "refresh": "Muat semula",
+    "print": "Cetak",
+    "download": "Muat turun",
+    "upload": "Muat naik",
+    "duplicate": "Gandakan",
+    "archive": "Arkib",
+    "restore": "Pulihkan",
+    "enable": "Dayakan",
+    "disable": "Lumpuhkan",
+    "assign": "Tugaskan",
+    "select": "Pilih",
+    "selectAll": "Pilih semua",
+    "clear": "Kosongkan",
+    "done": "Selesai",
+    "yes": "Ya",
+    "no": "Tidak",
+    "ok": "OK",
+    "continue": "Teruskan",
+    "send": "Hantar",
+    "copy": "Salin",
+    "dismiss": "Ketepikan",
+    "showMore": "Tunjuk lagi",
+    "showLess": "Tunjuk kurang",
+    "seeAll": "Lihat semua",
+    "manage": "Urus",
+    "filter": "Tapis",
+    "sort": "Isih",
+    "more": "Lagi",
+    "viewAll": "Lihat semua",
+    "goHome": "Kembali ke laman utama",
+    "goBack": "Kembali",
+    "discardChanges": "Buang perubahan"
   },
   "state": {
     "loading": "Memuatkan…",
     "saving": "Menyimpan…",
     "empty": "Tiada apa-apa untuk dipaparkan",
-    "noResults": "Tiada hasil dijumpai"
+    "noResults": "Tiada hasil dijumpai",
+    "error": "Sesuatu tidak kena",
+    "noData": "Tiada data",
+    "processing": "Memproses…",
+    "deleting": "Memadam…",
+    "unavailable": "Tidak tersedia",
+    "retry": "Cuba lagi",
+    "searching": "Mencari…"
+  },
+  "field": {
+    "name": "Nama",
+    "description": "Penerangan",
+    "status": "Status",
+    "actions": "Tindakan",
+    "date": "Tarikh",
+    "time": "Masa",
+    "total": "Jumlah",
+    "amount": "Amaun",
+    "notes": "Nota",
+    "email": "E-mel",
+    "phone": "Telefon",
+    "type": "Jenis",
+    "details": "Butiran",
+    "all": "Semua",
+    "none": "Tiada",
+    "createdAt": "Dicipta",
+    "updatedAt": "Dikemas kini",
+    "from": "Dari",
+    "to": "Hingga",
+    "perNight": "setiap malam",
+    "perPerson": "setiap orang",
+    "fullName": "Nama penuh",
+    "address": "Alamat",
+    "phoneNumber": "Nombor Telefon",
+    "optional": "Pilihan"
+  },
+  "pagination": {
+    "page": "Halaman",
+    "of": "daripada",
+    "rowsPerPage": "Baris setiap halaman",
+    "showing": "Memaparkan {{from}}–{{to}} daripada {{total}}",
+    "pageOf": "Halaman {{page}} daripada {{pages}}",
+    "previous": "Halaman sebelumnya",
+    "next": "Halaman seterusnya"
+  },
+  "time": {
+    "today": "Hari ini",
+    "yesterday": "Semalam",
+    "tomorrow": "Esok",
+    "thisWeek": "Minggu ini",
+    "thisMonth": "Bulan ini",
+    "custom": "Tersuai",
+    "dateRange": "Julat tarikh",
+    "startDate": "Tarikh mula",
+    "endDate": "Tarikh tamat",
+    "justNow": "baru sahaja",
+    "minutesAgo": "{{count}} min lalu",
+    "hoursAgo": "{{count}} jam lalu"
   },
   "language": {
     "label": "Bahasa",
@@ -40,5 +138,30 @@
     "guests_other": "{{count}} orang tetamu",
     "rooms_zero": "Tiada bilik",
     "rooms_other": "{{count}} bilik"
+  },
+  "filters": {
+    "title": "Tapis",
+    "apply": "Guna penapis",
+    "byStatus": "Tapis mengikut status",
+    "allStatuses": "Semua status"
+  },
+  "table": {
+    "empty": "Tiada baris"
+  },
+  "aria": {
+    "loading": "Memuatkan",
+    "loadingPage": "Memuatkan halaman utama"
+  },
+  "confirm": {
+    "areYouSure": "Adakah anda pasti?",
+    "pleaseConfirm": "Sila sahkan"
+  },
+  "app": {
+    "title": "Sistem ERP Hotel"
+  },
+  "units": {
+    "hours": "jam",
+    "days": "hari",
+    "minutes": "minit"
   }
 }

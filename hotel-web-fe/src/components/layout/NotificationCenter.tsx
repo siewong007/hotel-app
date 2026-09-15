@@ -16,7 +16,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
-import type { ApiNotificationSeverity } from '../../utils/apiNotifications';
+import type { ApiNotificationSeverity, ApiNotificationPriority } from '../../utils/apiNotifications';
 import {
   clearAll,
   markAllRead,
@@ -24,9 +24,11 @@ import {
   useNotifications,
 } from '../../utils/notificationStore';
 import { useAuth } from '../../auth/AuthContext';
+import { useTranslation } from '../../i18n';
 import { Link } from '../../router/compat';
 import { useDeliveryFeed } from '../../features/notifications/hooks/useDeliveryFeed';
-import { DeliveryTabs, TIER_TAB_LABELS } from '../../features/notifications/components/DeliveryTabs';
+import { DeliveryTabs, TIER_TAB_KEYS } from '../../features/notifications/components/DeliveryTabs';
+import { formatRelativeMs } from '../../features/notifications/utils/relativeTime';
 import type { TierFilter } from '../../features/notifications/types';
 import {
   useMarkAllStaffNotificationsRead,
@@ -43,22 +45,12 @@ const SEVERITY_META: Record<
   success: { color: 'var(--hotel-success)', Icon: CheckCircleOutlineIcon },
 };
 
-const PRIORITY_LABEL = {
-  info: 'Info',
-  warning: 'Warning',
-  critical: 'Critical',
-} as const;
-
-function formatRelativeTime(timestamp: number): string {
-  const diffMs = Date.now() - timestamp;
-  const diffSec = Math.round(diffMs / 1000);
-  if (diffSec < 60) return 'just now';
-  const diffMin = Math.round(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return new Date(timestamp).toLocaleString();
-}
+/** Priority value → `notifications` translation key. */
+const PRIORITY_KEYS: Record<ApiNotificationPriority, string> = {
+  info: 'priority.info',
+  warning: 'priority.warning',
+  critical: 'priority.critical',
+};
 
 /** Which popover tab is active: in-app alerts, persisted staff alerts, or one
  * of the guest-email server tiers. */
@@ -66,6 +58,7 @@ type CenterTab = 'alerts' | 'system' | TierFilter;
 
 export const NotificationCenter: React.FC = () => {
   const { user, hasPermission } = useAuth();
+  const { t } = useTranslation('notifications');
   const userId = user?.id;
   const { items, unreadCount } = useNotifications(userId);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -100,10 +93,12 @@ export const NotificationCenter: React.FC = () => {
 
   return (
     <>
-      <Tooltip title="Notifications">
+      <Tooltip title={t('title')}>
         <IconButton
           onClick={handleOpen}
-          aria-label={`Notifications${badgeCount > 0 ? ` (${badgeCount} unread)` : ''}`}
+          aria-label={
+            badgeCount > 0 ? t('center.unreadAria', { count: badgeCount }) : t('title')
+          }
           sx={{
             flexShrink: 0,
             color: 'inherit',
@@ -135,11 +130,11 @@ export const NotificationCenter: React.FC = () => {
             borderColor: 'divider',
           }}
         >
-          <Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>Notifications</Typography>
+          <Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>{t('title')}</Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             {items.length > 0 && (
               <Button size="small" onClick={() => clearAll(userId)} sx={{ textTransform: 'none', fontSize: '0.75rem' }}>
-                Clear all
+                {t('center.clearAll')}
               </Button>
             )}
             {canReadFeed && (
@@ -149,9 +144,9 @@ export const NotificationCenter: React.FC = () => {
                 to="/notifications"
                 onClick={handleClose}
                 sx={{ textTransform: 'none', fontSize: '0.75rem' }}
-                aria-label="View all notifications"
+                aria-label={t('center.viewAllAria')}
               >
-                View all
+                {t('common:actions.viewAll')}
               </Button>
             )}
           </Box>
@@ -167,11 +162,11 @@ export const NotificationCenter: React.FC = () => {
             variant="fullWidth"
             sx={{ minHeight: 36, borderBottom: '1px solid', borderColor: 'divider', '& .MuiTab-root': { minHeight: 36, fontSize: '0.75rem' } }}
           >
-            <Tab value="alerts" label="Alerts" />
-            {canSeeStaffAlerts && <Tab value="system" label="System" />}
+            <Tab value="alerts" label={t('center.alerts')} />
+            {canSeeStaffAlerts && <Tab value="system" label={t('center.system')} />}
             {canReadFeed &&
-              (Object.keys(TIER_TAB_LABELS) as TierFilter[]).map((key) => (
-                <Tab key={key} value={key} label={TIER_TAB_LABELS[key]} />
+              (Object.keys(TIER_TAB_KEYS) as TierFilter[]).map((key) => (
+                <Tab key={key} value={key} label={t(TIER_TAB_KEYS[key])} />
               ))}
           </Tabs>
         )}
@@ -182,7 +177,7 @@ export const NotificationCenter: React.FC = () => {
               <Box sx={{ px: 2, py: 5, textAlign: 'center', color: 'text.secondary' }}>
                 <NotificationsNoneIcon sx={{ fontSize: 32, opacity: 0.4, mb: 1 }} />
                 <Typography sx={{ fontSize: '0.85rem' }}>
-                  {staffAlerts.isPending ? 'Loading…' : 'No system alerts'}
+                  {staffAlerts.isPending ? t('common:state.loading') : t('center.noSystemAlerts')}
                 </Typography>
               </Box>
             ) : (
@@ -219,7 +214,7 @@ export const NotificationCenter: React.FC = () => {
                       </Typography>
                     )}
                     <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 0.25 }}>
-                      {formatRelativeTime(Date.parse(item.created_at))}
+                      {formatRelativeMs(Date.parse(item.created_at), t)}
                     </Typography>
                   </Box>
                 </Box>
@@ -233,7 +228,7 @@ export const NotificationCenter: React.FC = () => {
             onTierChange={(next) => setTab(next)}
             items={feed.data?.items ?? []}
             emptyMessage={
-              feed.isPending ? 'Loading…' : "You're all caught up"
+              feed.isPending ? t('common:state.loading') : t('center.allCaughtUp')
             }
           />
         ) : (
@@ -241,7 +236,7 @@ export const NotificationCenter: React.FC = () => {
             {items.length === 0 ? (
               <Box sx={{ px: 2, py: 5, textAlign: 'center', color: 'text.secondary' }}>
                 <NotificationsNoneIcon sx={{ fontSize: 32, opacity: 0.4, mb: 1 }} />
-                <Typography sx={{ fontSize: '0.85rem' }}>You&apos;re all caught up</Typography>
+                <Typography sx={{ fontSize: '0.85rem' }}>{t('center.allCaughtUp')}</Typography>
               </Box>
             ) : (
               items.map((item) => {
@@ -270,14 +265,17 @@ export const NotificationCenter: React.FC = () => {
                         {item.message}
                       </Typography>
                       <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 0.25 }}>
-                        {PRIORITY_LABEL[item.priority]} priority · {formatRelativeTime(item.timestamp)}
+                        {t('meta', {
+                          priority: t(PRIORITY_KEYS[item.priority]),
+                          time: formatRelativeMs(item.timestamp, t),
+                        })}
                       </Typography>
                     </Box>
                     <IconButton
                       className="notification-dismiss"
                       size="small"
                       onClick={() => removeNotification(item.id, userId)}
-                      aria-label="Dismiss notification"
+                      aria-label={t('center.dismiss')}
                       sx={{ opacity: 0, transition: 'opacity 0.15s', flexShrink: 0 }}
                     >
                       <CloseIcon sx={{ fontSize: 16 }} />

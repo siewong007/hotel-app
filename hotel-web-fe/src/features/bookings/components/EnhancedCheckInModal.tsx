@@ -40,7 +40,6 @@ import {
   Payment as PaymentIcon,
   MoneyOff as MoneyOffIcon,
 } from '@mui/icons-material';
-import { format } from 'date-fns';
 import { BookingsService, CompaniesService, LedgerService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
 import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/idempotency';
@@ -64,6 +63,7 @@ import { useCheckInFormData } from '../hooks/useCheckInFormData';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { divideMoney, isPositiveMoney, multiplyMoney, toMoneyNumber } from '../../../utils/money';
 import { getBookingChannelInfo } from '../utils/bookingChannel';
+import { useTranslation } from '../../../i18n';
 import type { ValidationErrors, CompanyOption } from './checkIn/checkInTypes';
 import { PersonalInfoTab } from './checkIn/PersonalInfoTab';
 import { StayInfoTab } from './checkIn/StayInfoTab';
@@ -149,6 +149,7 @@ export default function EnhancedCheckInModal({
   guest,
   onCheckInSuccess,
 }: EnhancedCheckInModalProps) {
+  const { t } = useTranslation('bookings');
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
 
   const {
@@ -383,7 +384,7 @@ export default function EnhancedCheckInModal({
 
       setNewCompanyDialogOpen(false);
       emitApiNotification({
-        message: `Company "${newCompany.company_name}" registered successfully!`,
+        message: t('enhancedCheckIn.company.registeredSuccess', { name: newCompany.company_name }),
         severity: 'success',
       });
 
@@ -399,7 +400,7 @@ export default function EnhancedCheckInModal({
     } catch (err) {
       console.error('Failed to register company:', err);
       emitApiNotification({
-        message: errorMessage(err, 'Failed to register company'),
+        message: errorMessage(err, t('enhancedCheckIn.company.registerFailed')),
         severity: 'error',
       });
     }
@@ -409,11 +410,11 @@ export default function EnhancedCheckInModal({
   const validateField = useCallback((field: string, value: string): string | undefined => {
     switch (field) {
       case 'first_name':
-        if (!value || !value.trim()) return 'First name is required';
-        if (value.trim().length < 2) return 'First name must be at least 2 characters';
+        if (!value || !value.trim()) return t('enhancedCheckIn.validation.firstNameRequired');
+        if (value.trim().length < 2) return t('enhancedCheckIn.validation.firstNameShort');
         return undefined;
       case 'last_name':
-        if (!value || !value.trim()) return 'Last name is required';
+        if (!value || !value.trim()) return t('enhancedCheckIn.validation.lastNameRequired');
         return undefined;
       case 'email':
         return undefined;
@@ -422,19 +423,19 @@ export default function EnhancedCheckInModal({
       case 'alt_phone':
         return undefined;
       case 'ic_number':
-        if (!value || !value.trim()) return 'IC/Passport number is required to complete check-in';
-        if (!validateICNumber(value)) return 'Please enter a valid IC/Passport number';
+        if (!value || !value.trim()) return t('enhancedCheckIn.validation.icRequired');
+        if (!validateICNumber(value)) return t('enhancedCheckIn.validation.icInvalid');
         return undefined;
       case 'cardNumber':
-        if (value && !validateCardNumber(value)) return 'Please enter a valid card number (13-19 digits)';
+        if (value && !validateCardNumber(value)) return t('enhancedCheckIn.validation.cardNumberInvalid');
         return undefined;
       case 'cardExpiry':
-        if (value && !validateCardExpiry(value)) return 'Please enter a valid expiry date (MM/YY)';
+        if (value && !validateCardExpiry(value)) return t('enhancedCheckIn.validation.cardExpiryInvalid');
         return undefined;
       default:
         return undefined;
     }
-  }, []);
+  }, [t]);
 
   // Validate all fields and return errors
   const validateForm = useCallback((): ValidationErrors => {
@@ -524,7 +525,7 @@ export default function EnhancedCheckInModal({
   const finishCheckIn = () => {
     if (!guestData.phone?.trim() && !guestData.alt_phone?.trim()) {
       emitApiNotification({
-        message: 'No phone number on file for this guest — please ask for a contact number when convenient.',
+        message: t('enhancedCheckIn.errors.noPhoneNotice'),
         severity: 'info',
       });
     }
@@ -538,7 +539,7 @@ export default function EnhancedCheckInModal({
 
     if (checkedInBookingPendingPayment === booking.id) {
       if (!isPositiveMoney(amountPaid)) {
-        setError('Check-in is complete. Enter a valid payment amount to retry recording it.');
+        setError(t('enhancedCheckIn.errors.paymentRetryAmount'));
         setActiveTab(2);
         return;
       }
@@ -551,7 +552,7 @@ export default function EnhancedCheckInModal({
         finishCheckIn();
       } catch (payErr) {
         console.error('Failed to record check-in payment:', payErr);
-        setError('Guest is checked in, but payment could not be recorded. Please retry.');
+        setError(t('enhancedCheckIn.errors.paymentFailed'));
         setActiveTab(2);
       } finally {
         setLoading(false);
@@ -577,7 +578,7 @@ export default function EnhancedCheckInModal({
 
     // If there are validation errors, don't proceed
     if (Object.keys(errors).length > 0) {
-      setError('Please fix the validation errors before proceeding');
+      setError(t('enhancedCheckIn.validation.fixErrors'));
       // Switch to the tab with the first error
       if (errors.first_name || errors.last_name || errors.email || errors.phone || errors.alt_phone || errors.ic_number) {
         setActiveTab(0); // General Information tab
@@ -588,7 +589,7 @@ export default function EnhancedCheckInModal({
     }
 
     if (depositChoice === 'receive' && !isPositiveMoney(depositAmount)) {
-      setError('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.');
+      setError(t('checkIn.depositRequiredError'));
       setActiveTab(2);
       return;
     }
@@ -660,7 +661,7 @@ export default function EnhancedCheckInModal({
         } catch (payErr) {
           console.error('Failed to record check-in payment:', payErr);
           setCheckedInBookingPendingPayment(booking.id);
-          setError('Guest is checked in, but payment could not be recorded. Please retry.');
+          setError(t('enhancedCheckIn.errors.paymentFailed'));
           setActiveTab(2);
           return;
         }
@@ -673,7 +674,7 @@ export default function EnhancedCheckInModal({
 
       finishCheckIn();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to check in guest'));
+      setError(errorMessage(err, t('enhancedCheckIn.errors.checkInFailed')));
     } finally {
       setLoading(false);
     }
@@ -695,7 +696,7 @@ export default function EnhancedCheckInModal({
   // auto-records a payment for the outstanding balance when `source === 'online'`.
   // Gate the messaging on that exact source so the prompt matches backend behavior.
   const isOnlineReservation = (booking.source || '').trim().toLowerCase() === 'online';
-  const onlinePlatformName = getBookingChannelInfo(booking)?.name || 'the online platform';
+  const onlinePlatformName = getBookingChannelInfo(booking)?.name || t('checkIn.onlinePlatformFallback');
 
   return (
     <>
@@ -703,10 +704,13 @@ export default function EnhancedCheckInModal({
         <DialogTitle sx={{ bgcolor: 'primary.main', color: 'var(--hotel-on-primary)', pb: 2 }}>
           <Box>
             <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              Walk-in Guest - Folio: {booking.folio_number || booking.id}
+              {t('enhancedCheckIn.title', { folio: booking.folio_number || booking.id })}
             </Typography>
             <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.9 }}>
-              Room Number: {('room_number' in booking && booking.room_number) || booking.room_id} | Room Type: {booking.room_type || 'STDQ - Standard Queen'}
+              {t('enhancedCheckIn.subtitle', {
+                room: ('room_number' in booking && booking.room_number) || booking.room_id,
+                type: booking.room_type || t('enhancedCheckIn.roomTypeFallback'),
+              })}
             </Typography>
           </Box>
         </DialogTitle>
@@ -738,12 +742,12 @@ export default function EnhancedCheckInModal({
                       setAdvisory(null);
                     }}
                   >
-                    Bill to {advisory.suggested_company_name}
+                    {t('enhancedCheckIn.advisoryBillTo', { company: advisory.suggested_company_name })}
                   </Button>
                 ) : undefined
               }
             >
-              <AlertTitle>Use company check-in?</AlertTitle>
+              <AlertTitle>{t('enhancedCheckIn.advisoryTitle')}</AlertTitle>
               {advisory.message}
             </Alert>
           )}
@@ -754,10 +758,10 @@ export default function EnhancedCheckInModal({
               <HotelIcon color="primary" fontSize="small" />
               <Typography variant="subtitle2" sx={{
                 fontWeight: 600
-              }}>Booking Summary</Typography>
+              }}>{t('enhancedCheckIn.bookingSummary')}</Typography>
               <Box sx={{ flex: 1 }} />
               <Chip
-                label={booking.source === 'walk_in' ? 'Walk-In' : booking.source === 'online' ? 'Online' : booking.source || 'Direct'}
+                label={booking.source === 'walk_in' ? t('enhancedCheckIn.sourceWalkIn') : booking.source === 'online' ? t('enhancedCheckIn.sourceOnline') : booking.source || t('enhancedCheckIn.sourceDirect')}
                 size="small"
                 color={booking.source === 'walk_in' ? 'primary' : booking.source === 'online' ? 'success' : 'default'}
                 sx={{ fontWeight: 600 }}
@@ -767,33 +771,33 @@ export default function EnhancedCheckInModal({
               <Grid size={4}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Room</Typography>
+                }}>{t('enhancedCheckIn.summaryRoom')}</Typography>
                 <Typography variant="body2" sx={{
                   fontWeight: 600
                 }}>
-                  {('room_number' in booking && booking.room_number) || booking.room_id} ({booking.room_type || 'N/A'})
+                  {('room_number' in booking && booking.room_number) || booking.room_id} ({booking.room_type || t('enhancedCheckIn.na')})
                 </Typography>
               </Grid>
               <Grid size={4}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Guest</Typography>
+                }}>{t('enhancedCheckIn.summaryGuest')}</Typography>
                 <Typography variant="body2" sx={{
                   fontWeight: 600
                 }}>{guest.nick_name}</Typography>
                 {!guest.last_name?.trim() && (
                   <Typography variant="caption" sx={{ color: "text.secondary", display: 'block' }}>
-                    Booked as: {guest.nick_name}
+                    {t('enhancedCheckIn.bookedAs', { name: guest.nick_name })}
                   </Typography>
                 )}
               </Grid>
               <Grid size={4}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Folio</Typography>
+                }}>{t('enhancedCheckIn.folio')}</Typography>
                 <Typography variant="body2" sx={{
                   fontWeight: 600
-                }}>{booking.folio_number || 'N/A'}</Typography>
+                }}>{booking.folio_number || t('enhancedCheckIn.na')}</Typography>
               </Grid>
               <Grid size={12}>
                 <Divider sx={{ my: 0.5 }} />
@@ -801,19 +805,19 @@ export default function EnhancedCheckInModal({
               <Grid size={4}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Check-in</Typography>
+                }}>{t('enhancedCheckIn.checkIn')}</Typography>
                 <Typography variant="body2">{booking.check_in_date}</Typography>
               </Grid>
               <Grid size={4}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Check-out</Typography>
+                }}>{t('enhancedCheckIn.checkOut')}</Typography>
                 <Typography variant="body2">{booking.check_out_date}</Typography>
               </Grid>
               <Grid size={4}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Nights</Typography>
+                }}>{t('enhancedCheckIn.nights')}</Typography>
                 <Typography variant="body2">{calculateNights()}</Typography>
               </Grid>
               <Grid size={12}>
@@ -822,11 +826,11 @@ export default function EnhancedCheckInModal({
               <Grid size={4}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Room Rate</Typography>
+                }}>{t('enhancedCheckIn.roomRate')}</Typography>
                 <Typography variant="body2">
                   {isPositiveMoney(booking.rate_override_weekday)
-                    ? `${formatCurrency(toMoneyNumber(booking.rate_override_weekday))}/night (Custom)`
-                    : `${formatCurrency(divideMoney(booking.total_amount, Math.max(calculateNights(), 1)))}/night`
+                    ? t('enhancedCheckIn.ratePerNightCustom', { rate: formatCurrency(toMoneyNumber(booking.rate_override_weekday)) })
+                    : t('enhancedCheckIn.ratePerNight', { rate: formatCurrency(divideMoney(booking.total_amount, Math.max(calculateNights(), 1))) })
                   }
                 </Typography>
               </Grid>
@@ -834,7 +838,7 @@ export default function EnhancedCheckInModal({
                 <Grid size={4}>
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
-                  }}>Tourism Tax</Typography>
+                  }}>{t('enhancedCheckIn.tourismTax')}</Typography>
                   <Typography variant="body2">{formatCurrency(toMoneyNumber(booking.tourism_tax_amount))}</Typography>
                 </Grid>
               )}
@@ -842,14 +846,14 @@ export default function EnhancedCheckInModal({
                 <Grid size={4}>
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
-                  }}>Extra Bed ({extraBedCount})</Typography>
+                  }}>{t('enhancedCheckIn.extraBed', { count: extraBedCount })}</Typography>
                   <Typography variant="body2">{formatCurrency(extraBedCharge)}</Typography>
                 </Grid>
               )}
               <Grid size={4}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Total Amount</Typography>
+                }}>{t('enhancedCheckIn.totalAmount')}</Typography>
                 <Typography
                   variant="body2"
                   sx={{
@@ -863,7 +867,7 @@ export default function EnhancedCheckInModal({
                 <Grid size={4}>
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
-                  }}>Deposit Paid</Typography>
+                  }}>{t('enhancedCheckIn.depositPaid')}</Typography>
                   <Typography variant="body2" sx={{
                     color: "success.main"
                   }}>{formatCurrency(toMoneyNumber(booking.deposit_amount))}</Typography>
@@ -885,11 +889,11 @@ export default function EnhancedCheckInModal({
             variant="scrollable"
             scrollButtons="auto"
           >
-            <Tab label="General Information" />
-            <Tab label="Stay Information" />
-            <Tab label="Payment" />
-            <Tab label="Custom Fields" />
-            <Tab label="Notes" />
+            <Tab label={t('enhancedCheckIn.tabs.general')} />
+            <Tab label={t('enhancedCheckIn.tabs.stay')} />
+            <Tab label={t('enhancedCheckIn.tabs.payment')} />
+            <Tab label={t('enhancedCheckIn.tabs.custom')} />
+            <Tab label={t('enhancedCheckIn.tabs.notes')} />
           </Tabs>
 
           {/* Tab 1: Personal Information (View Only) */}
@@ -1028,7 +1032,7 @@ export default function EnhancedCheckInModal({
         <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-sunken)', justifyContent: 'space-between' }}>
           <Box>
             <Button onClick={onClose} disabled={loading} sx={{ mr: 1 }}>
-              Cancel
+              {t('common:actions.cancel')}
             </Button>
           </Box>
           <Box>
@@ -1041,7 +1045,7 @@ export default function EnhancedCheckInModal({
               size="large"
               sx={{ minWidth: 120 }}
             >
-              {loading ? 'Processing...' : 'Check In'}
+              {loading ? t('checkIn.processing') : t('checkIn.checkIn')}
             </Button>
           </Box>
         </DialogActions>
@@ -1056,19 +1060,19 @@ export default function EnhancedCheckInModal({
               gap: 1
             }}>
             <PersonAddIcon color="primary" />
-            Register New Company
+            {t('enhancedCheckIn.company.registerTitle')}
           </Box>
         </DialogTitle>
         <DialogContent>
           <Alert severity="info" sx={{ mb: 2 }}>
-            This company is not in our system. Please provide the company details below.
+            {t('enhancedCheckIn.company.registerHint')}
           </Alert>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid size={12}>
               <TextField
                 fullWidth
                 required
-                label="Company Name"
+                label={t('enhancedCheckIn.company.companyName')}
                 value={newCompanyData.company_name}
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, company_name: e.target.value })}
               />
@@ -1076,16 +1080,16 @@ export default function EnhancedCheckInModal({
             <Grid size={12}>
               <TextField
                 fullWidth
-                label="Registration Number"
+                label={t('enhancedCheckIn.company.registrationNumber')}
                 value={newCompanyData.company_registration_number || ''}
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, company_registration_number: e.target.value })}
-                placeholder="e.g., 123456-A"
+                placeholder={t('enhancedCheckIn.company.registrationPlaceholder')}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Contact Person"
+                label={t('enhancedCheckIn.company.contactPerson')}
                 value={newCompanyData.contact_person || ''}
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_person: e.target.value })}
               />
@@ -1093,7 +1097,7 @@ export default function EnhancedCheckInModal({
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Contact Email"
+                label={t('enhancedCheckIn.company.contactEmail')}
                 type="email"
                 value={newCompanyData.contact_email || ''}
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_email: e.target.value })}
@@ -1103,7 +1107,7 @@ export default function EnhancedCheckInModal({
               <TextField
                 fullWidth
                 type="tel"
-                label="Contact Phone"
+                label={t('enhancedCheckIn.company.contactPhone')}
                 value={newCompanyData.contact_phone || ''}
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_phone: e.target.value })}
               />
@@ -1111,7 +1115,7 @@ export default function EnhancedCheckInModal({
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Billing Address"
+                label={t('enhancedCheckIn.company.billingAddress')}
                 value={newCompanyData.billing_address || ''}
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, billing_address: e.target.value })}
               />
@@ -1119,14 +1123,14 @@ export default function EnhancedCheckInModal({
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setNewCompanyDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setNewCompanyDialogOpen(false)}>{t('common:actions.cancel')}</Button>
           <Button
             onClick={handleRegisterNewCompany}
             variant="contained"
             startIcon={<PersonAddIcon />}
             disabled={!newCompanyData.company_name}
           >
-            Register Company
+            {t('enhancedCheckIn.company.register')}
           </Button>
         </DialogActions>
       </Dialog>

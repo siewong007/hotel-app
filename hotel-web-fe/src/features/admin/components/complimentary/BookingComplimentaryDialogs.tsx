@@ -16,6 +16,7 @@ import type { BookingWithDetails } from '../../../../types';
 import { errorMessage } from '../../../../utils';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
+import { useTranslation } from '../../../../i18n';
 
 interface BookingDialogProps {
   open: boolean;
@@ -30,6 +31,7 @@ export const EditComplimentaryDialog: React.FC<BookingDialogProps> = ({
   onClose,
   onCompleted,
 }) => {
+  const { t } = useTranslation('bookings');
   const [formData, setFormData] = useState({
     complimentary_start_date: '',
     complimentary_end_date: '',
@@ -52,11 +54,11 @@ export const EditComplimentaryDialog: React.FC<BookingDialogProps> = ({
     try {
       setProcessing(true);
       await BookingsService.updateComplimentary(booking.id.toString(), formData);
-      emitApiNotification({ message: 'Complimentary booking updated successfully', severity: 'success' });
+      emitApiNotification({ message: t('comp.updated'), severity: 'success' });
       onClose();
       await onCompleted();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to update'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('comp.updateFailed')), severity: 'error' });
     } finally {
       setProcessing(false);
     }
@@ -64,18 +66,18 @@ export const EditComplimentaryDialog: React.FC<BookingDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Edit Complimentary Booking</DialogTitle>
+      <DialogTitle>{t('comp.editTitle')}</DialogTitle>
       <DialogContent>
         {booking && (
           <Box sx={{ pt: 1 }}>
             <Alert severity="info" sx={{ mb: 2 }}>
-              Booking: {booking.booking_number} - {booking.guest_name}
+              {t('comp.bookingLine', { number: booking.booking_number, guest: booking.guest_name })}
             </Alert>
             <Grid container spacing={2}>
               <Grid size={6}>
                 <TextField
                   fullWidth
-                  label="Complimentary Start Date"
+                  label={t('comp.startDate')}
                   type="date"
                   value={formData.complimentary_start_date}
                   onChange={(e) =>
@@ -93,7 +95,7 @@ export const EditComplimentaryDialog: React.FC<BookingDialogProps> = ({
               <Grid size={6}>
                 <TextField
                   fullWidth
-                  label="Complimentary End Date"
+                  label={t('comp.endDate')}
                   type="date"
                   value={formData.complimentary_end_date}
                   onChange={(e) =>
@@ -111,7 +113,7 @@ export const EditComplimentaryDialog: React.FC<BookingDialogProps> = ({
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Reason"
+                  label={t('comp.reason')}
                   multiline
                   rows={2}
                   value={formData.complimentary_reason}
@@ -125,9 +127,9 @@ export const EditComplimentaryDialog: React.FC<BookingDialogProps> = ({
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button onClick={handleUpdate} variant="contained" disabled={processing}>
-          {processing ? 'Updating...' : 'Update'}
+          {processing ? t('comp.updating') : t('comp.update')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -140,6 +142,7 @@ export const RemoveComplimentaryDialog: React.FC<BookingDialogProps> = ({
   onClose,
   onCompleted,
 }) => {
+  const { t } = useTranslation('bookings');
   const { format: formatCurrency } = useCurrency();
   const [processing, setProcessing] = useState(false);
 
@@ -148,11 +151,11 @@ export const RemoveComplimentaryDialog: React.FC<BookingDialogProps> = ({
     try {
       setProcessing(true);
       await BookingsService.removeComplimentary(booking.id.toString());
-      emitApiNotification({ message: 'Complimentary status removed successfully', severity: 'success' });
+      emitApiNotification({ message: t('comp.removed'), severity: 'success' });
       onClose();
       await onCompleted();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to remove'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('comp.removeFailed')), severity: 'error' });
     } finally {
       setProcessing(false);
     }
@@ -160,26 +163,25 @@ export const RemoveComplimentaryDialog: React.FC<BookingDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Remove Complimentary Status</DialogTitle>
+      <DialogTitle>{t('comp.removeTitle')}</DialogTitle>
       <DialogContent>
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Are you sure you want to remove the complimentary status from this booking? The original
-          amount will be restored.
+          {t('comp.removeWarning')}
         </Alert>
         {booking && (
           <Box>
             <Typography variant="body2">
-              <strong>Booking:</strong> {booking.booking_number}
+              <strong>{t('comp.bookingLabel')}</strong> {booking.booking_number}
             </Typography>
             <Typography variant="body2">
-              <strong>Guest:</strong> {booking.guest_name}
+              <strong>{t('comp.guestLabel')}</strong> {booking.guest_name}
             </Typography>
             <Typography variant="body2">
-              <strong>Complimentary Nights:</strong> {booking.complimentary_nights}
+              <strong>{t('comp.compNightsLabel')}</strong> {booking.complimentary_nights}
             </Typography>
             {booking.original_total_amount && (
               <Typography variant="body2">
-                <strong>Original Amount:</strong>{' '}
+                <strong>{t('comp.originalAmount')}</strong>{' '}
                 {formatCurrency(parseFloat(booking.original_total_amount as string))}
               </Typography>
             )}
@@ -187,9 +189,9 @@ export const RemoveComplimentaryDialog: React.FC<BookingDialogProps> = ({
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button onClick={handleRemove} variant="contained" color="error" disabled={processing}>
-          {processing ? 'Removing...' : 'Remove Complimentary'}
+          {processing ? t('comp.removing') : t('comp.remove')}
         </Button>
       </DialogActions>
     </Dialog>

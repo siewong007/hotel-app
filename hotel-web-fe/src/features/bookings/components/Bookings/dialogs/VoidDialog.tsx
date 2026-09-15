@@ -18,6 +18,7 @@ import {
   getKnownNightAuditDates,
   isNightAuditInvolved,
 } from '../../../utils/bookingPageUtils';
+import { useTranslation } from '../../../../../i18n';
 
 interface VoidDialogProps {
   open: boolean;
@@ -28,6 +29,7 @@ interface VoidDialogProps {
 }
 
 const VoidDialog: React.FC<VoidDialogProps> = ({ open, booking, onClose, onError, onCompleted }) => {
+  const { t } = useTranslation('bookings');
   const [reason, setReason] = useState('');
   const [voiding, setVoiding] = useState(false);
 
@@ -50,13 +52,13 @@ const VoidDialog: React.FC<VoidDialogProps> = ({ open, booking, onClose, onError
       emitApiNotification({
         severity: 'success',
         message: affectedDates.length > 0
-          ? `Booking voided successfully. Rerun night audit for ${affectedDates.join(', ')} to refresh reports.`
-          : 'Booking voided successfully',
+          ? t('void.successAudit', { dates: affectedDates.join(', ') })
+          : t('void.success'),
       });
       onClose();
       await onCompleted();
     } catch (err: unknown) {
-      onError(getErrorMessage(err) || 'Failed to void booking');
+      onError(getErrorMessage(err) || t('void.failed'));
     } finally {
       setVoiding(false);
     }
@@ -64,38 +66,38 @@ const VoidDialog: React.FC<VoidDialogProps> = ({ open, booking, onClose, onError
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Void Booking</DialogTitle>
+      <DialogTitle>{t('void.title')}</DialogTitle>
       <DialogContent>
         <Alert severity="error" sx={{ mb: 2 }}>
-          Voiding a booking will permanently remove it from all reports including night audit. This cannot be undone.
+          {t('void.warning')}
         </Alert>
         {needsAuditReview && (
           <Alert severity="info" sx={{ mb: 2 }}>
             {auditDates.length > 0
-              ? `This booking was included in night audit for ${auditDates.join(', ')}. Rerun night audit for those date(s) after voiding to refresh the report.`
-              : 'This booking is marked as posted in night audit. After voiding, rerun the affected night audit date returned by the system to refresh the report.'}
+              ? t('void.auditDatesNotice', { dates: auditDates.join(', ') })
+              : t('void.auditPostedNotice')}
           </Alert>
         )}
         <Box sx={{ mb: 2 }}>
-          <Typography variant="body2"><strong>Guest:</strong> {booking?.guest_name}</Typography>
-          <Typography variant="body2"><strong>Room:</strong> {booking?.room_type} - Room {booking?.room_number}</Typography>
-          <Typography variant="body2"><strong>Check-in:</strong> {booking?.formatted_check_in || booking?.check_in_date}</Typography>
-          <Typography variant="body2"><strong>Check-out:</strong> {booking?.formatted_check_out || booking?.check_out_date}</Typography>
+          <Typography variant="body2"><strong>{t('labels.guest')}</strong> {booking?.guest_name}</Typography>
+          <Typography variant="body2"><strong>{t('labels.room')}</strong> {booking?.room_type} - {t('details.roomNumber', { number: booking?.room_number })}</Typography>
+          <Typography variant="body2"><strong>{t('labels.checkIn')}</strong> {booking?.formatted_check_in || booking?.check_in_date}</Typography>
+          <Typography variant="body2"><strong>{t('labels.checkOut')}</strong> {booking?.formatted_check_out || booking?.check_out_date}</Typography>
         </Box>
         <TextField
           fullWidth
           multiline
           rows={3}
-          label="Void Reason (Optional)"
+          label={t('void.reasonLabel')}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="Enter reason for voiding..."
+          placeholder={t('void.reasonPlaceholder')}
         />
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button onClick={handleConfirm} variant="contained" color="error" disabled={voiding}>
-          {voiding ? 'Voiding...' : 'Void Booking'}
+          {voiding ? t('void.processing') : t('void.confirm')}
         </Button>
       </DialogActions>
     </Dialog>

@@ -4,8 +4,9 @@ import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 
 import PageHeader from '../../../components/common/PageHeader';
 import { useAuth } from '../../../auth/AuthContext';
+import { useTranslation, statusLabel } from '../../../i18n';
 import { useDeliveryFeed } from '../hooks/useDeliveryFeed';
-import { DeliveryTabs, TIER_TAB_LABELS } from '../components/DeliveryTabs';
+import { DeliveryTabs, TIER_TAB_KEYS } from '../components/DeliveryTabs';
 import type { TierFilter } from '../types';
 
 const DELIVERY_STATUSES = ['queued', 'sending', 'sent', 'failed', 'suppressed', 'cancelled'];
@@ -16,6 +17,7 @@ const DELIVERY_STATUSES = ['queued', 'sending', 'sent', 'failed', 'suppressed', 
  */
 const NotificationsPage: React.FC = () => {
   const { hasPermission } = useAuth();
+  const { t } = useTranslation('notifications');
   const [tier, setTier] = React.useState<TierFilter>('all');
   const [status, setStatus] = React.useState('');
   const [page, setPage] = React.useState(1);
@@ -30,9 +32,9 @@ const NotificationsPage: React.FC = () => {
   if (!canReadFeed) {
     return (
       <Box sx={{ p: 3 }}>
-        <PageHeader title="Guest Deliveries" />
+        <PageHeader title={t('pageTitle')} />
         <Typography color="text.secondary">
-          You do not have permission to view the delivery feed.
+          {t('forbidden')}
         </Typography>
       </Box>
     );
@@ -41,20 +43,20 @@ const NotificationsPage: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       <PageHeader
-        title="Guest Deliveries"
-        subtitle="Outbound messages sent to guests — staff alerts live under the topbar bell"
+        title={t('pageTitle')}
+        subtitle={t('pageSubtitle')}
         actions={(
           <Select
             size="small"
             value={status}
             onChange={(e) => { setStatus(e.target.value); setPage(1); }}
             displayEmpty
-            aria-label="Filter by status"
+            aria-label={t('common:filters.byStatus')}
             sx={{ minWidth: 140 }}
           >
-            <MenuItem value="">All statuses</MenuItem>
+            <MenuItem value="">{t('common:filters.allStatuses')}</MenuItem>
             {DELIVERY_STATUSES.map((s) => (
-              <MenuItem key={s} value={s}>{s}</MenuItem>
+              <MenuItem key={s} value={s}>{statusLabel(t, 'email_delivery', s)}</MenuItem>
             ))}
           </Select>
         )}
@@ -74,7 +76,9 @@ const NotificationsPage: React.FC = () => {
           onTierChange={(next) => { setTier(next); setPage(1); }}
           items={feed.data?.items ?? []}
           emptyMessage={
-            feed.isPending ? 'Loading…' : TIER_TAB_LABELS[tier] + ': nothing here yet'
+            feed.isPending
+              ? t('common:state.loading')
+              : t('tierEmpty', { tier: t(TIER_TAB_KEYS[tier]) })
           }
         />
       </Box>
@@ -92,7 +96,7 @@ const NotificationsPage: React.FC = () => {
         (feed.data?.total ?? 0) === 0 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
             <Button startIcon={<NotificationsNoneIcon />} disabled sx={{ textTransform: 'none' }}>
-              No deliveries match the current filters
+              {t('noDeliveries')}
             </Button>
           </Box>
         )

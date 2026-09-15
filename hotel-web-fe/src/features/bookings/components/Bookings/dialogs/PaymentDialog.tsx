@@ -21,7 +21,8 @@ import { Payment as PaymentIcon } from '@mui/icons-material';
 import type { BookingWithDetails } from '../../../../../types';
 import { useRecordPaymentMutation } from '../../../hooks/useBookingQueries';
 import { useCurrency } from '../../../../../hooks/useCurrency';
-import { getPaymentStatusColor, getPaymentStatusText } from '../../../../../utils/bookingUtils';
+import { statusLabel, useTranslation } from '../../../../../i18n';
+import { getPaymentStatusColor } from '../../../../../utils/bookingUtils';
 import { formatHotelDate } from '../../../../../utils/date';
 import { getHotelSettings } from '../../../../../utils/hotelSettings';
 import {
@@ -50,6 +51,7 @@ interface PaymentDialogProps {
 // Accept Payment Dialog — records a real payments row; the backend
 // recompute then flips bookings.payment_status automatically.
 const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, onClose, onError, onCompleted }) => {
+  const { t } = useTranslation('bookings');
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const recordPaymentMutation = useRecordPaymentMutation();
   const paymentAttemptRef = useRef<IdempotencyAttempt | null>(null);
@@ -74,17 +76,17 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
   const handleConfirm = async () => {
     if (!currentBooking) return;
     if (!Number.isFinite(amount) || !isPositiveMoney(amount)) {
-      onError('Payment amount must be greater than 0.');
+      onError(t('payment.amountPositive'));
       return;
     }
     const requiredCheckoutBalance = getBookingBalance(currentBooking);
     if (context === 'checkout_required' && isLessMoney(amount, requiredCheckoutBalance)) {
-      onError('Payment amount must cover the full outstanding balance before checkout.');
+      onError(t('payment.amountCoverBalance'));
       return;
     }
     // Block overpayment — a payment can never exceed the outstanding balance.
     if (isGreaterMoney(amount, requiredCheckoutBalance)) {
-      onError(`Payment amount cannot exceed the outstanding balance of ${formatCurrency(requiredCheckoutBalance)}.`);
+      onError(t('payment.amountExceedsError', { balance: formatCurrency(requiredCheckoutBalance) }));
       return;
     }
 
@@ -150,8 +152,8 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
         emitApiNotification({
           severity: 'success',
           message: context === 'checkout_required'
-            ? `Payment of ${formatCurrency(amount)} accepted via ${method}. Continue checkout when ready.`
-            : `Payment of ${formatCurrency(amount)} accepted via ${method}`,
+            ? t('payment.acceptedContinue', { amount: formatCurrency(amount), method })
+            : t('payment.accepted', { amount: formatCurrency(amount), method }),
         });
         onClose();
       } else {
@@ -159,7 +161,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
         // for the next payment.
         emitApiNotification({
           severity: 'success',
-          message: `Payment of ${formatCurrency(amount)} accepted via ${method}. Balance still outstanding.`,
+          message: t('payment.acceptedBalance', { amount: formatCurrency(amount), method }),
         });
         setCurrentBooking({
           ...currentBooking,
@@ -171,7 +173,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
         setNote('');
       }
     } catch (err: unknown) {
-      onError(getErrorMessage(err) || 'Failed to accept payment');
+      onError(getErrorMessage(err) || t('payment.failed'));
     } finally {
       setUpdating(false);
     }
@@ -201,7 +203,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
           </Box>
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.15 }}>
-              {context === 'checkout_required' ? 'Payment Required' : 'Accept Payment'}
+              {context === 'checkout_required' ? t('payment.titleRequired') : t('payment.titleAccept')}
             </Typography>
             <Typography
               variant="body2"
@@ -210,8 +212,8 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
                 mt: 0.5
               }}>
               {context === 'checkout_required'
-                ? 'Collect the outstanding balance before continuing checkout.'
-                : 'Record a room charge payment and update the booking balance automatically.'}
+                ? t('payment.subtitleRequired')
+                : t('payment.subtitleAccept')}
             </Typography>
           </Box>
         </Box>
@@ -221,7 +223,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
           <Stack spacing={2.25}>
             {context === 'checkout_required' && (
               <Alert severity="warning">
-                Checkout is blocked until this balance is fully settled.
+                {t('payment.checkoutBlocked')}
               </Alert>
             )}
             {/* This dialog has no date field, so the payments row is stamped
@@ -234,10 +236,10 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
                 date-only strings through untouched, so feeding it a machine-local
                 'YYYY-MM-DD' would name the viewer's day instead of the hotel's. */}
             <Alert severity="info">
-              This payment will be dated <strong>today ({formatHotelDate(new Date())})</strong> — the day
-              the payment status is changed here, not the day the guest actually paid. To record a
-              payment on an earlier date, use <strong>Record Payment</strong> in the checkout invoice
-              instead.
+              {t('payment.datedNotice', {
+                date: formatHotelDate(new Date()),
+                action: t('payment.recordPaymentAction'),
+              })}
             </Alert>
             <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
               <Stack
@@ -254,7 +256,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
                       color: "text.secondary",
                       fontWeight: 900
                     }}>
-                    Booking
+                    {t('payment.booking')}
                   </Typography>
                   <Typography variant="subtitle1" sx={{ fontWeight: 900, fontFamily: 'monospace', lineHeight: 1.25 }}>
                     {currentBooking.booking_number || currentBooking.folio_number || `#${currentBooking.id}`}
@@ -265,11 +267,11 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
                       color: "text.secondary",
                       mt: 0.5
                     }}>
-                    {currentBooking.guest_name} · Room {currentBooking.room_number}
+                    {currentBooking.guest_name} · {t('details.roomNumber', { number: currentBooking.room_number })}
                   </Typography>
                 </Box>
                 <Chip
-                  label={getPaymentStatusText(currentBooking.payment_status)}
+                  label={statusLabel(t, 'payment', currentBooking.payment_status)}
                   color={getPaymentStatusColor(currentBooking.payment_status)}
                   size="small"
                   sx={{ fontWeight: 800 }}
@@ -279,9 +281,9 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.25 }}>
               {[
-                { label: 'Total', value: formatCurrency(toMoneyNumber(currentBooking.total_amount)), color: 'text.primary' },
-                { label: 'Paid', value: formatCurrency(toMoneyNumber(currentBooking.total_paid)), color: 'success.main' },
-                { label: 'Balance', value: formatCurrency(balance), color: isPositiveMoney(balance) ? 'error.main' : 'success.main' },
+                { label: t('payment.total'), value: formatCurrency(toMoneyNumber(currentBooking.total_amount)), color: 'text.primary' },
+                { label: t('payment.paid'), value: formatCurrency(toMoneyNumber(currentBooking.total_paid)), color: 'success.main' },
+                { label: t('payment.balance'), value: formatCurrency(balance), color: isPositiveMoney(balance) ? 'error.main' : 'success.main' },
               ].map((item) => (
                 <Box key={item.label} sx={{ p: 1.5, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
                   <Typography
@@ -303,7 +305,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
               <TextField
                 fullWidth
                 type="number"
-                label="Payment Amount"
+                label={t('payment.amountLabel')}
                 value={amount || ''}
                 onChange={(e) => setAmount(toMoneyNumber(e.target.value))}
                 error={
@@ -312,10 +314,10 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
                 }
                 helperText={
                   isGreaterMoney(amount, balance)
-                    ? `Cannot exceed outstanding balance of ${formatCurrency(balance)}`
+                    ? t('payment.amountExceedsHelper', { balance: formatCurrency(balance) })
                     : context === 'checkout_required'
-                      ? `Full balance required: ${formatCurrency(balance)}`
-                      : `Outstanding balance: ${formatCurrency(balance)}`
+                      ? t('payment.fullBalanceRequired', { balance: formatCurrency(balance) })
+                      : t('payment.outstandingBalance', { balance: formatCurrency(balance) })
                 }
                 required
                 slotProps={{
@@ -323,10 +325,10 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
                   htmlInput: { min: 0, max: balance, step: 0.01 }
                 }} />
               <FormControl fullWidth>
-                <InputLabel>Payment Method</InputLabel>
+                <InputLabel>{t('payment.methodLabel')}</InputLabel>
                 <Select
                   value={method}
-                  label="Payment Method"
+                  label={t('payment.methodLabel')}
                   onChange={(e) => setMethod(e.target.value)}
                 >
                   {paymentMethods.map((m) => (
@@ -340,18 +342,18 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
               fullWidth
               multiline
               rows={3}
-              label="Payment Note (Optional)"
+              label={t('payment.noteLabel')}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g., Receipt #12345, card terminal approval, bank transfer reference..."
-              helperText="Recorded as a booking payment. Status and balance update automatically."
+              placeholder={t('payment.notePlaceholder')}
+              helperText={t('payment.noteHelper')}
             />
           </Stack>
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'background.paper' }}>
         <Button onClick={onClose}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           onClick={handleConfirm}
@@ -364,7 +366,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
             isGreaterMoney(amount, balance)
           }
         >
-          {updating ? 'Processing...' : 'Accept Payment'}
+          {updating ? t('payment.processing') : t('payment.accept')}
         </Button>
       </DialogActions>
     </Dialog>

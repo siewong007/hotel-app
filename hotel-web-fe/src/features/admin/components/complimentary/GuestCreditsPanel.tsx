@@ -15,6 +15,7 @@ import {
 } from '@mui/icons-material';
 import { DataTable, type ColumnDef } from '../../../../components';
 import type { GuestCredit } from './types';
+import { useTranslation } from '../../../../i18n';
 
 interface GuestCreditsPanelProps {
   credits: GuestCredit[];
@@ -31,10 +32,11 @@ const GuestCreditsPanel: React.FC<GuestCreditsPanelProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const { t } = useTranslation('bookings');
   const creditColumns = useMemo<ColumnDef<GuestCredit, any>[]>(() => [
     {
       id: 'guest',
-      header: 'Guest',
+      header: t('comp.colGuest'),
       accessorFn: (c) => c.guest_name,
       cell: (info) => {
         const c = info.row.original;
@@ -50,13 +52,13 @@ const GuestCreditsPanel: React.FC<GuestCreditsPanelProps> = ({
     },
     {
       id: 'room_type',
-      header: 'Room Type',
+      header: t('comp.colRoomType'),
       accessorFn: (c) => c.room_type_code || c.room_type_name,
       cell: (info) => <Chip label={info.getValue() as string} size="small" variant="outlined" />,
     },
     {
       id: 'notes',
-      header: 'Reason',
+      header: t('comp.colReason2'),
       accessorFn: (c) => c.reason || c.notes || '',
       cell: (info) => (
         <Typography variant="caption" sx={{
@@ -68,16 +70,16 @@ const GuestCreditsPanel: React.FC<GuestCreditsPanelProps> = ({
     },
     {
       id: 'credits',
-      header: 'Credits',
+      header: t('comp.colCredits'),
       accessorFn: (c) => c.nights_available,
       meta: { align: 'center' },
       cell: (info) => (
-        <Chip label={`${info.getValue() as number} nights`} size="small" color="success" />
+        <Chip label={t('comp.nights', { count: info.getValue() as number })} size="small" color="success" />
       ),
     },
     {
       id: 'actions',
-      header: 'Actions',
+      header: t('comp.colActions'),
       enableSorting: false,
       enableColumnFilter: false,
       meta: { align: 'right', stopRowClick: true },
@@ -85,12 +87,12 @@ const GuestCreditsPanel: React.FC<GuestCreditsPanelProps> = ({
         const credit = info.row.original;
         return (
           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-            <Tooltip title="Edit credits">
+            <Tooltip title={t('comp.editCredits')}>
               <IconButton size="small" color="primary" onClick={() => onEdit(credit)}>
                 <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Delete credits">
+            <Tooltip title={t('comp.deleteCredits')}>
               <IconButton size="small" color="error" onClick={() => onDelete(credit)}>
                 <DeleteIcon fontSize="small" />
               </IconButton>
@@ -99,13 +101,13 @@ const GuestCreditsPanel: React.FC<GuestCreditsPanelProps> = ({
         );
       },
     },
-  ], [onEdit, onDelete]);
+  ], [onEdit, onDelete, t]);
 
   return (
     <Paper sx={{ p: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h6">
-          Guest Complimentary Credits by Room Type
+          {t('comp.creditsTitle')}
         </Typography>
         <Button
           variant="contained"
@@ -113,13 +115,13 @@ const GuestCreditsPanel: React.FC<GuestCreditsPanelProps> = ({
           onClick={onAdd}
           color="secondary"
         >
-          Add Credits
+          {t('comp.addCredits')}
         </Button>
       </Box>
       {!loading && credits.length === 0 ? (
         <Typography sx={{
           color: "text.secondary"
-        }}>No guests with complimentary credits</Typography>
+        }}>{t('comp.noCredits')}</Typography>
       ) : (
         <DataTable<GuestCredit>
           data={credits}
@@ -136,17 +138,17 @@ const GuestCreditsPanel: React.FC<GuestCreditsPanelProps> = ({
                     {c.room_type_code || c.room_type_name}
                   </Typography>
                 </Box>
-                <Chip label={`${c.nights_available} nights`} size="small" color="success" />
+                <Chip label={t('comp.nights', { count: c.nights_available })} size="small" color="success" />
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
                 <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1, minWidth: 0 }}>
                   {c.reason || c.notes || '-'}
                 </Typography>
                 <Box sx={{ flexShrink: 0 }}>
-                  <IconButton size="small" color="primary" onClick={() => onEdit(c)} aria-label="Edit credits">
+                  <IconButton size="small" color="primary" onClick={() => onEdit(c)} aria-label={t('comp.editCredits')}>
                     <EditIcon fontSize="small" />
                   </IconButton>
-                  <IconButton size="small" color="error" onClick={() => onDelete(c)} aria-label="Delete credits">
+                  <IconButton size="small" color="error" onClick={() => onDelete(c)} aria-label={t('comp.deleteCredits')}>
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 </Box>

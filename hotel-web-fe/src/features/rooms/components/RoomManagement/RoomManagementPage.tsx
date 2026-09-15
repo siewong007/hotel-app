@@ -46,6 +46,8 @@ import {
 } from '../../hooks';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { useTranslation } from '../../../../i18n/useTranslation';
+import { intlTag } from '../../../../i18n/format';
 import { isGreaterMoney, isLessMoney, subtractMoney, toMoneyNumber } from '../../../../utils/money';
 import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
 import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
@@ -54,7 +56,7 @@ import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
 import RoomStatusUpdateDialog from '../../../housekeeping/components/RoomStatusUpdateDialog';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
 import { RoomAction, MenuLayout, RoomMenuAnchor } from './types';
-import { getUnifiedStatusShortLabel } from '../../config';
+import { getLocalizedStatusLabel, getLocalizedStatusShortLabel } from '../../config';
 import RoomNotesDialog from './components/RoomNotesDialog';
 import RoomDetailsDialog from './components/RoomDetailsDialog';
 import RoomHistoryDialog from './components/RoomHistoryDialog';
@@ -76,7 +78,7 @@ const getDateOnly = (value?: string) => (value || '').split('T')[0];
 const formatReviewDate = (value?: string) => {
   const dateOnly = getDateOnly(value);
   if (!dateOnly) return '-';
-  return parseLocalDate(dateOnly).toLocaleDateString(undefined, {
+  return parseLocalDate(dateOnly).toLocaleDateString(intlTag(), {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -98,6 +100,7 @@ const getOverdueDays = (checkOutDate: string, todayIso: string) => {
 type BookingCreatedPayload = Booking & { room_number?: string };
 
 const RoomManagementPage: React.FC = () => {
+  const { t } = useTranslation('rooms');
   const navigate = useNavigate();
   const theme = useTheme();
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
@@ -126,8 +129,8 @@ const RoomManagementPage: React.FC = () => {
     onAfterCheckout: () => loadData(),
     successMessage: (b, late) =>
       late
-        ? `Room ${b.room_number} checked out (late checkout penalty: RM ${late.penalty})`
-        : `Room ${b.room_number} checked out successfully`,
+        ? t('notifications.checkoutLatePenalty', { room: b.room_number, penalty: late.penalty })
+        : t('notifications.checkoutSuccess', { room: b.room_number }),
     notify: (message, severity) => showSnackbar(message, (severity ?? 'success') as ApiNotificationSeverity),
   });
   // Stable useCallback inside the hook — destructured so it can be a dep of
@@ -352,9 +355,9 @@ const RoomManagementPage: React.FC = () => {
       setSelectedBooking(booking);
       openCheckout(booking);
     } else {
-      showSnackbar('No active booking found for this room', 'warning');
+      showSnackbar(t('notifications.noActiveBooking'), 'warning');
     }
-  }, [roomBookings, openCheckout, showSnackbar]);
+  }, [roomBookings, openCheckout, showSnackbar, t]);
 
   const handleUpdateStatus = (room: Room) => {
     setSelectedRoom(room);
@@ -370,7 +373,7 @@ const RoomManagementPage: React.FC = () => {
     // available.
     const updated = await RoomsService.updateRoomStatus(roomId, input);
 
-    showSnackbar(`Room status updated to ${updated?.status ?? input.status}`, 'success');
+    showSnackbar(t('notifications.statusUpdated', { status: getLocalizedStatusLabel(t, updated?.status ?? input.status) }), 'success');
     loadData();
   };
 
@@ -382,10 +385,10 @@ const RoomManagementPage: React.FC = () => {
         notes: 'Room marked as dirty - requires cleaning',
       });
 
-      showSnackbar(`Room ${room.room_number} marked as dirty`, 'success');
+      showSnackbar(t('notifications.markedDirty', { room: room.room_number }), 'success');
       await loadData(); // Reload all data including rooms and bookings
     } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update room status', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('errors.updateStatus'), 'error');
     }
   };
 
@@ -398,12 +401,12 @@ const RoomManagementPage: React.FC = () => {
         notes: 'Room marked as available',
       });
 
-      showSnackbar(`Room ${room.room_number} updated to ${updated?.status ?? 'available'}`, 'success');
+      showSnackbar(t('notifications.roomStatusChanged', { room: room.room_number, status: getLocalizedStatusLabel(t, updated?.status ?? 'available') }), 'success');
       await loadData(); // Reload all data including rooms and bookings
     } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update room status', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('errors.updateStatus'), 'error');
     }
-  }, [loadData, showSnackbar]);
+  }, [loadData, showSnackbar, t]);
 
   const handleMaintenance = async (room: Room) => {
     try {
@@ -411,10 +414,10 @@ const RoomManagementPage: React.FC = () => {
         status: 'maintenance',
         notes: 'Room under maintenance',
       });
-      showSnackbar(`Room ${room.room_number} set to maintenance`, 'success');
+      showSnackbar(t('notifications.setMaintenance', { room: room.room_number }), 'success');
       await loadData(); // Reload all data including rooms and bookings
     } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update room status', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('errors.updateStatus'), 'error');
     }
   };
 
@@ -430,7 +433,7 @@ const RoomManagementPage: React.FC = () => {
       const history = await RoomsService.getRoomHistory(room.id);
       setRoomHistory(history);
     } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to load room history', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('errors.loadHistory'), 'error');
       setRoomHistory([]);
     } finally {
       setLoadingHistory(false);
@@ -485,7 +488,7 @@ const RoomManagementPage: React.FC = () => {
 
   const handleConfirmRoomChange = async () => {
     if (!selectedRoom || !newSelectedRoom || !selectedBooking) {
-      showSnackbar('Please select a new room', 'warning');
+      showSnackbar(t('notifications.selectNewRoom'), 'warning');
       return;
     }
 
@@ -508,17 +511,17 @@ const RoomManagementPage: React.FC = () => {
       });
 
       const changeMessage = isGreaterMoney(priceDifference, 0)
-        ? `Room changed successfully. Additional charge: ${currencySymbol}${Math.abs(priceDifference).toFixed(2)}/night`
+        ? t('notifications.changeRoomCharge', { symbol: currencySymbol, amount: Math.abs(priceDifference).toFixed(2) })
         : isLessMoney(priceDifference, 0)
-        ? `Room changed successfully. Credit applied: ${currencySymbol}${Math.abs(priceDifference).toFixed(2)}/night`
-        : 'Room changed successfully. No additional charges.';
+        ? t('notifications.changeRoomCredit', { symbol: currencySymbol, amount: Math.abs(priceDifference).toFixed(2) })
+        : t('notifications.changeRoomNoCharge');
 
       showSnackbar(changeMessage, 'success');
       setChangeRoomDialogOpen(false);
       setNewSelectedRoom(null);
       await loadData();
     } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to change room', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('errors.changeRoom'), 'error');
     } finally {
       setChangingRoom(false);
     }
@@ -533,13 +536,13 @@ const RoomManagementPage: React.FC = () => {
       setComplimentaryReason('');
       setComplimentaryDialogOpen(true);
     } else {
-      showSnackbar('No pending booking found for this room', 'warning');
+      showSnackbar(t('notifications.noPendingBooking'), 'warning');
     }
   };
 
   const handleConfirmMarkComplimentary = async () => {
     if (!selectedBooking) {
-      showSnackbar('No booking selected', 'warning');
+      showSnackbar(t('notifications.noBookingSelected'), 'warning');
       return;
     }
 
@@ -549,13 +552,13 @@ const RoomManagementPage: React.FC = () => {
       // Call API to mark booking as complimentary
       const result = await BookingsService.markBookingComplimentary(selectedBooking.id, complimentaryReason || undefined);
 
-      showSnackbar(`Booking marked as complimentary! ${result.nights_credited} night(s) of ${result.room_type} credits added to guest.`, 'success');
+      showSnackbar(t('notifications.markedComplimentary', { count: result.nights_credited, roomType: result.room_type }), 'success');
       setComplimentaryDialogOpen(false);
       setComplimentaryReason('');
       setSelectedBooking(null);
       await loadData();
     } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to mark booking as complimentary', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('errors.markComplimentary'), 'error');
     } finally {
       setMarkingComplimentary(false);
     }
@@ -571,13 +574,13 @@ const RoomManagementPage: React.FC = () => {
 
     // Primary action — anchors the menu with the most likely next step for this room state
     if (isOccupied) {
-      layout.primary = { label: 'Check out', icon: <LogoutIcon />, onClick: handleCheckOut, color: 'error' };
+      layout.primary = { label: t('menu.checkOut'), icon: <LogoutIcon />, onClick: handleCheckOut, color: 'error' };
     } else if (isReserved && reservedBooking) {
-      layout.primary = { label: 'Check-in guest', icon: <LoginIcon />, onClick: handleCheckIn, color: 'primary', dark: true };
+      layout.primary = { label: t('menu.checkInGuest'), icon: <LoginIcon />, onClick: handleCheckIn, color: 'primary', dark: true };
     } else if (isReservedDirty) {
-      layout.primary = { label: 'Mark clean', icon: <SparkleIcon />, onClick: handleMarkAvailable, color: 'success', dark: true };
+      layout.primary = { label: t('menu.markClean'), icon: <SparkleIcon />, onClick: handleMarkAvailable, color: 'success', dark: true };
     } else if (!isMaintenance) {
-      layout.primary = { label: 'New booking', icon: <PersonAddIcon />, onClick: openUnifiedBooking, dark: true };
+      layout.primary = { label: t('menu.newBooking'), icon: <PersonAddIcon />, onClick: openUnifiedBooking, dark: true };
     }
 
     // BOOKING section
@@ -585,17 +588,17 @@ const RoomManagementPage: React.FC = () => {
     if (!isMaintenance) {
       bookingActions.push({
         id: 'upcoming',
-        label: 'Upcoming bookings',
+        label: t('menu.upcomingBookings'),
         icon: <CalendarIcon />,
         onClick: handleViewUpcomingBookings,
       });
     }
     if (isOccupied && booking) {
-      bookingActions.push({ id: 'change-room', label: 'Change room', icon: <SwapIcon />, onClick: handleChangeRoom });
-      bookingActions.push({ id: 'update-checkout', label: 'Extend checkout date', icon: <ExtendIcon />, onClick: handleUpdateCheckoutDate });
+      bookingActions.push({ id: 'change-room', label: t('menu.changeRoom'), icon: <SwapIcon />, onClick: handleChangeRoom });
+      bookingActions.push({ id: 'update-checkout', label: t('menu.extendCheckout'), icon: <ExtendIcon />, onClick: handleUpdateCheckoutDate });
     }
     if (isOccupied && booking?.guest_id) {
-      bookingActions.push({ id: 'guest-details', label: 'Guest details', icon: <PersonIcon />, onClick: () => handleViewGuestDetails(booking.guest_id) });
+      bookingActions.push({ id: 'guest-details', label: t('menu.guestDetails'), icon: <PersonIcon />, onClick: () => handleViewGuestDetails(booking.guest_id) });
     }
     // Booking notes (remarks + cleaning preference) — the card's inline editor
     // is hidden on phone, so the menu carries the action for every size. Same
@@ -612,34 +615,34 @@ const RoomManagementPage: React.FC = () => {
     if (isComplimentary) {
       bookingActions.push({
         id: 'complimentary-info',
-        label: 'Free gift booking',
+        label: t('menu.freeGiftBooking'),
         icon: <GiftIcon />,
         color: 'var(--hotel-chart-4)',
-        secondary: 'No cancellation',
+        secondary: t('menu.freeGiftNoCancel'),
         onClick: () => {
-          showSnackbar('This is a complimentary (Free Gift) booking. Cancellation is not recommended as the guest has used their free credits.', 'warning');
+          showSnackbar(t('menu.freeGiftNotice'), 'warning');
         },
       });
     }
     if (isReserved && reservedBooking && !reservedBooking.is_complimentary) {
-      bookingActions.push({ id: 'mark-complimentary', label: 'Mark as complimentary', icon: <GiftIcon />, color: 'var(--hotel-chart-4)', onClick: handleMarkComplimentary });
+      bookingActions.push({ id: 'mark-complimentary', label: t('menu.markComplimentary'), icon: <GiftIcon />, color: 'var(--hotel-chart-4)', onClick: handleMarkComplimentary });
     }
     if (bookingActions.length > 0) {
-      layout.sections.push({ title: 'Booking', actions: bookingActions });
+      layout.sections.push({ title: t('menu.sectionBooking'), actions: bookingActions });
     }
 
     // HOUSEKEEPING section
     const hkActions: RoomAction[] = [];
-    hkActions.push({ id: 'update-status', label: 'Update status / block', icon: <BuildIcon />, onClick: handleUpdateStatus });
-    layout.sections.push({ title: 'Housekeeping', actions: hkActions });
+    hkActions.push({ id: 'update-status', label: t('menu.updateStatus'), icon: <BuildIcon />, onClick: handleUpdateStatus });
+    layout.sections.push({ title: t('menu.sectionHousekeeping'), actions: hkActions });
 
     // ROOM section
     layout.sections.push({
-      title: 'Room',
+      title: t('menu.sectionRoom'),
       actions: [
-        { id: 'history', label: 'Room history', icon: <HistoryIcon />, onClick: handleShowHistory },
-        { id: 'edit-notes', label: 'Edit notes', icon: <NotesIcon />, onClick: handleEditNotes },
-        { id: 'properties', label: 'Properties...', icon: <SettingsIcon />, onClick: handleRoomProperties },
+        { id: 'history', label: t('menu.roomHistory'), icon: <HistoryIcon />, onClick: handleShowHistory },
+        { id: 'edit-notes', label: t('menu.editNotes'), icon: <NotesIcon />, onClick: handleEditNotes },
+        { id: 'properties', label: t('menu.properties'), icon: <SettingsIcon />, onClick: handleRoomProperties },
       ],
     });
 
@@ -708,7 +711,7 @@ const RoomManagementPage: React.FC = () => {
               onClick={() => loadData()}
               sx={{ fontWeight: 800 }}
             >
-              Retry
+              {t('common:state.retry')}
             </Button>
           }
           sx={{ mt: 1.5, border: '1px solid', borderColor: 'error.light', alignItems: 'center' }}
@@ -726,7 +729,7 @@ const RoomManagementPage: React.FC = () => {
               onClick={() => setOverdueCheckoutDialogOpen(true)}
               sx={{ fontWeight: 800 }}
             >
-              Review
+              {t('overdue.review')}
             </Button>
           }
           sx={{
@@ -737,12 +740,12 @@ const RoomManagementPage: React.FC = () => {
           }}
         >
           <Typography variant="body2" sx={{ fontWeight: 800 }}>
-            {overdueCheckoutBookings.length} room{overdueCheckoutBookings.length === 1 ? '' : 's'} past scheduled checkout
+            {t('overdue.bannerTitle', { count: overdueCheckoutBookings.length })}
           </Typography>
           <Typography variant="caption" sx={{
             color: "text.secondary"
           }}>
-            Review checked-in bookings whose checkout date has already passed.
+            {t('overdue.bannerBody')}
           </Typography>
         </Alert>
       )}
@@ -779,7 +782,7 @@ const RoomManagementPage: React.FC = () => {
               key={room.id}
               room={room}
               computedStatus={info.computedStatus}
-              statusLabel={getUnifiedStatusShortLabel(info.computedStatus)}
+              statusLabel={getLocalizedStatusShortLabel(t, info.computedStatus)}
               booking={info.booking}
               reservedBooking={info.reservedBooking}
               hasReservationForToday={info.hasReservationForToday}
@@ -816,18 +819,18 @@ const RoomManagementPage: React.FC = () => {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Overdue Checkouts</DialogTitle>
+        <DialogTitle>{t('overdue.title')}</DialogTitle>
         <DialogContent dividers>
           {overdueCheckoutBookings.length === 0 ? (
             <Box sx={{ py: 4, textAlign: 'center' }}>
               <CheckCircleIcon color="success" sx={{ fontSize: 36, mb: 1 }} />
               <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                No overdue checkouts
+                {t('overdue.emptyTitle')}
               </Typography>
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                All checked-in rooms are within their scheduled checkout dates.
+                {t('overdue.emptyBody')}
               </Typography>
             </Box>
           ) : (
@@ -864,7 +867,7 @@ const RoomManagementPage: React.FC = () => {
                         <Chip
                           size="small"
                           color="warning"
-                          label={`${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue`}
+                          label={t('overdue.daysOverdue', { count: overdueDays })}
                           sx={{ fontWeight: 800 }}
                         />
                         <Chip
@@ -875,12 +878,12 @@ const RoomManagementPage: React.FC = () => {
                         />
                       </Stack>
                       <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
-                        Room {booking.room_number || room?.room_number || booking.room_id} · {booking.guest_name || 'Unknown guest'}
+                        {t('overdue.roomGuest', { room: booking.room_number || room?.room_number || booking.room_id, guest: booking.guest_name || t('overdue.unknownGuest') })}
                       </Typography>
                       <Typography variant="body2" sx={{
                         color: "text.secondary"
                       }}>
-                        Stay {formatReviewDate(booking.check_in_date)} - {formatReviewDate(booking.check_out_date)}
+                        {t('overdue.stay', { checkIn: formatReviewDate(booking.check_in_date), checkOut: formatReviewDate(booking.check_out_date) })}
                       </Typography>
                     </Box>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -890,7 +893,7 @@ const RoomManagementPage: React.FC = () => {
                         startIcon={<ExtendIcon />}
                         onClick={() => handleReviewUpdateCheckout(booking)}
                       >
-                        Extend checkout date
+                        {t('overdue.extendCheckout')}
                       </Button>
                       <Button
                         variant="contained"
@@ -898,7 +901,7 @@ const RoomManagementPage: React.FC = () => {
                         startIcon={<LogoutIcon />}
                         onClick={() => handleReviewCheckout(booking)}
                       >
-                        Check out
+                        {t('overdue.checkOut')}
                       </Button>
                     </Stack>
                   </Paper>
@@ -908,7 +911,7 @@ const RoomManagementPage: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOverdueCheckoutDialogOpen(false)}>Close</Button>
+          <Button onClick={() => setOverdueCheckoutDialogOpen(false)}>{t('common:actions.close')}</Button>
         </DialogActions>
       </Dialog>
       {/* Extend Checkout Date Dialog */}
@@ -917,7 +920,7 @@ const RoomManagementPage: React.FC = () => {
         onClose={() => setUpdateCheckoutDialogOpen(false)}
         booking={updateCheckoutBooking}
         onSuccess={() => {
-          showSnackbar('Checkout date extended successfully', 'success');
+          showSnackbar(t('notifications.checkoutExtended'), 'success');
           loadData();
         }}
       />

@@ -20,6 +20,7 @@ import { BookingsService } from '../../../../api';
 import { errorMessage } from '../../../../utils';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import type { GuestCredit, GuestOption, RoomTypeOption } from './types';
+import { useTranslation } from '../../../../i18n';
 
 interface AddCreditDialogProps {
   open: boolean;
@@ -36,6 +37,7 @@ export const AddCreditDialog: React.FC<AddCreditDialogProps> = ({
   onClose,
   onCompleted,
 }) => {
+  const { t } = useTranslation('bookings');
   const [formData, setFormData] = useState({
     guest_id: 0,
     room_type_id: 0,
@@ -54,7 +56,7 @@ export const AddCreditDialog: React.FC<AddCreditDialogProps> = ({
     const reason = formData.reason.trim();
     if (!formData.guest_id || !formData.room_type_id || formData.nights <= 0 || !reason) {
       emitApiNotification({
-        message: 'Please select a guest and room type, enter the number of nights, and provide a reason',
+        message: t('comp.addDialog.validation'),
         severity: 'error',
       });
       return;
@@ -67,11 +69,11 @@ export const AddCreditDialog: React.FC<AddCreditDialogProps> = ({
         nights: formData.nights,
         reason,
       });
-      emitApiNotification({ message: 'Credits added successfully', severity: 'success' });
+      emitApiNotification({ message: t('comp.addDialog.added'), severity: 'success' });
       onClose();
       await onCompleted();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to add credits'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('comp.addDialog.addFailed')), severity: 'error' });
     } finally {
       setProcessing(false);
     }
@@ -79,7 +81,7 @@ export const AddCreditDialog: React.FC<AddCreditDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add Complimentary Credits</DialogTitle>
+      <DialogTitle>{t('comp.addDialog.title')}</DialogTitle>
       <DialogContent>
         <Box sx={{ pt: 1 }}>
           <Grid container spacing={2}>
@@ -89,15 +91,15 @@ export const AddCreditDialog: React.FC<AddCreditDialogProps> = ({
                 getOptionLabel={(option) => `${option.nick_name}${option.email ? ` (${option.email})` : ''}`}
                 value={guests.find(g => g.id === formData.guest_id) || null}
                 onChange={(_, newValue) => setFormData({ ...formData, guest_id: newValue?.id || 0 })}
-                renderInput={(params) => <TextField {...params} label="Select Guest *" />}
+                renderInput={(params) => <TextField {...params} label={t('comp.addDialog.selectGuest')} />}
               />
             </Grid>
             <Grid size={12}>
               <FormControl fullWidth>
-                <InputLabel>Room Type *</InputLabel>
+                <InputLabel>{t('comp.addDialog.roomType')}</InputLabel>
                 <Select
                   value={formData.room_type_id || ''}
-                  label="Room Type *"
+                  label={t('comp.addDialog.roomType')}
                   onChange={(e) => setFormData({ ...formData, room_type_id: Number(e.target.value) })}
                 >
                   {roomTypes.map((rt) => (
@@ -111,7 +113,7 @@ export const AddCreditDialog: React.FC<AddCreditDialogProps> = ({
             <Grid size={12}>
               <TextField
                 fullWidth
-                label="Number of Nights *"
+                label={t('comp.addDialog.nights')}
                 type="number"
                 value={formData.nights}
                 onChange={(e) => setFormData({ ...formData, nights: parseInt(e.target.value) || 0 })}
@@ -124,13 +126,13 @@ export const AddCreditDialog: React.FC<AddCreditDialogProps> = ({
               <TextField
                 fullWidth
                 required
-                label="Reason"
+                label={t('comp.addDialog.reason')}
                 multiline
                 rows={2}
                 value={formData.reason}
                 onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                placeholder="e.g., Loyalty reward or service recovery"
-                helperText={`${formData.reason.length}/500 characters`}
+                placeholder={t('comp.addDialog.reasonPlaceholder')}
+                helperText={t('comp.addDialog.reasonCounter', { count: formData.reason.length })}
                 slotProps={{ htmlInput: { maxLength: 500 } }}
               />
             </Grid>
@@ -138,14 +140,14 @@ export const AddCreditDialog: React.FC<AddCreditDialogProps> = ({
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           onClick={handleAdd}
           variant="contained"
           color="secondary"
           disabled={processing || !formData.reason.trim()}
         >
-          {processing ? 'Adding...' : 'Add Credits'}
+          {processing ? t('comp.addDialog.adding') : t('comp.addDialog.confirm')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -165,6 +167,7 @@ export const EditCreditDialog: React.FC<CreditDialogProps> = ({
   onClose,
   onCompleted,
 }) => {
+  const { t } = useTranslation('bookings');
   const [formData, setFormData] = useState({
     nights_available: 0,
     notes: '',
@@ -192,11 +195,11 @@ export const EditCreditDialog: React.FC<CreditDialogProps> = ({
           notes: formData.notes || undefined,
         }
       );
-      emitApiNotification({ message: 'Credits updated successfully', severity: 'success' });
+      emitApiNotification({ message: t('comp.editCredit.updated'), severity: 'success' });
       onClose();
       await onCompleted();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to update credits'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('comp.editCredit.updateFailed')), severity: 'error' });
     } finally {
       setProcessing(false);
     }
@@ -204,23 +207,23 @@ export const EditCreditDialog: React.FC<CreditDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Edit Complimentary Credits</DialogTitle>
+      <DialogTitle>{t('comp.editCredit.title')}</DialogTitle>
       <DialogContent>
         {credit && (
           <Box sx={{ pt: 1 }}>
             <Alert severity="info" sx={{ mb: 2 }}>
               <Typography variant="body2">
-                <strong>Guest:</strong> {credit.guest_name}
+                <strong>{t('comp.editCredit.guestLabel')}</strong> {credit.guest_name}
               </Typography>
               <Typography variant="body2">
-                <strong>Room Type:</strong> {credit.room_type_name}
+                <strong>{t('comp.editCredit.roomTypeLabel')}</strong> {credit.room_type_name}
               </Typography>
             </Alert>
             <Grid container spacing={2}>
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Nights Available *"
+                  label={t('comp.editCredit.nightsAvailable')}
                   type="number"
                   value={formData.nights_available}
                   onChange={(e) => setFormData({ ...formData, nights_available: parseInt(e.target.value) || 0 })}
@@ -232,7 +235,7 @@ export const EditCreditDialog: React.FC<CreditDialogProps> = ({
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Notes"
+                  label={t('comp.editCredit.notes')}
                   multiline
                   rows={2}
                   value={formData.notes}
@@ -244,9 +247,9 @@ export const EditCreditDialog: React.FC<CreditDialogProps> = ({
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button onClick={handleUpdate} variant="contained" disabled={processing}>
-          {processing ? 'Updating...' : 'Update Credits'}
+          {processing ? t('comp.editCredit.updating') : t('comp.editCredit.confirm')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -259,6 +262,7 @@ export const DeleteCreditDialog: React.FC<CreditDialogProps> = ({
   onClose,
   onCompleted,
 }) => {
+  const { t } = useTranslation('bookings');
   const [processing, setProcessing] = useState(false);
 
   const handleDelete = async () => {
@@ -266,11 +270,11 @@ export const DeleteCreditDialog: React.FC<CreditDialogProps> = ({
     try {
       setProcessing(true);
       await BookingsService.deleteGuestCredits(credit.guest_id, credit.room_type_id);
-      emitApiNotification({ message: 'Credits deleted successfully', severity: 'success' });
+      emitApiNotification({ message: t('comp.deleteCredit.deleted'), severity: 'success' });
       onClose();
       await onCompleted();
     } catch (err) {
-      emitApiNotification({ message: errorMessage(err, 'Failed to delete credits'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(err, t('comp.deleteCredit.deleteFailed')), severity: 'error' });
     } finally {
       setProcessing(false);
     }
@@ -278,29 +282,29 @@ export const DeleteCreditDialog: React.FC<CreditDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Delete Complimentary Credits</DialogTitle>
+      <DialogTitle>{t('comp.deleteCredit.title')}</DialogTitle>
       <DialogContent>
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Are you sure you want to delete these complimentary credits? This action cannot be undone.
+          {t('comp.deleteCredit.warning')}
         </Alert>
         {credit && (
           <Box>
             <Typography variant="body2">
-              <strong>Guest:</strong> {credit.guest_name}
+              <strong>{t('comp.editCredit.guestLabel')}</strong> {credit.guest_name}
             </Typography>
             <Typography variant="body2">
-              <strong>Room Type:</strong> {credit.room_type_name}
+              <strong>{t('comp.editCredit.roomTypeLabel')}</strong> {credit.room_type_name}
             </Typography>
             <Typography variant="body2">
-              <strong>Nights to Delete:</strong> {credit.nights_available}
+              <strong>{t('comp.deleteCredit.nightsToDelete')}</strong> {credit.nights_available}
             </Typography>
           </Box>
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button onClick={handleDelete} variant="contained" color="error" disabled={processing}>
-          {processing ? 'Deleting...' : 'Delete Credits'}
+          {processing ? t('comp.deleteCredit.deleting') : t('comp.deleteCredit.confirm')}
         </Button>
       </DialogActions>
     </Dialog>

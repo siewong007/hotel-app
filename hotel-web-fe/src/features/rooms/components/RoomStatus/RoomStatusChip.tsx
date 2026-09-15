@@ -1,6 +1,13 @@
 import React from 'react';
 import { Chip, ChipProps, Tooltip, Box } from '@mui/material';
-import { RoomStatusType, getStatusConfig } from '../../config';
+import {
+  RoomStatusType,
+  getStatusConfig,
+  getLocalizedStatusLabel,
+  getLocalizedStatusDescription,
+  getLocalizedStatusAction,
+} from '../../config';
+import { useTranslation } from '../../../../i18n/useTranslation';
 
 interface RoomStatusChipProps {
   status: RoomStatusType;
@@ -25,13 +32,14 @@ const RoomStatusChip: React.FC<RoomStatusChipProps> = ({
   onClick,
   animated = false,
 }) => {
+  const { t } = useTranslation('rooms');
   const config = getStatusConfig(status);
   const IconComponent = config.icon;
 
   const chip = (
     <Chip
       icon={showIcon ? <IconComponent /> : undefined}
-      label={config.label}
+      label={getLocalizedStatusLabel(t, status)}
       size={size}
       color={config.color}
       variant={variant}
@@ -74,11 +82,11 @@ const RoomStatusChip: React.FC<RoomStatusChipProps> = ({
       <Tooltip
         title={
           <Box>
-            <div style={{ fontWeight: 600 }}>{config.label}</div>
-            <div style={{ fontSize: '0.85em', marginTop: 4 }}>{config.description}</div>
+            <div style={{ fontWeight: 600 }}>{getLocalizedStatusLabel(t, status)}</div>
+            <div style={{ fontSize: '0.85em', marginTop: 4 }}>{getLocalizedStatusDescription(t, status)}</div>
             {config.requiresAction && config.actionLabel && (
               <div style={{ fontSize: '0.85em', marginTop: 4, fontStyle: 'italic' }}>
-                Action: {config.actionLabel}
+                {t('statusActions.tooltip', { action: getLocalizedStatusAction(t, status) })}
               </div>
             )}
           </Box>

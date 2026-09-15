@@ -12,6 +12,7 @@ import { setAccessToken, clearAccessToken } from './tokenStore';
 import type { RouteAccessPolicy, UserProfile } from '../types';
 import { normalizeAuthUser, type AuthUserShape } from './authUser';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
+import { t } from '../i18n';
 
 export interface User extends AuthUserShape {}
 
@@ -111,7 +112,7 @@ async function extractHttpErrorMessage(error: unknown, fallback: string): Promis
     }
   } catch (parseError) {
     console.error('Error parsing error response:', parseError);
-    message = `${fallback} - unable to connect to server`;
+    message = t('errors.unableToConnect', { message: fallback }, 'auth');
   }
   return message;
 }
@@ -279,7 +280,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error instanceof APIError) {
         throw error;
       }
-      throw new Error(await extractHttpErrorMessage(error, 'Registration failed'));
+      throw new Error(await extractHttpErrorMessage(error, t('errors.registrationFailed', undefined, 'auth')));
     }
   }, []);
 
@@ -400,7 +401,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // translated message text — the same reasoning as loginWithGoogle
       // preserving `statusCode` below. Other failures keep the server's own
       // message readable via guestErrorMessage/errorMessage either way.
-      const message = await extractHttpErrorMessage(error, 'Login failed');
+      const message = await extractHttpErrorMessage(error, t('errors.loginFailed', undefined, 'auth'));
       if (error instanceof HTTPError) {
         throw new APIError(message, error.response?.status, readErrorData(error));
       }
@@ -433,7 +434,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw error;
       }
 
-      throw new Error(errorMessage(error, 'Google sign-in failed'));
+      throw new Error(errorMessage(error, t('errors.googleSignInFailed', undefined, 'auth')));
     }
   }, [applyAuthSession]);
 
@@ -576,7 +577,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }) as PublicKeyCredential;
 
       if (!credential) {
-        throw new Error('Failed to create passkey');
+        throw new Error(t('errors.passkeyCreateFailed', undefined, 'auth'));
       }
 
       const response = credential.response as AuthenticatorAttestationResponse;
@@ -610,14 +611,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Handle different error types
       if (name === 'NotAllowedError') {
-        throw new Error('Passkey registration was cancelled or timed out');
+        throw new Error(t('errors.passkeyRegisterCancelled', undefined, 'auth'));
       } else if (name === 'InvalidStateError') {
-        throw new Error('A passkey is already registered for this account on this device');
+        throw new Error(t('errors.passkeyAlreadyRegistered', undefined, 'auth'));
       } else if (name === 'NotSupportedError') {
-        throw new Error('Passkeys are not supported in this browser');
+        throw new Error(t('errors.passkeyNotSupported', undefined, 'auth'));
       }
 
-      throw new Error(await extractHttpErrorMessage(error, 'Passkey registration failed'));
+      throw new Error(await extractHttpErrorMessage(error, t('errors.passkeyRegisterFailed', undefined, 'auth')));
     }
   }, []);
 
@@ -672,7 +673,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }) as PublicKeyCredential;
 
       if (!assertion) {
-        throw new Error('Failed to authenticate with passkey');
+        throw new Error(t('errors.passkeyAuthFailed', undefined, 'auth'));
       }
 
       const response = assertion.response as AuthenticatorAssertionResponse;
@@ -710,14 +711,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const name = webAuthnErrorName(error);
       // Handle different error types
       if (name === 'NotAllowedError') {
-        throw new Error('Passkey authentication was cancelled or timed out');
+        throw new Error(t('errors.passkeyAuthCancelled', undefined, 'auth'));
       } else if (name === 'InvalidStateError') {
-        throw new Error('This passkey is not registered on this device');
+        throw new Error(t('errors.passkeyNotRegistered', undefined, 'auth'));
       } else if (name === 'NotSupportedError') {
-        throw new Error('Passkeys are not supported in this browser');
+        throw new Error(t('errors.passkeyNotSupported', undefined, 'auth'));
       }
 
-      const message = await extractHttpErrorMessage(error, 'Passkey authentication failed');
+      const message = await extractHttpErrorMessage(error, t('errors.passkeyAuthFailed', undefined, 'auth'));
 
       // Only log as error if it's not a normal "no passkeys" scenario
       const isNormalFailure =

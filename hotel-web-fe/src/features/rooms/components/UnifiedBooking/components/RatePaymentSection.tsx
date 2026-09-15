@@ -4,6 +4,7 @@ import { Room } from '../../../../../types';
 import { BookingTokens } from '../bookingTokens';
 import CollapsibleSection from '../../../../../components/common/CollapsibleSection';
 import { toMoneyNumber } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 
 interface RatePaymentSectionProps {
   D: BookingTokens;
@@ -38,11 +39,14 @@ const RatePaymentSection: React.FC<RatePaymentSectionProps> = ({
   currencySymbol,
   formatCurrency,
   hideTourismStatus = false,
-}) => (
-  <CollapsibleSection title={`${glyph} Rate & payment`} collapseOnPhone sx={{ mb: 2.75 }}>
+}) => {
+  const { t } = useTranslation('rooms');
+
+  return (
+  <CollapsibleSection title={`${glyph} ${t('unified.secRatePayment')}`} collapseOnPhone sx={{ mb: 2.75 }}>
     <Box sx={{ display: 'grid', gridTemplateColumns: hideTourismStatus ? '1fr' : '1fr 1fr', gap: 1.5 }}>
       <Box>
-        <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Rate per night</Typography>
+        <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>{t('extendCheckout.ratePerNight')}</Typography>
         <TextField
           type="number"
           size="small"
@@ -60,13 +64,13 @@ const RatePaymentSection: React.FC<RatePaymentSectionProps> = ({
       </Box>
       {!hideTourismStatus && (
         <Box>
-          <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Tourism status</Typography>
+          <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>{t('unified.tourismStatus')}</Typography>
           <TextField
             size="small"
             fullWidth
-            value={isTourist ? `Foreign guest (${currencySymbol} ${tourismTaxRate}/night)` : 'Local — no tourism tax'}
+            value={isTourist ? t('unified.tourismForeign', { symbol: currencySymbol, rate: tourismTaxRate }) : t('unified.tourismLocal')}
             disabled
-            helperText="Set on the guest profile"
+            helperText={t('unified.tourismHelper')}
             sx={{ bgcolor: D.surface }}
           />
         </Box>
@@ -93,13 +97,14 @@ const RatePaymentSection: React.FC<RatePaymentSectionProps> = ({
         sx={{ p: 0, mt: 0.25 }}
       />
       <Box>
-        <Typography sx={{ fontSize: 13, fontWeight: 600, color: D.ink }}>Use custom rate</Typography>
+        <Typography sx={{ fontSize: 13, fontWeight: 600, color: D.ink }}>{t('unified.useCustomRate')}</Typography>
         <Typography sx={{ fontSize: 11, color: D.ink3, mt: 0.25 }}>
-          Override the default rate of {formatCurrency(defaultRate(room))} / night
+          {t('unified.customRateHint', { rate: formatCurrency(defaultRate(room)) })}
         </Typography>
       </Box>
     </Box>
   </CollapsibleSection>
-);
+  );
+};
 
 export default RatePaymentSection;

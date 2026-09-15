@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import type { Booking, BookingWithDetails, GuestUpdateRequest } from '../../../../types';
 import type { ValidationErrors } from './checkInTypes';
+import { useTranslation } from '../../../../i18n';
 
 export interface PersonalInfoTabProps {
   booking: Booking | BookingWithDetails;
@@ -25,12 +26,13 @@ export function PersonalInfoTab({
   touched,
   validationErrors,
 }: PersonalInfoTabProps) {
+  const { t } = useTranslation('bookings');
   return (
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 3 }}>
           <TextField
             fullWidth
-            label="Title"
+            label={t('checkInForm.personal.title')}
             value={guestData.title || ''}
             disabled
             slotProps={{
@@ -42,7 +44,7 @@ export function PersonalInfoTab({
           <TextField
             fullWidth
             required
-            label="First Name"
+            label={t('checkInForm.personal.firstName')}
             value={guestData.first_name || ''}
             onChange={(e) => handleGuestChange('first_name', e.target.value)}
             onBlur={(e) => handleBlur('first_name', e.target.value)}
@@ -54,7 +56,7 @@ export function PersonalInfoTab({
           <TextField
             fullWidth
             required
-            label="Last Name"
+            label={t('checkInForm.personal.lastName')}
             value={guestData.last_name || ''}
             onChange={(e) => handleGuestChange('last_name', e.target.value)}
             onBlur={(e) => handleBlur('last_name', e.target.value)}
@@ -65,7 +67,7 @@ export function PersonalInfoTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Email"
+            label={t('checkInForm.personal.email')}
             type="email"
             value={guestData.email || ''}
             disabled
@@ -78,7 +80,7 @@ export function PersonalInfoTab({
           <TextField
             fullWidth
             type="tel"
-            label="Phone 1"
+            label={t('checkInForm.personal.phone1')}
             value={guestData.phone || ''}
             disabled
             slotProps={{
@@ -90,7 +92,7 @@ export function PersonalInfoTab({
           <TextField
             fullWidth
             type="tel"
-            label="Phone 2"
+            label={t('checkInForm.personal.phone2')}
             value={guestData.alt_phone || ''}
             disabled
             slotProps={{
@@ -102,21 +104,21 @@ export function PersonalInfoTab({
           <TextField
             fullWidth
             required
-            label="Reference/IC Number"
+            label={t('checkInForm.personal.icNumber')}
             value={guestData.ic_number || ''}
             onChange={(e) => handleGuestChange('ic_number', e.target.value)}
             onBlur={(e) => handleBlur('ic_number', e.target.value)}
             error={touched.ic_number && Boolean(validationErrors.ic_number)}
             helperText={
               (touched.ic_number && validationErrors.ic_number)
-              || 'Collected at check-in if not provided during booking'
+              || t('checkInForm.personal.icHelper')
             }
           />
         </Grid>
         <Grid size={12}>
           <TextField
             fullWidth
-            label="Street Address"
+            label={t('checkInForm.personal.streetAddress')}
             value={guestData.address_line1 || ''}
             disabled
             slotProps={{
@@ -127,7 +129,7 @@ export function PersonalInfoTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="City"
+            label={t('checkInForm.personal.city')}
             value={guestData.city || ''}
             disabled
             slotProps={{
@@ -138,7 +140,7 @@ export function PersonalInfoTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="State/Province"
+            label={t('checkInForm.personal.stateProvince')}
             value={guestData.state_province || ''}
             disabled
             slotProps={{
@@ -149,7 +151,7 @@ export function PersonalInfoTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Zip Code"
+            label={t('checkInForm.personal.zipCode')}
             value={guestData.postal_code || ''}
             disabled
             slotProps={{
@@ -160,7 +162,7 @@ export function PersonalInfoTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Country"
+            label={t('checkInForm.personal.country')}
             value={guestData.country || ''}
             disabled
             slotProps={{
@@ -171,7 +173,7 @@ export function PersonalInfoTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Nationality"
+            label={t('checkInForm.personal.nationality')}
             value={guestData.nationality || ''}
             disabled
             slotProps={{

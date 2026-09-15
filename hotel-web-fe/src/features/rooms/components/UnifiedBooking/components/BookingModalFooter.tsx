@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Button, CircularProgress } from '@mui/material';
 import { Check as CheckIcon } from '@mui/icons-material';
 import { BookingTokens } from '../bookingTokens';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 
 interface BookingModalFooterProps {
   D: BookingTokens;
@@ -28,6 +29,7 @@ const BookingModalFooter: React.FC<BookingModalFooterProps> = ({
   billableNights,
   formatCurrency,
 }) => {
+  const { t } = useTranslation('rooms');
   const kbd = (txt: string) => (
     <Box component="kbd" sx={{ bgcolor: D.surface, border: `1px solid ${D.border}`, px: 0.75, py: '1px', borderRadius: 0.5, fontSize: 10, fontFamily: 'inherit', color: D.ink2 }}>{txt}</Box>
   );
@@ -52,10 +54,10 @@ const BookingModalFooter: React.FC<BookingModalFooterProps> = ({
         fontSize: 12,
       }}>
         <Box sx={{ color: D.ink3 }}>
-          {billableNights} {billableNights === 1 ? 'night' : 'nights'}
+          {t('guestSelector.nights', { count: billableNights })}
         </Box>
         <Box sx={{ color: D.ink2, fontWeight: 600 }}>
-          Total{' '}
+          {t('common:field.total')}{' '}
           <Box component="span" sx={{ color: D.emerald, fontWeight: 800, fontSize: 15 }}>
             {formatCurrency(total)}
           </Box>
@@ -63,9 +65,9 @@ const BookingModalFooter: React.FC<BookingModalFooterProps> = ({
       </Box>
       {/* Keyboard hints — meaningless on touch devices. */}
       <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1, color: D.ink3, fontSize: 12 }}>
-        {kbd('Esc')} cancel
+        {kbd('Esc')} {t('unified.kbdCancel')}
         <Box component="span" sx={{ mx: 0.5 }}>·</Box>
-        {kbd('⌘ Enter')} create
+        {kbd('⌘ Enter')} {t('unified.kbdCreate')}
       </Box>
       <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />
       <Box sx={{ display: 'flex', gap: 1.25, justifyContent: { xs: 'flex-end', sm: 'flex-start' } }}>
@@ -82,7 +84,7 @@ const BookingModalFooter: React.FC<BookingModalFooterProps> = ({
             '&:hover': { color: D.ink, bgcolor: D.surface3 },
           }}
         >
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           variant="contained"

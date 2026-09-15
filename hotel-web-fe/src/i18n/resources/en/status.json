@@ -1,0 +1,209 @@
+{
+  "booking": {
+    "pending": "Pending",
+    "pending_payment": "Pending payment",
+    "pending_confirmation": "Pending confirmation",
+    "confirmed": "Confirmed",
+    "checked_in": "Checked in",
+    "auto_checked_in": "Auto checked in",
+    "checked_out": "Checked out",
+    "late_checkout": "Late checkout",
+    "no_show": "No-show",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "comp_void": "Comp void",
+    "partial_complimentary": "Partial comp",
+    "fully_complimentary": "Fully comp",
+    "voided": "Voided",
+    "held": "Held",
+    "expired": "Expired"
+  },
+  "booking_service": {
+    "pending": "Pending",
+    "in_progress": "In progress",
+    "completed": "Completed",
+    "void": "Void"
+  },
+  "payment": {
+    "pending": "Pending",
+    "processing": "Processing",
+    "completed": "Completed",
+    "failed": "Failed",
+    "refunded": "Refunded",
+    "void": "Void",
+    "voided": "Voided",
+    "paid": "Paid",
+    "unpaid": "Unpaid",
+    "unpaid_deposit": "Unpaid deposit",
+    "paid_rate": "Rate paid",
+    "partial": "Partial",
+    "forfeited": "Forfeited",
+    "deposit_forfeited": "Deposit forfeited"
+  },
+  "invoice": {
+    "draft": "Draft",
+    "issued": "Issued",
+    "sent": "Sent",
+    "paid": "Paid",
+    "partial": "Partial",
+    "overdue": "Overdue",
+    "void": "Void",
+    "cancelled": "Cancelled",
+    "refunded": "Refunded"
+  },
+  "ledger": {
+    "pending": "Pending",
+    "partial": "Partial",
+    "paid": "Paid",
+    "overdue": "Overdue",
+    "void": "Void"
+  },
+  "room": {
+    "available": "Available",
+    "occupied": "Occupied",
+    "reserved": "Reserved",
+    "reserved_dirty": "Reserved (dirty)",
+    "cleaning": "Cleaning",
+    "dirty": "Dirty",
+    "clean": "Clean",
+    "inspected": "Inspected",
+    "maintenance": "Maintenance",
+    "out_of_order": "Out of order",
+    "out_of_service": "Out of service"
+  },
+  "housekeeping": {
+    "pending": "Pending",
+    "assigned": "Assigned",
+    "in_progress": "In progress",
+    "completed": "Completed",
+    "inspected": "Inspected",
+    "cancelled": "Cancelled",
+    "void": "Void"
+  },
+  "maintenance": {
+    "open": "Open",
+    "in_progress": "In progress",
+    "on_hold": "On hold",
+    "resolved": "Resolved",
+    "closed": "Closed",
+    "cancelled": "Cancelled"
+  },
+  "campaign": {
+    "draft": "Draft",
+    "scheduled": "Scheduled",
+    "running": "Running",
+    "active": "Active",
+    "paused": "Paused",
+    "completed": "Completed",
+    "ended": "Ended",
+    "cancelled": "Cancelled",
+    "failed": "Failed"
+  },
+  "promotion": {
+    "draft": "Draft",
+    "scheduled": "Scheduled",
+    "published": "Published",
+    "live": "Live",
+    "paused": "Paused",
+    "expired": "Expired",
+    "cancelled": "Cancelled",
+    "archived": "Archived"
+  },
+  "payroll": {
+    "draft": "Draft",
+    "processing": "Processing",
+    "approved": "Approved",
+    "paid": "Paid",
+    "cancelled": "Cancelled"
+  },
+  "employee": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "on_leave": "On leave",
+    "terminated": "Terminated"
+  },
+  "notification": {
+    "unread": "Unread",
+    "read": "Read"
+  },
+  "ekyc": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "automated_review": "Automated review",
+    "pending_manual_review": "Pending manual review",
+    "in_review": "In review",
+    "additional_information_required": "More info required",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "escalated": "Escalated",
+    "expired": "Expired",
+    "void": "Void",
+    "on_hold": "On hold",
+    "pending": "Pending",
+    "under_review": "Under review",
+    "verified": "Verified"
+  },
+  "email_delivery": {
+    "queued": "Queued",
+    "sending": "Sending",
+    "sent": "Sent",
+    "failed": "Failed",
+    "suppressed": "Suppressed",
+    "cancelled": "Cancelled"
+  },
+  "loyalty": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "suspended": "Suspended",
+    "closed": "Closed"
+  },
+  "loyalty_redemption": {
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "fulfilled": "Fulfilled"
+  },
+  "reward_redemption": {
+    "pending": "Pending",
+    "confirmed": "Confirmed",
+    "used": "Used",
+    "void": "Void",
+    "expired": "Expired"
+  },
+  "support": {
+    "waiting_for_staff": "Waiting for staff",
+    "waiting_for_guest": "Waiting for guest",
+    "resolved": "Resolved",
+    "closed": "Closed"
+  },
+  "voucher": {
+    "available": "Available",
+    "redeemed": "Redeemed",
+    "revoked": "Revoked",
+    "expired": "Expired"
+  },
+  "voucher_redemption": {
+    "applied": "Applied",
+    "reversed": "Reversed"
+  },
+  "night_audit": {
+    "in_progress": "In progress",
+    "completed": "Completed",
+    "failed": "Failed"
+  },
+  "generic": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "success": "Success",
+    "failed": "Failed",
+    "warning": "Warning",
+    "info": "Info",
+    "error": "Error",
+    "unknown": "Unknown"
+  }
+}

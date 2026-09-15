@@ -4,6 +4,7 @@ import type { Guest, Room } from '../../../types';
 import { addLocalDays, formatLocalDate } from '../../../utils/date';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useTranslation } from '../../../i18n/useTranslation';
 import {  buildBlockedDateRangesForRoom,
   type BlockedDateRange,
   getCreditBookingDates,
@@ -58,6 +59,7 @@ export function useGuestCreditsWorkflow({
   showSnackbar,
   onCloseMenu,
 }: UseGuestCreditsWorkflowArgs) {
+  const { t } = useTranslation('rooms');
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [tab, setTab] = useState(0);
@@ -124,8 +126,8 @@ export function useGuestCreditsWorkflow({
     // a single-guest fetch so the menu action still works.
     GuestsService.getGuest(guestId)
       .then(openWith)
-      .catch(() => showSnackbar(`Guest not found (ID: ${guestId})`, 'warning'));
-  }, [guests, loadGuestCredits, onCloseMenu, showSnackbar]);
+      .catch(() => showSnackbar(t('notifications.guestNotFound', { id: guestId }), 'warning'));
+  }, [guests, loadGuestCredits, onCloseMenu, showSnackbar, t]);
 
   const close = useCallback(() => setDialogOpen(false), []);
 
@@ -178,7 +180,7 @@ export function useGuestCreditsWorkflow({
 
   const bookWithCreditsAndCheckIn = useCallback(async () => {
     if (!selectedGuest || !creditsBookingForm.room_id || selectedComplimentaryDates.length === 0) {
-      showSnackbar('Please select a room and at least one complimentary date', 'warning');
+      showSnackbar(t('validation.selectRoomAndDates'), 'warning');
       return;
     }
 
@@ -201,11 +203,11 @@ export function useGuestCreditsWorkflow({
         complimentary_nights: result.complimentary_nights,
       });
 
-      showSnackbar(`Booking created successfully! ${result.complimentary_nights} night(s) are complimentary.`, 'success');
+      showSnackbar(t('notifications.creditsBooked', { count: result.complimentary_nights }), 'success');
       void loadGuestCredits(selectedGuest.id);
       void reloadRooms();
     } catch (error) {
-      showSnackbar(errorMessage(error, 'Failed to book with credits'), 'error');
+      showSnackbar(errorMessage(error, t('errors.bookWithCredits')), 'error');
     } finally {
       setBookingWithCredits(false);
     }
@@ -216,6 +218,7 @@ export function useGuestCreditsWorkflow({
     selectedComplimentaryDates,
     selectedGuest,
     showSnackbar,
+    t,
   ]);
 
   const checkInFromCreditsBooking = useCallback(async () => {
@@ -223,14 +226,14 @@ export function useGuestCreditsWorkflow({
 
     try {
       await BookingsService.checkInGuest(creditsBookingSuccess.booking_id.toString());
-      showSnackbar('Guest checked in successfully!', 'success');
+      showSnackbar(t('bookings:checkIn.success'), 'success');
       setDialogOpen(false);
       void reloadRooms();
       void reloadBookings();
     } catch (error) {
-      showSnackbar(errorMessage(error, 'Failed to check in guest'), 'error');
+      showSnackbar(errorMessage(error, t('errors.checkIn')), 'error');
     }
-  }, [creditsBookingSuccess, reloadBookings, reloadRooms, showSnackbar]);
+  }, [creditsBookingSuccess, reloadBookings, reloadRooms, showSnackbar, t]);
 
   const changeTab = useCallback((value: number) => {
     setTab(value);

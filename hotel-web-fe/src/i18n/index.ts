@@ -44,4 +44,5 @@ export {
   numberFormatter,
 } from './format';
 export { DEFAULT_NAMESPACE, NAMESPACES, type Namespace } from './resources';
+export { statusLabel } from './statusLabel';
 export type { TranslationVars } from './translator';

@@ -6,6 +6,9 @@ import { ARTICLES_MS } from './articles.ms';
 const ARTICLES_BY_LOCALE: Record<LocaleCode, HelpArticle[]> = {
   en: ARTICLES_EN,
   ms: ARTICLES_MS,
+  // No zh article catalogue yet — it falls back to English, exactly as the
+  // `??` below already does for a locale whose bundle is still catching up.
+  zh: ARTICLES_EN,
 };
 
 /** Articles for a locale, falling back to English for an unknown code or a

@@ -25,6 +25,7 @@ import { Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon, Add a
 import { toMoneyNumber } from '../../../../utils/money';
 import type { Booking, BookingUpdateRequest, BookingWithDetails, Guest } from '../../../../types';
 import type { CompanyOption, ValidationErrors } from './checkInTypes';
+import { useTranslation } from '../../../../i18n';
 
 export interface PaymentInfoTabProps {
   amountPaid: number;
@@ -121,22 +122,20 @@ export function PaymentInfoTab({
   validationErrors,
   waiveReason,
 }: PaymentInfoTabProps) {
+  const { t } = useTranslation('bookings');
   return (
       <Grid container spacing={2}>
         {/* Payment Section */}
         <Grid size={12}>
           <Typography variant="subtitle2" color="primary" gutterBottom>
-            Payment
+            {t('checkIn.paymentSection')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
         </Grid>
         {isOnlineReservation && (
           <Grid size={12}>
             <Alert severity="success" sx={{ mb: 1 }}>
-              Payment was settled on {onlinePlatformName}. The full amount
-              {' '}({formatCurrency(toMoneyNumber(booking.total_amount))}) is recorded
-              automatically on check-in — keep this on “Settled Online”. Switch to “Make Payment Now”
-              only if you are collecting at the desk instead.
+              {t('checkIn.settledOnlineNotice', { platform: onlinePlatformName, amount: formatCurrency(toMoneyNumber(booking.total_amount)) })}
             </Alert>
           </Grid>
         )}
@@ -151,11 +150,11 @@ export function PaymentInfoTab({
           >
             <ToggleButton value="pay_now" color="success" sx={{ py: 1.5, fontWeight: 600 }}>
               <PaymentIcon sx={{ mr: 1 }} />
-              Make Payment Now
+              {t('checkIn.makePaymentNow')}
             </ToggleButton>
             <ToggleButton value="pay_later" color="warning" sx={{ py: 1.5, fontWeight: 600 }}>
               <MoneyOffIcon sx={{ mr: 1 }} />
-              {isOnlineReservation ? 'Settled Online' : 'Pay Later'}
+              {isOnlineReservation ? t('checkIn.settledOnline') : t('checkIn.payLater')}
             </ToggleButton>
           </ToggleButtonGroup>
         </Grid>
@@ -164,14 +163,14 @@ export function PaymentInfoTab({
           <>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth>
-                <InputLabel>Payment Method</InputLabel>
+                <InputLabel>{t('checkIn.paymentMethod')}</InputLabel>
                 <Select
                   value={paymentType}
                   onChange={(e) => {
                     setPaymentType(e.target.value);
                     handleBookingChange('payment_method', e.target.value);
                   }}
-                  label="Payment Method"
+                  label={t('checkIn.paymentMethod')}
                 >
                   {paymentMethods.map(method => (
                     <MenuItem key={method} value={method}>{method}</MenuItem>
@@ -182,7 +181,7 @@ export function PaymentInfoTab({
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Amount Paid"
+                label={t('checkIn.amountPaid')}
                 type="number"
                 value={amountPaid}
                 onChange={(e) => setAmountPaid(toMoneyNumber(e.target.value))}
@@ -199,14 +198,14 @@ export function PaymentInfoTab({
               <>
                 <Grid size={12}>
                   <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 1 }}>
-                    Card Information
+                    {t('checkInForm.payment.cardInformation')}
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    label="Card Number"
+                    label={t('checkInForm.payment.cardNumber')}
                     type={showCardNumber ? 'text' : 'password'}
                     value={cardNumber}
                     onChange={(e) => {
@@ -227,7 +226,7 @@ export function PaymentInfoTab({
                             <IconButton
                               onClick={() => setShowCardNumber(!showCardNumber)}
                               edge="end"
-                              aria-label={showCardNumber ? 'Hide card number' : 'Show card number'}
+                              aria-label={showCardNumber ? t('checkInForm.payment.hideCardNumber') : t('checkInForm.payment.showCardNumber')}
                             >
                               {showCardNumber ? <VisibilityOffIcon /> : <VisibilityIcon />}
                             </IconButton>
@@ -240,7 +239,7 @@ export function PaymentInfoTab({
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    label="Expire Date"
+                    label={t('checkInForm.payment.expireDate')}
                     placeholder="MM/YY"
                     value={cardExpiry}
                     onChange={(e) => {
@@ -252,13 +251,13 @@ export function PaymentInfoTab({
                     }}
                     onBlur={(e) => handleBlur('cardExpiry', e.target.value)}
                     error={touched.cardExpiry && !!validationErrors.cardExpiry}
-                    helperText={(touched.cardExpiry && validationErrors.cardExpiry) || 'Format: MM/YY'}
+                    helperText={(touched.cardExpiry && validationErrors.cardExpiry) || t('checkInForm.payment.expireFormat')}
                   />
                 </Grid>
                 <Grid size={12}>
                   <TextField
                     fullWidth
-                    label="Name on Card"
+                    label={t('checkInForm.payment.nameOnCard')}
                     value={cardName}
                     onChange={(e) => setCardName(e.target.value)}
                   />
@@ -270,7 +269,7 @@ export function PaymentInfoTab({
               <>
                 <Grid size={12}>
                   <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 1 }}>
-                    Direct Billing Information
+                    {t('checkInForm.payment.directBillingInfo')}
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
                 </Grid>
@@ -302,7 +301,7 @@ export function PaymentInfoTab({
                       if (inputValue !== '' && !isExisting) {
                         filtered.push({
                           inputValue: state.inputValue,
-                          company_name: `Add "${state.inputValue}" as new company`,
+                          company_name: t('enhancedCheckIn.company.addNew', { name: state.inputValue }),
                           isNew: true,
                         });
                       }
@@ -337,7 +336,7 @@ export function PaymentInfoTab({
                                     color: "text.secondary",
                                     ml: 3.5
                                   }}>
-                                  Contact: {option.contact_person}
+                                  {t('checkInForm.payment.contact')} {option.contact_person}
                                 </Typography>
                               )}
                             </Box>
@@ -348,9 +347,9 @@ export function PaymentInfoTab({
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Company"
-                        placeholder="Type to search or add new company"
-                        helperText="Select existing company or type new name to register"
+                        label={t('checkInForm.payment.companyLabel')}
+                        placeholder={t('checkInForm.payment.companyPlaceholder')}
+                        helperText={t('checkInForm.payment.companyHelper')}
                         slotProps={{
                           ...params.slotProps,
 
@@ -372,7 +371,7 @@ export function PaymentInfoTab({
                   <Grid size={12}>
                     <Paper variant="outlined" sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)' }}>
                       <Typography variant="subtitle2" gutterBottom>
-                        Company Details
+                        {t('checkInForm.payment.companyDetails')}
                       </Typography>
                       <Grid container spacing={1}>
                         {selectedCompany.company_registration_number && (
@@ -380,7 +379,7 @@ export function PaymentInfoTab({
                             <Grid size={4}>
                               <Typography variant="caption" sx={{
                                 color: "text.secondary"
-                              }}>Reg. No:</Typography>
+                              }}>{t('checkInForm.payment.regNo')}</Typography>
                             </Grid>
                             <Grid size={8}>
                               <Typography variant="body2">{selectedCompany.company_registration_number}</Typography>
@@ -392,7 +391,7 @@ export function PaymentInfoTab({
                             <Grid size={4}>
                               <Typography variant="caption" sx={{
                                 color: "text.secondary"
-                              }}>Contact:</Typography>
+                              }}>{t('checkInForm.payment.contact')}</Typography>
                             </Grid>
                             <Grid size={8}>
                               <Typography variant="body2">{selectedCompany.contact_person}</Typography>
@@ -404,7 +403,7 @@ export function PaymentInfoTab({
                             <Grid size={4}>
                               <Typography variant="caption" sx={{
                                 color: "text.secondary"
-                              }}>Email:</Typography>
+                              }}>{t('checkInForm.payment.emailLabel')}</Typography>
                             </Grid>
                             <Grid size={8}>
                               <Typography variant="body2">{selectedCompany.contact_email}</Typography>
@@ -416,7 +415,7 @@ export function PaymentInfoTab({
                             <Grid size={4}>
                               <Typography variant="caption" sx={{
                                 color: "text.secondary"
-                              }}>Phone:</Typography>
+                              }}>{t('checkInForm.payment.phoneLabel')}</Typography>
                             </Grid>
                             <Grid size={8}>
                               <Typography variant="body2">{selectedCompany.contact_phone}</Typography>
@@ -435,7 +434,7 @@ export function PaymentInfoTab({
         {paymentChoice === 'pay_later' && !isOnlineReservation && (
           <Grid size={12}>
             <Alert severity="info">
-              Payment will be collected later. Guest will check in with unpaid status.
+              {t('checkIn.payLaterUnpaid')}
             </Alert>
           </Grid>
         )}
@@ -443,7 +442,7 @@ export function PaymentInfoTab({
         {/* Deposit Section */}
         <Grid sx={{ mt: 2 }} size={12}>
           <Typography variant="subtitle2" color="primary" gutterBottom>
-            Deposit
+            {t('checkIn.depositSection')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
         </Grid>
@@ -458,11 +457,11 @@ export function PaymentInfoTab({
           >
             <ToggleButton value="receive" color="success" sx={{ py: 1.5, fontWeight: 600 }}>
               <PaymentIcon sx={{ mr: 1 }} />
-              Receive Deposit
+              {t('checkIn.receiveDeposit')}
             </ToggleButton>
             <ToggleButton value="waive" color="error" sx={{ py: 1.5, fontWeight: 600 }}>
               <MoneyOffIcon sx={{ mr: 1 }} />
-              Waive Deposit
+              {t('checkIn.waiveDeposit')}
             </ToggleButton>
           </ToggleButtonGroup>
         </Grid>
@@ -471,11 +470,11 @@ export function PaymentInfoTab({
           <>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth>
-                <InputLabel>Deposit Method</InputLabel>
+                <InputLabel>{t('checkIn.depositMethod')}</InputLabel>
                 <Select
                   value={depositMethod}
                   onChange={(e) => setDepositMethod(e.target.value)}
-                  label="Deposit Method"
+                  label={t('checkIn.depositMethod')}
                 >
                   {paymentMethods.map(method => (
                     <MenuItem key={method} value={method}>{method}</MenuItem>
@@ -486,7 +485,7 @@ export function PaymentInfoTab({
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Deposit Amount"
+                label={t('checkIn.depositAmount')}
                 type="number"
                 value={depositAmount}
                 onChange={(e) => setDepositAmount(toMoneyNumber(e.target.value))}
@@ -505,13 +504,13 @@ export function PaymentInfoTab({
           <Grid size={12}>
             <TextField
               fullWidth
-              label="Reason for Waiving Deposit"
+              label={t('checkIn.waiveReasonLabel')}
               value={waiveReason}
               onChange={(e) => setWaiveReason(e.target.value)}
               multiline
               rows={2}
-              placeholder="e.g., Returning guest, Company account, Manager approval..."
-              helperText="Optional: provide a reason for waiving the deposit"
+              placeholder={t('checkIn.waiveReasonPlaceholder')}
+              helperText={t('checkIn.waiveReasonHelper')}
             />
           </Grid>
         )}
@@ -519,12 +518,12 @@ export function PaymentInfoTab({
         {/* Payment Summary */}
         <Grid sx={{ mt: 1 }} size={12}>
           <Paper sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)', border: 1, borderColor: 'divider' }}>
-            <Typography variant="subtitle2" gutterBottom>Payment Summary</Typography>
+            <Typography variant="subtitle2" gutterBottom>{t('checkInForm.payment.paymentSummary')}</Typography>
             <Grid container spacing={1}>
               <Grid size={6}>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Total Amount:</Typography>
+                }}>{t('checkInForm.payment.totalAmount')}</Typography>
               </Grid>
               <Grid size={6}>
                 <Typography variant="body2" sx={{
@@ -534,11 +533,11 @@ export function PaymentInfoTab({
               <Grid size={6}>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Payment Status:</Typography>
+                }}>{t('checkInForm.payment.paymentStatus')}</Typography>
               </Grid>
               <Grid size={6}>
                 <Chip
-                  label={paymentChoice === 'pay_now' ? 'Paid' : isOnlineReservation ? 'Settled Online' : 'Unpaid'}
+                  label={paymentChoice === 'pay_now' ? t('checkInForm.payment.paid') : isOnlineReservation ? t('checkIn.settledOnline') : t('checkInForm.payment.unpaid')}
                   size="small"
                   color={paymentChoice === 'pay_now' || isOnlineReservation ? 'success' : 'warning'}
                   sx={{ fontWeight: 600 }}
@@ -549,7 +548,7 @@ export function PaymentInfoTab({
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Amount Paid:</Typography>
+                    }}>{t('checkInForm.payment.amountPaid')}</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography
@@ -562,7 +561,7 @@ export function PaymentInfoTab({
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Payment Method:</Typography>
+                    }}>{t('checkInForm.payment.paymentMethod')}</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2">{paymentType}</Typography>
@@ -573,7 +572,7 @@ export function PaymentInfoTab({
               <Grid size={6}>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Deposit:</Typography>
+                }}>{t('checkInForm.payment.deposit')}</Typography>
               </Grid>
               <Grid size={6}>
                 {depositChoice === 'receive' ? (
@@ -586,7 +585,7 @@ export function PaymentInfoTab({
                     {formatCurrency(depositAmount)} ({depositMethod})
                   </Typography>
                 ) : (
-                  <Chip label="Waived" size="small" color="error" variant="outlined" sx={{ fontWeight: 600 }} />
+                  <Chip label={t('checkInForm.payment.waived')} size="small" color="error" variant="outlined" sx={{ fontWeight: 600 }} />
                 )}
               </Grid>
               {depositChoice === 'waive' && waiveReason && (
@@ -594,7 +593,7 @@ export function PaymentInfoTab({
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Waive Reason:</Typography>
+                    }}>{t('checkInForm.payment.waiveReason')}</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography

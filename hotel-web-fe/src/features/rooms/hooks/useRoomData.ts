@@ -4,6 +4,7 @@ import { useActiveBookings } from '../../bookings/hooks/useBookingQueries';
 import { useGuests } from '../../guests/hooks/useGuestQueries';
 import { useRooms } from './useRoomQueries';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 const ROOM_DATA_REFETCH_INTERVAL_MS = 30_000;
 
@@ -11,6 +12,7 @@ const ROOM_DATA_REFETCH_INTERVAL_MS = 30_000;
 // picker needs it, so the page passes its modal-open flag and the whole-table
 // fetch stays off the initial-load path.
 export function useRoomData(guestsEnabled = true) {
+  const { t } = useTranslation('rooms');
   // Query-level polling pauses while the tab is hidden, unlike a setInterval.
   const roomsQuery = useRooms(true, ROOM_DATA_REFETCH_INTERVAL_MS);
   const guestsQuery = useGuests(undefined, guestsEnabled);
@@ -25,9 +27,9 @@ export function useRoomData(guestsEnabled = true) {
       await refetchRooms();
       setError(null);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to load rooms'));
+      setError(errorMessage(err, t('errors.loadRooms')));
     }
-  }, [refetchRooms]);
+  }, [refetchRooms, t]);
 
   const loadBookings = useCallback(async () => {
     try {
@@ -41,9 +43,9 @@ export function useRoomData(guestsEnabled = true) {
     try {
       await refetchGuests();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to load guests'));
+      setError(errorMessage(err, t('errors.loadGuests')));
     }
-  }, [refetchGuests]);
+  }, [refetchGuests, t]);
 
   const reload = useCallback(async () => {
     await Promise.all([loadRooms(), loadGuests(), loadBookings()]);

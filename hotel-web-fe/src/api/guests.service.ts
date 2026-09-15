@@ -3,8 +3,7 @@ import { api, APIError, readErrorData, toApiError } from './client';
 import { Guest, GuestCreateRequest, GuestListSegment, GuestProfile, GuestTourismConversionResponse, GuestType, TourismType } from '../types';
 import { withRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
-
-const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please sign in again.';
+import { t } from '../i18n';
 
 const notifyUnauthorized = () => {
   if (typeof window === 'undefined') return;
@@ -17,7 +16,7 @@ const toGuestApiError = async (error: unknown, fallback: string): Promise<APIErr
   // passes through) uses the shared mapper.
   if (error instanceof HTTPError && error.response.status === 401) {
     notifyUnauthorized();
-    return new APIError(SESSION_EXPIRED_MESSAGE, error.response.status, readErrorData(error));
+    return new APIError(t('errors.sessionExpired', undefined, 'auth'), error.response.status, readErrorData(error));
   }
 
   return toApiError(error, fallback);

@@ -5,6 +5,7 @@ import type { RoomStatusType } from '../config';
 import { getStatusAccentColor, getStatusPriority } from '../config';
 import { deriveRoomStatusInfo } from '../utils/roomManagementUtils';
 import { getHotelSetting } from '../../../utils/hotelSettings';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 // Display status is DERIVED here, not stored: computedStatus fuses
 // room.status (the backend column) with today's bookings and the configured
@@ -48,6 +49,7 @@ export function useRoomManagementFilters({
   roomBookings,
   reservedBookings,
 }: UseRoomManagementFiltersParams) {
+  const { t } = useTranslation('rooms');
   const [roomStatusFilter, setRoomStatusFilter] = useState<RoomStatusType | 'all'>('all');
   const [attrFilters, setAttrFilters] = useState<RoomAttributeFilters>({
     smoking: false,
@@ -201,18 +203,18 @@ export function useRoomManagementFilters({
   }, [attrFilters, floorFilter, prioritySort, roomSearch, roomStatusFilter, rooms, statusInfoByRoom]);
 
   const filterOptions = useMemo<RoomFilterOption[]>(() => ([
-    { value: 'all' as const, label: 'All', count: rooms.length, color: 'transparent' },
+    { value: 'all' as const, label: t('filters.all'), count: rooms.length, color: 'transparent' },
     ...([
-      { value: 'occupied', label: 'Occupied', count: occupiedCount },
-      { value: 'available', label: 'Vacant', count: availableCount },
-      { value: 'reserved', label: 'Reserved', count: reservedCount },
-      { value: 'dirty', label: 'Dirty', count: dirtyCount },
-      { value: 'maintenance', label: 'Maintenance', count: maintenanceCount },
+      { value: 'occupied', label: t('filters.occupied'), count: occupiedCount },
+      { value: 'available', label: t('filters.vacant'), count: availableCount },
+      { value: 'reserved', label: t('filters.reserved'), count: reservedCount },
+      { value: 'dirty', label: t('filters.dirty'), count: dirtyCount },
+      { value: 'maintenance', label: t('filters.maintenance'), count: maintenanceCount },
     ] as { value: RoomStatusType; label: string; count: number }[]).map((option) => ({
       ...option,
       color: getStatusAccentColor(option.value),
     })),
-  ]), [availableCount, dirtyCount, maintenanceCount, occupiedCount, reservedCount, rooms.length]);
+  ]), [availableCount, dirtyCount, maintenanceCount, occupiedCount, reservedCount, rooms.length, t]);
 
   return {
     roomStatusFilter,

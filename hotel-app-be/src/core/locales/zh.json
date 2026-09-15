@@ -1,0 +1,69 @@
+{
+  "email": {
+    "greeting": "尊敬的{{name}}，",
+    "fallback": {
+      "guest": "客人",
+      "booking": "您的预订"
+    },
+    "labels": {
+      "booking": "预订",
+      "room": "房间",
+      "stay": "住宿",
+      "total": "总额",
+      "payment": "付款",
+      "method": "方式",
+      "paymentsReceived": "已收款项",
+      "balance": "余额"
+    },
+    "stay": {
+      "range": "{{from}}至{{to}} · {{nights}}晚",
+      "text": "预订：{{booking}}\n房间：{{room}}（{{roomType}}）\n住宿：{{from}}至{{to}}（{{nights}}晚）\n总额：{{total}}"
+    },
+    "cta": {
+      "viewBooking": "查看您的预订",
+      "preCheckIn": "开始在线办理入住",
+      "verifyEmail": "验证我的电子邮箱"
+    },
+    "bookingConfirmed": {
+      "subject": "{{hotel}}预订已确认 {{booking}}",
+      "preheader": "您在{{hotel}}的预订{{booking}}已确认。",
+      "heading": "预订已确认",
+      "bodyHtml": "您的预订<strong>{{booking}}</strong>已确认。我们期待您的光临。",
+      "bodyText": "您的预订{{booking}}已确认。我们期待您的光临。",
+      "portalNote": "您可以随时在宾客门户中查看此预订。"
+    },
+    "paymentConfirmed": {
+      "subject": "付款已确认 · {{hotel}} {{booking}}",
+      "preheader": "{{hotel}}预订{{booking}}的付款已确认。",
+      "heading": "付款已确认",
+      "bodyHtml": "我们已确认您为预订<strong>{{booking}}</strong>支付的<strong>{{amount}}</strong>（{{method}}）款项。",
+      "bodyText": "我们已确认您为预订{{booking}}支付的{{amount}}（{{method}}）款项。",
+      "settled": "您的预订已全额付清并确认，无需再支付任何款项。",
+      "outstanding": "您的预订已确认，剩余余额可在酒店支付。"
+    },
+    "months": {
+      "01": "1月",
+      "02": "2月",
+      "03": "3月",
+      "04": "4月",
+      "05": "5月",
+      "06": "6月",
+      "07": "7月",
+      "08": "8月",
+      "09": "9月",
+      "10": "10月",
+      "11": "11月",
+      "12": "12月"
+    },
+    "date": {
+      "pattern": "{{year}}年{{month}}{{day_num}}日"
+    },
+    "verifyEmail": {
+      "subject": "验证您的电子邮箱 · {{hotel}}",
+      "preheader": "确认您的电子邮箱地址，以完成{{hotel}}账户的设置。",
+      "heading": "验证您的电子邮箱",
+      "bodyHtml": "请确认这是您的电子邮箱地址，以便登录您的账户。以下链接24小时内有效。",
+      "bodyText": "请确认这是您的电子邮箱地址，以便登录您的账户。以下链接24小时内有效。"
+    }
+  }
+}

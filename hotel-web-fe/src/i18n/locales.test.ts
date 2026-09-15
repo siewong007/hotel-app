@@ -49,6 +49,7 @@ describe('isLocaleCode', () => {
   it('accepts supported codes and rejects everything else', () => {
     expect(isLocaleCode('en')).toBe(true);
     expect(isLocaleCode('ms')).toBe(true);
+    expect(isLocaleCode('zh')).toBe(true);
     expect(isLocaleCode('fr')).toBe(false);
     expect(isLocaleCode('')).toBe(false);
     expect(isLocaleCode(null)).toBe(false);
@@ -67,6 +68,15 @@ describe('matchLocale', () => {
     expect(matchLocale('ms')).toBe('ms');
     expect(matchLocale('ms-MY')).toBe('ms');
     expect(matchLocale('en-GB')).toBe('en');
+  });
+
+  it('resolves Chinese region and script tags to zh', () => {
+    // Simplified Chinese is the only Chinese bundle, so Traditional-script
+    // tags land on it too rather than falling through to English.
+    expect(matchLocale('zh-CN')).toBe('zh');
+    expect(matchLocale('zh-Hans')).toBe('zh');
+    expect(matchLocale('zh-TW')).toBe('zh');
+    expect(matchLocale('zh-HK')).toBe('zh');
   });
 
   it('normalises case and underscore separators', () => {

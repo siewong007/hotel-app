@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography, keyframes } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
+import { useTranslation } from '../../i18n';
 
 const rotate = keyframes`
   from {
@@ -26,6 +27,7 @@ interface HotelSpinnerProps {
 
 const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
   const theme = useTheme();
+  const { t } = useTranslation('common');
   const primaryColor = theme.palette.primary.main;
   const secondaryColor = theme.palette.secondary.main;
 
@@ -87,7 +89,7 @@ const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
           letterSpacing: '0.03em',
         }}
       >
-        Loading...
+        {t('state.loading')}
       </Typography>
     </Box>
   );

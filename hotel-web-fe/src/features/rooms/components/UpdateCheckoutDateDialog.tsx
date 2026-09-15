@@ -20,9 +20,10 @@ import { BookingWithDetails } from '../../../types';
 import { BookingsService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
-import { formatLocalDate, addLocalDays } from '../../../utils/date';
+import { formatLocalDate, addLocalDays, formatHotelDate } from '../../../utils/date';
 import { isGreaterMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 interface UpdateCheckoutDateDialogProps {
   open: boolean;
@@ -37,6 +38,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
   booking,
   onSuccess,
 }) => {
+  const { t } = useTranslation('rooms');
   const { format: formatCurrency } = useCurrency();
   const [newCheckoutDate, setNewCheckoutDate] = useState('');
   const [loading, setLoading] = useState(false);
@@ -103,7 +105,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
       onSuccess();
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to extend checkout date'));
+      setError(errorMessage(err, t('errors.extendCheckout')));
     } finally {
       setLoading(false);
     }
@@ -121,7 +123,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
             alignItems: "center"
           }}>
           <CalendarIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant="h6">Extend Checkout Date</Typography>
+          <Typography variant="h6">{t('extendCheckout.title')}</Typography>
         </Box>
       </DialogTitle>
       <DialogContent dividers>
@@ -134,12 +136,12 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
 
           {/* Current Booking Info */}
           <Box sx={{ bgcolor: 'var(--hotel-surface-raised)', p: 2, borderRadius: 1 }}>
-            <Typography variant="subtitle2" gutterBottom>Current Booking</Typography>
+            <Typography variant="subtitle2" gutterBottom>{t('extendCheckout.currentBooking')}</Typography>
             <Grid container spacing={1}>
               <Grid size={6}>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Guest</Typography>
+                }}>{t('fields.guest')}</Typography>
                 <Typography variant="body2" sx={{
                   fontWeight: 600
                 }}>{booking.guest_name}</Typography>
@@ -147,7 +149,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
               <Grid size={6}>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Room</Typography>
+                }}>{t('fields.room')}</Typography>
                 <Typography variant="body2" sx={{
                   fontWeight: 600
                 }}>{booking.room_number} - {booking.room_type}</Typography>
@@ -155,25 +157,25 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
               <Grid size={6}>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Check-in</Typography>
+                }}>{t('fields.checkIn')}</Typography>
                 <Typography variant="body2" sx={{
                   fontWeight: 600
-                }}>{new Date(checkInDate).toLocaleDateString()}</Typography>
+                }}>{formatHotelDate(checkInDate)}</Typography>
               </Grid>
               <Grid size={6}>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Current Checkout</Typography>
+                }}>{t('extendCheckout.currentCheckout')}</Typography>
                 <Typography variant="body2" sx={{
                   fontWeight: 600
-                }}>{new Date(currentCheckoutDate).toLocaleDateString()}</Typography>
+                }}>{formatHotelDate(currentCheckoutDate)}</Typography>
               </Grid>
             </Grid>
           </Box>
 
           {/* New Checkout Date Picker */}
           <TextField
-            label="New Checkout Date"
+            label={t('extendCheckout.newDate')}
             type="date"
             value={newCheckoutDate}
             onChange={(e) => setNewCheckoutDate(e.target.value)}
@@ -187,12 +189,12 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
 
           {/* Price Preview */}
           <Box sx={{ bgcolor: 'primary.50', p: 2, borderRadius: 1 }}>
-            <Typography variant="subtitle2" gutterBottom>Price Preview</Typography>
+            <Typography variant="subtitle2" gutterBottom>{t('extendCheckout.pricePreview')}</Typography>
             <Grid container spacing={1}>
               <Grid size={8}>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Rate per night</Typography>
+                }}>{t('extendCheckout.ratePerNight')}</Typography>
               </Grid>
               <Grid sx={{ textAlign: 'right' }} size={4}>
                 <Typography variant="body2">{formatCurrency(pricePerNight)}</Typography>
@@ -201,7 +203,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
                 }}>
-                  Current room: {currentNights} night(s)
+                  {t('extendCheckout.currentRoomNights', { count: currentNights })}
                 </Typography>
               </Grid>
               <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -211,7 +213,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                 <Typography variant="body2" sx={{
                   fontWeight: 600
                 }}>
-                  New room: {previewNights} night(s)
+                  {t('extendCheckout.newRoomNights', { count: previewNights })}
                 </Typography>
               </Grid>
               <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -225,7 +227,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      Current tourism tax ({formatCurrency(tourismTaxRate)}/night)
+                      {t('extendCheckout.currentTax', { rate: formatCurrency(tourismTaxRate) })}
                     </Typography>
                   </Grid>
                   <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -235,7 +237,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                     <Typography variant="body2" sx={{
                       fontWeight: 600
                     }}>
-                      New tourism tax ({formatCurrency(tourismTaxRate)}/night)
+                      {t('extendCheckout.newTax', { rate: formatCurrency(tourismTaxRate) })}
                     </Typography>
                   </Grid>
                   <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -256,7 +258,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                             fontWeight: 600
                           }}
 	                    >
-	                      {isGreaterMoney(difference, 0) ? 'Additional Charge' : 'Reduction'}
+	                      {isGreaterMoney(difference, 0) ? t('extendCheckout.additionalCharge') : t('extendCheckout.reduction')}
                     </Typography>
                   </Grid>
                   <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -277,20 +279,20 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
 
           {newNights < 1 && (
             <Alert severity="error">
-              Checkout date must be at least one day after check-in.
+              {t('extendCheckout.minDateError')}
             </Alert>
           )}
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} disabled={loading}>Cancel</Button>
+        <Button onClick={onClose} disabled={loading}>{t('common:actions.cancel')}</Button>
         <Button
           variant="contained"
           onClick={handleSubmit}
           disabled={loading || !isValid}
           startIcon={loading ? <CircularProgress size={20} /> : <CalendarIcon />}
         >
-          {loading ? 'Extending...' : 'Extend Checkout Date'}
+          {loading ? t('extendCheckout.extending') : t('extendCheckout.title')}
         </Button>
       </DialogActions>
     </Dialog>

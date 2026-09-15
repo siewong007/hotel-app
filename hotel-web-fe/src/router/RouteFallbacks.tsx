@@ -1,5 +1,6 @@
 import { Box, Skeleton, Typography } from '@mui/material';
 import { HotelSpinner } from '../components';
+import { useTranslation } from '../i18n';
 import { getHotelSettings } from '../utils/hotelSettings';
 
 // Full-viewport boot screen shown while auth resolves, before any shell exists.
@@ -7,11 +8,12 @@ import { getHotelSettings } from '../utils/hotelSettings';
 // page flashing by on every refresh (the access token is in-memory only, so
 // every reload pays for the refresh round trip here).
 export const BootSplash = () => {
+  const { t } = useTranslation('common');
   const hotelName = getHotelSettings().hotel_name.trim();
   return (
     <Box
       role="status"
-      aria-label="Loading"
+      aria-label={t('aria.loading')}
       sx={{
         minHeight: '100vh',
         display: 'flex',
@@ -31,10 +33,12 @@ export const BootSplash = () => {
   );
 };
 
-export const LoadingFallback = () => (
+export const LoadingFallback = () => {
+  const { t } = useTranslation('common');
+  return (
   <Box
     role="status"
-    aria-label="Loading"
+    aria-label={t('aria.loading')}
     sx={{ minHeight: 'calc(100vh - 200px)', pt: 1 }}
   >
     <Skeleton variant="text" width={260} height={44} sx={{ mb: 2 }} />
@@ -55,7 +59,8 @@ export const LoadingFallback = () => (
       <Skeleton key={i} variant="text" height={34} sx={{ mb: 0.5 }} />
     ))}
   </Box>
-);
+  );
+};
 
 export const MinimalLoadingFallback = () => (
   <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100px' }}>

@@ -46,6 +46,10 @@
       "label": "Pemindahan Data",
       "breadcrumb": "Pemindahan Data"
     },
+    "ekyc": {
+      "label": "eKYC",
+      "breadcrumb": "Pengesahan Identiti"
+    },
     "ekyc-admin": {
       "label": "Pentadbir eKYC",
       "breadcrumb": "Pentadbir eKYC"
@@ -66,9 +70,21 @@
       "label": "Pengemasan",
       "breadcrumb": "Pengemasan"
     },
+    "insights": {
+      "label": "Wawasan",
+      "breadcrumb": "Wawasan"
+    },
+    "jobs": {
+      "label": "Tugasan",
+      "breadcrumb": "Tugasan"
+    },
     "loyalty": {
       "label": "Kesetiaan",
       "breadcrumb": "Kesetiaan"
+    },
+    "my-rewards": {
+      "label": "Ganjaran Saya",
+      "breadcrumb": "Ganjaran Saya"
     },
     "night-audit": {
       "label": "Audit Malam",
@@ -102,6 +118,10 @@
       "label": "Laporan",
       "breadcrumb": "Laporan"
     },
+    "revenue": {
+      "label": "Hasil",
+      "breadcrumb": "Hasil"
+    },
     "room-config": {
       "label": "Konfigurasi Bilik",
       "breadcrumb": "Konfigurasi Bilik"
@@ -122,6 +142,10 @@
       "label": "Sokongan",
       "breadcrumb": "Sokongan Tetamu"
     },
+    "system-health": {
+      "label": "Kesihatan Sistem",
+      "breadcrumb": "Kesihatan Sistem"
+    },
     "timeline": {
       "label": "Garis Masa",
       "breadcrumb": "Garis Masa Tempahan"
@@ -131,7 +155,8 @@
     "profile": "Profil Saya",
     "settings": "Tetapan",
     "logout": "Log Keluar",
-    "signedInAs": "Log masuk sebagai {{name}}"
+    "signedInAs": "Log masuk sebagai {{name}}",
+    "defaultRole": "Kakitangan"
   },
   "aria": {
     "mainNavigation": "Navigasi utama",
@@ -140,7 +165,30 @@
     "collapseSidebar": "Runtuhkan bar sisi",
     "expandSidebar": "Kembangkan bar sisi",
     "breadcrumbs": "Breadcrumbs",
-    "userMenu": "Menu akaun"
+    "userMenu": "Menu akaun",
+    "brand": "Hotel"
+  },
+  "palette": {
+    "placeholder": "Cari tempahan, tetamu, bilik, halaman…",
+    "placeholderGuest": "Cari halaman…",
+    "noMatches": "Tiada padanan",
+    "hint": "Taip sekurang-kurangnya 2 aksara, atau lihat di bawah",
+    "newBookingHint": "Cipta tempahan baharu",
+    "groups": {
+      "recent": "Terkini",
+      "actions": "Tindakan",
+      "pages": "Halaman",
+      "help": "Bantuan"
+    },
+    "scopes": {
+      "all": "Semua",
+      "bookings": "Tempahan",
+      "guests": "Tetamu",
+      "ledgers": "Lejar",
+      "rooms": "Bilik",
+      "pages": "Halaman",
+      "help": "Bantuan"
+    }
   },
   "mobile": {
     "primary": "Navigasi utama",

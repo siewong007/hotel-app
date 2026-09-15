@@ -1,6 +1,7 @@
 import type { BookingWithDetails } from '../../../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { formatStatusLabel } from '../../../utils/formatters';
+import { t as translate } from '../../../i18n';
 
 export type BookingChannelInfo = {
   name: string;
@@ -97,17 +98,29 @@ export const getBookingChannelInfo = (
     return buildChannelInfo(configuredChannel.name, configuredChannel.abbreviation);
   }
 
-  const fallbackName = parsedName || (sourceKey.includes('website') || sourceKey.includes('web') ? 'Website' : 'Online');
-  return buildChannelInfo(fallbackName);
+  if (parsedName) {
+    return buildChannelInfo(parsedName);
+  }
+  const isWebsite = sourceKey.includes('website') || sourceKey.includes('web');
+  return buildChannelInfo(
+    translate(isWebsite ? 'channels.fallbackWebsite' : 'channels.fallbackOnline', undefined, 'bookings'),
+    isWebsite ? 'WEB' : 'ONL',
+  );
 };
 
 export const getBookedViaText = (
   booking: Pick<BookingWithDetails, 'source' | 'remarks' | 'booking_remarks'>,
+  t: (key: string) => string,
 ) => {
   const channel = getBookingChannelInfo(booking);
   if (channel) {
     return `${channel.name} (${channel.abbreviation})`;
   }
 
-  return booking.source ? formatStatusLabel(booking.source) : 'Direct';
+  if (!booking.source) return t('details.direct');
+  // Named sources get a localized label; unknown ones humanize like before.
+  const key = `channels.${booking.source}`;
+  const lastSegment = key.slice(key.lastIndexOf('.') + 1);
+  const translated = t(key);
+  return translated === lastSegment ? formatStatusLabel(booking.source) : translated;
 };

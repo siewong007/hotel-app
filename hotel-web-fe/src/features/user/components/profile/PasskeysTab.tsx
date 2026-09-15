@@ -25,21 +25,10 @@ import {
 import type { PasskeyInfo } from '../../../../types';
 import { ApiNotificationSeverity } from '../../../../utils/apiNotifications';
 import { DeviceIcon, detectDeviceType } from './deviceIcons';
+import { useTranslation } from '../../../../i18n';
+import { formatHotelDate, formatHotelDateTime } from '../../../../utils/date';
 
 export const MAX_PASSKEYS = 10;
-
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
-const formatTime = (value: string) =>
-  new Date(value).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 
 interface PasskeysTabProps {
   passkeys: PasskeyInfo[];
@@ -56,6 +45,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
   onRename,
   notify,
 }) => {
+  const { t } = useTranslation('auth');
   const [editingPasskey, setEditingPasskey] = useState<string | null>(null);
   const [passkeyName, setPasskeyName] = useState('');
   const atLimit = passkeys.length >= MAX_PASSKEYS;
@@ -72,7 +62,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
 
   const saveName = async (id: string) => {
     if (!passkeyName.trim()) {
-      notify('Passkey name cannot be empty', 'warning');
+      notify(t('passkeys.nameEmpty'), 'warning');
       return;
     }
     await onRename(id, passkeyName);
@@ -87,16 +77,16 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
         >
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Registered Passkeys ({passkeys.length}/{MAX_PASSKEYS})
+              {t('passkeys.title', { count: passkeys.length, max: MAX_PASSKEYS })}
             </Typography>
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Passkeys provide secure, passwordless authentication
+              {t('passkeys.subtitle')}
             </Typography>
           </Box>
           <Button variant="contained" startIcon={<AddIcon />} onClick={onAdd} disabled={atLimit}>
-            Add Passkey
+            {t('passkeys.add')}
           </Button>
         </Box>
 
@@ -113,7 +103,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
             <Typography variant="h6" gutterBottom sx={{
               color: "text.secondary"
             }}>
-              No passkeys registered
+              {t('passkeys.empty')}
             </Typography>
             <Typography
               variant="body2"
@@ -121,10 +111,10 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                 color: "text.secondary",
                 mb: 3
               }}>
-              Add a passkey for secure, passwordless login
+              {t('passkeys.emptyHint')}
             </Typography>
             <Button variant="outlined" startIcon={<AddIcon />} onClick={onAdd}>
-              Register Your First Passkey
+              {t('passkeys.registerFirst')}
             </Button>
           </Box>
         ) : (
@@ -158,14 +148,14 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                         size="small"
                         value={passkeyName}
                         onChange={e => setPasskeyName(e.target.value)}
-                        placeholder="Device name (e.g., MacBook Pro, iPhone 15, YubiKey)"
+                        placeholder={t('passkeys.namePlaceholder')}
                         autoFocus
                         sx={{ flexGrow: 1 }}
                       />
-                      <IconButton color="primary" onClick={() => saveName(passkey.id)} title="Save">
+                      <IconButton color="primary" onClick={() => saveName(passkey.id)} title={t('common:actions.save')}>
                         <CheckIcon />
                       </IconButton>
-                      <IconButton onClick={cancelEditing} title="Cancel">
+                      <IconButton onClick={cancelEditing} title={t('common:actions.cancel')}>
                         <CancelIcon />
                       </IconButton>
                     </Box>
@@ -174,7 +164,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                       primary={
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                           <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                            {passkey.device_name || 'Unnamed Device'}
+                            {passkey.device_name || t('passkeys.unnamed')}
                           </Typography>
                           <Chip
                             label={deviceConfig.label}
@@ -199,7 +189,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                               alignItems: 'center',
                               gap: 0.5
                             }}>
-                            <strong>Added:</strong> {formatDate(passkey.created_at)}
+                            <strong>{t('passkeys.addedAt')}</strong> {formatHotelDate(passkey.created_at)}
                           </Typography>
                           {passkey.last_used_at ? (
                             <Typography
@@ -210,8 +200,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                                 alignItems: 'center',
                                 gap: 0.5
                               }}>
-                              <strong>Last used:</strong> {formatDate(passkey.last_used_at)} at{' '}
-                              {formatTime(passkey.last_used_at)}
+                              {t('passkeys.lastUsed', { at: formatHotelDateTime(passkey.last_used_at) })}
                             </Typography>
                           ) : (
                             <Typography
@@ -220,7 +209,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                                 color: "text.secondary",
                                 fontStyle: 'italic'
                               }}>
-                              Never used
+                              {t('passkeys.neverUsed')}
                             </Typography>
                           )}
                         </Box>
@@ -233,7 +222,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                         <IconButton
                           edge="end"
                           onClick={() => startEditing(passkey.id, passkey.device_name || '')}
-                          title="Edit passkey name"
+                          title={t('passkeys.editName')}
                           sx={{
                             mr: 1,
                             '&:hover': {
@@ -248,7 +237,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                           edge="end"
                           color="error"
                           onClick={() => onDelete(passkey.id)}
-                          title="Delete passkey"
+                          title={t('passkeys.delete')}
                           sx={{
                             '&:hover': {
                               backgroundColor: 'error.light',
@@ -269,8 +258,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
 
         {atLimit && (
           <Alert severity="info" sx={{ mt: 2 }}>
-            Maximum number of passkeys reached ({MAX_PASSKEYS}/{MAX_PASSKEYS}). Delete a passkey to
-            add a new one.
+            {t('passkeys.limitAlert', { count: MAX_PASSKEYS, max: MAX_PASSKEYS })}
           </Alert>
         )}
       </CardContent>

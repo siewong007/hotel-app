@@ -21,6 +21,8 @@ import type { UserProfile } from '../../../../types';
 import { validateEmail } from '../../../../utils/validation';
 import { ApiNotificationSeverity } from '../../../../utils/apiNotifications';
 import EkycStatusCard from '../../../ekyc/components/EkycStatusCard';
+import { useTranslation } from '../../../../i18n';
+import { formatHotelDate } from '../../../../utils/date';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
@@ -54,6 +56,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
   onSave,
   notify,
 }) => {
+  const { t } = useTranslation('auth');
   const [formData, setFormData] = useState<ProfileFormData>(() => formFromProfile(profile));
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
@@ -90,7 +93,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
 
   const handleAvatarUpload = (file: File) => {
     if (file.size > MAX_AVATAR_BYTES) {
-      notify('Image size must be less than 2MB', 'error');
+      notify(t('profile.avatarTooLarge'), 'error');
       return;
     }
     const reader = new FileReader();
@@ -116,11 +119,11 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
           sx={{ mb: 3 }}
           action={
             <Button color="inherit" size="small" onClick={() => onEditingChange(true)}>
-              Add Email
+              {t('profile.addEmail')}
             </Button>
           }
         >
-          Add an email address to receive account and booking updates.
+          {t('profile.addEmailHint')}
         </Alert>
       )}
       <Card>
@@ -153,7 +156,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Member since {new Date(profile.created_at).toLocaleDateString()}
+                {t('profile.memberSince', { date: formatHotelDate(profile.created_at) })}
               </Typography>
             </Box>
             {!editing ? (
@@ -162,15 +165,15 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
                 startIcon={<PersonIcon />}
                 onClick={() => onEditingChange(true)}
               >
-                Edit Profile
+                {t('profile.editProfile')}
               </Button>
             ) : (
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button variant="outlined" startIcon={<CancelIcon />} onClick={handleCancel}>
-                  Cancel
+                  {t('common:actions.cancel')}
                 </Button>
                 <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave}>
-                  Save
+                  {t('common:actions.save')}
                 </Button>
               </Box>
             )}
@@ -180,7 +183,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Full Name"
+                label={t('common:field.fullName')}
                 value={formData.full_name}
                 onChange={e => setFormData({ ...formData, full_name: e.target.value })}
                 disabled={!editing}
@@ -190,7 +193,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
               <Box>
                 <TextField
                   fullWidth
-                  label="Email"
+                  label={t('common:field.email')}
                   type="email"
                   value={formData.email}
                   onChange={e => {
@@ -206,8 +209,8 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
                   helperText={
                     emailError ||
                     (canEditEmail
-                      ? 'Used for account verification and booking updates.'
-                      : 'Contact support if you need to change this email.')
+                      ? t('profile.emailHintEditable')
+                      : t('profile.emailHintLocked'))
                   }
                   disabled={!editing || !canEditEmail}
                 />
@@ -221,10 +224,10 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
                     }
                     label={
                       !profile.email_configured
-                        ? 'Email not configured'
+                        ? t('profile.emailNotConfigured')
                         : profile.is_verified
-                          ? 'Email verified'
-                          : 'Verification pending'
+                          ? t('profile.emailVerified')
+                          : t('profile.emailVerificationPending')
                     }
                   />
                 )}
@@ -234,7 +237,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
               <TextField
                 fullWidth
                 type="tel"
-                label="Phone"
+                label={t('common:field.phone')}
                 value={formData.phone}
                 onChange={e => {
                   setFormData({ ...formData, phone: e.target.value });
@@ -249,18 +252,18 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
             <Grid size={12}>
               <TextField
                 fullWidth
-                label="Avatar URL"
+                label={t('profile.avatarUrl')}
                 value={formData.avatar_url}
                 onChange={e => setFormData({ ...formData, avatar_url: e.target.value })}
                 disabled={!editing}
-                helperText="Enter a URL to your profile picture or upload an image below"
+                helperText={t('profile.avatarUrlHint')}
               />
             </Grid>
             {editing && (
               <Grid size={12}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Button variant="outlined" component="label">
-                    Upload Profile Picture
+                    {t('profile.uploadAvatar')}
                     <input
                       type="file"
                       hidden
@@ -277,7 +280,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
                       color="error"
                       onClick={() => setFormData({ ...formData, avatar_url: '' })}
                     >
-                      Remove Picture
+                      {t('profile.removeAvatar')}
                     </Button>
                   )}
                   {formData.avatar_url && (
@@ -291,7 +294,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
                     mt: 1,
                     display: 'block'
                   }}>
-                  Supported formats: JPG, PNG, GIF. Max size: 2MB
+                  {t('profile.avatarFormats')}
                 </Typography>
               </Grid>
             )}

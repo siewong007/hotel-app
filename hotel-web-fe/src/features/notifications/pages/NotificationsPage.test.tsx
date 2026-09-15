@@ -57,7 +57,7 @@ describe('NotificationsPage', () => {
 
     // MUI Select is a combobox: open it, then pick an option.
     fireEvent.mouseDown(screen.getByRole('combobox'));
-    fireEvent.click(screen.getByRole('option', { name: 'failed' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Failed' }));
     expect(screen.getAllByRole('option', { hidden: true }).length).toBeGreaterThan(0);
   });
 

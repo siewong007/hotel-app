@@ -1,0 +1,38 @@
+{
+  "title": "Pemberitahuan",
+  "pageTitle": "Penghantaran Tetamu",
+  "pageSubtitle": "Mesej keluar yang dihantar kepada tetamu — makluman kakitangan berada di bawah loceng bar atas",
+  "markAllRead": "Tanda semua sebagai dibaca",
+  "empty": "Tiada pemberitahuan",
+  "toast": {
+    "saved": "Disimpan.",
+    "deleted": "Dipadam.",
+    "updated": "Dikemas kini.",
+    "failed": "Tindakan gagal. Sila cuba lagi.",
+    "copied": "Disalin ke papan klip.",
+    "copyFailed": "Gagal menyalin ke papan klip."
+  },
+  "center": {
+    "alerts": "Makluman",
+    "system": "Sistem",
+    "clearAll": "Kosongkan semua",
+    "viewAllAria": "Lihat semua pemberitahuan",
+    "noSystemAlerts": "Tiada makluman sistem",
+    "allCaughtUp": "Semua sudah dibaca",
+    "dismiss": "Ketepikan pemberitahuan",
+    "unreadAria": "Pemberitahuan ({{count}} belum dibaca)"
+  },
+  "priority": {
+    "info": "Maklumat",
+    "warning": "Amaran",
+    "critical": "Kritikal"
+  },
+  "meta": "Prioriti {{priority}} · {{time}}",
+  "tier": {
+    "transactional": "Transaksi",
+    "marketing": "Pemasaran"
+  },
+  "tierEmpty": "{{tier}}: belum ada rekod",
+  "noDeliveries": "Tiada penghantaran sepadan dengan penapis semasa",
+  "forbidden": "Anda tidak mempunyai kebenaran untuk melihat suapan penghantaran."
+}

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { BookingWithDetails, Company, Room } from '../../../types';
+import { dateFormatter } from '../../../i18n/format';
 import { formatLocalDate, parseLocalDate } from '../../../utils/date';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 
@@ -58,14 +59,14 @@ export const getNights = (booking: BookingWithDetails | null) => {
 
 export const formatShortDate = (value?: string) => {
   if (!value) return '-';
-  return new Date(value).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  return dateFormatter({ weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(value));
 };
 
 export const formatShortMonth = (value?: string) => {
   if (!value) return '-';
   const [year, month] = value.split('-').map(Number);
   if (!year || !month) return '-';
-  return new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  return dateFormatter({ month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
 };
 
 export const buildMonthOptions = (range = 12) => {
@@ -74,18 +75,18 @@ export const buildMonthOptions = (range = 12) => {
   for (let offset = -range; offset <= range; offset++) {
     const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    options.push({ value, label: d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) });
+    options.push({ value, label: dateFormatter({ month: 'long', year: 'numeric' }).format(d) });
   }
   return options;
 };
 
 export const formatOperationalDate = () =>
-  new Date().toLocaleDateString(undefined, {
+  dateFormatter({
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  }).toUpperCase();
+  }).format(new Date()).toUpperCase();
 
 export const getGuestInitials = (name?: string) => {
   if (!name) return 'G';
@@ -108,10 +109,13 @@ export const getBookingTotal = (booking: BookingWithDetails | null) => toMoneyNu
 export const isCompanyBooking = (booking: BookingWithDetails) =>
   Boolean(booking.company_id || booking.company_name?.trim());
 
-export const getBillingChipLabel = (booking: BookingWithDetails) => {
-  if (isCompanyBooking(booking)) return 'Company Billing';
+export const getBillingChipLabel = (
+  booking: BookingWithDetails,
+  t: (key: string) => string,
+) => {
+  if (isCompanyBooking(booking)) return t('list.billing.company');
   if (!booking.guest_type) return null;
-  return booking.guest_type === 'non_member' ? 'Non-member' : 'Member';
+  return booking.guest_type === 'non_member' ? t('list.billing.nonMember') : t('list.billing.member');
 };
 
 export const hasOutstandingBalance = (booking: BookingWithDetails) =>
