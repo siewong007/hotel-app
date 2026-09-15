@@ -149,14 +149,8 @@ async fn pre_arrival_reminder_fires_once_inside_the_window_and_respects_the_togg
 
     cleanup(&pool).await;
 
-    // Booking arriving tomorrow: inside every sensible window.
-    let tomorrow: chrono::NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE + 1")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    seed_arrival(&pool, &tomorrow.format("%Y-%m-%d").to_string(), "confirmed").await;
-
-    // Disabled (default): nothing queued.
+    // Disabled (default): nothing queued — on a database carrying demo
+    // arrivals this also proves the toggle gates the whole batch.
     set_setting(&pool, "pre_arrival_reminder_enabled", "false").await;
     let queued =
         hotel_app_be::modules::communications::scheduler::tick_pre_arrival_reminders(&pool)
@@ -165,8 +159,21 @@ async fn pre_arrival_reminder_fires_once_inside_the_window_and_respects_the_togg
     assert_eq!(queued, 0);
     assert_eq!(reminder_delivery_count(&pool).await, 0);
 
-    // Enabled: exactly one delivery with the booking-scoped key.
+    // Enabled: drain any other in-window arrivals first — their deliveries
+    // are keyed per booking, so after this tick the fixture below is the
+    // only un-reminded arrival and the count is attributable to it alone.
     set_setting(&pool, "pre_arrival_reminder_enabled", "true").await;
+    hotel_app_be::modules::communications::scheduler::tick_pre_arrival_reminders(&pool)
+        .await
+        .expect("drain tick should not error");
+
+    // Booking arriving tomorrow: inside every sensible window.
+    let tomorrow: chrono::NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE + 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    seed_arrival(&pool, &tomorrow.format("%Y-%m-%d").to_string(), "confirmed").await;
+
     let queued =
         hotel_app_be::modules::communications::scheduler::tick_pre_arrival_reminders(&pool)
             .await

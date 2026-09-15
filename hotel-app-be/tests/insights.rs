@@ -90,17 +90,37 @@ mod postgres_tests {
 
         let overview = service::overview(&pool).await.expect("overview");
 
-        // Roster lengths must equal the booking KPI counters for today —
-        // both derive from the same status predicates on the business date.
+        // Roster lengths must reconcile with the booking KPI counters for
+        // today. Arrivals share one predicate (`pending`/`confirmed` due in
+        // today); departures deliberately differ — the roster is the pending
+        // list (checked_in/auto_checked_in/late_checkout, matching the
+        // daily-operations report) while the KPI also counts guests who
+        // already left today (checked_out/completed) and not late_checkout.
         assert_eq!(
             overview.arrivals.len() as i64,
             overview.bookings.today_check_ins,
             "arrival roster must match today_check_ins"
         );
+        let already_departed: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM bookings \
+             WHERE check_out_date = $1 AND status IN ('checked_out', 'completed')",
+        )
+        .bind(overview.business_date)
+        .fetch_one(&pool)
+        .await
+        .expect("count bookings already departed today");
+        let late_checkouts: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM bookings \
+             WHERE check_out_date = $1 AND status = 'late_checkout'",
+        )
+        .bind(overview.business_date)
+        .fetch_one(&pool)
+        .await
+        .expect("count late-checkout departures today");
         assert_eq!(
-            overview.departures.len() as i64,
             overview.bookings.today_check_outs,
-            "departure roster must match today_check_outs"
+            overview.departures.len() as i64 + already_departed - late_checkouts,
+            "today_check_outs must reconcile as roster + already-departed - late_checkout"
         );
 
         for row in &overview.arrivals {
