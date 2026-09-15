@@ -58,7 +58,8 @@
     "viewAll": "View all",
     "goHome": "Go home",
     "goBack": "Go back",
-    "discardChanges": "Discard changes"
+    "discardChanges": "Discard changes",
+    "void": "Void"
   },
   "state": {
     "loading": "Loading…",

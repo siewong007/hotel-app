@@ -1,0 +1,151 @@
+{
+  "title": "Night Audit",
+  "tabs": {
+    "aria": "Night audit tabs",
+    "run": "Run Audit",
+    "history": "Audit History"
+  },
+  "actions": {
+    "refresh": "Refresh night audit",
+    "loadPreview": "Load Preview",
+    "runAudit": "Run Audit",
+    "runNightAudit": "Run Night Audit",
+    "running": "Running...",
+    "rerun": "Rerun Audit",
+    "rerunning": "Rerunning...",
+    "exportPdf": "Export PDF",
+    "exportCsv": "Export CSV",
+    "loadJournal": "Load Journal Entries",
+    "loadingJournal": "Loading journal entries..."
+  },
+  "fields": {
+    "auditDate": "Audit Date",
+    "year": "Year",
+    "month": "Month",
+    "notesOptional": "Notes (Optional)",
+    "notesPlaceholder": "Add any notes about this audit run..."
+  },
+  "status": {
+    "alreadyCompleted": "Audit Already Completed",
+    "completedSeeHistory": "Night audit completed. Check History tab for details.",
+    "notRunYet": "Not run yet",
+    "posted": "Posted"
+  },
+  "history": {
+    "found_one": "{{count}} audit found",
+    "found_other": "{{count}} audits found",
+    "perPage": "Audits per page",
+    "empty": "No audit history available.",
+    "colDate": "Audit Date",
+    "colRunAt": "Run At",
+    "colRunBy": "Run By",
+    "colStatus": "Status",
+    "colBookings": "Bookings",
+    "colOccupancy": "Occupancy",
+    "expandAria": "Expand audit details",
+    "collapseAria": "Collapse audit details",
+    "runByLine": "{{runAt}} · {{runBy}}",
+    "metaLine": "{{count}} bookings · {{pct}}% occupancy",
+    "system": "System"
+  },
+  "rerun": {
+    "title": "Rerun night audit",
+    "message": "This resets the previous audit data for this date and runs the audit again.",
+    "confirm": "Rerun audit",
+    "success": "Night audit rerun successfully"
+  },
+  "confirm": {
+    "title": "Confirm Night Audit",
+    "intro": "You are about to run the night audit for {{date}}.",
+    "willDo": "This action will:",
+    "markPosted": "Mark {{count}} bookings as posted",
+    "lockBookings": "Lock these bookings from further editing",
+    "recordSnapshot": "Record room status snapshot for reporting",
+    "cannotUndo": "This action cannot be undone."
+  },
+  "errors": {
+    "exportCsv": "Failed to export audit. Please try again.",
+    "exportPdf": "Failed to export audit: {{message}}",
+    "run": "Failed to run night audit"
+  },
+  "journal": {
+    "title": "Journal Entries",
+    "entries_one": "{{count}} entry",
+    "entries_other": "{{count}} entries",
+    "entryFallback": "Journal entry",
+    "expandAria": "Expand section",
+    "collapseAria": "Collapse section",
+    "debit": "Debit:",
+    "credit": "Credit:",
+    "colBooking": "Booking #",
+    "colRoom": "Room",
+    "colDescription": "Description",
+    "colDebit": "Debit",
+    "colCredit": "Credit",
+    "total": "Total",
+    "grandTotal": "Grand Total",
+    "totalDebit": "Total Debit:",
+    "totalCredit": "Total Credit:",
+    "roomLine": "#{{booking}} · Room {{room}}",
+    "drCr": "Dr {{debit}} · Cr {{credit}}"
+  },
+  "ledger": {
+    "title": "Guest Ledger",
+    "colAccount": "Account",
+    "colDebits": "Debits",
+    "colCredits": "Credits"
+  },
+  "roomSold": {
+    "title": "Room Sold Detail by Date",
+    "colRoom": "Room",
+    "colType": "Type",
+    "colGuest": "Guest Name",
+    "totalRow": "Total Room Sold"
+  },
+  "roomStatus": {
+    "label": "Room Status",
+    "auditDate": "Room status (audit date)",
+    "whenAudited": "Room status (when audited)",
+    "available": "{{count}} Available",
+    "occupied": "{{count}} Occupied",
+    "reserved": "{{count}} Reserved",
+    "maintenance": "{{count}} Maintenance",
+    "dirty": "{{count}} Dirty"
+  },
+  "breakdown": {
+    "colBookings": "Bookings",
+    "colAmount": "Amount",
+    "total": "Total"
+  },
+  "preview": {
+    "title": "Night Audit Preview",
+    "bookingsToPost": "Bookings to Post",
+    "estimatedRevenue": "Estimated Revenue",
+    "roomsOccupied": "Rooms Occupied",
+    "occupancy": "Occupancy",
+    "projected": "Projected Revenue",
+    "byPayment": "By Payment Method",
+    "byChannel": "By Channel",
+    "toBePosted": "Bookings to be Posted ({{count}})",
+    "noBookings": "No bookings to post for this date.",
+    "willPost": "What will be posted tonight",
+    "colBooking": "Booking #",
+    "colGuest": "Guest",
+    "colRoom": "Room",
+    "colCheckIn": "Check-in",
+    "colCheckOut": "Check-out",
+    "colAmount": "Amount",
+    "colStatus": "Status",
+    "colChannel": "Channel"
+  },
+  "report": {
+    "title": "Night Audit Report",
+    "completedLine": "Completed at {{time}} by {{name}}",
+    "revenue": "Revenue {{amount}}",
+    "bookingsPosted": "Bookings Posted",
+    "checkins": "Check-ins",
+    "checkouts": "Check-outs",
+    "occupancy": "Occupancy",
+    "notes": "Notes"
+  }
+}

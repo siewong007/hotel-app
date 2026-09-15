@@ -1,0 +1,130 @@
+{
+  "title": "Online availability",
+  "kicker": "Inventory settings",
+  "subtitle": "Control {{days}} days of online inventory at once — click cells to select, open the editor to stage changes, then review and apply everything in one safe save.",
+  "loading": "Loading room availability…",
+  "empty": {
+    "title": "No room types to configure",
+    "body": "Add a room type before setting its online availability."
+  },
+  "confirm": {
+    "discardTitle": "Discard unsaved changes",
+    "discardConfirm": "Discard changes",
+    "discardMove": "Move the window and discard your unsaved inventory changes?",
+    "discardRefresh": "Refresh availability and discard your unsaved inventory changes?"
+  },
+  "changedBar_one": "{{count}} cell changed",
+  "changedBar_other": "{{count}} cells changed",
+  "discard": "Discard",
+  "reviewApply": "Review & apply",
+  "toolbar": {
+    "aria": "Inventory window controls",
+    "backDays": "Back {{days}} days",
+    "prevDay": "Previous day",
+    "startDate": "Start date",
+    "nextDay": "Next day",
+    "forwardDays": "Forward {{days}} days",
+    "today": "Today",
+    "overridesOnly": "Overrides only",
+    "selected": "{{count}} selected"
+  },
+  "grid": {
+    "aria": "Online inventory by room type and date",
+    "selectAll": "Select all cells",
+    "colHeader": "ROOM TYPE / DATE",
+    "selectColumn": "Select all on {{date}}",
+    "today": "Today",
+    "selectRow": "Select row {{name}}"
+  },
+  "cell": {
+    "closed": "Closed",
+    "noneLeft": "None left",
+    "ariaOnline": "{{count}} online at {{price}}",
+    "ariaClosed": "closed to online booking",
+    "ariaNoneLeft": ", none left",
+    "ariaModified": ", modified",
+    "ariaResetPending": ", reset pending"
+  },
+  "bulk": {
+    "aria": "Bulk edit selected cells",
+    "cellsSelected_one": "{{count}} cell selected",
+    "cellsSelected_other": "{{count}} cells selected",
+    "daysAria": "Limit to weekdays",
+    "days": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "inScope": "{{active}} of {{total}} in scope",
+    "clearSelection": "Clear selection",
+    "openOnline": "Open online",
+    "closeOnline": "Close online",
+    "hold": "Hold",
+    "setHold": "Set hold",
+    "price": "Price",
+    "setPrice": "Set price",
+    "percentLabel": "±%",
+    "adjustPercentAria": "Adjust by percent",
+    "applyPercent": "Apply %",
+    "amountLabel": "± amount",
+    "adjustAmountAria": "Adjust by amount",
+    "applyAmount": "Apply amount",
+    "clearOverrides": "Clear overrides",
+    "skipped_one": "{{count}} cell skipped — the adjustment would make the price zero or negative.",
+    "skipped_other": "{{count}} cells skipped — the adjustment would make the price zero or negative."
+  },
+  "editor": {
+    "bookable": "Bookable online",
+    "bookableOn": "Guests can book this date",
+    "bookableOff": "Hidden from online booking",
+    "holdWalkins": "Hold for walk-ins",
+    "decrease": "Decrease walk-in hold",
+    "increase": "Increase walk-in hold",
+    "holdAria": "Walk-in hold",
+    "ofFree": "of {{count}} free",
+    "overHeld": "Higher than the physical availability for this date.",
+    "customPrice": "Custom online price",
+    "priceInvalid": "Enter a price greater than zero.",
+    "standardRate": "Standard rate for this date: {{price}} — leave blank to use it.",
+    "resetStandard": "Reset to standard rules"
+  },
+  "summary": {
+    "physical": "Physically free",
+    "held": "Held for walk-ins",
+    "online": "Available online",
+    "roomNights": "room-nights",
+    "aria": "{{label}} summary",
+    "selectedCells": "Selected cells",
+    "visibleWindow": "Visible window"
+  },
+  "review": {
+    "title": "Review changes",
+    "atomicNote_one": "The {{count}} change is applied together — if any cell fails, nothing is saved.",
+    "atomicNote_other": "All {{count}} changes are applied together — if any cell fails, nothing is saved.",
+    "saving": "Saving…",
+    "apply_one": "Apply {{count}} change",
+    "apply_other": "Apply {{count}} changes"
+  },
+  "lines": {
+    "resetStandard": "Reset to standard rules",
+    "updated": "Updated",
+    "reopenOnline": "Reopen online",
+    "closeOnline": "Close online",
+    "holdLine": "Hold {{count}} for walk-ins (was {{was}})",
+    "priceStandard": "Price → standard rate",
+    "priceLine": "Price → {{price}} (standard {{standard}})",
+    "roomTypeFallback": "Room type {{id}}"
+  },
+  "errors": {
+    "load": "Unable to load online inventory.",
+    "save": "Unable to save the inventory changes."
+  },
+  "success": {
+    "updated_one": "{{count}} cell updated.",
+    "updated_other": "{{count}} cells updated."
+  }
+}

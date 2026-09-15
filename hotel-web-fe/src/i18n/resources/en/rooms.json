@@ -281,7 +281,6 @@
     "markedComplimentary": "Booking marked as complimentary! {{count}} night(s) of {{roomType}} credits added to guest.",
     "checkoutExtended": "Checkout date extended successfully",
     "guestNotFound": "Guest not found (ID: {{id}})",
-    "selectRoomAndDates": "Please select a room and at least one complimentary date",
     "creditsBooked_one": "Booking created successfully! {{count}} night is complimentary.",
     "creditsBooked_other": "Booking created successfully! {{count}} nights are complimentary.",
     "checkedInSuccess": "Guest checked in successfully!",

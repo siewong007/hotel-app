@@ -1,17 +1,22 @@
 import type { GuestType, TourismType } from '../types/guest.types';
 
+/**
+ * Presentation metadata per enum value. Labels are `guests:` namespace keys —
+ * resolve them with `t()` at render time so they follow the active locale.
+ * Colors stay literal (they are not locale-sensitive).
+ */
 export const GUEST_TYPE_CONFIG: Record<
   GuestType,
-  { label: string; color: string; discountLabel: string }
+  { labelKey: string; color: string; discountLabelKey: string }
 > = {
-  member: { label: 'Member', color: 'var(--hotel-success)', discountLabel: 'Member Discount' },
-  non_member: { label: 'Non-Member', color: 'var(--hotel-neutral)', discountLabel: 'Standard Rate' },
+  member: { labelKey: 'guestType.member', color: 'var(--hotel-success)', discountLabelKey: 'guestType.memberDiscount' },
+  non_member: { labelKey: 'guestType.nonMember', color: 'var(--hotel-neutral)', discountLabelKey: 'guestType.standardRate' },
 };
 
 export const TOURISM_TYPE_CONFIG: Record<
   TourismType,
-  { label: string; color: string; taxLabel: string }
+  { labelKey: string; color: string; taxLabelKey: string }
 > = {
-  local: { label: 'Local', color: 'var(--hotel-info)', taxLabel: 'No Tourism Tax' },
-  foreign: { label: 'Foreign', color: 'var(--hotel-warning)', taxLabel: 'Tourism Tax Applies' },
+  local: { labelKey: 'tourismType.local', color: 'var(--hotel-info)', taxLabelKey: 'tourismType.noTax' },
+  foreign: { labelKey: 'tourismType.foreign', color: 'var(--hotel-warning)', taxLabelKey: 'tourismType.taxApplies' },
 };

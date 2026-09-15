@@ -58,7 +58,8 @@
     "viewAll": "Lihat semua",
     "goHome": "Kembali ke laman utama",
     "goBack": "Kembali",
-    "discardChanges": "Buang perubahan"
+    "discardChanges": "Buang perubahan",
+    "void": "Batal"
   },
   "state": {
     "loading": "Memuatkan…",

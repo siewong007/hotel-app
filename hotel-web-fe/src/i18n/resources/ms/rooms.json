@@ -281,7 +281,6 @@
     "markedComplimentary": "Tempahan ditanda sebagai percuma! {{count}} malam kredit {{roomType}} ditambah kepada tetamu.",
     "checkoutExtended": "Tarikh daftar keluar berjaya dilanjutkan",
     "guestNotFound": "Tetamu tidak ditemui (ID: {{id}})",
-    "selectRoomAndDates": "Sila pilih bilik dan sekurang-kurangnya satu tarikh percuma",
     "creditsBooked_one": "Tempahan berjaya dicipta! {{count}} malam adalah percuma.",
     "creditsBooked_other": "Tempahan berjaya dicipta! {{count}} malam adalah percuma.",
     "checkedInSuccess": "Tetamu berjaya daftar masuk!",

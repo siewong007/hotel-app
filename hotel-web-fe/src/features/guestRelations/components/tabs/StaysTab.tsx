@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Link as MuiLink, Typography } from '@mui/material';
 import { OpenInNewOutlined as OpenIcon } from '@mui/icons-material';
 import type { GuestProfileBooking, GuestSummary } from '../../../../types';
+import { useTranslation } from '../../../../i18n/useTranslation';
 import { Link } from '../../../../router';
 import { GuestReservationsTable } from '../../../guests/components/GuestProfileParts';
 
@@ -15,12 +16,14 @@ interface StaysTabProps {
  * dialog renders (shared via GuestReservationsTable), plus a per-row deep
  * link into the booking detail route (`/bookings/$bookingId`).
  */
-const StaysTab: React.FC<StaysTabProps> = ({ reservations, summary }) => (
+const StaysTab: React.FC<StaysTabProps> = ({ reservations, summary }) => {
+  const { t } = useTranslation('guests');
+  return (
   <Box>
     <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-      {reservations.length} reservation{reservations.length === 1 ? '' : 's'}
+      {t('stays.reservations', { count: reservations.length })}
       {' · '}
-      {summary.total_nights} night{summary.total_nights === 1 ? '' : 's'} stayed
+      {t('stays.nightsStayed', { count: summary.total_nights })}
     </Typography>
     <GuestReservationsTable
       reservations={reservations}
@@ -38,12 +41,13 @@ const StaysTab: React.FC<StaysTabProps> = ({ reservations, summary }) => (
             whiteSpace: 'nowrap',
           }}
         >
-          Open in Bookings
+          {t('stays.openInBookings')}
           <OpenIcon sx={{ fontSize: 13 }} />
         </MuiLink>
       )}
     />
   </Box>
-);
+  );
+};
 
 export default StaysTab;

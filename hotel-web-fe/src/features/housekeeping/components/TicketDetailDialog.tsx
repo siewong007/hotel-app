@@ -20,7 +20,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import StatusChip from '../../../components/common/StatusChip';
 import { errorMessage } from '../../../utils/errorMessage';
 import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type {
   MaintenanceStatus,
   MaintenanceTicket,
@@ -32,12 +33,12 @@ import {
 } from '../housekeepingConfig';
 import { useAssignableStaff } from '../hooks/useHousekeepingQueries';
 
-const STATUS_ACTION_LABEL: Partial<Record<MaintenanceStatus, string>> = {
-  in_progress: 'Start work',
-  on_hold: 'Put on hold',
-  resolved: 'Resolve',
-  closed: 'Close',
-  open: 'Reopen',
+const STATUS_ACTION_KEY: Partial<Record<MaintenanceStatus, string>> = {
+  in_progress: 'maint.actionInProgress',
+  on_hold: 'maint.actionOnHold',
+  resolved: 'maint.actionResolved',
+  closed: 'maint.actionClosed',
+  open: 'maint.actionOpen',
 };
 
 interface TicketDetailDialogProps {
@@ -69,6 +70,7 @@ export default function TicketDetailDialog({
   onClose,
   onSubmit,
 }: TicketDetailDialogProps) {
+  const { t } = useTranslation('housekeeping');
   const [assignee, setAssignee] = useState('__keep__');
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -95,7 +97,7 @@ export default function TicketDetailDialog({
       await onSubmit(ticket.id, input);
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to update ticket'));
+      setError(errorMessage(err, t('errors.updateTicket')));
     } finally {
       setSaving(false);
     }
@@ -139,43 +141,43 @@ export default function TicketDetailDialog({
             ) : null}
           </Box>
           <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap' }}>
-            <StatusChip status={ticket.status} />
+            <StatusChip status={ticket.status} domain="maintenance" />
             <StatusChip
               status={ticket.priority}
-              label={`${formatStatusLabel(ticket.priority)} priority`}
+              label={t('ticketDetail.priorityLabel', { name: statusLabel(t, 'priority', ticket.priority) })}
               tone={MAINTENANCE_PRIORITY_META[ticket.priority].tone}
             />
-            <Chip size="small" variant="outlined" label={formatStatusLabel(ticket.category)} />
+            <Chip size="small" variant="outlined" label={statusLabel(t, 'maintenance_category', ticket.category)} />
             {ticket.room_number ? (
-              <Chip size="small" variant="outlined" label={`Room ${ticket.room_number}`} />
+              <Chip size="small" variant="outlined" label={t('card.roomN', { number: ticket.room_number })} />
             ) : null}
           </Stack>
           <Divider />
           <Stack spacing={0.75}>
-            <DetailRow label="Assigned to" value={ticket.assigned_to_name ?? 'Unassigned'} />
+            <DetailRow label={t('tasks.colAssignedTo')} value={ticket.assigned_to_name ?? t('card.unassigned')} />
             <DetailRow
-              label="Scheduled"
+              label={t('ticketDetail.scheduled')}
               value={ticket.scheduled_date ? formatHotelDate(ticket.scheduled_date) : undefined}
             />
             <DetailRow
-              label="Started"
+              label={t('ticketDetail.started')}
               value={ticket.started_at ? formatHotelDateTime(ticket.started_at) : undefined}
             />
             <DetailRow
-              label="Resolved"
+              label={t('ticketDetail.resolved')}
               value={ticket.resolved_at ? formatHotelDateTime(ticket.resolved_at) : undefined}
             />
-            <DetailRow label="Resolution notes" value={ticket.resolution_notes} />
-            <DetailRow label="Estimated cost" value={ticket.estimated_cost} />
-            <DetailRow label="Actual cost" value={ticket.actual_cost} />
-            <DetailRow label="Created" value={formatHotelDateTime(ticket.created_at)} />
+            <DetailRow label={t('ticketDetail.resolutionNotes')} value={ticket.resolution_notes} />
+            <DetailRow label={t('ticketDetail.estimatedCost')} value={ticket.estimated_cost} />
+            <DetailRow label={t('ticketDetail.actualCost')} value={ticket.actual_cost} />
+            <DetailRow label={t('ticketDetail.created')} value={formatHotelDateTime(ticket.created_at)} />
           </Stack>
           {canWrite ? (
             <>
               <Divider />
               {ticket.status === 'in_progress' ? (
                 <TextField
-                  label="Resolution notes (saved when resolving)"
+                  label={t('ticketDetail.resolutionField')}
                   value={resolutionNotes}
                   onChange={(event) => setResolutionNotes(event.target.value)}
                   multiline
@@ -185,18 +187,18 @@ export default function TicketDetailDialog({
                 />
               ) : null}
               <FormControl fullWidth size="small">
-                <InputLabel id="ticket-assignee">Reassign</InputLabel>
+                <InputLabel id="ticket-assignee">{t('ticketDetail.reassign')}</InputLabel>
                 <Select
                   labelId="ticket-assignee"
-                  label="Reassign"
+                  label={t('ticketDetail.reassign')}
                   value={assignee}
                   onChange={(event) => setAssignee(event.target.value)}
                   disabled={saving || staffQuery.isLoading}
                 >
                   <MenuItem value="__keep__">
-                    {ticket.assigned_to_name ? `Keep ${ticket.assigned_to_name}` : 'Keep unassigned'}
+                    {ticket.assigned_to_name ? t('editTask.keepAssignee', { name: ticket.assigned_to_name }) : t('editTask.keepUnassigned')}
                   </MenuItem>
-                  {ticket.assigned_to ? <MenuItem value="__unassigned__">Unassign</MenuItem> : null}
+                  {ticket.assigned_to ? <MenuItem value="__unassigned__">{t('editTask.unassign')}</MenuItem> : null}
                   {staff
                     .filter((member) => member.id !== ticket.assigned_to)
                     .map((member) => (
@@ -212,11 +214,11 @@ export default function TicketDetailDialog({
       </DialogContent>
       <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
         <Button onClick={onClose} disabled={saving}>
-          Close
+          {t('common:actions.close')}
         </Button>
         {canWrite && assignee !== '__keep__' ? (
           <Button variant="outlined" onClick={handleSaveAssignee} disabled={saving}>
-            Save assignee
+            {t('ticketDetail.saveAssignee')}
           </Button>
         ) : null}
         {canWrite
@@ -228,7 +230,7 @@ export default function TicketDetailDialog({
                 disabled={saving}
                 onClick={() => handleStatus(status)}
               >
-                {STATUS_ACTION_LABEL[status] ?? formatStatusLabel(status)}
+                {STATUS_ACTION_KEY[status] ? t(STATUS_ACTION_KEY[status]!) : statusLabel(t, 'maintenance', status)}
               </Button>
             ))
           : null}

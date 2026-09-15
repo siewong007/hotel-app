@@ -24,11 +24,18 @@ import enFinance from './en/finance.json';
 import enGuestPortal from './en/guestPortal.json';
 import enGuests from './en/guests.json';
 import enHelp from './en/help.json';
+import enHousekeeping from './en/housekeeping.json';
+import enLoyalty from './en/loyalty.json';
 import enNav from './en/nav.json';
 import enNotifications from './en/notifications.json';
+import enOnlineInventory from './en/onlineInventory.json';
+import enNightAudit from './en/nightAudit.json';
+import enRates from './en/rates.json';
 import enRevenue from './en/revenue.json';
 import enRooms from './en/rooms.json';
+import enSegments from './en/segments.json';
 import enStatus from './en/status.json';
+import enSupport from './en/support.json';
 import enValidation from './en/validation.json';
 import msAdmin from './ms/admin.json';
 import msAuth from './ms/auth.json';
@@ -40,11 +47,18 @@ import msFinance from './ms/finance.json';
 import msGuestPortal from './ms/guestPortal.json';
 import msGuests from './ms/guests.json';
 import msHelp from './ms/help.json';
+import msHousekeeping from './ms/housekeeping.json';
+import msLoyalty from './ms/loyalty.json';
 import msNav from './ms/nav.json';
 import msNotifications from './ms/notifications.json';
+import msOnlineInventory from './ms/onlineInventory.json';
+import msNightAudit from './ms/nightAudit.json';
+import msRates from './ms/rates.json';
 import msRevenue from './ms/revenue.json';
 import msRooms from './ms/rooms.json';
+import msSegments from './ms/segments.json';
 import msStatus from './ms/status.json';
+import msSupport from './ms/support.json';
 import msValidation from './ms/validation.json';
 import zhAdmin from './zh/admin.json';
 import zhAuth from './zh/auth.json';
@@ -56,11 +70,18 @@ import zhFinance from './zh/finance.json';
 import zhGuestPortal from './zh/guestPortal.json';
 import zhGuests from './zh/guests.json';
 import zhHelp from './zh/help.json';
+import zhHousekeeping from './zh/housekeeping.json';
+import zhLoyalty from './zh/loyalty.json';
 import zhNav from './zh/nav.json';
 import zhNotifications from './zh/notifications.json';
+import zhOnlineInventory from './zh/onlineInventory.json';
+import zhNightAudit from './zh/nightAudit.json';
+import zhRates from './zh/rates.json';
 import zhRevenue from './zh/revenue.json';
 import zhRooms from './zh/rooms.json';
+import zhSegments from './zh/segments.json';
 import zhStatus from './zh/status.json';
+import zhSupport from './zh/support.json';
 import zhValidation from './zh/validation.json';
 
 import type { LocaleCode } from '../locales';
@@ -80,11 +101,18 @@ const enResources = {
   guestPortal: enGuestPortal as TranslationBundle,
   guests: enGuests as TranslationBundle,
   help: enHelp as TranslationBundle,
+  housekeeping: enHousekeeping as TranslationBundle,
+  loyalty: enLoyalty as TranslationBundle,
   nav: enNav as TranslationBundle,
   notifications: enNotifications as TranslationBundle,
+  onlineInventory: enOnlineInventory as TranslationBundle,
+  nightAudit: enNightAudit as TranslationBundle,
+  rates: enRates as TranslationBundle,
   revenue: enRevenue as TranslationBundle,
   rooms: enRooms as TranslationBundle,
+  segments: enSegments as TranslationBundle,
   status: enStatus as TranslationBundle,
+  support: enSupport as TranslationBundle,
   validation: enValidation as TranslationBundle,
 };
 
@@ -99,11 +127,18 @@ const msResources = {
   guestPortal: msGuestPortal as TranslationBundle,
   guests: msGuests as TranslationBundle,
   help: msHelp as TranslationBundle,
+  housekeeping: msHousekeeping as TranslationBundle,
+  loyalty: msLoyalty as TranslationBundle,
   nav: msNav as TranslationBundle,
   notifications: msNotifications as TranslationBundle,
+  onlineInventory: msOnlineInventory as TranslationBundle,
+  nightAudit: msNightAudit as TranslationBundle,
+  rates: msRates as TranslationBundle,
   revenue: msRevenue as TranslationBundle,
   rooms: msRooms as TranslationBundle,
+  segments: msSegments as TranslationBundle,
   status: msStatus as TranslationBundle,
+  support: msSupport as TranslationBundle,
   validation: msValidation as TranslationBundle,
 };
 
@@ -118,11 +153,18 @@ const zhResources = {
   guestPortal: zhGuestPortal as TranslationBundle,
   guests: zhGuests as TranslationBundle,
   help: zhHelp as TranslationBundle,
+  housekeeping: zhHousekeeping as TranslationBundle,
+  loyalty: zhLoyalty as TranslationBundle,
   nav: zhNav as TranslationBundle,
   notifications: zhNotifications as TranslationBundle,
+  onlineInventory: zhOnlineInventory as TranslationBundle,
+  nightAudit: zhNightAudit as TranslationBundle,
+  rates: zhRates as TranslationBundle,
   revenue: zhRevenue as TranslationBundle,
   rooms: zhRooms as TranslationBundle,
+  segments: zhSegments as TranslationBundle,
   status: zhStatus as TranslationBundle,
+  support: zhSupport as TranslationBundle,
   validation: zhValidation as TranslationBundle,
 };
 

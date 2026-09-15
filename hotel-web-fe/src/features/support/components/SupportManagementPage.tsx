@@ -21,6 +21,8 @@ import { Refresh as RefreshIcon, Search as SearchIcon } from '@mui/icons-materia
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../auth/AuthContext';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { statusLabel } from '../../../i18n/statusLabel';
 import type {
   SupportActionPayload,
   SupportConversationListParams,
@@ -43,7 +45,6 @@ import {
 } from '../hooks/useSupportQueries';
 import SupportConversationDetail from './SupportConversationDetail';
 import SupportConversationList from './SupportConversationList';
-import { humanizeSupportValue } from './SupportStatusChip';
 
 const INITIAL_PARAMS: SupportConversationListParams = {
   queue: 'waiting_for_staff',
@@ -68,6 +69,7 @@ function metricForQueue(queue: SupportQueue, metrics?: SupportQueueMetrics): num
 
 export default function SupportManagementPage() {
   const { hasPermission, user } = useAuth();
+  const { t } = useTranslation('support');
   const [params, setParams] = useState<SupportConversationListParams>(INITIAL_PARAMS);
   const [selectedConversationId, setSelectedConversationId] = useState<number>();
   const deferredSearch = useDeferredValue(params.search);
@@ -128,17 +130,17 @@ export default function SupportManagementPage() {
             gap: 1
           }}>
           <Box>
-            <Typography variant="h5">Guest support</Typography>
+            <Typography variant="h5">{t('page.title')}</Typography>
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Triage, reply to, and resolve guest conversations.
+              {t('page.subtitle')}
             </Typography>
           </Box>
-          <Tooltip title="Refresh the queue">
+          <Tooltip title={t('page.refreshTooltip')}>
             <span>
               <IconButton
-                aria-label="Refresh the queue"
+                aria-label={t('page.refreshAria')}
                 onClick={refresh}
                 disabled={queueQuery.isFetching || detailQuery.isFetching}
               >
@@ -149,10 +151,10 @@ export default function SupportManagementPage() {
         </Stack>
 
         {!canWrite ? (
-          <Alert severity="info">You have read-only access to the guest support queue.</Alert>
+          <Alert severity="info">{t('page.readOnly')}</Alert>
         ) : null}
         {queryError ? (
-          <Alert severity="error">{getQueryErrorMessage(queryError, 'Unable to load guest support')}</Alert>
+          <Alert severity="error">{getQueryErrorMessage(queryError, t('page.loadFailed'))}</Alert>
         ) : null}
 
         <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
@@ -161,7 +163,7 @@ export default function SupportManagementPage() {
             onChange={handleQueueChange}
             variant="scrollable"
             scrollButtons="auto"
-            aria-label="Support queue"
+            aria-label={t('page.tabsAria')}
             sx={{ px: 1, borderBottom: 1, borderColor: 'divider' }}
           >
             {SUPPORT_QUEUE_TABS.map(tab => {
@@ -170,9 +172,9 @@ export default function SupportManagementPage() {
                 <Tab
                   key={tab.value}
                   value={tab.value}
-                  label={count === undefined ? tab.label : (
+                  label={count === undefined ? t(tab.labelKey) : (
                     <Badge color="primary" badgeContent={count} max={999} sx={{ '& .MuiBadge-badge': { right: -12, top: 5 } }}>
-                      <Box component="span" sx={{ pr: 1 }}>{tab.label}</Box>
+                      <Box component="span" sx={{ pr: 1 }}>{t(tab.labelKey)}</Box>
                     </Badge>
                   )}
                 />
@@ -186,8 +188,8 @@ export default function SupportManagementPage() {
             }}>
               <TextField
                 size="small"
-                label="Search"
-                placeholder="Guest, booking, or conversation number"
+                label={t('page.searchLabel')}
+                placeholder={t('page.searchPlaceholder')}
                 value={params.search ?? ''}
                 onChange={(event) => updateParams({ search: event.target.value })}
                 sx={{ minWidth: { md: 300 }, flex: 1 }}
@@ -196,38 +198,38 @@ export default function SupportManagementPage() {
                 }}
               />
               <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel id="support-status-filter">Status</InputLabel>
+                <InputLabel id="support-status-filter">{t('page.statusLabel')}</InputLabel>
                 <Select
                   labelId="support-status-filter"
-                  label="Status"
+                  label={t('page.statusLabel')}
                   value={params.status ?? 'all'}
                   onChange={(event) => updateParams({
                     status: event.target.value === 'all' ? undefined : event.target.value as SupportConversationStatus,
                   })}
                 >
-                  <MenuItem value="all">All statuses</MenuItem>
+                  <MenuItem value="all">{t('page.allStatuses')}</MenuItem>
                   {SUPPORT_STATUS_OPTIONS.map(status => (
-                    <MenuItem key={status} value={status}>{humanizeSupportValue(status)}</MenuItem>
+                    <MenuItem key={status} value={status}>{statusLabel(t, 'support', status)}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
               <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel id="support-priority-filter">Priority</InputLabel>
+                <InputLabel id="support-priority-filter">{t('page.priorityLabel')}</InputLabel>
                 <Select
                   labelId="support-priority-filter"
-                  label="Priority"
+                  label={t('page.priorityLabel')}
                   value={params.priority ?? 'all'}
                   onChange={(event) => updateParams({
                     priority: event.target.value === 'all' ? undefined : event.target.value as SupportPriority,
                   })}
                 >
-                  <MenuItem value="all">All priorities</MenuItem>
+                  <MenuItem value="all">{t('page.allPriorities')}</MenuItem>
                   {SUPPORT_PRIORITY_OPTIONS.map(priority => (
-                    <MenuItem key={priority} value={priority}>{humanizeSupportValue(priority)}</MenuItem>
+                    <MenuItem key={priority} value={priority}>{statusLabel(t, 'priority', priority)}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
-              <Button variant="text" onClick={() => setParams(INITIAL_PARAMS)}>Reset</Button>
+              <Button variant="text" onClick={() => setParams(INITIAL_PARAMS)}>{t('common:actions.reset')}</Button>
             </Stack>
           </Box>
 

@@ -1,7 +1,8 @@
 import { Box, Button, Popover, Stack, Typography } from '@mui/material';
 
+import { dateFormatter } from '../../../i18n/format';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { CellKey, GridCellView, StagedEdit } from '../types';
-import { FULL_DATE } from '../constants';
 import { useCellEditorDraft } from '../hooks/useCellEditorDraft';
 import { CellEditorForm } from './CellEditorForm';
 
@@ -21,6 +22,7 @@ export const CellEditorPopover = ({
   onApply,
   formatPrice,
 }: CellEditorPopoverProps) => {
+  const { t } = useTranslation('onlineInventory');
   const { draft, patchDraft, priceInvalid, overHeld } = useCellEditorDraft(view);
 
   if (!view) return null;
@@ -44,7 +46,12 @@ export const CellEditorPopover = ({
         <Box>
           <Typography sx={{ fontWeight: 800 }}>{view.room_type_name}</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {FULL_DATE.format(new Date(`${view.stay_date}T12:00:00`))}
+            {dateFormatter({
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            }).format(new Date(`${view.stay_date}T12:00:00`))}
           </Typography>
         </Box>
 
@@ -68,12 +75,12 @@ export const CellEditorPopover = ({
                 onClose();
               }}
             >
-              Reset to standard rules
+              {t('editor.resetStandard')}
             </Button>
           )}
-          <Button size="small" onClick={onClose}>Cancel</Button>
+          <Button size="small" onClick={onClose}>{t('common:actions.cancel')}</Button>
           <Button size="small" variant="contained" onClick={apply} disabled={priceInvalid}>
-            Apply
+            {t('common:actions.apply')}
           </Button>
         </Stack>
       </Stack>

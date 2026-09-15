@@ -1,4 +1,5 @@
 import type { Guest } from '../../types';
+import { t as i18nT } from '../../i18n/translate';
 import { AVATAR_PALETTE } from '../guests/constants';
 
 /** First letters of the first two name parts — the monolith's avatar rule. */
@@ -47,23 +48,25 @@ const csvCell = (value: unknown) => {
  * the CRM fields (`VIP Status`, `Blacklisted`) appended — the list payload
  * carries both since the select_cols widening.
  */
+const CSV_HEADER_KEYS = [
+  'id',
+  'name',
+  'email',
+  'phone',
+  'icPassport',
+  'guestType',
+  'tourismType',
+  'vipStatus',
+  'blacklisted',
+  'company',
+  'nationality',
+  'country',
+  'bookings',
+  'lastStay',
+] as const;
+
 export const buildGuestsCsv = (guests: Guest[]): string => {
-  const header = [
-    'ID',
-    'Name',
-    'Email',
-    'Phone',
-    'IC / Passport',
-    'Guest Type',
-    'Tourism Type',
-    'VIP Status',
-    'Blacklisted',
-    'Company',
-    'Nationality',
-    'Country',
-    'Bookings',
-    'Last Stay',
-  ];
+  const header = CSV_HEADER_KEYS.map((key) => i18nT(`csv.${key}`, undefined, 'guests'));
   const rows = guests.map((guest) => [
     guest.id,
     guest.nick_name,

@@ -9,15 +9,16 @@ export const PLAN_TYPES = [
 
 export const ADJUSTMENT_TYPES = ['percentage', 'fixed', 'override'] as const;
 
-/** Day-of-week flag keys in rate_plans column order (Monday first). */
+/** Day-of-week flag keys in rate_plans column order (Monday first); the
+ * second element is the `rates:days.*` key suffix, resolved via `t()`. */
 export const DOW_FLAGS = [
-  ['applies_monday', 'Mon'],
-  ['applies_tuesday', 'Tue'],
-  ['applies_wednesday', 'Wed'],
-  ['applies_thursday', 'Thu'],
-  ['applies_friday', 'Fri'],
-  ['applies_saturday', 'Sat'],
-  ['applies_sunday', 'Sun'],
+  ['applies_monday', 'mon'],
+  ['applies_tuesday', 'tue'],
+  ['applies_wednesday', 'wed'],
+  ['applies_thursday', 'thu'],
+  ['applies_friday', 'fri'],
+  ['applies_saturday', 'sat'],
+  ['applies_sunday', 'sun'],
 ] as const;
 
 /** Days shown per calendar page. */

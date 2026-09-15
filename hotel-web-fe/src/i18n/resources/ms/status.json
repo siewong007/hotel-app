@@ -191,6 +191,60 @@
     "completed": "Selesai",
     "failed": "Gagal"
   },
+  "booking_history": {
+    "checked_out": "Daftar keluar",
+    "completed": "Selesai",
+    "voided": "Dibatalkan",
+    "comp_void": "Batal percuma",
+    "checked_in": "Daftar masuk",
+    "auto_checked_in": "Daftar masuk",
+    "confirmed": "Ditempah",
+    "pending": "Tertangguh"
+  },
+  "booking_source": {
+    "direct": "Langsung",
+    "walk_in": "Walk-in",
+    "online": "Dalam talian",
+    "phone": "Telefon",
+    "email": "E-mel",
+    "agent": "Ejen",
+    "travel_agent": "Ejen pelancongan",
+    "corporate": "Korporat",
+    "ota": "OTA",
+    "guest_portal": "Portal tetamu"
+  },
+  "priority": {
+    "low": "Rendah",
+    "normal": "Biasa",
+    "medium": "Sederhana",
+    "high": "Tinggi",
+    "urgent": "Segera",
+    "critical": "Kritikal"
+  },
+  "task_type": {
+    "cleaning": "Pembersihan",
+    "checkout_clean": "Pembersihan daftar keluar",
+    "inspection": "Pemeriksaan",
+    "maintenance_followup": "Susulan penyelenggaraan"
+  },
+  "maintenance_category": {
+    "electrical": "Elektrikal",
+    "plumbing": "Paip",
+    "hvac": "HVAC",
+    "furniture": "Perabot",
+    "appliance": "Peralatan",
+    "structural": "Struktur",
+    "other": "Lain-lain"
+  },
+  "room_event": {
+    "reserve": "Simpanan",
+    "booking": "Tempahan",
+    "maintenance": "Penyelenggaraan",
+    "inspection": "Pemeriksaan",
+    "repair": "Pembaikan",
+    "status_change": "Perubahan status",
+    "reserved": "Disimpan"
+  },
   "generic": {
     "active": "Aktif",
     "inactive": "Tidak aktif",

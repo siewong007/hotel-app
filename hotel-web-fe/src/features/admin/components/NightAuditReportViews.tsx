@@ -46,6 +46,8 @@ import {
 import { formatCurrency } from '../../../utils/currency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { formatStatusLabel } from '../../../utils/formatters';
+import { dateFormatter } from '../../../i18n/format';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { formatHotelDate } from '../../../utils/date';
 import StatusChip from '../../../components/common/StatusChip';
 import { useIsPhone } from '../../../hooks/useIsPhone';
@@ -70,6 +72,7 @@ interface JournalSectionsDisplayProps {
 }
 
 export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps) {
+  const { t } = useTranslation('nightAudit');
   const isPhone = useIsPhone();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
@@ -96,7 +99,7 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
   return (
     <Box sx={{ mt: 3 }}>
       <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
-        Journal Entries
+        {t('journal.title')}
       </Typography>
       {sections.map((section) => (
         <Paper key={section.entry_type} variant="outlined" sx={{ mb: 2 }}>
@@ -113,7 +116,7 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
             onClick={() => toggleSection(section.entry_type)}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <IconButton size="small" aria-label={expandedSections.has(section.entry_type) ? 'Collapse section' : 'Expand section'}>
+              <IconButton size="small" aria-label={expandedSections.has(section.entry_type) ? t('journal.collapseAria') : t('journal.expandAria')}>
                 {expandedSections.has(section.entry_type) ? <ExpandLessIcon /> : <ExpandMoreIcon />}
               </IconButton>
               <Typography variant="subtitle2" sx={{
@@ -121,21 +124,21 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
               }}>
                 {section.display_name}
               </Typography>
-              <Chip label={`${section.entries.length} entries`} size="small" variant="outlined" />
+              <Chip label={t('journal.entries', { count: section.entries.length })} size="small" variant="outlined" />
             </Box>
             <Box sx={{ display: 'flex', gap: 3 }}>
               {Number(section.total_debit) > 0 && (
                 <Typography variant="body2" sx={{
                   color: "error.main"
                 }}>
-                  <strong>Debit:</strong> {formatCurrency(Number(section.total_debit))}
+                  <strong>{t('journal.debit')}</strong> {formatCurrency(Number(section.total_debit))}
                 </Typography>
               )}
               {Number(section.total_credit) > 0 && (
                 <Typography variant="body2" sx={{
                   color: "success.main"
                 }}>
-                  <strong>Credit:</strong> {formatCurrency(Number(section.total_credit))}
+                  <strong>{t('journal.credit')}</strong> {formatCurrency(Number(section.total_credit))}
                 </Typography>
               )}
             </Box>
@@ -151,16 +154,22 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
                     sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
                   >
                     <MobileCardRow
-                      title={entry.description || 'Journal entry'}
-                      subtitle={`#${entry.booking_number} · Room ${entry.room_number}`}
-                      meta={`Dr ${Number(entry.debit) > 0 ? formatCurrency(Number(entry.debit)) : '-'} · Cr ${Number(entry.credit) > 0 ? formatCurrency(Number(entry.credit)) : '-'}`}
+                      title={entry.description || t('journal.entryFallback')}
+                      subtitle={t('journal.roomLine', { booking: entry.booking_number, room: entry.room_number })}
+                      meta={t('journal.drCr', {
+                        debit: Number(entry.debit) > 0 ? formatCurrency(Number(entry.debit)) : '-',
+                        credit: Number(entry.credit) > 0 ? formatCurrency(Number(entry.credit)) : '-',
+                      })}
                     />
                   </Box>
                 ))}
                 <Box sx={{ px: 2, py: 1.5, display: 'flex', justifyContent: 'space-between', bgcolor: 'var(--hotel-surface-sunken)' }}>
-                  <Typography variant="body2"><strong>Total</strong></Typography>
+                  <Typography variant="body2"><strong>{t('journal.total')}</strong></Typography>
                   <Typography variant="body2">
-                    <strong>Dr {Number(section.total_debit) > 0 ? formatCurrency(Number(section.total_debit)) : '-'} · Cr {Number(section.total_credit) > 0 ? formatCurrency(Number(section.total_credit)) : '-'}</strong>
+                    <strong>{t('journal.drCr', {
+                      debit: Number(section.total_debit) > 0 ? formatCurrency(Number(section.total_debit)) : '-',
+                      credit: Number(section.total_credit) > 0 ? formatCurrency(Number(section.total_credit)) : '-',
+                    })}</strong>
                   </Typography>
                 </Box>
               </Box>
@@ -169,11 +178,11 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
-                    <TableCell><strong>Booking #</strong></TableCell>
-                    <TableCell><strong>Room</strong></TableCell>
-                    <TableCell><strong>Description</strong></TableCell>
-                    <TableCell align="right"><strong>Debit</strong></TableCell>
-                    <TableCell align="right"><strong>Credit</strong></TableCell>
+                    <TableCell><strong>{t('journal.colBooking')}</strong></TableCell>
+                    <TableCell><strong>{t('journal.colRoom')}</strong></TableCell>
+                    <TableCell><strong>{t('journal.colDescription')}</strong></TableCell>
+                    <TableCell align="right"><strong>{t('journal.colDebit')}</strong></TableCell>
+                    <TableCell align="right"><strong>{t('journal.colCredit')}</strong></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -191,7 +200,7 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
                     </TableRow>
                   ))}
                   <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
-                    <TableCell colSpan={3}><strong>Total</strong></TableCell>
+                    <TableCell colSpan={3}><strong>{t('journal.total')}</strong></TableCell>
                     <TableCell align="right">
                       <strong>{Number(section.total_debit) > 0 ? formatCurrency(Number(section.total_debit)) : '-'}</strong>
                     </TableCell>
@@ -211,13 +220,13 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="subtitle1" sx={{
             fontWeight: "bold"
-          }}>Grand Total</Typography>
+          }}>{t('journal.grandTotal')}</Typography>
           <Box sx={{ display: 'flex', gap: 4 }}>
             <Typography variant="body1">
-              <strong>Total Debit:</strong> {formatCurrency(grandTotalDebit)}
+              <strong>{t('journal.totalDebit')}</strong> {formatCurrency(grandTotalDebit)}
             </Typography>
             <Typography variant="body1">
-              <strong>Total Credit:</strong> {formatCurrency(grandTotalCredit)}
+              <strong>{t('journal.totalCredit')}</strong> {formatCurrency(grandTotalCredit)}
             </Typography>
           </Box>
         </Box>
@@ -228,6 +237,7 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
 
 // Guest Ledger summary: one debit/credit row per journal account + totals (PDF page 2)
 export function GuestLedgerSummary({ sections }: { sections: JournalSection[] }) {
+  const { t } = useTranslation('nightAudit');
   if (!sections || sections.length === 0) {
     return null;
   }
@@ -236,15 +246,15 @@ export function GuestLedgerSummary({ sections }: { sections: JournalSection[] })
   return (
     <Box sx={{ mt: 3 }}>
       <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
-        Guest Ledger
+        {t('ledger.title')}
       </Typography>
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
             <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
-              <TableCell><strong>Account</strong></TableCell>
-              <TableCell align="right"><strong>Debits</strong></TableCell>
-              <TableCell align="right"><strong>Credits</strong></TableCell>
+              <TableCell><strong>{t('ledger.colAccount')}</strong></TableCell>
+              <TableCell align="right"><strong>{t('ledger.colDebits')}</strong></TableCell>
+              <TableCell align="right"><strong>{t('ledger.colCredits')}</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -260,7 +270,7 @@ export function GuestLedgerSummary({ sections }: { sections: JournalSection[] })
               </TableRow>
             ))}
             <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
-              <TableCell><strong>Total</strong></TableCell>
+              <TableCell><strong>{t('journal.total')}</strong></TableCell>
               <TableCell align="right"><strong>{formatCurrency(totalDebit)}</strong></TableCell>
               <TableCell align="right"><strong>{formatCurrency(totalCredit)}</strong></TableCell>
             </TableRow>
@@ -273,21 +283,22 @@ export function GuestLedgerSummary({ sections }: { sections: JournalSection[] })
 
 // Room Sold Detail by Date: room, type and guest per posted booking (PDF page 2)
 export function RoomSoldDetail({ bookings }: { bookings: PostedBookingDetail[] }) {
+  const { t } = useTranslation('nightAudit');
   if (!bookings || bookings.length === 0) {
     return null;
   }
   return (
     <Box sx={{ mt: 3 }}>
       <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
-        Room Sold Detail by Date
+        {t('roomSold.title')}
       </Typography>
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
             <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
-              <TableCell><strong>Room</strong></TableCell>
-              <TableCell><strong>Type</strong></TableCell>
-              <TableCell><strong>Guest Name</strong></TableCell>
+              <TableCell><strong>{t('roomSold.colRoom')}</strong></TableCell>
+              <TableCell><strong>{t('roomSold.colType')}</strong></TableCell>
+              <TableCell><strong>{t('roomSold.colGuest')}</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -302,7 +313,7 @@ export function RoomSoldDetail({ bookings }: { bookings: PostedBookingDetail[] }
               );
             })}
             <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
-              <TableCell><strong>Total Room Sold</strong></TableCell>
+              <TableCell><strong>{t('roomSold.totalRow')}</strong></TableCell>
               <TableCell><strong>{bookings.length}</strong></TableCell>
               <TableCell />
             </TableRow>
@@ -342,22 +353,39 @@ interface RoomCounts {
   dirty: number;
 }
 
-function RoomStatusChips({ rooms, label = 'Room Status' }: { rooms: RoomCounts; label?: string }) {
+function RoomStatusChips({ rooms, label }: { rooms: RoomCounts; label: string }) {
+  const { t } = useTranslation('nightAudit');
   return (
     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', mb: 3 }}>
       <Typography variant="subtitle2" sx={{ color: 'text.secondary', mr: 1 }}>
         {label}
       </Typography>
-      <Chip label={`${rooms.available} Available`} color="success" variant="outlined" size="small" />
-      <Chip label={`${rooms.occupied} Occupied`} color="error" variant="outlined" size="small" />
-      <Chip label={`${rooms.reserved} Reserved`} color="info" variant="outlined" size="small" />
-      <Chip label={`${rooms.maintenance} Maintenance`} color="warning" variant="outlined" size="small" />
-      <Chip label={`${rooms.dirty} Dirty`} variant="outlined" size="small" />
+      <Chip label={t('roomStatus.available', { count: rooms.available })} color="success" variant="outlined" size="small" />
+      <Chip label={t('roomStatus.occupied', { count: rooms.occupied })} color="error" variant="outlined" size="small" />
+      <Chip label={t('roomStatus.reserved', { count: rooms.reserved })} color="info" variant="outlined" size="small" />
+      <Chip label={t('roomStatus.maintenance', { count: rooms.maintenance })} color="warning" variant="outlined" size="small" />
+      <Chip label={t('roomStatus.dirty', { count: rooms.dirty })} variant="outlined" size="small" />
     </Box>
   );
 }
 
-function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdownItem[] }) {
+function BreakdownTable({
+  title,
+  items,
+  resolveCategory = formatStatusLabel,
+}: {
+  title: string;
+  items: RevenueBreakdownItem[];
+  /**
+   * Category resolver. Payment-method rows omit it on purpose: those
+   * categories are the hotel's own `payment_methods` setting names, stored
+   * verbatim on the booking — free-text server data, so the humanizer is the
+   * honest fallback. The channel table passes a resolver that maps the stable
+   * `bookings.source` enum through `bookings:channels.*`.
+   */
+  resolveCategory?: (category: string) => string;
+}) {
+  const { t } = useTranslation('nightAudit');
   if (!items || items.length === 0) {
     return null;
   }
@@ -369,22 +397,22 @@ function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdo
         <TableHead>
           <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
             <TableCell><strong>{title}</strong></TableCell>
-            <TableCell align="center"><strong>Bookings</strong></TableCell>
-            <TableCell align="right"><strong>Amount</strong></TableCell>
+            <TableCell align="center"><strong>{t('breakdown.colBookings')}</strong></TableCell>
+            <TableCell align="right"><strong>{t('breakdown.colAmount')}</strong></TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {items.map((item) => (
             <TableRow key={item.category} hover>
               <TableCell sx={{ textTransform: 'capitalize' }}>
-                {formatStatusLabel(item.category)}
+                {resolveCategory(item.category)}
               </TableCell>
               <TableCell align="center">{item.count}</TableCell>
               <TableCell align="right">{formatCurrency(Number(item.amount))}</TableCell>
             </TableRow>
           ))}
           <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
-            <TableCell><strong>Total</strong></TableCell>
+            <TableCell><strong>{t('breakdown.total')}</strong></TableCell>
             <TableCell align="center"><strong>{totalCount}</strong></TableCell>
             <TableCell align="right"><strong>{formatCurrency(totalAmount)}</strong></TableCell>
           </TableRow>
@@ -395,16 +423,11 @@ function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdo
 }
 
 const getBookingStatusChip = (status: string) => (
-  <StatusChip status={status} />
+  <StatusChip status={status} domain="booking" />
 );
 
 const formatAuditDate = (d: string) =>
-  new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  dateFormatter({ dateStyle: 'full' }).format(new Date(d + 'T00:00:00'));
 
 // ---- Pending preview (audit not yet generated) ----
 
@@ -416,6 +439,7 @@ interface PendingPreviewViewProps {
 }
 
 export function PendingPreviewView({ preview, auditDate, running, onRun }: PendingPreviewViewProps) {
+  const { t, tOr } = useTranslation('nightAudit');
   const isPhone = useIsPhone();
   const occupancyPct = preview.room_snapshot.total > 0
     ? Math.round((preview.room_snapshot.occupied / preview.room_snapshot.total) * 100)
@@ -428,9 +452,9 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-            Night Audit Preview
+            {t('preview.title')}
           </Typography>
-          <Chip label="Not run yet" color="info" size="small" variant="outlined" />
+          <Chip label={t('status.notRunYet')} color="info" size="small" variant="outlined" />
         </Box>
         {/* Primary action lives in the header too — with a full preview below,
             the footer button rendered far under the fold. */}
@@ -441,7 +465,7 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
           disabled={running || preview.total_unposted === 0}
           startIcon={running ? <CircularProgress size={16} color="inherit" /> : <RunIcon />}
         >
-          {running ? 'Running...' : 'Run Night Audit'}
+          {running ? t('actions.running') : t('actions.runNightAudit')}
         </Button>
       </Box>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
@@ -451,33 +475,39 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
       {/* Key metrics */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard icon={<EventIcon />} color="primary.main" value={preview.total_unposted} label="Bookings to Post" />
+          <StatCard icon={<EventIcon />} color="primary.main" value={preview.total_unposted} label={t('preview.bookingsToPost')} />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard icon={<MoneyIcon />} color="success.main" value={formatCurrency(Number(preview.estimated_revenue))} label="Estimated Revenue" />
+          <StatCard icon={<MoneyIcon />} color="success.main" value={formatCurrency(Number(preview.estimated_revenue))} label={t('preview.estimatedRevenue')} />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard icon={<HotelIcon />} color="info.main" value={`${preview.room_snapshot.occupied}/${preview.room_snapshot.total}`} label="Rooms Occupied" />
+          <StatCard icon={<HotelIcon />} color="info.main" value={`${preview.room_snapshot.occupied}/${preview.room_snapshot.total}`} label={t('preview.roomsOccupied')} />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard icon={<TimeIcon />} color="warning.main" value={`${occupancyPct}%`} label="Occupancy" />
+          <StatCard icon={<TimeIcon />} color="warning.main" value={`${occupancyPct}%`} label={t('preview.occupancy')} />
         </Grid>
       </Grid>
 
-      <RoomStatusChips rooms={preview.room_snapshot} label="Room status (audit date)" />
+      <RoomStatusChips rooms={preview.room_snapshot} label={t('roomStatus.auditDate')} />
 
       {/* Projected revenue breakdowns */}
       {hasBreakdowns && (
         <>
           <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 1 }}>
-            Projected Revenue
+            {t('preview.projected')}
           </Typography>
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid size={{ xs: 12, md: 6 }}>
-              <BreakdownTable title="By Payment Method" items={preview.payment_method_breakdown} />
+              <BreakdownTable title={t('preview.byPayment')} items={preview.payment_method_breakdown} />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              <BreakdownTable title="By Channel" items={preview.booking_channel_breakdown} />
+              <BreakdownTable
+              title={t('preview.byChannel')}
+              items={preview.booking_channel_breakdown}
+              resolveCategory={(category) =>
+                tOr(`bookings:channels.${category}`, formatStatusLabel(category))
+              }
+            />
             </Grid>
           </Grid>
         </>
@@ -485,7 +515,7 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
 
       {/* Bookings to post */}
       <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 1 }}>
-        Bookings to be Posted ({preview.unposted_bookings.length})
+        {t('preview.toBePosted', { count: preview.unposted_bookings.length })}
       </Typography>
       {preview.unposted_bookings.length > 0 ? (
         isPhone ? (
@@ -497,8 +527,8 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
               >
                 <MobileCardRow
                   title={booking.guest_name}
-                  subtitle={`#${booking.booking_number} · Room ${booking.room_number}`}
-                  meta={`${formatHotelDate(booking.check_in_date)} → ${formatHotelDate(booking.check_out_date)} · ${formatCurrency(Number(booking.total_amount))}${booking.source ? ` · ${formatStatusLabel(booking.source)}` : ''}`}
+                  subtitle={t('journal.roomLine', { booking: booking.booking_number, room: booking.room_number })}
+                  meta={`${formatHotelDate(booking.check_in_date)} → ${formatHotelDate(booking.check_out_date)} · ${formatCurrency(Number(booking.total_amount))}${booking.source ? ` · ${tOr(`bookings:channels.${booking.source}`, formatStatusLabel(booking.source))}` : ''}`}
                   status={getBookingStatusChip(booking.status)}
                 />
               </Box>
@@ -509,14 +539,14 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
-                <TableCell><strong>Booking #</strong></TableCell>
-                <TableCell><strong>Guest</strong></TableCell>
-                <TableCell><strong>Room</strong></TableCell>
-                <TableCell><strong>Check-in</strong></TableCell>
-                <TableCell><strong>Check-out</strong></TableCell>
-                <TableCell align="right"><strong>Amount</strong></TableCell>
-                <TableCell><strong>Status</strong></TableCell>
-                <TableCell><strong>Channel</strong></TableCell>
+                <TableCell><strong>{t('preview.colBooking')}</strong></TableCell>
+                <TableCell><strong>{t('preview.colGuest')}</strong></TableCell>
+                <TableCell><strong>{t('preview.colRoom')}</strong></TableCell>
+                <TableCell><strong>{t('preview.colCheckIn')}</strong></TableCell>
+                <TableCell><strong>{t('preview.colCheckOut')}</strong></TableCell>
+                <TableCell align="right"><strong>{t('preview.colAmount')}</strong></TableCell>
+                <TableCell><strong>{t('preview.colStatus')}</strong></TableCell>
+                <TableCell><strong>{t('preview.colChannel')}</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -530,7 +560,7 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
                   <TableCell align="right">{formatCurrency(Number(booking.total_amount))}</TableCell>
                   <TableCell>{getBookingStatusChip(booking.status)}</TableCell>
                   <TableCell sx={{ textTransform: 'capitalize' }}>
-                    {booking.source ? formatStatusLabel(booking.source) : '-'}
+                    {booking.source ? tOr(`bookings:channels.${booking.source}`, formatStatusLabel(booking.source)) : '-'}
                   </TableCell>
                 </TableRow>
               ))}
@@ -539,14 +569,14 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
         </TableContainer>
         )
       ) : (
-        <Alert severity="info" sx={{ mb: 3 }}>No bookings to post for this date.</Alert>
+        <Alert severity="info" sx={{ mb: 3 }}>{t('preview.noBookings')}</Alert>
       )}
 
       {/* What will post tonight */}
       {preview.journal_sections.length > 0 && (
         <>
           <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 1 }}>
-            What will be posted tonight
+            {t('preview.willPost')}
           </Typography>
           <JournalSectionsDisplay sections={preview.journal_sections} />
           <GuestLedgerSummary sections={preview.journal_sections} />
@@ -563,7 +593,7 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
           disabled={running || preview.total_unposted === 0}
           startIcon={running ? <CircularProgress size={16} color="inherit" /> : <RunIcon />}
         >
-          {running ? 'Running...' : 'Run Night Audit'}
+          {running ? t('actions.running') : t('actions.runNightAudit')}
         </Button>
       </Box>
     </Paper>
@@ -593,33 +623,38 @@ export function CompletedReportView({
   onExportCSV,
   onRerun,
 }: CompletedReportViewProps) {
+  const { t } = useTranslation('nightAudit');
+  const runAtFormatter = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
   return (
     <Paper sx={{ p: 3, mb: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 1 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-          Night Audit Report
+          {t('report.title')}
         </Typography>
-        <Chip label="Posted" color="success" size="small" icon={<CheckIcon />} />
+        <Chip label={t('status.posted')} color="success" size="small" icon={<CheckIcon />} />
       </Box>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
         {formatAuditDate(audit.audit_date)}
-        {' · '}Completed at {new Date(audit.run_at).toLocaleString()} by {audit.run_by_username || 'System'}
-        {Number(audit.total_revenue) > 0 && ` · Revenue ${formatCurrency(Number(audit.total_revenue))}`}
+        {' · '}{t('report.completedLine', {
+          time: runAtFormatter.format(new Date(audit.run_at)),
+          name: audit.run_by_username || t('history.system'),
+        })}
+        {Number(audit.total_revenue) > 0 && ` · ${t('report.revenue', { amount: formatCurrency(Number(audit.total_revenue)) })}`}
       </Typography>
 
       {/* Actual results */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard icon={<EventIcon />} color="primary.main" value={audit.total_bookings_posted} label="Bookings Posted" />
+          <StatCard icon={<EventIcon />} color="primary.main" value={audit.total_bookings_posted} label={t('report.bookingsPosted')} />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard icon={<PersonIcon />} color="info.main" value={audit.total_checkins} label="Check-ins" />
+          <StatCard icon={<PersonIcon />} color="info.main" value={audit.total_checkins} label={t('report.checkins')} />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard icon={<TimeIcon />} color="warning.main" value={audit.total_checkouts} label="Check-outs" />
+          <StatCard icon={<TimeIcon />} color="warning.main" value={audit.total_checkouts} label={t('report.checkouts')} />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard icon={<HotelIcon />} color="success.main" value={`${Number(audit.occupancy_rate).toFixed(0)}%`} label="Occupancy" />
+          <StatCard icon={<HotelIcon />} color="success.main" value={`${Number(audit.occupancy_rate).toFixed(0)}%`} label={t('report.occupancy')} />
         </Grid>
       </Grid>
 
@@ -629,12 +664,12 @@ export function CompletedReportView({
         reserved: audit.rooms_reserved,
         maintenance: audit.rooms_maintenance,
         dirty: audit.rooms_dirty,
-      }} label="Room status (when audited)" />
+      }} label={t('roomStatus.whenAudited')} />
 
       {audit.notes && (
         <Box sx={{ mb: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 0.5, color: 'text.secondary' }}>
-            Notes
+            {t('report.notes')}
           </Typography>
           <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'background.paper' }}>
             <Typography variant="body2">{audit.notes}</Typography>
@@ -646,7 +681,7 @@ export function CompletedReportView({
       {detailsLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
           <CircularProgress size={24} />
-          <Typography variant="body2" sx={{ ml: 1 }}>Loading journal entries...</Typography>
+          <Typography variant="body2" sx={{ ml: 1 }}>{t('actions.loadingJournal')}</Typography>
         </Box>
       ) : details ? (
         <>
@@ -656,17 +691,17 @@ export function CompletedReportView({
         </>
       ) : (
         <Button variant="text" size="small" onClick={onLoadDetails}>
-          Load Journal Entries
+          {t('actions.loadJournal')}
         </Button>
       )}
 
       <Divider sx={{ my: 3 }} />
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
         <Button size="small" variant="outlined" startIcon={<PdfIcon />} onClick={onExportPDF}>
-          Export PDF
+          {t('actions.exportPdf')}
         </Button>
         <Button size="small" variant="outlined" startIcon={<CsvIcon />} onClick={onExportCSV}>
-          Export CSV
+          {t('actions.exportCsv')}
         </Button>
         <Button
           size="small"
@@ -676,7 +711,7 @@ export function CompletedReportView({
           onClick={onRerun}
           disabled={running}
         >
-          {running ? 'Rerunning...' : 'Rerun Audit'}
+          {running ? t('actions.rerunning') : t('actions.rerun')}
         </Button>
       </Box>
     </Paper>

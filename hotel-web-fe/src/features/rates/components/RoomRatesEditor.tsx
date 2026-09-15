@@ -16,6 +16,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { RoomRateWithDetails, RoomTypeRef } from '../types';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { formatHotelDate } from '../../../utils/date';
@@ -60,6 +61,7 @@ export const RoomRatesEditor = ({
   onUpdate,
   onDelete,
 }: RoomRatesEditorProps) => {
+  const { t } = useTranslation('rates');
   const [draft, setDraft] = useState<DraftBand>(emptyDraft);
 
   const canAdd =
@@ -91,7 +93,7 @@ export const RoomRatesEditor = ({
           setDraft({ ...draft, room_type_id: event.target.value })
         }
         fullWidth
-        aria-label="Band room type"
+        aria-label={t('bands.roomTypeAria')}
       >
         {roomTypes.map((type) => (
           <MenuItem key={type.id} value={String(type.id)}>
@@ -106,7 +108,7 @@ export const RoomRatesEditor = ({
         onChange={(event) =>
           setDraft({ ...draft, price: event.target.value })
         }
-        slotProps={{ htmlInput: { 'aria-label': 'Band price', inputMode: 'decimal' } }}
+        slotProps={{ htmlInput: { 'aria-label': t('bands.priceAria'), inputMode: 'decimal' } }}
         sx={isPhone ? undefined : { width: 110 }}
         fullWidth={isPhone}
       />
@@ -123,7 +125,7 @@ export const RoomRatesEditor = ({
         size="small"
         value={draft.effective_to}
         onChange={(value) => setDraft({ ...draft, effective_to: value })}
-        helperText="Blank = open-ended"
+        helperText={t('bands.openEndedHint')}
       />
       <Button
         size="small"
@@ -132,7 +134,7 @@ export const RoomRatesEditor = ({
         disabled={!canAdd}
         sx={isPhone ? { alignSelf: 'flex-start' } : undefined}
       >
-        Add
+        {t('common:actions.add')}
       </Button>
     </>
   );
@@ -140,7 +142,7 @@ export const RoomRatesEditor = ({
   return (
     <Box>
       <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
-        Rate bands
+        {t('bands.title')}
       </Typography>
       {isPhone ? (
         <Box>
@@ -151,17 +153,17 @@ export const RoomRatesEditor = ({
             >
               <MobileCardRow
                 title={`${rate.room_type_name} (${rate.room_type_code})`}
-                subtitle={`${formatHotelDate(rate.effective_from)} → ${rate.effective_to ? formatHotelDate(rate.effective_to) : 'Open'}`}
+                subtitle={`${formatHotelDate(rate.effective_from)} → ${rate.effective_to ? formatHotelDate(rate.effective_to) : t('bands.open')}`}
                 status={
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>
                     {rate.price}
                   </Typography>
                 }
                 footer={
-                  <Tooltip title="Delete band">
+                  <Tooltip title={t('bands.deleteBand')}>
                     <IconButton
                       size="small"
-                      aria-label={`Delete band for ${rate.room_type_name}`}
+                      aria-label={t('bands.deleteBandAria', { name: rate.room_type_name })}
                       onClick={() => onDelete(rate.id)}
                     >
                       <DeleteOutlineIcon fontSize="small" />
@@ -190,10 +192,10 @@ export const RoomRatesEditor = ({
       <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell>Room type</TableCell>
-            <TableCell align="right">Price</TableCell>
-            <TableCell>Effective from</TableCell>
-            <TableCell>Effective to</TableCell>
+            <TableCell>{t('bands.colRoomType')}</TableCell>
+            <TableCell align="right">{t('bands.colPrice')}</TableCell>
+            <TableCell>{t('bands.colFrom')}</TableCell>
+            <TableCell>{t('bands.colTo')}</TableCell>
             <TableCell align="right" />
           </TableRow>
         </TableHead>
@@ -209,10 +211,10 @@ export const RoomRatesEditor = ({
               <TableCell align="right">{rate.price}</TableCell>
               <TableCell>{formatHotelDate(rate.effective_from)}</TableCell>
               <TableCell>
-                {rate.effective_to ? formatHotelDate(rate.effective_to) : 'Open'}
+                {rate.effective_to ? formatHotelDate(rate.effective_to) : t('bands.open')}
               </TableCell>
               <TableCell align="right">
-                <Tooltip title="Delete band">
+                <Tooltip title={t('bands.deleteBand')}>
                   <IconButton size="small" onClick={() => onDelete(rate.id)}>
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
@@ -230,7 +232,7 @@ export const RoomRatesEditor = ({
                   setDraft({ ...draft, room_type_id: event.target.value })
                 }
                 fullWidth
-                aria-label="Band room type"
+                aria-label={t('bands.roomTypeAria')}
               >
                 {roomTypes.map((type) => (
                   <MenuItem key={type.id} value={String(type.id)}>
@@ -247,7 +249,7 @@ export const RoomRatesEditor = ({
                 onChange={(event) =>
                   setDraft({ ...draft, price: event.target.value })
                 }
-                slotProps={{ htmlInput: { 'aria-label': 'Band price' } }}
+                slotProps={{ htmlInput: { 'aria-label': t('bands.priceAria') } }}
                 sx={{ width: 110 }}
               />
             </TableCell>
@@ -267,7 +269,7 @@ export const RoomRatesEditor = ({
                 size="small"
                 value={draft.effective_to}
                 onChange={(value) => setDraft({ ...draft, effective_to: value })}
-                helperText="Blank = open-ended"
+                helperText={t('bands.openEndedHint')}
               />
             </TableCell>
             <TableCell align="right">
@@ -277,7 +279,7 @@ export const RoomRatesEditor = ({
                 onClick={add}
                 disabled={!canAdd}
               >
-                Add
+                {t('common:actions.add')}
               </Button>
             </TableCell>
           </TableRow>
@@ -286,7 +288,7 @@ export const RoomRatesEditor = ({
       )}
       {rates.length === 0 && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          No bands yet — dates fall back to the room type base rate.
+          {t('bands.empty')}
         </Typography>
       )}
     </Box>

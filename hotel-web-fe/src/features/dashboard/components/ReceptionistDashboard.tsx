@@ -59,6 +59,7 @@ import RoomEventDialog from '../../rooms/components/RoomEventDialog';
 import CollapsibleSection from '../../../components/common/CollapsibleSection';
 import StatusChip from '../../../components/common/StatusChip';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 interface RoomStatus {
   // Room.id is a UUID string in the API; the old `number` only typechecked
@@ -124,6 +125,7 @@ const PHONE_ROOM_SECTIONS: ReadonlyArray<{
 ];
 
 const ReceptionistDashboard: React.FC = () => {
+  const { t } = useTranslation('bookings');
   const isPhone = useIsPhone();
   const { hasRole } = useAuth();
   const isReceptionist = hasRole('receptionist') || hasRole('manager') || hasRole('admin');
@@ -571,7 +573,7 @@ const ReceptionistDashboard: React.FC = () => {
   // auto-records a payment for the outstanding balance when `source === 'online'`.
   const ciIsOnlineReservation = (checkinBooking?.source || '').trim().toLowerCase() === 'online';
   const ciOnlinePlatformName =
-    (checkinBooking ? getBookingChannelInfo(checkinBooking)?.name : null) || 'the online platform';
+    (checkinBooking ? getBookingChannelInfo(checkinBooking)?.name : null) || t('checkIn.onlinePlatformFallback');
 
   return (
     <Box>

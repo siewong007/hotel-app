@@ -17,13 +17,14 @@ import { useEffect, useState } from 'react';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import StatusChip from '../../../components/common/StatusChip';
 import { errorMessage } from '../../../utils/errorMessage';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type {
   HousekeepingPriority,
   HousekeepingTask,
   UpdateHousekeepingTaskRequest,
 } from '../../../types/housekeeping.types';
-import { PRIORITIES, taskTypeLabel } from '../housekeepingConfig';
+import { PRIORITIES } from '../housekeepingConfig';
 import { useAssignableStaff } from '../hooks/useHousekeepingQueries';
 
 interface TaskEditDialogProps {
@@ -54,6 +55,7 @@ const stateFromTask = (task: HousekeepingTask): FormState => ({
 });
 
 export default function TaskEditDialog({ open, task, onClose, onSubmit }: TaskEditDialogProps) {
+  const { t } = useTranslation('housekeeping');
   const [form, setForm] = useState<FormState>(() => (task ? stateFromTask(task) : ({} as FormState)));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,11 +75,11 @@ export default function TaskEditDialog({ open, task, onClose, onSubmit }: TaskEd
 
   const handleSubmit = async () => {
     if (task.scheduled_date && !form.scheduledDate) {
-      setError('A scheduled date cannot be cleared once set — pick a new date instead.');
+      setError(t('editTask.errDateCleared'));
       return;
     }
     if ((task.notes && !form.notes.trim()) || (task.inspection_notes && !form.inspectionNotes.trim())) {
-      setError('Notes cannot be cleared once set — replace the text instead.');
+      setError(t('editTask.errNotesCleared'));
       return;
     }
     setSaving(true);
@@ -99,7 +101,7 @@ export default function TaskEditDialog({ open, task, onClose, onSubmit }: TaskEd
       await onSubmit(task.id, input);
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to update task'));
+      setError(errorMessage(err, t('errors.updateTask')));
     } finally {
       setSaving(false);
     }
@@ -108,23 +110,23 @@ export default function TaskEditDialog({ open, task, onClose, onSubmit }: TaskEd
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
-        Edit task — Room {task.room_number}
+        {t('editTask.title', { room: task.room_number })}
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error ? <Alert severity="error">{error}</Alert> : null}
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {taskTypeLabel(task.task_type)}
+              {statusLabel(t, 'task_type', task.task_type)}
             </Typography>
-            <StatusChip status={task.status} />
+            <StatusChip status={task.status} domain="housekeeping" />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <FormControl fullWidth>
-              <InputLabel id="edit-task-priority">Priority</InputLabel>
+              <InputLabel id="edit-task-priority">{t('board.priority')}</InputLabel>
               <Select
                 labelId="edit-task-priority"
-                label="Priority"
+                label={t('board.priority')}
                 value={form.priority}
                 onChange={(event) =>
                   patch({ priority: event.target.value as HousekeepingPriority })
@@ -133,26 +135,26 @@ export default function TaskEditDialog({ open, task, onClose, onSubmit }: TaskEd
               >
                 {PRIORITIES.map((priority) => (
                   <MenuItem key={priority} value={priority}>
-                    {formatStatusLabel(priority)}
+                    {statusLabel(t, 'priority', priority)}
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
             <FormControl fullWidth>
-              <InputLabel id="edit-task-assignee">Assigned to</InputLabel>
+              <InputLabel id="edit-task-assignee">{t('tasks.colAssignedTo')}</InputLabel>
               <Select
                 labelId="edit-task-assignee"
-                label="Assigned to"
+                label={t('tasks.colAssignedTo')}
                 value={form.assignee}
                 onChange={(event) => patch({ assignee: event.target.value })}
                 disabled={saving || staffQuery.isLoading}
               >
                 <MenuItem value={KEEP}>
                   {task.assigned_to_name
-                    ? `Keep ${task.assigned_to_name}`
-                    : 'Keep unassigned'}
+                    ? t('editTask.keepAssignee', { name: task.assigned_to_name })
+                    : t('editTask.keepUnassigned')}
                 </MenuItem>
-                {task.assigned_to ? <MenuItem value={CLEAR}>Unassign</MenuItem> : null}
+                {task.assigned_to ? <MenuItem value={CLEAR}>{t('editTask.unassign')}</MenuItem> : null}
                 {staff
                   .filter((member) => member.id !== task.assigned_to)
                   .map((member) => (
@@ -164,14 +166,14 @@ export default function TaskEditDialog({ open, task, onClose, onSubmit }: TaskEd
             </FormControl>
           </Stack>
           <ModernDatePicker
-            label="Scheduled date"
+            label={t('editTask.scheduledDate')}
             value={form.scheduledDate}
             onChange={(value) => patch({ scheduledDate: value })}
             disabled={saving}
             fullWidth
           />
           <TextField
-            label="Notes"
+            label={t('common:field.notes')}
             value={form.notes}
             onChange={(event) => patch({ notes: event.target.value })}
             multiline
@@ -181,7 +183,7 @@ export default function TaskEditDialog({ open, task, onClose, onSubmit }: TaskEd
           />
           {task.task_type === 'inspection' ? (
             <TextField
-              label="Inspection notes"
+              label={t('editTask.inspectionNotes')}
               value={form.inspectionNotes}
               onChange={(event) => patch({ inspectionNotes: event.target.value })}
               multiline
@@ -194,10 +196,10 @@ export default function TaskEditDialog({ open, task, onClose, onSubmit }: TaskEd
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button variant="contained" onClick={handleSubmit} disabled={saving}>
-          {saving ? 'Saving…' : 'Save changes'}
+          {saving ? t('editTask.saving') : t('editTask.submit')}
         </Button>
       </DialogActions>
     </Dialog>

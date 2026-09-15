@@ -14,7 +14,8 @@ import {
 } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { errorMessage } from '../../../utils/errorMessage';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type {
   CreateMaintenanceTicketRequest,
   MaintenanceCategory,
@@ -67,6 +68,7 @@ export default function NewTicketDialog({
   onClose,
   onSubmit,
 }: NewTicketDialogProps) {
+  const { t } = useTranslation('housekeeping');
   const [form, setForm] = useState<FormState>(() => initialState(initialRoom));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +89,7 @@ export default function NewTicketDialog({
 
   const handleSubmit = async () => {
     if (!form.title.trim()) {
-      setError('Please give the ticket a title');
+      setError(t('newTicket.errTitle'));
       return;
     }
     setSaving(true);
@@ -103,7 +105,7 @@ export default function NewTicketDialog({
       });
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to create ticket'));
+      setError(errorMessage(err, t('errors.createTicket')));
     } finally {
       setSaving(false);
     }
@@ -111,12 +113,12 @@ export default function NewTicketDialog({
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>New maintenance ticket</DialogTitle>
+      <DialogTitle>{t('newTicket.title')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error ? <Alert severity="error">{error}</Alert> : null}
           <TextField
-            label="Title"
+            label={t('newTicket.fieldTitle')}
             required
             value={form.title}
             onChange={(event) => patch({ title: event.target.value })}
@@ -124,7 +126,7 @@ export default function NewTicketDialog({
             disabled={saving}
           />
           <TextField
-            label="Description"
+            label={t('common:field.description')}
             value={form.description}
             onChange={(event) => patch({ description: event.target.value })}
             multiline
@@ -134,10 +136,10 @@ export default function NewTicketDialog({
           />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <FormControl fullWidth>
-              <InputLabel id="maintenance-new-category">Category</InputLabel>
+              <InputLabel id="maintenance-new-category">{t('maint.category')}</InputLabel>
               <Select
                 labelId="maintenance-new-category"
-                label="Category"
+                label={t('maint.category')}
                 value={form.category}
                 onChange={(event) =>
                   patch({ category: event.target.value as MaintenanceCategory })
@@ -146,16 +148,16 @@ export default function NewTicketDialog({
               >
                 {CATEGORIES.map((category) => (
                   <MenuItem key={category} value={category}>
-                    {formatStatusLabel(category)}
+                    {statusLabel(t, 'maintenance_category', category)}
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
             <FormControl fullWidth>
-              <InputLabel id="maintenance-new-priority">Priority</InputLabel>
+              <InputLabel id="maintenance-new-priority">{t('board.priority')}</InputLabel>
               <Select
                 labelId="maintenance-new-priority"
-                label="Priority"
+                label={t('board.priority')}
                 value={form.priority}
                 onChange={(event) =>
                   patch({ priority: event.target.value as MaintenancePriority })
@@ -164,7 +166,7 @@ export default function NewTicketDialog({
               >
                 {MAINTENANCE_PRIORITIES.map((priority) => (
                   <MenuItem key={priority} value={priority}>
-                    {formatStatusLabel(priority)}
+                    {statusLabel(t, 'priority', priority)}
                   </MenuItem>
                 ))}
               </Select>
@@ -172,38 +174,38 @@ export default function NewTicketDialog({
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <FormControl fullWidth>
-              <InputLabel id="maintenance-new-room">Room (optional)</InputLabel>
+              <InputLabel id="maintenance-new-room">{t('newTicket.room')}</InputLabel>
               <Select
                 labelId="maintenance-new-room"
-                label="Room (optional)"
+                label={t('newTicket.room')}
                 value={form.roomId}
                 onChange={(event) => patch({ roomId: event.target.value })}
                 disabled={saving || Boolean(initialRoom) || roomsQuery.isLoading}
               >
-                <MenuItem value="">No room</MenuItem>
+                <MenuItem value="">{t('newTicket.noRoom')}</MenuItem>
                 {initialRoom ? (
                   <MenuItem value={String(initialRoom.id)}>
-                    Room {initialRoom.room_number}
+                    {t('card.roomN', { number: initialRoom.room_number })}
                   </MenuItem>
                 ) : (
                   rooms.map((room) => (
                     <MenuItem key={room.id} value={String(room.id)}>
-                      Room {room.room_number}
+                      {t('card.roomN', { number: room.room_number })}
                     </MenuItem>
                   ))
                 )}
               </Select>
             </FormControl>
             <FormControl fullWidth>
-              <InputLabel id="maintenance-new-assignee">Assign to (optional)</InputLabel>
+              <InputLabel id="maintenance-new-assignee">{t('newTask.assignTo')}</InputLabel>
               <Select
                 labelId="maintenance-new-assignee"
-                label="Assign to (optional)"
+                label={t('newTask.assignTo')}
                 value={form.assignedTo}
                 onChange={(event) => patch({ assignedTo: event.target.value })}
                 disabled={saving || staffQuery.isLoading}
               >
-                <MenuItem value="">Unassigned</MenuItem>
+                <MenuItem value="">{t('card.unassigned')}</MenuItem>
                 {staff.map((member) => (
                   <MenuItem key={member.id} value={String(member.id)}>
                     {member.full_name || member.username}
@@ -216,10 +218,10 @@ export default function NewTicketDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button variant="contained" onClick={handleSubmit} disabled={saving || !form.title.trim()}>
-          {saving ? 'Creating…' : 'Create ticket'}
+          {saving ? t('newTicket.creating') : t('newTicket.submit')}
         </Button>
       </DialogActions>
     </Dialog>

@@ -4,6 +4,8 @@
  */
 
 import { formatStatusLabel } from '../../utils/formatters';
+import { formatNumber as formatLocaleNumber } from '../../i18n/format';
+import { formatHotelDate } from '../../utils/date';
 
 export interface UserLoyaltyMembership {
   id: number;
@@ -34,6 +36,8 @@ export interface UserLoyaltyMembership {
 
 export const TIER_CONFIG: Record<number, {
   name: string;
+  /** `loyalty:tiers.<level>` — localized display name; `name` is the English fallback. */
+  nameKey: string;
   color: string;
   gradient: string;
   icon: string;
@@ -41,6 +45,7 @@ export const TIER_CONFIG: Record<number, {
 }> = {
   1: {
     name: 'Bronze',
+    nameKey: 'tiers.1',
     color: '#CD8B4A',
     gradient: 'color-mix(in srgb, #CD8B4A 16%, var(--hotel-surface-raised))',
     icon: '🥉',
@@ -48,6 +53,7 @@ export const TIER_CONFIG: Record<number, {
   },
   2: {
     name: 'Silver',
+    nameKey: 'tiers.2',
     color: '#B9BEC7',
     gradient: 'color-mix(in srgb, #B9BEC7 16%, var(--hotel-surface-raised))',
     icon: '🥈',
@@ -55,6 +61,7 @@ export const TIER_CONFIG: Record<number, {
   },
   3: {
     name: 'Gold',
+    nameKey: 'tiers.3',
     color: '#E3BC55',
     gradient: 'color-mix(in srgb, #E3BC55 16%, var(--hotel-surface-raised))',
     icon: '🥇',
@@ -62,6 +69,7 @@ export const TIER_CONFIG: Record<number, {
   },
   4: {
     name: 'Platinum',
+    nameKey: 'tiers.4',
     color: '#D8DCE4',
     gradient: 'color-mix(in srgb, #D8DCE4 14%, var(--hotel-surface-raised))',
     icon: '💎',
@@ -119,14 +127,8 @@ export function formatCategoryLabel(category: string): string {
   return formatStatusLabel(category);
 }
 
-export const formatNumber = (num: number) => {
-  return new Intl.NumberFormat('en-US').format(num);
-};
+/** Locale-aware number formatting (delegates to `src/i18n/format`). */
+export const formatNumber = (num: number) => formatLocaleNumber(num);
 
-export const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-};
+/** Locale-aware short date ('Jul 26, 2026') in the interface language. */
+export const formatDate = (dateString: string) => formatHotelDate(dateString, '');

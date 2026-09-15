@@ -127,6 +127,12 @@ export const getNextAvailableDate = (
   return formatLocalDate(date);
 };
 
+/**
+ * Returns a `messageKey` + interpolation `vars` instead of a rendered string so
+ * a future caller can feed the result straight into `t()`. No production caller
+ * exists yet — today only `roomManagementUtils.test.ts` exercises it; wire it
+ * into the complimentary-credit booking flow when that UI lands.
+ */
 export const validateCreditDateSelection = (
   checkInDate: string,
   checkOutDate: string,

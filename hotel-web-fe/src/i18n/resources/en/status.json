@@ -191,6 +191,60 @@
     "completed": "Completed",
     "failed": "Failed"
   },
+  "booking_history": {
+    "checked_out": "Checked out",
+    "completed": "Completed",
+    "voided": "Voided",
+    "comp_void": "Comp void",
+    "checked_in": "Checked in",
+    "auto_checked_in": "Checked in",
+    "confirmed": "Reserved",
+    "pending": "Pending"
+  },
+  "booking_source": {
+    "direct": "Direct",
+    "walk_in": "Walk-in",
+    "online": "Online",
+    "phone": "Phone",
+    "email": "Email",
+    "agent": "Agent",
+    "travel_agent": "Travel agent",
+    "corporate": "Corporate",
+    "ota": "OTA",
+    "guest_portal": "Guest portal"
+  },
+  "priority": {
+    "low": "Low",
+    "normal": "Normal",
+    "medium": "Medium",
+    "high": "High",
+    "urgent": "Urgent",
+    "critical": "Critical"
+  },
+  "task_type": {
+    "cleaning": "Cleaning",
+    "checkout_clean": "Checkout clean",
+    "inspection": "Inspection",
+    "maintenance_followup": "Maintenance follow-up"
+  },
+  "maintenance_category": {
+    "electrical": "Electrical",
+    "plumbing": "Plumbing",
+    "hvac": "HVAC",
+    "furniture": "Furniture",
+    "appliance": "Appliance",
+    "structural": "Structural",
+    "other": "Other"
+  },
+  "room_event": {
+    "reserve": "Reservation",
+    "booking": "Booking",
+    "maintenance": "Maintenance",
+    "inspection": "Inspection",
+    "repair": "Repair",
+    "status_change": "Status change",
+    "reserved": "Reserved"
+  },
   "generic": {
     "active": "Active",
     "inactive": "Inactive",

@@ -1,3 +1,4 @@
+import { t } from '../../i18n/translate';
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../utils/date';
 
 import type {
@@ -217,26 +218,36 @@ const describeEdit = (
   edit: StagedEdit,
   formatPrice: (value: string) => string,
 ): string[] => {
-  if (edit.type === 'reset') return ['Reset to standard rules'];
-  if (!saved) return ['Updated'];
+  if (edit.type === 'reset') return [t('lines.resetStandard', undefined, 'onlineInventory')];
+  if (!saved) return [t('lines.updated', undefined, 'onlineInventory')];
   const lines: string[] = [];
   const value = edit.value;
   if (value.online_booking_enabled !== saved.online_booking_enabled) {
-    lines.push(value.online_booking_enabled ? 'Reopen online' : 'Close online');
+    lines.push(
+      value.online_booking_enabled
+        ? t('lines.reopenOnline', undefined, 'onlineInventory')
+        : t('lines.closeOnline', undefined, 'onlineInventory'),
+    );
   }
   if (value.walk_in_reserved_rooms !== saved.walk_in_reserved_rooms) {
     lines.push(
-      `Hold ${value.walk_in_reserved_rooms} for walk-ins (was ${saved.walk_in_reserved_rooms})`,
+      t('lines.holdLine', {
+        count: value.walk_in_reserved_rooms,
+        was: saved.walk_in_reserved_rooms,
+      }, 'onlineInventory'),
     );
   }
   if (comparablePrice(value.custom_price) !== comparablePrice(saved.custom_price)) {
     lines.push(
       value.custom_price === null
-        ? 'Price → standard rate'
-        : `Price → ${formatPrice(value.custom_price)} (standard ${formatPrice(saved.standard_price)})`,
+        ? t('lines.priceStandard', undefined, 'onlineInventory')
+        : t('lines.priceLine', {
+            price: formatPrice(value.custom_price),
+            standard: formatPrice(saved.standard_price),
+          }, 'onlineInventory'),
     );
   }
-  return lines.length > 0 ? lines : ['Updated'];
+  return lines.length > 0 ? lines : [t('lines.updated', undefined, 'onlineInventory')];
 };
 
 const sameEdit = (a: StagedEdit, b: StagedEdit): boolean =>
@@ -259,7 +270,7 @@ export const summarizeEdits = (
     const { roomTypeId, date } = parseCellKey(key);
     const savedCell = saved.get(key);
     const group = byRoomType.get(roomTypeId) ?? {
-      name: savedCell?.room_type_name ?? `Room type ${roomTypeId}`,
+      name: savedCell?.room_type_name ?? t('lines.roomTypeFallback', { id: roomTypeId }, 'onlineInventory'),
       code: savedCell?.room_type_code ?? '',
       entries: [],
     };

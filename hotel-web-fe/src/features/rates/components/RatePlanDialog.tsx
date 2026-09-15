@@ -14,6 +14,7 @@ import {
   TextField,
 } from '@mui/material';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import { ADJUSTMENT_TYPES, DOW_FLAGS, PLAN_TYPES } from '../constants';
 import type { RatePlan, RatePlanInput } from '../types';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
@@ -99,6 +100,7 @@ export const RatePlanDialog = ({
   onClose,
   onSubmit,
 }: RatePlanDialogProps) => {
+  const { t } = useTranslation('rates');
   const [form, setForm] = useState<FormState>(emptyForm);
   useEffect(() => {
     if (open) setForm(plan ? fromPlan(plan) : emptyForm());
@@ -147,28 +149,28 @@ export const RatePlanDialog = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{plan ? `Edit ${plan.name}` : 'New rate plan'}</DialogTitle>
+      <DialogTitle>{plan ? t('planDialog.editTitle', { name: plan.name }) : t('planDialog.newTitle')}</DialogTitle>
       <DialogContent dividers>
         <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
           <TextField
-            label="Name"
+            label={t('planDialog.name')}
             value={form.name}
             onChange={(event) => set({ name: event.target.value })}
             required
             fullWidth
           />
           <TextField
-            label="Code"
+            label={t('planDialog.code')}
             value={form.code}
             onChange={(event) =>
               set({ code: event.target.value.toUpperCase() })
             }
             required
             fullWidth
-            helperText="Unique plan code shown on the calendar"
+            helperText={t('planDialog.codeHint')}
           />
           <TextField
-            label="Description"
+            label={t('common:field.description')}
             value={form.description}
             onChange={(event) => set({ description: event.target.value })}
             fullWidth
@@ -176,52 +178,52 @@ export const RatePlanDialog = ({
           />
           <TextField
             select
-            label="Plan type"
+            label={t('planDialog.planType')}
             value={form.plan_type}
             onChange={(event) => set({ plan_type: event.target.value })}
             fullWidth
           >
             {PLAN_TYPES.map((type) => (
               <MenuItem key={type} value={type}>
-                {type}
+                {t(`planTypes.${type}`)}
               </MenuItem>
             ))}
           </TextField>
           <TextField
             select
-            label="Adjustment type"
+            label={t('planDialog.adjustmentType')}
             value={form.adjustment_type}
             onChange={(event) => set({ adjustment_type: event.target.value })}
             fullWidth
           >
             {ADJUSTMENT_TYPES.map((type) => (
               <MenuItem key={type} value={type}>
-                {type}
+                {t(`adjustmentTypes.${type}`)}
               </MenuItem>
             ))}
           </TextField>
           <TextField
-            label="Adjustment value"
+            label={t('planDialog.adjustmentValue')}
             type="number"
             value={form.adjustment_value}
             onChange={(event) => set({ adjustment_value: event.target.value })}
             fullWidth
           />
           <TextField
-            label="Priority"
+            label={t('planDialog.priority')}
             type="number"
             value={form.priority}
             onChange={(event) => set({ priority: event.target.value })}
-            helperText="Higher wins when plans overlap"
+            helperText={t('planDialog.priorityHint')}
             fullWidth
           />
           <ModernDatePicker
-            label="Valid from"
+            label={t('planDialog.validFrom')}
             value={form.valid_from}
             onChange={(value) => set({ valid_from: value })}
           />
           <ModernDatePicker
-            label="Valid to"
+            label={t('planDialog.validTo')}
             value={form.valid_to}
             onChange={(value) => set({ valid_to: value })}
             error={Boolean(
@@ -229,26 +231,26 @@ export const RatePlanDialog = ({
             )}
             helperText={
               form.valid_from && form.valid_to && form.valid_from > form.valid_to
-                ? 'Must be on or after Valid from'
+                ? t('planDialog.validToError')
                 : undefined
             }
           />
           <TextField
-            label="Min nights"
+            label={t('planDialog.minNights')}
             type="number"
             value={form.min_nights}
             onChange={(event) => set({ min_nights: event.target.value })}
             fullWidth
           />
           <TextField
-            label="Max nights"
+            label={t('planDialog.maxNights')}
             type="number"
             value={form.max_nights}
             onChange={(event) => set({ max_nights: event.target.value })}
             fullWidth
           />
           <TextField
-            label="Min advance booking (days)"
+            label={t('planDialog.minAdvance')}
             type="number"
             value={form.min_advance_booking}
             onChange={(event) =>
@@ -257,7 +259,7 @@ export const RatePlanDialog = ({
             fullWidth
           />
           <TextField
-            label="Max advance booking (days)"
+            label={t('planDialog.maxAdvance')}
             type="number"
             value={form.max_advance_booking}
             onChange={(event) =>
@@ -267,20 +269,20 @@ export const RatePlanDialog = ({
           />
           {!plan && (
             <TextField
-              label="Blackout dates"
+              label={t('planDialog.blackout')}
               value={form.blackout_dates}
               onChange={(event) => set({ blackout_dates: event.target.value })}
-              helperText="Comma-separated YYYY-MM-DD; create-only (API does not return stored blackouts)"
+              helperText={t('planDialog.blackoutHint')}
               fullWidth
               sx={{ gridColumn: '1 / -1' }}
             />
           )}
         </Box>
         <FormLabel component="legend" sx={{ mt: 2, mb: 0.5 }}>
-          Applies on
+          {t('planDialog.appliesOn')}
         </FormLabel>
         <FormGroup row>
-          {DOW_FLAGS.map(([flag, label]) => (
+          {DOW_FLAGS.map(([flag, dayKey]) => (
             <FormControlLabel
               key={flag}
               control={
@@ -294,7 +296,7 @@ export const RatePlanDialog = ({
                   }
                 />
               }
-              label={label}
+              label={t(`days.${dayKey}`)}
             />
           ))}
         </FormGroup>
@@ -305,13 +307,13 @@ export const RatePlanDialog = ({
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           variant="contained"
           onClick={submit}
           disabled={!valid || saving}
         >
-          {plan ? 'Save changes' : 'Create plan'}
+          {plan ? t('planDialog.submitEdit') : t('planDialog.submitCreate')}
         </Button>
       </DialogActions>
     </Dialog>

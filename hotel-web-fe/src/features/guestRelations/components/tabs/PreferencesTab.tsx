@@ -27,6 +27,7 @@ import type {
   GuestProfile,
 } from '../../../../types';
 import { errorMessage } from '../../../../utils';
+import { useTranslation } from '../../../../i18n/useTranslation';
 import { formatStatusLabel } from '../../../../utils/formatters';
 import { formatHotelDate } from '../../../../utils/date';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
@@ -37,18 +38,19 @@ import {
   usePutGuestPreferences,
 } from '../../hooks/useGuestRelationsQueries';
 
-/** The seven API-enforced categories, in display order. */
-const PREFERENCE_SECTIONS: Array<{ category: GuestPreferenceCategory; label: string }> = [
-  { category: 'room', label: 'Room' },
-  { category: 'bed', label: 'Bed' },
-  { category: 'floor', label: 'Floor' },
-  { category: 'dietary', label: 'Dietary' },
-  { category: 'communication', label: 'Communication' },
-  { category: 'occasion', label: 'Occasion' },
-  { category: 'other', label: 'Other' },
+/** The seven API-enforced categories, in display order. Labels resolve
+ *  through `preferenceCategories.*` at render so they follow locale. */
+const PREFERENCE_SECTIONS: GuestPreferenceCategory[] = [
+  'room',
+  'bed',
+  'floor',
+  'dietary',
+  'communication',
+  'occasion',
+  'other',
 ];
 
-const KNOWN_CATEGORIES = new Set<string>(PREFERENCE_SECTIONS.map((s) => s.category));
+const KNOWN_CATEGORIES = new Set<string>(PREFERENCE_SECTIONS);
 
 const MAX_KEY_CHARS = 100;
 const MAX_VALUE_CHARS = 2000;
@@ -108,6 +110,7 @@ interface PreferencesTabProps {
  * edit affordances.
  */
 const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEdit }) => {
+  const { t } = useTranslation('guests');
   const { guest, reservations } = profile;
   const queryClient = useQueryClient();
   const prefsQuery = useGuestPreferences(guestId);
@@ -205,7 +208,7 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
     if (partial) {
       setSectionErrors((prev) => ({
         ...prev,
-        [category]: 'Every row needs both a key and a value — or remove the row.',
+        [category]: t('preferences.partialError'),
       }));
       return;
     }
@@ -215,7 +218,7 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
       if (seen.has(normalized)) {
         setSectionErrors((prev) => ({
           ...prev,
-          [category]: `Duplicate key "${row.key.trim()}" — keys must be unique within a category.`,
+          [category]: t('preferences.duplicateKey', { key: row.key.trim() }),
         }));
         return;
       }
@@ -250,13 +253,13 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
         return next;
       });
       emitApiNotification({
-        message: `${formatStatusLabel(category)} preferences saved`,
+        message: t('preferences.saved', { category: t(`preferenceCategories.${category}`) }),
         severity: 'success',
       });
     } catch (err) {
       setSectionErrors((prev) => ({
         ...prev,
-        [category]: errorMessage(err, 'Failed to save preferences'),
+        [category]: errorMessage(err, t('preferences.saveFailed')),
       }));
     } finally {
       setSavingCategory(null);
@@ -288,7 +291,7 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
           <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
             {label}
             {dirty && canEdit && (
-              <Chip label="Unsaved" size="small" color="warning" sx={{ ml: 1 }} />
+              <Chip label={t('preferences.unsaved')} size="small" color="warning" sx={{ ml: 1 }} />
             )}
           </Typography>
           {canEdit && (
@@ -298,7 +301,7 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
               onClick={() => handleAddRow(category)}
               sx={{ textTransform: 'none' }}
             >
-              Add row
+              {t('preferences.addRow')}
             </Button>
           )}
         </Stack>
@@ -311,14 +314,14 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
 
         {rows.length === 0 ? (
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            No {label.toLowerCase()} preferences recorded.
+            {t('preferences.emptySection', { section: label.toLowerCase() })}
           </Typography>
         ) : (
           <Stack spacing={1}>
             {rows.map((row) => (
               <Stack key={row.rowId} direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <TextField
-                  label="Key"
+                  label={t('preferences.key')}
                   size="small"
                   value={row.key}
                   onChange={(event) =>
@@ -327,10 +330,10 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
                   slotProps={{ htmlInput: { maxLength: MAX_KEY_CHARS } }}
                   disabled={!canEdit || saving}
                   sx={{ flex: { sm: 2 } }}
-                  placeholder={category === 'room' ? 'e.g. room type' : 'e.g. preference'}
+                  placeholder={category === 'room' ? t('preferences.keyPlaceholderRoom') : t('preferences.keyPlaceholder')}
                 />
                 <TextField
-                  label="Value"
+                  label={t('preferences.value')}
                   size="small"
                   value={row.value}
                   onChange={(event) =>
@@ -339,16 +342,16 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
                   slotProps={{ htmlInput: { maxLength: MAX_VALUE_CHARS } }}
                   disabled={!canEdit || saving}
                   sx={{ flex: { sm: 3 } }}
-                  placeholder={category === 'room' ? 'e.g. high floor, quiet' : 'e.g. details'}
+                  placeholder={category === 'room' ? t('preferences.valuePlaceholderRoom') : t('preferences.valuePlaceholder')}
                 />
                 {canEdit && (
-                  <Tooltip title="Remove row">
+                  <Tooltip title={t('preferences.removeRow')}>
                     <span>
                       <IconButton
                         size="small"
                         onClick={() => handleRemoveRow(category, row.rowId)}
                         disabled={saving}
-                        aria-label={`Remove ${label} preference row`}
+                        aria-label={t('preferences.removeAria', { section: label })}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -370,7 +373,7 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
               disabled={saving}
               sx={{ textTransform: 'none' }}
             >
-              {saving ? 'Saving…' : `Save ${label.toLowerCase()} preferences`}
+              {saving ? t('common:state.saving') : t('preferences.saveSection', { section: label.toLowerCase() })}
             </Button>
           </Box>
         )}
@@ -390,16 +393,18 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
           severity="error"
           action={
             <Button color="inherit" size="small" onClick={() => void prefsQuery.refetch()}>
-              Retry
+              {t('common:actions.retry')}
             </Button>
           }
         >
-          {getQueryErrorMessage(prefsQuery.error, 'Failed to load preferences') ??
-            'Failed to load preferences'}
+          {getQueryErrorMessage(prefsQuery.error, t('preferences.loadFailed')) ??
+            t('preferences.loadFailed')}
         </Alert>
       ) : (
         <>
-          {PREFERENCE_SECTIONS.map((section) => renderSection(section.category, section.label))}
+          {PREFERENCE_SECTIONS.map((category) =>
+            renderSection(category, t(`preferenceCategories.${category}`)),
+          )}
 
           {legacyCategories.map((category) => (
             <Paper key={category} variant="outlined" sx={{ p: 2, borderStyle: 'dashed' }}>
@@ -409,7 +414,7 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
                   {formatStatusLabel(category)}
                 </Typography>
                 <Chip
-                  label="Legacy category — read-only"
+                  label={t('preferences.legacyChip')}
                   size="small"
                   variant="outlined"
                   color="default"
@@ -442,17 +447,17 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
           <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', mb: 0.5 }}>
             <InfoIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
             <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-              From bookings & profile — not confirmed preferences
+              {t('preferences.unconfirmedTitle')}
             </Typography>
           </Stack>
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.5 }}>
-            Staff notes and per-stay requests. Confirm with the guest, then record them above.
+            {t('preferences.unconfirmedNote')}
           </Typography>
           <Stack spacing={1.5}>
             {guest.special_requests?.trim() && (
               <Box>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                  SPECIAL REQUESTS (PROFILE)
+                  {t('preferences.specialRequestsProfile')}
                 </Typography>
                 <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                   {guest.special_requests}
@@ -462,7 +467,7 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
             {guest.notes?.trim() && (
               <Box>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                  GUEST NOTES (PROFILE)
+                  {t('preferences.guestNotesProfile')}
                 </Typography>
                 <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                   {guest.notes}
@@ -472,7 +477,7 @@ const PreferencesTab: React.FC<PreferencesTabProps> = ({ guestId, profile, canEd
             {bookingRequests.map((booking) => (
               <Box key={booking.id}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                  BOOKING {booking.booking_number || `#${booking.id}`} ·{' '}
+                  {t('preferences.bookingRef', { number: booking.booking_number || `#${booking.id}` })} ·{' '}
                   {formatHotelDate(booking.check_in_date)} – {formatHotelDate(booking.check_out_date)}
                 </Typography>
                 <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>

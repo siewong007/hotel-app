@@ -58,6 +58,7 @@ import { useCurrency } from '../../../hooks/useCurrency';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { errorMessage } from '../../../utils';
+import { useTranslation } from '../../../i18n/useTranslation';
 import {
   canRedeem as rewardIsRedeemable,
   formatDate,
@@ -102,6 +103,7 @@ const CATEGORY_ICONS: Record<string, React.ReactElement> = {
 };
 
 const LoyaltyDashboard: React.FC = () => {
+  const { t, tOr } = useTranslation('loyalty');
   const isPhone = useIsPhone();
   const { hasPermission } = useAuth();
   const { symbol: currencySymbol } = useCurrency();

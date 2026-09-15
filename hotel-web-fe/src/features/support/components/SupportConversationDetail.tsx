@@ -30,6 +30,8 @@ import {
   StickyNote2Outlined as InternalNoteIcon,
 } from '@mui/icons-material';
 import { useMemo, useRef, useState } from 'react';
+import { useTranslation, type UseTranslationResult } from '../../../i18n/useTranslation';
+import { statusLabel } from '../../../i18n/statusLabel';
 import { newSupportClientId } from '../api';
 import type {
   SupportActionPayload,
@@ -42,7 +44,7 @@ import type {
 import { SUPPORT_PRIORITY_OPTIONS } from '../types';
 import {
   formatSupportDate,
-  humanizeSupportValue,
+  supportCategoryLabel,
   SupportPriorityChip,
   SupportSlaChip,
   SupportStatusChip,
@@ -77,14 +79,16 @@ function getTimelineItems(detail: SupportConversationDetailResponse): TimelineIt
   ].sort((left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime());
 }
 
-function messageLabel(message: SupportMessage): string {
-  if (message.author_type === 'guest') return message.author_name || 'Guest';
-  if (message.author_type === 'staff') return message.author_name || 'Hotel support';
-  return message.author_name || 'System';
+function messageLabel(t: UseTranslationResult['t'], message: SupportMessage): string {
+  if (message.author_type === 'guest') return message.author_name || t('detail.guestFallback');
+  if (message.author_type === 'staff') return message.author_name || t('detail.staffFallback');
+  return message.author_name || t('detail.systemFallback');
 }
 
-function eventLabel(event: SupportEvent): string {
-  return event.event_type === 'internal_note' ? 'Internal note' : humanizeSupportValue(event.event_type);
+function eventLabel(t: UseTranslationResult['t'], event: SupportEvent): string {
+  return event.event_type === 'internal_note'
+    ? t('detail.internalNote')
+    : statusLabel(t, 'generic', event.event_type);
 }
 
 export default function SupportConversationDetail({
@@ -100,6 +104,7 @@ export default function SupportConversationDetail({
   onAction,
   onSendMessage,
 }: SupportConversationDetailProps) {
+  const { t, tOr } = useTranslation('support');
   const [composerMode, setComposerMode] = useState<ComposerMode>('reply');
   const [draft, setDraft] = useState('');
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
@@ -143,7 +148,7 @@ export default function SupportConversationDetail({
       resetDialog();
       if (payload.action === 'add_internal_note') setDraft('');
     } catch (error) {
-      setLocalError(error instanceof Error ? error.message : 'Unable to update this conversation');
+      setLocalError(error instanceof Error ? error.message : t('detail.actionFailed'));
     }
   };
 
@@ -174,7 +179,7 @@ export default function SupportConversationDetail({
       pendingMessageClientIds.current.delete(retryKey);
       setDraft('');
     } catch (error) {
-      setLocalError(error instanceof Error ? error.message : 'Unable to send the reply');
+      setLocalError(error instanceof Error ? error.message : t('detail.sendFailed'));
     }
   };
 
@@ -220,7 +225,7 @@ export default function SupportConversationDetail({
         <CircularProgress size={28} />
         <Typography variant="body2" sx={{
           color: "text.secondary"
-        }}>Loading conversation…</Typography>
+        }}>{t('detail.loading')}</Typography>
       </Stack>
     );
   }
@@ -237,11 +242,11 @@ export default function SupportConversationDetail({
           px: 3,
           textAlign: 'center'
         }}>
-        <Typography variant="subtitle1">Select a conversation</Typography>
+        <Typography variant="subtitle1">{t('detail.selectTitle')}</Typography>
         <Typography variant="body2" sx={{
           color: "text.secondary"
         }}>
-          Choose a conversation from the queue to view messages and actions.
+          {t('detail.selectHint')}
         </Typography>
       </Stack>
     );
@@ -253,7 +258,7 @@ export default function SupportConversationDetail({
     canAssign,
     canEscalate,
     canManage,
-  });
+  }, (key) => t(key));
   const activeComposerMode = composerMode === 'note' && !access.canAddInternalNote ? 'reply' : composerMode;
 
   return (
@@ -272,11 +277,11 @@ export default function SupportConversationDetail({
               gap: 1
             }}>
             <Box>
-              <Typography variant="h6">{conversation.guest_name || 'Guest'}</Typography>
+              <Typography variant="h6">{conversation.guest_name || t('detail.guestFallback')}</Typography>
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                {conversation.conversation_number} · {humanizeSupportValue(conversation.category)}
+                {conversation.conversation_number} · {supportCategoryLabel(tOr, conversation.category)}
               </Typography>
             </Box>
             <Stack
@@ -306,22 +311,22 @@ export default function SupportConversationDetail({
             <Typography variant="caption" sx={{
               color: "text.secondary"
             }}>
-              {conversation.booking_reference ? `Booking ${conversation.booking_reference}` : 'No linked booking'}
+              {conversation.booking_reference ? t('detail.bookingLinked', { reference: conversation.booking_reference }) : t('detail.noBooking')}
             </Typography>
             {conversation.room_number ? (
               <Typography variant="caption" sx={{
                 color: "text.secondary"
-              }}>Room {conversation.room_number}</Typography>
+              }}>{t('detail.room', { number: conversation.room_number })}</Typography>
             ) : null}
             {conversation.stay_status ? (
               <Typography variant="caption" sx={{
                 color: "text.secondary"
-              }}>{humanizeSupportValue(conversation.stay_status)}</Typography>
+              }}>{statusLabel(t, 'booking', conversation.stay_status)}</Typography>
             ) : null}
             <Typography variant="caption" sx={{
               color: "text.secondary"
             }}>
-              {conversation.assigned_to_name ? `Assigned to ${conversation.assigned_to_name}` : 'Unassigned'}
+              {conversation.assigned_to_name ? t('detail.assignedTo', { name: conversation.assigned_to_name }) : t('detail.unassigned')}
             </Typography>
           </Stack>
 
@@ -335,53 +340,53 @@ export default function SupportConversationDetail({
             }}>
             {access.canClaim ? (
               <Button size="small" variant="outlined" startIcon={<ClaimIcon />} disabled={isBusy} onClick={() => void performAction({ action: 'claim' })}>
-                Claim
+                {t('detail.actions.claim')}
               </Button>
             ) : null}
             {access.canAssign ? (
               <Button size="small" variant="outlined" startIcon={<AssignIcon />} disabled={isBusy} onClick={() => setDialogMode('assign')}>
-                Assign
+                {t('detail.actions.assign')}
               </Button>
             ) : null}
             {access.canRelease ? (
               <Button size="small" variant="text" disabled={isBusy} onClick={() => void performAction({ action: 'release' })}>
-                Return to queue
+                {t('detail.actions.release')}
               </Button>
             ) : null}
             {canManage && access.isActive ? (
               <FormControl size="small" sx={{ minWidth: 132 }}>
-                <InputLabel id="support-priority-label">Priority</InputLabel>
+                <InputLabel id="support-priority-label">{t('detail.priority')}</InputLabel>
                 <Select
                   labelId="support-priority-label"
-                  label="Priority"
+                  label={t('detail.priority')}
                   value={conversation.priority}
                   disabled={isBusy}
                   onChange={(event) => handlePriorityChange(event.target.value as SupportPriority)}
                 >
                   {SUPPORT_PRIORITY_OPTIONS.map(priority => (
-                    <MenuItem key={priority} value={priority}>{humanizeSupportValue(priority)}</MenuItem>
+                    <MenuItem key={priority} value={priority}>{statusLabel(t, 'priority', priority)}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             ) : null}
             {access.canEscalate ? (
               <Button size="small" color="warning" variant="outlined" startIcon={<EscalateIcon />} disabled={isBusy} onClick={() => setDialogMode('escalate')}>
-                Escalate
+                {t('detail.actions.escalate')}
               </Button>
             ) : null}
             {access.canResolve ? (
               <Button size="small" color="success" variant="contained" startIcon={<ResolveIcon />} disabled={isBusy} onClick={() => setDialogMode('resolve')}>
-                Resolve
+                {t('detail.actions.resolve')}
               </Button>
             ) : null}
             {access.canClose ? (
               <Button size="small" variant="outlined" startIcon={<CloseIcon />} disabled={isBusy} onClick={() => setDialogMode('close')}>
-                Close
+                {t('detail.actions.close')}
               </Button>
             ) : null}
             {access.canReopen ? (
               <Button size="small" variant="outlined" startIcon={<ReopenIcon />} disabled={isBusy} onClick={() => setDialogMode('reopen')}>
-                Reopen
+                {t('detail.actions.reopen')}
               </Button>
             ) : null}
           </Stack>
@@ -404,7 +409,7 @@ export default function SupportConversationDetail({
                 textAlign: 'center',
                 py: 5
               }}>
-              No activity yet.
+              {t('detail.noActivity')}
             </Typography>
           ) : timeline.map((item) => {
             if (item.type === 'event') {
@@ -431,11 +436,11 @@ export default function SupportConversationDetail({
                       <Typography variant="caption" sx={{
                         fontWeight: 700
                       }}>
-                        {eventLabel(item.value)}
+                        {eventLabel(t, item.value)}
                       </Typography>
                       {isInternalNote ? <Typography variant="caption" sx={{
                         color: "warning.dark"
-                      }}>Staff only</Typography> : null}
+                      }}>{t('detail.staffOnly')}</Typography> : null}
                     </Stack>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
@@ -479,7 +484,7 @@ export default function SupportConversationDetail({
                     }}>
                     <Typography variant="caption" sx={{
                       fontWeight: 700
-                    }}>{messageLabel(item.value)}</Typography>
+                    }}>{messageLabel(t, item.value)}</Typography>
                     <Typography variant="caption" sx={{ color: isGuest ? 'text.secondary' : 'inherit', opacity: 0.8 }}>
                       {formatSupportDate(item.value.created_at)}
                     </Typography>
@@ -505,25 +510,25 @@ export default function SupportConversationDetail({
             <Tabs
               value={activeComposerMode}
               onChange={(_, value: ComposerMode) => setComposerMode(value)}
-              aria-label="Message visibility"
+              aria-label={t('detail.composerAria')}
               sx={{ minHeight: 36 }}
             >
-              <Tab value="reply" icon={<ReplyIcon fontSize="small" />} iconPosition="start" label="Reply to guest" sx={{ minHeight: 36 }} />
+              <Tab value="reply" icon={<ReplyIcon fontSize="small" />} iconPosition="start" label={t('detail.replyTab')} sx={{ minHeight: 36 }} />
               {access.canAddInternalNote ? (
-                <Tab value="note" icon={<InternalNoteIcon fontSize="small" />} iconPosition="start" label="Internal note" sx={{ minHeight: 36 }} />
+                <Tab value="note" icon={<InternalNoteIcon fontSize="small" />} iconPosition="start" label={t('detail.noteTab')} sx={{ minHeight: 36 }} />
               ) : null}
             </Tabs>
             {activeComposerMode === 'note' ? (
               <Alert severity="warning" icon={<InternalNoteIcon />}>
-                Internal notes are only visible to hotel staff and never appear in the guest portal.
+                {t('detail.noteAlert')}
               </Alert>
             ) : null}
             <TextField
               fullWidth
               multiline
               minRows={3}
-              label={activeComposerMode === 'note' ? 'Internal note' : 'Reply to guest'}
-              placeholder={activeComposerMode === 'note' ? 'Add private context for the next staff member…' : 'Write a response the guest will see…'}
+              label={activeComposerMode === 'note' ? t('detail.noteLabel') : t('detail.replyLabel')}
+              placeholder={activeComposerMode === 'note' ? t('detail.notePlaceholder') : t('detail.replyPlaceholder')}
               value={draft}
               disabled={isBusy}
               onChange={(event) => setDraft(event.target.value)}
@@ -538,7 +543,7 @@ export default function SupportConversationDetail({
                 disabled={!draft.trim() || isBusy}
                 onClick={() => void handleComposerSubmit()}
               >
-                {activeComposerMode === 'note' ? 'Add internal note' : 'Send reply'}
+                {activeComposerMode === 'note' ? t('detail.addNote') : t('detail.sendReply')}
               </Button>
             </Stack>
           </Stack>
@@ -546,35 +551,35 @@ export default function SupportConversationDetail({
       </Box>
       <Dialog open={dialogMode !== null} onClose={isBusy ? undefined : resetDialog} fullWidth maxWidth="sm">
         <DialogTitle>
-          {dialogMode === 'assign' && 'Assign conversation'}
-          {dialogMode === 'resolve' && 'Resolve conversation'}
-          {dialogMode === 'escalate' && 'Escalate conversation'}
-          {dialogMode === 'close' && 'Close conversation'}
-          {dialogMode === 'reopen' && 'Reopen conversation'}
+          {dialogMode === 'assign' && t('detail.dialog.assignTitle')}
+          {dialogMode === 'resolve' && t('detail.dialog.resolveTitle')}
+          {dialogMode === 'escalate' && t('detail.dialog.escalateTitle')}
+          {dialogMode === 'close' && t('detail.dialog.closeTitle')}
+          {dialogMode === 'reopen' && t('detail.dialog.reopenTitle')}
         </DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             {dialogMode === 'assign' ? (
               <>
                 <FormControl fullWidth>
-                  <InputLabel id="support-assignee-label">Assignee</InputLabel>
+                  <InputLabel id="support-assignee-label">{t('detail.dialog.assignee')}</InputLabel>
                   <Select
                     labelId="support-assignee-label"
-                    label="Assignee"
+                    label={t('detail.dialog.assignee')}
                     value={assigneeId}
                     onChange={(event) => setAssigneeId(event.target.value)}
                   >
-                    <MenuItem value=""><em>Unassigned queue</em></MenuItem>
+                    <MenuItem value=""><em>{t('detail.dialog.unassignedQueue')}</em></MenuItem>
                     {agents.map(agent => (
                       <MenuItem key={agent.id} value={String(agent.id)} disabled={agent.is_available === false}>
-                        {agent.name}{agent.is_available === false ? ' (unavailable)' : ''}
+                        {agent.name}{agent.is_available === false ? ` ${t('detail.dialog.unavailable')}` : ''}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
                 <TextField
                   fullWidth
-                  label="Handoff note (optional)"
+                  label={t('detail.dialog.handoffNote')}
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
                   multiline
@@ -587,21 +592,21 @@ export default function SupportConversationDetail({
               <>
                 <TextField
                   fullWidth
-                  label="Resolution code"
+                  label={t('detail.dialog.resolutionCode')}
                   value={resolutionCode}
                   onChange={(event) => setResolutionCode(event.target.value)}
                   required
-                  placeholder="For example: request_completed"
+                  placeholder={t('detail.dialog.resolutionCodePlaceholder')}
                 />
                 <TextField
                   fullWidth
                   required
-                  label="Resolution summary"
+                  label={t('detail.dialog.resolutionSummary')}
                   value={resolutionSummary}
                   onChange={(event) => setResolutionSummary(event.target.value)}
                   multiline
                   minRows={3}
-                  helperText="This summary is visible to the guest."
+                  helperText={t('detail.dialog.resolutionSummaryHelper')}
                 />
               </>
             ) : null}
@@ -611,10 +616,10 @@ export default function SupportConversationDetail({
                 fullWidth
                 required={dialogMode === 'escalate' || dialogMode === 'close'}
                 label={dialogMode === 'escalate'
-                  ? 'Escalation reason'
+                  ? t('detail.dialog.escalationReason')
                   : dialogMode === 'close'
-                    ? 'Closing reason'
-                    : 'Reopen reason (optional)'}
+                    ? t('detail.dialog.closingReason')
+                    : t('detail.dialog.reopenReason')}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
                 multiline
@@ -624,7 +629,7 @@ export default function SupportConversationDetail({
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={resetDialog} disabled={isBusy}>Cancel</Button>
+          <Button onClick={resetDialog} disabled={isBusy}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             onClick={handleDialogSubmit}
@@ -632,7 +637,15 @@ export default function SupportConversationDetail({
               || (dialogMode === 'resolve' && (!resolutionCode.trim() || !resolutionSummary.trim()))
               || (['escalate', 'close'].includes(dialogMode ?? '') && !reason.trim())}
           >
-            {dialogMode === 'assign' ? 'Assign' : dialogMode === 'resolve' ? 'Resolve' : dialogMode === 'escalate' ? 'Escalate' : dialogMode === 'reopen' ? 'Reopen' : 'Close'}
+            {dialogMode === 'assign'
+              ? t('detail.actions.assign')
+              : dialogMode === 'resolve'
+                ? t('detail.actions.resolve')
+                : dialogMode === 'escalate'
+                  ? t('detail.actions.escalate')
+                  : dialogMode === 'reopen'
+                    ? t('detail.actions.reopen')
+                    : t('detail.actions.close')}
           </Button>
         </DialogActions>
       </Dialog>

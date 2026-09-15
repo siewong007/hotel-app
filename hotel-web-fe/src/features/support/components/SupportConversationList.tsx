@@ -9,9 +9,10 @@ import {
   Typography,
 } from '@mui/material';
 import type { SupportConversationSummary } from '../types';
+import { useTranslation } from '../../../i18n/useTranslation';
 import {
   formatSupportDate,
-  humanizeSupportValue,
+  supportCategoryLabel,
   SupportPriorityChip,
   SupportSlaChip,
   SupportStatusChip,
@@ -42,6 +43,7 @@ export default function SupportConversationList({
   onPageChange,
   onPageSizeChange,
 }: SupportConversationListProps) {
+  const { t, tOr } = useTranslation('support');
   return (
     <Stack
       sx={{
@@ -56,11 +58,11 @@ export default function SupportConversationList({
             justifyContent: "space-between",
             gap: 1
           }}>
-          <Typography variant="subtitle2">Conversations</Typography>
+          <Typography variant="subtitle2">{t('list.title')}</Typography>
           <Typography variant="caption" sx={{
             color: "text.secondary"
           }}>
-            {isFetching && !isLoading ? 'Refreshing…' : `${total} total`}
+            {isFetching && !isLoading ? t('list.refreshing') : t('list.total', { count: total })}
           </Typography>
         </Stack>
       </Box>
@@ -81,7 +83,7 @@ export default function SupportConversationList({
             <CircularProgress size={28} />
             <Typography variant="body2" sx={{
               color: "text.secondary"
-            }}>Loading conversations…</Typography>
+            }}>{t('list.loading')}</Typography>
           </Stack>
         ) : conversations.length === 0 ? (
           <Stack
@@ -93,11 +95,11 @@ export default function SupportConversationList({
               px: 3,
               textAlign: 'center'
             }}>
-            <Typography variant="subtitle2">No conversations found</Typography>
+            <Typography variant="subtitle2">{t('list.empty')}</Typography>
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Adjust the filters or check another queue.
+              {t('list.emptyHint')}
             </Typography>
           </Stack>
         ) : (
@@ -130,12 +132,12 @@ export default function SupportConversationList({
                         <Typography variant="body2" noWrap sx={{
                           fontWeight: 700
                         }}>
-                          {conversation.guest_name || 'Guest'}
+                          {conversation.guest_name || t('list.guestFallback')}
                         </Typography>
                         <Typography variant="caption" noWrap sx={{
                           color: "text.secondary"
                         }}>
-                          {conversation.conversation_number} · {humanizeSupportValue(conversation.category)}
+                          {conversation.conversation_number} · {supportCategoryLabel(tOr, conversation.category)}
                         </Typography>
                       </Box>
                       <Typography
@@ -151,7 +153,7 @@ export default function SupportConversationList({
                     <Typography variant="body2" noWrap sx={{
                       color: "text.secondary"
                     }}>
-                      {conversation.last_message_preview || 'No guest-visible message yet'}
+                      {conversation.last_message_preview || t('list.noMessage')}
                     </Typography>
 
                     <Stack
@@ -176,7 +178,7 @@ export default function SupportConversationList({
                             fontWeight: 700,
                             color: "primary.main"
                           }}>
-                          {conversation.unread_count} unread
+                          {t('list.unread', { count: conversation.unread_count })}
                         </Typography>
                       ) : null}
                     </Stack>
@@ -184,8 +186,8 @@ export default function SupportConversationList({
                     <Typography variant="caption" noWrap sx={{
                       color: "text.secondary"
                     }}>
-                      {conversation.assigned_to_name ? `Assigned to ${conversation.assigned_to_name}` : 'Unassigned'}
-                      {conversation.room_number ? ` · Room ${conversation.room_number}` : ''}
+                      {conversation.assigned_to_name ? t('list.assignedTo', { name: conversation.assigned_to_name }) : t('list.unassigned')}
+                      {conversation.room_number ? ` · ${t('list.room', { number: conversation.room_number })}` : ''}
                     </Typography>
                   </Stack>
                 </ListItemButton>
@@ -202,7 +204,7 @@ export default function SupportConversationList({
         rowsPerPage={pageSize}
         onRowsPerPageChange={(event) => onPageSizeChange(Number(event.target.value))}
         rowsPerPageOptions={[10, 20, 50]}
-        labelRowsPerPage="Per page"
+        labelRowsPerPage={t('list.perPage')}
       />
     </Stack>
   );

@@ -23,6 +23,8 @@ import {
   SubscriptionsOutlined as SubscriptionsIcon,
 } from '@mui/icons-material';
 import { formatStatusLabel } from '../../../../utils/formatters';
+import { useTranslation } from '../../../../i18n/useTranslation';
+import { statusLabel } from '../../../../i18n/statusLabel';
 import { formatHotelDateTime } from '../../../../utils/date';
 import { getQueryErrorMessage } from '../../../../api/queryConfig';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
@@ -74,6 +76,7 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
   guestName,
   canManageConsent,
 }) => {
+  const { t, tOr } = useTranslation('guests');
   const communicationsQuery = useGuestCommunications(guestId);
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
 
@@ -90,7 +93,7 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
           >
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <MailIcon sx={{ fontSize: 16 }} />
-              <span>Consent & contact preferences</span>
+              <span>{t('communication.consentTitle')}</span>
             </Stack>
             {canManageConsent && summary && (
               <Button
@@ -100,7 +103,7 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
                 onClick={() => setConsentDialogOpen(true)}
                 sx={{ textTransform: 'none' }}
               >
-                Edit consent
+                {t('communication.editConsent')}
               </Button>
             )}
           </Stack>
@@ -117,14 +120,14 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
                 size="small"
                 onClick={() => void communicationsQuery.refetch()}
               >
-                Retry
+                {t('common:actions.retry')}
               </Button>
             }
           >
             {getQueryErrorMessage(
               communicationsQuery.error,
-              'Failed to load communication preferences',
-            ) ?? 'Failed to load communication preferences'}
+              t('communication.loadFailed'),
+            ) ?? t('communication.loadFailed')}
           </Alert>
         ) : summary ? (
           <>
@@ -136,49 +139,47 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
               }}
             >
               <ProfileDetailRow
-                label="Marketing opt-in"
+                label={t('communication.marketingOptIn')}
                 value={
                   <Chip
                     size="small"
                     color={summary.marketing_opt_in ? 'success' : 'default'}
                     variant={summary.marketing_opt_in ? 'filled' : 'outlined'}
-                    label={summary.marketing_opt_in ? 'Opted in' : 'Opted out'}
+                    label={summary.marketing_opt_in ? t('communication.optedIn') : t('communication.optedOut')}
                   />
                 }
               />
               <ProfileDetailRow
-                label="Preferred channel"
+                label={t('communication.preferredChannel')}
                 value={summary.communication_preference}
               />
-              <ProfileDetailRow label="Language" value={summary.language_preference} />
+              <ProfileDetailRow label={t('communication.language')} value={summary.language_preference} />
               <ProfileDetailRow
-                label="Email deliverability"
+                label={t('communication.deliverability')}
                 value={
                   summary.email_suppressed ? (
                     <Chip
                       size="small"
                       color="error"
                       icon={<SuppressedIcon sx={{ fontSize: 14 }} />}
-                      label="Suppressed — do not email"
+                      label={t('communication.suppressed')}
                     />
                   ) : (
-                    <Chip size="small" variant="outlined" color="success" label="Deliverable" />
+                    <Chip size="small" variant="outlined" color="success" label={t('communication.deliverable')} />
                   )
                 }
               />
             </Box>
             {summary.email_suppressed && (
               <Alert severity="warning" sx={{ mt: 1.5 }}>
-                This guest's address is on the suppression list (unsubscribe, bounce, or complaint).
-                Marketing email is held back until the suppression is lifted in Communications.
+                {t('communication.suppressedAlert')}
               </Alert>
             )}
             <Typography
               variant="caption"
               sx={{ color: 'text.secondary', display: 'block', mt: 1.5 }}
             >
-              Marketing opt-in and topic subscriptions gate optional mail only — transactional
-              messages (booking confirmations, receipts, check-in details) still go out.
+              {t('communication.optInNote')}
             </Typography>
           </>
         ) : null}
@@ -191,7 +192,7 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
               <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                 <SubscriptionsIcon sx={{ fontSize: 16 }} />
                 <span>
-                  Topic subscriptions
+                  {t('communication.topicsTitle')}
                   {summary.subscriptions.length > 0 ? ` (${summary.subscriptions.length})` : ''}
                 </span>
               </Stack>
@@ -199,34 +200,38 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
           >
             {summary.subscriptions.length === 0 ? (
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                No topic subscriptions recorded — the guest is treated as opted out of all optional
-                topics.
+                {t('communication.topicsEmpty')}
               </Typography>
             ) : (
               <TableContainer>
-                <Table size="small" aria-label="Topic subscriptions">
+                <Table size="small" aria-label={t('communication.topicsAria')}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>Topic</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Channel</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Subscribed</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Updated</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{t('communication.colTopic')}</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{t('communication.colChannel')}</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{t('communication.colSubscribed')}</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{t('communication.colUpdated')}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {summary.subscriptions.map((subscription) => (
                       <TableRow key={`${subscription.channel}:${subscription.topic}`}>
                         <TableCell>
-                          {TOPIC_LABELS[subscription.topic as NotificationTopic] ??
-                            formatStatusLabel(subscription.topic)}
+                          {tOr(
+                            `consent.topics.${subscription.topic}`,
+                            TOPIC_LABELS[subscription.topic as NotificationTopic] ??
+                              formatStatusLabel(subscription.topic),
+                          )}
                         </TableCell>
-                        <TableCell>{formatStatusLabel(subscription.channel)}</TableCell>
+                        <TableCell>
+                          {tOr(`communication.channels.${subscription.channel}`, formatStatusLabel(subscription.channel))}
+                        </TableCell>
                         <TableCell>
                           <Chip
                             size="small"
                             color={subscription.subscribed ? 'success' : 'default'}
                             variant={subscription.subscribed ? 'filled' : 'outlined'}
-                            label={subscription.subscribed ? 'Subscribed' : 'Unsubscribed'}
+                            label={subscription.subscribed ? t('communication.subscribed') : t('communication.unsubscribed')}
                           />
                         </TableCell>
                         <TableCell>{formatHotelDateTime(subscription.updated_at)}</TableCell>
@@ -243,7 +248,7 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
               <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                 <DeliveryIcon sx={{ fontSize: 16 }} />
                 <span>
-                  Recent deliveries
+                  {t('communication.deliveriesTitle')}
                   {summary.recent_deliveries.length > 0
                     ? ` (${summary.recent_deliveries.length})`
                     : ''}
@@ -253,23 +258,23 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
           >
             {summary.recent_deliveries.length === 0 ? (
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                No recent deliveries to this guest.
+                {t('communication.deliveriesEmpty')}
               </Typography>
             ) : (
               <TableContainer>
-                <Table size="small" aria-label="Recent deliveries">
+                <Table size="small" aria-label={t('communication.deliveriesAria')}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>Kind</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Subject</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{t('communication.colKind')}</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{t('communication.colSubject')}</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{t('communication.colStatus')}</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{t('communication.colDate')}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {summary.recent_deliveries.map((delivery) => (
                       <TableRow key={delivery.id}>
-                        <TableCell>{formatStatusLabel(delivery.kind)}</TableCell>
+                        <TableCell>{statusLabel(t, 'generic', delivery.kind)}</TableCell>
                         <TableCell sx={{ overflowWrap: 'anywhere' }}>
                           {delivery.subject ?? '—'}
                         </TableCell>
@@ -278,7 +283,7 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
                             size="small"
                             variant="outlined"
                             color={deliveryStatusColor(delivery.status)}
-                            label={formatStatusLabel(delivery.status)}
+                            label={statusLabel(t, 'email_delivery', delivery.status)}
                           />
                         </TableCell>
                         <TableCell sx={{ whiteSpace: 'nowrap' }}>

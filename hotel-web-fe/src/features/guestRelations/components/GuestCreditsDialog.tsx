@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { CardGiftcard as GiftIcon } from '@mui/icons-material';
 import type { Guest } from '../../../types';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { useGuestCredits } from '../../guests/hooks/useGuestQueries';
 
 interface GuestCreditsDialogProps {
@@ -23,6 +24,7 @@ interface GuestCreditsDialogProps {
 
 /** Free-night credits breakdown by room type — ported from the monolith. */
 const GuestCreditsDialog: React.FC<GuestCreditsDialogProps> = ({ guest, open, onClose }) => {
+  const { t } = useTranslation('guests');
   const guestCreditsQuery = useGuestCredits(guest?.id, open && !!guest);
   const guestCredits = guestCreditsQuery.data ?? null;
   const loading = guestCreditsQuery.isPending && open;
@@ -31,7 +33,7 @@ const GuestCreditsDialog: React.FC<GuestCreditsDialogProps> = ({ guest, open, on
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <GiftIcon color="secondary" />
-        Free Gift Credits: {guest?.nick_name}
+        {t('credits.title', { name: guest?.nick_name ?? '' })}
       </DialogTitle>
       <DialogContent>
         {loading ? (
@@ -44,7 +46,7 @@ const GuestCreditsDialog: React.FC<GuestCreditsDialogProps> = ({ guest, open, on
             {guestCredits.credits_by_room_type.length > 0 && (
               <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 1 }}>
-                  Credits by Room Type:
+                  {t('credits.byRoomType')}
                 </Typography>
                 {guestCredits.credits_by_room_type.map((credit) => (
                   <Box
@@ -65,12 +67,12 @@ const GuestCreditsDialog: React.FC<GuestCreditsDialogProps> = ({ guest, open, on
                         {credit.room_type_name}
                       </Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        Code: {credit.room_type_code}
+                        {t('credits.code', { code: credit.room_type_code })}
                       </Typography>
                     </Box>
                     <Chip
                       icon={<GiftIcon sx={{ fontSize: 16 }} />}
-                      label={`${credit.nights_available} night${credit.nights_available !== 1 ? 's' : ''}`}
+                      label={t('stays.nights', { count: credit.nights_available })}
                       color="success"
                     />
                   </Box>
@@ -90,11 +92,11 @@ const GuestCreditsDialog: React.FC<GuestCreditsDialogProps> = ({ guest, open, on
               }}
             >
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Total Available:
+                {t('credits.totalAvailable')}
               </Typography>
               <Chip
                 icon={<GiftIcon />}
-                label={`${guestCredits.total_nights} night${guestCredits.total_nights !== 1 ? 's' : ''}`}
+                label={t('stays.nights', { count: guestCredits.total_nights })}
                 color="secondary"
                 sx={{ fontSize: '1rem', py: 2 }}
               />
@@ -102,18 +104,18 @@ const GuestCreditsDialog: React.FC<GuestCreditsDialogProps> = ({ guest, open, on
 
             {guestCredits.total_nights === 0 && (
               <Alert severity="info" sx={{ mt: 2 }}>
-                This guest has no complimentary credits available.
+                {t('credits.noneAvailable')}
               </Alert>
             )}
           </Box>
         ) : (
           <Alert severity="info">
-            No credits information available.
+            {t('credits.unavailable')}
           </Alert>
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t('common:actions.close')}</Button>
       </DialogActions>
     </Dialog>
   );

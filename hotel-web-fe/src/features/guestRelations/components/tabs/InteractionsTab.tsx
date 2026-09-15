@@ -32,6 +32,7 @@ import {
 import type { SvgIconProps } from '@mui/material';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useConfirm } from '../../../../components';
+import { useTranslation } from '../../../../i18n/useTranslation';
 import { getQueryErrorMessage } from '../../../../api/queryConfig';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { errorMessage } from '../../../../utils';
@@ -58,15 +59,14 @@ import InteractionForm, {
 
 const PAGE_SIZE = 20;
 
-const TYPE_META: Record<
-  GuestInteractionType,
-  { label: string; Icon: React.ComponentType<SvgIconProps> }
-> = {
-  note: { label: 'Note', Icon: NoteIcon },
-  call: { label: 'Call', Icon: CallIcon },
-  email: { label: 'Email', Icon: EmailIcon },
-  in_person: { label: 'In person', Icon: InPersonIcon },
-  follow_up: { label: 'Follow-up', Icon: FollowUpIcon },
+/** Icon per interaction type; the label resolves through
+ *  `interactions.types.<type>` at render so chips follow the locale. */
+const TYPE_META: Record<GuestInteractionType, React.ComponentType<SvgIconProps>> = {
+  note: NoteIcon,
+  call: CallIcon,
+  email: EmailIcon,
+  in_person: InPersonIcon,
+  follow_up: FollowUpIcon,
 };
 
 const typeMeta = (type: GuestInteractionType) =>
@@ -100,6 +100,7 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
 }) => {
   const { user, hasPermission } = useAuth();
   const confirm = useConfirm();
+  const { t } = useTranslation('guests');
   const canWrite = hasPermission('guests:update');
   const canManageGuests = hasPermission('guests:manage');
   const canAssign = hasPermission('support:assign');
@@ -166,11 +167,11 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
     setAddError(null);
     try {
       await createMutation.mutateAsync({ guestId, data: payload });
-      emitApiNotification({ message: 'Interaction added', severity: 'success' });
+      emitApiNotification({ message: t('interactions.added'), severity: 'success' });
       // Remount the form to a blank draft.
       setAddFormKey((key) => key + 1);
     } catch (err) {
-      setAddError(errorMessage(err, 'Failed to add interaction'));
+      setAddError(errorMessage(err, t('interactions.addFailed')));
     }
   };
 
@@ -198,10 +199,10 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
     setEditError(null);
     try {
       await updateMutation.mutateAsync({ guestId, interactionId: note.id, data: payload });
-      emitApiNotification({ message: 'Interaction updated', severity: 'success' });
+      emitApiNotification({ message: t('interactions.updated'), severity: 'success' });
       setEditingId(null);
     } catch (err) {
-      setEditError(errorMessage(err, 'Failed to update interaction'));
+      setEditError(errorMessage(err, t('interactions.updateFailed')));
     }
   };
 
@@ -217,30 +218,29 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
       emitApiNotification({
         message:
           note.follow_up_completed_at == null
-            ? 'Follow-up marked complete'
-            : 'Follow-up reopened',
+            ? t('interactions.followUpCompleted')
+            : t('interactions.followUpReopened'),
         severity: 'success',
       });
     } catch (err) {
-      setListError(errorMessage(err, 'Failed to update follow-up'));
+      setListError(errorMessage(err, t('interactions.followUpUpdateFailed')));
     }
   };
 
   const handleDelete = async (note: GuestInteraction) => {
     const confirmed = await confirm({
-      title: 'Delete this interaction?',
-      message:
-        'The note will be removed from the guest timeline. This cannot be undone.',
-      confirmText: 'Delete',
+      title: t('interactions.deleteTitle'),
+      message: t('interactions.deleteMessage'),
+      confirmText: t('common:actions.delete'),
       severity: 'error',
     });
     if (!confirmed) return;
     setListError(null);
     try {
       await deleteMutation.mutateAsync({ guestId, interactionId: note.id });
-      emitApiNotification({ message: 'Interaction deleted', severity: 'success' });
+      emitApiNotification({ message: t('interactions.deleted'), severity: 'success' });
     } catch (err) {
-      setListError(errorMessage(err, 'Failed to delete interaction'));
+      setListError(errorMessage(err, t('interactions.deleteFailed')));
     }
   };
 
@@ -256,8 +256,7 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
   });
 
   const renderNote = (note: GuestInteraction) => {
-    const meta = typeMeta(note.interaction_type);
-    const TypeIcon = meta.Icon;
+    const TypeIcon = typeMeta(note.interaction_type);
     const label = bookingLabel(note.booking_id);
     const completed = note.follow_up_completed_at != null;
     const overdue =
@@ -289,7 +288,7 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
             agentsError={agentsQuery.isError}
             assigneeName={note.assigned_to_name}
             submitting={updateMutation.isPending}
-            submitLabel="Save changes"
+            submitLabel={t('interactions.saveChanges')}
             error={editError}
             onSubmit={(draft) => void handleSaveEdit(note, draft)}
             onCancel={() => {
@@ -308,14 +307,14 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
                 size="small"
                 variant="outlined"
                 icon={<TypeIcon sx={{ fontSize: 14 }} />}
-                label={meta.label}
+                label={t(`interactions.types.${note.interaction_type}`)}
               />
               {note.is_private && (
                 <Chip
                   size="small"
                   color="default"
                   icon={<PrivateIcon sx={{ fontSize: 14 }} />}
-                  label="Private"
+                  label={t('interactions.private')}
                 />
               )}
               {note.is_alert && (
@@ -323,11 +322,11 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
                   size="small"
                   color="warning"
                   icon={<AlertFlagIcon sx={{ fontSize: 14 }} />}
-                  label="Alert"
+                  label={t('interactions.alert')}
                 />
               )}
               {label && (
-                <Chip size="small" variant="outlined" label={`Booking ${label}`} />
+                <Chip size="small" variant="outlined" label={t('interactions.booking', { number: label })} />
               )}
               {note.follow_up_at != null && (
                 <Chip
@@ -337,8 +336,8 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
                   icon={<FollowUpIcon sx={{ fontSize: 14 }} />}
                   label={
                     completed
-                      ? `Follow-up done ${formatHotelDate(note.follow_up_completed_at)}`
-                      : `Follow up ${formatHotelDate(note.follow_up_at)}`
+                      ? t('interactions.followUpDone', { date: formatHotelDate(note.follow_up_completed_at) })
+                      : t('interactions.followUp', { date: formatHotelDate(note.follow_up_at) })
                   }
                 />
               )}
@@ -347,18 +346,18 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
                   size="small"
                   variant="outlined"
                   icon={<AssigneeIcon sx={{ fontSize: 14 }} />}
-                  label={`Assigned to ${note.assigned_to_name}`}
+                  label={t('interactions.assignedTo', { name: note.assigned_to_name })}
                 />
               )}
               <Box sx={{ flex: 1 }} />
               {mutable && note.follow_up_at != null && (
-                <Tooltip title={completed ? 'Reopen follow-up' : 'Mark follow-up complete'}>
+                <Tooltip title={completed ? t('interactions.reopenFollowUp') : t('interactions.completeFollowUp')}>
                   <span>
                     <IconButton
                       size="small"
                       onClick={() => void handleToggleFollowUp(note)}
                       disabled={updateMutation.isPending}
-                      aria-label={completed ? 'Reopen follow-up' : 'Mark follow-up complete'}
+                      aria-label={completed ? t('interactions.reopenFollowUp') : t('interactions.completeFollowUp')}
                     >
                       {completed ? (
                         <ReopenIcon fontSize="small" />
@@ -371,7 +370,7 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
               )}
               {mutable && (
                 <>
-                  <Tooltip title="Edit">
+                  <Tooltip title={t('common:actions.edit')}>
                     <span>
                       <IconButton
                         size="small"
@@ -380,19 +379,19 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
                           setEditingId(note.id);
                         }}
                         disabled={updateMutation.isPending}
-                        aria-label="Edit interaction"
+                        aria-label={t('interactions.editAria')}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </span>
                   </Tooltip>
-                  <Tooltip title="Delete">
+                  <Tooltip title={t('common:actions.delete')}>
                     <span>
                       <IconButton
                         size="small"
                         onClick={() => void handleDelete(note)}
                         disabled={deleteMutation.isPending}
-                        aria-label="Delete interaction"
+                        aria-label={t('interactions.deleteAria')}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -417,7 +416,7 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
               {note.created_by_name ? `${note.created_by_name} · ` : ''}
               {formatHotelDateTime(note.created_at)}
               {note.updated_at !== note.created_at &&
-                ` · edited ${formatHotelDateTime(note.updated_at)}`}
+                ` · ${t('interactions.edited', { date: formatHotelDateTime(note.updated_at) })}`}
             </Typography>
           </>
         )}
@@ -432,7 +431,7 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
       {canWrite && (
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>
-            Add interaction
+            {t('interactions.add')}
           </Typography>
           <InteractionForm
             key={addFormKey}
@@ -444,7 +443,7 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
             agentsLoading={agentsQuery.isPending}
             agentsError={agentsQuery.isError}
             submitting={createMutation.isPending}
-            submitLabel="Add note"
+            submitLabel={t('interactions.addNote')}
             error={addError}
             onSubmit={(draft) => void handleCreate(draft)}
             contentInputRef={addContentRef}
@@ -459,7 +458,7 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
           sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}
         >
           <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-            Timeline{total > 0 ? ` (${total})` : ''}
+            {t('interactions.timeline')}{total > 0 ? ` (${total})` : ''}
           </Typography>
           <FormControlLabel
             control={
@@ -471,7 +470,7 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
             }
             label={
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                Include completed follow-ups
+                {t('interactions.includeCompleted')}
               </Typography>
             }
           />
@@ -494,17 +493,17 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
             severity="error"
             action={
               <Button color="inherit" size="small" onClick={() => void feedQuery.refetch()}>
-                Retry
+                {t('common:actions.retry')}
               </Button>
             }
           >
-            {getQueryErrorMessage(feedQuery.error, 'Failed to load interactions') ??
-              'Failed to load interactions'}
+            {getQueryErrorMessage(feedQuery.error, t('interactions.loadFailed')) ??
+              t('interactions.loadFailed')}
           </Alert>
         ) : notes.length === 0 ? (
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            No interactions recorded yet.
-            {canWrite ? ' Use the form above to add the first note.' : ''}
+            {t('interactions.empty')}
+            {canWrite ? ` ${t('interactions.emptyHint')}` : ''}
           </Typography>
         ) : (
           <Stack spacing={1.5}>
@@ -525,8 +524,8 @@ const InteractionsTab: React.FC<InteractionsTabProps> = ({
                     }
                   >
                     {feedQuery.isFetchingNextPage
-                      ? 'Loading…'
-                      : `Load more (${notes.length} of ${total})`}
+                      ? t('interactions.loading')
+                      : t('interactions.loadMore', { shown: notes.length, total })}
                   </Button>
                 </Box>
               </>

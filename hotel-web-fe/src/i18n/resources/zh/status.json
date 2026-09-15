@@ -191,6 +191,60 @@
     "completed": "已完成",
     "failed": "失败"
   },
+  "booking_history": {
+    "checked_out": "已退房",
+    "completed": "已完成",
+    "voided": "已作废",
+    "comp_void": "免单作废",
+    "checked_in": "已入住",
+    "auto_checked_in": "已入住",
+    "confirmed": "已预订",
+    "pending": "待处理"
+  },
+  "booking_source": {
+    "direct": "直接预订",
+    "walk_in": "上门客",
+    "online": "在线预订",
+    "phone": "电话预订",
+    "email": "邮件预订",
+    "agent": "代理",
+    "travel_agent": "旅行社",
+    "corporate": "公司协议",
+    "ota": "OTA",
+    "guest_portal": "宾客门户"
+  },
+  "priority": {
+    "low": "低",
+    "normal": "普通",
+    "medium": "中",
+    "high": "高",
+    "urgent": "紧急",
+    "critical": "严重"
+  },
+  "task_type": {
+    "cleaning": "清洁",
+    "checkout_clean": "退房清洁",
+    "inspection": "检查",
+    "maintenance_followup": "维修跟进"
+  },
+  "maintenance_category": {
+    "electrical": "电气",
+    "plumbing": "管道",
+    "hvac": "暖通空调",
+    "furniture": "家具",
+    "appliance": "电器",
+    "structural": "结构",
+    "other": "其他"
+  },
+  "room_event": {
+    "reserve": "预订",
+    "booking": "预订",
+    "maintenance": "维修",
+    "inspection": "检查",
+    "repair": "修理",
+    "status_change": "状态变更",
+    "reserved": "已预订"
+  },
   "generic": {
     "active": "启用",
     "inactive": "停用",

@@ -1,6 +1,9 @@
 import { Chip, type ChipProps } from '@mui/material';
 import StatusChip, { type StatusTone } from '../../../components/common/StatusChip';
 import { formatStatusLabel } from '../../../utils/formatters';
+import { formatHotelDateTime } from '../../../utils/date';
+import { useTranslation, type UseTranslationResult } from '../../../i18n/useTranslation';
+import { statusLabel } from '../../../i18n/statusLabel';
 import type { SupportConversationStatus, SupportPriority } from '../types';
 
 const STATUS_COLORS: Record<SupportConversationStatus, StatusTone> = {
@@ -21,24 +24,25 @@ export function humanizeSupportValue(value?: string | null): string {
   return formatStatusLabel(value);
 }
 
+/** Localized label for a support conversation category (`support:categories.*`),
+ *  falling back to the humanized raw value for categories outside the enum. */
+export function supportCategoryLabel(
+  tOr: UseTranslationResult['tOr'],
+  category?: string | null,
+): string {
+  return category ? tOr(`categories.${category}`, formatStatusLabel(category)) : formatStatusLabel(category);
+}
+
 export function formatSupportDate(value?: string | null): string {
   if (!value) return '—';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date);
+  return formatHotelDateTime(value, '—');
 }
 
 export function SupportStatusChip({ status }: { status: SupportConversationStatus }) {
   return (
     <StatusChip
       status={status}
+      domain="support"
       tone={STATUS_COLORS[status]}
       variant={status === 'closed' ? 'outlined' : 'filled'}
     />
@@ -46,7 +50,8 @@ export function SupportStatusChip({ status }: { status: SupportConversationStatu
 }
 
 export function SupportPriorityChip({ priority }: { priority: SupportPriority }) {
-  return <Chip size="small" label={humanizeSupportValue(priority)} color={PRIORITY_COLORS[priority]} />;
+  const { t } = useTranslation('support');
+  return <Chip size="small" label={statusLabel(t, 'priority', priority)} color={PRIORITY_COLORS[priority]} />;
 }
 
 export function SupportSlaChip({
@@ -58,16 +63,16 @@ export function SupportSlaChip({
   isBreached: boolean;
   dueAt?: string | null;
 }) {
+  const { t } = useTranslation('support');
   if (isBreached) {
-    return <Chip size="small" label="SLA breached" color="error" variant="outlined" />;
+    return <Chip size="small" label={t('sla.breached')} color="error" variant="outlined" />;
   }
 
   if (isAtRisk) {
-    return <Chip size="small" label="SLA at risk" color="warning" variant="outlined" />;
+    return <Chip size="small" label={t('sla.atRisk')} color="warning" variant="outlined" />;
   }
 
   if (!dueAt) return null;
 
-  return <Chip size="small" label={`Due ${formatSupportDate(dueAt)}`} variant="outlined" />;
+  return <Chip size="small" label={t('sla.due', { date: formatSupportDate(dueAt) })} variant="outlined" />;
 }
-
