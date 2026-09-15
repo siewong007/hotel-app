@@ -12,12 +12,12 @@ pub mod audit;
 // booking_emails service logic live in modules::bookings.
 // bookings service logic live in modules::bookings.
 // companies service logic live in modules::companies.
-pub mod data_transfer;
+// data_transfer service logic live in modules::data_transfer.
 // Import staging/jobs for data transfer — kept in a sibling file so
 // data_transfer.rs does not grow past its maintainable size.
-pub mod data_transfer_jobs;
+// data_transfer_jobs service logic live in modules::data_transfer.
 // Step-up re-authentication for privileged data-transfer operations.
-pub mod data_transfer_step_up;
+// data_transfer_step_up service logic live in modules::data_transfer.
 // eKYC service logic lives in modules::ekyc.
 pub mod google_identity;
 // guest_portal service logic live in modules::guest_portal.

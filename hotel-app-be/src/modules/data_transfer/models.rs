@@ -50,7 +50,7 @@ pub struct BackupEntityDescriptor {
 }
 
 /// One schema table deliberately left out of a backup. `reason` is one of the
-/// reason codes in [`crate::services::data_transfer::EXCLUDED_TABLES`].
+/// reason codes in [`super::service::EXCLUDED_TABLES`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupExclusion {

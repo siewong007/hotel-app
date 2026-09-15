@@ -121,7 +121,7 @@ fn v1_document(entities: &[V1Entity]) -> Vec<u8> {
 /// Poll the registry until the job leaves `running` (or time out).
 async fn wait_for_job(job_id: uuid::Uuid) -> ImportJobStatus {
     use hotel_app_be::models::ImportJobState;
-    use hotel_app_be::services::data_transfer_jobs::import_job_status;
+    use hotel_app_be::modules::data_transfer::jobs::import_job_status;
     use std::time::{Duration, Instant};
 
     let deadline = Instant::now() + Duration::from_secs(30);
@@ -140,7 +140,7 @@ async fn wait_for_job(job_id: uuid::Uuid) -> ImportJobStatus {
 
 /// The staged file the registry/job machinery would have left behind.
 fn staged_file_path(upload_id: uuid::Uuid) -> std::path::PathBuf {
-    hotel_app_be::services::data_transfer_jobs::staged_upload_dir()
+    hotel_app_be::modules::data_transfer::jobs::staged_upload_dir()
         .join(format!("upload-{upload_id}.json"))
 }
 
@@ -162,8 +162,8 @@ async fn special_types_survive_export_and_reimport() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer::export_booking_data_body;
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::service::export_booking_data_body;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -356,7 +356,7 @@ async fn special_types_survive_export_and_reimport() {
 #[tokio::test]
 async fn bytea_and_friends_round_trip_through_pipeline_primitives() {
     use hotel_app_be::models::ConflictPolicy;
-    use hotel_app_be::repositories::data_transfer::{
+    use hotel_app_be::modules::data_transfer::repository::{
         DataTransferRepository, InsertRowOutcome, QualifiedTable, TransferTable,
     };
 
@@ -467,7 +467,7 @@ async fn foreign_keys_survive_export_and_reimport() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -595,7 +595,7 @@ async fn foreign_keys_survive_export_and_reimport() {
 #[tokio::test]
 async fn restore_clears_the_selection_and_expanded_dependents() {
     use hotel_app_be::models::{BackupImportMode, ImportExecuteRequest, ImportJobState};
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -772,7 +772,7 @@ async fn missing_user_refs_remap_or_skip_and_are_reported() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -958,7 +958,7 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -1117,7 +1117,7 @@ async fn excluded_entities_in_a_file_are_never_imported() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -1227,7 +1227,7 @@ async fn credential_columns_cannot_be_written_by_an_import() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -1353,7 +1353,7 @@ async fn credential_columns_cannot_be_written_by_an_import() {
 /// `row_exists_by_columns`). Counts must be exactly `existing=1, new=1` each.
 #[tokio::test]
 async fn preview_diff_counts_new_and_existing_exactly() {
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -1501,7 +1501,7 @@ async fn job_reports_running_then_succeeded_and_removes_the_staged_file() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -1578,7 +1578,7 @@ async fn in_file_duplicate_ids_skip_the_second_row() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -1650,7 +1650,7 @@ async fn failed_import_rolls_back_every_entity() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::services::data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;

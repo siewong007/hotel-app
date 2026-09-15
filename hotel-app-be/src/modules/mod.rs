@@ -6,6 +6,7 @@ pub mod bookings;
 pub mod communications;
 pub mod companies;
 pub mod consent;
+pub mod data_transfer;
 pub mod ekyc;
 pub mod guest_booking;
 pub mod guest_portal;

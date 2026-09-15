@@ -12,7 +12,7 @@ use crate::models::{
     BackupEntityDescriptor, BackupExclusion, BackupIntegrity, BackupManifest, BackupRelationship,
     BackupSource, ExportPreview, ExportScope, TransferTablePreview,
 };
-use crate::repositories::data_transfer::{
+use super::repository::{
     DataTransferRepository, QualifiedTable, TransferTable,
 };
 
@@ -262,7 +262,7 @@ const KNOWN_EXCLUSION_REASONS: &[&str] = &[
 /// on import in the repository (`NEVER_TRANSFERRED_COLUMNS`) so a crafted
 /// file cannot write them either.
 const EXCLUDED_EXPORT_COLUMNS: &[(&str, &str)] =
-    crate::repositories::data_transfer::NEVER_TRANSFERRED_COLUMNS;
+    super::repository::NEVER_TRANSFERRED_COLUMNS;
 
 /// The columns of `table` the export emits — `ordered_columns` (schema
 /// `ordinal_position` order, matching the emitted row key order) minus

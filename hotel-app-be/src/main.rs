@@ -260,8 +260,8 @@ async fn main() {
     // Drop staged backup uploads abandoned for >24h — crashed uploads and
     // files whose owner never ran the import. Finished jobs already delete
     // their own file; this only collects the leftovers.
-    services::data_transfer_jobs::sweep_staged_uploads(
-        &services::data_transfer_jobs::staged_upload_dir(),
+    modules::data_transfer::jobs::sweep_staged_uploads(
+        &modules::data_transfer::jobs::staged_upload_dir(),
     );
 
     // Create router with all routes and middleware

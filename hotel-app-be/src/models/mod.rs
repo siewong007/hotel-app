@@ -4,7 +4,6 @@
 
 pub mod audit;
 pub mod common;
-pub mod data_transfer;
 pub mod ekyc;
 pub mod row_mappers;
 
@@ -16,7 +15,7 @@ pub use crate::modules::bookings::models::*;
 pub use crate::modules::booking_channels::models::*;
 pub use common::*;
 pub use crate::modules::companies::models::*;
-pub use data_transfer::*;
+pub use crate::modules::data_transfer::models::*;
 pub use ekyc::*;
 pub use crate::modules::guests::models::*;
 pub use crate::modules::guest_portal::models::*;

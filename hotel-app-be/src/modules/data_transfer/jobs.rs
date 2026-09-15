@@ -33,11 +33,11 @@ use crate::models::{
     ImportJobState, ImportJobStatus, ImportPreview, ImportPreviewEntity,
     ImportRelationshipProblem, JobProgress, UploadResponse,
 };
-use crate::repositories::data_transfer::{
+use super::repository::{
     DataTransferRepository, ForeignKeyRef, InsertRowOutcome, PkLookup, QualifiedTable,
     TransferTable, transfer_order,
 };
-use crate::services::data_transfer::{
+use super::service::{
     AUDIT_USER_FK_COLUMNS, EXCLUDED_TABLES, backup_environment, expand_full_overwrite_tables,
     is_transferable_key, table_is_sensitive,
 };
@@ -1381,7 +1381,7 @@ pub async fn enforce_import_permissions(
     if request.mode == BackupImportMode::Restore {
         crate::core::middleware::check_permission(pool, user_id, "data_transfer:restore").await?;
         let claims = crate::core::middleware::extract_claims(headers).await?;
-        crate::services::data_transfer_step_up::require_step_up(headers, &claims)?;
+        super::step_up::require_step_up(headers, &claims)?;
     }
     Ok(())
 }
@@ -1811,7 +1811,7 @@ fn row_error(entity: &str, index: usize, error: &ApiError) -> ApiError {
     ApiError::BadRequest(format!(
         "Import failed for {entity} row {}: {}. No changes were saved.",
         index + 1,
-        crate::services::data_transfer::import_error_detail(error)
+        super::service::import_error_detail(error)
     ))
 }
 

@@ -5,8 +5,8 @@
 //! malformed catalog query fails the whole export with a 500 while every
 //! compile-time gate stays green. Runs only with `DATABASE_URL` set.
 
-use hotel_app_be::repositories::data_transfer::DataTransferRepository;
-use hotel_app_be::services::data_transfer::{
+use hotel_app_be::modules::data_transfer::repository::DataTransferRepository;
+use hotel_app_be::modules::data_transfer::service::{
     TABLE_INSERT_ORDER, export_booking_data, export_booking_data_body, export_columns,
 };
 use serde_json::Value;

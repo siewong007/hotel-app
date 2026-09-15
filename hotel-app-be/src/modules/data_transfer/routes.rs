@@ -12,7 +12,7 @@ use crate::core::middleware::{
     check_permission, extract_claims, extract_user_id, require_permission_helper,
 };
 use crate::core::rate_limiter::RateLimiters;
-use crate::handlers;
+use super::handlers as handlers;
 use crate::models;
 use axum::{
     Router,
@@ -69,9 +69,9 @@ async fn export_data(
     };
     check_permission(&pool, user_id, permission).await?;
     if query.scope.includes_sensitive() {
-        crate::services::data_transfer_step_up::require_step_up(&headers, &claims)?;
+        super::step_up::require_step_up(&headers, &claims)?;
     }
-    handlers::data_transfer::export_booking_data_handler(State(pool), user_id, query.scope).await
+    handlers::export_booking_data_handler(State(pool), user_id, query.scope).await
 }
 
 async fn preview_export_counts(
@@ -89,7 +89,7 @@ async fn preview_export_counts(
         "data_transfer:view"
     };
     check_permission(&pool, user_id, permission).await?;
-    handlers::data_transfer::preview_export_counts_handler(State(pool), query.scope).await
+    handlers::preview_export_counts_handler(State(pool), query.scope).await
 }
 
 /// Re-authenticate for a privileged operation. Gated on authentication alone
@@ -102,7 +102,7 @@ async fn step_up(
     headers: HeaderMap,
     Json(request): Json<models::StepUpRequest>,
 ) -> Result<Json<models::StepUpResponse>, ApiError> {
-    let ip = super::extract_client_ip(&headers, peer_addr);
+    let ip = crate::routes::extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -111,7 +111,7 @@ async fn step_up(
         ));
     }
     let claims = extract_claims(&headers).await?;
-    handlers::data_transfer::step_up_handler(State(pool), claims, request).await
+    handlers::step_up_handler(State(pool), claims, request).await
 }
 
 async fn transfer_history(
@@ -120,7 +120,7 @@ async fn transfer_history(
     Query(query): Query<models::TransferHistoryQuery>,
 ) -> Result<Json<models::TransferHistory>, ApiError> {
     require_permission_helper(&pool, &headers, "data_transfer:view").await?;
-    handlers::data_transfer::transfer_history_handler(State(pool), query.limit).await
+    handlers::transfer_history_handler(State(pool), query.limit).await
 }
 
 async fn stage_backup_upload(
@@ -129,7 +129,7 @@ async fn stage_backup_upload(
     body: Body,
 ) -> Result<Response, ApiError> {
     require_permission_helper(&pool, &headers, "data_transfer:import").await?;
-    handlers::data_transfer::stage_backup_upload_handler(body).await
+    handlers::stage_backup_upload_handler(body).await
 }
 
 async fn preview_import(
@@ -138,7 +138,7 @@ async fn preview_import(
     Json(request): Json<models::ImportPreviewRequest>,
 ) -> Result<Json<models::ImportPreview>, ApiError> {
     require_permission_helper(&pool, &headers, "data_transfer:import").await?;
-    handlers::data_transfer::preview_import_handler(State(pool), Json(request)).await
+    handlers::preview_import_handler(State(pool), Json(request)).await
 }
 
 async fn execute_import(
@@ -148,7 +148,7 @@ async fn execute_import(
 ) -> Result<Response, ApiError> {
     let user_id =
         require_permission_helper(&pool, &headers, "data_transfer:import").await?;
-    handlers::data_transfer::execute_import_handler(State(pool), user_id, headers, Json(request))
+    handlers::execute_import_handler(State(pool), user_id, headers, Json(request))
         .await
 }
 
@@ -158,7 +158,7 @@ async fn import_job_status(
     Path(job_id): Path<Uuid>,
 ) -> Result<Json<models::ImportJobStatus>, ApiError> {
     require_permission_helper(&pool, &headers, "data_transfer:import").await?;
-    handlers::data_transfer::import_job_status_handler(Path(job_id)).await
+    handlers::import_job_status_handler(Path(job_id)).await
 }
 
 async fn discard_staged_upload(
@@ -167,5 +167,5 @@ async fn discard_staged_upload(
     Path(upload_id): Path<Uuid>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     require_permission_helper(&pool, &headers, "data_transfer:import").await?;
-    handlers::data_transfer::delete_staged_upload_handler(Path(upload_id)).await
+    handlers::delete_staged_upload_handler(Path(upload_id)).await
 }

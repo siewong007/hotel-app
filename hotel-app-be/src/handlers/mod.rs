@@ -9,7 +9,7 @@
 // booking_channels handlers live in modules::booking_channels.
 // bookings handlers live in modules::bookings.
 // companies handlers live in modules::companies.
-pub mod data_transfer;
+// data_transfer handlers live in modules::data_transfer.
 // eKYC handlers live in modules::ekyc.
 // guest_portal handlers live in modules::guest_portal.
 // guests handlers live in modules::guests.

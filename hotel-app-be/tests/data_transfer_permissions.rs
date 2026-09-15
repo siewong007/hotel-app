@@ -535,7 +535,7 @@ fn legacy_document() -> Vec<u8> {
 /// Poll the registry until the job leaves `running` (or time out).
 async fn wait_for_job(job_id: uuid::Uuid) -> ImportJobStatus {
     use hotel_app_be::models::ImportJobState;
-    use hotel_app_be::services::data_transfer_jobs::import_job_status;
+    use hotel_app_be::modules::data_transfer::jobs::import_job_status;
     use std::time::{Duration, Instant};
 
     let deadline = Instant::now() + Duration::from_secs(30);

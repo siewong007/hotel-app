@@ -13,7 +13,7 @@ pub mod audit;
 // bookings_queries persistence live in modules::bookings.
 // channel_net_revenue persistence live in modules::analytics.
 // company persistence live in modules::companies.
-pub mod data_transfer;
+// data_transfer persistence live in modules::data_transfer.
 pub mod ekyc;
 // guest persistence live in modules::guests.
 // guest_portal persistence live in modules::guest_portal.

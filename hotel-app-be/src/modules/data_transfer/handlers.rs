@@ -9,9 +9,9 @@ use crate::models::{
     ExportPreview, ExportScope, ImportExecuteRequest, ImportJobStatus, ImportPreview,
     ImportPreviewRequest, StepUpRequest, StepUpResponse, TransferHistory,
 };
-use crate::services::data_transfer as data_transfer_service;
-use crate::services::data_transfer_jobs::{self, StageUploadError};
-use crate::services::data_transfer_step_up;
+use super::service as data_transfer_service;
+use super::jobs::{self as data_transfer_jobs, StageUploadError};
+use super::step_up as data_transfer_step_up;
 use axum::{
     body::Body,
     extract::{Path, State},
