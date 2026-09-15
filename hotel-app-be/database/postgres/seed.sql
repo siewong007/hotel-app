@@ -63,6 +63,9 @@ VALUES
     ('bookings:manage'),
     ('bookings:read'),
     ('bookings:update'),
+    ('channels:manage'),
+    ('channels:read'),
+    ('channels:write'),
     ('companies:create'),
     ('companies:delete'),
     ('companies:manage'),
@@ -250,6 +253,7 @@ VALUES
     ('audit-log'),
     ('bookings'),
     ('campaigns'),
+    ('channels'),
     ('communications'),
     ('company-ledger'),
     ('complimentary'),
@@ -494,6 +498,9 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('navigation_segments:read', 'navigation:segments', 'read', 'Show Segments navigation', true),
 ('revenue:read', 'revenue', 'read', 'View revenue performance, pricing, and occupancy analytics', true),
 ('navigation_revenue:read', 'navigation:revenue', 'read', 'Show Revenue navigation', true),
+('channels:read', 'channels', 'read', 'View booking channels, pricing rules, and price previews', true),
+('channels:write', 'channels', 'write', 'Create and edit channels, pricing rules, commission rules, and integration mappings', true),
+('channels:manage', 'channels', 'manage', 'Full channel management including activation, deactivation, and deletion', true),
 ('bookings:create', 'bookings', 'create', 'Create new bookings', true),
 ('bookings:read', 'bookings', 'read', 'View bookings', true),
 ('bookings:update', 'bookings', 'update', 'Update bookings', true),
@@ -610,6 +617,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
     'companies:read', 'companies:create', 'companies:update', 'companies:delete', 'companies:manage',
     'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read',
     'revenue:read', 'navigation_revenue:read',
+    'channels:read', 'channels:write', 'channels:manage',
     'teams:read', 'teams:assign', 'loyalty:read', 'loyalty:manage'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
@@ -938,20 +946,20 @@ WHERE system_settings.value_type IS DISTINCT FROM EXCLUDED.value_type
 -- ============================================================================
 
 INSERT INTO booking_channels
-    (name, channel_type, default_commission_type, default_commission_value, default_commission_scope, is_active)
+    (name, channel_type, default_commission_type, default_commission_value, default_commission_scope, is_active, abbreviation, code)
 VALUES
-    ('Direct', 'direct', 'none', 0, 'per_booking', true),
-    ('Walk-in', 'walk_in', 'none', 0, 'per_booking', true),
-    ('Phone', 'phone', 'none', 0, 'per_booking', true),
-    ('Direct Website', 'website', 'none', 0, 'per_booking', true),
-    ('Booking.com', 'ota', 'none', 0, 'per_booking', true),
-    ('Agoda', 'ota', 'none', 0, 'per_booking', true),
-    ('Traveloka', 'ota', 'none', 0, 'per_booking', true),
-    ('Expedia', 'ota', 'none', 0, 'per_booking', true),
-    ('Hotels.com', 'ota', 'none', 0, 'per_booking', true),
-    ('Airbnb', 'ota', 'none', 0, 'per_booking', true),
-    ('Trip.com', 'ota', 'none', 0, 'per_booking', true),
-    ('Other OTA', 'ota', 'none', 0, 'per_booking', true)
+    ('Direct', 'direct', 'none', 0, 'per_booking', true, NULL, 'direct'),
+    ('Walk-in', 'walk_in', 'none', 0, 'per_booking', true, NULL, 'walk_in'),
+    ('Phone', 'phone', 'none', 0, 'per_booking', true, NULL, 'phone'),
+    ('Direct Website', 'website', 'none', 0, 'per_booking', true, 'DW', 'direct_website'),
+    ('Booking.com', 'ota', 'none', 0, 'per_booking', true, 'B.C', 'booking_com'),
+    ('Agoda', 'ota', 'none', 0, 'per_booking', true, 'A.C', 'agoda'),
+    ('Traveloka', 'ota', 'none', 0, 'per_booking', true, 'T.C', 'traveloka'),
+    ('Expedia', 'ota', 'none', 0, 'per_booking', true, 'E.C', 'expedia'),
+    ('Hotels.com', 'ota', 'none', 0, 'per_booking', true, 'H.C', 'hotels_com'),
+    ('Airbnb', 'ota', 'none', 0, 'per_booking', true, 'AB', 'airbnb'),
+    ('Trip.com', 'ota', 'none', 0, 'per_booking', true, 'TR', 'trip_com'),
+    ('Other OTA', 'ota', 'none', 0, 'per_booking', true, 'OT', 'other_ota')
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================
@@ -1171,6 +1179,7 @@ VALUES
     ('insights', '/insights', 'Insights', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('revenue', '/revenue', 'Revenue', 'revenue', '["revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_revenue:read","revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('rates', '/rates', 'Rates', 'revenue', '["revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_revenue:read","revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('channels', '/channels', 'Channels', 'revenue', '["channels:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_revenue:read","channels:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('segments', '/segments', 'Segments', 'revenue', '["segments:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_segments:read","segments:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('company-ledger', '/company-ledger', 'Ledger', 'operations', '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('room-config', '/room-config', 'Room Configuration', 'config', '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),

@@ -1229,7 +1229,11 @@ CREATE TABLE public.booking_channels (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    abbreviation character varying(8),
+    code character varying(40),
+    integration_mode character varying(20) DEFAULT 'manual'::character varying NOT NULL,
     CONSTRAINT booking_channels_channel_type_check CHECK (((channel_type)::text = ANY ((ARRAY['direct'::character varying, 'ota'::character varying, 'corporate'::character varying, 'walk_in'::character varying, 'phone'::character varying, 'website'::character varying, 'channel_manager'::character varying, 'other'::character varying])::text[]))),
+    CONSTRAINT booking_channels_integration_mode_check CHECK (((integration_mode)::text = ANY ((ARRAY['manual'::character varying, 'channel_manager'::character varying, 'api'::character varying])::text[]))),
     CONSTRAINT booking_channels_default_commission_scope_check CHECK (((default_commission_scope)::text = ANY ((ARRAY['per_booking'::character varying, 'per_night'::character varying])::text[]))),
     CONSTRAINT booking_channels_default_commission_type_check CHECK (((default_commission_type)::text = ANY ((ARRAY['none'::character varying, 'percentage'::character varying, 'fixed_amount'::character varying])::text[]))),
     CONSTRAINT booking_channels_default_commission_value_check CHECK ((default_commission_value >= (0)::numeric)),
@@ -1365,6 +1369,159 @@ COMMENT ON TABLE public.booking_services IS 'Services ordered by guests';
 
 
 --
+-- Name: channel_commission_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.channel_commission_rules (
+    id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    commission_type character varying(24) NOT NULL,
+    value numeric(10,2) DEFAULT 0 NOT NULL,
+    scope character varying(20) DEFAULT 'per_booking'::character varying NOT NULL,
+    effective_from date NOT NULL,
+    effective_to date,
+    priority integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    reason text,
+    created_by bigint,
+    updated_by bigint,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT channel_commission_rules_percentage_range CHECK ((((commission_type)::text <> 'percentage'::text) OR ((value >= (0)::numeric) AND (value <= (100)::numeric)))),
+    CONSTRAINT channel_commission_rules_scope_check CHECK (((scope)::text = ANY ((ARRAY['per_booking'::character varying, 'per_night'::character varying])::text[]))),
+    CONSTRAINT channel_commission_rules_type_check CHECK (((commission_type)::text = ANY ((ARRAY['percentage'::character varying, 'fixed_amount'::character varying])::text[]))),
+    CONSTRAINT channel_commission_rules_value_check CHECK ((value >= (0)::numeric)),
+    CONSTRAINT channel_commission_rules_window_check CHECK (((effective_to IS NULL) OR (effective_to >= effective_from)))
+);
+
+
+--
+-- Name: channel_commission_rules_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.channel_commission_rules ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.channel_commission_rules_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: channel_pricing_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.channel_pricing_rules (
+    id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    room_type_id bigint,
+    rate_plan_id bigint,
+    rule_type character varying(24) NOT NULL,
+    value numeric(12,2) NOT NULL,
+    effective_from date NOT NULL,
+    effective_to date,
+    min_price numeric(10,2),
+    max_price numeric(10,2),
+    priority integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    reason text,
+    created_by bigint,
+    updated_by bigint,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT channel_pricing_rules_discount_range CHECK ((((rule_type)::text <> 'discount_percent'::text) OR ((value >= (0)::numeric) AND (value <= (100)::numeric)))),
+    CONSTRAINT channel_pricing_rules_min_max_check CHECK (((min_price IS NULL) OR (max_price IS NULL) OR (min_price <= max_price))),
+    CONSTRAINT channel_pricing_rules_type_check CHECK (((rule_type)::text = ANY ((ARRAY['markup_percent'::character varying, 'markup_fixed'::character varying, 'discount_percent'::character varying, 'fixed_price'::character varying, 'net_rate'::character varying])::text[]))),
+    CONSTRAINT channel_pricing_rules_value_check CHECK ((value >= (0)::numeric)),
+    CONSTRAINT channel_pricing_rules_window_check CHECK (((effective_to IS NULL) OR (effective_to >= effective_from)))
+);
+
+
+--
+-- Name: channel_pricing_rules_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.channel_pricing_rules ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.channel_pricing_rules_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: channel_rate_plan_mappings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.channel_rate_plan_mappings (
+    id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    rate_plan_id bigint NOT NULL,
+    external_rate_plan_id character varying(100),
+    external_rate_plan_name character varying(160),
+    is_enabled boolean DEFAULT true NOT NULL,
+    sync_status character varying(20),
+    last_synced_at timestamp with time zone,
+    created_by bigint,
+    updated_by bigint,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: channel_rate_plan_mappings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.channel_rate_plan_mappings ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.channel_rate_plan_mappings_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: channel_room_type_mappings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.channel_room_type_mappings (
+    id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    room_type_id bigint NOT NULL,
+    external_room_id character varying(100),
+    external_room_name character varying(160),
+    is_enabled boolean DEFAULT true NOT NULL,
+    sync_status character varying(20),
+    last_synced_at timestamp with time zone,
+    created_by bigint,
+    updated_by bigint,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: channel_room_type_mappings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.channel_room_type_mappings ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.channel_room_type_mappings_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: bookings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1462,6 +1619,7 @@ END),
     portal_request_id character varying(128),
     nights integer GENERATED ALWAYS AS ((check_out_date - check_in_date)),
     total_guests integer GENERATED ALWAYS AS (((adults + children) + infants)),
+    channel_pricing_snapshot jsonb,
     CONSTRAINT bookings_payment_status_check CHECK (((payment_status)::text = ANY ((ARRAY['unpaid'::character varying, 'unpaid_deposit'::character varying, 'paid_rate'::character varying, 'partial'::character varying, 'paid'::character varying, 'refunded'::character varying, 'void'::character varying])::text[]))),
     CONSTRAINT bookings_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'pending_payment'::character varying, 'pending_confirmation'::character varying, 'confirmed'::character varying, 'checked_in'::character varying, 'auto_checked_in'::character varying, 'checked_out'::character varying, 'no_show'::character varying, 'completed'::character varying, 'comp_void'::character varying, 'partial_complimentary'::character varying, 'fully_complimentary'::character varying, 'voided'::character varying])::text[]))),
     CONSTRAINT valid_complimentary_dates CHECK ((((complimentary_start_date IS NULL) AND (complimentary_end_date IS NULL)) OR ((complimentary_start_date IS NOT NULL) AND (complimentary_end_date IS NOT NULL) AND (complimentary_start_date >= check_in_date) AND (complimentary_end_date <= check_out_date) AND (complimentary_start_date < complimentary_end_date)))),
@@ -5450,6 +5608,54 @@ ALTER TABLE ONLY public.bookings
 
 
 --
+-- Name: channel_commission_rules channel_commission_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_commission_rules
+    ADD CONSTRAINT channel_commission_rules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: channel_pricing_rules channel_pricing_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_pricing_rules
+    ADD CONSTRAINT channel_pricing_rules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: channel_rate_plan_mappings channel_rate_plan_mappings_channel_id_rate_plan_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_rate_plan_mappings
+    ADD CONSTRAINT channel_rate_plan_mappings_channel_id_rate_plan_id_key UNIQUE (channel_id, rate_plan_id);
+
+
+--
+-- Name: channel_rate_plan_mappings channel_rate_plan_mappings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_rate_plan_mappings
+    ADD CONSTRAINT channel_rate_plan_mappings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: channel_room_type_mappings channel_room_type_mappings_channel_id_room_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_room_type_mappings
+    ADD CONSTRAINT channel_room_type_mappings_channel_id_room_type_id_key UNIQUE (channel_id, room_type_id);
+
+
+--
+-- Name: channel_room_type_mappings channel_room_type_mappings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_room_type_mappings
+    ADD CONSTRAINT channel_room_type_mappings_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: companies companies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6845,6 +7051,20 @@ CREATE INDEX idx_bookings_source ON public.bookings USING btree (source);
 --
 
 CREATE INDEX idx_bookings_status ON public.bookings USING btree (status);
+
+
+--
+-- Name: idx_channel_commission_rules_window; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_channel_commission_rules_window ON public.channel_commission_rules USING btree (channel_id, effective_from, effective_to);
+
+
+--
+-- Name: idx_channel_pricing_rules_window; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_channel_pricing_rules_window ON public.channel_pricing_rules USING btree (channel_id, room_type_id, effective_from, effective_to);
 
 
 --
@@ -8742,6 +8962,102 @@ ALTER TABLE ONLY public.bookings
 
 ALTER TABLE ONLY public.bookings
     ADD CONSTRAINT bookings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id);
+
+
+--
+-- Name: channel_commission_rules channel_commission_rules_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_commission_rules
+    ADD CONSTRAINT channel_commission_rules_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.booking_channels(id) ON DELETE CASCADE;
+
+
+--
+-- Name: channel_commission_rules channel_commission_rules_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_commission_rules
+    ADD CONSTRAINT channel_commission_rules_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+
+
+--
+-- Name: channel_commission_rules channel_commission_rules_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_commission_rules
+    ADD CONSTRAINT channel_commission_rules_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id);
+
+
+--
+-- Name: channel_pricing_rules channel_pricing_rules_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_pricing_rules
+    ADD CONSTRAINT channel_pricing_rules_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.booking_channels(id) ON DELETE CASCADE;
+
+
+--
+-- Name: channel_pricing_rules channel_pricing_rules_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_pricing_rules
+    ADD CONSTRAINT channel_pricing_rules_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+
+
+--
+-- Name: channel_pricing_rules channel_pricing_rules_rate_plan_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_pricing_rules
+    ADD CONSTRAINT channel_pricing_rules_rate_plan_id_fkey FOREIGN KEY (rate_plan_id) REFERENCES public.rate_plans(id) ON DELETE CASCADE;
+
+
+--
+-- Name: channel_pricing_rules channel_pricing_rules_room_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_pricing_rules
+    ADD CONSTRAINT channel_pricing_rules_room_type_id_fkey FOREIGN KEY (room_type_id) REFERENCES public.room_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: channel_pricing_rules channel_pricing_rules_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_pricing_rules
+    ADD CONSTRAINT channel_pricing_rules_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id);
+
+
+--
+-- Name: channel_rate_plan_mappings channel_rate_plan_mappings_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_rate_plan_mappings
+    ADD CONSTRAINT channel_rate_plan_mappings_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.booking_channels(id) ON DELETE CASCADE;
+
+
+--
+-- Name: channel_rate_plan_mappings channel_rate_plan_mappings_rate_plan_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_rate_plan_mappings
+    ADD CONSTRAINT channel_rate_plan_mappings_rate_plan_id_fkey FOREIGN KEY (rate_plan_id) REFERENCES public.rate_plans(id) ON DELETE CASCADE;
+
+
+--
+-- Name: channel_room_type_mappings channel_room_type_mappings_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_room_type_mappings
+    ADD CONSTRAINT channel_room_type_mappings_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.booking_channels(id) ON DELETE CASCADE;
+
+
+--
+-- Name: channel_room_type_mappings channel_room_type_mappings_room_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_room_type_mappings
+    ADD CONSTRAINT channel_room_type_mappings_room_type_id_fkey FOREIGN KEY (room_type_id) REFERENCES public.room_types(id) ON DELETE CASCADE;
 
 
 --

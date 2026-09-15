@@ -67,6 +67,12 @@ pub const TABLE_INSERT_ORDER: &[&str] = &[
     "online_inventory_allocations",
     "guest_complimentary_credits",
     "room_rates",
+    // channel pricing config: parents booking_channels / room_types /
+    // rate_plans all precede this point.
+    "channel_pricing_rules",
+    "channel_commission_rules",
+    "channel_room_type_mappings",
+    "channel_rate_plan_mappings",
     "room_type_amenities",
     "rooms",
     "room_events",
