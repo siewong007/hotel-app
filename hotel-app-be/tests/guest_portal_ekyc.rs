@@ -37,7 +37,7 @@ mod postgres_tests {
     use hotel_app_be::modules::ekyc::service::{self, SubmissionChannel};
     use hotel_app_be::modules::ekyc::validation;
     use hotel_app_be::repositories::ekyc::EkycRepository;
-    use hotel_app_be::repositories::guest_portal_session::GuestPortalSessionRepository;
+    use hotel_app_be::modules::guest_portal::session_repository::GuestPortalSessionRepository;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
     use std::fs;
     use std::path::PathBuf;

@@ -14,10 +14,10 @@ mod postgres_tests {
     use hotel_app_be::modules::guest_booking::repository::GuestBookingRepository;
     use hotel_app_be::modules::guest_booking::validation::ValidatedAnonymousGuest;
     use hotel_app_be::repositories::ekyc::EkycRepository;
-    use hotel_app_be::repositories::guest_portal::GuestPortalRepository;
-    use hotel_app_be::repositories::guest_portal_session::GuestPortalSessionRepository;
+    use hotel_app_be::modules::guest_portal::repository::GuestPortalRepository;
+    use hotel_app_be::modules::guest_portal::session_repository::GuestPortalSessionRepository;
     use hotel_app_be::services::auto_checkin;
-    use hotel_app_be::services::guest_portal as guest_portal_service;
+    use hotel_app_be::modules::guest_portal::service as guest_portal_service;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
     use std::sync::LazyLock;
     use std::sync::atomic::{AtomicU64, Ordering};

@@ -28,7 +28,7 @@ const CAPABILITY_TOKEN_HEX_LEN: usize = 64;
 
 /// Generate the token that travels in the email. Never persisted as-is.
 pub(crate) fn generate_capability_token() -> String {
-    crate::services::guest_portal::generate_session_token()
+    crate::modules::guest_portal::service::generate_session_token()
 }
 
 /// Value stored in `payment_retry_capabilities.token_hash`.

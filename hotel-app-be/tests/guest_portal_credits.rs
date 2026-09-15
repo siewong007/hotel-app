@@ -9,7 +9,7 @@ mod postgres_tests {
     use chrono::NaiveDate;
     use hotel_app_be::modules::guest_booking::models::BookingInsert;
     use hotel_app_be::modules::guest_booking::repository::GuestBookingRepository;
-    use hotel_app_be::repositories::guest_portal_session::GuestPortalSessionRepository;
+    use hotel_app_be::modules::guest_portal::session_repository::GuestPortalSessionRepository;
     use rust_decimal::Decimal;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 

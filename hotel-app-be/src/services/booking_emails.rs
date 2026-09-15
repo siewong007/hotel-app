@@ -29,7 +29,7 @@ use crate::core::settings_cache;
 use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
-use crate::services::guest_portal;
+use crate::modules::guest_portal::service as guest_portal;
 
 /// Booking + guest fields shared by both emails.
 #[derive(sqlx::FromRow)]

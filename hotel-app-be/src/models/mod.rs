@@ -7,7 +7,6 @@ pub mod booking;
 pub mod common;
 pub mod data_transfer;
 pub mod ekyc;
-pub mod guest_portal;
 pub mod ledger;
 pub mod row_mappers;
 
@@ -22,7 +21,7 @@ pub use crate::modules::companies::models::*;
 pub use data_transfer::*;
 pub use ekyc::*;
 pub use crate::modules::guests::models::*;
-pub use guest_portal::*;
+pub use crate::modules::guest_portal::models::*;
 pub use crate::modules::housekeeping::models::*;
 pub use ledger::*;
 pub use crate::modules::maintenance::models::*;

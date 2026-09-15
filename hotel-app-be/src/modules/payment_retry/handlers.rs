@@ -153,7 +153,7 @@ pub async fn recover_upload_receipt_handler(
     multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_capacity(&limiters, &headers, peer).await?;
-    let bytes = crate::handlers::guest_portal::receipt_upload_bytes(multipart).await?;
+    let bytes = crate::modules::guest_portal::handlers::receipt_upload_bytes(multipart).await?;
     service::upload_recovered_receipt(&pool, &token, payment_id, &bytes).await?;
     Ok(Json(serde_json::json!({ "uploaded": true })))
 }

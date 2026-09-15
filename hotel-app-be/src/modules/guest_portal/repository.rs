@@ -34,7 +34,7 @@ impl GuestPortalRepository {
         pool: &DbPool,
         token: &str,
     ) -> Result<Option<Booking>, ApiError> {
-        let hashed = crate::services::guest_portal::persist_booking_access_token(token);
+        let hashed = super::service::persist_booking_access_token(token);
         let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "{} WHERE pre_checkin_token = {} \
              OR (pre_checkin_token = {} AND pre_checkin_token NOT LIKE 'sha256:%')",
@@ -141,7 +141,7 @@ impl GuestPortalRepository {
             param!(3)
         );
         sqlx::query(sqlx::AssertSqlSafe(&*sql))
-            .bind(crate::services::guest_portal::persist_booking_access_token(
+            .bind(super::service::persist_booking_access_token(
                 token,
             ))
             .bind(expires_at)

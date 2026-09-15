@@ -3,7 +3,7 @@ use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::modules::loyalty::hub::{LoyaltyHub, serve_guest_socket, serve_socket};
-use crate::services::guest_portal;
+use crate::modules::guest_portal::service as guest_portal;
 use axum::{
     Json,
     extract::{Extension, Path, Query, State, WebSocketUpgrade},

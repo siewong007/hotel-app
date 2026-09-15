@@ -1267,13 +1267,13 @@ pub async fn create_anonymous(
     if let Some(mut existing) =
         Repository::find_anonymous_by_request_id(pool, &request_id, &guest.email).await?
     {
-        let access_token = crate::services::guest_portal::generate_session_token();
+        let access_token = crate::modules::guest_portal::service::generate_session_token();
         let access_token_expires_at = replay_anonymous_access_token_expiry(
             chrono::Utc::now(),
             existing.check_in_date,
             existing.access_token_expires_at,
         );
-        crate::repositories::guest_portal::GuestPortalRepository::update_precheckin_token(
+        crate::modules::guest_portal::repository::GuestPortalRepository::update_precheckin_token(
             pool,
             existing.booking_id,
             &access_token,
@@ -1327,7 +1327,7 @@ pub async fn create_anonymous(
     );
     let booking_number =
         crate::services::booking::generate_booking_number_for_date(quote.check_in_date);
-    let access_token = crate::services::guest_portal::generate_session_token();
+    let access_token = crate::modules::guest_portal::service::generate_session_token();
     let access_token_expires_at =
         anonymous_access_token_expiry(chrono::Utc::now(), quote.check_in_date);
 

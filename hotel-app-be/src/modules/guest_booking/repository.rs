@@ -983,7 +983,7 @@ impl GuestBookingRepository {
                 WHERE id = $3
             "#,
         )
-        .bind(crate::services::guest_portal::persist_booking_access_token(
+        .bind(crate::modules::guest_portal::service::persist_booking_access_token(
             token,
         ))
         .bind(expires_at)

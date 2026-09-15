@@ -167,7 +167,7 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
         // token is minted for guests WITH an account too: the wizard reads the
         // booking through the booking token, not a portal session, so an
         // account holder without one cannot use it either.
-        let checkin = match crate::services::guest_portal::issue_booking_access_token(
+        let checkin = match crate::modules::guest_portal::service::issue_booking_access_token(
             pool,
             booking.id,
             booking.check_in_date,

@@ -11,7 +11,7 @@ use crate::models::{
 use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
-use crate::repositories::guest_portal::GuestPortalRepository;
+use crate::modules::guest_portal::repository::GuestPortalRepository;
 use super::repository::{PaymentRepository, PendingPaymentValues};
 use crate::services::audit::AuditLog;
 use crate::modules::payment_retry::service as payment_retry;
@@ -2214,7 +2214,7 @@ async fn issue_anonymous_receipt_upload_token(
     guest_id: i64,
     booking_id: i64,
 ) -> Option<String> {
-    if crate::services::guest_portal::guest_has_portal_account(pool, guest_id).await {
+    if crate::modules::guest_portal::service::guest_has_portal_account(pool, guest_id).await {
         return None;
     }
     let booking = match GuestPortalRepository::find_booking_by_id(pool, booking_id).await {
@@ -2224,7 +2224,7 @@ async fn issue_anonymous_receipt_upload_token(
             return None;
         }
     };
-    crate::services::guest_portal::issue_booking_access_token(
+    crate::modules::guest_portal::service::issue_booking_access_token(
         pool,
         booking_id,
         booking.check_in_date,

@@ -12,7 +12,7 @@ pub mod bookings;
 pub mod data_transfer;
 // eKYC routes now live in modules::ekyc::routes
 // (the old routes/ekyc.rs file is preserved for backward reference during migration)
-pub mod guest_portal;
+// guest_portal routes live in modules::guest_portal.
 // guests routes live in modules::guests.
 // housekeeping routes live in modules::housekeeping.
 pub mod ledgers;
@@ -415,7 +415,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::guest_relations::routes::routes())
         .merge(crate::modules::teams::routes::routes())
         .merge(crate::modules::guest_booking::routes::routes())
-        .merge(guest_portal::routes())
+        .merge(crate::modules::guest_portal::routes::routes())
         .merge(crate::modules::companies::routes::routes())
         .merge(crate::modules::audit::routes::routes())
         .merge(crate::modules::search::routes::routes())

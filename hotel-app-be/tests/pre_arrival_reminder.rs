@@ -217,7 +217,7 @@ async fn pre_arrival_reminder_fires_once_inside_the_window_and_respects_the_togg
     // it is stored hashed, so a mint that never landed would still render a
     // perfectly plausible URL.
     let booking =
-        hotel_app_be::repositories::guest_portal::GuestPortalRepository::find_booking_by_token(
+        hotel_app_be::modules::guest_portal::repository::GuestPortalRepository::find_booking_by_token(
             &pool, &token,
         )
         .await

@@ -2,11 +2,11 @@
 //!
 //! Guest self-service routes.
 
-use super::extract_client_ip;
+use crate::routes::extract_client_ip as extract_client_ip;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
-use crate::handlers;
+use super::handlers as handlers;
 use crate::models;
 use axum::{
     Router,
@@ -46,36 +46,36 @@ pub fn routes() -> Router<DbPool> {
         .route("/guest-portal/auto-checkin/{token}", post(auto_checkin))
         .route("/guest-portal/claim-account", post(claim_account))
         .route("/guest-portal/session", post(create_session))
-        .route("/guest-portal/logout", post(handlers::guest_portal::logout))
-        .route("/guest-portal/me", get(handlers::guest_portal::get_me))
+        .route("/guest-portal/logout", post(handlers::logout))
+        .route("/guest-portal/me", get(handlers::get_me))
         .route(
             "/guest-portal/me/profile",
-            patch(handlers::guest_portal::update_my_profile),
+            patch(handlers::update_my_profile),
         )
         .route(
             "/guest-portal/me/bookings",
-            get(handlers::guest_portal::get_my_bookings)
+            get(handlers::get_my_bookings)
                 .post(crate::modules::guest_booking::handlers::create_booking_handler),
         )
         .route(
             "/guest-portal/me/bookings/{id}/cancel",
-            post(handlers::guest_portal::cancel_my_booking),
+            post(handlers::cancel_my_booking),
         )
         .route(
             "/guest-portal/me/transactions",
-            get(handlers::guest_portal::get_my_transactions),
+            get(handlers::get_my_transactions),
         )
         .route(
             "/guest-portal/me/membership",
-            get(handlers::guest_portal::get_my_membership),
+            get(handlers::get_my_membership),
         )
         .route(
             "/guest-portal/me/benefits",
-            get(handlers::guest_portal::get_my_benefits),
+            get(handlers::get_my_benefits),
         )
         .route(
             "/guest-portal/me/credits",
-            get(handlers::guest_portal::get_my_credits),
+            get(handlers::get_my_credits),
         )
         // Payment configuration (PayPal client id + bank details). Requires a
         // booking access token or a guest portal session so bank account
@@ -84,11 +84,11 @@ pub fn routes() -> Router<DbPool> {
         // Session-authenticated guest payments.
         .route(
             "/guest-portal/me/payments/bank-transfer",
-            post(handlers::guest_portal::session_bank_transfer),
+            post(handlers::session_bank_transfer),
         )
         .route(
             "/guest-portal/me/payments/{payment_id}/receipt",
-            post(handlers::guest_portal::session_upload_payment_receipt)
+            post(handlers::session_upload_payment_receipt)
                 .layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
         )
         // Self-service identity verification (eKYC) for the signed-in guest.
@@ -107,11 +107,11 @@ pub fn routes() -> Router<DbPool> {
         )
         .route(
             "/guest-portal/me/payments/paypal/create-order",
-            post(handlers::guest_portal::session_paypal_create_order),
+            post(handlers::session_paypal_create_order),
         )
         .route(
             "/guest-portal/me/payments/paypal/capture",
-            post(handlers::guest_portal::session_paypal_capture),
+            post(handlers::session_paypal_capture),
         )
         // Unauthenticated token-based guest payments (rate limited per token).
         // Header-only paths first so the token never has to appear in the URL.
@@ -191,7 +191,7 @@ async fn token_bank_transfer_header(
     body: Json<models::TokenPaymentRequest>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, None).await?;
-    handlers::guest_portal::token_bank_transfer(
+    handlers::token_bank_transfer(
         State(pool),
         ConnectInfo(peer_addr),
         headers,
@@ -210,7 +210,7 @@ async fn token_bank_transfer(
     body: Json<models::TokenPaymentRequest>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, Some(&path.0)).await?;
-    handlers::guest_portal::token_bank_transfer(
+    handlers::token_bank_transfer(
         State(pool),
         ConnectInfo(peer_addr),
         headers,
@@ -228,7 +228,7 @@ async fn token_upload_payment_receipt_header(
     multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, None).await?;
-    handlers::guest_portal::token_upload_payment_receipt(
+    handlers::token_upload_payment_receipt(
         State(pool),
         Path((token, payment_id)),
         multipart,
@@ -244,7 +244,7 @@ async fn token_upload_payment_receipt(
     multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, Some(&path_token)).await?;
-    handlers::guest_portal::token_upload_payment_receipt(
+    handlers::token_upload_payment_receipt(
         State(pool),
         Path((token, payment_id)),
         multipart,
@@ -260,7 +260,7 @@ async fn token_paypal_create_order_header(
     body: Json<models::TokenPaymentRequest>,
 ) -> Result<Json<models::PaypalCreateOrderResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, None).await?;
-    handlers::guest_portal::token_paypal_create_order(
+    handlers::token_paypal_create_order(
         State(pool),
         ConnectInfo(peer_addr),
         headers,
@@ -279,7 +279,7 @@ async fn token_paypal_create_order(
     body: Json<models::TokenPaymentRequest>,
 ) -> Result<Json<models::PaypalCreateOrderResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, Some(&path.0)).await?;
-    handlers::guest_portal::token_paypal_create_order(
+    handlers::token_paypal_create_order(
         State(pool),
         ConnectInfo(peer_addr),
         headers,
@@ -296,7 +296,7 @@ async fn token_paypal_capture_header(
     body: Json<models::PaypalCaptureRequest>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, None).await?;
-    handlers::guest_portal::token_paypal_capture(State(pool), Path(token), body).await
+    handlers::token_paypal_capture(State(pool), Path(token), body).await
 }
 
 async fn token_paypal_capture(
@@ -307,7 +307,7 @@ async fn token_paypal_capture(
     body: Json<models::PaypalCaptureRequest>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, Some(&path.0)).await?;
-    handlers::guest_portal::token_paypal_capture(State(pool), Path(token), body).await
+    handlers::token_paypal_capture(State(pool), Path(token), body).await
 }
 
 /// Header-only: this body carries a password, so the token is never taken from
@@ -344,7 +344,7 @@ async fn claim_account(
     .await?;
     let consent_context =
         crate::modules::consent::service::ConsentContext::from_request(&headers, peer_addr);
-    handlers::guest_portal::claim_account(State(pool), token, consent_context, Json(input)).await
+    handlers::claim_account(State(pool), token, consent_context, Json(input)).await
 }
 
 async fn create_session(
@@ -359,7 +359,7 @@ async fn create_session(
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
 
-    let response = crate::services::guest_portal::create_authenticated_guest_portal_session(
+    let response = super::service::create_authenticated_guest_portal_session(
         &pool,
         user_id,
         Some(ip.to_string()),
@@ -378,16 +378,16 @@ async fn payment_config(
     match payment_config_credential(&headers)? {
         PaymentConfigCredential::BookingAccessToken(token) => {
             require_booking_token_for_read(&limiters, &headers, peer_addr, Some(&token)).await?;
-            crate::services::guest_portal::get_booking_by_token(&pool, &token).await?;
+            super::service::get_booking_by_token(&pool, &token).await?;
         }
         PaymentConfigCredential::GuestSession => {
-            crate::services::guest_portal::require_guest_session_for_read(
+            super::service::require_guest_session_for_read(
                 &headers, &pool, &limiters,
             )
             .await?;
         }
     }
-    handlers::guest_portal::get_payment_config().await
+    handlers::get_payment_config().await
 }
 
 async fn verify_booking(
@@ -434,7 +434,7 @@ async fn verify_booking(
         ));
     }
 
-    handlers::guest_portal::verify_guest_booking(State(pool), Json(input)).await
+    handlers::verify_guest_booking(State(pool), Json(input)).await
 }
 
 /// Shape-check an unauthenticated portal path token BEFORE it reaches the
@@ -579,7 +579,7 @@ async fn get_booking_header(
     headers: HeaderMap,
 ) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
     let token = require_booking_token_for_read(&limiters, &headers, peer_addr, None).await?;
-    handlers::guest_portal::get_booking_by_token(State(pool), Path(token)).await
+    handlers::get_booking_by_token(State(pool), Path(token)).await
 }
 
 async fn get_booking(
@@ -591,7 +591,7 @@ async fn get_booking(
 ) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
     let token =
         require_booking_token_for_read(&limiters, &headers, peer_addr, Some(&path.0)).await?;
-    handlers::guest_portal::get_booking_by_token(State(pool), Path(token)).await
+    handlers::get_booking_by_token(State(pool), Path(token)).await
 }
 
 async fn submit_precheckin_header(
@@ -609,7 +609,7 @@ async fn submit_precheckin_header(
         "Too many pre-check-in attempts for this booking. Please try again in",
     )
     .await?;
-    handlers::guest_portal::submit_precheckin_update(State(pool), Path(token), Json(input)).await
+    handlers::submit_precheckin_update(State(pool), Path(token), Json(input)).await
 }
 
 async fn submit_precheckin(
@@ -628,7 +628,7 @@ async fn submit_precheckin(
         "Too many pre-check-in attempts for this booking. Please try again in",
     )
     .await?;
-    handlers::guest_portal::submit_precheckin_update(State(pool), Path(token), Json(input)).await
+    handlers::submit_precheckin_update(State(pool), Path(token), Json(input)).await
 }
 
 async fn auto_checkin_header(
@@ -645,7 +645,7 @@ async fn auto_checkin_header(
         "Too many check-in attempts for this booking. Please try again in",
     )
     .await?;
-    handlers::guest_portal::auto_checkin_by_token(State(pool), Path(token)).await
+    handlers::auto_checkin_by_token(State(pool), Path(token)).await
 }
 
 async fn auto_checkin(
@@ -663,7 +663,7 @@ async fn auto_checkin(
         "Too many check-in attempts for this booking. Please try again in",
     )
     .await?;
-    handlers::guest_portal::auto_checkin_by_token(State(pool), Path(token)).await
+    handlers::auto_checkin_by_token(State(pool), Path(token)).await
 }
 
 #[cfg(test)]

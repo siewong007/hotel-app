@@ -21,7 +21,7 @@ use crate::models::{
     GuestPortalVerifyResponse, PreCheckInUpdateRequest,
 };
 use crate::modules::consent::service::ConsentContext;
-use crate::services::guest_portal as guest_portal_service;
+use super::service as guest_portal_service;
 
 /// POST /guest-portal/verify
 pub async fn verify_guest_booking(

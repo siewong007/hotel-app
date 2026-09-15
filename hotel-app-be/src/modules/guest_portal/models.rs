@@ -4,7 +4,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-use super::{Booking, Guest, GuestEkycStatusSummary};
+use crate::models::{Booking, Guest, GuestEkycStatusSummary};
 use crate::utils::sanitization::Sanitizer;
 
 /// Request for verifying a guest booking.

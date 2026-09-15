@@ -11,7 +11,7 @@ pub mod bookings;
 // companies handlers live in modules::companies.
 pub mod data_transfer;
 // eKYC handlers live in modules::ekyc.
-pub mod guest_portal;
+// guest_portal handlers live in modules::guest_portal.
 // guests handlers live in modules::guests.
 // housekeeping handlers live in modules::housekeeping.
 pub mod ledgers;

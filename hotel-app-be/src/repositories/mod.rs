@@ -16,8 +16,8 @@ pub mod bookings_queries;
 pub mod data_transfer;
 pub mod ekyc;
 // guest persistence live in modules::guests.
-pub mod guest_portal;
-pub mod guest_portal_session;
+// guest_portal persistence live in modules::guest_portal.
+// guest_portal_session persistence live in modules::guest_portal.
 // housekeeping persistence live in modules::housekeeping.
 pub mod invoice_numbers;
 pub mod ledger;

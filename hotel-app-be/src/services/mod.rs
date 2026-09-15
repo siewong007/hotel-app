@@ -20,7 +20,7 @@ pub mod data_transfer_jobs;
 pub mod data_transfer_step_up;
 // eKYC service logic lives in modules::ekyc.
 pub mod google_identity;
-pub mod guest_portal;
+// guest_portal service logic live in modules::guest_portal.
 // guests service logic live in modules::guests.
 // housekeeping service logic live in modules::housekeeping.
 pub mod invoice_numbers;

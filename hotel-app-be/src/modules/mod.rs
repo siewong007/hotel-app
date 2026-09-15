@@ -7,6 +7,7 @@ pub mod companies;
 pub mod consent;
 pub mod ekyc;
 pub mod guest_booking;
+pub mod guest_portal;
 pub mod guest_relations;
 pub mod guests;
 pub mod housekeeping;
