@@ -60,7 +60,16 @@ interface BoardViewProps extends HousekeepingActionContext {
 
 const cardGridSx = {
   display: 'grid',
-  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' },
+  // Every track is `minmax(0, 1fr)`, including the single xs column. A bare
+  // `1fr` is `minmax(auto, 1fr)`, so the track refuses to shrink below its
+  // content's min-content width — the xs column measured 357px inside a 320px
+  // viewport because a room card's chip row would not compress, and
+  // `body { overflow-x: clip }` hid the result instead of showing a scrollbar.
+  gridTemplateColumns: {
+    xs: 'minmax(0, 1fr)',
+    sm: 'repeat(2, minmax(0, 1fr))',
+    xl: 'repeat(3, minmax(0, 1fr))',
+  },
   gap: 1.5,
   alignItems: 'start',
 } as const;

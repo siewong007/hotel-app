@@ -19,6 +19,7 @@ import PrintIcon from '@mui/icons-material/Print';
 import type { KpiFormat, ReportEnvelope, ReportKpi } from '../types';
 import { formatCurrency } from '../../../utils/currency';
 import { printReportEnvelope } from '../utils/reportEnvelopePrint';
+import { TableScroll } from '../../../components/data-table/TableScroll';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 
 const formatValue = (value: unknown, format: KpiFormat): string => {
@@ -154,39 +155,41 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
                     ))}
                   </Box>
                 ) : (
-                <Table size="small">
-                  {section.columns.length > 0 && (
-                    <TableHead>
-                      <TableRow>
-                        {section.columns.map((col) => (
-                          <TableCell key={col.key}>{col.label}</TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                  )}
-                  <TableBody>
-                    {section.rows.length === 0 && (
-                      <TableRow>
-                        <TableCell
-                          colSpan={Math.max(section.columns.length, 1)}
-                          align="center"
-                          sx={{ color: 'text.secondary', py: 3 }}
-                        >
-                          No rows for this period
-                        </TableCell>
-                      </TableRow>
+                <TableScroll>
+                  <Table size="small">
+                    {section.columns.length > 0 && (
+                      <TableHead>
+                        <TableRow>
+                          {section.columns.map((col) => (
+                            <TableCell key={col.key}>{col.label}</TableCell>
+                          ))}
+                        </TableRow>
+                      </TableHead>
                     )}
-                    {section.rows.map((row, i) => (
-                      <TableRow key={i}>
-                        {section.columns.map((col) => (
-                          <TableCell key={col.key}>
-                            {formatValue(row[col.key], col.format)}
+                    <TableBody>
+                      {section.rows.length === 0 && (
+                        <TableRow>
+                          <TableCell
+                            colSpan={Math.max(section.columns.length, 1)}
+                            align="center"
+                            sx={{ color: 'text.secondary', py: 3 }}
+                          >
+                            No rows for this period
                           </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        </TableRow>
+                      )}
+                      {section.rows.map((row, i) => (
+                        <TableRow key={i}>
+                          {section.columns.map((col) => (
+                            <TableCell key={col.key}>
+                              {formatValue(row[col.key], col.format)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableScroll>
                 )}
               </Card>
             </Box>

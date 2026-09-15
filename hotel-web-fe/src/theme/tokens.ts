@@ -20,7 +20,12 @@ export type ThemeMode = 'light' | 'dark';
 
 /** A status tone rendered as a readable foreground + tinted fill + outline. */
 export interface StatusToneTokens {
-  /** Readable status text/icon color on any surface. */
+  /** Readable status text/icon color on any surface. Badge labels are normal-
+   *  size text, so every `fg` clears WCAG AA 4.5:1 against its own `bg` tint
+   *  composited over the WORST surface the badge can sit on — `overlay` in
+   *  dark (menus, dialogs), `app` in light. Checking against the page
+   *  background alone hides ~0.5 of a ratio point and was how four tones
+   *  shipped under the minimum. */
   fg: string;
   /** Tinted badge / alert background. */
   bg: string;
@@ -50,8 +55,13 @@ export interface DesignTokens {
   text: {
     primary: string;
     secondary: string;
-    /** Placeholders, captions, metadata — lowest legible tier. */
+    /** Placeholders, captions, metadata — lowest legible tier. Carries real
+     *  copy at normal size, so it is held to WCAG AA 4.5:1 against the WORST
+     *  surface it can land on (`overlay` in dark, `app` in light), not just
+     *  against the page background. Verify before changing it. */
     muted: string;
+    /** Disabled text only. Exempt from the contrast minimum by WCAG 1.4.3 —
+     *  never use it for content a user is meant to read. */
     disabled: string;
   };
   border: {
@@ -131,7 +141,7 @@ export const darkTokens: DesignTokens = {
   text: {
     primary: '#E9EAF0',
     secondary: '#A7AEBC',
-    muted: '#7B8494',
+    muted: '#818A99',
     disabled: '#59616F',
   },
   border: {
@@ -155,11 +165,11 @@ export const darkTokens: DesignTokens = {
   status: {
     success: { fg: '#5FBF8F', bg: 'rgba(95, 191, 143, 0.13)', border: 'rgba(95, 191, 143, 0.32)' },
     warning: { fg: '#E3A63F', bg: 'rgba(227, 166, 63, 0.13)', border: 'rgba(227, 166, 63, 0.32)' },
-    danger: { fg: '#E16D66', bg: 'rgba(225, 109, 102, 0.13)', border: 'rgba(225, 109, 102, 0.32)' },
+    danger: { fg: '#E37670', bg: 'rgba(225, 109, 102, 0.13)', border: 'rgba(225, 109, 102, 0.32)' },
     info: { fg: '#7FA8DC', bg: 'rgba(127, 168, 220, 0.13)', border: 'rgba(127, 168, 220, 0.32)' },
     neutral: { fg: '#9AA2B0', bg: 'rgba(154, 162, 176, 0.12)', border: 'rgba(154, 162, 176, 0.26)' },
     orange: { fg: '#E08A48', bg: 'rgba(224, 138, 72, 0.13)', border: 'rgba(224, 138, 72, 0.32)' },
-    violet: { fg: '#9E8FC0', bg: 'rgba(158, 143, 192, 0.13)', border: 'rgba(158, 143, 192, 0.32)' },
+    violet: { fg: '#A091C1', bg: 'rgba(158, 143, 192, 0.13)', border: 'rgba(158, 143, 192, 0.32)' },
   },
   chart: {
     series: ['#C9A96A', '#7FA8DC', '#5FBF8F', '#9E8FC0', '#8A93A3'],
@@ -197,7 +207,7 @@ export const lightTokens: DesignTokens = {
   text: {
     primary: '#1C1E24',
     secondary: '#535A68',
-    muted: '#767E8E',
+    muted: '#666D7B',
     disabled: '#A6ACB8',
   },
   border: {
@@ -219,13 +229,13 @@ export const lightTokens: DesignTokens = {
     contrastText: '#FFFFFF',
   },
   status: {
-    success: { fg: '#1E7A4E', bg: 'rgba(30, 122, 78, 0.10)', border: 'rgba(30, 122, 78, 0.30)' },
-    warning: { fg: '#96650F', bg: 'rgba(150, 101, 15, 0.10)', border: 'rgba(150, 101, 15, 0.30)' },
+    success: { fg: '#1C7249', bg: 'rgba(30, 122, 78, 0.10)', border: 'rgba(30, 122, 78, 0.30)' },
+    warning: { fg: '#885C0E', bg: 'rgba(150, 101, 15, 0.10)', border: 'rgba(150, 101, 15, 0.30)' },
     danger: { fg: '#B23A30', bg: 'rgba(178, 58, 48, 0.09)', border: 'rgba(178, 58, 48, 0.30)' },
     info: { fg: '#2F639E', bg: 'rgba(47, 99, 158, 0.10)', border: 'rgba(47, 99, 158, 0.30)' },
     neutral: { fg: '#5D6470', bg: 'rgba(93, 100, 112, 0.09)', border: 'rgba(93, 100, 112, 0.24)' },
-    orange: { fg: '#A85B1D', bg: 'rgba(168, 91, 29, 0.10)', border: 'rgba(168, 91, 29, 0.30)' },
-    violet: { fg: '#7A6AA8', bg: 'rgba(122, 106, 168, 0.10)', border: 'rgba(122, 106, 168, 0.30)' },
+    orange: { fg: '#98531A', bg: 'rgba(168, 91, 29, 0.10)', border: 'rgba(168, 91, 29, 0.30)' },
+    violet: { fg: '#6C5B9C', bg: 'rgba(122, 106, 168, 0.10)', border: 'rgba(122, 106, 168, 0.30)' },
   },
   chart: {
     series: ['#8A6A33', '#4A6FA0', '#1E7A4E', '#7A6AA8', '#6B7280'],

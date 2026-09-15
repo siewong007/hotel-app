@@ -144,7 +144,15 @@ export default function ComplimentaryManagementPage() {
       {summary && <SummaryCards summary={summary} />}
       {/* Tabs */}
       <Paper sx={{ mb: 2 }}>
-        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+        {/* Scrollable: both labels carry a count, so the pair exceeds a
+            320px viewport. */}
+        <Tabs
+          value={tabValue}
+          onChange={(_, newValue) => setTabValue(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+        >
           <Tab label={`Complimentary Bookings (${bookings?.length || 0})`} />
           <Tab
             label={`Guest Credits (${guestCredits?.length || 0})`}

@@ -15,6 +15,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import { TableScroll } from "../../../components/data-table/TableScroll";
 import { getQueryErrorMessage } from "../../../api/queryConfig";
 import { useCampaignPerformance } from "../hooks/usePromotionAdmin";
 import type { Promotion } from "../types";
@@ -243,38 +244,40 @@ export function CampaignPerformanceDrawer({
                   No redemptions yet.
                 </Typography>
               ) : (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Channel</TableCell>
-                      <TableCell align="right">Redemptions</TableCell>
-                      <TableCell align="right">Net revenue</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {performance.channel_mix.map((row, index) => (
-                      <TableRow key={row.channel_id ?? index}>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {row.name}
-                          </Typography>
-                          {row.channel_type ? (
-                            <Typography
-                              variant="caption"
-                              sx={{ color: "text.secondary" }}
-                            >
-                              {row.channel_type}
-                            </Typography>
-                          ) : null}
-                        </TableCell>
-                        <TableCell align="right">{row.redemptions}</TableCell>
-                        <TableCell align="right">
-                          {money(row.net_total)}
-                        </TableCell>
+                <TableScroll>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Channel</TableCell>
+                        <TableCell align="right">Redemptions</TableCell>
+                        <TableCell align="right">Net revenue</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHead>
+                    <TableBody>
+                      {performance.channel_mix.map((row, index) => (
+                        <TableRow key={row.channel_id ?? index}>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {row.name}
+                            </Typography>
+                            {row.channel_type ? (
+                              <Typography
+                                variant="caption"
+                                sx={{ color: "text.secondary" }}
+                              >
+                                {row.channel_type}
+                              </Typography>
+                            ) : null}
+                          </TableCell>
+                          <TableCell align="right">{row.redemptions}</TableCell>
+                          <TableCell align="right">
+                            {money(row.net_total)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableScroll>
               )}
             </Box>
           </Stack>

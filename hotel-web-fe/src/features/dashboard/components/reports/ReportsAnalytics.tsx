@@ -13,6 +13,7 @@ import {
   HotelSparkline,
   fmtShortDate,
   thinTicks,
+  useTickBudget,
   useChartTheme,
 } from '../../../../components/charts';
 import { Icon, IconName } from './Icon';
@@ -190,6 +191,7 @@ const ReportsAnalyticsInner: React.FC = () => {
   const { palette, status } = useChartTheme();
   const accent = palette[0];
   const isPhone = useIsPhone();
+  const tickBudget = useTickBudget();
   const [query, setQuery] = useState<ReportsQuery>({ rangeDays: 30, compare: 'prev' });
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const hotelName = getHotelSettings().hotel_name;
@@ -323,7 +325,7 @@ const ReportsAnalyticsInner: React.FC = () => {
                     ]}
                     enableArea
                     areaOpacity={0.14}
-                    axisBottom={{ format: fmtShortDate, tickValues: thinTicks(model.daily.map((d) => d.date)) }}
+                    axisBottom={{ format: fmtShortDate, tickValues: thinTicks(model.daily.map((d) => d.date), tickBudget) }}
                     axisLeft={{ format: fmtMoneyK }}
                     sliceTooltip={({ slice }) => (
                       <div>
@@ -399,7 +401,7 @@ const ReportsAnalyticsInner: React.FC = () => {
                   enableArea
                   areaOpacity={0.16}
                   yScale={{ type: 'linear', min: 0, max: 100, stacked: false }}
-                  axisBottom={{ format: fmtShortDate, tickValues: thinTicks(model.daily.map((d) => d.date)) }}
+                  axisBottom={{ format: fmtShortDate, tickValues: thinTicks(model.daily.map((d) => d.date), tickBudget) }}
                   axisLeft={{ format: (v) => fmtPct(Number(v), 0) }}
                   sliceTooltip={({ slice }) => (
                     <div>

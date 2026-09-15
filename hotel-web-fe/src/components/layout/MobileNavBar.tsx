@@ -22,13 +22,17 @@ const SHORT_LABEL_KEYS: Record<string, string> = {
 };
 
 /**
- * Staff bottom navigation, rendered below `md` (hidden by CSS on larger
- * screens). Four role-filtered destinations — Overview, Bookings, Guests, and
- * an Ops slot that prefers Rooms and falls back to Housekeeping — plus More,
- * which opens a bottom sheet with every remaining accessible module. Item
- * visibility reuses `canAccessNavigationRoute`, so the bar never shows a
- * module the sidebar would hide. This bar is the only navigation below `md` —
- * there is no drawer.
+ * Staff bottom navigation, rendered below `sm` (hidden by CSS at and above it).
+ * Four role-filtered destinations — Overview, Bookings, Guests, and an Ops slot
+ * that prefers Rooms and falls back to Housekeeping — plus More, which opens a
+ * bottom sheet with every remaining accessible module. Item visibility reuses
+ * `canAccessNavigationRoute`, so the bar never shows a module the sidebar would
+ * hide.
+ *
+ * This bar is the ONLY navigation below `sm`; from `sm` up it hands over to the
+ * sidebar rail (`AppSidebar`). The two never coexist — that would be the same
+ * destinations in a side panel and a bottom panel at once. It hid at `md`
+ * before, which left tablets (744-899px) with the phone bar and no sidebar.
  */
 export const MobileNavBar: React.FC = () => {
   const { hasPermission, hasRole, getRoutePolicy } = useAuth();
@@ -71,7 +75,7 @@ export const MobileNavBar: React.FC = () => {
           borderColor: 'divider',
           bgcolor: 'background.paper',
           paddingBottom: 'var(--sab)',
-          display: { md: 'none' },
+          display: { sm: 'none' },
         }}
       >
         <BottomNavigation

@@ -1094,7 +1094,10 @@ const RoomConfigurationPage: React.FC = () => {
                   {isType ? <BedIcon /> : <BuildingIcon />}
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                  {/* Wraps like the meta row below it: the title truncates, but
+                      the code / HIDDEN / price pills beside it do not shrink,
+                      so on a 320px viewport the price ran past the page edge. */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap', rowGap: 0.75 }}>
                     <Typography sx={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {title}
                     </Typography>

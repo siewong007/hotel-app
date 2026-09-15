@@ -164,8 +164,9 @@ export const RootLayout: React.FC = () => {
               mt: boardSkinActive ? 3 : 4,
               mb: 4,
               px: { xs: 2, sm: 3 },
-              // Keep the page end clear of the fixed bottom nav (<md).
-              pb: { xs: 'calc(84px + var(--sab))', md: 0 },
+              // Keep the page end clear of the fixed bottom nav, which only
+              // exists below `sm`; from `sm` up the sidebar rail takes over.
+              pb: { xs: 'calc(84px + var(--sab))', sm: 0 },
               flex: 1,
               contain: 'layout style',
               isolation: 'isolate',

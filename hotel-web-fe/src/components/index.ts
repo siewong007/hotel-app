@@ -47,3 +47,5 @@ export { DataTable } from './data-table/DataTable';
 export type { DataTableProps, ColumnDef } from './data-table/DataTable';
 export { MobileCardRow } from './data-table/MobileCardRow';
 export type { MobileCardRowProps } from './data-table/MobileCardRow';
+export { TableScroll } from './data-table/TableScroll';
+export type { TableScrollProps } from './data-table/TableScroll';

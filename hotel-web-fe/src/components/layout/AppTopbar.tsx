@@ -17,9 +17,9 @@ import { UserMenu } from './UserMenu';
  * notification bell, language, account menu and a one-tap sign-out on the
  * right. Phones slim the right side to a search icon, the bell and the
  * avatar — Sign Out lives inside the account menu there, and language in
- * the bottom nav's More sheet. Below `md`
- * navigation lives in the bottom bar — there is no drawer, so the header
- * carries no menu button.
+ * the bottom nav's More sheet. Below `sm` navigation lives in the bottom bar
+ * and from `sm` up in the sidebar rail, so the header carries no menu button
+ * at any width.
  */
 export const AppTopbar: React.FC = () => {
   const { open: openPalette } = useCommandPalette();

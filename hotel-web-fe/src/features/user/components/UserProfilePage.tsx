@@ -196,7 +196,15 @@ const UserProfilePage: React.FC = () => {
       </Typography>
 
       <Card sx={{ mb: 3 }}>
-        <Tabs value={activeTab} onChange={(_e, v) => setActiveTab(v)}>
+        {/* Scrollable: the icon+label tabs need ~375px and the narrowest
+            supported viewport is 320px. */}
+        <Tabs
+          value={activeTab}
+          onChange={(_e, v) => setActiveTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+        >
           {TABS.map(tab => (
             <Tab key={tab.id} label={tab.label} icon={tab.icon} iconPosition="start" />
           ))}

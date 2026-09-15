@@ -244,11 +244,19 @@ const RoomCard: React.FC<RoomCardProps> = ({
             {/* Room number + type code */}
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0 }}>
               <Typography
+                title={room.room_number}
                 sx={{
                   fontSize: '1.4rem',
                   fontWeight: 900,
                   lineHeight: 1,
                   letterSpacing: '-0.02em',
+                  // Same guard as the desktop header: an over-long room number
+                  // must truncate rather than widen the card. The type code
+                  // beside it already did; this did not.
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {room.room_number}
@@ -395,24 +403,43 @@ const RoomCard: React.FC<RoomCardProps> = ({
           <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
               <Typography
+                title={room.room_number}
                 sx={{
                   fontSize: '1.75rem',
                   fontWeight: 900,
                   lineHeight: 1,
                   letterSpacing: '-0.02em',
+                  // A room number is normally 3-4 characters, but nothing in
+                  // the schema caps it and imports have produced ID-shaped
+                  // values. An unbroken 17-character token has no wrap
+                  // opportunity, so at 1.75rem/900 its min-content width is
+                  // ~294px against a 189px card: it rendered outside the card
+                  // and `body { overflow-x: clip }` then hid the evidence.
+                  // Truncate instead, with the full value on hover.
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {room.room_number}
               </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.25 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.25, minWidth: 0 }}>
                 <Typography
                   variant="caption"
+                  title={room.room_type_code || getRoomTypeCode(room.room_type)}
                   sx={{
                     fontWeight: 800,
                     color: onFill(80),
                     letterSpacing: 0.6,
                     fontSize: '0.7rem',
                     lineHeight: 1,
+                    // Same exposure as the room number above: the type code is
+                    // free text and a long one must not widen the card.
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {room.room_type_code || getRoomTypeCode(room.room_type)}

@@ -45,6 +45,45 @@ const SERIF_STACK =
   'Georgia, "Times New Roman", "Songti SC", "Noto Serif CJK SC", serif';
 const SANS_STACK = `"Inter", "Roboto", "Helvetica", "Arial", ${CJK_STACK}`;
 
+/**
+ * Breakpoint scale — declared explicitly rather than inherited silently from
+ * MUI's defaults, so the device mapping is intentional and reviewable:
+ *
+ *   xs    0     phones                      320 / 360 / 375 / 390 / 414 / 430
+ *   sm    600   tablets, portrait           iPad Mini 744, iPad 768 / 810 / 820
+ *   md    900   tablets landscape, laptops  1024 / 1080
+ *   lg   1200   desktop                     1280 / 1440
+ *   xl   1536   large desktop               1920+
+ *
+ * The VALUES deliberately match MUI's defaults: ~1,500 responsive props across
+ * the app are already written against them, and moving a value would silently
+ * reinterpret every one of them rather than fix anything. What this scale buys
+ * is that the mapping is now written down, so layout decisions can be made
+ * against the right key (`sm` is where a tablet starts, not `md`).
+ *
+ * Deliberately NOT added: a 480px "large phone" stop — every phone width in
+ * the support matrix is below it, so it would split nothing — and separate
+ * 1024/1280 stops, which sit within ~100px of `md`/`lg` and would buy a third
+ * and fourth way to say the same thing. Widths between stops are handled
+ * fluidly (wrap, minmax, clamp) rather than by adding more stops.
+ */
+const BREAKPOINT_VALUES = { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536 } as const;
+
+/**
+ * A fluid type step: `minRem` at the 320px floor, `maxRem` from 1200px up, and
+ * linear in between. Preferred over per-breakpoint font sizes because headings
+ * then stay proportionate at intermediate widths — a resized window, a
+ * split-screen tablet — instead of jumping at five fixed points.
+ */
+const FLUID_FLOOR_PX = 320;
+const FLUID_CEIL_PX = 1200;
+const fluidType = (minRem: number, maxRem: number): string => {
+  // Slope in px-of-font per px-of-viewport, expressed as vw for the clamp.
+  const slope = ((maxRem - minRem) * 16) / (FLUID_CEIL_PX - FLUID_FLOOR_PX);
+  const interceptRem = minRem - (slope * FLUID_FLOOR_PX) / 16;
+  return `clamp(${minRem}rem, ${interceptRem.toFixed(4)}rem + ${(slope * 100).toFixed(3)}vw, ${maxRem}rem)`;
+};
+
 /** Elevation ramp: near-flat on surfaces, real lift only for overlays. */
 const buildShadows = (t: DesignTokens): Shadows =>
   [
@@ -557,11 +596,18 @@ const componentOverrides = (t: DesignTokens): ThemeOptions['components'] => ({
         backgroundColor: t.surfaces.overlay,
         borderTop: `1px solid ${t.border.subtle}`,
         padding: '12px 20px',
-        // Keep confirm/cancel reachable without scrolling a tall sheet.
+        // Keep confirm/cancel reachable without scrolling a tall sheet. The
+        // sheet is 100dvh, which excludes browser chrome but NOT the home
+        // indicator, so the safe-area inset is added here or the buttons sit
+        // under it on notched phones.
         [theme.breakpoints.down('sm')]: {
           position: 'sticky',
           bottom: 0,
           zIndex: 1,
+          paddingBottom: 'calc(12px + var(--sab, 0px))',
+          // Actions wrap instead of shrinking below the touch floor when a
+          // dialog carries three or more buttons on a 320px viewport.
+          flexWrap: 'wrap',
         },
       }),
     },
@@ -727,6 +773,7 @@ export const createHotelTheme = (
   const displayWeight = options.displaySerif ? 700 : 650;
 
   return createTheme({
+    breakpoints: { values: { ...BREAKPOINT_VALUES } },
     palette: {
       mode: t === lightTokens ? 'light' : 'dark',
       primary: {
@@ -788,9 +835,11 @@ export const createHotelTheme = (
     },
     typography: {
       fontFamily: SANS_STACK,
-      h1: { fontFamily: displayFamily, fontWeight: displayWeight, fontSize: '2rem', letterSpacing: options.displaySerif ? '-0.03em' : '-0.02em' },
-      h2: { fontFamily: displayFamily, fontWeight: displayWeight, fontSize: '1.625rem', letterSpacing: options.displaySerif ? '-0.025em' : '-0.015em' },
-      h3: { fontFamily: displayFamily, fontWeight: displayWeight, fontSize: '1.375rem', letterSpacing: options.displaySerif ? '-0.02em' : '-0.01em' },
+      // h1-h3 scale fluidly (see `fluidType`); h4-h6 span under 3px across the
+      // whole range, so a clamp there would be noise and they stay fixed.
+      h1: { fontFamily: displayFamily, fontWeight: displayWeight, fontSize: fluidType(1.625, 2), letterSpacing: options.displaySerif ? '-0.03em' : '-0.02em' },
+      h2: { fontFamily: displayFamily, fontWeight: displayWeight, fontSize: fluidType(1.375, 1.625), letterSpacing: options.displaySerif ? '-0.025em' : '-0.015em' },
+      h3: { fontFamily: displayFamily, fontWeight: displayWeight, fontSize: fluidType(1.1875, 1.375), letterSpacing: options.displaySerif ? '-0.02em' : '-0.01em' },
       h4: { fontFamily: displayFamily, fontWeight: displayWeight, fontSize: '1.1875rem' },
       h5: { fontFamily: displayFamily, fontWeight: displayWeight, fontSize: '1.0625rem' },
       h6: { fontFamily: displayFamily, fontWeight: displayWeight, fontSize: '0.9375rem' },

@@ -436,7 +436,7 @@ const AuditLogPage: React.FC = () => {
             A chronological record of every action across the property — separated by activity stream.
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { auditLogsQuery.refetch(); countsQuery.refetch(); }} disabled={loading}
             sx={{ textTransform: 'none', borderColor: T.border, color: T.ink }}>
             Refresh
@@ -639,8 +639,20 @@ const AuditLogPage: React.FC = () => {
                       onClick={() => setOpenIds((s) => ({ ...s, [r.id]: !s[r.id] }))}
                       sx={{
                         display: 'grid',
-                        gridTemplateColumns: { xs: '16px 90px 1fr 110px', md: '16px 92px 168px 1fr 200px 120px' },
-                        alignItems: 'flex-start', gap: 1.75, p: '12px 18px',
+                        // xs previously read '16px 90px 1fr 110px': 216px of fixed
+                        // track plus three 14px gaps against ~236px of usable row
+                        // on a 320px viewport, which collapsed the 1fr column to
+                        // 0px and pushed the action text off-page. The IP column
+                        // is dropped on phones — it is still in the expanded row
+                        // below (IP / Source) — and the flexible track is
+                        // minmax(0, 1fr) so it can shrink rather than overflow.
+                        gridTemplateColumns: {
+                          xs: '16px 76px minmax(0, 1fr)',
+                          md: '16px 92px 168px minmax(0, 1fr) 200px 120px',
+                        },
+                        alignItems: 'flex-start',
+                        gap: { xs: 1, md: 1.75 },
+                        p: { xs: '12px', md: '12px 18px' },
                         borderBottom: `1px solid ${T.border}`, cursor: 'pointer',
                         bgcolor: open ? T.surface2 : 'transparent',
                         '&:hover': { bgcolor: T.surface2 },
@@ -664,7 +676,10 @@ const AuditLogPage: React.FC = () => {
                         <Box sx={{ display: 'inline-flex', alignItems: 'center', fontSize: 11.5, fontWeight: 700, px: 1, py: '3px', borderRadius: '6px', whiteSpace: 'nowrap', flexShrink: 0, bgcolor: vs.bg, color: vs.fg }}>
                           {VERB_LABEL[verb]}
                         </Box>
-                        <Box sx={{ fontSize: 13, color: T.ink, lineHeight: 1.5, minWidth: 0 }}>
+                        {/* `overflowWrap: anywhere` so a long resource label or
+                            the inline #id pill breaks instead of running past
+                            the row on a 320px viewport. */}
+                        <Box sx={{ fontSize: 13, color: T.ink, lineHeight: 1.5, minWidth: 0, overflowWrap: 'anywhere' }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, flexWrap: 'wrap' }}>
                             <Box component="span" sx={{ fontWeight: 600 }}>{actionLabel}</Box>
                             {!hasFieldChanges && (
@@ -679,7 +694,7 @@ const AuditLogPage: React.FC = () => {
                           <br />
                           <Box component="span" sx={{ color: T.ink2 }}>{resLabel}</Box>
                           {r.resource_id != null && (
-                            <Box component="span" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 700, bgcolor: T.surface3, color: T.ink2, px: 0.75, py: '1px', borderRadius: '5px', ml: 0.5 }}>
+                            <Box component="span" sx={{ display: 'inline-block', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 700, bgcolor: T.surface3, color: T.ink2, px: 0.75, py: '1px', borderRadius: '5px', ml: 0.5 }}>
                               #{r.resource_id}
                             </Box>
                           )}
@@ -688,7 +703,7 @@ const AuditLogPage: React.FC = () => {
                       <Box sx={{ display: { xs: 'none', md: 'block' }, fontSize: 12, color: T.ink3, fontWeight: 500 }}>
                         {changeSummary}
                       </Box>
-                      <Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5, color: T.ink2, fontWeight: 600, textAlign: { md: 'right' } }}>
+                      <Box sx={{ display: { xs: 'none', md: 'block' }, fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5, color: T.ink2, fontWeight: 600, textAlign: { md: 'right' } }}>
                         {r.ip_address || '—'}
                         <Tooltip title={r.user_agent || ''}>
                           <Box sx={{ color: T.ink3, fontSize: 10, fontWeight: 500, mt: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

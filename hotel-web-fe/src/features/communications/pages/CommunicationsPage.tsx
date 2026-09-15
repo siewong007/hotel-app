@@ -27,6 +27,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import { TableScroll } from '../../../components/data-table/TableScroll';
 import { PromotionsApi } from '../../promotions/api/promotionsApi';
 import { SegmentsApi } from '../../segments/api';
 import { CommunicationsApi } from '../api';
@@ -390,93 +391,95 @@ function CampaignsTab() {
           ))}
         </Box>
       ) : (
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Name</TableCell>
-            <TableCell>Type</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell>Recipients</TableCell>
-            <TableCell>Sent / Failed</TableCell>
-            <TableCell align="right">Actions</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {(campaigns.data?.items ?? []).map((c) => (
-            <TableRow key={c.id} hover>
-              <TableCell>{c.name}</TableCell>
-              <TableCell>{c.campaign_type}</TableCell>
-              <TableCell>
-                <Chip size="small" label={c.status} color={STATUS_COLORS[c.status] ?? 'default'} />
-              </TableCell>
-              <TableCell>{c.total_recipients}</TableCell>
-              <TableCell>
-                {c.sent_count} / {c.failed_count}
-              </TableCell>
-              <TableCell align="right">
-                <Stack direction="row" spacing={1} sx={{
-                  justifyContent: "flex-end"
-                }}>
-                  {c.status === 'draft' && (
-                    <>
-                      <Button
-                        size="small"
-                        onClick={() =>
-                          setEditor({
-                            id: c.id,
-                            input: {
-                              name: c.name,
-                              campaign_type: c.campaign_type,
-                              subject: c.subject,
-                              body_html: c.body_html,
-                              body_text: c.body_text,
-                              template_id: c.template_id,
-                              promotion_id: c.promotion_id,
-                              segment_id: c.segment_id,
-                            },
-                          })
-                        }
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="small"
-                        onClick={() => setTestSendFor(c)}
-                      >
-                        Test send
-                      </Button>
-                      <Tooltip title="Queues the campaign for sending to all eligible subscribers">
+      <TableScroll>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell>Type</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Recipients</TableCell>
+              <TableCell>Sent / Failed</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {(campaigns.data?.items ?? []).map((c) => (
+              <TableRow key={c.id} hover>
+                <TableCell>{c.name}</TableCell>
+                <TableCell>{c.campaign_type}</TableCell>
+                <TableCell>
+                  <Chip size="small" label={c.status} color={STATUS_COLORS[c.status] ?? 'default'} />
+                </TableCell>
+                <TableCell>{c.total_recipients}</TableCell>
+                <TableCell>
+                  {c.sent_count} / {c.failed_count}
+                </TableCell>
+                <TableCell align="right">
+                  <Stack direction="row" spacing={1} sx={{
+                    justifyContent: "flex-end"
+                  }}>
+                    {c.status === 'draft' && (
+                      <>
                         <Button
                           size="small"
-                          variant="outlined"
-                          onClick={() => act.mutate({ action: 'schedule', campaign: c })}
+                          onClick={() =>
+                            setEditor({
+                              id: c.id,
+                              input: {
+                                name: c.name,
+                                campaign_type: c.campaign_type,
+                                subject: c.subject,
+                                body_html: c.body_html,
+                                body_text: c.body_text,
+                                template_id: c.template_id,
+                                promotion_id: c.promotion_id,
+                                segment_id: c.segment_id,
+                              },
+                            })
+                          }
                         >
-                          Send
+                          Edit
                         </Button>
-                      </Tooltip>
-                    </>
-                  )}
-                  {(c.status === 'scheduled' || c.status === 'running') && (
-                    <Button
-                      size="small"
-                      color="error"
-                      onClick={() => act.mutate({ action: 'cancel', campaign: c })}
-                    >
-                      Cancel
+                        <Button
+                          size="small"
+                          onClick={() => setTestSendFor(c)}
+                        >
+                          Test send
+                        </Button>
+                        <Tooltip title="Queues the campaign for sending to all eligible subscribers">
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => act.mutate({ action: 'schedule', campaign: c })}
+                          >
+                            Send
+                          </Button>
+                        </Tooltip>
+                      </>
+                    )}
+                    {(c.status === 'scheduled' || c.status === 'running') && (
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={() => act.mutate({ action: 'cancel', campaign: c })}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <Button size="small" onClick={() => act.mutate({ action: 'preview', campaign: c })}>
+                      Preview
                     </Button>
-                  )}
-                  <Button size="small" onClick={() => act.mutate({ action: 'preview', campaign: c })}>
-                    Preview
-                  </Button>
-                  <Button size="small" onClick={() => setDeliveriesFor(c)}>
-                    Deliveries
-                  </Button>
-                </Stack>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+                    <Button size="small" onClick={() => setDeliveriesFor(c)}>
+                      Deliveries
+                    </Button>
+                  </Stack>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableScroll>
       )}
       {editor && (
         <CampaignDialog
@@ -565,26 +568,28 @@ function CampaignsTab() {
               ))}
             </Box>
           ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Recipient</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Attempts</TableCell>
-                <TableCell>Last error</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {(deliveries.data?.items ?? []).map((d) => (
-                <TableRow key={d.id}>
-                  <TableCell>{d.recipient_masked}</TableCell>
-                  <TableCell>{d.status}</TableCell>
-                  <TableCell>{d.attempts}</TableCell>
-                  <TableCell>{d.last_error ?? '—'}</TableCell>
+          <TableScroll>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Recipient</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Attempts</TableCell>
+                  <TableCell>Last error</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {(deliveries.data?.items ?? []).map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell>{d.recipient_masked}</TableCell>
+                    <TableCell>{d.status}</TableCell>
+                    <TableCell>{d.attempts}</TableCell>
+                    <TableCell>{d.last_error ?? '—'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableScroll>
           )}
         </DialogContent>
         <DialogActions>
@@ -701,53 +706,55 @@ function TemplatesTab() {
           ))}
         </Box>
       ) : (
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Code</TableCell>
-            <TableCell>Name</TableCell>
-            <TableCell>Variables</TableCell>
-            <TableCell>Active</TableCell>
-            <TableCell align="right">Actions</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {(templates.data ?? []).map((t: EmailTemplate) => (
-            <TableRow key={t.id} hover>
-              <TableCell>{t.code}</TableCell>
-              <TableCell>{t.name}</TableCell>
-              <TableCell>{t.variables.join(', ') || '—'}</TableCell>
-              <TableCell>{t.is_active ? 'Yes' : 'No'}</TableCell>
-              <TableCell align="right">
-                <Button
-                  size="small"
-                  onClick={() =>
-                    setEditor({
-                      id: t.id,
-                      input: {
-                        code: t.code,
-                        name: t.name,
-                        subject: t.subject,
-                        body_html: t.body_html,
-                        body_text: t.body_text,
-                        variables: t.variables,
-                        is_active: t.is_active,
-                      },
-                    })
-                  }
-                >
-                  Edit
-                </Button>
-                {t.is_active && (
-                  <Button size="small" color="error" onClick={() => deactivate.mutate(t.id)}>
-                    Deactivate
-                  </Button>
-                )}
-              </TableCell>
+      <TableScroll>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Code</TableCell>
+              <TableCell>Name</TableCell>
+              <TableCell>Variables</TableCell>
+              <TableCell>Active</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {(templates.data ?? []).map((t: EmailTemplate) => (
+              <TableRow key={t.id} hover>
+                <TableCell>{t.code}</TableCell>
+                <TableCell>{t.name}</TableCell>
+                <TableCell>{t.variables.join(', ') || '—'}</TableCell>
+                <TableCell>{t.is_active ? 'Yes' : 'No'}</TableCell>
+                <TableCell align="right">
+                  <Button
+                    size="small"
+                    onClick={() =>
+                      setEditor({
+                        id: t.id,
+                        input: {
+                          code: t.code,
+                          name: t.name,
+                          subject: t.subject,
+                          body_html: t.body_html,
+                          body_text: t.body_text,
+                          variables: t.variables,
+                          is_active: t.is_active,
+                        },
+                      })
+                    }
+                  >
+                    Edit
+                  </Button>
+                  {t.is_active && (
+                    <Button size="small" color="error" onClick={() => deactivate.mutate(t.id)}>
+                      Deactivate
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableScroll>
       )}
       {editor && (
         <Dialog open onClose={() => setEditor(null)} fullWidth maxWidth="md">
@@ -898,30 +905,32 @@ function SuppressionsTab() {
           ))}
         </Box>
       ) : (
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Email</TableCell>
-            <TableCell>Reason</TableCell>
-            <TableCell>Source</TableCell>
-            <TableCell align="right">Actions</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {(suppressions.data?.items ?? []).map((s) => (
-            <TableRow key={s.id}>
-              <TableCell>{s.email}</TableCell>
-              <TableCell>{s.reason}</TableCell>
-              <TableCell>{s.source ?? '—'}</TableCell>
-              <TableCell align="right">
-                <Button size="small" color="error" onClick={() => remove.mutate(s.email)}>
-                  Remove
-                </Button>
-              </TableCell>
+      <TableScroll>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Email</TableCell>
+              <TableCell>Reason</TableCell>
+              <TableCell>Source</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {(suppressions.data?.items ?? []).map((s) => (
+              <TableRow key={s.id}>
+                <TableCell>{s.email}</TableCell>
+                <TableCell>{s.reason}</TableCell>
+                <TableCell>{s.source ?? '—'}</TableCell>
+                <TableCell align="right">
+                  <Button size="small" color="error" onClick={() => remove.mutate(s.email)}>
+                    Remove
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableScroll>
       )}
     </Box>
   );
@@ -942,7 +951,16 @@ export default function CommunicationsPage() {
       <Typography variant="h5" sx={{ mb: 2 }}>
         Communications
       </Typography>
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
+      {/* Scrollable: five tabs need ~415px and the narrowest supported
+          viewport is 320px, where the last tab rendered outside the page. */}
+      <Tabs
+        value={tab}
+        onChange={(_, v) => setTab(v)}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
+        sx={{ mb: 3 }}
+      >
         {tabs.map((t) => (
           <Tab key={t.label} label={t.label} />
         ))}

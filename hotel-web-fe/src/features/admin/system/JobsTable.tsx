@@ -15,6 +15,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import { TableScroll } from '../../../components/data-table/TableScroll';
 import type { JobHealth } from './types';
 
 function formatDuration(ms: number | null): string {
@@ -81,83 +82,85 @@ export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => {
   }
 
   return (
-  <Table size="small">
-    <TableHead>
-      <TableRow>
-        <TableCell>Job</TableCell>
-        <TableCell>Last run</TableCell>
-        <TableCell>Status</TableCell>
-        <TableCell align="right">Duration</TableCell>
-        <TableCell align="right">Runs (24h)</TableCell>
-        <TableCell align="right">Failures (24h)</TableCell>
-        <TableCell>Last error</TableCell>
-      </TableRow>
-    </TableHead>
-    <TableBody>
-      {jobs.map((job) => (
-        <TableRow key={job.job_name} hover>
-          <TableCell>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {JOB_LABELS[job.job_name] ?? job.job_name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {job.job_name}
-            </Typography>
-          </TableCell>
-          <TableCell>
-            <Tooltip title={new Date(job.last_run_at).toLocaleString()}>
-              <span>{formatRelative(job.last_run_at)}</span>
-            </Tooltip>
-          </TableCell>
-          <TableCell>
-            <Chip
-              size="small"
-              icon={
-                job.last_status === 'ok' ? (
-                  <CheckCircleOutlineIcon />
-                ) : (
-                  <ErrorOutlineIcon />
-                )
-              }
-              label={job.last_status}
-              color={job.last_status === 'ok' ? 'success' : 'error'}
-              variant="outlined"
-            />
-          </TableCell>
-          <TableCell align="right">{formatDuration(job.last_duration_ms)}</TableCell>
-          <TableCell align="right">{job.runs_24h}</TableCell>
-          <TableCell align="right">
-            {job.failures_24h > 0 ? (
-              <Typography component="span" color="error.main" sx={{ fontWeight: 700 }}>
-                {job.failures_24h}
-              </Typography>
-            ) : (
-              0
-            )}
-          </TableCell>
-          <TableCell sx={{ maxWidth: 280 }}>
-            {job.last_error ? (
-              <Tooltip title={job.last_error}>
-                <Typography
-                  variant="caption"
-                  color="error.main"
-                  sx={{
-                    display: 'block',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {job.last_error}
-                </Typography>
-              </Tooltip>
-            ) : (
-              '—'
-            )}
-          </TableCell>
+  <TableScroll>
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <TableCell>Job</TableCell>
+          <TableCell>Last run</TableCell>
+          <TableCell>Status</TableCell>
+          <TableCell align="right">Duration</TableCell>
+          <TableCell align="right">Runs (24h)</TableCell>
+          <TableCell align="right">Failures (24h)</TableCell>
+          <TableCell>Last error</TableCell>
         </TableRow>
-      ))}
-    </TableBody>
-  </Table>
+      </TableHead>
+      <TableBody>
+        {jobs.map((job) => (
+          <TableRow key={job.job_name} hover>
+            <TableCell>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {JOB_LABELS[job.job_name] ?? job.job_name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {job.job_name}
+              </Typography>
+            </TableCell>
+            <TableCell>
+              <Tooltip title={new Date(job.last_run_at).toLocaleString()}>
+                <span>{formatRelative(job.last_run_at)}</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell>
+              <Chip
+                size="small"
+                icon={
+                  job.last_status === 'ok' ? (
+                    <CheckCircleOutlineIcon />
+                  ) : (
+                    <ErrorOutlineIcon />
+                  )
+                }
+                label={job.last_status}
+                color={job.last_status === 'ok' ? 'success' : 'error'}
+                variant="outlined"
+              />
+            </TableCell>
+            <TableCell align="right">{formatDuration(job.last_duration_ms)}</TableCell>
+            <TableCell align="right">{job.runs_24h}</TableCell>
+            <TableCell align="right">
+              {job.failures_24h > 0 ? (
+                <Typography component="span" color="error.main" sx={{ fontWeight: 700 }}>
+                  {job.failures_24h}
+                </Typography>
+              ) : (
+                0
+              )}
+            </TableCell>
+            <TableCell sx={{ maxWidth: 280 }}>
+              {job.last_error ? (
+                <Tooltip title={job.last_error}>
+                  <Typography
+                    variant="caption"
+                    color="error.main"
+                    sx={{
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {job.last_error}
+                  </Typography>
+                </Tooltip>
+              ) : (
+                '—'
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  </TableScroll>
   );
 };

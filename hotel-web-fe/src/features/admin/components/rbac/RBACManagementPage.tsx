@@ -449,7 +449,22 @@ const RBACManagementPage: React.FC = () => {
         </Tooltip>
       </Box>
       {/* Page tabs */}
-      <Box sx={{ display: 'inline-flex', bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '11px', p: '4px', mb: 2 }}>
+      {/* The two labels plus their counts need ~350px; on a 320px viewport the
+          pill overflowed the page. Scroll inside the pill instead — same
+          pattern as the filter chip rows elsewhere. */}
+      <Box sx={{
+        display: 'inline-flex',
+        maxWidth: '100%',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+        '&::-webkit-scrollbar': { display: 'none' },
+        '& > *': { flexShrink: 0 },
+        bgcolor: T.surface,
+        border: `1px solid ${T.border}`,
+        borderRadius: '11px',
+        p: '4px',
+        mb: 2,
+      }}>
         <PtabBtn id="roles" label="Roles & Permissions" count={`${roles.length} / ${totalPerms}`} />
         <PtabBtn id="users" label="Users" count={`${users.length}`} />
       </Box>

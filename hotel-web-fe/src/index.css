@@ -278,12 +278,15 @@ html {
   transition: opacity 0.15s ease-out, transform 0.15s ease-out;
 }
 
-/* MUI v7 Grid spacing fix - force gap on containers */
-.MuiGrid-container {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: var(--Grid-rowSpacing, 16px) var(--Grid-columnSpacing, 16px) !important;
-}
+/* Removed: a `.MuiGrid-container { display/flex-wrap/gap: !important }` block
+   carried over from MUI v7. MUI v9's Grid emits exactly those three
+   declarations itself (see @mui/system/Grid/gridGenerator `generateGridStyles`),
+   so the rule was redundant — and because it was `!important` it also made
+   those properties unsettable on all 148 Grid containers in the app: a
+   container could not be hidden responsively with
+   `sx={{ display: { xs: 'none', md: 'flex' } }}`, could not switch to
+   `display: grid`, and could not override its own gap. Grid spacing is
+   unchanged; it now comes from the component as intended. */
 
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {

@@ -29,6 +29,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import EmptyState from '../../../components/common/EmptyState';
 import PageHeader from '../../../components/common/PageHeader';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import { TableScroll } from '../../../components/data-table/TableScroll';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useAuth } from '../../../auth/AuthContext';
@@ -213,92 +214,94 @@ const SegmentsPage = () => {
             ))}
           </Box>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Rules</TableCell>
-                <TableCell>Members</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Updated</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {(segments.data?.items ?? []).map((s) => (
-                <TableRow key={s.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {s.name}
-                    </Typography>
-                    {s.description && (
-                      <Typography variant="caption" color="text.secondary">
-                        {s.description}
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" color="text.secondary">
-                      {describeRules(s)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{s.member_count}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={s.is_active ? 'Active' : 'Inactive'}
-                      color={s.is_active ? 'success' : 'default'}
-                    />
-                  </TableCell>
-                  <TableCell>{formatHotelDate(s.updated_at)}</TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
-                      <Button size="small" onClick={() => setPreviewFor(s)}>
-                        Preview
-                      </Button>
-                      {canManage && (
-                        <>
-                          <Button
-                            size="small"
-                            onClick={() => setEditor({ open: true, segment: s })}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="small"
-                            onClick={() => toggleActive.mutate(s)}
-                            disabled={toggleActive.isPending}
-                          >
-                            {s.is_active ? 'Deactivate' : 'Activate'}
-                          </Button>
-                          <Button
-                            size="small"
-                            color="error"
-                            disabled={remove.isPending}
-                            onClick={async () => {
-                              if (
-                                !(await confirm({
-                                  title: 'Delete segment',
-                                  message: `Delete “${s.name}”? Campaigns using it keep their audience — deactivate instead if unsure.`,
-                                  confirmText: 'Delete',
-                                  severity: 'warning',
-                                }))
-                              ) {
-                                return;
-                              }
-                              remove.mutate(s.id);
-                            }}
-                          >
-                            Delete
-                          </Button>
-                        </>
-                      )}
-                    </Stack>
-                  </TableCell>
+          <TableScroll>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Rules</TableCell>
+                  <TableCell>Members</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Updated</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {(segments.data?.items ?? []).map((s) => (
+                  <TableRow key={s.id} hover>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {s.name}
+                      </Typography>
+                      {s.description && (
+                        <Typography variant="caption" color="text.secondary">
+                          {s.description}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" color="text.secondary">
+                        {describeRules(s)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{s.member_count}</TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={s.is_active ? 'Active' : 'Inactive'}
+                        color={s.is_active ? 'success' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell>{formatHotelDate(s.updated_at)}</TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                        <Button size="small" onClick={() => setPreviewFor(s)}>
+                          Preview
+                        </Button>
+                        {canManage && (
+                          <>
+                            <Button
+                              size="small"
+                              onClick={() => setEditor({ open: true, segment: s })}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="small"
+                              onClick={() => toggleActive.mutate(s)}
+                              disabled={toggleActive.isPending}
+                            >
+                              {s.is_active ? 'Deactivate' : 'Activate'}
+                            </Button>
+                            <Button
+                              size="small"
+                              color="error"
+                              disabled={remove.isPending}
+                              onClick={async () => {
+                                if (
+                                  !(await confirm({
+                                    title: 'Delete segment',
+                                    message: `Delete “${s.name}”? Campaigns using it keep their audience — deactivate instead if unsure.`,
+                                    confirmText: 'Delete',
+                                    severity: 'warning',
+                                  }))
+                                ) {
+                                  return;
+                                }
+                                remove.mutate(s.id);
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </>
+                        )}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableScroll>
         )}
       </Paper>
 

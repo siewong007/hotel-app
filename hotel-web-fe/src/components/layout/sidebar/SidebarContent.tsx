@@ -20,6 +20,9 @@ interface SidebarContentProps {
   /** Icon-rail mode (72px). */
   collapsed: boolean;
   onToggleCollapse: () => void;
+  /** Rail is forced by viewport width (tablets), so the toggle is hidden —
+   *  showing a control that cannot take effect is worse than showing none. */
+  railLocked?: boolean;
 }
 
 /**
@@ -32,6 +35,7 @@ interface SidebarContentProps {
 export const SidebarContent: React.FC<SidebarContentProps> = ({
   collapsed,
   onToggleCollapse,
+  railLocked = false,
 }) => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -202,11 +206,11 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
       <Divider />
 
       {/* ── Rail toggle ───────────────────────────────────────────── */}
-      {/* The rail toggle is a desktop affordance — the temporary drawer is
-          always expanded, so it stays hidden below md. */}
+      {/* Desktop-only affordance: below `lg` the rail is forced by viewport
+          width (see AppSidebar), so the toggle would be inert. */}
       <Box
         sx={{
-          display: { xs: 'none', md: 'flex' },
+          display: railLocked ? 'none' : 'flex',
           justifyContent: collapsed ? 'center' : 'flex-end',
           px: collapsed ? 1 : 1.5,
           pb: 1.5,

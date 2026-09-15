@@ -22,6 +22,7 @@ import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { formatHotelDate } from '../../../utils/date';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import { TableScroll } from '../../../components/data-table/TableScroll';
 
 export interface RoomRatesEditorProps {
   rates: RoomRateWithDetails[];
@@ -189,102 +190,104 @@ export const RoomRatesEditor = ({
           </Box>
         </Box>
       ) : (
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>{t('bands.colRoomType')}</TableCell>
-            <TableCell align="right">{t('bands.colPrice')}</TableCell>
-            <TableCell>{t('bands.colFrom')}</TableCell>
-            <TableCell>{t('bands.colTo')}</TableCell>
-            <TableCell align="right" />
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rates.map((rate) => (
-            <TableRow key={rate.id} hover>
+      <TableScroll>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>{t('bands.colRoomType')}</TableCell>
+              <TableCell align="right">{t('bands.colPrice')}</TableCell>
+              <TableCell>{t('bands.colFrom')}</TableCell>
+              <TableCell>{t('bands.colTo')}</TableCell>
+              <TableCell align="right" />
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rates.map((rate) => (
+              <TableRow key={rate.id} hover>
+                <TableCell>
+                  {rate.room_type_name}{' '}
+                  <Typography component="span" variant="caption" color="text.secondary">
+                    {rate.room_type_code}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">{rate.price}</TableCell>
+                <TableCell>{formatHotelDate(rate.effective_from)}</TableCell>
+                <TableCell>
+                  {rate.effective_to ? formatHotelDate(rate.effective_to) : t('bands.open')}
+                </TableCell>
+                <TableCell align="right">
+                  <Tooltip title={t('bands.deleteBand')}>
+                    <IconButton size="small" onClick={() => onDelete(rate.id)}>
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
+              </TableRow>
+            ))}
+            <TableRow>
               <TableCell>
-                {rate.room_type_name}{' '}
-                <Typography component="span" variant="caption" color="text.secondary">
-                  {rate.room_type_code}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">{rate.price}</TableCell>
-              <TableCell>{formatHotelDate(rate.effective_from)}</TableCell>
-              <TableCell>
-                {rate.effective_to ? formatHotelDate(rate.effective_to) : t('bands.open')}
+                <TextField
+                  select
+                  size="small"
+                  value={draft.room_type_id}
+                  onChange={(event) =>
+                    setDraft({ ...draft, room_type_id: event.target.value })
+                  }
+                  fullWidth
+                  aria-label={t('bands.roomTypeAria')}
+                >
+                  {roomTypes.map((type) => (
+                    <MenuItem key={type.id} value={String(type.id)}>
+                      {type.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
               </TableCell>
               <TableCell align="right">
-                <Tooltip title={t('bands.deleteBand')}>
-                  <IconButton size="small" onClick={() => onDelete(rate.id)}>
-                    <DeleteOutlineIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={draft.price}
+                  onChange={(event) =>
+                    setDraft({ ...draft, price: event.target.value })
+                  }
+                  slotProps={{ htmlInput: { 'aria-label': t('bands.priceAria') } }}
+                  sx={{ width: 110 }}
+                />
+              </TableCell>
+              <TableCell>
+                <ModernDatePicker
+                  label=""
+                  size="small"
+                  value={draft.effective_from}
+                  onChange={(value) =>
+                    setDraft({ ...draft, effective_from: value })
+                  }
+                />
+              </TableCell>
+              <TableCell>
+                <ModernDatePicker
+                  label=""
+                  size="small"
+                  value={draft.effective_to}
+                  onChange={(value) => setDraft({ ...draft, effective_to: value })}
+                  helperText={t('bands.openEndedHint')}
+                />
+              </TableCell>
+              <TableCell align="right">
+                <Button
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={add}
+                  disabled={!canAdd}
+                >
+                  {t('common:actions.add')}
+                </Button>
               </TableCell>
             </TableRow>
-          ))}
-          <TableRow>
-            <TableCell>
-              <TextField
-                select
-                size="small"
-                value={draft.room_type_id}
-                onChange={(event) =>
-                  setDraft({ ...draft, room_type_id: event.target.value })
-                }
-                fullWidth
-                aria-label={t('bands.roomTypeAria')}
-              >
-                {roomTypes.map((type) => (
-                  <MenuItem key={type.id} value={String(type.id)}>
-                    {type.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </TableCell>
-            <TableCell align="right">
-              <TextField
-                size="small"
-                type="number"
-                value={draft.price}
-                onChange={(event) =>
-                  setDraft({ ...draft, price: event.target.value })
-                }
-                slotProps={{ htmlInput: { 'aria-label': t('bands.priceAria') } }}
-                sx={{ width: 110 }}
-              />
-            </TableCell>
-            <TableCell>
-              <ModernDatePicker
-                label=""
-                size="small"
-                value={draft.effective_from}
-                onChange={(value) =>
-                  setDraft({ ...draft, effective_from: value })
-                }
-              />
-            </TableCell>
-            <TableCell>
-              <ModernDatePicker
-                label=""
-                size="small"
-                value={draft.effective_to}
-                onChange={(value) => setDraft({ ...draft, effective_to: value })}
-                helperText={t('bands.openEndedHint')}
-              />
-            </TableCell>
-            <TableCell align="right">
-              <Button
-                size="small"
-                startIcon={<AddIcon />}
-                onClick={add}
-                disabled={!canAdd}
-              >
-                {t('common:actions.add')}
-              </Button>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
+          </TableBody>
+        </Table>
+      </TableScroll>
       )}
       {rates.length === 0 && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>

@@ -10,6 +10,7 @@ import {
   fmtPct,
   fmtShortDate,
   thinTicks,
+  useTickBudget,
 } from '../../../components/charts';
 import { formatHotelDate } from '../../../utils/date';
 import type { RevenueDailyPoint } from '../types';
@@ -48,7 +49,11 @@ const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ daily }) => {
     [daily],
   );
 
-  const dayTicks = useMemo(() => thinTicks(daily.map((p) => p.date)), [daily]);
+  const tickBudget = useTickBudget();
+  const dayTicks = useMemo(
+    () => thinTicks(daily.map((p) => p.date), tickBudget),
+    [daily, tickBudget],
+  );
 
   return (
     <Card>

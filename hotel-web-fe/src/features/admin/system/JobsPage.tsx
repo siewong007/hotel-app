@@ -22,6 +22,7 @@ import { JobsTable } from './JobsTable';
 import PageHeader from '../../../components/common/PageHeader';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import { TableScroll } from '../../../components/data-table/TableScroll';
 
 const JobsPage: React.FC = () => {
   const isPhone = useIsPhone();
@@ -103,36 +104,38 @@ const JobsPage: React.FC = () => {
             </Card>
           ) : (
             <Card variant="outlined">
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>When</TableCell>
-                    <TableCell>Job</TableCell>
-                    <TableCell>Error</TableCell>
-                    <TableCell align="right">Duration</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(failures.data ?? []).map((run) => (
-                    <TableRow key={run.id} hover>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                        {new Date(run.created_at).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <Chip size="small" label={run.job_name} variant="outlined" />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="error.main">
-                          {run.error ?? '—'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        {run.duration_ms !== null ? `${run.duration_ms}ms` : '—'}
-                      </TableCell>
+              <TableScroll>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>When</TableCell>
+                      <TableCell>Job</TableCell>
+                      <TableCell>Error</TableCell>
+                      <TableCell align="right">Duration</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHead>
+                  <TableBody>
+                    {(failures.data ?? []).map((run) => (
+                      <TableRow key={run.id} hover>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                          {new Date(run.created_at).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Chip size="small" label={run.job_name} variant="outlined" />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="error.main">
+                            {run.error ?? '—'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          {run.duration_ms !== null ? `${run.duration_ms}ms` : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableScroll>
             </Card>
           )}
         </>
