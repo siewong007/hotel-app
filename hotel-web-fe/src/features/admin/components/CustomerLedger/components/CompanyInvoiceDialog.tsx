@@ -670,7 +670,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
         </Box>
       )}
     </DialogContent>
-    <DialogActions>
+    {/* The preview state shows three icon buttons; let the row wrap on
+        narrow viewports rather than clip the ms labels. */}
+    <DialogActions sx={{ flexWrap: 'wrap', rowGap: 1 }}>
       {!showInvoicePreview ? (
         <>
           <Button onClick={onClose}>

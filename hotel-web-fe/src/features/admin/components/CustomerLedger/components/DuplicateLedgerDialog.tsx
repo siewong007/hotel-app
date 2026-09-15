@@ -54,7 +54,9 @@ const DuplicateLedgerDialog: React.FC<DuplicateLedgerDialogProps> = ({
         </Box>
       )}
     </DialogContent>
-    <DialogActions>
+    {/* Three actions; wrap so longer ms labels cannot overflow a phone-width
+        dialog. */}
+    <DialogActions sx={{ flexWrap: 'wrap', rowGap: 1 }}>
       <Button onClick={onViewExisting}>{t('ledger.duplicateDialog.viewExisting')}</Button>
       <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
       <Button onClick={onCreateAnyway} variant="contained" disabled={creating}>

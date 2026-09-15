@@ -1,0 +1,6747 @@
+# i18n key → file usage map (generated)
+
+Generated 2026-09-15 by a static pass over `hotel-web-fe/src` (literal
+`t()`/`tOr()`/`translate*()`/`statusLabel()` call sites, bound via each
+file's `useTranslation('<ns>')` or trailing-namespace argument; quoted
+literals in constants maps also resolve). Keys with **no listed file** are
+reachable only through dynamic prefixes (see the table below), parameter- or
+alias-bound translators (e.g. `pt()`/`lt()` wrappers, `t` passed as a
+function argument), enum coverage (`status:*`, `errors:api.*`), or are dead
+candidates — see `i18n-coverage-inventory.md`.
+
+## Dynamic key prefixes
+
+| Prefix | Files |
+|---|---|
+| `?:adjustmentTypes.${…}` | `src/features/rates/components/RatePlanDialog.tsx`<br>`src/features/rates/components/RatePlanTable.tsx` |
+| `?:admin.actions.${…}` | `src/features/ekyc/components/EkycManagementPage.tsx` |
+| `?:bulk.days.${…}` | `src/features/onlineInventory/components/BulkEditPanel.tsx` |
+| `?:categories.${…}` | `src/features/guestRelations/components/OpenSupportDialog.tsx`<br>`src/features/help/components/ArticleCard.tsx`<br>`src/features/help/components/CategoryCard.tsx`<br>`src/features/help/components/HelpBreadcrumbs.tsx`<br>`src/features/help/components/HelpSearchBar.tsx`<br>`src/features/help/pages/HelpArticlePage.tsx`<br>`src/features/help/pages/HelpCenterPage.tsx`<br>`src/features/support/components/SupportStatusChip.tsx` |
+| `?:communication.channels.${…}` | `src/features/guestRelations/components/tabs/CommunicationTab.tsx` |
+| `?:config.roomStatus.${…}` | `src/features/rooms/components/RoomConfigurationPage.tsx` |
+| `?:consent.topics.${…}` | `src/features/guestRelations/components/GuestConsentDialog.tsx`<br>`src/features/guestRelations/components/tabs/CommunicationTab.tsx` |
+| `?:csv.${…}` | `src/features/guestRelations/utils.ts` |
+| `?:dashboard.identity.documents.${…}` | `src/features/guestPortal/components/dashboard/IdentitySection.tsx` |
+| `?:dashboard.identity.idTypes.${…}` | `src/features/guestPortal/components/dashboard/IdentitySection.tsx` |
+| `?:dashboard.identity.status.${…}` | `src/features/guestPortal/components/dashboard/IdentitySection.tsx` |
+| `?:dashboard.pagination.${…}` | `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx` |
+| `?:dashboard.profile.fields.${…}` | `src/features/guestPortal/components/dashboard/ProfileSection.tsx` |
+| `?:days.${…}` | `src/features/rates/components/RatePlanDialog.tsx`<br>`src/features/rates/components/RatePlanTable.tsx` |
+| `?:deposit.chip.${…}` | `src/features/invoices/components/CheckoutInvoiceModal.tsx`<br>`src/features/invoices/components/DepositSection.tsx` |
+| `?:deposit.forfeit.reasons.${…}` | `src/features/invoices/components/DepositSection.tsx` |
+| `?:export.${…}` | `src/features/admin/components/data-transfer/ExportPanel.tsx` |
+| `?:export.exclusions.${…}` | `src/features/admin/components/data-transfer/utils.ts` |
+| `?:groups.${…}` | `src/navigation/routeLabels.ts` |
+| `?:history.exportTypes.${…}` | `src/features/admin/components/DataTransferPage.tsx` |
+| `?:history.modes.${…}` | `src/features/admin/components/data-transfer/TransferHistoryList.tsx` |
+| `?:history.status.${…}` | `src/features/admin/components/data-transfer/TransferHistoryList.tsx` |
+| `?:idTypes.${…}` | `src/features/ekyc/components/EkycCreateDialog.tsx`<br>`src/features/ekyc/components/EkycManagementPage.tsx`<br>`src/features/ekyc/components/EkycRegistrationPage.tsx`<br>`src/features/guestRelations/components/tabs/OverviewTab.tsx` |
+| `?:interactions.types.${…}` | `src/features/guestRelations/components/InteractionForm.tsx`<br>`src/features/guestRelations/components/tabs/InteractionsTab.tsx`<br>`src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx` |
+| `?:ledger.paymentMethod.${…}` | `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx` |
+| `?:mobile.${…}` | `src/components/layout/MobileQuickActions.tsx` |
+| `?:nav.${…}` | `src/features/guestPortal/components/GuestPortalShell.tsx` |
+| `?:palette.scopes.${…}` | `src/components/layout/CommandPalette.tsx` |
+| `?:planTypes.${…}` | `src/features/rates/components/RatePlanDialog.tsx`<br>`src/features/rates/components/RatePlanTable.tsx` |
+| `?:preferenceCategories.${…}` | `src/features/guestRelations/components/tabs/OverviewTab.tsx`<br>`src/features/guestRelations/components/tabs/PreferencesTab.tsx` |
+| `?:quickTasks.${…}` | `src/features/help/components/QuickTaskGrid.tsx` |
+| `?:rbac.categories.${…}` | `src/features/admin/components/rbac/constants.ts` |
+| `?:rbac.verb.${…}` | `src/features/admin/components/rbac/constants.ts` |
+| `?:reports.${…}` | `src/features/dashboard/components/reports/ReportsAnalytics.tsx` |
+| `?:roles.${…}` | `src/components/layout/UserMenu.tsx` |
+| `?:routes.${…}` | `src/navigation/routeLabels.ts` |
+| `?:search.suggestions.${…}` | `src/features/help/components/HelpSearchBar.tsx` |
+| `?:settings.fontPresets.${…}` | `src/features/user/components/settings/ReportSettingsCard.tsx` |
+| `?:steps.${…}` | `src/features/ekyc/components/EkycRegistrationPage.tsx` |
+| `?:system.jobs.names.${…}` | `src/features/admin/system/JobsTable.tsx` |
+| `?:tabs.${…}` | `src/features/promotions/pages/PromotionManagementPage.tsx` |
+| `?:tourismType.${…}` | `src/features/guestRelations/components/tabs/OverviewTab.tsx` |
+| `?:troubleshootingLinks.${…}` | `src/features/help/components/TroubleshootingStrip.tsx` |
+| `?:twoFactor.${…}` | `src/features/auth/components/LoginPage.tsx` |
+| `admin:audit.export.${…}` | `src/api/audit.service.ts` |
+| `bookings:channels.${…}` | `src/features/admin/components/NightAuditReportViews.tsx` |
+| `finance:ledger.paymentMethod.${…}` | `src/features/admin/components/PaymentApprovalsPage.tsx` |
+| `loyalty:categories.${…}` | `src/features/loyalty/utils.ts` |
+| `status:promotion.${…}` | `src/features/promotions/pages/PromotionManagementPage.tsx` |
+| `support:categories.${…}` | `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx` |
+
+## Map
+
+
+### `admin`
+
+- `admin:audit.export.actionOnly` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.export.col.action` — *(dynamic or unreferenced)*
+- `admin:audit.export.col.changeType` — *(dynamic or unreferenced)*
+- `admin:audit.export.col.id` — *(dynamic or unreferenced)*
+- `admin:audit.export.col.ip` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.export.col.resource` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.export.col.stream` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.export.col.timestamp` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.export.col.user` — *(dynamic or unreferenced)*
+- `admin:audit.export.fieldChanges` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.export.generatedAt` — *(dynamic or unreferenced)*
+- `admin:audit.export.reportTitle` — *(dynamic or unreferenced)*
+- `admin:audit.export.systemUser` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.actionOnlyDetail` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.actionOnlyTooltip` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.actor` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.allActions` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.allDates` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.allTime` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.automated` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.automatedTag` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.breadcrumbSecurity` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.breadcrumbSettings` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.categories.bookings.name` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.categories.bookings.sub` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.categories.guests.name` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.categories.guests.sub` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.categories.reports.name` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.categories.reports.sub` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.categories.rooms.name` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.categories.rooms.sub` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.categories.system.name` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.categories.system.sub` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.dayToday` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.dayYesterday` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.emptyDescription` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.emptyTitle` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.eventDetails` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.eventId` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.events` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.eventsCount_one` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.eventsCount_other` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.exportCsvFailed` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.exportPdf` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.exportPdfFailed` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.fieldChanges_one` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.fieldChanges_other` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.filterByTimestamp` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.lastDays` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.noEvents` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.rangeNow` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.recordedMetadata` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.searchPlaceholder` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.server` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.showingEvents` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.source` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.subtitle` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.title` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.userNumber` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.verbs.check` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.verbs.create` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.verbs.delete` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.verbs.export` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.verbs.run` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.verbs.update` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:audit.page.verbs.view` — `src/features/admin/components/AuditLogPage.tsx`
+- `admin:paymentApprovals.approve` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.approveSuccess` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.cancelPaypal` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.col.booking` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.col.guest` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.col.method` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.col.receipt` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.col.reviewed` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.col.submitted` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.conflictBody` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.conflictBooking` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.conflictLine` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.conflictReason` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.conflictShowing` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.conflictTitle_one` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.conflictTitle_other` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.emptyHistory` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.emptyPending` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.errors.approve` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.errors.notPdfOrImage` — `src/features/admin/utils/paymentReceiptPdf.ts`
+- `admin:paymentApprovals.errors.openReceipt` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.errors.pdfConvert` — `src/features/admin/utils/paymentReceiptPdf.ts`
+- `admin:paymentApprovals.errors.reject` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.errors.requestReceipt` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.paypalCancelSuccess` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.previewIframeTitle` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.previewTitle` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.receipt` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.receiptDialog.body` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.receiptDialog.messageLabel` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.receiptDialog.messagePlaceholder` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.receiptDialog.send` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.receiptDialog.sendAgain` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.receiptDialog.title` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.receiptDialog.titleAgain` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.receiptRequestSuccess` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.receiptUploaded` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.reject` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.body` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.bodyPaypal` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.cancelling` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.charsRemaining` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.confirm` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.confirmPaypal` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.label` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.labelPaypal` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.placeholder` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.placeholderPaypal` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.rejecting` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.title` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectDialog.titlePaypal` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rejectSuccess` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.requestAgain` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.requestReceipt` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.reviewedAt` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.rowsPerPage` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.submittedAt` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.subtitle` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.tabHistory` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.tabPending` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:paymentApprovals.title` — `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `admin:rbac.action` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.actions.delete` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.actions.manage` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.actions.read` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.actions.update` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.actions.write` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.addRole` — `src/features/admin/components/rbac/PermissionsTab/PermissionRow.tsx`
+- `admin:rbac.addRoleToPermission` — `src/features/admin/components/rbac/PermissionsTab/AddRolePopover.tsx`
+- `admin:rbac.addUser` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.allRolesHave` — `src/features/admin/components/rbac/PermissionsTab/AddRolePopover.tsx`
+- `admin:rbac.alsoGrants` — `src/features/admin/components/rbac/RolesTab/NavigationAccessSection.tsx`
+- `admin:rbac.assignedPermissions` — `src/features/admin/components/rbac/RolesTab/PermissionSummarySection.tsx`
+- `admin:rbac.basicInfo` — `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`
+- `admin:rbac.breadcrumbAccess` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.breadcrumbSettings` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.builtIn` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.builtInNoDelete` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.catCount_one` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.catCount_other` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.categories.analytics` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.bookings` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.ekyc` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.guests` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.ledgers` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.loyalty` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.navigation` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.permissions` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.rbac` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.rewards` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.roles` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.rooms` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.settings` — *(dynamic or unreferenced)*
+- `admin:rbac.categories.users` — *(dynamic or unreferenced)*
+- `admin:rbac.collapseAll` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.collapseSection` — `src/features/admin/components/rbac/RolesTab/PermissionSummarySection.tsx`
+- `admin:rbac.confirmPassword` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.copySuffix` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.coverage` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.createPermission` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.createRole` — `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.createUser` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.custom` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.customResource` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.customResourcePlaceholder` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.deleteRole` — `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RoleCard.tsx`, `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.deleteRoleConfirm` — `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.deleteRolePermWarning_one` — `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.deleteRolePermWarning_other` — `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.deleteRoleWarning` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.deleteUser` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.deleteUserConfirm` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.disableAll` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.editRole` — `src/features/admin/components/rbac/RolesTab/RoleCard.tsx`, `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`
+- `admin:rbac.editRoleNamed` — `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`
+- `admin:rbac.editUser` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.enableAll` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.errors.createPermission` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.errors.createRole` — `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.errors.deleteRole` — `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.errors.deleteUser` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.errors.duplicateRole` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.errors.passwordRequired` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.errors.requiredFields` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.errors.roleNameRequired` — `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.errors.savePermissions` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.errors.saveRole` — `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`
+- `admin:rbac.errors.saveUser` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.expandAll` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.expandSection` — `src/features/admin/components/rbac/RolesTab/PermissionSummarySection.tsx`
+- `admin:rbac.filterAll` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.filterDisabled` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.filterEnabled` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.fullAccess` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.grantAccess` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.hideEmpty` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.hidePassword` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.modulesHidden_one` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.modulesHidden_other` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.nameAutoGenerated` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.navAccessQuestion` — `src/features/admin/components/rbac/RolesTab/NavigationAccessSection.tsx`
+- `admin:rbac.navigationAccess` — `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`
+- `admin:rbac.newPassword` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.newPermission` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.newRole` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.noDescription` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.noDescriptionShort` — `src/features/admin/components/rbac/RolesTab/RoleCard.tsx`
+- `admin:rbac.noMatch` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.noPermissions` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.noPermissionsAssigned` — `src/features/admin/components/rbac/RolesTab/PermissionSummarySection.tsx`
+- `admin:rbac.noPermissionsIn` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.noPermissionsMatch` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.noRoles` — `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.noRolesAssigned` — `src/features/admin/components/rbac/PermissionsTab/PermissionRow.tsx`
+- `admin:rbac.noRolesShort` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.noUsers` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.onlyThisRole` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.password` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.permCountOf` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.permCount_one` — `src/features/admin/components/rbac/PermissionsTab/PermissionCategoryAccordion.tsx`, `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`, `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RoleCard.tsx`
+- `admin:rbac.permCount_other` — `src/features/admin/components/rbac/PermissionsTab/PermissionCategoryAccordion.tsx`, `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`, `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RoleCard.tsx`
+- `admin:rbac.permissionDescPlaceholder` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.permissionFallback` — `src/features/admin/components/rbac/PermissionsTab/PermissionRow.tsx`
+- `admin:rbac.permissionName` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.permissionSummary` — `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`
+- `admin:rbac.permsModified_one` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.permsModified_other` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.refreshRoles` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.rename` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.renameRole` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.resource` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.roleCount_one` — `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.roleCount_other` — `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.roleCreated` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.roleDeleted` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.roleDescPlaceholder` — `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`, `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.roleDuplicated` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.roleMeta` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.roleName` — `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`, `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.roleNamePlaceholder` — `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`
+- `admin:rbac.roleTag` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.roleUpdated` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.roleUsers_one` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.roleUsers_other` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.roles` — `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.rolesConfigured` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.saveChanges` — `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`
+- `admin:rbac.savedPermissions` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.searchPermissions` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.searchPermissionsFull` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.searchRoles` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.searchUsers` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.selectRole` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.showAllModules` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.showPassword` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.subtitle` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.summary` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`
+- `admin:rbac.tabRoles` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.tabUsers` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.tabsCount_one` — `src/features/admin/components/rbac/RolesTab/RoleCard.tsx`
+- `admin:rbac.tabsCount_other` — `src/features/admin/components/rbac/RolesTab/RoleCard.tsx`
+- `admin:rbac.title` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.unsavedChanges` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.userCreated` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.userDeleted` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.userManagement` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.userManagementSub` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.userRolesUpdated` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.userUpdated` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.username` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `admin:rbac.usersAssigned_one` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.usersAssigned_other` — `src/features/admin/components/rbac/RBACManagementPage.tsx`
+- `admin:rbac.verb.create` — *(dynamic or unreferenced)*
+- `admin:rbac.verb.delete` — *(dynamic or unreferenced)*
+- `admin:rbac.verb.export` — *(dynamic or unreferenced)*
+- `admin:rbac.verb.manage` — *(dynamic or unreferenced)*
+- `admin:rbac.verb.read` — *(dynamic or unreferenced)*
+- `admin:rbac.verb.run` — *(dynamic or unreferenced)*
+- `admin:rbac.verb.update` — *(dynamic or unreferenced)*
+- `admin:rbac.verb.write` — *(dynamic or unreferenced)*
+- `admin:settings.addMarketCode` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.addPaymentMethod` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.addRateCode` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.addressHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.adminOnlyHotel` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.adminOnlyOps` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.allSaved` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.bookingChannels` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.bookingChannelsHint` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.businessNumber` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.businessNumberHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.channelAbbrPlaceholder` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.channelNamePlaceholder` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.chargesNote` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.chargesTitle` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.checkInTime` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.checkInTimeHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.checkOutTime` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.checkOutTimeHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.contactEmail` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.contactEmailHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.contactPhone` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.contactPhoneHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.currencyNote1` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.currencyNote2` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.currencyOther` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.currencyRecommended` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.currencyTimezoneNoteTitle` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.defaultCurrency` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.defaultCurrencyHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.depositAmount` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.depositHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.firstResponseTarget` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.fontFamily` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontFamilyHint` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontPreset` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontPresetCustom` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontPresetCustomHint` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontPresets.large.description` — *(dynamic or unreferenced)*
+- `admin:settings.fontPresets.large.label` — *(dynamic or unreferenced)*
+- `admin:settings.fontPresets.medium.description` — *(dynamic or unreferenced)*
+- `admin:settings.fontPresets.medium.label` — *(dynamic or unreferenced)*
+- `admin:settings.fontPresets.small.description` — *(dynamic or unreferenced)*
+- `admin:settings.fontPresets.small.label` — *(dynamic or unreferenced)*
+- `admin:settings.fontPresets.very_large.description` — *(dynamic or unreferenced)*
+- `admin:settings.fontPresets.very_large.label` — *(dynamic or unreferenced)*
+- `admin:settings.fontPresets.very_small.description` — *(dynamic or unreferenced)*
+- `admin:settings.fontPresets.very_small.label` — *(dynamic or unreferenced)*
+- `admin:settings.fontSizeBody` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeBodyHint` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeCaption` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeCaptionHint` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeChip` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeChipHint` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeHeading` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeHeadingHint` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeSectionHeading` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeSectionHeadingHint` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeTable` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.fontSizeTableHint` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.guestCancelHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.guestCancelTitle` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.guestCancelToggle` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.hotelInfo` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.hotelName` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.hotelNameHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.marketCodes` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.maxLoginAttempts` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.maxLoginAttemptsHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.nightAuditAuto` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.nightAuditAutoHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.nightShiftHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.nightShiftNote` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.nightShiftTime` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.operationalTitle` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.passkeyDisplayName` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.passkeyDisplayNameHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.paymentMethods` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.paymentMethodsHint` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.paymentTerms` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.paymentTermsHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.rateCodes` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.reopenWindow` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.reopenWindowHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.reportsTitle` — `src/features/user/components/settings/ReportSettingsCard.tsx`
+- `admin:settings.resetConfirm` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.resetDone` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.resetFailed` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.resetToDefaults` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.resolutionTarget` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.saveFailed` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.saveSettings` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.saved` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.securityTitle` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.serviceTaxHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.serviceTaxRate` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.subtitle` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportCategory.billing` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportCategory.booking` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportCategory.loyalty` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportCategory.other` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportCategory.stay` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportCategory.technical` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportPriority.high` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportPriority.low` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportPriority.normal` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportPriority.urgent` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportTitle` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportToggle` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.supportTopics` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.systemConfigNote` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.systemConfigTitle` — `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `admin:settings.tabs.appearance` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tabs.finance` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tabs.guest` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tabs.hotel` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tabs.reports` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tabs.security` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tabs.system` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.theme.dark` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.theme.darkMode` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.theme.light` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.theme.lightMode` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.themeMode` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.themeModeHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.timesTitle` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.timezone` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.timezoneHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.title` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.totpIssuer` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.totpIssuerHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tourismTaxHint` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tourismTaxRate` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.americaChicago` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.americaLosAngeles` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.americaNewYork` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.asiaBangkok` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.asiaDubai` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.asiaHongKong` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.asiaJakarta` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.asiaKualaLumpur` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.asiaManila` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.asiaShanghai` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.asiaSingapore` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.asiaTokyo` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.australiaSydney` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.europeLondon` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tz.europeParis` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tzGroup.americas` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tzGroup.asiaPacific` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.tzGroup.europe` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.unpaidHoldOff` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.unpaidHoldOn` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.unpaidHoldRelease` — `src/features/user/components/SettingsPage.tsx`
+- `admin:settings.unsaved` — `src/features/user/components/SettingsPage.tsx`
+- `admin:system.health.auditFailures` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.auditHoles` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.backgroundJobs` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.connected` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.database` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.denied` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.deniedHint` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.emailQueue` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.emailQueueSummary` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.errors` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.errorsHint` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.loadError` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.noneRecorded` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.refreshAria` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.requests` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.requestsSlow` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.subtitle` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.title` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.uptime` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.uptimeDays` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.uptimeHours` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.health.uptimeMinutes` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.jobs.cardMeta` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.colDuration` — `src/features/admin/system/JobsPage.tsx`, `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.colError` — `src/features/admin/system/JobsPage.tsx`
+- `admin:system.jobs.colFailures24` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.colJob` — `src/features/admin/system/JobsPage.tsx`, `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.colLastError` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.colLastRun` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.colRuns24` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.colWhen` — `src/features/admin/system/JobsPage.tsx`
+- `admin:system.jobs.failuresCount_one` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.failuresCount_other` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.lastError` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.lastRunDuration` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.loadError` — `src/features/admin/system/JobsPage.tsx`
+- `admin:system.jobs.names.birthday_vouchers` — *(dynamic or unreferenced)*
+- `admin:system.jobs.names.email_campaigns` — *(dynamic or unreferenced)*
+- `admin:system.jobs.names.email_delivery_worker` — *(dynamic or unreferenced)*
+- `admin:system.jobs.names.night_audit` — *(dynamic or unreferenced)*
+- `admin:system.jobs.names.payment_receipts` — *(dynamic or unreferenced)*
+- `admin:system.jobs.names.pre_arrival_reminders` — *(dynamic or unreferenced)*
+- `admin:system.jobs.names.unpaid_hold_release` — *(dynamic or unreferenced)*
+- `admin:system.jobs.noFailures` — `src/features/admin/system/JobsPage.tsx`
+- `admin:system.jobs.noRuns` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.jobs.notInstalled` — `src/features/admin/system/JobsPage.tsx`
+- `admin:system.jobs.notInstalledDetail` — `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:system.jobs.recentFailures` — `src/features/admin/system/JobsPage.tsx`
+- `admin:system.jobs.refreshAria` — `src/features/admin/system/JobsPage.tsx`
+- `admin:system.jobs.runsCount_one` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.runsCount_other` — `src/features/admin/system/JobsTable.tsx`
+- `admin:system.jobs.subtitle` — `src/features/admin/system/JobsPage.tsx`
+- `admin:system.jobs.title` — `src/features/admin/system/JobsPage.tsx`
+- `admin:system.refreshNow` — `src/features/admin/system/JobsPage.tsx`, `src/features/admin/system/SystemHealthPage.tsx`
+- `admin:title` — *(dynamic or unreferenced)*
+
+### `auth`
+
+- `auth:booking.consentRequired` — *(dynamic or unreferenced)*
+- `auth:common.back` — `src/features/auth/components/LoginPage.tsx`, `src/features/auth/components/RegisterPage.tsx`
+- `auth:completeProfile.addressLabel` — `src/features/auth/components/CompleteProfilePage.tsx`
+- `auth:completeProfile.continue` — `src/features/auth/components/CompleteProfilePage.tsx`
+- `auth:completeProfile.firstNameLabel` — `src/features/auth/components/CompleteProfilePage.tsx`
+- `auth:completeProfile.lastNameLabel` — `src/features/auth/components/CompleteProfilePage.tsx`
+- `auth:completeProfile.phoneLabel` — `src/features/auth/components/CompleteProfilePage.tsx`
+- `auth:completeProfile.saveFailed` — `src/features/auth/components/CompleteProfilePage.tsx`
+- `auth:completeProfile.subtitle` — `src/features/auth/components/CompleteProfilePage.tsx`
+- `auth:completeProfile.title` — `src/features/auth/components/CompleteProfilePage.tsx`
+- `auth:deactivation.confirmMessage` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.confirmTitle` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.deactivated` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.deactivatedAlert` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.deactivatedTitle` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.deactivating` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.effectBookings` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.effectHistory` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.effectInactive` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.effectReactivate` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.effectsIntro` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.failed` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.noteBody` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.noteLabel` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.reactivate` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.reactivateFailed` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.reactivateHint` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.reactivated` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.reactivating` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.reasonLabel` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.reasonPlaceholder` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.reasonPrompt` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:deactivation.title` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:devices.current` — `src/features/user/components/profile/DevicesTab.tsx`
+- `auth:devices.empty` — `src/features/user/components/profile/DevicesTab.tsx`
+- `auth:devices.lastActive` — `src/features/user/components/profile/sessionLocation.ts`
+- `auth:devices.lastActiveAt` — `src/features/user/components/profile/sessionLocation.ts`
+- `auth:devices.revoke` — `src/features/user/components/UserProfilePage.tsx`, `src/features/user/components/profile/DevicesTab.tsx`
+- `auth:devices.revokeFailed` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:devices.revokeMessage` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:devices.revokeTitle` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:devices.revoked` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:devices.subtitle` — `src/features/user/components/profile/DevicesTab.tsx`
+- `auth:devices.title` — `src/features/user/components/profile/DevicesTab.tsx`
+- `auth:devices.type.desktop` — `src/features/user/components/profile/deviceIcons.tsx`
+- `auth:devices.type.laptop` — `src/features/user/components/profile/deviceIcons.tsx`
+- `auth:devices.type.mobile` — `src/features/user/components/profile/deviceIcons.tsx`
+- `auth:devices.type.securityKey` — `src/features/user/components/profile/deviceIcons.tsx`
+- `auth:devices.type.tablet` — `src/features/user/components/profile/deviceIcons.tsx`
+- `auth:devices.type.unknown` — `src/features/user/components/profile/deviceIcons.tsx`
+- `auth:errors.emailVerificationFailed` — `src/api/auth.service.ts`
+- `auth:errors.googleSignInFailed` — `src/api/auth.service.ts`, `src/auth/AuthContext.tsx`
+- `auth:errors.loginFailed` — `src/auth/AuthContext.tsx`
+- `auth:errors.passkeyAlreadyRegistered` — `src/auth/AuthContext.tsx`
+- `auth:errors.passkeyAuthCancelled` — `src/auth/AuthContext.tsx`
+- `auth:errors.passkeyAuthFailed` — `src/auth/AuthContext.tsx`
+- `auth:errors.passkeyCreateFailed` — `src/auth/AuthContext.tsx`
+- `auth:errors.passkeyNotRegistered` — `src/auth/AuthContext.tsx`
+- `auth:errors.passkeyNotSupported` — `src/auth/AuthContext.tsx`
+- `auth:errors.passkeyRegisterCancelled` — `src/auth/AuthContext.tsx`
+- `auth:errors.passkeyRegisterFailed` — `src/auth/AuthContext.tsx`
+- `auth:errors.profileCompletionFailed` — `src/api/auth.service.ts`
+- `auth:errors.registrationFailed` — `src/api/auth.service.ts`, `src/auth/AuthContext.tsx`
+- `auth:errors.sessionExpired` — `src/api/guestRelations.service.ts`, `src/api/guests.service.ts`
+- `auth:errors.unableToConnect` — `src/auth/AuthContext.tsx`
+- `auth:errors.verifyUsernameFailed` — `src/api/auth.service.ts`
+- `auth:login.accountNotFound` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.failed` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.googleAutoSignedIn` — `src/features/auth/google/useGoogleOneTap.ts`
+- `auth:login.googleFailed` — `src/features/auth/google/googleSignInError.ts`
+- `auth:login.googleFirstTimeCancel` — `src/features/auth/google/GuestOneTap.tsx`
+- `auth:login.googleFirstTimeConfirm` — `src/features/auth/google/GuestOneTap.tsx`
+- `auth:login.googleFirstTimeTitle` — `src/features/auth/google/GuestOneTap.tsx`
+- `auth:login.googleNeedsAccount` — `src/features/auth/google/googleSignInError.ts`
+- `auth:login.googleStaffOnly` — `src/features/auth/google/googleSignInError.ts`
+- `auth:login.googleUnavailable` — `src/features/auth/google/googleSignInError.ts`
+- `auth:login.hidePassword` — `src/features/auth/components/LoginPage.tsx`, `src/features/auth/components/RegisterPage.tsx`
+- `auth:login.lookupFailed` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.noAccount` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.or` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.passwordLabel` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.sessionNotice` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.showPassword` — `src/features/auth/components/LoginPage.tsx`, `src/features/auth/components/RegisterPage.tsx`
+- `auth:login.signUp` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.submit` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.subtitle` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.title` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.usernameInvalid` — `src/features/auth/components/LoginPage.tsx`
+- `auth:login.usernameLabel` — `src/features/auth/components/LoginPage.tsx`
+- `auth:passkeys.add` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.addedAt` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.benefitBiometric` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.benefitFast` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.benefitPhishing` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.benefitSecure` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.delete` — `src/features/user/components/UserProfilePage.tsx`, `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.deleteFailed` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:passkeys.deleteMessage` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:passkeys.deleted` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:passkeys.editName` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.empty` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.emptyHint` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.firstLoginIntro` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.firstLoginLimit` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.firstLoginSkip` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.firstLoginTitle` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.firstLoginWelcome` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.lastUsed` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.limitAlert` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.limitReached` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:passkeys.nameEmpty` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.namePlaceholder` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.nameUpdateFailed` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:passkeys.nameUpdated` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:passkeys.neverUsed` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.register` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.registerFailed` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`, `src/features/user/components/UserProfilePage.tsx`
+- `auth:passkeys.registerFirst` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.registered` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:passkeys.registering` — `src/features/auth/components/FirstLoginPasskeyPrompt.tsx`
+- `auth:passkeys.subtitle` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.title` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:passkeys.unnamed` — `src/features/user/components/profile/PasskeysTab.tsx`
+- `auth:profile.addEmail` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.addEmailHint` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.avatarFormats` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.avatarTooLarge` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.avatarUrl` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.avatarUrlHint` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.editProfile` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.emailAddedVerify` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:profile.emailHintEditable` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.emailHintLocked` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.emailNotConfigured` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.emailVerificationPending` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.emailVerified` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.loadFailed` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:profile.memberSince` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.removeAvatar` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:profile.tabs.devices` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:profile.tabs.passkeys` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:profile.tabs.profile` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:profile.tabs.security` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:profile.tabs.twoFactor` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:profile.title` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:profile.updateFailed` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:profile.updated` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:profile.uploadAvatar` — `src/features/user/components/profile/ProfileTab.tsx`
+- `auth:register.addressLabel` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.alreadyHaveAccount` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.confirmPasswordLabel` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.emailLabel` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.failed` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.firstNameLabel` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.lastNameLabel` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.passwordLabel` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.phoneLabel` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.redirecting_one` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.redirecting_other` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.signIn` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.submit` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.subtitle` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.success` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.successVerifyEmail` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.title` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:register.usernameLabel` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:security.changePassword` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:security.confirmNewPassword` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:security.currentPassword` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:security.currentPasswordHint` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:security.enterCurrentPassword` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:security.enterValidPassword` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:security.fillAllFields` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:security.minChars` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:security.newPassword` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:security.passwordUpdateFailed` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:security.passwordUpdated` — `src/features/user/components/UserProfilePage.tsx`
+- `auth:security.passwordsMismatch` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:security.updatePassword` — `src/features/user/components/profile/SecurityTab.tsx`
+- `auth:turnstile.failed` — `src/features/auth/turnstile/turnstileError.ts`
+- `auth:turnstile.incomplete` — `src/features/auth/components/LoginPage.tsx`, `src/features/auth/components/RegisterPage.tsx`
+- `auth:turnstile.timeout` — `src/features/auth/turnstile/turnstileError.ts`
+- `auth:turnstile.unavailable` — `src/features/auth/turnstile/turnstileError.ts`
+- `auth:twoFactor.cancel` — `src/features/auth/components/LoginPage.tsx`
+- `auth:twoFactor.chooseAnother` — `src/features/auth/components/LoginPage.tsx`
+- `auth:twoFactor.chooseSubtitle` — `src/features/auth/components/LoginPage.tsx`
+- `auth:twoFactor.recoveryHelp` — *(dynamic or unreferenced)*
+- `auth:twoFactor.recoveryIncomplete` — *(dynamic or unreferenced)*
+- `auth:twoFactor.recoveryLabel` — *(dynamic or unreferenced)*
+- `auth:twoFactor.recoveryMethod` — *(dynamic or unreferenced)*
+- `auth:twoFactor.recoveryMethodDescription` — *(dynamic or unreferenced)*
+- `auth:twoFactor.recoverySubtitle` — *(dynamic or unreferenced)*
+- `auth:twoFactor.recoveryUsed_one` — *(dynamic or unreferenced)*
+- `auth:twoFactor.recoveryUsed_other` — *(dynamic or unreferenced)*
+- `auth:twoFactor.title` — `src/features/auth/components/LoginPage.tsx`, `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactor.totpHelp` — *(dynamic or unreferenced)*
+- `auth:twoFactor.totpIncomplete` — *(dynamic or unreferenced)*
+- `auth:twoFactor.totpLabel` — *(dynamic or unreferenced)*
+- `auth:twoFactor.totpMethod` — *(dynamic or unreferenced)*
+- `auth:twoFactor.totpMethodDescription` — *(dynamic or unreferenced)*
+- `auth:twoFactor.totpSubtitle` — *(dynamic or unreferenced)*
+- `auth:twoFactor.verify` — `src/features/auth/components/LoginPage.tsx`
+- `auth:twoFactorEnrollment.blocked` — `src/features/auth/components/LoginPage.tsx`
+- `auth:twoFactorEnrollment.deadlineWarning` — `src/features/auth/components/EnrollTwoFactorPage.tsx`
+- `auth:twoFactorEnrollment.later` — `src/features/auth/components/EnrollTwoFactorPage.tsx`
+- `auth:twoFactorEnrollment.passkeyNote` — `src/features/auth/components/EnrollTwoFactorPage.tsx`
+- `auth:twoFactorEnrollment.title` — `src/features/auth/components/EnrollTwoFactorPage.tsx`, `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorEnrollment.warning` — `src/features/auth/components/EnrollTwoFactorPage.tsx`
+- `auth:twoFactorSetup.backupCodesAfterEnable` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.backupCodesDialogBody` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.backupCodesDialogTitle` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.backupCodesTitle` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.backupCodesWarning` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.codesRemaining_one` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.codesRemaining_other` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.codesSaved` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.copyAll` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.copySetupKey` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.disableCodeLabel` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.disableConfirm` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.disableDialogTitle` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.disableFailed` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.disableHint` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.disableTitle` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.disableUndoWarning` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.disabled` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.enableAction` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.enableFailed` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.enabled` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.enabledBanner` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.enabledBannerDetail` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.enterCurrentCode` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.enterVerificationCode` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.generateNewCodes` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.loadingStatus` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.manualEntry` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.newCodesReady` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.notEnabled` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.notEnabledHint` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.qrCodeTitle` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.regenerateCodeLabel` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.regenerateConfirm` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.regenerateDialogTitle` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.regenerateFailed` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.regenerated` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.settingUp` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.setup` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.setupExpired` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.stepInstall` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.stepScan` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.stepVerify` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.subtitle` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:twoFactorSetup.verificationCodeLabel` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `auth:validation.emailInvalid` — `src/utils/validation.ts`
+- `auth:validation.emailRequired` — `src/utils/validation.ts`
+- `auth:validation.firstNameRequired` — `src/features/auth/components/CompleteProfilePage.tsx`
+- `auth:validation.lastNameRequired` — `src/features/auth/components/CompleteProfilePage.tsx`
+- `auth:validation.passwordMismatch` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:validation.passwordTooShort` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:validation.phoneRequired` — `src/utils/validation.ts`
+- `auth:validation.phoneTooLong` — `src/utils/validation.ts`
+- `auth:validation.phoneTooShort` — `src/utils/validation.ts`
+- `auth:validation.requiredFields` — `src/features/auth/components/RegisterPage.tsx`
+- `auth:verifyEmail.backToLogin` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.failedFallback` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.failedHint` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.failedTitle` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.goToLogin` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.noToken` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.redirecting_one` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.redirecting_other` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.success` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.successNext` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.title` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.verifying` — `src/features/auth/components/EmailVerificationPage.tsx`
+- `auth:verifyEmail.verifyingSubtitle` — `src/features/auth/components/EmailVerificationPage.tsx`
+
+### `bookings`
+
+- `bookings:channels.agent` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:channels.corporate` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:channels.direct` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:channels.fallbackOnline` — `src/features/bookings/utils/bookingChannel.ts`
+- `bookings:channels.fallbackWebsite` — `src/features/bookings/utils/bookingChannel.ts`
+- `bookings:channels.mobile` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:channels.online` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:channels.phone` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:channels.walk_in` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:channels.website` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:checkIn.amountPaid` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.bookingNumber` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomHistoryTimeline.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.checkIn` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:checkIn.checkInNow` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.depositAmount` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.depositMethod` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.depositRequiredError` — `src/features/bookings/components/Bookings/dialogs/CheckInDialog.tsx`, `src/features/bookings/components/EnhancedCheckInModal.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/hooks/useReservedCheckInWorkflow.ts`
+- `bookings:checkIn.depositSection` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.failed` — `src/features/bookings/components/Bookings/dialogs/CheckInDialog.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `bookings:checkIn.guestInformation` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.icPassport` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.icRequired` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.icRequiredError` — `src/features/bookings/components/Bookings/dialogs/CheckInDialog.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/hooks/useReservedCheckInWorkflow.ts`
+- `bookings:checkIn.makePaymentNow` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.onlinePlatformFallback` — `src/features/bookings/components/EnhancedCheckInModal.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.payLater` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.payLaterNotice` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `bookings:checkIn.payLaterUnpaid` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.paymentMethod` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.paymentSection` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.phone` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.phoneOptional` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.processing` — `src/features/bookings/components/EnhancedCheckInModal.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `bookings:checkIn.receiveDeposit` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.settledOnline` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.settledOnlineNotice` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.success` — `src/features/bookings/components/Bookings/dialogs/CheckInDialog.tsx`, `src/features/rooms/hooks/useGuestCreditsWorkflow.ts`
+- `bookings:checkIn.summary.checkIn` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.summary.checkOut` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.summary.roomType` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.summary.totalAmount` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.title` — `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.waiveDeposit` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.waiveReasonHelper` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.waiveReasonLabel` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkIn.waiveReasonPlaceholder` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:checkInForm.custom.carPlate` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.driversInfo` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.eta` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.etaPlaceholder` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.extraBedCharge` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.extraBedChargeHelper` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.extraBedCount` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.groupCode` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.guestVehicles` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.langDefault` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.langMalay` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.langMandarin` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.langTamil` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.language` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.noExtraBeds` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.perExtraBed` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.specialCharges` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.tourismTax` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.travelAgent1` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.travelAgent2` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.travelInfo` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.notes.checkInInfo` — `src/features/bookings/components/checkIn/NotesTab.tsx`
+- `bookings:checkInForm.notes.confirmationNumber` — `src/features/bookings/components/checkIn/NotesTab.tsx`
+- `bookings:checkInForm.notes.preCheckinDone` — `src/features/bookings/components/checkIn/NotesTab.tsx`
+- `bookings:checkInForm.notes.specialRequests` — `src/features/bookings/components/checkIn/NotesTab.tsx`
+- `bookings:checkInForm.notes.specialRequestsHelper` — `src/features/bookings/components/checkIn/NotesTab.tsx`
+- `bookings:checkInForm.notes.status` — `src/features/bookings/components/checkIn/NotesTab.tsx`
+- `bookings:checkInForm.payment.amountPaid` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.cardInformation` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.cardNumber` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.companyDetails` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.companyHelper` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.companyLabel` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.companyPlaceholder` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.contact` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.deposit` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.directBillingInfo` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.emailLabel` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.expireDate` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.expireFormat` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.expirePlaceholder` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.hideCardNumber` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.nameOnCard` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.paid` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.paymentMethod` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.paymentStatus` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.paymentSummary` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.phoneLabel` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.regNo` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.showCardNumber` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.totalAmount` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.unpaid` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.waiveReason` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.payment.waived` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:checkInForm.personal.city` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.country` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `bookings:checkInForm.personal.email` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.firstName` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.icHelper` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.icNumber` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.lastName` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.nationality` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `bookings:checkInForm.personal.phone1` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.phone2` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.stateProvince` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.streetAddress` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.title` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.personal.zipCode` — `src/features/bookings/components/checkIn/PersonalInfoTab.tsx`
+- `bookings:checkInForm.stay.adults` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `bookings:checkInForm.stay.chargeIncidentals` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.checkInDate` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.checkInTime` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.checkOutDate` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.checkOutTime` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.discountPercent` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.epiRate` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.extraBeds` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.marketCode` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.marketCodePlaceholder` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.nextPosting` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.nights` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.overrideRate` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.rateCode` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.rateCodeSuffix` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.roomChargeSummary` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.roomNumber` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.sectionCheckInOut` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.sectionRateCharges` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.sectionSpecialPosting` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.totalAmountLabel` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.vipGuest` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.weekdayRate` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:checkInForm.stay.weekendRate` — `src/features/bookings/components/checkIn/StayInfoTab.tsx`
+- `bookings:comp.addCredits` — `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.addDialog.addFailed` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.added` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.adding` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.confirm` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.nights` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.reason` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.reasonCounter` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.reasonPlaceholder` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.roomType` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.selectGuest` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.title` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.addDialog.validation` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.bookingLabel` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.bookingLine` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.colActions` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`, `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.colBooking` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.colCompNights` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.colCredits` — `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.colDates` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.colGuest` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`, `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.colReason` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.colReason2` — `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.colRoom` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.colRoomType` — `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.colStatus` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.compNightsLabel` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.compNights_one` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.compNights_other` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.compPrefix` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.creditsTitle` — `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.deleteCredit.confirm` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.deleteCredit.deleteFailed` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.deleteCredit.deleted` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.deleteCredit.deleting` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.deleteCredit.guestLabel` — *(dynamic or unreferenced)*
+- `bookings:comp.deleteCredit.nightsToDelete` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.deleteCredit.roomTypeLabel` — *(dynamic or unreferenced)*
+- `bookings:comp.deleteCredit.title` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.deleteCredit.warning` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.deleteCredits` — `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.editAria` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.editCredit.confirm` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.editCredit.guestLabel` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.editCredit.nightsAvailable` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.editCredit.notes` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.editCredit.roomTypeLabel` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.editCredit.title` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.editCredit.updateFailed` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.editCredit.updated` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.editCredit.updating` — `src/features/admin/components/complimentary/CreditDialogs.tsx`
+- `bookings:comp.editCredits` — `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.editTitle` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.empty` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.endDate` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.guestLabel` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.nights_one` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`, `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.nights_other` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`, `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.noCredits` — `src/features/admin/components/complimentary/GuestCreditsPanel.tsx`
+- `bookings:comp.noReason` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.originalAmount` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.pageTitle` — `src/features/admin/components/ComplimentaryManagementPage.tsx`
+- `bookings:comp.reason` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `bookings:comp.remove` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.removeAria` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.removeFailed` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.removeTitle` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.removeWarning` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.removed` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.removing` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.searchPlaceholder` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`
+- `bookings:comp.startDate` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.summaryBookings` — `src/features/admin/components/complimentary/SummaryCards.tsx`
+- `bookings:comp.summaryCredits` — `src/features/admin/components/complimentary/SummaryCards.tsx`
+- `bookings:comp.summaryCreditsHint` — `src/features/admin/components/complimentary/SummaryCards.tsx`
+- `bookings:comp.summaryNights` — `src/features/admin/components/complimentary/SummaryCards.tsx`
+- `bookings:comp.summaryValue` — `src/features/admin/components/complimentary/SummaryCards.tsx`
+- `bookings:comp.tabBookings` — `src/features/admin/components/ComplimentaryManagementPage.tsx`
+- `bookings:comp.tabCredits` — `src/features/admin/components/ComplimentaryManagementPage.tsx`
+- `bookings:comp.update` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.updateFailed` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.updated` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:comp.updating` — `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`
+- `bookings:details.actions` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.bookedVia` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.charges` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.checkIn` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `bookings:details.checkInAction` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.checkOut` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `bookings:details.checkOutAction` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.closeAria` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.direct` — `src/features/bookings/utils/bookingChannel.ts`
+- `bookings:details.due` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.earlyCheckIn` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.earlyCheckInTooltip` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.edit` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.fullyPaid` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.fullyPaidVia` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.included` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.invoice` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.more` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.nightsAbbrev` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.openFullPage` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.payment` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.paymentStatus` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.reactivate` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.releaseRoom` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.roomFallback` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.roomNights` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.roomNumber` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`, `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/dashboard/components/reports/reportsModel.ts`
+- `bookings:details.stay` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.taxAndFees` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.total` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.void` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:details.workflow` — `src/features/bookings/components/Bookings/BookingDetailsPanel.tsx`
+- `bookings:drawer.aria` — `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`
+- `bookings:drawer.unavailable` — `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`
+- `bookings:edit.actualCheckOut` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.actualCheckOutHelper` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.assignedRoom` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.bookingPlatform` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.channel` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.checkInDate` — `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`, `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.checkOutDate` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.company` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.companyHelper` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.companyPlaceholder` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.contactPrefix` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.currentMarker` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.extraBedCharge` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.extraBedChargeHelper` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.extraBedCount` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.extraBedHelper` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.failed` — `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`, `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.guestLabel` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.noChannel` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.otaRef` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.remarks` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.remarksPlaceholder` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.roomLabel` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.roomOption` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.roomRate` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.roomRateHelper` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.specialRequests` — `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`, `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.specialRequestsPlaceholder` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.status` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.success` — `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`, `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.title` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.update` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:edit.updating` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `bookings:enhancedCheckIn.advisoryBillTo` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.advisoryTitle` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.bookedAs` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.bookingSummary` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.checkIn` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.checkOut` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.addNew` — `src/features/bookings/components/checkIn/PaymentInfoTab.tsx`
+- `bookings:enhancedCheckIn.company.billingAddress` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.companyName` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.contactEmail` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.contactPerson` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.contactPhone` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.register` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.registerFailed` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.registerHint` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.registerTitle` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.registeredSuccess` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.registrationNumber` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.company.registrationPlaceholder` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.depositPaid` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.errors.checkInFailed` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.errors.noPhoneNotice` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.errors.paymentFailed` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.errors.paymentRetryAmount` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.extraBed` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.folio` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.na` — `src/features/bookings/components/EnhancedCheckInModal.tsx`, `src/features/bookings/components/checkIn/NotesTab.tsx`
+- `bookings:enhancedCheckIn.nights` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.notices.checkInProcessing` — `src/features/bookings/hooks/useEnhancedCheckInModalState.ts`
+- `bookings:enhancedCheckIn.notices.companyProcessing` — `src/features/bookings/hooks/useEnhancedCheckInModalState.ts`
+- `bookings:enhancedCheckIn.ratePerNight` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.ratePerNightCustom` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.roomRate` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.roomTypeFallback` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.sourceDirect` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.sourceOnline` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.sourceWalkIn` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.subtitle` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.summaryGuest` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.summaryRoom` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.tabs.custom` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.tabs.general` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.tabs.notes` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.tabs.payment` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.tabs.stay` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.title` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.totalAmount` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.tourismTax` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.validation.cardExpiryInvalid` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.validation.cardNumberInvalid` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.validation.firstNameRequired` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.validation.firstNameShort` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.validation.fixErrors` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.validation.icInvalid` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.validation.icRequired` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:enhancedCheckIn.validation.lastNameRequired` — `src/features/bookings/components/EnhancedCheckInModal.tsx`
+- `bookings:filters.any` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.anyMonth` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.clear` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.dateChip` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.monthChip` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.onlineChannel` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.openAria` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.paymentMethod` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.searchDate` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.searchMonth` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.searchPlaceholder` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.view.all` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.view.arriving` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.view.balance` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.view.company_balance` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.view.in_house` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.view.normal_balance` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:filters.view.upcoming` — `src/features/bookings/components/Bookings/BookingFiltersBar.tsx`
+- `bookings:labels.checkIn` — `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:labels.checkOut` — `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:labels.guest` — `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:labels.room` — `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:list.billing.company` — `src/features/bookings/utils/bookingPageUtils.ts`
+- `bookings:list.billing.member` — `src/features/bookings/utils/bookingPageUtils.ts`
+- `bookings:list.billing.nonMember` — `src/features/bookings/utils/bookingPageUtils.ts`
+- `bookings:list.count_one` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.count_other` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.count_zero` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.due` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.emptyFilteredHint` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.emptyFilteredTitle` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.emptyHint` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.emptyTitle` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.loadingAria` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.nightAudit` — `src/features/bookings/components/Bookings/BookingMetaChips.tsx`
+- `bookings:list.nightsAbbrev` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.onlineBookingTooltip` — `src/features/bookings/components/Bookings/BookingMetaChips.tsx`
+- `bookings:list.roomFallback` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.roomNumber` — `src/features/admin/components/complimentary/ComplimentaryBookingsTable.tsx`, `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.showing` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.sortButton` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.sortGuest` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:list.sortPriority` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `bookings:page.backToBookings` — `src/features/bookings/pages/BookingDetailPage.tsx`
+- `bookings:page.bookingNotFound` — `src/features/bookings/hooks/useBookingActions.ts`, `src/features/bookings/pages/BookingDetailPage.tsx`
+- `bookings:page.bookingNotFoundHint` — `src/features/bookings/pages/BookingDetailPage.tsx`
+- `bookings:page.checkoutSuccess` — `src/features/bookings/hooks/useBookingActions.ts`
+- `bookings:page.frontDesk` — `src/features/bookings/components/Bookings/BookingsPage.tsx`
+- `bookings:page.kicker` — `src/features/bookings/pages/BookingDetailPage.tsx`
+- `bookings:page.loadFailed` — `src/features/bookings/pages/BookingDetailPage.tsx`
+- `bookings:page.newBooking` — `src/features/bookings/components/Bookings/BookingsPage.tsx`
+- `bookings:page.refresh` — `src/features/bookings/components/Bookings/BookingsPage.tsx`
+- `bookings:page.retry` — `src/features/bookings/components/Bookings/BookingsPage.tsx`
+- `bookings:page.workflowLoadFailed` — `src/features/bookings/hooks/useBookingActions.ts`
+- `bookings:payment.accept` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.accepted` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.acceptedBalance` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.acceptedContinue` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.amountCoverBalance` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.amountExceedsError` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.amountExceedsHelper` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.amountLabel` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.amountPositive` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.balance` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.booking` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.checkoutBlocked` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.datedNotice` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.failed` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.fullBalanceRequired` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.methodLabel` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.noteHelper` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.noteLabel` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.notePlaceholder` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.outstandingBalance` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.paid` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.processing` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.recordPaymentAction` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.subtitleAccept` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.subtitleRequired` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.titleAccept` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.titleRequired` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:payment.total` — `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`
+- `bookings:quickEdit.checkOutDate` — `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`
+- `bookings:quickEdit.remarks` — `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`
+- `bookings:quickEdit.saveChanges` — `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`
+- `bookings:quickEdit.title` — `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`
+- `bookings:reactivate.confirm` — `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`
+- `bookings:reactivate.failed` — `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`
+- `bookings:reactivate.processing` — `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`
+- `bookings:reactivate.success` — `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`
+- `bookings:reactivate.title` — `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`
+- `bookings:reactivate.warning` — `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`
+- `bookings:release.confirm` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:release.failed` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:release.processing` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:release.reasonHelper` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:release.reasonLabel` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:release.reasonPlaceholder` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:release.success` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:release.successAudit` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:release.title` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:release.warning` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:summary.arrivals` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.arrivalsDetail` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.arrivalsShort` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.companyOutstanding` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.companyOutstandingShort` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.departures` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.departuresDetail` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.departuresShort` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.dueCountScope` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.inHouse` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.inHouseDetail` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.inHouseShort` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.normalOutstanding` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.normalOutstandingShort` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.scopeCompanyTerms` — `src/features/bookings/components/Bookings/BookingsPage.tsx`
+- `bookings:summary.scopeCompanyTermsPage` — `src/features/bookings/components/Bookings/BookingsPage.tsx`
+- `bookings:summary.scopePastCheckout` — `src/features/bookings/components/Bookings/BookingsPage.tsx`
+- `bookings:summary.scopePastCheckoutPage` — `src/features/bookings/components/Bookings/BookingsPage.tsx`
+- `bookings:summary.takePayment` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.takePaymentDetail` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.upcoming` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.upcomingDetail` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:summary.upcomingShort` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
+- `bookings:title` — `src/features/bookings/components/Bookings/BookingsPage.tsx`
+- `bookings:void.auditDatesNotice` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:void.auditPostedNotice` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:void.confirm` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:void.failed` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:void.processing` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:void.reasonLabel` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:void.reasonPlaceholder` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:void.success` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:void.successAudit` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:void.title` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:void.warning` — `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`
+- `bookings:workflow.balance` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.empty` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.event.checkIn` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.event.checkout` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.event.checkoutVoid` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.event.payment` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.event.update` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.event.void` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.paid` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.refunded` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.timeline` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.title` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+- `bookings:workflow.total` — `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`
+
+### `common`
+
+- `common:actions.actions` — `src/components/common/ActionsMenu.tsx`
+- `common:actions.add` — `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`, `src/features/rates/components/RoomRatesEditor.tsx`, `src/features/user/components/settings/SystemConfigurationCard.tsx`
+- `common:actions.apply` — `src/features/admin/components/AuditLogPage.tsx`, `src/features/onlineInventory/components/CellEditorPopover.tsx`, `src/features/onlineInventory/components/CellEditorSheet.tsx`
+- `common:actions.archive` — `src/features/promotions/components/PromotionAdminTable.tsx`, `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `common:actions.assign` — *(dynamic or unreferenced)*
+- `common:actions.back` — `src/features/bookings/components/GuestCheckInForm.tsx`, `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`, `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`, `src/features/ekyc/components/EkycRegistrationPage.tsx`, `src/features/invoices/components/DepositSection.tsx`, `src/features/legal/components/LegalDocumentPage.tsx`
+- `common:actions.cancel` — `src/components/common/ConfirmDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`, `src/features/admin/components/CustomerLedger/components/DeleteCompanyDialog.tsx`, `src/features/admin/components/CustomerLedger/components/DuplicateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`, `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`, `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/PaymentApprovalsPage.tsx`, `src/features/admin/components/complimentary/BookingComplimentaryDialogs.tsx`, `src/features/admin/components/complimentary/CreditDialogs.tsx`, `src/features/admin/components/data-transfer/ExportPanel.tsx`, `src/features/admin/components/data-transfer/ImportWizard.tsx`, `src/features/admin/components/data-transfer/StepUpDialog.tsx`, `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`, `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`, `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`, `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/auth/components/TwoFactorSetup.tsx`, `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/PaymentDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/ReactivateDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`, `src/features/bookings/components/Bookings/dialogs/VoidDialog.tsx`, `src/features/bookings/components/EnhancedCheckInModal.tsx`, `src/features/bookings/components/GuestCheckInVerify.tsx`, `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/dashboard/components/ReceptionistDashboard.tsx`, `src/features/ekyc/components/EkycCreateDialog.tsx`, `src/features/ekyc/components/EkycManagementPage.tsx`, `src/features/ekyc/components/EkycRegistrationPage.tsx`, `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`, `src/features/guestPortal/components/PortalSupportTab.tsx`, `src/features/guestPortal/components/dashboard/DevicesSection.tsx`, `src/features/guestPortal/components/dashboard/ProfileSection.tsx`, `src/features/guestPortal/components/dashboard/SecuritySection.tsx`, `src/features/guestRelations/components/GuestConsentDialog.tsx`, `src/features/guestRelations/components/GuestFormDialog.tsx`, `src/features/guestRelations/components/GuestPortalAccountDialog.tsx`, `src/features/guestRelations/components/InteractionForm.tsx`, `src/features/guestRelations/components/OpenSupportDialog.tsx`, `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`, `src/features/housekeeping/components/NewTaskDialog.tsx`, `src/features/housekeeping/components/NewTicketDialog.tsx`, `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`, `src/features/housekeeping/components/TaskEditDialog.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/loyalty/components/LoyaltyDashboard.tsx`, `src/features/loyalty/components/LoyaltyPortal.tsx`, `src/features/onlineInventory/components/CellEditorPopover.tsx`, `src/features/onlineInventory/components/CellEditorSheet.tsx`, `src/features/onlineInventory/components/ReviewChangesDialog.tsx`, `src/features/promotions/components/PromotionEditorDialog.tsx`, `src/features/promotions/components/VoucherIssueDialog.tsx`, `src/features/rates/components/BulkRateDialog.tsx`, `src/features/rates/components/RatePlanDialog.tsx`, `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomEventDialog.tsx`, `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`, `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`, `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomNotesDialog.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingModalFooter.tsx`, `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`, `src/features/support/components/SupportConversationDetail.tsx`, `src/features/user/components/AccountDeactivation.tsx`, `src/features/user/components/profile/PasskeysTab.tsx`, `src/features/user/components/profile/ProfileTab.tsx`, `src/features/user/components/profile/SecurityTab.tsx`
+- `common:actions.clear` — `src/features/admin/components/AuditLogPage.tsx`
+- `common:actions.close` — `src/components/common/BottomSheet.tsx`, `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`, `src/features/admin/components/PaymentApprovalsPage.tsx`, `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`, `src/features/auth/components/TwoFactorSetup.tsx`, `src/features/bookings/components/Bookings/dialogs/WorkflowDialog.tsx`, `src/features/bookings/components/GuestCheckInConfirmation.tsx`, `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/ekyc/components/EkycManagementPage.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`, `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`, `src/features/guestRelations/components/GuestCreditsDialog.tsx`, `src/features/housekeeping/components/TicketDetailDialog.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/loyalty/components/LoyaltyPortal.tsx`, `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`, `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingModalHeader.tsx`, `src/features/segments/components/SegmentEditorDialog.tsx`, `src/features/segments/pages/SegmentsPage.tsx`
+- `common:actions.collapse` — `src/components/common/CollapsibleSection.tsx`
+- `common:actions.confirm` — `src/components/common/ConfirmDialog.tsx`, `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `common:actions.continue` — `src/features/user/components/profile/SecurityTab.tsx`
+- `common:actions.copy` — *(dynamic or unreferenced)*
+- `common:actions.create` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`, `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`, `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/loyalty/components/LoyaltyDashboard.tsx`, `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `common:actions.delete` — `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`, `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/guestRelations/components/tabs/InteractionsTab.tsx`, `src/features/loyalty/components/LoyaltyDashboard.tsx`, `src/features/rates/pages/RatesPage.tsx`, `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/segments/pages/SegmentsPage.tsx`
+- `common:actions.disable` — *(dynamic or unreferenced)*
+- `common:actions.discardChanges` — `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/user/components/SettingsPage.tsx`
+- `common:actions.dismiss` — *(dynamic or unreferenced)*
+- `common:actions.done` — `src/features/onlineInventory/components/GridToolbar.tsx`, `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `common:actions.download` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/PaymentApprovalsPage.tsx`
+- `common:actions.duplicate` — `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `common:actions.edit` — `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/tabs/InteractionsTab.tsx`, `src/features/housekeeping/components/RoomDetailDrawer.tsx`, `src/features/promotions/components/PromotionAdminTable.tsx`, `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/segments/pages/SegmentsPage.tsx`
+- `common:actions.enable` — *(dynamic or unreferenced)*
+- `common:actions.expand` — `src/components/common/CollapsibleSection.tsx`
+- `common:actions.export` — `src/features/admin/components/AuditLogPage.tsx`, `src/features/admin/components/DataTransferPage.tsx`, `src/features/admin/components/data-transfer/TransferHistoryList.tsx`, `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/dashboard/components/reports/drawers.tsx`
+- `common:actions.filter` — *(dynamic or unreferenced)*
+- `common:actions.goBack` — `src/components/common/StatusPage.tsx`
+- `common:actions.goHome` — `src/components/common/ErrorBoundary.tsx`, `src/components/common/StatusPage.tsx`
+- `common:actions.import` — `src/features/admin/components/DataTransferPage.tsx`, `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `common:actions.manage` — *(dynamic or unreferenced)*
+- `common:actions.more` — *(dynamic or unreferenced)*
+- `common:actions.moreActions` — `src/components/common/ActionsMenu.tsx`
+- `common:actions.next` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `common:actions.no` — `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/ekyc/components/EkycManagementPage.tsx`, `src/features/loyalty/components/LoyaltyPortal.tsx`, `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `common:actions.ok` — *(dynamic or unreferenced)*
+- `common:actions.openFilters` — `src/components/common/SearchAndFilters.tsx`
+- `common:actions.print` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `common:actions.refresh` — `src/features/admin/components/AuditLogPage.tsx`, `src/features/admin/components/ComplimentaryManagementPage.tsx`, `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/onlineInventory/components/GridToolbar.tsx`
+- `common:actions.remove` — `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `common:actions.reset` — `src/components/common/FilterSheet.tsx`, `src/features/ekyc/components/EkycManagementPage.tsx`, `src/features/onlineInventory/components/CellEditorSheet.tsx`, `src/features/support/components/SupportManagementPage.tsx`
+- `common:actions.restore` — *(dynamic or unreferenced)*
+- `common:actions.retry` — `src/components/common/ErrorBoundary.tsx`, `src/features/communications/components/PortalNotificationPreferences.tsx`, `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/GuestPaymentPanel.tsx`, `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`, `src/features/guestPortal/components/PortalSupportTab.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`, `src/features/guestRelations/components/tabs/CommunicationTab.tsx`, `src/features/guestRelations/components/tabs/InteractionsTab.tsx`, `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`, `src/features/guestRelations/components/tabs/PreferencesTab.tsx`, `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`, `src/features/promotions/components/PromotionCatalog.tsx`, `src/features/promotions/components/VoucherDetailsDrawer.tsx`, `src/features/promotions/components/VoucherWallet.tsx`, `src/features/promotions/pages/PromotionManagementPage.tsx`, `src/features/revenue/pages/RevenueOverviewPage.tsx`
+- `common:actions.save` — `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/loyalty/components/LoyaltyPortal.tsx`, `src/features/rooms/components/RoomManagement/components/RoomNotesDialog.tsx`, `src/features/segments/components/SegmentEditorDialog.tsx`, `src/features/user/components/profile/PasskeysTab.tsx`, `src/features/user/components/profile/ProfileTab.tsx`
+- `common:actions.search` — `src/features/ekyc/components/EkycManagementPage.tsx`, `src/features/segments/pages/SegmentsPage.tsx`
+- `common:actions.sections` — `src/components/common/ResponsiveTabs.tsx`
+- `common:actions.seeAll` — *(dynamic or unreferenced)*
+- `common:actions.select` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/onlineInventory/components/GridToolbar.tsx`
+- `common:actions.selectAll` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `common:actions.send` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `common:actions.showLess` — *(dynamic or unreferenced)*
+- `common:actions.showMore` — *(dynamic or unreferenced)*
+- `common:actions.sort` — *(dynamic or unreferenced)*
+- `common:actions.submit` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `common:actions.update` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `common:actions.upload` — *(dynamic or unreferenced)*
+- `common:actions.view` — `src/features/admin/components/PaymentApprovalsPage.tsx`, `src/features/ekyc/components/EkycManagementPage.tsx`
+- `common:actions.viewAll` — `src/components/layout/NotificationCenter.tsx`, `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/guestRelations/components/OverviewSectionCard.tsx`
+- `common:actions.viewDetails` — *(dynamic or unreferenced)*
+- `common:actions.void` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `common:actions.yes` — `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/ekyc/components/EkycManagementPage.tsx`, `src/features/loyalty/components/LoyaltyPortal.tsx`, `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `common:app.title` — `src/router/RootLayout.tsx`
+- `common:aria.loading` — `src/router/RouteFallbacks.tsx`
+- `common:aria.loadingPage` — `src/components/layout/LandingPage.tsx`
+- `common:charts.emptyPeriod` — `src/components/charts/states.tsx`
+- `common:charts.loadFailed` — `src/components/charts/states.tsx`
+- `common:charts.loading` — `src/components/charts/states.tsx`
+- `common:confirm.areYouSure` — `src/components/common/ConfirmDialog.tsx`, `src/features/admin/components/CustomerLedger/components/DeleteCompanyDialog.tsx`
+- `common:confirm.pleaseConfirm` — `src/components/common/ConfirmDialog.tsx`
+- `common:count.guests_one` — `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`, `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `common:count.guests_other` — `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`, `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `common:count.guests_zero` — `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`, `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `common:count.items_one` — *(dynamic or unreferenced)*
+- `common:count.items_other` — *(dynamic or unreferenced)*
+- `common:count.items_zero` — *(dynamic or unreferenced)*
+- `common:count.nights_one` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`, `src/features/rooms/components/UnifiedBooking/components/StaySection.tsx`
+- `common:count.nights_other` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`, `src/features/rooms/components/UnifiedBooking/components/StaySection.tsx`
+- `common:count.nights_zero` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`, `src/features/rooms/components/UnifiedBooking/components/StaySection.tsx`
+- `common:count.rooms_one` — `src/features/rooms/components/UnifiedBooking/components/BookingModalHeader.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `common:count.rooms_other` — `src/features/rooms/components/UnifiedBooking/components/BookingModalHeader.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `common:count.rooms_zero` — `src/features/rooms/components/UnifiedBooking/components/BookingModalHeader.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `common:desktop.dataFolder` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.errors.backendStopped` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.errors.backendStoppedCode` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.errors.openFolderFailed` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.errors.restartFailed` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.errors.statusRead` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.errors.subscribeFailed` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.errors.upgradeFailed` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.noBackup` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.openDataFolder` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.restartServices` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.restoreBackup` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.restorePrompt` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.retryNoUpgrade` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.starting` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.unavailable` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.upgradeBody` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.upgradeTitle` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.upgrading` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.versionCurrent` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.versionOlder` — `src/desktop/DesktopServiceGate.tsx`
+- `common:desktop.waitingAddress` — `src/desktop/DesktopServiceGate.tsx`
+- `common:field.actions` — `src/features/admin/components/PaymentApprovalsPage.tsx`, `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `common:field.address` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`, `src/features/user/components/SettingsPage.tsx`
+- `common:field.all` — `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/ekyc/components/EkycManagementPage.tsx`, `src/features/housekeeping/components/MaintenanceTab.tsx`, `src/features/notifications/components/DeliveryTabs.tsx`, `src/features/segments/pages/SegmentsPage.tsx`
+- `common:field.amount` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/admin/components/PaymentApprovalsPage.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `common:field.createdAt` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `common:field.date` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `common:field.description` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`, `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`, `src/features/admin/components/rbac/RolesTab/RolesTab.tsx`, `src/features/housekeeping/components/NewTicketDialog.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`, `src/features/rates/components/RatePlanDialog.tsx`, `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/segments/components/SegmentEditorDialog.tsx`
+- `common:field.details` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `common:field.email` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/DeleteCompanyDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`, `src/features/user/components/profile/ProfileTab.tsx`
+- `common:field.from` — `src/features/admin/components/AuditLogPage.tsx`
+- `common:field.fullName` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/user/components/profile/ProfileTab.tsx`
+- `common:field.name` — `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`, `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/segments/components/SegmentEditorDialog.tsx`
+- `common:field.none` — `src/features/admin/components/CustomerLedger/components/DeleteCompanyDialog.tsx`, `src/features/guestRelations/components/InteractionForm.tsx`
+- `common:field.notes` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/housekeeping/components/NewTaskDialog.tsx`, `src/features/housekeeping/components/TaskEditDialog.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/rooms/components/UnifiedBooking/components/NotesSection.tsx`
+- `common:field.optional` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/UnifiedBooking/components/NotesSection.tsx`
+- `common:field.perNight` — *(dynamic or unreferenced)*
+- `common:field.perPerson` — *(dynamic or unreferenced)*
+- `common:field.phone` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/DeleteCompanyDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`, `src/features/user/components/profile/ProfileTab.tsx`
+- `common:field.phoneNumber` — *(dynamic or unreferenced)*
+- `common:field.status` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/admin/components/PaymentApprovalsPage.tsx`, `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/admin/system/JobsTable.tsx`, `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`, `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/segments/pages/SegmentsPage.tsx`
+- `common:field.time` — *(dynamic or unreferenced)*
+- `common:field.to` — `src/features/admin/components/AuditLogPage.tsx`
+- `common:field.total` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingModalFooter.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `common:field.type` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/communications/pages/CommunicationsPage.tsx`
+- `common:field.updatedAt` — *(dynamic or unreferenced)*
+- `common:filters.allStatuses` — `src/features/notifications/pages/NotificationsPage.tsx`
+- `common:filters.apply` — `src/components/common/FilterSheet.tsx`
+- `common:filters.byStatus` — `src/features/notifications/pages/NotificationsPage.tsx`
+- `common:filters.title` — `src/components/common/FilterSheet.tsx`, `src/features/ekyc/components/EkycManagementPage.tsx`, `src/features/housekeeping/components/BoardView.tsx`
+- `common:language.change` — `src/components/common/LanguageSwitcher.tsx`
+- `common:language.current` — `src/components/common/LanguageSwitcher.tsx`
+- `common:language.label` — `src/components/layout/MobileMoreSheet.tsx`
+- `common:language.switchedTo` — *(dynamic or unreferenced)*
+- `common:pagination.next` — `src/components/data-table/DataTable.tsx`, `src/features/admin/components/AuditLogPage.tsx`
+- `common:pagination.of` — *(dynamic or unreferenced)*
+- `common:pagination.page` — *(dynamic or unreferenced)*
+- `common:pagination.pageOf` — `src/components/data-table/DataTable.tsx`
+- `common:pagination.previous` — `src/components/data-table/DataTable.tsx`, `src/features/admin/components/AuditLogPage.tsx`
+- `common:pagination.rowsPerPage` — `src/features/admin/components/AuditLogPage.tsx`
+- `common:pagination.showing` — `src/features/admin/components/AuditLogPage.tsx`, `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`, `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `common:state.deleting` — `src/features/admin/components/CustomerLedger/components/DeleteCompanyDialog.tsx`, `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `common:state.empty` — *(dynamic or unreferenced)*
+- `common:state.error` — `src/components/common/ErrorBoundary.tsx`
+- `common:state.loading` — `src/components/common/HotelSpinner.tsx`, `src/components/layout/NotificationCenter.tsx`, `src/features/notifications/pages/NotificationsPage.tsx`
+- `common:state.noData` — *(dynamic or unreferenced)*
+- `common:state.noResults` — *(dynamic or unreferenced)*
+- `common:state.processing` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`, `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`, `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `common:state.retry` — `src/components/charts/states.tsx`, `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/admin/components/rbac/RBACManagementPage.tsx`, `src/features/ekyc/components/EkycManagementPage.tsx`, `src/features/guestRelations/pages/GuestProfilePage.tsx`, `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`, `src/features/guestRelations/pages/GuestRelationsPage.tsx`, `src/features/housekeeping/components/HousekeepingPage.tsx`, `src/features/housekeeping/components/MaintenanceTab.tsx`, `src/features/housekeeping/components/TasksView.tsx`, `src/features/rates/pages/RatesPage.tsx`, `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `common:state.saving` — `src/features/admin/components/rbac/RolesTab/RoleEditDrawer.tsx`, `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/bookings/components/Bookings/BookingDetailDrawer.tsx`, `src/features/guestRelations/components/GuestConsentDialog.tsx`, `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/InteractionForm.tsx`, `src/features/guestRelations/components/tabs/PreferencesTab.tsx`, `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomNotesDialog.tsx`, `src/features/user/components/SettingsPage.tsx`
+- `common:state.searching` — `src/components/layout/CommandPalette.tsx`
+- `common:state.unavailable` — *(dynamic or unreferenced)*
+- `common:table.empty` — `src/components/data-table/DataTable.tsx`
+- `common:time.custom` — *(dynamic or unreferenced)*
+- `common:time.dateRange` — *(dynamic or unreferenced)*
+- `common:time.endDate` — `src/features/insights/components/ReportFilterBar.tsx`
+- `common:time.hoursAgo` — `src/features/notifications/utils/relativeTime.ts`
+- `common:time.justNow` — `src/features/notifications/utils/relativeTime.ts`
+- `common:time.minutesAgo` — `src/features/notifications/utils/relativeTime.ts`
+- `common:time.startDate` — `src/features/insights/components/ReportFilterBar.tsx`
+- `common:time.thisMonth` — *(dynamic or unreferenced)*
+- `common:time.thisWeek` — *(dynamic or unreferenced)*
+- `common:time.today` — `src/features/admin/components/AuditLogPage.tsx`, `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `common:time.tomorrow` — *(dynamic or unreferenced)*
+- `common:time.yesterday` — *(dynamic or unreferenced)*
+- `common:units.days` — `src/features/user/components/SettingsPage.tsx`
+- `common:units.hours` — `src/features/user/components/SettingsPage.tsx`
+- `common:units.minutes` — `src/features/user/components/SettingsPage.tsx`
+- `common:units.perNight` — `src/api/rooms.service.ts`
+
+### `communications`
+
+- `communications:actions.deactivate` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:actions.deliveries` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:actions.preview` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:actions.sendTest` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:actions.suppress` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:actions.testSend` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaignType.announcement` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaignType.promotion` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.audience` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.audienceWithSegment` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.cardSubtitle_one` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.cardSubtitle_other` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.deliveriesTitle` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.editTitle` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.heading` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.new` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.newTitle` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.previewAudience` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.previewAudienceWithSegment` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.previewTitle` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.sendTooltip` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.sentFailed` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.testEmailTitle` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:campaigns.testSent` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:columns.active` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:columns.attempts` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:columns.lastError` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:columns.reason` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:columns.recipient` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:columns.recipients` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:columns.sentFailed` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:columns.source` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:columns.variables` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:deliveries.attemptsWithError_one` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:deliveries.attemptsWithError_other` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:deliveries.attempts_one` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:deliveries.attempts_other` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:errors.portalSignInRequired` — `src/features/communications/api/portalCommunicationsApi.ts`, `src/features/guestPortal/booking/api.ts`, `src/features/promotions/api/portalPromotionsApi.ts`
+- `communications:errors.requestFailed` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:fields.allowedVariables` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:fields.bodyHtml` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:fields.code` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:fields.emailToSuppress` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:fields.promotion` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:fields.recipientEmail` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:fields.segment` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:fields.subject` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:hints.allEligibleGuests` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:hints.codeFormat` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:hints.noPromotions` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:hints.promotion` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:hints.promotionLoadFailed` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:hints.promotionsLoading` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:hints.segmentAll` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:hints.segmentLoadFailed` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:hints.segmentScoped` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:hints.variables` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:pageTitle` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:suppressions.description` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:suppressions.heading` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:suppressions.reason.bounce` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:suppressions.reason.complaint` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:suppressions.reason.manual` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:suppressions.reason.unsubscribe` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:tabs.campaigns` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:tabs.suppressions` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:tabs.templates` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:templates.editTitle` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:templates.heading` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:templates.new` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:templates.newTitle` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:templates.noVariables` — `src/features/communications/pages/CommunicationsPage.tsx`
+- `communications:templates.variables` — `src/features/communications/pages/CommunicationsPage.tsx`
+
+### `dashboard`
+
+- `dashboard:frontDesk.attentionRequired` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.errors.loadCheckIn` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.errors.loadDashboard` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.guestFallback` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.legendCleaningAuto` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.maintenanceRooms` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.noCheckIns` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.noCheckOuts` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.refreshAria` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.restricted` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.roomStatusOverview` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.roomTile.end` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.roomTile.next` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.roomTile.out` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.roomTile.start` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.roomTooltip.clickForDetails` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.roomTooltip.guest` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.roomTooltip.notes` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.roomTooltip.type` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.stats.availableRooms` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.stats.occupancyRate` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.stats.occupiedRooms` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.stats.reservedRooms` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.subtitle` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.title` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.todayCheckIns` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.todayCheckOuts` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.viewAllArrivals_one` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.viewAllArrivals_other` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.viewAllDepartures_one` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:frontDesk.viewAllDepartures_other` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `dashboard:library.backToLibrary` — `src/features/insights/pages/ReportLibraryPage.tsx`
+- `dashboard:library.categories.accounting` — `src/features/insights/pages/ReportLibraryPage.tsx`
+- `dashboard:library.categories.analytics` — `src/features/insights/pages/ReportLibraryPage.tsx`
+- `dashboard:library.categories.financial` — `src/features/insights/pages/ReportLibraryPage.tsx`
+- `dashboard:library.categories.operations` — `src/features/insights/pages/ReportLibraryPage.tsx`
+- `dashboard:library.dateBasis.accounting` — `src/features/insights/components/ReportShell.tsx`
+- `dashboard:library.dateBasis.booking` — `src/features/insights/components/ReportShell.tsx`
+- `dashboard:library.dateBasis.stay` — `src/features/insights/components/ReportShell.tsx`
+- `dashboard:library.emptyReport` — `src/features/insights/components/ReportShell.tsx`
+- `dashboard:library.errors.loadCatalog` — `src/features/insights/pages/ReportLibraryPage.tsx`
+- `dashboard:library.errors.runReport` — `src/features/insights/pages/ReportLibraryPage.tsx`
+- `dashboard:library.filters.allShifts` — `src/features/insights/components/ReportFilterBar.tsx`
+- `dashboard:library.filters.company` — `src/features/insights/components/ReportFilterBar.tsx`
+- `dashboard:library.filters.drawer` — `src/features/insights/components/ReportFilterBar.tsx`
+- `dashboard:library.filters.roomType` — `src/features/insights/components/ReportFilterBar.tsx`
+- `dashboard:library.filters.shift` — `src/features/insights/components/ReportFilterBar.tsx`
+- `dashboard:library.noRows` — `src/features/insights/components/ReportShell.tsx`, `src/features/insights/utils/reportEnvelopePrint.ts`
+- `dashboard:library.printReport` — `src/features/insights/components/ReportShell.tsx`
+- `dashboard:library.printTitle` — `src/features/insights/utils/reportEnvelopePrint.ts`
+- `dashboard:library.runReport` — `src/features/insights/components/ReportFilterBar.tsx`
+- `dashboard:library.shifts.evening` — `src/features/insights/components/ReportFilterBar.tsx`
+- `dashboard:library.shifts.morning` — `src/features/insights/components/ReportFilterBar.tsx`
+- `dashboard:library.shifts.night` — `src/features/insights/components/ReportFilterBar.tsx`
+- `dashboard:reports.access.full` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.access.scoped` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.aria.ageingBuckets` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.aria.dailyRevenueTrend` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.aria.occupancyByType` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.aria.occupancyTrend` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.aria.outstandingAgeing` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.aria.roomRevenueByType` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.compare.label` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.compare.month` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.compare.prev` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.compare.vsLastMonth` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.compare.vsLastYear` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.compare.vsPrevDays` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.compare.year` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.crumbAnalytics` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.crumbReports` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.delta.noPrior` — `src/features/dashboard/components/reports/charts.tsx`
+- `dashboard:reports.drawers.ageingBuckets` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.byRoomType` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.checkoutAt` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colAdr` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colAgeing` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colBalance` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colCompany` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colEta` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colGuest` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colNights` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colOcc` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colRevenue` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colRoom` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.colType` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.companyBalances` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.dueDate` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.drawers.earnedDefinition` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.expectedCheckIns_one` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.expectedCheckIns_other` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.expectedCheckOuts_one` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.expectedCheckOuts_other` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.guestBalances` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.liveListNote` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.occupancyByType` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.occupancySub` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.occupancyTitle` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.occupiedLine` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.openFrontDesk` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.openRoomTimeline` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.outstandingSource` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.outstandingSub` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.outstandingTitle` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.pctOccupied` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.revenueStatesNote` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.revenueSub` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.revenueTitles.adr` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.revenueTitles.fallback` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.revenueTitles.revpar` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.revenueTitles.roomRev` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.revenueTitles.totalRev` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.totalOutstanding` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.drawers.viewBookings` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.errors.loadFailed` — `src/features/dashboard/components/reports/reportsModel.ts`, `src/features/dashboard/hooks/useDashboardAnalytics.ts`
+- `dashboard:reports.filters.roomType` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.filters.source` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.financeOnly` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.footnote` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.kpi.adr` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.kpi.occupancyRate` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.kpi.outstanding` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.kpi.revpar` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.kpi.roomRevenue` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.kpi.totalRevenue` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.kpi.trendAria` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.live.arrivals` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.live.departures` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.live.inHouse` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.live.occupancyNow` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.live.roomsToClean` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.live.title` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.live.unassigned` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.live.updated` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.mainProperty` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.arrivalsToday` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.panels.dailyRevenue` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.dailyRevenueSub` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.departuresToday` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.panels.drillDown` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.expected` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.noOpenInvoices` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.occupancyTrend` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.occupancyTrendSub` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.outstandingAgeing` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.revenueAnalytics` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.roomTypePerformance` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.roomTypePerformanceSub` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.sourceMix` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.panels.sourceMixSub` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.range.days30` — *(dynamic or unreferenced)*
+- `dashboard:reports.range.days7` — *(dynamic or unreferenced)*
+- `dashboard:reports.range.days90` — *(dynamic or unreferenced)*
+- `dashboard:reports.restricted` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.revenueStates.booked.desc` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.revenueStates.booked.label` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.revenueStates.collected.desc` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.revenueStates.collected.label` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.revenueStates.earned.desc` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.revenueStates.earned.label` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.revenueStates.outstanding.desc` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.revenueStates.outstanding.label` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.roomStatus.arrivingToday` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.roomStatus.occupied` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.roomStatus.vacantClean` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.roomStatus.vacantReady` — `src/features/dashboard/components/reports/reportsModel.ts`
+- `dashboard:reports.series.dailyOccupancy` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.series.occupancy` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.series.otherRevenue` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.series.roomRevenue` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.subtitle` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.title` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.tooltip.bookings_one` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.tooltip.bookings_other` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.tooltip.invoices_one` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.tooltip.invoices_other` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.tooltip.occAdr` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.tooltip.occupancy` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.tooltip.ofTotal` — `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.tooltip.roomRevenue` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.tooltip.roomsSold_one` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.tooltip.roomsSold_other` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`
+- `dashboard:reports.tooltip.rooms_one` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:reports.tooltip.rooms_other` — `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/dashboard/components/reports/drawers.tsx`
+- `dashboard:title` — *(dynamic or unreferenced)*
+
+### `dataTransfer`
+
+- `dataTransfer:columns.entity` — `src/features/admin/components/data-transfer/ExportPanel.tsx`, `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:columns.existing` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:columns.inserted` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:columns.new` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:columns.rows` — `src/features/admin/components/data-transfer/ExportPanel.tsx`, `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:columns.skipped` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:columns.updated` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:export.backup.description` — *(dynamic or unreferenced)*
+- `dataTransfer:export.backup.restriction` — *(dynamic or unreferenced)*
+- `dataTransfer:export.backup.tagline` — *(dynamic or unreferenced)*
+- `dataTransfer:export.backup.title` — *(dynamic or unreferenced)*
+- `dataTransfer:export.download` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.downloaded` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.errors.export` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.errors.preview` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.exclusions.credentials_and_auth_state` — *(dynamic or unreferenced)*
+- `dataTransfer:export.exclusions.ephemeral_queue_state` — *(dynamic or unreferenced)*
+- `dataTransfer:export.exclusions.internal_system_table` — *(dynamic or unreferenced)*
+- `dataTransfer:export.exclusions.sensitive_ekyc_pii` — *(dynamic or unreferenced)*
+- `dataTransfer:export.exclusions.session_or_token_material` — *(dynamic or unreferenced)*
+- `dataTransfer:export.full.description` — *(dynamic or unreferenced)*
+- `dataTransfer:export.full.restriction` — *(dynamic or unreferenced)*
+- `dataTransfer:export.full.tagline` — *(dynamic or unreferenced)*
+- `dataTransfer:export.full.title` — *(dynamic or unreferenced)*
+- `dataTransfer:export.missingPermission` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.neverIncluded` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.preview` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.previewScope` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.previewStats` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.secretsExcluded` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.sensitiveAckAria` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.sensitiveConfirmAck` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.sensitiveConfirmBody` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.sensitiveConfirmTitle` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:export.standard.description` — *(dynamic or unreferenced)*
+- `dataTransfer:export.standard.tagline` — *(dynamic or unreferenced)*
+- `dataTransfer:export.standard.title` — *(dynamic or unreferenced)*
+- `dataTransfer:export.stepUpRequired` — `src/features/admin/components/data-transfer/ExportPanel.tsx`
+- `dataTransfer:history.colAction` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.colBy` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.colRecords` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.colScope` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.colStatus` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.colWhen` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.empty` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.entities_one` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:history.entities_other` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:history.exportTypes.backup` — *(dynamic or unreferenced)*
+- `dataTransfer:history.exportTypes.full` — *(dynamic or unreferenced)*
+- `dataTransfer:history.exportTypes.standard` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:history.importStarted` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:history.importWithMode` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.jobRef` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.loadingAria` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.modes.import` — *(dynamic or unreferenced)*
+- `dataTransfer:history.modes.merge` — *(dynamic or unreferenced)*
+- `dataTransfer:history.modes.overwrite` — *(dynamic or unreferenced)*
+- `dataTransfer:history.modes.restore` — *(dynamic or unreferenced)*
+- `dataTransfer:history.reAuth` — `src/features/admin/components/DataTransferPage.tsx`, `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.reAuthDenied` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:history.records_one` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.records_other` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.serverBacked` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:history.status.failed` — *(dynamic or unreferenced)*
+- `dataTransfer:history.status.partial` — *(dynamic or unreferenced)*
+- `dataTransfer:history.status.started` — *(dynamic or unreferenced)*
+- `dataTransfer:history.status.success` — *(dynamic or unreferenced)*
+- `dataTransfer:history.systemUser` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:history.title` — `src/features/admin/components/data-transfer/TransferHistoryList.tsx`
+- `dataTransfer:import.analyzing` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.applyingEntity` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.cannotImport` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.cellPair` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.chipInserted` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.chipSkipped` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.chipUpdated` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.chooseDifferent` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.chooseFileAria` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.completeTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.completedApplied_one` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.completedApplied_other` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmAckAria` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmAckMerge` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmAckRestore` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmImport` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmMergeInfo` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmMergeIntro` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmRestore` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmRestoreIntro` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmRestoreTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmRestoreWarnBody` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmRestoreWarnTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.confirmTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.conflict.fail` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.conflict.skip` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.conflict.update` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.conflict.updateRestricted` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.conflictAria` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.conflictPrompt` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.entitiesTableAria` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.errors.preview` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.errors.start` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.errors.upload` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.failedFallback` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.failedTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.failedTxn` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.fileTooLarge` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.finishedSkipped_one` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.finishedSkipped_other` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.importAnother` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.metaApp` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.metaExported` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.metaFormat` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.metaFrom` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.metaUnavailable` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.missingPermissions` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.missingTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.modeMerge` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.modeRestore` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.modeTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.notApplied` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.progressAria` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.progressRefreshFailed` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.removeFile` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.restoreRequiresPermission` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.restoreStepUp` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.restoreWarnBody` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.restoreWarnTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.resultsTableAria` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.reviewImport` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.rowCount_one` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.rowCount_other` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.rowsApplied` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.rowsInEntities` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.rowsSkipped_one` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.rowsSkipped_other` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.running` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.selectFile` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.selectHint` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.selectTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.sensitiveTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.sensitiveWarning` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.skippedRefsTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.startOver` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.unrecognizedBody` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.unrecognizedTitle` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.updateRequiresPermission` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.uploading` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.uploadingAria` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:import.viewHistory` — `src/features/admin/components/data-transfer/ImportWizard.tsx`
+- `dataTransfer:page.noPermission` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:page.permissionChip` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:page.subtitle` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:page.tabHistory` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:page.title` — `src/features/admin/components/DataTransferPage.tsx`
+- `dataTransfer:stepUp.confirm` — `src/features/admin/components/data-transfer/StepUpDialog.tsx`
+- `dataTransfer:stepUp.description` — `src/features/admin/components/data-transfer/ExportPanel.tsx`, `src/features/admin/components/data-transfer/StepUpDialog.tsx`
+- `dataTransfer:stepUp.password` — `src/features/admin/components/data-transfer/StepUpDialog.tsx`
+- `dataTransfer:stepUp.title` — `src/features/admin/components/data-transfer/StepUpDialog.tsx`
+- `dataTransfer:stepUp.totp` — `src/features/admin/components/data-transfer/StepUpDialog.tsx`
+- `dataTransfer:stepUp.totpHint` — `src/features/admin/components/data-transfer/StepUpDialog.tsx`
+- `dataTransfer:stepUp.verifying` — `src/features/admin/components/data-transfer/StepUpDialog.tsx`
+
+### `ekyc`
+
+- `ekyc:admin.actionFailed` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.approve` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.claim` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.customerMessage` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.enableSelfCheckin` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.escalate` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.hold` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.internalNote` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.mark_fraud` — *(dynamic or unreferenced)*
+- `ekyc:admin.actions.mark_potential_duplicate` — *(dynamic or unreferenced)*
+- `ekyc:admin.actions.reason` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.reasonCode` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.reject` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.release_hold` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.request_resubmission` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.actions.title` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.applicationFallback` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.cardMeta` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.cardSubtitle` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.chips.arrivingSoon` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.chips.nearSla` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.chips.overdue` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.create` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.altIdBack` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.altIdFront` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.altProof` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.altSelfie` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.country` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.customer` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.device` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.diff` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.differences` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.dob` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.documents` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.duplicate` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.email` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.expiry` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.extracted` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.extractedValue` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.faceMatch` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.field` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.history` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.historyTransition` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.identity` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.ip` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.liveness` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.location` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.match` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.name` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.noHistory` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.noNotes` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.noOcrFields` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.notes` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.number` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.phone` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.provider` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.reveal` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.signalDocument` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.signals` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.submission` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.submitted` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.submittedValue` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.system` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.type` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.detail.watchlist` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.exportFailed` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.filters.country` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.filters.document` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.filters.orderArrival` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.filters.orderBy` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.filters.orderNewest` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.filters.orderRisk` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.filters.risk` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.filters.status` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.image.loadFailed` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.image.missing` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.image.rotate` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.image.rotateAria` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.image.zoomIn` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.image.zoomOut` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.loadFailed` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.metrics.approved` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.metrics.avgMinutes` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.metrics.highRisk` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.metrics.manual` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.metrics.pending` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.metrics.submitted` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.refresh` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.refreshAria` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.field` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.fields.current_address` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.fields.date_of_birth` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.fields.email` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.fields.full_name` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.fields.id_number` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.fields.ip_address` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.fields.phone` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.reason` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.reveal` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.title` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.reveal.value` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.revealFailed` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.subtitle` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.actions` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.application` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.arrives` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.closeDetailsAria` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.customer` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.document` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.empty` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.reviewer` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.risk` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.status` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.submitted` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.table.viewAria` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:admin.title` — `src/features/ekyc/components/EkycManagementPage.tsx`
+- `ekyc:createDialog.completeRequired` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.createApprove` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.creating` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.currentAddress` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.dateOfBirth` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.documentHeading` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.documentsHeading` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.email` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.errors.dateOfBirthRequired` — `src/features/ekyc/utils/ekycCreateValidation.ts`
+- `ekyc:createDialog.errors.expiryFuture` — `src/features/ekyc/utils/ekycCreateValidation.ts`
+- `ekyc:createDialog.errors.fullNameRequired` — `src/features/ekyc/utils/ekycCreateValidation.ts`
+- `ekyc:createDialog.errors.idExpiryRequired` — `src/features/ekyc/utils/ekycCreateValidation.ts`
+- `ekyc:createDialog.errors.idFrontRequired` — `src/features/ekyc/utils/ekycCreateValidation.ts`
+- `ekyc:createDialog.errors.idNumberRequired` — `src/features/ekyc/utils/ekycCreateValidation.ts`
+- `ekyc:createDialog.errors.idTypeRequired` — `src/features/ekyc/utils/ekycCreateValidation.ts`
+- `ekyc:createDialog.errors.selectGuest` — `src/features/ekyc/utils/ekycCreateValidation.ts`
+- `ekyc:createDialog.errors.selfieRequired` — `src/features/ekyc/utils/ekycCreateValidation.ts`
+- `ekyc:createDialog.expiryDate` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.fullName` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.guestHelp` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.guestLabel` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.guestNoResults` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.guestPlaceholder` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.guestSearchPrompt` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.guestSelected` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.idBack` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.idFront` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.idNumber` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.idType` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.identityHeading` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.issueDate` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.issuingCountry` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.nationality` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.phone` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.proofOfAddress` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.selfCheckin` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.selfie` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.submitFailed` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.subtitle` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.title` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.verified` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:createDialog.verifiedSelfCheckin` — `src/features/ekyc/components/EkycCreateDialog.tsx`
+- `ekyc:idTypes.drivers_license` — *(dynamic or unreferenced)*
+- `ekyc:idTypes.national_id` — *(dynamic or unreferenced)*
+- `ekyc:idTypes.passport` — *(dynamic or unreferenced)*
+- `ekyc:registration.backToProfile` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.document.expiryDate` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.document.idNumber` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.document.idType` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.document.issueDateOptional` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.document.issuingCountry` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.documentHeading` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.documentHint` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.errors.consentRequired` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.errors.expiryFuture` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.errors.fileTooLarge` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.errors.idBackRequired` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.errors.imageOnly` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.errors.readFailed` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.errors.requiredDocumentDetails` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.errors.requiredFields` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.errors.submitFailed` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.errors.uploadsRequired` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.fields.currentAddress` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.fields.currentAddressPlaceholder` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.fields.dateOfBirth` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.fields.email` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.fields.fullName` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.fields.fullNamePlaceholder` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.fields.nationality` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.fields.phone` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.guestOnly` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.personalInfoHeading` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.personalInfoHint` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.redirecting` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.dateOfBirth` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.documentInfo` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.email` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.expiryDate` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.fullName` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.idNumber` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.idType` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.issuingCountry` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.nationality` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.personalInfo` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.phone` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.review.uploadedDocuments` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.reviewHeading` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.reviewHint` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.secureNotice` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.submit` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.submitting` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.subtitle` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.successBody` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.successTitle` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.title` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.idBack` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.idFront` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.optional` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.proofHint` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.proofOfAddress` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.remove` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.required` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.selfie` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.selfieHint` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.takeSelfie` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.uploadDocument` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.uploadIdBack` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploads.uploadIdFront` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploadsHeading` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:registration.uploadsHint` — `src/features/ekyc/components/EkycRegistrationPage.tsx`
+- `ekyc:statusCard.benefitAccess` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.benefitQueue` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.benefitsTitle` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.enableBody` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.enableSubtitle` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.enableTitle` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.fetchFailed` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.loadFailed` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.messages.approved` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.messages.expired` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.messages.pending` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.messages.rejected` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.messages.under_review` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.notesLabel` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.receivedBody` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.receivedTitle` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.selfCheckinBody` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.selfCheckinTitle` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.start` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.submitNew` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.submittedAt` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.title` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:statusCard.verifiedAt` — `src/features/ekyc/components/EkycStatusCard.tsx`
+- `ekyc:steps.documentDetails` — *(dynamic or unreferenced)*
+- `ekyc:steps.personalInfo` — *(dynamic or unreferenced)*
+- `ekyc:steps.uploadDocuments` — *(dynamic or unreferenced)*
+- `ekyc:steps.verification` — *(dynamic or unreferenced)*
+
+### `errors`
+
+- `errors:api.bad_request` — *(dynamic or unreferenced)*
+- `errors:api.conflict` — *(dynamic or unreferenced)*
+- `errors:api.forbidden` — *(dynamic or unreferenced)*
+- `errors:api.guest_name_taken` — *(dynamic or unreferenced)*
+- `errors:api.not_found` — *(dynamic or unreferenced)*
+- `errors:api.profile_incomplete` — *(dynamic or unreferenced)*
+- `errors:api.rate_limited` — *(dynamic or unreferenced)*
+- `errors:api.server_error` — *(dynamic or unreferenced)*
+- `errors:api.service_unavailable` — *(dynamic or unreferenced)*
+- `errors:api.two_factor_enrollment_required` — *(dynamic or unreferenced)*
+- `errors:api.unauthorized` — *(dynamic or unreferenced)*
+- `errors:appStart` — `src/guest/main.tsx`, `src/index.tsx`
+- `errors:boundary.auth` — `src/router/RootLayout.tsx`
+- `errors:boundary.component` — `src/components/common/ErrorBoundary.tsx`
+- `errors:boundary.details` — `src/components/common/ErrorBoundary.tsx`
+- `errors:boundary.guest` — `src/router/RootLayout.tsx`
+- `errors:boundary.page` — `src/components/common/ErrorBoundary.tsx`
+- `errors:boundary.persistHint` — `src/components/common/ErrorBoundary.tsx`
+- `errors:boundary.unexpected` — `src/components/common/ErrorBoundary.tsx`
+- `errors:forbidden` — *(dynamic or unreferenced)*
+- `errors:generic` — *(dynamic or unreferenced)*
+- `errors:network` — *(dynamic or unreferenced)*
+- `errors:notFound` — *(dynamic or unreferenced)*
+- `errors:page.errorLabel` — `src/components/common/StatusPage.tsx`
+- `errors:page.forbiddenMessage` — `src/components/common/StatusPage.tsx`
+- `errors:page.forbiddenTitle` — `src/components/common/StatusPage.tsx`
+- `errors:page.lockedMessage` — `src/components/common/StatusPage.tsx`
+- `errors:page.lockedTitle` — `src/components/common/StatusPage.tsx`
+- `errors:page.notFoundMessage` — `src/components/common/StatusPage.tsx`
+- `errors:page.notFoundTitle` — `src/components/common/StatusPage.tsx`
+- `errors:request.addGuestCredits` — `src/api/bookings.service.ts`
+- `errors:request.apiRequestFailed` — `src/api/client.ts`
+- `errors:request.backendUnreachable` — `src/api/rooms.service.ts`
+- `errors:request.bookWithComplimentaryCredits` — `src/api/bookings.service.ts`
+- `errors:request.checkInGuest` — `src/api/bookings.service.ts`
+- `errors:request.convertComplimentaryToCredits` — `src/api/bookings.service.ts`
+- `errors:request.createBooking` — `src/api/bookings.service.ts`
+- `errors:request.createEkycVerification` — `src/api/ekyc.service.ts`
+- `errors:request.createGuest` — `src/api/guests.service.ts`
+- `errors:request.createGuestInteraction` — `src/api/guestRelations.service.ts`
+- `errors:request.createReward` — `src/api/loyalty.service.ts`
+- `errors:request.createRoom` — `src/api/rooms.service.ts`
+- `errors:request.createRoomEvent` — `src/api/rooms.service.ts`
+- `errors:request.createRoomType` — `src/api/rooms.service.ts`
+- `errors:request.createSupportConversation` — `src/api/guestRelations.service.ts`
+- `errors:request.deleteGuest` — `src/api/guests.service.ts`
+- `errors:request.deleteGuestCredits` — `src/api/bookings.service.ts`
+- `errors:request.deleteGuestInteraction` — `src/api/guestRelations.service.ts`
+- `errors:request.deletePayment` — `src/api/invoices.service.ts`
+- `errors:request.deleteReward` — `src/api/loyalty.service.ts`
+- `errors:request.deleteRoom` — `src/api/rooms.service.ts`
+- `errors:request.deleteRoomType` — `src/api/rooms.service.ts`
+- `errors:request.discardStagedUpload` — `src/api/dataTransfer.service.ts`
+- `errors:request.ekycAction` — `src/api/ekyc.service.ts`
+- `errors:request.ekycSubmission` — `src/api/ekyc.service.ts`
+- `errors:request.endMaintenance` — `src/api/rooms.service.ts`
+- `errors:request.executeRoomChange` — `src/api/rooms.service.ts`
+- `errors:request.exportData` — `src/api/dataTransfer.service.ts`
+- `errors:request.fetchAllRoomTypes` — `src/api/rooms.service.ts`
+- `errors:request.fetchBooking` — `src/api/bookings.service.ts`
+- `errors:request.fetchBookingDetails` — `src/api/bookings.service.ts`
+- `errors:request.fetchBookingTimeline` — `src/api/bookings.service.ts`
+- `errors:request.fetchBookings` — `src/api/bookings.service.ts`
+- `errors:request.fetchComplimentaryBookings` — `src/api/bookings.service.ts`
+- `errors:request.fetchComplimentarySummary` — `src/api/bookings.service.ts`
+- `errors:request.fetchFollowUpQueue` — `src/api/guestRelations.service.ts`
+- `errors:request.fetchGuestBookings` — `src/api/guests.service.ts`
+- `errors:request.fetchGuestCommunicationsSummary` — `src/api/guestRelations.service.ts`
+- `errors:request.fetchGuestCredits` — `src/api/guests.service.ts`
+- `errors:request.fetchGuestInteractions` — `src/api/guestRelations.service.ts`
+- `errors:request.fetchGuestLoyaltySummary` — `src/api/guestRelations.service.ts`
+- `errors:request.fetchGuestPreferences` — `src/api/guestRelations.service.ts`
+- `errors:request.fetchGuestProfile` — `src/api/guests.service.ts`
+- `errors:request.fetchGuestRelationsOverview` — `src/api/guestRelations.service.ts`
+- `errors:request.fetchGuestReviews` — `src/api/guestRelations.service.ts`
+- `errors:request.fetchGuestSupportConversations` — `src/api/guestRelations.service.ts`
+- `errors:request.fetchGuestVouchers` — `src/api/guestRelations.service.ts`
+- `errors:request.fetchGuests` — `src/api/guests.service.ts`
+- `errors:request.fetchGuestsWithCredits` — `src/api/bookings.service.ts`, `src/api/guests.service.ts`
+- `errors:request.fetchHotelOccupancySummary` — `src/api/rooms.service.ts`
+- `errors:request.fetchImportProgress` — `src/api/dataTransfer.service.ts`
+- `errors:request.fetchInvoicePreview` — `src/api/invoices.service.ts`
+- `errors:request.fetchMarketCodes` — `src/api/rates.service.ts`
+- `errors:request.fetchMyGuests` — `src/api/guests.service.ts`
+- `errors:request.fetchOccupancyByRoomType` — `src/api/rooms.service.ts`
+- `errors:request.fetchPaymentWorkflowSummary` — `src/api/invoices.service.ts`
+- `errors:request.fetchPayments` — `src/api/invoices.service.ts`
+- `errors:request.fetchRateCodes` — `src/api/rates.service.ts`
+- `errors:request.fetchRedemptionHistory` — `src/api/loyalty.service.ts`
+- `errors:request.fetchRoomDetailedStatus` — `src/api/rooms.service.ts`
+- `errors:request.fetchRoomHistory` — `src/api/rooms.service.ts`
+- `errors:request.fetchRoomOccupancy` — `src/api/rooms.service.ts`
+- `errors:request.fetchRoomType` — `src/api/rooms.service.ts`
+- `errors:request.fetchRoomTypes` — `src/api/rooms.service.ts`
+- `errors:request.fetchRoomsWithOccupancy` — `src/api/rooms.service.ts`
+- `errors:request.fetchUserInvoices` — `src/api/invoices.service.ts`
+- `errors:request.forfeitDeposit` — `src/api/invoices.service.ts`
+- `errors:request.generateInvoice` — `src/api/invoices.service.ts`
+- `errors:request.invalidBookingData` — `src/api/bookings.service.ts`
+- `errors:request.loadCheckInAdvisory` — `src/api/bookings.service.ts`
+- `errors:request.loadTransferHistory` — `src/api/dataTransfer.service.ts`
+- `errors:request.markBookingComplimentary` — `src/api/bookings.service.ts`
+- `errors:request.operationFailed` — `src/hooks/useApi.ts`
+- `errors:request.previewBackupContents` — `src/api/dataTransfer.service.ts`
+- `errors:request.previewExportData` — `src/api/dataTransfer.service.ts`
+- `errors:request.reactivateBooking` — `src/api/bookings.service.ts`
+- `errors:request.recordPayment` — `src/api/invoices.service.ts`
+- `errors:request.refundDeposit` — `src/api/invoices.service.ts`
+- `errors:request.releaseBooking` — `src/api/bookings.service.ts`
+- `errors:request.removeComplimentaryStatus` — `src/api/bookings.service.ts`
+- `errors:request.requestCancelled` — `src/api/rooms.service.ts`
+- `errors:request.respondToGuestReview` — `src/api/guestRelations.service.ts`
+- `errors:request.restoreDeposit` — `src/api/invoices.service.ts`
+- `errors:request.retryExhausted` — `src/utils/retry.ts`
+- `errors:request.revealSensitiveField` — `src/api/ekyc.service.ts`
+- `errors:request.revertDepositRefund` — `src/api/invoices.service.ts`
+- `errors:request.startImport` — `src/api/dataTransfer.service.ts`
+- `errors:request.syncRoomStatuses` — `src/api/rooms.service.ts`
+- `errors:request.transferGuestPortalAccount` — `src/api/guests.service.ts`
+- `errors:request.updateBooking` — `src/api/bookings.service.ts`
+- `errors:request.updateComplimentaryBooking` — `src/api/bookings.service.ts`
+- `errors:request.updateGuest` — `src/api/guests.service.ts`
+- `errors:request.updateGuestCredits` — `src/api/bookings.service.ts`
+- `errors:request.updateGuestInteraction` — `src/api/guestRelations.service.ts`
+- `errors:request.updateGuestPreferences` — `src/api/guestRelations.service.ts`
+- `errors:request.updateGuestTourismType` — `src/api/guests.service.ts`
+- `errors:request.updatePayment` — `src/api/invoices.service.ts`
+- `errors:request.updateReward` — `src/api/loyalty.service.ts`
+- `errors:request.updateRoom` — `src/api/rooms.service.ts`
+- `errors:request.updateRoomStatus` — `src/api/rooms.service.ts`
+- `errors:request.updateRoomType` — `src/api/rooms.service.ts`
+- `errors:request.uploadBackupFile` — `src/api/dataTransfer.service.ts`
+- `errors:request.uploadDocument` — `src/api/ekyc.service.ts`
+- `errors:request.uploadRoomTypePhoto` — `src/api/rooms.service.ts`
+- `errors:request.verifyCredentials` — `src/api/dataTransfer.service.ts`, `src/features/admin/components/data-transfer/StepUpDialog.tsx`
+- `errors:request.voidBooking` — `src/api/bookings.service.ts`
+- `errors:server` — *(dynamic or unreferenced)*
+- `errors:status.notFound` — `src/utils/apiNotifications.ts`
+- `errors:status.rateLimited` — `src/utils/apiNotifications.ts`
+- `errors:status.requestFailed` — `src/api/queryConfig.ts`, `src/features/admin/components/NightAuditPage.tsx`, `src/utils/apiNotifications.ts`
+- `errors:status.serverError` — `src/utils/apiNotifications.ts`
+- `errors:unauthorized` — *(dynamic or unreferenced)*
+- `errors:unknown` — `src/utils/errorMessage.ts`
+- `errors:validation` — *(dynamic or unreferenced)*
+
+### `finance`
+
+- `finance:checkout.actions.backToInvoice` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.actions.confirmCheckout` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.actions.printInvoice` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.actions.printPreview` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.actions.proceed` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.billBalance.line` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.billBalance.outstanding` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.billBalance.paid` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.billBalance.partial` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.charges.editRates` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.charges.extraBed` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.charges.roomChargeOn` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.charges.roomHourly` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.charges.roomNights_one` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.charges.roomNights_other` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.charges.saveRates` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.charges.serviceTax` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.charges.tourismTax` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.charges.tourismTaxOn` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.chip.early` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.chip.late` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.companyBilling` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.companyBillingNote` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.companyBillingNoteShort` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.cancelDeposit.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.cancelDeposit.messageVoid` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.cancelDeposit.messageWaive` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.cancelDeposit.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.deletePayment.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.deletePayment.message` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.deletePayment.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.revertRefund.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.revertRefund.message` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.revertRefund.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.contactLine` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.errors.processCheckout` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/hooks/useCheckoutFlow.ts`
+- `finance:checkout.errors.saveRates` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.errors.settleBalanceFirst` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.errors.updatePayment` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.field.duration` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.field.guestName` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.field.idIc` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.field.invoiceNumber` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.field.method` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.field.notesOptional` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.field.reference` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.field.referenceOptional` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.field.refundDate` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.field.scheduled` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.hourlyStay` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.nights_one` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.nights_other` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.payments.depositForfeited` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.payments.depositHeld` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.payments.depositRefund` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.payments.depositRows` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.payments.editDepositMethod` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.payments.empty` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.payments.recording` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.print.amountPaid` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.balanceDue` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.depositForfeitedTitle` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.depositState` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.depositTitle` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.depositWaivedTitle` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.earlyCheckout` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.forfeitedNote` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.fullyPaid` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.generated` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.lateCheckout` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.overpayment` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.paymentMethod` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.reason` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.refundedNote` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.seeYouAgain` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.stateForfeited` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.statePendingRefund` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.stateRefunded` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.thanks` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.print.waivedMember` — `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.readiness.billPaid` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.readiness.billToLedger` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.readiness.blocked` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.readiness.blockerBalance` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.readiness.blockerDeposit` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.readiness.ready` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.reviewSubtitle` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.reviewTitle` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.sections.charges` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.sections.chargesBreakdown` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.sections.depositAdjustments` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.sections.guestInfo` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.sections.invoiceDetails` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.sections.payments` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.sections.stayDetails` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.title.confirm` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.title.preview` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.title.receipt` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.total.collect` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.total.refund` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:checkout.total.refundTo` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:deposit.ariaLabel` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.cancel.hint` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.cancel.noRefundWarning` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.cancel.reason` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.cancel.recorded` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.cancel.submit` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.chip.cancelled` — *(dynamic or unreferenced)*
+- `finance:deposit.chip.forfeited` — *(dynamic or unreferenced)*
+- `finance:deposit.chip.none` — *(dynamic or unreferenced)*
+- `finance:deposit.chip.partially_forfeited` — *(dynamic or unreferenced)*
+- `finance:deposit.chip.pending` — *(dynamic or unreferenced)*
+- `finance:deposit.chip.refunded` — *(dynamic or unreferenced)*
+- `finance:deposit.chip.waived` — *(dynamic or unreferenced)*
+- `finance:deposit.errors.cancel` — `src/features/invoices/hooks/useDepositResolution.ts`
+- `finance:deposit.errors.exceedsRefundable` — `src/features/invoices/hooks/useDepositResolution.ts`
+- `finance:deposit.errors.forfeit` — `src/features/invoices/hooks/useDepositResolution.ts`
+- `finance:deposit.errors.refund` — `src/features/invoices/hooks/useDepositResolution.ts`
+- `finance:deposit.errors.restore` — `src/features/invoices/hooks/useDepositResolution.ts`
+- `finance:deposit.errors.revertRefund` — `src/features/invoices/hooks/useDepositResolution.ts`
+- `finance:deposit.forfeit.amount` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.helperExceeds` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.helperPositive` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.helperRefundable` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.helperRemaining` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.hint` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.notesRequired` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.reason` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.reasons.missingItem` — *(dynamic or unreferenced)*
+- `finance:deposit.forfeit.reasons.other` — *(dynamic or unreferenced)*
+- `finance:deposit.forfeit.reasons.outstandingCharge` — *(dynamic or unreferenced)*
+- `finance:deposit.forfeit.reasons.roomDamage` — *(dynamic or unreferenced)*
+- `finance:deposit.forfeit.review` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.reviewReason` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.reviewSummary` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.staffNotes` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.forfeit.submit` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.line.collected` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.line.collectedVia` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.line.forfeited` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.line.recordedOnBooking` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.line.ref` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.line.refunded` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.line.remaining` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.line.via` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.noneCityLedger` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:deposit.options.cancel.description` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.options.cancel.title` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.options.forfeit.description` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.options.forfeit.title` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.options.noDepositToForfeit` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.options.refund.description` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.options.refund.title` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.options.requiresPermission` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.prompt` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.refund.fixedNote` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.refund.method` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.refund.noteOptional` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.refund.referenceOptional` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.refund.submit` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.strip.cancelled` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.strip.forfeited` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.strip.kept` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.strip.partiallyForfeited` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.strip.refunded` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.strip.remainderRefunded` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.strip.restore` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.strip.revertRefund` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.strip.voidedNote` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.strip.waivedNote` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.wording.cancelled` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:deposit.wording.forfeited` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:deposit.wording.partial` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:deposit.wording.partialRefunded` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:deposit.wording.pending` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:deposit.wording.refunded` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:deposit.wording.refundedVia` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:ledger.activeGuests_one` — `src/features/admin/components/CustomerLedger/components/ActiveGuestsRow.tsx`
+- `finance:ledger.activeGuests_other` — `src/features/admin/components/CustomerLedger/components/ActiveGuestsRow.tsx`
+- `finance:ledger.checkin.activeBookings` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.addressPlaceholder` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.checkInDate` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.checkOutDate` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.companyPlaceholder` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.emailHelp` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.guestDetails` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.guestPlaceholder` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.icNumber` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.invalidGuestEmail` — `src/features/admin/components/CustomerLedger/hooks/useCompanyCheckIn.ts`
+- `finance:ledger.checkin.invalidRoomRate` — `src/features/admin/components/CustomerLedger/hooks/useCompanyCheckIn.ts`
+- `finance:ledger.checkin.maxGuests_one` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.maxGuests_other` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.nationalityPlaceholder` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.newGuest` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.noRooms` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.rateDefault` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.ready` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.requireCompanyRoom` — `src/features/admin/components/CustomerLedger/hooks/useCompanyCheckIn.ts`
+- `finance:ledger.checkin.requireGuest` — `src/features/admin/components/CustomerLedger/hooks/useCompanyCheckIn.ts`
+- `finance:ledger.checkin.requireGuestName` — `src/features/admin/components/CustomerLedger/hooks/useCompanyCheckIn.ts`
+- `finance:ledger.checkin.requireIcNumber` — `src/features/admin/components/CustomerLedger/hooks/useCompanyCheckIn.ts`
+- `finance:ledger.checkin.roomDates` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.roomNotFound` — `src/features/admin/components/CustomerLedger/hooks/useCompanyCheckIn.ts`
+- `finance:ledger.checkin.roomPlaceholder` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.roomRate` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.roomsAvailable_one` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.roomsAvailable_other` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.selectCompany` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.selectExisting` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.selectGuest` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.selectRoom` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.submit` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.summaryCompany` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.summaryDates` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.summaryEmail` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.summaryGuest` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.summaryRate` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.summaryRoom` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkin.title` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `finance:ledger.checkoutShort` — `src/features/admin/components/CustomerLedger/components/ActiveGuestsRow.tsx`
+- `finance:ledger.col.balance` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.col.paid` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.companies` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`
+- `finance:ledger.companiesCount_one` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.companiesCount_other` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.companyForm.paymentTermsHelp` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.ph.companyName` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.ph.contactEmail` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.ph.contactPerson` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.ph.contactPhone` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.ph.creditLimit` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.ph.notes` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.ph.registrationNumber` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.ph.streetAddress` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.registering` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.sectionBilling` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.sectionCompany` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.sectionContact` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.titleCreate` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.titleEdit` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.updateCompany` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.companyForm.updating` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.confirm.deletePayment.confirmText` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.confirm.deletePayment.message` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.confirm.deletePayment.title` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.createDialog.addNewCompany` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.createDialog.companyHelp` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.createDialog.companyPlaceholder` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.createDialog.createEntry` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.createDialog.creating` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.createDialog.duplicateCheckHelp` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.createDialog.roomHelp` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.createDialog.roomPlaceholder` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.createDialog.title` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.creditLimitShort` — `src/features/admin/components/CustomerLedger/components/CompanyDetailHeader.tsx`
+- `finance:ledger.creditNote.detailsLabel` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.detailsPlaceholder` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.entryHelp` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.entryLabel` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.info` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.issue` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.issuing` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.noReversible` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.reasonLabel` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.reasonPlaceholder` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.reasons.billingError` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.reasons.goodwillDiscount` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.reasons.other` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.reasons.refundEarlyCheckout` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.reasons.roomDowngrade` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.reasons.serviceNotRendered` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.creditNote.title` — `src/features/admin/components/CustomerLedger/components/CreditNoteDialog.tsx`
+- `finance:ledger.deleteCompany` — `src/features/admin/components/CustomerLedger/components/CompanyDetailHeader.tsx`, `src/features/admin/components/CustomerLedger/components/DeleteCompanyDialog.tsx`
+- `finance:ledger.deleteCompanyConfirm` — `src/features/admin/components/CustomerLedger/components/DeleteCompanyDialog.tsx`
+- `finance:ledger.duplicateDialog.createAnyway` — `src/features/admin/components/CustomerLedger/components/DuplicateLedgerDialog.tsx`
+- `finance:ledger.duplicateDialog.title` — `src/features/admin/components/CustomerLedger/components/DuplicateLedgerDialog.tsx`
+- `finance:ledger.duplicateDialog.viewExisting` — `src/features/admin/components/CustomerLedger/components/DuplicateLedgerDialog.tsx`
+- `finance:ledger.duplicateDialog.warning` — `src/features/admin/components/CustomerLedger/components/DuplicateLedgerDialog.tsx`
+- `finance:ledger.editCompany` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`
+- `finance:ledger.editDialog.paidBlockedHelp` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.editDialog.statusRelabelHelp` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.editDialog.title` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.editDialog.updateEntry` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.editDialog.updating` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.empty.noMatch` — `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`
+- `finance:ledger.empty.none` — `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`
+- `finance:ledger.empty.pickCompany` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.empty.pickCompanyHelp` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.entries.actionsFor` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.entries.editEntry` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.entries.emptyNoMatch` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.entries.emptyNone` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.entries.pay` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.entries.perPage` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.entries.printReceipt` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.entries.refFallback` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.entries.searchPlaceholder` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.entries.viewInvoice` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.entries.voidEntry` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.errors.companyCheckIn` — `src/features/admin/components/CustomerLedger/hooks/useCompanyCheckIn.ts`
+- `finance:ledger.errors.createEntry` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.errors.deleteCompany` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.errors.deletePayment` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:ledger.errors.issueCreditNote` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.errors.loadInvoice` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.errors.loadRoomRate` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.errors.recordPayment` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:ledger.errors.registerCompany` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.errors.updateCompany` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.errors.updateEntry` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.errors.updatePaymentDate` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.errors.verifyReceipt` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.errors.voidEntry` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.expenseType.accommodation` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.expenseType.conference` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.expenseType.food_beverage` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.expenseType.other` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.expenseType.service` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.eyebrow` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.field.availableCredit` — `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`
+- `finance:ledger.field.billingAddress` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.field.bookingRoomRate` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.field.bookingRoomRateHelp` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.field.city` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.field.company` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:ledger.field.companyName` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.field.contact` — `src/features/admin/components/CustomerLedger/components/DeleteCompanyDialog.tsx`
+- `finance:ledger.field.contactEmail` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.field.contactPerson` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.field.contactPhone` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.field.creditLimit` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`
+- `finance:ledger.field.dueDate` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.field.expenseType` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.field.internalNotes` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.field.invoiceDate` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.field.invoiceNumber` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.field.paymentTerms` — `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`
+- `finance:ledger.field.paymentTermsDays` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.field.postalCode` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.field.registrationNo` — `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`
+- `finance:ledger.field.registrationNumber` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `finance:ledger.field.room` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:ledger.field.state` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.field.stayLedgerDate` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.field.streetAddress` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`
+- `finance:ledger.filters.hasBalance` — `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`
+- `finance:ledger.filters.settled` — `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`
+- `finance:ledger.floorWithNumber` — `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.invoice.alreadyInvoiced` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.attn` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.invoice.backToEdit` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.billTo` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.invoice.deselectAll` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.docDetails` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.invoice.docTitle` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.invoice.entryMeta` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.filterAll` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.filterInvoiced` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.generated` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.invoice.ineligibleWarning` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.noEligible` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.notesLabel` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.notesPlaceholder` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.number` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.paymentTermsNote` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.invoice.preview` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.previewTitle` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.protectedNote` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.regNo` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.invoice.selectAllBillable` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.selectEntryAria` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.selectedItems` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.subtotal` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:ledger.invoice.terms` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.invoice.thanks` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.invoice.title` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.invoice.totalDue` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
+- `finance:ledger.menu.creditNote` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.menu.generateInvoice` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.menu.newEntry` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.metaDue` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.metaPaid` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.meter.collected` — `src/features/admin/components/CustomerLedger/components/CompanyBalanceMeter.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.meter.collection` — `src/features/admin/components/CustomerLedger/components/CompanyBalanceMeter.tsx`
+- `finance:ledger.meter.entriesPerCompanies_one` — `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.meter.entriesPerCompanies_other` — `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.meter.needsFollowUp` — `src/features/admin/components/CustomerLedger/components/CompanyBalanceMeter.tsx`
+- `finance:ledger.meter.noneOverdue` — `src/features/admin/components/CustomerLedger/components/CompanyBalanceMeter.tsx`
+- `finance:ledger.meter.openItems_one` — `src/features/admin/components/CustomerLedger/components/CompanyBalanceMeter.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.meter.openItems_other` — `src/features/admin/components/CustomerLedger/components/CompanyBalanceMeter.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.meter.outstanding` — `src/features/admin/components/CustomerLedger/components/CompanyBalanceMeter.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.meter.overdue` — `src/features/admin/components/CustomerLedger/components/CompanyBalanceMeter.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.meter.overdueItems_one` — `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.meter.overdueItems_other` — `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.meter.percentCollected` — `src/features/admin/components/CustomerLedger/components/CompanyBalanceMeter.tsx`
+- `finance:ledger.meter.percentOfBilled` — `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.meter.totalBilled` — `src/features/admin/components/CustomerLedger/components/CompanyBalanceMeter.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerSummaryStrip.tsx`
+- `finance:ledger.netTermsShort` — `src/features/admin/components/CustomerLedger/components/CompanyDetailHeader.tsx`
+- `finance:ledger.newEntry` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.notInvoiced` — `src/features/admin/components/CustomerLedger/components/DuplicateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.payment.alreadyPaid` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.amount` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.balanceDue` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.payment.cancelEdit` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.cannotExceed` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.date` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:ledger.payment.delete` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.due` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.editDate` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.entriesCount_one` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.entriesCount_other` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.exceedsOutstanding` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.exceedsSelection` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.history` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.historyEmpty` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.max` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.method` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.payment.noOutstanding` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.outstandingBalance` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.receiptNumber` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.record` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:ledger.payment.ref` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.reference` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.payment.referencePlaceholder` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.saveDate` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.selectEntries` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.selectedEntries` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.titleEntry` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.payment.totalAmount` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`, `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.payment.totalBalanceDue` — `src/features/admin/components/CustomerLedger/components/RecordPaymentDialog.tsx`
+- `finance:ledger.paymentMethod.bank_transfer` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.paymentMethod.card` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.paymentMethod.cash` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.paymentMethod.cheque` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.paymentMethod.duitnow` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.paymentMethod.online_banking` — `src/features/admin/components/CustomerLedger/constants.ts`
+- `finance:ledger.paymentMethod.paypal` — *(dynamic or unreferenced)*
+- `finance:ledger.paymentTermsDays` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`
+- `finance:ledger.paymentTermsValue` — `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`
+- `finance:ledger.print.appFooter` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.checkInDate` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.checkOutDate` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.dateCreated` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.generatedOn` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.invoiceDocTitle` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`, `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:ledger.print.invoiceFileName` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.paidAmount` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.receiptDocTitle` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.receiptNumber` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.receiptTitle` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.statementDate` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.statementDocTitle` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.statementTitle` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.termsDays` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.totalEntries` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.print.totalPaid` — `src/features/admin/components/CustomerLedger/customerLedgerPrint.ts`
+- `finance:ledger.printStatement` — `src/features/admin/components/CustomerLedger/components/CompanyDetailHeader.tsx`
+- `finance:ledger.receiptWithNumber` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.registerCompany` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`
+- `finance:ledger.roomOption` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`
+- `finance:ledger.roomWithNumber` — `src/features/admin/components/CustomerLedger/components/ActiveGuestsRow.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CreateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/DuplicateLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `finance:ledger.searchClear` — `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`
+- `finance:ledger.searchPlaceholder` — `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`
+- `finance:ledger.sections.billingTerms` — `src/features/admin/components/CustomerLedger/components/CompanyFormDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`
+- `finance:ledger.sections.contact` — `src/features/admin/components/CustomerLedger/components/CompanyInfoTab.tsx`
+- `finance:ledger.subtitle` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.tabs.companyInfo` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.tabs.entries` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.title` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.companyCheckedIn` — `src/features/admin/components/CustomerLedger/hooks/useCompanyCheckIn.ts`
+- `finance:ledger.toast.companyDeleted` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.companyNameRequired` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.companyRegistered` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.companyUpdated` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.creditNoteIssued` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.entryAndRateUpdated` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.entryCreated` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.entryUpdated` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.entryVoided` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.exceedsOutstanding` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.exceedsSelectedBalance` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.guestCheckedOut` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/invoices/hooks/useCheckoutFlow.ts`
+- `finance:ledger.toast.invalidPaymentAmount` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.invalidRoomRate` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.invoiceExists` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.nothingToPrint` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.paymentDateUpdated` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.paymentDeleted` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.paymentRecordedOutstanding` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.paymentRecordedPartial` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.paymentSettled` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.paymentSettledAll` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.pickEntry` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.pickReason` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.receiptExists` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.selectCompany` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.selectEligible` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.toast.selectEntriesAndAmount` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.voidDialog.defaultReason` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`
+- `finance:ledger.voidDialog.reasonLabel` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
+- `finance:ledger.voidDialog.reasonPlaceholder` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
+- `finance:ledger.voidDialog.title` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
+- `finance:ledger.voidDialog.voidEntry` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
+- `finance:ledger.voidDialog.voiding` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
+- `finance:ledger.voidDialog.warning` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
+- `finance:title` — *(dynamic or unreferenced)*
+
+### `guestPortal`
+
+- `guestPortal:account.guest` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:account.signOut` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:account.title` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:actions.book` — `src/features/guestPortal/components/GuestPortalShell.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:actions.bookStay` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:actions.exploreHotel` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:actions.more` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:actions.signIn` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:book.adults` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.anonymousLead` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.anonymousTrail` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.availabilityChangedBody` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.availabilityChangedTitle` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.backToAccount` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.backToHotel` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.cancellationSummary` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.changeRoom` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.checkingAccount` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/PortalDashboardPage.tsx`
+- `guestPortal:book.children` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.childrenSuffix` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.chooseRoom` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.complimentaryNights` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmFreeStay` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmation.amountPaid` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmation.bookAnother` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmation.confirmedTitle` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmation.emailNote` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmation.keepBookingPost` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmation.keepBookingPre` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmation.payTitle` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmation.receiptBody` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmation.receiptTitle` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmation.stayDates` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.confirmingPrice` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.consentRequired` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.continueToPayment` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.coveredInFull` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.creditsAtLimit` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.creditsAvailable` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.creditsHint_one` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.creditsHint_other` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.dailyCleaning` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.detailsHint` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.discount` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.email` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.emailHint` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.adultsRange` — `src/features/guestPortal/booking/utils.ts`
+- `guestPortal:book.errors.checkInHorizon` — `src/features/guestPortal/booking/utils.ts`
+- `guestPortal:book.errors.checkInPast` — `src/features/guestPortal/booking/utils.ts`
+- `guestPortal:book.errors.checkOutOrder` — `src/features/guestPortal/booking/utils.ts`
+- `guestPortal:book.errors.childrenRange` — `src/features/guestPortal/booking/utils.ts`
+- `guestPortal:book.errors.createFailed` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.creditsFailed` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.email` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.invalidDates` — `src/features/guestPortal/booking/utils.ts`
+- `guestPortal:book.errors.nickname` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.nicknameTaken` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.noRooms` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.quoteFailed` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.refreshPriceFailed` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.searchFailed` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.stayLength` — `src/features/guestPortal/booking/utils.ts`
+- `guestPortal:book.errors.tourismType` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.voucherFailed` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.errors.vouchersLoadFailed` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.foreignTourist` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.guestType` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.holdWindow` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.localTourist` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.nickname` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.nicknameHint` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.nightsOfStay` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.noVoucher` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.notEligible` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.openingPortal` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/PortalDashboardPage.tsx`
+- `guestPortal:book.payAfterSubmit` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.phone` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.priceSummary` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.retry` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/PortalDashboardPage.tsx`
+- `guestPortal:book.reviewStay` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.roomImageAlt` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.roomsLeft_one` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.roomsLeft_other` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.search` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.searchHeading` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.searchHint` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.select` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.signIn` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.signInAgain` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/PortalDashboardPage.tsx`
+- `guestPortal:book.specialRequests` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.staySummary` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.stayTotal` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.steps.choose` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.steps.payment` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.steps.review` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.steps.search` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.subtitle` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.subtotal` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.tax` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.title` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.total` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.upToGuests` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.useComplimentary` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.viewAvailable` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.voucher` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.voucherApplied` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.voucherLocksCancellation` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.voucherNonCancellable` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:book.yourDetails` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:booking.bookingNumber` — `src/features/guestPortal/booking/PortalBookingPage.tsx`
+- `guestPortal:booking.checkIn` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:booking.checkOut` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:booking.status` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:booking.total` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:checkin.account.confirmPassword` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.creating` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.email` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.emailHint` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.errors.alreadyClaimed` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.errors.claimFailed` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.errors.consentRequired` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.errors.password` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.errors.passwordMismatch` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.errors.username` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.forBooking` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.nameSuffix` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.password` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.passwordHint` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.signInInstead` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.submit` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.subtitle` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.title` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.account.username` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`
+- `guestPortal:checkin.backToStart` — `src/features/bookings/components/GuestCheckInForm.tsx`, `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.confirmation.body` — `src/features/bookings/components/GuestCheckInConfirmation.tsx`
+- `guestPortal:checkin.confirmation.contactNote` — `src/features/bookings/components/GuestCheckInConfirmation.tsx`
+- `guestPortal:checkin.confirmation.nextSteps` — `src/features/bookings/components/GuestCheckInConfirmation.tsx`
+- `guestPortal:checkin.confirmation.startNew` — `src/features/bookings/components/GuestCheckInConfirmation.tsx`
+- `guestPortal:checkin.confirmation.steps.arrive` — `src/features/bookings/components/GuestCheckInConfirmation.tsx`
+- `guestPortal:checkin.confirmation.steps.email` — `src/features/bookings/components/GuestCheckInConfirmation.tsx`
+- `guestPortal:checkin.confirmation.steps.id` — `src/features/bookings/components/GuestCheckInConfirmation.tsx`
+- `guestPortal:checkin.confirmation.steps.room` — `src/features/bookings/components/GuestCheckInConfirmation.tsx`
+- `guestPortal:checkin.confirmation.title` — `src/features/bookings/components/GuestCheckInConfirmation.tsx`
+- `guestPortal:checkin.continue` — `src/features/bookings/components/GuestCheckInForm.tsx`, `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.details.errors.saveFailed` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.fields.address` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.fields.city` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.fields.country` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.fields.email` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.fields.icNumber` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.fields.nationality` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.fields.phone` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.fields.postcode` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.fields.specialRequests` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.saving` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.submit` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.subtitle` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.details.title` — `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.form.accountReady` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.accountReadyVerify` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.bookingLabel` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.done.bringId` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.done.checkInNow` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.done.checkedIn` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.done.checkingIn` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.done.detailsSaved` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.done.eligible` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.done.title` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.done.updateDetails` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.errors.checkinFailed` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.errors.loadFailed` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.errors.missingToken` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.identityNeedsAccount` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.loading` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.notRequiredSubtitle` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.paySubtitle` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.payTitle` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.receiptSubmitted` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.receiptSubtitle` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.receiptTitle` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.uploadButton` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.uploadChoose` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.uploadFailed` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.uploadHint` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.uploadSelectAria` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.uploadTitle` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.payment.uploading` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.stayDates` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.steps.account` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.steps.details` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.steps.done` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.steps.identity` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.steps.payment` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.subtitle` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.form.title` — `src/features/bookings/components/GuestCheckInForm.tsx`
+- `guestPortal:checkin.landing.availabilityNote` — `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.landing.bookingNumber` — `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.landing.bookingNumberPlaceholder` — `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.landing.errors.missingFields` — `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.landing.errors.verifyFailed` — `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.landing.guestName` — `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.landing.guestNamePlaceholder` — `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.landing.subtitle` — `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.landing.title` — `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.landing.verifying` — `src/features/bookings/components/GuestCheckInLanding.tsx`
+- `guestPortal:checkin.skipForNow` — `src/features/bookings/components/guestCheckIn/ClaimAccountStep.tsx`, `src/features/bookings/components/guestCheckIn/PreCheckInDetailsStep.tsx`
+- `guestPortal:checkin.verify.adults_one` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.adults_other` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.alreadyCompleted` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.continue` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.errors.loadFailed` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.errors.missingToken` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.errors.notFound` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.fields.bookingNumber` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.fields.checkIn` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.fields.checkOut` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.fields.email` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.fields.guests` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.fields.name` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.fields.nights` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.fields.phone` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.fields.roomType` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.guestInfo` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.loading` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.notProvided` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.standardRoom` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.stayInfo` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.subtitle` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:checkin.verify.title` — `src/features/bookings/components/GuestCheckInVerify.tsx`
+- `guestPortal:dashboard.bookings.cancelBooking` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.cancelTitle` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.charactersRemaining_one` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.charactersRemaining_other` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.customReasonLabel` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.keepBooking` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.paidNotice` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.reasonLabel` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.reasons.changeOfPlans` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.reasons.disruption` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.reasons.mistake` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.reasons.other` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.reasons.otherAccommodation` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.requestTitle` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.submitRequest` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.submitting` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelDialog.unpaidNotice` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelFailed` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelRequested` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancellationPending` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancellationUnavailableFallback` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.cancelled` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.colAction` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.colBooking` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.description` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.amount` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.bookingStatus` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.confirmedBody` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.offlinePending` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.paid` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.paymentMethod` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.paymentRejected` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.printReceipt` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.receiptId` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.receiptRequiredBody` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.receiptRequiredTitle` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.receiptTitle` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.receiptUploadedBody` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.receiptUploadedTitle` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.stay` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.title` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.total` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.uploadButton` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.uploadChoose` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.uploadFailed` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.uploadHint` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.uploadTitle` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.details.uploading` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.empty` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.emptySearch` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.eyebrow` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.loadError` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.receiptRequiredBody` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.receiptRequiredChip` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.receiptRequiredTitle` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.requestCancellation` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.searchLabel` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.searchPlaceholder` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.tableCaption` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.tableLabel` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.title` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.uploadReceipt` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.bookings.viewDetails` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.acrossRoomTypes_one` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.acrossRoomTypes_other` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.description` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.empty` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.eyebrow` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.howTo` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.loadError` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.loading` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.nightsAvailable` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.roomTypeEntry_one` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.roomTypeEntry_other` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.credits.title` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.devices.aria` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.confirmBody` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.confirmButton` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.confirmTitle` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.description` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.empty` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.ip` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.loadFailed` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.loading` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.signOut` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.signOutFailed` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.signedOut` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.thisDevice` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.devices.title` — `src/features/guestPortal/components/dashboard/DevicesSection.tsx`
+- `guestPortal:dashboard.identity.description` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.documents.id_back` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.documents.id_front` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.documents.proof` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.documents.selfie` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.documentsHint` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.documentsTitle` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.errorLabels.currentAddress` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.dateOfBirth` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.email` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.fullName` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.idBack` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.idExpiryDate` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.idFront` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.idIssuingCountry` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.idNumber` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.idType` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.nationality` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.phone` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errorLabels.selfie` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errors.expiryFuture` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.errors.required` — `src/features/ekyc/utils/ekycFieldRules.ts`
+- `guestPortal:dashboard.identity.eyebrow` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.fields.currentAddress` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.fields.dateOfBirth` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.fields.email` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.fields.fullName` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.fields.idExpiryDate` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.fields.idIssuingCountry` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.fields.idNumber` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.fields.idType` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.fields.nationality` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.fields.phone` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.idTypes.driving_license` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.idTypes.national_id` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.idTypes.passport` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.incompleteFields` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.loadFailed` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.loading` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.resubmitTitle` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.status.additional_information_required.help` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.additional_information_required.label` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.approved.help` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.approved.label` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.default.help` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.default.label` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.expired.help` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.expired.label` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.rejected.help` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.rejected.label` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.verified.help` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.verified.label` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.void.help` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.status.void.label` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.identity.submit` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.submitFailed` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.submittedAt` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.submitting` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.title` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.uploadFailed` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.identity.uploaded` — `src/features/guestPortal/components/dashboard/IdentitySection.tsx`
+- `guestPortal:dashboard.loading` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.nameFallback` — `src/features/guestPortal/components/dashboard/dashboardUtils.ts`
+- `guestPortal:dashboard.offers.description` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.offers.eyebrow` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.offers.title` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.eyebrow` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.loading` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.nextStay` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.nextStayBooking` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.noStay` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.noStayHint` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.notEnrolled` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.partialError` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.planVisit` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.planVisitHint` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.pointsAvailable` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.pointsBalance` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.subtitle` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.viewOffers` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.viewPoints` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.viewStays` — `src/features/guestPortal/booking/PortalBookingPage.tsx`, `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.overview.welcome` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.pagination.displayedRows` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.pagination.displayedRowsMore` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.pagination.pageFirst` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.pagination.pageLast` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.pagination.pageNext` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.pagination.pagePrevious` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.pagination.rowsPerPage` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.amountDue` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.awaitingPayment` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.bookingLabel` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.colAmount` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.colBooking` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.colDate` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.colMethod` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.colReference` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.colType` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.description` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.empty` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.eyebrow` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.kindInvoice` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.kindPayment` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.loadError` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.tableCaption` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.tableLabel` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.title` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.payments.transactionFallback` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.activityLine` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.balanceAfter` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.contextAdjustedBy` — `src/features/guestPortal/components/dashboard/dashboardUtils.ts`
+- `guestPortal:dashboard.points.contextAdjustedByStaff` — `src/features/guestPortal/components/dashboard/dashboardUtils.ts`
+- `guestPortal:dashboard.points.contextBooking` — `src/features/guestPortal/components/dashboard/dashboardUtils.ts`
+- `guestPortal:dashboard.points.contextFromBooking` — `src/features/guestPortal/components/dashboard/dashboardUtils.ts`
+- `guestPortal:dashboard.points.contextWithReason` — `src/features/guestPortal/components/dashboard/dashboardUtils.ts`
+- `guestPortal:dashboard.points.description` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.empty` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.eyebrow` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.levelStatus` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.lifetimePoints` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.loadError` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.notEnrolled` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.pointsAvailable` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.recentActivity` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.tierMember` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.points.title` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.preferences.description` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.preferences.eyebrow` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.preferences.title` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.profile.contactAria` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.contactSubtitle` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.contactTitle` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.description` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.displayName` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.edit` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.email` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.errors.firstNameRequired` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.errors.lastNameRequired` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.eyebrow` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.fields.address_line1` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.fields.alt_phone` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.fields.city` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.fields.country` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.fields.first_name` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.fields.last_name` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.fields.nationality` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.fields.phone` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.fields.postal_code` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.fields.state_province` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.fields.title` — *(dynamic or unreferenced)*
+- `guestPortal:dashboard.profile.icNumber` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.identityAria` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.identitySubtitle` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.identityTitle` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.incompleteFields` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.incompleteGeneric` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.incompleteReason` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.incompleteTitle` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.loadFailed` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.loading` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.missingFields.first_name` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.missingFields.last_name` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.missingFields.phone` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.save` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.saveFailed` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.saved` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.saving` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.profile.title` — `src/features/guestPortal/components/dashboard/ProfileSection.tsx`
+- `guestPortal:dashboard.sections.offers` — `src/features/promotions/pages/OffersPage.tsx`
+- `guestPortal:dashboard.security.authenticator.checking` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.codeLabel` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.codeMismatch` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.codeStep` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.copyKeyAria` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.description` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.disableBody` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.disableCodeLabel` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.disableTitle` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.disabled` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.enabled` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.enabledBody` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.keepOn` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.keyCopied` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.manualKey` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.off` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.on` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.preparing` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.qrTitle` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.recoveryNote` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.scanStep` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.setup` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.setupFailed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.setupHint` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.setupTitle` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.title` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.turnOff` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.authenticator.turnOn` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.copyBlocked` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.description` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.eyebrow` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.loadFailed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.loading` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.accountNameMissing` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.add` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.addFailed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.added` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.addedLastUsed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.addedNeverUsed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.atLimit` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.cancelRenameAria` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.codeLabel` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.confirmRemoveBody` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.confirmRemoveButton` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.confirmRemoveTitle` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.continue` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.defaultName` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.description` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.empty` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.loadFailed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.loading` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.nameLabel` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.namePlaceholder` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.nameRequired` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.none` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.orAuthenticator` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.passwordLabel` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.removeAria` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.removeFailed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.removed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.renameAria` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.renameFailed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.renamed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.saveNameAria` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.saved` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.stepUpBody` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.stepUpTitle` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.thisDevice` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.title` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.unnamed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.unsupported` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.passkeys.waiting` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.allUsed` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.codeLabel` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.codeMismatch` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.description` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.dialogBody` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.dialogTitle` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.generate` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.generateButton` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.generating` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.issueDateMissing` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.issued` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.issuedOn` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.issuedUnknown` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.left` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.low_one` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.low_other` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.notEnabledBody` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.notSetUp` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recovery.title` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recoveryDialog.body` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recoveryDialog.copied` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recoveryDialog.copyAll` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recoveryDialog.done` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.recoveryDialog.title` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.security.title` — `src/features/guestPortal/components/dashboard/SecuritySection.tsx`
+- `guestPortal:dashboard.statusCancelled` — `src/features/guestPortal/components/dashboard/dashboardUtils.ts`
+- `guestPortal:dashboard.statusUnavailable` — `src/features/guestPortal/components/dashboard/dashboardUtils.ts`
+- `guestPortal:dashboard.support.description` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.support.eyebrow` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.support.title` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.vouchers.description` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.vouchers.eyebrow` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:dashboard.vouchers.title` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:errorBoundary.detail` — `src/guest/GuestRootLayout.tsx`, `src/router/RootLayout.tsx`
+- `guestPortal:errorBoundary.title` — `src/guest/GuestRootLayout.tsx`
+- `guestPortal:groups.account` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:groups.rewards` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:nav.credits` — *(dynamic or unreferenced)*
+- `guestPortal:nav.identity` — *(dynamic or unreferenced)*
+- `guestPortal:nav.offers` — *(dynamic or unreferenced)*
+- `guestPortal:nav.overview` — *(dynamic or unreferenced)*
+- `guestPortal:nav.points-history` — *(dynamic or unreferenced)*
+- `guestPortal:nav.preferences` — *(dynamic or unreferenced)*
+- `guestPortal:nav.profile` — *(dynamic or unreferenced)*
+- `guestPortal:nav.rewards` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:nav.security` — *(dynamic or unreferenced)*
+- `guestPortal:nav.stays` — *(dynamic or unreferenced)*
+- `guestPortal:nav.vouchers` — *(dynamic or unreferenced)*
+- `guestPortal:notifications.actionNeeded` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.actionNeededTooltip` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.badgeLabel_one` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.badgeLabel_other` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.caughtUp` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.done` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.empty` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.pendingSummary_one` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.pendingSummary_other` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.receiptBody` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.receiptRequired` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.receiptTooLarge` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.refreshFailed` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.uploadButton` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.uploadChoose` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.uploadFailed` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.uploadHint` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.uploadLeadPre` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.uploadSelectAria` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.uploadTitle` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.uploadedBody` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.uploading` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:notifications.viewRequest` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:offers.alreadyClaimed` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.anyTime` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.claimBy` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.claimDeal` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.claimFailed` — `src/features/promotions/components/PromotionCatalog.tsx`
+- `guestPortal:offers.claimSuccess` — `src/features/promotions/components/PromotionCatalog.tsx`
+- `guestPortal:offers.claimSuccessWithCode` — `src/features/promotions/components/PromotionCatalog.tsx`
+- `guestPortal:offers.claimed` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.emptyBody` — `src/features/promotions/components/PromotionCatalog.tsx`
+- `guestPortal:offers.emptyTitle` — `src/features/promotions/components/PromotionCatalog.tsx`
+- `guestPortal:offers.kind.deal` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.kind.voucher` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.loadFailed` — `src/features/promotions/components/PromotionCatalog.tsx`
+- `guestPortal:offers.minNights_one` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.minNights_other` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.noEndDate` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.pageSubtitle` — `src/features/promotions/pages/OffersPage.tsx`
+- `guestPortal:offers.pageTitle` — `src/features/promotions/pages/OffersPage.tsx`
+- `guestPortal:offers.redeemPoints` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.redeeming` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.signInToClaim` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.stayDates` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.terms` — `src/features/promotions/components/PromotionCard.tsx`
+- `guestPortal:offers.termsNote` — `src/features/promotions/pages/OffersPage.tsx`
+- `guestPortal:payment.acceptTermsFirst` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.amountDue` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.attachReceipt` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.bankDetailsHeading` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.bankDetailsUnavailable` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.bankFieldAccountName` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.bankFieldAccountNumber` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.bankFieldBank` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.bankSubmitFailed` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.bankTransferLabel` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.chooseMethod` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.configLoadFailed` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.inFlight` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.loading` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.paidViaBank` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.paypalCaptureFailed` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.paypalLabel` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.paypalOrderMissing` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.paypalProcessFailed` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.paypalStartFailed` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.receiptHint` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.receiptSelected` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.successConfirmed` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payment.successPending` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`
+- `guestPortal:payments.pendingLoadFailed` — `src/features/guestPortal/components/dashboard/PortalDashboardSections.tsx`
+- `guestPortal:preferences.appearance` — `src/features/guestPortal/components/dashboard/AppearancePreferenceCard.tsx`
+- `guestPortal:preferences.appearanceHint` — `src/features/guestPortal/components/dashboard/AppearancePreferenceCard.tsx`
+- `guestPortal:preferences.disabled` — `src/features/communications/components/PortalNotificationPreferences.tsx`
+- `guestPortal:preferences.enabled` — `src/features/communications/components/PortalNotificationPreferences.tsx`
+- `guestPortal:preferences.loadFailed` — `src/features/communications/components/PortalNotificationPreferences.tsx`
+- `guestPortal:preferences.loadingAria` — `src/features/communications/components/PortalNotificationPreferences.tsx`
+- `guestPortal:preferences.saveFailed` — `src/features/communications/components/PortalNotificationPreferences.tsx`
+- `guestPortal:preferences.savedDisabled` — `src/features/communications/components/PortalNotificationPreferences.tsx`
+- `guestPortal:preferences.savedEnabled` — `src/features/communications/components/PortalNotificationPreferences.tsx`
+- `guestPortal:preferences.subtitle` — `src/features/communications/components/PortalNotificationPreferences.tsx`
+- `guestPortal:preferences.themeDark` — `src/features/guestPortal/components/dashboard/AppearancePreferenceCard.tsx`
+- `guestPortal:preferences.themeLight` — `src/features/guestPortal/components/dashboard/AppearancePreferenceCard.tsx`
+- `guestPortal:preferences.themeSystem` — `src/features/guestPortal/components/dashboard/AppearancePreferenceCard.tsx`
+- `guestPortal:preferences.title` — `src/features/communications/components/PortalNotificationPreferences.tsx`
+- `guestPortal:preferences.toggleAria` — `src/features/communications/components/PortalNotificationPreferences.tsx`
+- `guestPortal:preferences.topics.announcement` — `src/features/communications/components/PortalNotificationPreferences.tsx`, `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:preferences.topics.birthday_voucher` — `src/features/communications/components/PortalNotificationPreferences.tsx`, `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:preferences.topics.promotion` — `src/features/communications/components/PortalNotificationPreferences.tsx`, `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:recoverPayment.alreadySubmitted` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.amountDue` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.bankTransfer` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.bankTransferHint` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.expires` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.failed` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.loading` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.or` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.paypal` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`, `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.paypalFailed` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.paypalUnavailable` — `src/features/guestPortal/components/GuestPaymentPanel.tsx`, `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.reference` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.singleUse` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.submitted` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.submittedBody` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.submitting` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.subtitle` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.title` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.unavailableBody` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.unavailableTitle` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.uploadChoose` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.uploadFailed` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.uploadHeading` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.uploadHint` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.uploaded` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:recoverPayment.uploading` — `src/features/paymentRecovery/PaymentRecoveryPage.tsx`
+- `guestPortal:shell.homeAria` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:shell.mobileNavAria` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:shell.navAria` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:shell.notifications` — `src/features/guestPortal/components/GuestPortalNotificationBell.tsx`
+- `guestPortal:shell.skipToContent` — `src/features/guestPortal/components/GuestPortalShell.tsx`
+- `guestPortal:support.backToConversations` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.categories.billing` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.categories.booking` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.categories.loyalty` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.categories.other` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.categories.stay` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.categories.technical` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.closedNotice` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.contactSupport` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.conversationsHeading` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.detailLoadFailed` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.dialogAria` — `src/features/guestPortal/components/PortalSupportWidget.tsx`
+- `guestPortal:support.disabledNotice` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.emergencyNotice` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.emptyBody` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.emptyTitle` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.hotelSupport` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.listAria` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.listLoadFailed` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.messagesAria` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.new` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.newConversation` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.newDialog.categoryLabel` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.newDialog.createFailed` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.newDialog.emptyMessage` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.newDialog.messageLabel` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.newDialog.messagePlaceholder` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.newDialog.safetyNote` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.newDialog.send` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.newDialog.title` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.reopen` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.reopenFailed` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.reopenHint` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.replyLabel` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.replyPlaceholder` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.resolution` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.resolvedNoReopen` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.selectConversation` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.selectConversationHint` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.sendFailed` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.sendReply` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.startedAt` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.status.closed` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.status.resolved` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.status.waiting_for_guest` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.status.waiting_for_staff` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.subtitle` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.title` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.updatedAt` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:support.widgetClose` — `src/features/guestPortal/components/PortalSupportWidget.tsx`
+- `guestPortal:support.widgetOpen` — `src/features/guestPortal/components/PortalSupportWidget.tsx`
+- `guestPortal:support.widgetTitle` — `src/features/guestPortal/components/PortalSupportWidget.tsx`
+- `guestPortal:support.you` — `src/features/guestPortal/components/PortalSupportTab.tsx`
+- `guestPortal:unsubscribe.allButton` — `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:unsubscribe.invalidLink` — `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:unsubscribe.note` — `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:unsubscribe.saveFailed` — `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:unsubscribe.saved` — `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:unsubscribe.subtitle` — `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:unsubscribe.title` — `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:unsubscribe.toggleAria` — `src/features/communications/pages/UnsubscribePage.tsx`
+- `guestPortal:vouchers.codeLabel` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.codeUnavailable` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.copied` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.copyCode` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.copyFailed` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.copySuccess` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.emptyBody` — `src/features/promotions/components/VoucherWallet.tsx`
+- `guestPortal:vouchers.emptyTitle` — `src/features/promotions/components/VoucherWallet.tsx`
+- `guestPortal:vouchers.hint` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.loadFailed` — `src/features/promotions/components/VoucherWallet.tsx`
+- `guestPortal:vouchers.loadingAria` — `src/features/promotions/components/VoucherWallet.tsx`
+- `guestPortal:vouchers.noExpiry` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.originClaimed` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.originIssued` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.ready_one` — `src/features/promotions/components/VoucherWallet.tsx`
+- `guestPortal:vouchers.ready_other` — `src/features/promotions/components/VoucherWallet.tsx`
+- `guestPortal:vouchers.savedTitle` — `src/features/promotions/components/VoucherWallet.tsx`
+- `guestPortal:vouchers.status.available` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.status.expired` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.status.redeemed` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.status.revoked` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.stayVoucher` — `src/features/promotions/components/VoucherCard.tsx`
+- `guestPortal:vouchers.subtitle` — `src/features/promotions/components/VoucherWallet.tsx`
+- `guestPortal:vouchers.totalCount` — `src/features/promotions/components/VoucherWallet.tsx`
+- `guestPortal:vouchers.validUntil` — `src/features/promotions/components/VoucherCard.tsx`
+
+### `guests`
+
+- `guests:common.na` — `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:communication.channels.email` — *(dynamic or unreferenced)*
+- `guests:communication.channels.push` — *(dynamic or unreferenced)*
+- `guests:communication.channels.sms` — *(dynamic or unreferenced)*
+- `guests:communication.channels.whatsapp` — *(dynamic or unreferenced)*
+- `guests:communication.colChannel` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.colDate` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.colKind` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.colStatus` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.colSubject` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.colSubscribed` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.colTopic` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.colUpdated` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.consentTitle` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.deliverability` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.deliverable` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.deliveriesAria` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.deliveriesEmpty` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.deliveriesTitle` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.editConsent` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.language` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.loadFailed` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.marketingOptIn` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.optInNote` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.optedIn` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.optedOut` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.preferredChannel` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.subscribed` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.suppressed` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.suppressedAlert` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.topicsAria` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.topicsEmpty` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.topicsTitle` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:communication.unsubscribed` — `src/features/guestRelations/components/tabs/CommunicationTab.tsx`
+- `guests:consent.description` — `src/features/guestRelations/components/GuestConsentDialog.tsx`
+- `guests:consent.failed` — `src/features/guestRelations/components/GuestConsentDialog.tsx`
+- `guests:consent.footnote` — `src/features/guestRelations/components/GuestConsentDialog.tsx`
+- `guests:consent.optedIn` — `src/features/guestRelations/components/GuestConsentDialog.tsx`
+- `guests:consent.optedOut` — `src/features/guestRelations/components/GuestConsentDialog.tsx`
+- `guests:consent.save` — `src/features/guestRelations/components/GuestConsentDialog.tsx`
+- `guests:consent.title` — `src/features/guestRelations/components/GuestConsentDialog.tsx`
+- `guests:consent.toggleAria` — `src/features/guestRelations/components/GuestConsentDialog.tsx`
+- `guests:consent.topics.announcement` — *(dynamic or unreferenced)*
+- `guests:consent.topics.birthday_voucher` — *(dynamic or unreferenced)*
+- `guests:consent.topics.promotion` — *(dynamic or unreferenced)*
+- `guests:consent.updated` — `src/features/guestRelations/components/GuestConsentDialog.tsx`
+- `guests:credits.byRoomType` — `src/features/guestRelations/components/GuestCreditsDialog.tsx`
+- `guests:credits.code` — `src/features/guestRelations/components/GuestCreditsDialog.tsx`
+- `guests:credits.noneAvailable` — `src/features/guestRelations/components/GuestCreditsDialog.tsx`
+- `guests:credits.title` — `src/features/guestRelations/components/GuestCreditsDialog.tsx`
+- `guests:credits.totalAvailable` — `src/features/guestRelations/components/GuestCreditsDialog.tsx`
+- `guests:credits.unavailable` — `src/features/guestRelations/components/GuestCreditsDialog.tsx`
+- `guests:csv.blacklisted` — *(dynamic or unreferenced)*
+- `guests:csv.bookings` — *(dynamic or unreferenced)*
+- `guests:csv.company` — *(dynamic or unreferenced)*
+- `guests:csv.country` — *(dynamic or unreferenced)*
+- `guests:csv.email` — *(dynamic or unreferenced)*
+- `guests:csv.guestType` — *(dynamic or unreferenced)*
+- `guests:csv.icPassport` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `guests:csv.id` — *(dynamic or unreferenced)*
+- `guests:csv.lastStay` — *(dynamic or unreferenced)*
+- `guests:csv.name` — *(dynamic or unreferenced)*
+- `guests:csv.nationality` — *(dynamic or unreferenced)*
+- `guests:csv.phone` — *(dynamic or unreferenced)*
+- `guests:csv.tourismType` — *(dynamic or unreferenced)*
+- `guests:csv.vipStatus` — *(dynamic or unreferenced)*
+- `guests:dashboard.cards.arrivalsEmpty` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.arrivalsTitle` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.departuresEmpty` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.departuresTitle` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.followUpsEmpty` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.followUpsTitle` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.followUpsViewAll` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.inHouseEmpty` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.inHouseTitle` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.reviewsEmpty` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.reviewsTitle` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.supportEmpty` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.supportTitle` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.supportViewAll` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.viewAllBookings` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.vipEmpty` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.cards.vipTitle` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.directory` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.dueAt` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.rating` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.room` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.stats.arrivals` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.stats.awaitingReview` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.stats.departures` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.stats.followUpsDue` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.stats.inHouse` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.stats.openSupport` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.stats.vipArrivals` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.subtitle` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.title` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.unrated` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.waitingForStaff_one` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:dashboard.waitingForStaff_other` — `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:drawer.accountActive` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `guests:drawer.accountDeactivated` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `guests:drawer.ariaLabel` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `guests:drawer.blacklistReason` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `guests:drawer.closeAria` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `guests:drawer.openFull` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `guests:drawer.portalAccount` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `guests:drawer.quickEdit` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`
+- `guests:followUps.cols.assignee` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.cols.due` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.cols.guest` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.cols.snippet` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.cols.subject` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.cols.type` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.completeFailed` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.emptyAll` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.emptyFiltered` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.emptyTitle` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.filters.all` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.filters.overdue` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.filters.today` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.filters.upcoming` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.kicker` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.loadFailed` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.markDone` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.markedDone` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.oldestFirst` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.overdue` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.shownOfTotal` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.subjectFallback` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`, `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`
+- `guests:followUps.subtitle` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.title` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:followUps.unassigned` — `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`
+- `guests:form.address` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.city` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.closeAria` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.companyName` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.country` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.createGuest` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.createSubtitle` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.createTitle` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.discountMemberHelp` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.discountNonMemberHelp` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.discountPercentage` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.editSubtitle` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.editTitle` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.email` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.firstName` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.guestFallback` — `src/features/guestRelations/components/GuestFormDialog.tsx`, `src/features/invoices/hooks/useCheckoutFlow.ts`
+- `guests:form.guestType` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.icHelper` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.icNumber` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.lastName` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.membershipSection` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.nationality` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.noCompanies` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.noCompaniesMatch` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.notSpecified` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.phone` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.phoneRequired` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.postalCode` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.saveChanges` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.selectTourism` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.stateProvince` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.tourismSection` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:form.tourismType` — `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`, `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:guestType.member` — `src/constants/guest.constants.ts`
+- `guests:guestType.memberDiscount` — `src/constants/guest.constants.ts`
+- `guests:guestType.memberOption` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:guestType.nonMember` — `src/constants/guest.constants.ts`
+- `guests:guestType.nonMemberOption` — `src/features/guestRelations/components/GuestFormDialog.tsx`
+- `guests:guestType.standardRate` — `src/constants/guest.constants.ts`
+- `guests:history.cols.amount` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.cols.bookingNumber` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.cols.checkIn` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.cols.checkOut` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.cols.nights` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.cols.room` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.cols.status` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.empty` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.groupEmpty.checkedOut` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.groupEmpty.other` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.groupEmpty.void` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.groups.checkedOut` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.groups.other` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.groups.void` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:history.title` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`
+- `guests:idTypes.driver_license` — *(dynamic or unreferenced)*
+- `guests:idTypes.ic` — *(dynamic or unreferenced)*
+- `guests:idTypes.mykad` — *(dynamic or unreferenced)*
+- `guests:idTypes.other` — *(dynamic or unreferenced)*
+- `guests:idTypes.passport` — *(dynamic or unreferenced)*
+- `guests:interactions.add` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.addFailed` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.addNote` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.added` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.alert` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.assignedTo` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.booking` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.completeFollowUp` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.deleteAria` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.deleteFailed` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.deleteMessage` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.deleteTitle` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.deleted` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.editAria` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.edited` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.empty` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.emptyHint` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.followUp` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.followUpCompleted` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.followUpDone` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.followUpReopened` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.followUpUpdateFailed` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.form.agentsError` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.assignee` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.assigneeNotClearable` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.content` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.followUpDate` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.followUpEmpty` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.followUpNotClearable` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.noteContent` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.privateNote` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.relatedBooking` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.showAsAlert` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.subject` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.type` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.unassigned` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.form.userFallback` — `src/features/guestRelations/components/InteractionForm.tsx`
+- `guests:interactions.includeCompleted` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.loadFailed` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.loadMore` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.loading` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.private` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.reopenFollowUp` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.saveChanges` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.timeline` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.types.call` — *(dynamic or unreferenced)*
+- `guests:interactions.types.email` — *(dynamic or unreferenced)*
+- `guests:interactions.types.follow_up` — *(dynamic or unreferenced)*
+- `guests:interactions.types.in_person` — *(dynamic or unreferenced)*
+- `guests:interactions.types.note` — *(dynamic or unreferenced)*
+- `guests:interactions.updateFailed` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:interactions.updated` — `src/features/guestRelations/components/tabs/InteractionsTab.tsx`
+- `guests:list.account` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.accountActive` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.accountDeactivated` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.alerts` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.blacklisted` — `src/features/guestRelations/components/GuestChips.tsx`
+- `guests:list.blacklistedGuest` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.blacklistedReason` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.contact` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.convertTourism` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.createEkyc` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.credits` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.deleteGuest` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.editAria` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.editTooltip` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.guest` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.lastStay` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.lastStayPrefix` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.local` — `src/features/guestRelations/components/GuestChips.tsx`
+- `guests:list.member` — `src/features/guestRelations/components/GuestChips.tsx`
+- `guests:list.missingTourism` — `src/features/guestRelations/components/GuestChips.tsx`
+- `guests:list.moreAria` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.moreTooltip` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.newBookingAria` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.newBookingTooltip` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.noContact` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.noPhone` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.noStays` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.openRequest` — `src/features/guestRelations/components/GuestChips.tsx`
+- `guests:list.openSupportTooltip` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.stayHistory` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.stays_one` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.stays_other` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.tourist` — `src/features/guestRelations/components/GuestChips.tsx`
+- `guests:list.transferPortal` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.type` — `src/features/guestRelations/components/GuestListTable.tsx`
+- `guests:list.viewAria` — *(dynamic or unreferenced)*
+- `guests:list.viewTooltip` — *(dynamic or unreferenced)*
+- `guests:loyaltyTab.availablePoints` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.colCode` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.colDate` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.colExpires` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.colPoints` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.colPromotion` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.colRedeemed` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.colReward` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.colSource` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.colStatus` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.lifetimePoints` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.loadFailed` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.manage` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.managePromotions` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.memberNumber` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.noRedemptions` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.notEnrolled` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.notEnrolledHint` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.qualifyingNights` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.recentRedemptions` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.redemptionsAria` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.rewardFallback` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.status` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.tier` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.title` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.vouchersAria` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.vouchersEmpty` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.vouchersLoadFailed` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:loyaltyTab.vouchersTitle` — `src/features/guestRelations/components/tabs/LoyaltyVouchersTab.tsx`
+- `guests:overview.alerts.blacklisted` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.alerts.blacklistedReason` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.alerts.empty` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.alerts.title` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.address` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.altPhone` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.company` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.email` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.jobTitle` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.language` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.marketingOptIn` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.nationality` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.no` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.phone` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.preferredChannel` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.tags` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.title` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.totalBookings` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.tourismType` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.details.yes` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.duplicates.score` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.duplicates.title` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.duplicates.warning_one` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.duplicates.warning_other` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.metrics.completedStays` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.metrics.lifetimeRevenue` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.metrics.outstanding` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.metrics.totalNights` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.openItems.followUps_one` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.openItems.followUps_other` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.openItems.reviews_one` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.openItems.reviews_other` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.openItems.support_one` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.openItems.support_other` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.openItems.title` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.preferences.empty` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.preferences.more` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.preferences.title` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.sensitive.dob` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.sensitive.idCountry` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.sensitive.idExpiry` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.sensitive.idNumber` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.sensitive.idType` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.sensitive.title` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.stayStatus.activeStay` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.stayStatus.nextStay` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.stayStatus.noActive` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.stayStatus.nothingBooked` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:overview.stayStatus.title` — `src/features/guestRelations/components/tabs/OverviewTab.tsx`
+- `guests:page.addGuest` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.clearFilters` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.clearSearch` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.createFailed` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.created` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.deleteConfirm` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.deleteFailed` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.deleteTitle` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.deleted` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.emptyDescription` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.emptyFilteredDescription` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.emptyFilteredTitle` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.emptyTitle` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.exportCsv` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.exportCsvTitle` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.exported` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.filteredSuffix` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.kicker` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.loadFailed` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.membersSuffix` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.missingTourismSuffix` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.namesRequired` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/pages/GuestProfilePage.tsx`, `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.noExportRows` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.nonMembersSuffix` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.searchPlaceholder` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.shownOfTotal` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.sortAZ` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.totalSuffix` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.tourismFailed` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.tourismLocal` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.tourismMarked` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.tourismTourist` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.updateFailed` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/pages/GuestProfilePage.tsx`, `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:page.updated` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/pages/GuestProfilePage.tsx`, `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:permissionDenied` — `src/features/guestRelations/pages/GuestProfilePage.tsx`, `src/features/guestRelations/pages/GuestRelationsFollowUpsPage.tsx`, `src/features/guestRelations/pages/GuestRelationsOverviewPage.tsx`, `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:portal.emptyUsername` — `src/features/guestRelations/components/GuestPortalAccountDialog.tsx`
+- `guests:portal.failed` — `src/features/guestRelations/components/GuestPortalAccountDialog.tsx`
+- `guests:portal.helper` — `src/features/guestRelations/components/GuestPortalAccountDialog.tsx`
+- `guests:portal.title` — `src/features/guestRelations/components/GuestPortalAccountDialog.tsx`
+- `guests:portal.transfer` — `src/features/guestRelations/components/GuestPortalAccountDialog.tsx`
+- `guests:portal.transferred` — `src/features/guestRelations/components/GuestPortalAccountDialog.tsx`
+- `guests:portal.username` — `src/features/guestRelations/components/GuestPortalAccountDialog.tsx`
+- `guests:portal.warning` — `src/features/guestRelations/components/GuestPortalAccountDialog.tsx`
+- `guests:preferenceCategories.bed` — *(dynamic or unreferenced)*
+- `guests:preferenceCategories.communication` — *(dynamic or unreferenced)*
+- `guests:preferenceCategories.dietary` — *(dynamic or unreferenced)*
+- `guests:preferenceCategories.floor` — *(dynamic or unreferenced)*
+- `guests:preferenceCategories.occasion` — *(dynamic or unreferenced)*
+- `guests:preferenceCategories.other` — *(dynamic or unreferenced)*
+- `guests:preferenceCategories.room` — *(dynamic or unreferenced)*
+- `guests:preferences.addRow` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.bookingRef` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.duplicateKey` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.emptySection` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.guestNotesProfile` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.key` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.keyPlaceholder` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.keyPlaceholderRoom` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.legacyChip` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.loadFailed` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.partialError` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.removeAria` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.removeRow` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.saveFailed` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.saveSection` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.saved` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.specialRequestsProfile` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.unconfirmedNote` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.unconfirmedTitle` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.unsaved` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.value` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.valuePlaceholder` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:preferences.valuePlaceholderRoom` — `src/features/guestRelations/components/tabs/PreferencesTab.tsx`
+- `guests:profile.addNote` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.backToGuests` — `src/features/guestRelations/pages/GuestProfilePage.tsx`
+- `guests:profile.blacklistReason` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.blacklisted` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.bookedAs` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.duplicateChip` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.duplicateTooltip_one` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.duplicateTooltip_other` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.edit` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.guestNumber` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.invalidId` — `src/features/guestRelations/pages/GuestProfilePage.tsx`
+- `guests:profile.lastStay` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.loadFailed` — `src/features/guestRelations/pages/GuestProfilePage.tsx`
+- `guests:profile.member` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.newBooking` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.nextStay` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.noAltPhone` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.noEmail` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.noPhone` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.noReason` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.openSupport` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.returning` — `src/features/guestRelations/components/GuestProfileHeader.tsx`
+- `guests:profile.tabs.communication` — `src/features/guestRelations/pages/GuestProfilePage.tsx`
+- `guests:profile.tabs.interactions` — `src/features/guestRelations/pages/GuestProfilePage.tsx`
+- `guests:profile.tabs.loyalty` — `src/features/guestRelations/pages/GuestProfilePage.tsx`
+- `guests:profile.tabs.overview` — `src/features/guestRelations/pages/GuestProfilePage.tsx`
+- `guests:profile.tabs.preferences` — `src/features/guestRelations/pages/GuestProfilePage.tsx`
+- `guests:profile.tabs.stays` — `src/features/guestRelations/components/GuestDetailDrawer.tsx`, `src/features/guestRelations/pages/GuestProfilePage.tsx`
+- `guests:profile.tabs.support` — `src/features/guestRelations/pages/GuestProfilePage.tsx`
+- `guests:segments.all` — `src/features/guestRelations/segments.ts`
+- `guests:segments.blacklisted` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`, `src/features/guestRelations/segments.ts`
+- `guests:segments.inHouse` — `src/features/guestRelations/segments.ts`
+- `guests:segments.inactive` — `src/features/guestRelations/segments.ts`
+- `guests:segments.incomplete` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`, `src/features/guestRelations/segments.ts`
+- `guests:segments.member` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`, `src/features/guestRelations/segments.ts`
+- `guests:segments.missingTourism` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`, `src/features/guestRelations/segments.ts`
+- `guests:segments.non` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`, `src/features/guestRelations/segments.ts`
+- `guests:segments.openRequests` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`, `src/features/guestRelations/segments.ts`
+- `guests:segments.returning` — `src/features/guestRelations/segments.ts`
+- `guests:segments.tourist` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`, `src/features/guestRelations/segments.ts`
+- `guests:segments.upcoming` — `src/features/guestRelations/segments.ts`
+- `guests:segments.vip` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`, `src/features/guestRelations/segments.ts`
+- `guests:stats.total` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:stays.actions` — `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:stays.balance` — `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:stays.booking` — `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:stays.dates` — `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:stays.direct` — `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:stays.empty` — `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:stays.nightsStayed_one` — `src/features/guestRelations/components/tabs/StaysTab.tsx`
+- `guests:stays.nightsStayed_other` — `src/features/guestRelations/components/tabs/StaysTab.tsx`
+- `guests:stays.nights_one` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`, `src/features/guestRelations/components/GuestCreditsDialog.tsx`, `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:stays.nights_other` — `src/features/guestRelations/components/GuestBookingHistoryDialog.tsx`, `src/features/guestRelations/components/GuestCreditsDialog.tsx`, `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:stays.openInBookings` — `src/features/guestRelations/components/tabs/StaysTab.tsx`
+- `guests:stays.reservations_one` — `src/features/guestRelations/components/tabs/StaysTab.tsx`
+- `guests:stays.reservations_other` — `src/features/guestRelations/components/tabs/StaysTab.tsx`
+- `guests:stays.room` — `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:stays.roomNumber` — `src/features/guestRelations/components/InteractionForm.tsx`, `src/features/guestRelations/components/tabs/OverviewTab.tsx`, `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:stays.status` — `src/features/guests/components/GuestProfileParts.tsx`
+- `guests:supportFeedback.aria` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.booking` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.colAssignee` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.colCategory` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.colConversation` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.colLastActivity` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.colPriority` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.colSla` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.colStatus` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.editResponse` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.empty` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.emptyHint` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.loadFailed` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.newConversation` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.noResponse` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.openInSupport` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.postResponse` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.propertyResponse` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.published` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.respond` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.responseHelper` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.responseLabel` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.responseRequired` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.responseSaveFailed` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.responseSaved` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.reviewsEmpty` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.reviewsLoadFailed` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.reviewsTitle` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.title` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.unassigned` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.unpublished` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:supportFeedback.updateResponse` — `src/features/guestRelations/components/tabs/SupportFeedbackTab.tsx`
+- `guests:title` — `src/features/guestRelations/pages/GuestRelationsPage.tsx`
+- `guests:tourismType.foreign` — `src/constants/guest.constants.ts`, `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `guests:tourismType.local` — `src/constants/guest.constants.ts`, `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `guests:tourismType.noTax` — `src/constants/guest.constants.ts`, `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+- `guests:tourismType.taxApplies` — `src/constants/guest.constants.ts`, `src/features/admin/components/CustomerLedger/components/CompanyCheckInDialog.tsx`
+
+### `help`
+
+- `help:aria.breadcrumbs` — `src/features/help/components/HelpBreadcrumbs.tsx`
+- `help:aria.helpNavigation` — `src/features/help/pages/HelpCenterPage.tsx`
+- `help:aria.searchResults` — `src/features/help/components/HelpSearchBar.tsx`
+- `help:aria.toc` — `src/features/help/components/ArticleToc.tsx`
+- `help:article.backToHelp` — `src/features/help/pages/HelpArticlePage.tsx`
+- `help:article.browseAll` — `src/features/help/pages/HelpArticlePage.tsx`
+- `help:article.feedbackNo` — `src/features/help/components/ArticleFeedback.tsx`
+- `help:article.feedbackThanks` — `src/features/help/components/ArticleFeedback.tsx`
+- `help:article.feedbackTitle` — `src/features/help/components/ArticleFeedback.tsx`
+- `help:article.feedbackVotedNo` — `src/features/help/components/ArticleFeedback.tsx`
+- `help:article.feedbackVotedYes` — `src/features/help/components/ArticleFeedback.tsx`
+- `help:article.feedbackYes` — `src/features/help/components/ArticleFeedback.tsx`
+- `help:article.lastReviewed` — `src/features/help/pages/HelpArticlePage.tsx`
+- `help:article.notFoundBody` — `src/features/help/pages/HelpArticlePage.tsx`
+- `help:article.notFoundTitle` — `src/features/help/pages/HelpArticlePage.tsx`
+- `help:article.onThisPage` — `src/features/help/components/ArticleToc.tsx`
+- `help:article.openPage` — `src/features/help/pages/HelpArticlePage.tsx`
+- `help:article.readingTime` — `src/features/help/components/ArticleCard.tsx`, `src/features/help/pages/HelpArticlePage.tsx`
+- `help:article.relatedTitle` — `src/features/help/components/RelatedArticles.tsx`
+- `help:article.requiresLabel` — `src/features/help/pages/HelpArticlePage.tsx`
+- `help:categories.bookings.desc` — *(dynamic or unreferenced)*
+- `help:categories.bookings.name` — *(dynamic or unreferenced)*
+- `help:categories.communications.desc` — *(dynamic or unreferenced)*
+- `help:categories.communications.name` — *(dynamic or unreferenced)*
+- `help:categories.getting-started.desc` — *(dynamic or unreferenced)*
+- `help:categories.getting-started.name` — *(dynamic or unreferenced)*
+- `help:categories.guests.desc` — *(dynamic or unreferenced)*
+- `help:categories.guests.name` — *(dynamic or unreferenced)*
+- `help:categories.payments-ledgers.desc` — *(dynamic or unreferenced)*
+- `help:categories.payments-ledgers.name` — *(dynamic or unreferenced)*
+- `help:categories.rates-promotions.desc` — *(dynamic or unreferenced)*
+- `help:categories.rates-promotions.name` — *(dynamic or unreferenced)*
+- `help:categories.reports-night-audit.desc` — *(dynamic or unreferenced)*
+- `help:categories.reports-night-audit.name` — *(dynamic or unreferenced)*
+- `help:categories.rooms-inventory.desc` — *(dynamic or unreferenced)*
+- `help:categories.rooms-inventory.name` — *(dynamic or unreferenced)*
+- `help:categories.settings-data.desc` — *(dynamic or unreferenced)*
+- `help:categories.settings-data.name` — *(dynamic or unreferenced)*
+- `help:categories.staff-access.desc` — *(dynamic or unreferenced)*
+- `help:categories.staff-access.name` — *(dynamic or unreferenced)*
+- `help:categories.troubleshooting.desc` — *(dynamic or unreferenced)*
+- `help:categories.troubleshooting.name` — *(dynamic or unreferenced)*
+- `help:hub.articlesCount` — `src/features/help/components/CategoryCard.tsx`
+- `help:hub.categoriesTitle` — `src/features/help/pages/HelpCenterPage.tsx`
+- `help:hub.escalationBody` — `src/features/help/components/EscalationCard.tsx`
+- `help:hub.escalationLink` — `src/features/help/components/EscalationCard.tsx`
+- `help:hub.escalationTitle` — `src/features/help/components/EscalationCard.tsx`
+- `help:hub.kicker` — `src/features/help/components/HelpBreadcrumbs.tsx`, `src/features/help/pages/HelpCenterPage.tsx`
+- `help:hub.popularTitle` — `src/features/help/pages/HelpCenterPage.tsx`
+- `help:hub.quickTasksSubtitle` — `src/features/help/pages/HelpCenterPage.tsx`
+- `help:hub.quickTasksTitle` — `src/features/help/pages/HelpCenterPage.tsx`
+- `help:hub.searchHint` — *(dynamic or unreferenced)*
+- `help:hub.searchPlaceholder` — `src/features/help/components/HelpSearchBar.tsx`
+- `help:hub.subtitle` — `src/features/help/pages/HelpCenterPage.tsx`
+- `help:hub.supportInboxNote` — `src/features/help/components/EscalationCard.tsx`
+- `help:hub.title` — `src/features/help/pages/HelpCenterPage.tsx`
+- `help:hub.troubleshootingSubtitle` — `src/features/help/components/TroubleshootingStrip.tsx`
+- `help:hub.troubleshootingTitle` — `src/features/help/components/TroubleshootingStrip.tsx`
+- `help:quickTasks.add-manage-staff.desc` — *(dynamic or unreferenced)*
+- `help:quickTasks.add-manage-staff.label` — *(dynamic or unreferenced)*
+- `help:quickTasks.check-in-a-guest.desc` — *(dynamic or unreferenced)*
+- `help:quickTasks.check-in-a-guest.label` — *(dynamic or unreferenced)*
+- `help:quickTasks.create-a-booking.desc` — *(dynamic or unreferenced)*
+- `help:quickTasks.create-a-booking.label` — *(dynamic or unreferenced)*
+- `help:quickTasks.find-a-reservation.desc` — *(dynamic or unreferenced)*
+- `help:quickTasks.find-a-reservation.label` — *(dynamic or unreferenced)*
+- `help:quickTasks.refund-a-deposit.desc` — *(dynamic or unreferenced)*
+- `help:quickTasks.refund-a-deposit.label` — *(dynamic or unreferenced)*
+- `help:quickTasks.run-night-audit.desc` — *(dynamic or unreferenced)*
+- `help:quickTasks.run-night-audit.label` — *(dynamic or unreferenced)*
+- `help:search.clearLabel` — `src/features/help/components/HelpSearchBar.tsx`
+- `help:search.label` — `src/features/help/components/HelpSearchBar.tsx`
+- `help:search.noResultsBody` — `src/features/help/components/HelpSearchBar.tsx`, `src/features/help/pages/HelpCenterPage.tsx`
+- `help:search.noResultsTitle` — `src/features/help/components/HelpSearchBar.tsx`, `src/features/help/pages/HelpCenterPage.tsx`
+- `help:search.recentLabel` — `src/features/help/components/HelpSearchBar.tsx`
+- `help:search.resultsLabel` — `src/features/help/components/HelpSearchBar.tsx`
+- `help:search.suggestions.checkIn` — *(dynamic or unreferenced)*
+- `help:search.suggestions.refund` — *(dynamic or unreferenced)*
+- `help:search.suggestions.staff` — *(dynamic or unreferenced)*
+- `help:search.suggestionsLabel` — `src/features/help/components/HelpSearchBar.tsx`
+- `help:troubleshootingLinks.cant-find-a-booking` — *(dynamic or unreferenced)*
+- `help:troubleshootingLinks.email-not-sending` — *(dynamic or unreferenced)*
+- `help:troubleshootingLinks.page-missing-or-access-denied` — *(dynamic or unreferenced)*
+- `help:troubleshootingLinks.payment-problems` — *(dynamic or unreferenced)*
+- `help:troubleshootingLinks.session-and-stale-data` — *(dynamic or unreferenced)*
+
+### `housekeeping`
+
+- `housekeeping:board.allFloors` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.allPriorities` — `src/features/housekeeping/components/BoardView.tsx`, `src/features/housekeeping/components/MaintenanceTab.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:board.allStatuses` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.clear` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.clearAll` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.emptyFiltered` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.emptyFilteredBody` — `src/features/housekeeping/components/BoardView.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:board.emptyNoRooms` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.emptyNoRoomsBody` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.floor` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.laneAria` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.priority` — `src/features/housekeeping/components/BoardView.tsx`, `src/features/housekeeping/components/MaintenanceTab.tsx`, `src/features/housekeeping/components/NewTaskDialog.tsx`, `src/features/housekeeping/components/NewTicketDialog.tsx`, `src/features/housekeeping/components/TaskEditDialog.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:board.roomStatus` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.searchAria` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:board.searchPlaceholder` — `src/features/housekeeping/components/BoardView.tsx`
+- `housekeeping:card.addTask` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.addTaskAria` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.assignAria` — `src/features/housekeeping/components/RoomTaskCard.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:card.assignMe` — `src/features/housekeeping/components/RoomTaskCard.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:card.complete` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`, `src/features/housekeeping/components/RoomTaskCard.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:card.completeAria` — `src/features/housekeeping/components/RoomTaskCard.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:card.due` — `src/features/housekeeping/components/RoomTaskCard.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:card.menuEditTask` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.menuReassign` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.menuReportMaintenance` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.menuRoomDetails` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.menuUpdateStatus` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.menuVoidTask` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.moreActions` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.moreActionsRoom` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.noOpenTask` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.overdue` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.priorityPrefix` — `src/features/housekeeping/components/RoomTaskCard.tsx`
+- `housekeeping:card.roomN` — `src/features/housekeeping/components/MaintenanceTab.tsx`, `src/features/housekeeping/components/NewTaskDialog.tsx`, `src/features/housekeeping/components/NewTicketDialog.tsx`, `src/features/housekeeping/components/RoomDetailDrawer.tsx`, `src/features/housekeeping/components/RoomTaskCard.tsx`, `src/features/housekeeping/components/TasksView.tsx`, `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:card.start` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`, `src/features/housekeeping/components/RoomTaskCard.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:card.startAria` — `src/features/housekeeping/components/RoomTaskCard.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:card.unassigned` — `src/features/housekeeping/components/NewTaskDialog.tsx`, `src/features/housekeeping/components/NewTicketDialog.tsx`, `src/features/housekeeping/components/RoomDetailDrawer.tsx`, `src/features/housekeeping/components/RoomTaskCard.tsx`, `src/features/housekeeping/components/TasksView.tsx`, `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:confirm.completeConfirm` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:confirm.completeOther` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:confirm.completeRelease` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:confirm.completeTitle` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:confirm.voidBody` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:confirm.voidConfirm` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:confirm.voidTitle` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:drawer.aria` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.cleaningWindow` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.closeAria` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.detailsUnavailable` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.maintenanceNotes` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.maintenanceWindow` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.newTask` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.noOpenTasksBody` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.openTasks` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.overduePrefix` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.recentEvents` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.recentTasks` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.reportMaintenance` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.reservedWindow` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.scheduledPrefix` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.statusDetails` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.statusHistory` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.statusNotes` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:drawer.updateStatus` — `src/features/housekeeping/components/RoomDetailDrawer.tsx`
+- `housekeeping:editTask.errDateCleared` — `src/features/housekeeping/components/TaskEditDialog.tsx`
+- `housekeeping:editTask.errNotesCleared` — `src/features/housekeeping/components/TaskEditDialog.tsx`
+- `housekeeping:editTask.inspectionNotes` — `src/features/housekeeping/components/TaskEditDialog.tsx`
+- `housekeeping:editTask.keepAssignee` — `src/features/housekeeping/components/TaskEditDialog.tsx`, `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:editTask.keepUnassigned` — `src/features/housekeeping/components/TaskEditDialog.tsx`, `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:editTask.saving` — `src/features/housekeeping/components/TaskEditDialog.tsx`
+- `housekeeping:editTask.scheduledDate` — `src/features/housekeeping/components/TaskEditDialog.tsx`
+- `housekeeping:editTask.submit` — `src/features/housekeeping/components/TaskEditDialog.tsx`
+- `housekeeping:editTask.title` — `src/features/housekeeping/components/TaskEditDialog.tsx`
+- `housekeeping:editTask.unassign` — `src/features/housekeeping/components/TaskEditDialog.tsx`, `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:errors.createTask` — `src/features/housekeeping/components/NewTaskDialog.tsx`
+- `housekeeping:errors.createTicket` — `src/features/housekeeping/components/NewTicketDialog.tsx`
+- `housekeeping:errors.loadBoard` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:errors.loadTasks` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:errors.loadTickets` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:errors.syncFailed` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:errors.taskUpdate` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:errors.updateTask` — `src/features/housekeeping/components/TaskEditDialog.tsx`
+- `housekeeping:errors.updateTicket` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:maint.actionClosed` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:maint.actionInProgress` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:maint.actionOnHold` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:maint.actionOpen` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:maint.actionResolved` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:maint.allCategories` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.category` — `src/features/housekeeping/components/MaintenanceTab.tsx`, `src/features/housekeeping/components/NewTicketDialog.tsx`
+- `housekeeping:maint.colAssignedTo` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.colCategory` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.colPriority` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.colRoom` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.colStatus` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.colTicket` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.colTitle` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.colUpdated` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.countSummary` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.empty` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.emptyBody` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.emptySearch` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.emptySearchBody` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.emptyStatus` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.newTicket` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.openTicketAria` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.searchAria` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.searchPlaceholder` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:maint.tableAria` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:newTask.assignTo` — `src/features/housekeeping/components/NewTaskDialog.tsx`, `src/features/housekeeping/components/NewTicketDialog.tsx`
+- `housekeeping:newTask.chooseRoom` — `src/features/housekeeping/components/NewTaskDialog.tsx`
+- `housekeeping:newTask.creating` — `src/features/housekeeping/components/NewTaskDialog.tsx`
+- `housekeeping:newTask.notesPlaceholder` — `src/features/housekeeping/components/NewTaskDialog.tsx`
+- `housekeeping:newTask.room` — `src/features/housekeeping/components/NewTaskDialog.tsx`
+- `housekeeping:newTask.scheduledDate` — `src/features/housekeeping/components/NewTaskDialog.tsx`
+- `housekeeping:newTask.submit` — `src/features/housekeeping/components/NewTaskDialog.tsx`
+- `housekeeping:newTask.title` — `src/features/housekeeping/components/NewTaskDialog.tsx`
+- `housekeeping:newTicket.creating` — `src/features/housekeeping/components/NewTicketDialog.tsx`
+- `housekeeping:newTicket.errTitle` — `src/features/housekeeping/components/NewTicketDialog.tsx`
+- `housekeeping:newTicket.fieldTitle` — `src/features/housekeeping/components/NewTicketDialog.tsx`
+- `housekeeping:newTicket.noRoom` — `src/features/housekeeping/components/NewTicketDialog.tsx`
+- `housekeeping:newTicket.room` — `src/features/housekeeping/components/NewTicketDialog.tsx`
+- `housekeeping:newTicket.submit` — `src/features/housekeeping/components/NewTicketDialog.tsx`
+- `housekeeping:newTicket.title` — `src/features/housekeeping/components/NewTicketDialog.tsx`
+- `housekeeping:page.kicker` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.newTask` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.refreshAria` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.refreshTooltip` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.statAttention` — `src/features/housekeeping/components/BoardView.tsx`, `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.statBlocked` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.statInProgress` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.statNeedsCleaning` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.statReady` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.statUnassigned` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.subtitle` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.subtitleFallback` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.syncStatuses` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.tabBoard` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.tabMaintenance` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.tabTasks` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:page.tabsAria` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:roomStatusHint.available` — `src/features/housekeeping/housekeepingConfig.ts`
+- `housekeeping:roomStatusHint.cleaning` — `src/features/housekeeping/housekeepingConfig.ts`
+- `housekeeping:roomStatusHint.dirty` — `src/features/housekeeping/housekeepingConfig.ts`
+- `housekeeping:roomStatusHint.maintenance` — `src/features/housekeeping/housekeepingConfig.ts`
+- `housekeeping:roomStatusHint.occupied` — `src/features/housekeeping/housekeepingConfig.ts`
+- `housekeeping:roomStatusHint.out_of_order` — `src/features/housekeeping/housekeepingConfig.ts`
+- `housekeeping:roomStatusHint.reserved` — `src/features/housekeeping/housekeepingConfig.ts`
+- `housekeeping:roomStatusHint.reserved_dirty` — `src/features/housekeeping/housekeepingConfig.ts`
+- `housekeeping:success.roomStatus` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:success.taskAssigned` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:success.taskCompleted` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:success.taskCreated` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:success.taskStarted` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:success.taskUpdated` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:success.taskVoided` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+- `housekeeping:success.ticketCreated` — `src/features/housekeeping/components/HousekeepingPage.tsx`, `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:success.ticketUpdated` — `src/features/housekeeping/components/MaintenanceTab.tsx`
+- `housekeeping:tasks.allTypes` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.colActions` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.colAssignedTo` — `src/features/housekeeping/components/TaskEditDialog.tsx`, `src/features/housekeeping/components/TasksView.tsx`, `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:tasks.colPriority` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.colRoom` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.colScheduled` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.colStatus` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.colTask` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.colUpdated` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.countSummary` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.editTask` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.editTaskAria` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.emptyDefault` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.emptyFiltered` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.emptyMine` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.emptyTitle` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.emptyToday` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.emptyUnassigned` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.overdue` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.overdueSuffix` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.quickAll` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.quickCompleted` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.quickMine` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.quickOpen` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.quickToday` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.quickUnassigned` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.roomDetailsAria` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.searchAria` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.searchPlaceholder` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.tableAria` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.taskType` — `src/features/housekeeping/components/NewTaskDialog.tsx`, `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.voidTask` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:tasks.voidTaskAria` — `src/features/housekeeping/components/TasksView.tsx`
+- `housekeeping:ticketDetail.actualCost` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:ticketDetail.created` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:ticketDetail.estimatedCost` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:ticketDetail.priorityLabel` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:ticketDetail.reassign` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:ticketDetail.resolutionField` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:ticketDetail.resolutionNotes` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:ticketDetail.resolved` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:ticketDetail.saveAssignee` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:ticketDetail.scheduled` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:ticketDetail.started` — `src/features/housekeeping/components/TicketDetailDialog.tsx`
+- `housekeeping:title` — `src/features/housekeeping/components/HousekeepingPage.tsx`
+
+### `legal`
+
+- `legal:consent.languageToggle` — `src/features/legal/components/ConsentBlock.tsx`, `src/features/legal/components/ConsentNotice.tsx`
+- `legal:consent.requiredToContinue` — `src/features/legal/components/ConsentBlock.tsx`
+- `legal:contentsAria` — *(dynamic or unreferenced)*
+- `legal:documentNotFound.body` — `src/features/legal/components/LegalDocumentPage.tsx`
+- `legal:documentNotFound.title` — `src/features/legal/components/LegalDocumentPage.tsx`
+- `legal:emphasis.info` — `src/features/legal/components/LegalDocumentPage.tsx`
+- `legal:emphasis.requirement` — `src/features/legal/components/LegalDocumentPage.tsx`
+- `legal:inThisDocument` — *(dynamic or unreferenced)*
+- `legal:languageToggle` — *(dynamic or unreferenced)*
+- `legal:questionsTitle` — *(dynamic or unreferenced)*
+- `legal:versionLine` — *(dynamic or unreferenced)*
+
+### `loyalty`
+
+- `loyalty:categories.dining` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:categories.discount` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:categories.experience` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:categories.general` — *(dynamic or unreferenced)*
+- `loyalty:categories.gift` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:categories.room_upgrade` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:categories.service` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:categories.spa` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.adminSubtitle` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.adminTitle` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.allRewards` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.availablePoints` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.availableRewards` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.availableRewardsHint` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.balance` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.colActions` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.colCategory` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.colMinTier` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.colName` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.colPointsCost` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.colStock` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.colValue` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.confirmRedemption` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.createReward` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.current` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.currentTierBenefits` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.deleteConfirm` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.deleteRewardAria` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.deleteTitle` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.editReward` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.editRewardAria` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.ekycBody` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.ekycComplete` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.ekycGoToProfile` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.ekycNotStarted` — *(dynamic or unreferenced)*
+- `loyalty:dashboard.ekycRejected` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.ekycStatus` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.ekycTitle` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.ekycUnderReview` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.fieldCategory` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.fieldDescription` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.fieldMinTier` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.fieldMonetary` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.fieldName` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.fieldPointsCost` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.fieldStock` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.fieldTerms` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.guestSubtitle` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.highestTier` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.insufficientPoints` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.joinToRedeem` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.lifetimePoints` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.loadFailed` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.loadRewardsFailed` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.locked` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.memberSince` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.memberSubtitle` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.metaStock` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.metaStockValue` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.morePointsNeeded` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.multiplierAlert` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.newBalance` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.noRewards` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.noRewardsInCategory` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.noTransactions` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.notEnrolledBody` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.notEnrolledTitle` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.notesLabel` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.notesPlaceholder` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.pointsAway` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.pointsBalance` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.pointsCount` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.pointsToDeduct` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.pointsUnit` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.progressTo` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.recentTransactions` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.redeemFailed` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.redeemNow` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.redeemTitle` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.redeemed` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.requiresTier` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.rewardCreated` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.rewardDeleteFailed` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.rewardDeleted` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.rewardSaveFailed` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.rewardUpdated` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.stockLeft` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.subtitlePts` — `src/features/loyalty/components/LoyaltyDashboard.tsx`, `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:dashboard.tabBenefits` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.tabHistory` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.tabRewards` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.termsLabel` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.tierComparison` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.tierLocked` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.tierMember` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.title` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.unlockAt` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.value` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:dashboard.valueSuffix` — `src/features/loyalty/components/LoyaltyDashboard.tsx`
+- `loyalty:portal.members.activityMeta` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.all` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.availablePoints` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colAvailable` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colBalance` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colDate` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colDescription` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colEnrolled` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colGuest` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colLifetime` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colMemberNumber` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colPoints` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colStatus` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colTier` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.colType` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.detailTitle` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.giftFailed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.giftInvalidPoints` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.giftPoints` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.giftReasonShort` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.highestTier` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.lifetimePoints` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.loadMemberFailed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.member` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.memberMeta` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.noActivity` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.noMembers` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.points` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.reason` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.recentActivity` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.searchPlaceholder` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.statusLabel` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.tier` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.tierProgress` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.members.toNextTier` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.overview.activeHint` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.overview.availablePoints` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.overview.byTier` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.overview.lifetimePoints` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.overview.loadMembersFailed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.overview.noMembers` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.overview.pendingHint` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.overview.pendingRedemptions` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.overview.totalMembers` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.all` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.approve` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.approveFailed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.colActions` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.colMember` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.colPoints` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.colRequested` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.colReward` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.colStatus` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.loadFailed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.meta` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.noRedemptions` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.reason` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.reject` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.rejectFailed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.rejectReasonShort` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.rejectTitle` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.statusLabel` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.redemptions.subtitlePts` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.refresh` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.active` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.activeSwitch` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.anyTier` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.approvalRequired` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.categoryRequired` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.colActive` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.colApproval` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.colCategory` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.colInventory` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.colMinTier` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.colName` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.colPoints` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.editTitle` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.fieldCategory` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.fieldDescription` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.fieldInventory` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.fieldMinTierId` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.fieldName` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.fieldPointsCost` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.fieldTerms` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.fieldValidFrom` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.fieldValidTo` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.inactive` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.loadFailed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.metaLine` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.nameTooShort` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.newReward` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.newTitle` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.noApproval` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.noRewards` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.pointsMin` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.requiresApproval` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.saveFailed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rewards.showInactive` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.approvalRequired` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.earningEnabled` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.loadFailed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.metricNights` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.metricPoints` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.metricSpend` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.minAmount` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.minAmountHelper` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.pointExpiry` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.pointsPerUnit` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.save` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.saveFailed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.saved` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.tierMetric` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.rules.title` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.tabs.members` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.tabs.overview` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.tabs.redemptions` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.tabs.rewards` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.tabs.rules` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:portal.title` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `loyalty:tiers.1` — `src/features/loyalty/utils.ts`
+- `loyalty:tiers.2` — `src/features/loyalty/utils.ts`
+- `loyalty:tiers.3` — `src/features/loyalty/utils.ts`
+- `loyalty:tiers.4` — `src/features/loyalty/utils.ts`
+- `loyalty:title` — *(dynamic or unreferenced)*
+
+### `nav`
+
+- `nav:aria.brand` — `src/components/layout/sidebar/SidebarContent.tsx`
+- `nav:aria.breadcrumbs` — `src/components/layout/Breadcrumbs.tsx`
+- `nav:aria.collapseSidebar` — `src/components/layout/sidebar/SidebarContent.tsx`
+- `nav:aria.expandSidebar` — `src/components/layout/sidebar/SidebarContent.tsx`
+- `nav:aria.mainNavigation` — `src/components/layout/sidebar/SidebarContent.tsx`
+- `nav:aria.search` — `src/components/layout/AppTopbar.tsx`
+- `nav:aria.searchResults` — `src/components/layout/CommandPalette.tsx`
+- `nav:aria.userMenu` — `src/components/layout/UserMenu.tsx`
+- `nav:groups.admin` — *(dynamic or unreferenced)*
+- `nav:groups.administration` — *(dynamic or unreferenced)*
+- `nav:groups.config` — *(dynamic or unreferenced)*
+- `nav:groups.finance` — *(dynamic or unreferenced)*
+- `nav:groups.front_office` — *(dynamic or unreferenced)*
+- `nav:groups.guests` — *(dynamic or unreferenced)*
+- `nav:groups.insights` — *(dynamic or unreferenced)*
+- `nav:groups.main` — *(dynamic or unreferenced)*
+- `nav:groups.other` — `src/features/admin/components/rbac/PermissionsTab/PermissionsTab.tsx`, `src/features/admin/components/rbac/RolesTab/NavigationAccessSection.tsx`
+- `nav:groups.overview` — *(dynamic or unreferenced)*
+- `nav:groups.revenue` — *(dynamic or unreferenced)*
+- `nav:groups.utility` — *(dynamic or unreferenced)*
+- `nav:mobile.backToList` — `src/features/admin/components/CustomerLedger/CustomerLedgerPage.tsx`, `src/features/bookings/pages/BookingDetailPage.tsx`
+- `nav:mobile.collectPayment` — *(dynamic or unreferenced)*
+- `nav:mobile.guests` — `src/components/layout/MobileNavBar.tsx`
+- `nav:mobile.menu` — `src/components/layout/MobileMoreSheet.tsx`
+- `nav:mobile.more` — `src/components/layout/MobileNavBar.tsx`
+- `nav:mobile.newBooking` — `src/components/layout/CommandPalette.tsx`, `src/components/layout/sidebar/SidebarContent.tsx`
+- `nav:mobile.newGuest` — *(dynamic or unreferenced)*
+- `nav:mobile.newTask` — *(dynamic or unreferenced)*
+- `nav:mobile.primary` — `src/components/layout/MobileNavBar.tsx`
+- `nav:mobile.quickActions` — `src/components/layout/MobileQuickActions.tsx`
+- `nav:mobile.reportIssue` — *(dynamic or unreferenced)*
+- `nav:mobile.roomStatus` — *(dynamic or unreferenced)*
+- `nav:mobile.search` — *(dynamic or unreferenced)*
+- `nav:mobile.todaysArrivals` — *(dynamic or unreferenced)*
+- `nav:mobile.todaysDepartures` — *(dynamic or unreferenced)*
+- `nav:palette.groups.actions` — `src/components/layout/CommandPalette.tsx`
+- `nav:palette.groups.help` — `src/components/layout/CommandPalette.tsx`
+- `nav:palette.groups.pages` — `src/components/layout/CommandPalette.tsx`
+- `nav:palette.groups.recent` — `src/components/layout/CommandPalette.tsx`
+- `nav:palette.hint` — `src/components/layout/CommandPalette.tsx`
+- `nav:palette.newBookingHint` — `src/components/layout/CommandPalette.tsx`
+- `nav:palette.noMatches` — `src/components/layout/CommandPalette.tsx`
+- `nav:palette.placeholder` — `src/components/layout/CommandPalette.tsx`
+- `nav:palette.placeholderGuest` — `src/components/layout/CommandPalette.tsx`
+- `nav:palette.scopes.all` — *(dynamic or unreferenced)*
+- `nav:palette.scopes.bookings` — *(dynamic or unreferenced)*
+- `nav:palette.scopes.guests` — *(dynamic or unreferenced)*
+- `nav:palette.scopes.help` — *(dynamic or unreferenced)*
+- `nav:palette.scopes.ledgers` — *(dynamic or unreferenced)*
+- `nav:palette.scopes.pages` — *(dynamic or unreferenced)*
+- `nav:palette.scopes.rooms` — *(dynamic or unreferenced)*
+- `nav:roles.admin` — *(dynamic or unreferenced)*
+- `nav:roles.auditor` — *(dynamic or unreferenced)*
+- `nav:roles.compliance_admin` — *(dynamic or unreferenced)*
+- `nav:roles.ekyc_reviewer` — *(dynamic or unreferenced)*
+- `nav:roles.front_desk` — *(dynamic or unreferenced)*
+- `nav:roles.guest` — *(dynamic or unreferenced)*
+- `nav:roles.housekeeping` — *(dynamic or unreferenced)*
+- `nav:roles.manager` — *(dynamic or unreferenced)*
+- `nav:roles.receptionist` — *(dynamic or unreferenced)*
+- `nav:roles.senior_reviewer` — *(dynamic or unreferenced)*
+- `nav:roles.staff` — *(dynamic or unreferenced)*
+- `nav:roles.super_admin` — *(dynamic or unreferenced)*
+- `nav:roles.support_readonly` — *(dynamic or unreferenced)*
+- `nav:routes.audit-log.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.audit-log.label` — *(dynamic or unreferenced)*
+- `nav:routes.bookings.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.bookings.label` — *(dynamic or unreferenced)*
+- `nav:routes.campaigns.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.campaigns.label` — *(dynamic or unreferenced)*
+- `nav:routes.communications.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.communications.label` — *(dynamic or unreferenced)*
+- `nav:routes.company-ledger.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.company-ledger.label` — *(dynamic or unreferenced)*
+- `nav:routes.complimentary.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.complimentary.label` — *(dynamic or unreferenced)*
+- `nav:routes.dashboard.breadcrumb` — `src/components/layout/Breadcrumbs.tsx`
+- `nav:routes.dashboard.label` — *(dynamic or unreferenced)*
+- `nav:routes.data-transfer.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.data-transfer.label` — *(dynamic or unreferenced)*
+- `nav:routes.ekyc-admin.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.ekyc-admin.label` — *(dynamic or unreferenced)*
+- `nav:routes.ekyc.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.ekyc.label` — *(dynamic or unreferenced)*
+- `nav:routes.guest-directory.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.guest-directory.label` — *(dynamic or unreferenced)*
+- `nav:routes.guest-relations.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.guest-relations.label` — *(dynamic or unreferenced)*
+- `nav:routes.help.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.help.label` — *(dynamic or unreferenced)*
+- `nav:routes.housekeeping.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.housekeeping.label` — *(dynamic or unreferenced)*
+- `nav:routes.insights.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.insights.label` — *(dynamic or unreferenced)*
+- `nav:routes.jobs.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.jobs.label` — *(dynamic or unreferenced)*
+- `nav:routes.loyalty.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.loyalty.label` — *(dynamic or unreferenced)*
+- `nav:routes.my-rewards.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.my-rewards.label` — *(dynamic or unreferenced)*
+- `nav:routes.night-audit.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.night-audit.label` — *(dynamic or unreferenced)*
+- `nav:routes.notifications.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.notifications.label` — *(dynamic or unreferenced)*
+- `nav:routes.online-inventory.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.online-inventory.label` — *(dynamic or unreferenced)*
+- `nav:routes.payment-approvals.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.payment-approvals.label` — *(dynamic or unreferenced)*
+- `nav:routes.profile.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.profile.label` — *(dynamic or unreferenced)*
+- `nav:routes.rates.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.rates.label` — *(dynamic or unreferenced)*
+- `nav:routes.rbac.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.rbac.label` — *(dynamic or unreferenced)*
+- `nav:routes.reports.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.reports.label` — *(dynamic or unreferenced)*
+- `nav:routes.revenue.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.revenue.label` — *(dynamic or unreferenced)*
+- `nav:routes.room-config.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.room-config.label` — *(dynamic or unreferenced)*
+- `nav:routes.room-management.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.room-management.label` — *(dynamic or unreferenced)*
+- `nav:routes.segments.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.segments.label` — *(dynamic or unreferenced)*
+- `nav:routes.settings.breadcrumb` — `src/components/layout/UserMenu.tsx`
+- `nav:routes.settings.label` — *(dynamic or unreferenced)*
+- `nav:routes.support.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.support.label` — *(dynamic or unreferenced)*
+- `nav:routes.system-health.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.system-health.label` — *(dynamic or unreferenced)*
+- `nav:routes.timeline.breadcrumb` — *(dynamic or unreferenced)*
+- `nav:routes.timeline.label` — *(dynamic or unreferenced)*
+- `nav:userMenu.defaultRole` — `src/components/layout/UserMenu.tsx`
+- `nav:userMenu.logout` — `src/components/layout/AppTopbar.tsx`, `src/components/layout/UserMenu.tsx`
+- `nav:userMenu.profile` — `src/components/layout/UserMenu.tsx`
+- `nav:userMenu.settings` — *(dynamic or unreferenced)*
+- `nav:userMenu.signedInAs` — *(dynamic or unreferenced)*
+
+### `nightAudit`
+
+- `nightAudit:actions.exportCsv` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:actions.exportPdf` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:actions.loadJournal` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:actions.loadPreview` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:actions.loadingJournal` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:actions.refresh` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:actions.rerun` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:actions.rerunning` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:actions.runAudit` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:actions.runNightAudit` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:actions.running` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:breakdown.colAmount` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:breakdown.colBookings` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:breakdown.total` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:confirm.cannotUndo` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:confirm.intro` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:confirm.lockBookings` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:confirm.markPosted` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:confirm.recordSnapshot` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:confirm.title` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:confirm.willDo` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:csv.colNights` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:csv.colPaymentMethod` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:csv.colPaymentStatus` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:csv.colRoomType` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:csv.occupancyRate` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:csv.postedBookings` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:csv.summaryStatistics` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:csv.totalBookings` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:errors.exportCsv` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:errors.exportPdf` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:errors.run` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:fields.auditDate` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:fields.month` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:fields.notesOptional` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:fields.notesPlaceholder` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:fields.year` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.colBookings` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.colDate` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.colOccupancy` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.colRunAt` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.colRunBy` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.colStatus` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.collapseAria` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.empty` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.expandAria` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.found_one` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.found_other` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.metaLine` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.perPage` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.runByLine` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:history.system` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.colBooking` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.colCredit` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.colDebit` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.colDescription` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.colRoom` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.collapseAria` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.credit` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.debit` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.drCr` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.entries_one` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.entries_other` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.entryFallback` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.expandAria` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.grandTotal` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.roomLine` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.title` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.total` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.totalCredit` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:journal.totalDebit` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:ledger.colAccount` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:ledger.colCredits` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:ledger.colDebits` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:ledger.title` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.bookingsToPost` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.byChannel` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.byPayment` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.colAmount` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.colBooking` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.colChannel` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.colCheckIn` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.colCheckOut` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.colGuest` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.colRoom` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.colStatus` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.estimatedRevenue` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.noBookings` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.occupancy` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.projected` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.roomsOccupied` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.title` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.toBePosted` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:preview.willPost` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:report.bookingsPosted` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:report.checkins` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:report.checkouts` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:report.completedLine` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:report.notes` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:report.occupancy` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:report.revenue` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:report.title` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:rerun.confirm` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:rerun.message` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:rerun.success` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:rerun.title` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:roomSold.colGuest` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomSold.colRoom` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomSold.colType` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomSold.title` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomSold.totalRow` — `src/features/admin/components/NightAuditPage.tsx`, `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomStatus.auditDate` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomStatus.available` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomStatus.dirty` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomStatus.label` — *(dynamic or unreferenced)*
+- `nightAudit:roomStatus.maintenance` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomStatus.occupied` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomStatus.reserved` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:roomStatus.whenAudited` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:status.alreadyCompleted` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:status.completedSeeHistory` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:status.notRunYet` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:status.posted` — `src/features/admin/components/NightAuditReportViews.tsx`
+- `nightAudit:tabs.aria` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:tabs.history` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:tabs.run` — `src/features/admin/components/NightAuditPage.tsx`
+- `nightAudit:title` — `src/features/admin/components/NightAuditPage.tsx`
+
+### `notifications`
+
+- `notifications:center.alerts` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:center.allCaughtUp` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:center.clearAll` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:center.dismiss` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:center.noSystemAlerts` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:center.system` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:center.unreadAria` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:center.viewAllAria` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:empty` — *(dynamic or unreferenced)*
+- `notifications:forbidden` — `src/features/notifications/pages/NotificationsPage.tsx`
+- `notifications:markAllRead` — *(dynamic or unreferenced)*
+- `notifications:meta` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:noDeliveries` — `src/features/notifications/pages/NotificationsPage.tsx`
+- `notifications:pageSubtitle` — `src/features/notifications/pages/NotificationsPage.tsx`
+- `notifications:pageTitle` — `src/features/notifications/pages/NotificationsPage.tsx`
+- `notifications:priority.critical` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:priority.info` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:priority.warning` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:tier.marketing` — `src/features/notifications/components/DeliveryTabs.tsx`
+- `notifications:tier.transactional` — `src/features/notifications/components/DeliveryTabs.tsx`
+- `notifications:tierEmpty` — `src/features/notifications/pages/NotificationsPage.tsx`
+- `notifications:title` — `src/components/layout/NotificationCenter.tsx`
+- `notifications:toast.copied` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `notifications:toast.copyFailed` — `src/features/auth/components/TwoFactorSetup.tsx`
+- `notifications:toast.deleted` — *(dynamic or unreferenced)*
+- `notifications:toast.failed` — *(dynamic or unreferenced)*
+- `notifications:toast.saved` — *(dynamic or unreferenced)*
+- `notifications:toast.updated` — *(dynamic or unreferenced)*
+
+### `onlineInventory`
+
+- `onlineInventory:bulk.adjustAmountAria` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.adjustPercentAria` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.amountLabel` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.applyAmount` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.applyPercent` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.aria` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.cellsSelected_one` — `src/features/onlineInventory/components/BulkEditPanel.tsx`, `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:bulk.cellsSelected_other` — `src/features/onlineInventory/components/BulkEditPanel.tsx`, `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:bulk.clearOverrides` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.clearSelection` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.closeOnline` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.days.fri` — *(dynamic or unreferenced)*
+- `onlineInventory:bulk.days.mon` — *(dynamic or unreferenced)*
+- `onlineInventory:bulk.days.sat` — *(dynamic or unreferenced)*
+- `onlineInventory:bulk.days.sun` — *(dynamic or unreferenced)*
+- `onlineInventory:bulk.days.thu` — *(dynamic or unreferenced)*
+- `onlineInventory:bulk.days.tue` — *(dynamic or unreferenced)*
+- `onlineInventory:bulk.days.wed` — *(dynamic or unreferenced)*
+- `onlineInventory:bulk.daysAria` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.editSelected` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:bulk.editSelectedTitle` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:bulk.hold` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.inScope` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.openOnline` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.percentLabel` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.price` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.setHold` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.setPrice` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.skipped_one` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:bulk.skipped_other` — `src/features/onlineInventory/components/BulkEditPanel.tsx`
+- `onlineInventory:cell.ariaClosed` — `src/features/onlineInventory/components/GridCell.tsx`
+- `onlineInventory:cell.ariaModified` — `src/features/onlineInventory/components/GridCell.tsx`
+- `onlineInventory:cell.ariaNoneLeft` — `src/features/onlineInventory/components/GridCell.tsx`
+- `onlineInventory:cell.ariaOnline` — `src/features/onlineInventory/components/GridCell.tsx`
+- `onlineInventory:cell.ariaResetPending` — `src/features/onlineInventory/components/GridCell.tsx`
+- `onlineInventory:cell.closed` — `src/features/onlineInventory/components/GridCell.tsx`, `src/features/onlineInventory/components/PhoneInventoryView.tsx`
+- `onlineInventory:cell.noneLeft` — `src/features/onlineInventory/components/GridCell.tsx`
+- `onlineInventory:changedBar_one` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:changedBar_other` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:confirm.discardConfirm` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:confirm.discardMove` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:confirm.discardRefresh` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:confirm.discardTitle` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:discard` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:editor.bookable` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.bookableOff` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.bookableOn` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.customPrice` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.decrease` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.holdAria` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.holdWalkins` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.increase` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.ofFree` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.overHeld` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.priceInvalid` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:editor.resetStandard` — `src/features/onlineInventory/components/CellEditorPopover.tsx`, `src/features/onlineInventory/components/CellEditorSheet.tsx`
+- `onlineInventory:editor.standardRate` — `src/features/onlineInventory/components/CellEditorForm.tsx`
+- `onlineInventory:empty.body` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:empty.title` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:errors.load` — `src/features/onlineInventory/hooks/useOnlineInventory.ts`
+- `onlineInventory:errors.save` — `src/features/onlineInventory/hooks/useOnlineInventory.ts`
+- `onlineInventory:grid.aria` — `src/features/onlineInventory/components/InventoryGrid.tsx`
+- `onlineInventory:grid.colHeader` — `src/features/onlineInventory/components/InventoryGrid.tsx`
+- `onlineInventory:grid.selectAll` — `src/features/onlineInventory/components/InventoryGrid.tsx`
+- `onlineInventory:grid.selectColumn` — `src/features/onlineInventory/components/InventoryGrid.tsx`
+- `onlineInventory:grid.selectRow` — `src/features/onlineInventory/components/InventoryGrid.tsx`
+- `onlineInventory:grid.today` — `src/features/onlineInventory/components/InventoryGrid.tsx`, `src/features/onlineInventory/components/PhoneInventoryView.tsx`
+- `onlineInventory:kicker` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:lines.closeOnline` — `src/features/onlineInventory/utils.ts`
+- `onlineInventory:lines.holdLine` — `src/features/onlineInventory/utils.ts`
+- `onlineInventory:lines.priceLine` — `src/features/onlineInventory/utils.ts`
+- `onlineInventory:lines.priceStandard` — `src/features/onlineInventory/utils.ts`
+- `onlineInventory:lines.reopenOnline` — `src/features/onlineInventory/utils.ts`
+- `onlineInventory:lines.resetStandard` — `src/features/onlineInventory/utils.ts`
+- `onlineInventory:lines.roomTypeFallback` — `src/features/onlineInventory/utils.ts`
+- `onlineInventory:lines.updated` — `src/features/onlineInventory/utils.ts`
+- `onlineInventory:loading` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:phone.dayStripAria` — `src/features/onlineInventory/components/PhoneInventoryView.tsx`
+- `onlineInventory:phone.freeToday` — `src/features/onlineInventory/components/PhoneInventoryView.tsx`
+- `onlineInventory:phone.noDataAria` — `src/features/onlineInventory/components/PhoneInventoryView.tsx`
+- `onlineInventory:review.apply_one` — `src/features/onlineInventory/components/ReviewChangesDialog.tsx`
+- `onlineInventory:review.apply_other` — `src/features/onlineInventory/components/ReviewChangesDialog.tsx`
+- `onlineInventory:review.atomicNote_one` — `src/features/onlineInventory/components/ReviewChangesDialog.tsx`
+- `onlineInventory:review.atomicNote_other` — `src/features/onlineInventory/components/ReviewChangesDialog.tsx`
+- `onlineInventory:review.saving` — `src/features/onlineInventory/components/ReviewChangesDialog.tsx`
+- `onlineInventory:review.title` — `src/features/onlineInventory/components/ReviewChangesDialog.tsx`
+- `onlineInventory:reviewApply` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:subtitle` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:success.updated_one` — `src/features/onlineInventory/hooks/useOnlineInventory.ts`
+- `onlineInventory:success.updated_other` — `src/features/onlineInventory/hooks/useOnlineInventory.ts`
+- `onlineInventory:summary.aria` — `src/features/onlineInventory/components/InventorySummary.tsx`
+- `onlineInventory:summary.held` — `src/features/onlineInventory/components/InventorySummary.tsx`
+- `onlineInventory:summary.online` — `src/features/onlineInventory/components/InventorySummary.tsx`
+- `onlineInventory:summary.physical` — `src/features/onlineInventory/components/InventorySummary.tsx`
+- `onlineInventory:summary.roomNights` — `src/features/onlineInventory/components/InventorySummary.tsx`
+- `onlineInventory:summary.selectedCells` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:summary.visibleWindow` — `src/features/onlineInventory/components/InventorySummary.tsx`, `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:title` — `src/features/onlineInventory/pages/OnlineInventoryPage.tsx`
+- `onlineInventory:toolbar.aria` — `src/features/onlineInventory/components/GridToolbar.tsx`
+- `onlineInventory:toolbar.backDays` — `src/features/onlineInventory/components/GridToolbar.tsx`
+- `onlineInventory:toolbar.forwardDays` — `src/features/onlineInventory/components/GridToolbar.tsx`
+- `onlineInventory:toolbar.nextDay` — `src/features/onlineInventory/components/GridToolbar.tsx`
+- `onlineInventory:toolbar.overridesOnly` — `src/features/onlineInventory/components/GridToolbar.tsx`
+- `onlineInventory:toolbar.prevDay` — `src/features/onlineInventory/components/GridToolbar.tsx`
+- `onlineInventory:toolbar.selected` — `src/features/onlineInventory/components/GridToolbar.tsx`
+- `onlineInventory:toolbar.startDate` — `src/features/onlineInventory/components/GridToolbar.tsx`
+- `onlineInventory:toolbar.today` — `src/features/onlineInventory/components/GridToolbar.tsx`
+
+### `promotions`
+
+- `promotions:admin.cancelCampaign` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.cardMeta` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.cardMetaWithEnd` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.claimsOf` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.colActions` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.colClaims` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.colDiscount` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.colPromotion` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.colStatus` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.colType` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.colVisibility` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.loading` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.minNights_one` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.minNights_other` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.noPromotions` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.noPromotionsHint` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.pause` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.publish` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.readOnly` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.subtitleKind` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.viewPerformance` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:admin.viewVouchers` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:cancel.body` — `src/features/promotions/components/CancelCampaignDialog.tsx`
+- `promotions:cancel.cancelling` — `src/features/promotions/components/CancelCampaignDialog.tsx`
+- `promotions:cancel.confirm` — `src/features/promotions/components/CancelCampaignDialog.tsx`
+- `promotions:cancel.keep` — `src/features/promotions/components/CancelCampaignDialog.tsx`
+- `promotions:cancel.reason` — `src/features/promotions/components/CancelCampaignDialog.tsx`
+- `promotions:cancel.title` — `src/features/promotions/components/CancelCampaignDialog.tsx`
+- `promotions:claimIssue.limitReached` — `src/features/promotions/utils.ts`
+- `promotions:claimIssue.notOpen` — `src/features/promotions/utils.ts`
+- `promotions:claimIssue.notPublished` — `src/features/promotions/utils.ts`
+- `promotions:claimIssue.windowClosed` — `src/features/promotions/utils.ts`
+- `promotions:confirm.archiveMessage` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:confirm.archiveTitle` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:confirm.revokeMessage` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:confirm.revokeTitle` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:discount.percentOff` — `src/features/promotions/utils.ts`
+- `promotions:discountType.fixedAmount` — `src/features/promotions/constants.ts`
+- `promotions:discountType.percentage` — `src/features/promotions/constants.ts`
+- `promotions:editor.allChannels` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.allGuests` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.allRoomTypes` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.cancellable` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.createDraft` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.discountPositive` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldChannels` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldClaimEnds` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldClaimLimit` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldClaimStarts` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldCurrency` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldDescription` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldDiscountType` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldInternalCode` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldInternalCodeHelper` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldKind` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldMaxDiscount` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldMaxNights` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldMinNights` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldMinSubtotal` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldName` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldObjective` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldPerGuestLimit` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldRoomType` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldSlug` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldSlugHelper` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldStayEnds` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldStayStarts` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldTerms` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.fieldTiers` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.nameSlugRequired` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.noObjective` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.perGuestMin` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.publicCatalog` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.saveChanges` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.saving` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionAvailability` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionAvailabilityDesc` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionBasics` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionBasicsDesc` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionDiscount` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionDiscountDesc` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionExperience` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionExperienceDesc` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionLimits` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionLimitsDesc` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionTargeting` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.sectionTargetingDesc` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.selectedCount` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.subtitleCreate` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.subtitleEdit` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.titleCreate` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:editor.titleEdit` — `src/features/promotions/components/PromotionEditorDialog.tsx`
+- `promotions:expiry.expiredDaysAgo` — `src/features/promotions/utils.ts`
+- `promotions:expiry.expiredToday` — `src/features/promotions/utils.ts`
+- `promotions:expiry.expiresInDays` — `src/features/promotions/utils.ts`
+- `promotions:expiry.expiresToday` — `src/features/promotions/utils.ts`
+- `promotions:expiry.none` — `src/features/promotions/utils.ts`
+- `promotions:filters.all` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:filters.expiringSoon` — `src/features/promotions/constants.ts`, `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:issue.chooseGuest` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.chooseOffer` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.codeHelper` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.codeLabel` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.codePattern` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.expiresHelper` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.expiresLabel` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.expiryFuture` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.failed` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:issue.guest` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.guestHelper` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.helper` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.issuing` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.offer` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.optionDetail` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.remaining` — `src/features/promotions/components/VoucherIssueDialog.tsx`
+- `promotions:issue.title` — `src/features/promotions/components/VoucherIssueDialog.tsx`, `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:kind.deal` — `src/features/promotions/components/PromotionAdminTable.tsx`, `src/features/promotions/constants.ts`
+- `promotions:kind.voucher` — `src/features/promotions/constants.ts`
+- `promotions:kind.voucherOffer` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:labels.allRoomTypes` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.any` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.anyTime` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.claimLimitUsed` — `src/features/promotions/components/PromotionAdminTable.tsx`, `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.claimedCount` — `src/features/promotions/components/PromotionAdminTable.tsx`, `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.claimedOf` — `src/features/promotions/components/PromotionAdminTable.tsx`, `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.discountAmount` — `src/features/promotions/utils.ts`
+- `promotions:labels.discountPercentage` — `src/features/promotions/utils.ts`
+- `promotions:labels.guestFallback` — `src/features/promotions/utils.ts`
+- `promotions:labels.noTotalLimit` — `src/features/promotions/components/PromotionAdminTable.tsx`, `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.offerFallback` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:labels.openEnded` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.private` — `src/features/promotions/components/PromotionAdminTable.tsx`, `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.public` — `src/features/promotions/components/PromotionAdminTable.tsx`, `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.roomTypeFallback` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:labels.until` — `src/features/promotions/components/PromotionAdminTable.tsx`
+- `promotions:notify.campaignTransition` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:notify.draftCreated` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:notify.promotionUpdated` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:notify.voucherIssued` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:notify.voucherRevoked` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:objectives.acquisition` — `src/features/promotions/constants.ts`
+- `promotions:objectives.loyalty` — `src/features/promotions/constants.ts`
+- `promotions:objectives.occupancy` — `src/features/promotions/constants.ts`
+- `promotions:objectives.other` — `src/features/promotions/constants.ts`
+- `promotions:objectives.retention` — `src/features/promotions/constants.ts`
+- `promotions:objectives.upsell` — `src/features/promotions/constants.ts`
+- `promotions:page.clearFilters` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.clearSearch` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.createCampaign` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.kicker` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.loadFailed` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.offerChip` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.readOnlyCampaigns` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.readOnlyVouchers` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.refreshAria` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.refreshResults` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.results_one` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.results_other` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.searchAria` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.searchCampaigns` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.searchVouchers` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.statusFilterAria` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.subtitleCampaigns` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.subtitleVouchers` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.updateCampaignFailed` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:page.updateVoucherFailed` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:performance.applied` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.bookingsGuests` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.channelMix` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.chipAdminIssued` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.chipAvailable` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.chipExpired` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.chipGuestClaims` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.chipIssued` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.chipRedeemed` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.chipRevoked` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.closeAria` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.colChannel` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.colNetRevenue` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.colRedemptions` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.conversion` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.conversionHint` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.discountGiven` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.funnel` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.grossBooked` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.loadFailed` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.netRevenue` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.noRedemptions` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.redemptions` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.reversedHint` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.stayNights` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.stayNightsLine_one` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.stayNightsLine_other` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:performance.title` — `src/features/promotions/components/CampaignPerformanceDrawer.tsx`
+- `promotions:source.adminIssue` — `src/features/promotions/utils.ts`
+- `promotions:source.guestClaim` — `src/features/promotions/utils.ts`
+- `promotions:stats.availableNow` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.availableNowHint` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.campaigns` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.campaignsHintAll` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.campaignsHintFiltered` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.discountsGiven` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.discountsGivenHint` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.expired` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.expiredHint` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.expiringSoon` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.expiringSoonHint` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.redeemed` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.redeemedHint_one` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.redeemedHint_other` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.redemptions` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.redemptionsHint` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.totalVouchers` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.totalVouchersHint` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.vouchersIssued` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:stats.vouchersIssuedHint` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:tabs.campaigns` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:tabs.vouchers` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:vouchers.closeAria` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.colActions` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.colExpires` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.colGuest` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.colIssued` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.colOffer` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.colSource` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.colStatus` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.colVoucher` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.confirmRevoke` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.copied` — `src/features/promotions/components/VoucherAdminTable.tsx`, `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.copyAria` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.copyCode` — `src/features/promotions/components/VoucherAdminTable.tsx`, `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.copyCodeAria` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.emptyBody` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.emptyTitle` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.infoClaimWindow` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoDiscount` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoGuest` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoIssued` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoMinSubtotal` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoOffer` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoPerGuest` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoRoomTypes` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoSource` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoStayDates` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoStayLength` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.infoVisibility` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.keepVoucher` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.lifecycle` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.lifecycleExpires` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.lifecycleIssued` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.lifecycleRedeemed` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.lifecycleRevoked` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.loadFailed` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.nonCancellable` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.offerRules` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.offerUnavailable` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.perGuest_one` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.perGuest_other` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.reasonOptional` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.revoke` — `src/features/promotions/components/VoucherAdminTable.tsx`, `src/features/promotions/components/VoucherDetailsDrawer.tsx`, `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:vouchers.revokeWarning` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.revokedByAdmin` — `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `promotions:vouchers.revoking` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.stayLengthMax_one` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.stayLengthMax_other` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.stayLength_one` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.stayLength_other` — `src/features/promotions/components/VoucherDetailsDrawer.tsx`
+- `promotions:vouchers.viewAria` — `src/features/promotions/components/VoucherAdminTable.tsx`
+- `promotions:vouchers.viewDetails` — `src/features/promotions/components/VoucherAdminTable.tsx`
+
+### `rates`
+
+- `rates:actions.bulkRates` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:actions.newPlan` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:adjustmentTypes.fixed` — *(dynamic or unreferenced)*
+- `rates:adjustmentTypes.override` — *(dynamic or unreferenced)*
+- `rates:adjustmentTypes.percentage` — *(dynamic or unreferenced)*
+- `rates:bands.colFrom` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.colPrice` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.colRoomType` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.colTo` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.deleteBand` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.deleteBandAria` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.empty` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.open` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.openEndedHint` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.priceAria` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.roomTypeAria` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bands.title` — `src/features/rates/components/RoomRatesEditor.tsx`
+- `rates:bulk.effectiveFrom` — `src/features/rates/components/BulkRateDialog.tsx`
+- `rates:bulk.effectiveTo` — `src/features/rates/components/BulkRateDialog.tsx`
+- `rates:bulk.hint` — `src/features/rates/components/BulkRateDialog.tsx`
+- `rates:bulk.price` — `src/features/rates/components/BulkRateDialog.tsx`
+- `rates:bulk.rangeError` — `src/features/rates/components/BulkRateDialog.tsx`
+- `rates:bulk.ratePlan` — `src/features/rates/components/BulkRateDialog.tsx`
+- `rates:bulk.roomTypes` — `src/features/rates/components/BulkRateDialog.tsx`
+- `rates:bulk.submit` — `src/features/rates/components/BulkRateDialog.tsx`
+- `rates:bulk.title` — `src/features/rates/components/BulkRateDialog.tsx`
+- `rates:calendar.cellAria` — `src/features/rates/components/RateCalendarGrid.tsx`
+- `rates:calendar.colHeader` — `src/features/rates/components/RateCalendarGrid.tsx`
+- `rates:calendar.emptyBody` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:calendar.emptyTitle` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:calendar.gridAria` — `src/features/rates/components/RateCalendarGrid.tsx`
+- `rates:calendar.loadError` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:calendar.next` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:calendar.off` — `src/features/rates/components/RateCalendarGrid.tsx`
+- `rates:calendar.onlineOverride` — `src/features/rates/components/RateCalendarGrid.tsx`
+- `rates:calendar.onlineOverrideAria` — `src/features/rates/components/RateCalendarGrid.tsx`
+- `rates:calendar.prev` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:calendar.soldLine` — `src/features/rates/components/RateCalendarGrid.tsx`
+- `rates:calendar.today` — `src/features/rates/components/RateCalendarGrid.tsx`
+- `rates:days.fri` — *(dynamic or unreferenced)*
+- `rates:days.mon` — *(dynamic or unreferenced)*
+- `rates:days.sat` — *(dynamic or unreferenced)*
+- `rates:days.sun` — *(dynamic or unreferenced)*
+- `rates:days.thu` — *(dynamic or unreferenced)*
+- `rates:days.tue` — *(dynamic or unreferenced)*
+- `rates:days.wed` — *(dynamic or unreferenced)*
+- `rates:planDialog.adjustmentType` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.adjustmentValue` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.appliesOn` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.blackout` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.blackoutHint` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.code` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.codeHint` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.editTitle` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.maxAdvance` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.maxNights` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.minAdvance` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.minNights` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.name` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.newTitle` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.planType` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.priority` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.priorityHint` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.submitCreate` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.submitEdit` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.validFrom` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.validTo` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planDialog.validToError` — `src/features/rates/components/RatePlanDialog.tsx`
+- `rates:planTypes.corporate` — *(dynamic or unreferenced)*
+- `rates:planTypes.group` — *(dynamic or unreferenced)*
+- `rates:planTypes.package` — *(dynamic or unreferenced)*
+- `rates:planTypes.promotional` — *(dynamic or unreferenced)*
+- `rates:planTypes.seasonal` — *(dynamic or unreferenced)*
+- `rates:planTypes.standard` — *(dynamic or unreferenced)*
+- `rates:plans.active` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.allDays` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.colActions` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.colActive` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.colAdjustment` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.colDays` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.colMinMax` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.colPlan` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.colPriority` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.colType` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.colValidity` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.deleteAria` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.deleteMessage` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:plans.deletePlan` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.deleteTitle` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:plans.editAria` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.editPlan` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.emptyBody` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:plans.emptyTitle` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:plans.inactive` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.loadError` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:plans.nightsMin` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.nightsMinMax` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:plans.toggleAria` — `src/features/rates/components/RatePlanTable.tsx`
+- `rates:popover.available` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:popover.baseFallback` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:popover.effectiveRate` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:popover.occupancy` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:popover.onlineBooking` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:popover.onlineOverride` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:popover.open` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:popover.planRate` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:popover.ratePlan` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:popover.stopped` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:popover.walkInReserved` — `src/features/rates/components/RateCellPopover.tsx`
+- `rates:subtitle` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:tabs.calendar` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:tabs.plans` — `src/features/rates/pages/RatesPage.tsx`
+- `rates:title` — `src/features/rates/pages/RatesPage.tsx`
+
+### `revenue`
+
+- `revenue:channelMix.colBookings` — `src/features/revenue/components/ChannelMixTable.tsx`
+- `revenue:channelMix.colChannel` — `src/features/revenue/components/ChannelMixTable.tsx`
+- `revenue:channelMix.colNetRevenue` — `src/features/revenue/components/ChannelMixTable.tsx`
+- `revenue:channelMix.colShare` — `src/features/revenue/components/ChannelMixTable.tsx`
+- `revenue:channelMix.colType` — `src/features/revenue/components/ChannelMixTable.tsx`
+- `revenue:channelMix.empty` — `src/features/revenue/components/ChannelMixTable.tsx`
+- `revenue:channelMix.meta_one` — `src/features/revenue/components/ChannelMixTable.tsx`
+- `revenue:channelMix.meta_other` — `src/features/revenue/components/ChannelMixTable.tsx`
+- `revenue:channelMix.subtitle` — `src/features/revenue/components/ChannelMixTable.tsx`
+- `revenue:channelMix.title` — `src/features/revenue/components/ChannelMixTable.tsx`
+- `revenue:filters.allChannels` — `src/features/revenue/components/RevenueFilters.tsx`
+- `revenue:filters.allRoomTypes` — `src/features/revenue/components/RevenueFilters.tsx`
+- `revenue:filters.channel` — `src/features/revenue/components/RevenueFilters.tsx`
+- `revenue:filters.fromStayDate` — `src/features/revenue/components/RevenueFilters.tsx`
+- `revenue:filters.roomType` — `src/features/revenue/components/RevenueFilters.tsx`
+- `revenue:filters.toLastNight` — `src/features/revenue/components/RevenueFilters.tsx`
+- `revenue:kpis.adr` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.avgStay` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.bookingsCreated` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.directShare` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.nightsValue` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.noBaseline` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.noPrior` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.occupancy` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.ofNetRevenue` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.perBooking` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.perSellableRoom` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.perSoldRoomNight` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.revpar` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.roomNightsSold_one` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.roomNightsSold_other` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.roomRevenue` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.voidNoShow` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:kpis.vsPrior` — `src/features/revenue/components/RevenueKpiGrid.tsx`
+- `revenue:overview.emptyDescription` — `src/features/revenue/pages/RevenueOverviewPage.tsx`
+- `revenue:overview.emptyTitle` — `src/features/revenue/pages/RevenueOverviewPage.tsx`
+- `revenue:overview.footnote` — `src/features/revenue/pages/RevenueOverviewPage.tsx`
+- `revenue:overview.loadError` — `src/features/revenue/pages/RevenueOverviewPage.tsx`
+- `revenue:overview.pageTitle` — `src/features/revenue/pages/RevenueOverviewPage.tsx`
+- `revenue:overview.subtitle` — `src/features/revenue/pages/RevenueOverviewPage.tsx`
+- `revenue:overview.subtitleFallback` — `src/features/revenue/pages/RevenueOverviewPage.tsx`
+- `revenue:title` — *(dynamic or unreferenced)*
+- `revenue:trend.ariaOccupancy` — `src/features/revenue/components/RevenueTrendChart.tsx`
+- `revenue:trend.ariaRoomNights` — `src/features/revenue/components/RevenueTrendChart.tsx`
+- `revenue:trend.empty` — `src/features/revenue/components/RevenueTrendChart.tsx`
+- `revenue:trend.occupancy` — `src/features/revenue/components/RevenueTrendChart.tsx`
+- `revenue:trend.roomNights` — `src/features/revenue/components/RevenueTrendChart.tsx`
+- `revenue:trend.subtitle` — `src/features/revenue/components/RevenueTrendChart.tsx`
+- `revenue:trend.title` — `src/features/revenue/components/RevenueTrendChart.tsx`
+- `revenue:trend.ttAdr` — `src/features/revenue/components/RevenueTrendChart.tsx`
+- `revenue:trend.ttOccupancy` — `src/features/revenue/components/RevenueTrendChart.tsx`
+- `revenue:trend.ttRoomNights` — `src/features/revenue/components/RevenueTrendChart.tsx`
+- `revenue:trend.ttRoomRevenue` — `src/features/revenue/components/RevenueTrendChart.tsx`
+
+### `rooms`
+
+- `rooms:bookingNotes.cleaningHint` — `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`
+- `rooms:bookingNotes.cleaningPreference` — `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`
+- `rooms:bookingNotes.notesPlaceholder` — `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`
+- `rooms:bookingNotes.save` — `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`
+- `rooms:bookingNotes.title` — `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`
+- `rooms:card.addBookingNotes` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.addNotes` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.awaitingCleaning` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.checkIn` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.checkOut` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.cleaningNoHint` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.cleaningYesHint` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.clickToAddNotes` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.clickToEditNotes` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.dailyCleaning` — `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.freeGift` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.markAvailable` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.markClean` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.moreActions` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.move` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.newBooking` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.noDailyCleaning` — `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.openActionsAria` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.overdueBadge` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.overdueTooltip_one` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.overdueTooltip_other` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.reservedNeedsCleaning` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.reservedOn` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.smoking` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.smokingTooltip` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:card.underMaintenance` — `src/features/rooms/components/RoomManagement/components/RoomCard.tsx`
+- `rooms:changeRoom.changing` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.confirm` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.currentRate` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.currentRoom` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.customRateLabel` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.customTag` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.defaultRateHint` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.diffCharge` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.diffCredit` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.diffNone` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.differencePerNight` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.newRate` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.priceSummary` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.ratePerNight` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.roomOption` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.selectNewRoom` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.selectRoomHint` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:changeRoom.title` — `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`
+- `rooms:complimentary.bookingDetails` — `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:complimentary.checkInDate` — `src/features/rooms/components/RoomEventDialog.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`, `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:complimentary.checkOutDate` — `src/features/rooms/components/RoomEventDialog.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`, `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:complimentary.confirm` — `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:complimentary.info` — `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:complimentary.newAmount` — `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:complimentary.newAmountValue` — `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:complimentary.originalAmount` — `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:complimentary.reasonLabel` — `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:complimentary.reasonPlaceholder` — `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:complimentary.stayTitle` — `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`
+- `rooms:complimentary.title` — `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`
+- `rooms:config.addRoom` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.addRoomSubmit` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.addRoomTitle` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.basePriceHelper` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.bookableLabel` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.breadcrumbSection` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.coverBadge` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.createRoomType` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.customChip` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.customPriceHelper` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.decreaseBeds` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.deleteRoom` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.deleteRoomBody` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.deleteRoomConfirmPost` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.deleteRoomConfirmPre` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.deleteRoomTitle` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.deleteTypeBody` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.deleteTypeConfirmPost` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.deleteTypeConfirmPre` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.deleteTypeTitle` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.descPlaceholder` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.drawerEditTitle` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.drawerEditing` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.drawerNewSubtitle` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.editRoom` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.editRoomTitle` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.extraBed` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:config.extraBedAllowed` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.extraBedFee` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.forbidden` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.groupByFloor` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.groupByType` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.hiddenBadge` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.hiddenLabel` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.hideFromBooking` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.immutableHint` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.increaseBeds` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.maxExtraBeds` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.namePlaceholder` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.newRoomType` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.noMatch` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.noRoomsInFloor` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.noRoomsInGroup` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.ofStock` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.perNight` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:config.photoAlt` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.photoHint` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.photoSaveFirst` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.preview` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.previewExtraBed` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.previewNamePlaceholder` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.previewSummary` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.rateBase` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.rateWeekday` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.rateWeekend` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.removePhotoAria` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.roomNumberHelper` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.roomStatus.available` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingModalHeader.tsx`
+- `rooms:config.roomStatus.maintenance` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.roomStatus.unavailable` — `src/features/rooms/components/UnifiedBooking/components/BookingModalHeader.tsx`
+- `rooms:config.roomsLabel` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.saveChanges` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.searchPlaceholder` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.secBasics` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.secBedSetup` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.secCapacity` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.secPhotos` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.secPricing` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.shortCode` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.shortCodeHelper` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.showInBooking` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.sleepsCount` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.smokingRoom` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.sortOrder` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.sortOrderHelper` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.statTotal` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.statTypes` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.statUnavailable` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.subtitle` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.suggestedFromBeds` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.toggleAvailability` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.unassignedType` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.uploadPhoto` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.uploading` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.use` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:config.wheelchair` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:contextMenu.currentBooking` — `src/features/rooms/components/RoomManagement/components/RoomContextMenu.tsx`
+- `rooms:contextMenu.housekeeping` — `src/features/rooms/components/RoomManagement/components/RoomContextMenu.tsx`
+- `rooms:contextMenu.nextBooking` — `src/features/rooms/components/RoomManagement/components/RoomContextMenu.tsx`
+- `rooms:contextMenu.perNight` — `src/features/rooms/components/RoomManagement/components/RoomContextMenu.tsx`
+- `rooms:contextMenu.rate` — `src/features/rooms/components/RoomManagement/components/RoomContextMenu.tsx`
+- `rooms:contextMenu.roomTitle` — `src/features/rooms/components/RoomManagement/components/RoomContextMenu.tsx`
+- `rooms:detailsDialog.title` — `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`
+- `rooms:errors.bookWithCredits` — `src/features/rooms/hooks/useGuestCreditsWorkflow.ts`
+- `rooms:errors.changeRoom` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:errors.checkIn` — `src/features/rooms/hooks/useGuestCreditsWorkflow.ts`, `src/features/rooms/hooks/useReservedCheckInWorkflow.ts`
+- `rooms:errors.checkInDetail` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:errors.createBooking` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:errors.createRoom` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:errors.deleteRoom` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:errors.deleteRoomType` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:errors.duplicateRoomType` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:errors.endMaintenance` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:errors.executeRoomChange` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:errors.extendCheckout` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:errors.loadData` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:errors.loadGuests` — `src/features/rooms/hooks/useRoomData.ts`
+- `rooms:errors.loadHistory` — `src/features/rooms/components/RoomHistoryTimeline.tsx`, `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:errors.loadRooms` — `src/features/rooms/hooks/useRoomData.ts`
+- `rooms:errors.markComplimentary` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:errors.removePhoto` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:errors.saveRoomType` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:errors.unknown` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:errors.updateNotes` — `src/features/rooms/hooks/useBookingNotes.ts`
+- `rooms:errors.updateRoom` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:errors.updateRoomNotes` — `src/features/rooms/hooks/useRoomNotes.ts`
+- `rooms:errors.updateRoomType` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:errors.updateStatus` — `src/features/rooms/components/RoomEventDialog.tsx`, `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:errors.uploadPhoto` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:extendCheckout.additionalCharge` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.currentBooking` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.currentCheckout` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.currentRoomNights_one` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.currentRoomNights_other` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.currentTax` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.extending` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.minDateError` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.newDate` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.newRoomNights_one` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.newRoomNights_other` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.newTax` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.pricePreview` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.ratePerNight` — `src/features/rooms/components/UnifiedBooking/components/RatePaymentSection.tsx`, `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.reduction` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:extendCheckout.title` — `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:fields.bedType` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:fields.bookingReference` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:fields.building` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:fields.channel` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:fields.checkIn` — `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`, `src/features/rooms/components/UnifiedBooking/components/StaySection.tsx`, `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:fields.checkOut` — `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`, `src/features/rooms/components/UnifiedBooking/components/StaySection.tsx`
+- `rooms:fields.company` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:fields.customPrice` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:fields.deposit` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:fields.description` — `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`
+- `rooms:fields.extraBeds` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:fields.floor` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:fields.guest` — `src/features/rooms/components/RoomHistoryTimeline.tsx`, `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`, `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`, `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:fields.guests` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:fields.maxOccupancy` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`
+- `rooms:fields.nights` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:fields.notes` — `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomNotesDialog.tsx`, `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`
+- `rooms:fields.prepaidAmount` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:fields.pricePerNight` — `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`
+- `rooms:fields.rate` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:fields.room` — `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`, `src/features/rooms/components/RoomManagement/components/MarkComplimentaryDialog.tsx`, `src/features/rooms/components/RoomReservationTimeline.tsx`, `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`, `src/features/rooms/components/UpdateCheckoutDateDialog.tsx`
+- `rooms:fields.roomNumber` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`
+- `rooms:fields.roomType` — `src/features/rooms/components/RoomEventDialog.tsx`, `src/features/rooms/components/RoomManagement/components/ChangeRoomDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`
+- `rooms:fields.specialRequests` — `src/features/rooms/components/RoomManagement/components/ReservedCheckInDialog.tsx`, `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:fields.status` — `src/features/rooms/components/RoomManagement/components/RoomDetailsDialog.tsx`, `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:fields.stay` — `src/features/rooms/components/RoomManagement/components/BookingNotesDialog.tsx`
+- `rooms:filters.all` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/hooks/useRoomManagementFilters.ts`
+- `rooms:filters.dirty` — `src/features/rooms/hooks/useRoomManagementFilters.ts`
+- `rooms:filters.maintenance` — `src/features/rooms/hooks/useRoomManagementFilters.ts`
+- `rooms:filters.occupied` — `src/features/rooms/hooks/useRoomManagementFilters.ts`
+- `rooms:filters.reserved` — `src/features/rooms/hooks/useRoomManagementFilters.ts`
+- `rooms:filters.vacant` — `src/features/rooms/hooks/useRoomManagementFilters.ts`
+- `rooms:guestDetails.availableCredits` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.bookAnother` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.bookWithCredits` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.bookWithCreditsTitle` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.bookingCreated` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.bookingCreatedDetail_one` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.bookingCreatedDetail_other` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.children` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.compNightsInfo_one` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.compNightsInfo_other` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.company` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.creatingBooking` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.creditNights_one` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.creditNights_other` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.icNumber` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.memberSince` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.noCredits` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.reservedUnavailable` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.roomOption` — `src/features/rooms/components/RoomEventDialog.tsx`, `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.selectAllAvailable` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.selectCompDates` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.selectRoom` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.tabCredits` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.tabInfo` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestDetails.title` — `src/features/rooms/components/RoomManagement/components/GuestDetailsDialog.tsx`
+- `rooms:guestSelector.additionalDetails` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.address` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.city` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.companyName` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.companyPlaceholder` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.country` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.creditByType` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.creditsInfoEmphasis` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.creditsInfoPost` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.creditsInfoPre` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.credits_one` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.credits_other` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.depositWillBe` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.email` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.firstName` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.guestType` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.icNumber` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.icNumberHint` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.lastName` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.lastNameHint` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.loadingCredits` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.member` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.memberAlertMid` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.memberChip` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.memberDiscount` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.nationality` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.nights_one` — `src/features/rooms/components/GuestSelector.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingModalFooter.tsx`
+- `rooms:guestSelector.nights_other` — `src/features/rooms/components/GuestSelector.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingModalFooter.tsx`
+- `rooms:guestSelector.noCredits` — `src/features/rooms/components/GuestSelector.tsx`, `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:guestSelector.nonMember` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.nonMemberRate` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.optionLabel` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.optionLabelEmail` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.phone` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.phoneHint` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.postalCode` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.registerNew` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.registeringAs` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.searchPlaceholder` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.selectExisting` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.selectGuest` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.selectWithCredits` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.stateProvince` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.tourismForeign` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.tourismForeignTax` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.tourismHintRequired` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.tourismHintSet` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.tourismLocal` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.tourismLocalTax` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.tourismType` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:guestSelector.waived` — `src/features/rooms/components/GuestSelector.tsx`
+- `rooms:header.allFloors` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.attrDaily` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.attrNoDaily` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.attrSmoking` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.filter` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.filtersTitle` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.floorN` — `src/features/housekeeping/components/BoardView.tsx`, `src/features/housekeeping/components/RoomDetailDrawer.tsx`, `src/features/housekeeping/components/RoomTaskCard.tsx`, `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`, `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`
+- `rooms:header.floorRange` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.floorSingle` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.liveStatus` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.occupancy` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.prioritySort` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.prioritySortTitle` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.roomSearchAria` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.roomSearchPlaceholder` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.roomsCount_one` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.roomsCount_other` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.sectionAttributes` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.sectionFloor` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.sectionGroupBy` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:header.sectionSort` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.sectionStatus` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.statAvailable` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.statDirty` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.statMaintenance` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.statOccupied` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.statReserved` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:header.title` — `src/features/rooms/components/RoomManagement/components/RoomManagementHeader.tsx`
+- `rooms:history.autoChip` — `src/features/rooms/components/RoomHistoryTimeline.tsx`
+- `rooms:history.availableFlag` — `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:history.bookingPeriod` — `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:history.by` — `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:history.changedBy` — `src/features/rooms/components/RoomHistoryTimeline.tsx`
+- `rooms:history.closeAria` — `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:history.currentStatus` — `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:history.empty` — `src/features/rooms/components/RoomHistoryTimeline.tsx`, `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:history.errorUnavailable` — `src/features/rooms/components/RoomHistoryTimeline.tsx`
+- `rooms:history.movedTo` — `src/features/rooms/components/RoomHistoryTimeline.tsx`
+- `rooms:history.period` — `src/features/rooms/components/RoomHistoryTimeline.tsx`
+- `rooms:history.reward` — `src/features/rooms/components/RoomHistoryTimeline.tsx`
+- `rooms:history.timeline` — `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:history.title` — `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:history.unknown` — `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:history.viewGuestChip` — `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:history.viewGuestDetails` — `src/features/rooms/components/RoomManagement/components/RoomHistoryDialog.tsx`
+- `rooms:menu.changeRoom` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.checkInGuest` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.checkOut` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.editBookingNotes` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.editNotes` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.extendCheckout` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.freeGiftBooking` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.freeGiftNoCancel` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.freeGiftNotice` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.guestDetails` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.markClean` — `src/features/rooms/components/RoomEventDialog.tsx`, `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.markComplimentary` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.newBooking` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.properties` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.roomHistory` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.sectionBooking` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.sectionHousekeeping` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.sectionRoom` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.upcomingBookings` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:menu.updateStatus` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notesDialog.placeholder` — `src/features/rooms/components/RoomManagement/components/RoomNotesDialog.tsx`
+- `rooms:notesDialog.title` — `src/features/rooms/components/RoomManagement/components/RoomNotesDialog.tsx`
+- `rooms:notifications.bookingNotesUpdated` — `src/features/rooms/hooks/useBookingNotes.ts`
+- `rooms:notifications.changeRoomCharge` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.changeRoomCredit` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.changeRoomNoCharge` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.checkInSuccess` — *(dynamic or unreferenced)*
+- `rooms:notifications.checkedInGuest` — `src/features/rooms/hooks/useReservedCheckInWorkflow.ts`
+- `rooms:notifications.checkedInSuccess` — *(dynamic or unreferenced)*
+- `rooms:notifications.checkoutExtended` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.checkoutLatePenalty` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.checkoutSuccess` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.creditsBooked_one` — `src/features/rooms/hooks/useGuestCreditsWorkflow.ts`
+- `rooms:notifications.creditsBooked_other` — `src/features/rooms/hooks/useGuestCreditsWorkflow.ts`
+- `rooms:notifications.depositRequired` — *(dynamic or unreferenced)*
+- `rooms:notifications.duplicateCode` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.duplicateName` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.duplicateNameOrCode` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.guestNotFound` — `src/features/rooms/hooks/useGuestCreditsWorkflow.ts`
+- `rooms:notifications.icRequired` — *(dynamic or unreferenced)*
+- `rooms:notifications.markedComplimentary` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.markedDirty` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.noActiveBooking` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.noBookingSelected` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`, `src/features/rooms/hooks/useReservedCheckInWorkflow.ts`
+- `rooms:notifications.noPendingBooking` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.photoAdded` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.photoRemoved` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.roomCreated` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.roomDeleted` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.roomNotesUpdated` — `src/features/rooms/hooks/useRoomNotes.ts`
+- `rooms:notifications.roomStatusChanged` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.roomTypeBookable` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.roomTypeCreated` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.roomTypeDeleted` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.roomTypeDuplicated` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.roomTypeHidden` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.roomTypeUpdated` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.roomUpdated` — `src/features/rooms/components/RoomConfigurationPage.tsx`
+- `rooms:notifications.selectNewRoom` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.setMaintenance` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:notifications.statusUpdated` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.bannerBody` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.bannerTitle_one` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.bannerTitle_other` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.checkOut` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.daysOverdue_one` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.daysOverdue_other` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.emptyBody` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.emptyTitle` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.extendCheckout` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.review` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.roomGuest` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.stay` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.title` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:overdue.unknownGuest` — `src/features/rooms/components/RoomManagement/RoomManagementPage.tsx`
+- `rooms:roomEvent.cancelReservation` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.changeBody` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.changeRoom` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.changeStatusInfo` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.changeStatusTitle` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.changeTitle` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.changing` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.checkInGuest` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.checkingIn` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.currentGuest` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.endDateTime` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.endMaintenance` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.endReserved` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.ending` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.errEndAfterStart` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.errMaintenanceDates` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.errOccupied` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.errOccupiedDates` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.errOnlyAvailable` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.errReservedDates` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.errToAvailable` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.executeChange` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.maintenanceDatesHint` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.maintenanceEnd` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.maintenanceEndHint` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.maintenanceStart` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.maintenanceStartHint` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.newStatus` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.nextBooking` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.nextBookingValue` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.noBooking` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.noRoomsAvailable` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.occupiedBody` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.occupiedDatesHint` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.occupiedTitle` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.onlyAvailableNotice` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.progressBodyOther` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.progressBodyReservedDirty` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.progressTitleMaintenance` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.progressTitleReserved` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.progressTitleReservedDirty` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.readyBody` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.readyTitle` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.required` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.reserveHintBody` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.reserveHintTitle` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.reservedDatesHint` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.roomDetails` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.roomsAvailable_one` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.roomsAvailable_other` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.selectTarget` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.startDateTime` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.statusNotes` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.statusNotesPlaceholder` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.tabHistory` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.tabStatus` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.targetRoom` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.title` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.updateStatus` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:roomEvent.updating` — `src/features/rooms/components/RoomEventDialog.tsx`
+- `rooms:statusActions.dirty` — *(dynamic or unreferenced)*
+- `rooms:statusActions.maintenance` — *(dynamic or unreferenced)*
+- `rooms:statusActions.reserved_dirty` — *(dynamic or unreferenced)*
+- `rooms:statusActions.tooltip` — `src/features/rooms/components/RoomStatus/RoomStatusChip.tsx`
+- `rooms:statusDescriptions.available` — *(dynamic or unreferenced)*
+- `rooms:statusDescriptions.checked_out` — *(dynamic or unreferenced)*
+- `rooms:statusDescriptions.dirty` — *(dynamic or unreferenced)*
+- `rooms:statusDescriptions.maintenance` — *(dynamic or unreferenced)*
+- `rooms:statusDescriptions.occupied` — *(dynamic or unreferenced)*
+- `rooms:statusDescriptions.pending` — *(dynamic or unreferenced)*
+- `rooms:statusDescriptions.reserved` — *(dynamic or unreferenced)*
+- `rooms:statusDescriptions.reserved_dirty` — *(dynamic or unreferenced)*
+- `rooms:statusDescriptions.voided` — *(dynamic or unreferenced)*
+- `rooms:statusDetails.available` — *(dynamic or unreferenced)*
+- `rooms:statusDetails.dirty` — *(dynamic or unreferenced)*
+- `rooms:statusDetails.maintenance` — *(dynamic or unreferenced)*
+- `rooms:statusDetails.occupied` — *(dynamic or unreferenced)*
+- `rooms:statusDetails.reserved` — *(dynamic or unreferenced)*
+- `rooms:statusDetails.reserved_dirty` — *(dynamic or unreferenced)*
+- `rooms:statusDialog.current` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.hintAvailable` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.hintDirty` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.hintMaintenance` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.hintOutOfOrder` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.newStatus` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.notesLabel` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.notesPlaceholder` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.optionAvailable` — *(dynamic or unreferenced)*
+- `rooms:statusDialog.optionDirty` — *(dynamic or unreferenced)*
+- `rooms:statusDialog.optionMaintenance` — *(dynamic or unreferenced)*
+- `rooms:statusDialog.selectStatus` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.submit` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.title` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.updateFailed` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusDialog.updating` — `src/features/housekeeping/components/RoomStatusUpdateDialog.tsx`
+- `rooms:statusLabels.available` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.change_room` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.checked_out` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.cleaning` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.dirty` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.maintenance` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.occupied` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.out_of_order` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.pending` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.reserved` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.reserved_dirty` — *(dynamic or unreferenced)*
+- `rooms:statusLabels.voided` — *(dynamic or unreferenced)*
+- `rooms:statusShort.available` — *(dynamic or unreferenced)*
+- `rooms:statusShort.checked_out` — *(dynamic or unreferenced)*
+- `rooms:statusShort.dirty` — *(dynamic or unreferenced)*
+- `rooms:statusShort.maintenance` — *(dynamic or unreferenced)*
+- `rooms:statusShort.occupied` — *(dynamic or unreferenced)*
+- `rooms:statusShort.pending` — *(dynamic or unreferenced)*
+- `rooms:statusShort.reserved` — *(dynamic or unreferenced)*
+- `rooms:statusShort.reserved_dirty` — *(dynamic or unreferenced)*
+- `rooms:statusShort.voided` — *(dynamic or unreferenced)*
+- `rooms:timeline.agendaArriving` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.agendaDeparting` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.agendaEmpty` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.agendaInHouse` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.agendaVacant` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.complimentaryBar` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.complimentaryNights_one` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.complimentaryNights_other` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.days_one` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.days_other` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.depositCollected` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.errorLoad` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.legendComplimentary` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.noRooms` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.refreshAria` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.summary` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.title` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.viewGrid` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.viewList` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:timeline.walkInGuest` — `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:title` — `src/features/rooms/components/RoomConfigurationPage.tsx`, `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.availForMulti` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.availForSingle` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.availNow` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.billTo` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.billToPost` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.billToPre` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.checkingAvailability` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.companyCheckIn` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.conflict` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.conflictBody` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.creditedRoomType` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.customRateHint` — `src/features/rooms/components/UnifiedBooking/components/RatePaymentSection.tsx`
+- `rooms:unified.errDuplicateGuestEmail` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.errDuplicateGuestName` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.errGuestName` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.errInsufficientCredit` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.errNoRoom` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.errSelectCreditGuest` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.errSelectGuest` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.errSelectType` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.errTourismType` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.hourlyCheckIn` — `src/features/rooms/components/UnifiedBooking/components/StaySection.tsx`
+- `rooms:unified.hourlyCheckout` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.kbdCancel` — `src/features/rooms/components/UnifiedBooking/components/BookingModalFooter.tsx`
+- `rooms:unified.kbdCreate` — `src/features/rooms/components/UnifiedBooking/components/BookingModalFooter.tsx`
+- `rooms:unified.loadingRooms` — `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`
+- `rooms:unified.modeDirect` — `src/features/rooms/components/UnifiedBooking/components/BookingModeSelector.tsx`
+- `rooms:unified.modeDirectDesc` — `src/features/rooms/components/UnifiedBooking/components/BookingModeSelector.tsx`
+- `rooms:unified.modeReservation` — `src/features/rooms/components/UnifiedBooking/components/BookingModeSelector.tsx`
+- `rooms:unified.modeReservationDesc` — `src/features/rooms/components/UnifiedBooking/components/BookingModeSelector.tsx`
+- `rooms:unified.noConflicts` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.noCreditForType` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.noPhoneHint` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.noRoomsForDates` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`, `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`
+- `rooms:unified.noRoomsMatchAnyCredit` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.noRoomsMatchGuestType` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.notesPlaceholder` — `src/features/rooms/components/UnifiedBooking/components/NotesSection.tsx`
+- `rooms:unified.optionRate` — `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`
+- `rooms:unified.pickDatesVerify` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.pickRooms` — `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`
+- `rooms:unified.quickSet` — `src/features/rooms/components/UnifiedBooking/components/StaySection.tsx`
+- `rooms:unified.quickWeek` — `src/features/rooms/components/UnifiedBooking/components/StaySection.tsx`
+- `rooms:unified.rateNotSet` — `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`
+- `rooms:unified.ratePerNightTotal` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.ratePerNightValue` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.refPlaceholder` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:unified.roomConflict` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.roomOption` — `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`
+- `rooms:unified.roomsSelected` — `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`
+- `rooms:unified.secGuest` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.secMode` — `src/features/rooms/components/UnifiedBooking/components/BookingModeSelector.tsx`
+- `rooms:unified.secRatePayment` — `src/features/rooms/components/UnifiedBooking/components/RatePaymentSection.tsx`
+- `rooms:unified.secResType` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:unified.secStay` — `src/features/rooms/components/UnifiedBooking/components/StaySection.tsx`
+- `rooms:unified.selectRooms` — `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`
+- `rooms:unified.selected` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:unified.selectedRoomTypeFallback` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.setDatesHint` — `src/features/rooms/components/UnifiedBooking/components/RoomPickerSection.tsx`
+- `rooms:unified.sourceFreeCredit` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.sourceWalkIn` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.submitComp` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.submitDirect` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.submitReservation` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.subtitle` — `src/features/rooms/components/UnifiedBooking/components/BookingModalHeader.tsx`
+- `rooms:unified.subtotal` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.successCompMulti` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.successCompSingle` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.successMulti` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.successSingle` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.sumDuration` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.sumRoomRates` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.sumSource` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.summaryTitle` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.tagDirect` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.tagReservation` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.tagTypeComp` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.tagTypeOnline` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.tagTypeWalkIn` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.titleNew` — `src/features/rooms/components/UnifiedBooking/components/BookingModalHeader.tsx`
+- `rooms:unified.tourismForeign` — `src/features/rooms/components/UnifiedBooking/components/RatePaymentSection.tsx`
+- `rooms:unified.tourismHelper` — `src/features/rooms/components/UnifiedBooking/components/RatePaymentSection.tsx`
+- `rooms:unified.tourismLocal` — `src/features/rooms/components/UnifiedBooking/components/RatePaymentSection.tsx`
+- `rooms:unified.tourismStatus` — `src/features/rooms/components/UnifiedBooking/components/RatePaymentSection.tsx`
+- `rooms:unified.tourismTax` — `src/features/rooms/components/UnifiedBooking/components/BookingSummaryAside.tsx`
+- `rooms:unified.trackedAtCheckIn` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:unified.typeComp` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:unified.typeCompDesc` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:unified.typeOnline` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:unified.typeOnlineDesc` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:unified.typeWalkIn` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:unified.typeWalkInDesc` — `src/features/rooms/components/UnifiedBooking/components/ReservationTypeSection.tsx`
+- `rooms:unified.useCompanyCheckIn` — `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `rooms:unified.useCustomRate` — `src/features/rooms/components/UnifiedBooking/components/RatePaymentSection.tsx`
+- `rooms:upcoming.checkInNow` — `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`
+- `rooms:upcoming.currentlyOccupied` — `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`
+- `rooms:upcoming.empty` — `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`
+- `rooms:upcoming.freeGift` — `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`
+- `rooms:upcoming.title` — `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`
+- `rooms:upcoming.unknownGuest` — `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`, `src/features/rooms/components/RoomReservationTimeline.tsx`
+- `rooms:upcoming.viewAll` — `src/features/rooms/components/RoomManagement/components/UpcomingBookingsDialog.tsx`
+- `rooms:validation.checkoutAfterCheckin` — `src/features/rooms/utils/roomManagementUtils.ts`
+- `rooms:validation.dateReserved` — `src/features/rooms/utils/roomManagementUtils.ts`
+- `rooms:validation.selectDates` — `src/features/rooms/utils/roomManagementUtils.ts`
+- `rooms:validation.selectRoomAndDates` — `src/features/rooms/hooks/useGuestCreditsWorkflow.ts`
+
+### `segments`
+
+- `segments:builder.addCondition` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.addOrGroup` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.and` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.condition` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.false` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.field` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.noValues` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.or` — `src/features/segments/components/SegmentRuleBuilder.tsx`, `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:builder.removeCondition` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.removeGroup` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.tag` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.true` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.value` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:builder.values` — `src/features/segments/components/SegmentRuleBuilder.tsx`
+- `segments:editor.activeGuestsMatch` — `src/features/segments/components/SegmentEditorDialog.tsx`
+- `segments:editor.activeLabel` — `src/features/segments/components/SegmentEditorDialog.tsx`
+- `segments:editor.previewFailed` — `src/features/segments/components/SegmentEditorDialog.tsx`
+- `segments:editor.previewMembers` — `src/features/segments/components/SegmentEditorDialog.tsx`
+- `segments:editor.rulesExplainer` — `src/features/segments/components/SegmentEditorDialog.tsx`
+- `segments:editor.saveFailed` — `src/features/segments/components/SegmentEditorDialog.tsx`
+- `segments:editor.titleEdit` — `src/features/segments/components/SegmentEditorDialog.tsx`
+- `segments:editor.titleNew` — `src/features/segments/components/SegmentEditorDialog.tsx`
+- `segments:fields.age_years` — `src/features/segments/constants.ts`
+- `segments:fields.communication_preference` — `src/features/segments/constants.ts`
+- `segments:fields.country` — `src/features/segments/constants.ts`
+- `segments:fields.days_since_last_stay` — `src/features/segments/constants.ts`
+- `segments:fields.guest_type` — `src/features/segments/constants.ts`
+- `segments:fields.has_loyalty_membership` — `src/features/segments/constants.ts`
+- `segments:fields.language_preference` — `src/features/segments/constants.ts`
+- `segments:fields.loyalty_tier_id` — `src/features/segments/constants.ts`
+- `segments:fields.marketing_opt_in` — `src/features/segments/constants.ts`
+- `segments:fields.nationality` — `src/features/segments/constants.ts`
+- `segments:fields.tags` — `src/features/segments/constants.ts`
+- `segments:fields.total_spend` — `src/features/segments/constants.ts`
+- `segments:fields.total_stays` — `src/features/segments/constants.ts`
+- `segments:fields.vip_status` — `src/features/segments/constants.ts`
+- `segments:ops.atLeast` — `src/features/segments/constants.ts`
+- `segments:ops.atMost` — `src/features/segments/constants.ts`
+- `segments:ops.excludesTag` — `src/features/segments/constants.ts`
+- `segments:ops.includesTag` — `src/features/segments/constants.ts`
+- `segments:ops.is` — `src/features/segments/constants.ts`
+- `segments:ops.isExactly` — `src/features/segments/constants.ts`
+- `segments:ops.isNot` — `src/features/segments/constants.ts`
+- `segments:ops.isNotSet` — `src/features/segments/constants.ts`
+- `segments:ops.isOneOf` — `src/features/segments/constants.ts`
+- `segments:ops.isSet` — `src/features/segments/constants.ts`
+- `segments:page.activate` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.activeGuestsMatch` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.cols.actions` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.cols.members` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.cols.name` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.cols.rules` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.cols.status` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.cols.updated` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.deactivate` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.deleteConfirm` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.deleteFailed` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.deleteTitle` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.emptyDescription` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.emptyTitle` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.guestNumber` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.kicker` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.meta_one` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.meta_other` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.newSegment` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.preview` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.previewFailed` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.previewTitle` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.subtitle` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.title` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:page.updateFailed` — `src/features/segments/pages/SegmentsPage.tsx`
+- `segments:title` — *(dynamic or unreferenced)*
+
+### `status`
+
+- `status:audit.booking_cancelled` — `src/constants/audit.constants.ts`
+- `status:audit.booking_checkin` — `src/constants/audit.constants.ts`
+- `status:audit.booking_checkout` — `src/constants/audit.constants.ts`
+- `status:audit.booking_created` — `src/constants/audit.constants.ts`
+- `status:audit.booking_updated` — `src/constants/audit.constants.ts`
+- `status:audit.booking_voided` — `src/constants/audit.constants.ts`
+- `status:audit.ekyc_approved` — `src/constants/audit.constants.ts`
+- `status:audit.ekyc_rejected` — `src/constants/audit.constants.ts`
+- `status:audit.guest_created` — `src/constants/audit.constants.ts`
+- `status:audit.guest_deleted` — `src/constants/audit.constants.ts`
+- `status:audit.guest_updated` — `src/constants/audit.constants.ts`
+- `status:audit.login_failure` — `src/constants/audit.constants.ts`
+- `status:audit.login_success` — `src/constants/audit.constants.ts`
+- `status:audit.logout` — `src/constants/audit.constants.ts`
+- `status:audit.password_changed` — `src/constants/audit.constants.ts`
+- `status:audit.role_assigned` — `src/constants/audit.constants.ts`
+- `status:audit.role_removed` — `src/constants/audit.constants.ts`
+- `status:audit.room_status_changed` — `src/constants/audit.constants.ts`
+- `status:audit.settings_changed` — `src/constants/audit.constants.ts`
+- `status:audit.user_created` — `src/constants/audit.constants.ts`
+- `status:audit_resource.booking` — `src/constants/audit.constants.ts`
+- `status:audit_resource.ekyc_verification` — `src/constants/audit.constants.ts`
+- `status:audit_resource.guest` — `src/constants/audit.constants.ts`
+- `status:audit_resource.room` — `src/constants/audit.constants.ts`
+- `status:audit_resource.system_setting` — `src/constants/audit.constants.ts`
+- `status:audit_resource.user` — `src/constants/audit.constants.ts`
+- `status:audit_resource.user_role` — `src/constants/audit.constants.ts`
+- `status:booking.auto_checked_in` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `status:booking.cancelled` — *(dynamic or unreferenced)*
+- `status:booking.checked_in` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `status:booking.checked_out` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `status:booking.comp_void` — *(dynamic or unreferenced)*
+- `status:booking.completed` — *(dynamic or unreferenced)*
+- `status:booking.confirmed` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `status:booking.expired` — *(dynamic or unreferenced)*
+- `status:booking.fully_complimentary` — *(dynamic or unreferenced)*
+- `status:booking.held` — *(dynamic or unreferenced)*
+- `status:booking.late_checkout` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `status:booking.no_show` — *(dynamic or unreferenced)*
+- `status:booking.partial_complimentary` — *(dynamic or unreferenced)*
+- `status:booking.pending` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `status:booking.pending_confirmation` — *(dynamic or unreferenced)*
+- `status:booking.pending_payment` — *(dynamic or unreferenced)*
+- `status:booking.voided` — `src/features/bookings/components/Bookings/dialogs/EditBookingDialog.tsx`
+- `status:booking_history.auto_checked_in` — *(dynamic or unreferenced)*
+- `status:booking_history.checked_in` — *(dynamic or unreferenced)*
+- `status:booking_history.checked_out` — *(dynamic or unreferenced)*
+- `status:booking_history.comp_void` — *(dynamic or unreferenced)*
+- `status:booking_history.completed` — *(dynamic or unreferenced)*
+- `status:booking_history.confirmed` — *(dynamic or unreferenced)*
+- `status:booking_history.pending` — *(dynamic or unreferenced)*
+- `status:booking_history.voided` — *(dynamic or unreferenced)*
+- `status:booking_service.completed` — *(dynamic or unreferenced)*
+- `status:booking_service.in_progress` — *(dynamic or unreferenced)*
+- `status:booking_service.pending` — *(dynamic or unreferenced)*
+- `status:booking_service.void` — *(dynamic or unreferenced)*
+- `status:booking_source.agent` — *(dynamic or unreferenced)*
+- `status:booking_source.corporate` — *(dynamic or unreferenced)*
+- `status:booking_source.direct` — *(dynamic or unreferenced)*
+- `status:booking_source.email` — *(dynamic or unreferenced)*
+- `status:booking_source.guest_portal` — *(dynamic or unreferenced)*
+- `status:booking_source.online` — *(dynamic or unreferenced)*
+- `status:booking_source.ota` — *(dynamic or unreferenced)*
+- `status:booking_source.phone` — *(dynamic or unreferenced)*
+- `status:booking_source.travel_agent` — *(dynamic or unreferenced)*
+- `status:booking_source.walk_in` — *(dynamic or unreferenced)*
+- `status:campaign.active` — *(dynamic or unreferenced)*
+- `status:campaign.cancelled` — *(dynamic or unreferenced)*
+- `status:campaign.completed` — *(dynamic or unreferenced)*
+- `status:campaign.draft` — *(dynamic or unreferenced)*
+- `status:campaign.ended` — *(dynamic or unreferenced)*
+- `status:campaign.failed` — *(dynamic or unreferenced)*
+- `status:campaign.paused` — *(dynamic or unreferenced)*
+- `status:campaign.running` — *(dynamic or unreferenced)*
+- `status:campaign.scheduled` — *(dynamic or unreferenced)*
+- `status:ekyc.additional_information_required` — *(dynamic or unreferenced)*
+- `status:ekyc.approved` — *(dynamic or unreferenced)*
+- `status:ekyc.automated_review` — *(dynamic or unreferenced)*
+- `status:ekyc.draft` — *(dynamic or unreferenced)*
+- `status:ekyc.escalated` — *(dynamic or unreferenced)*
+- `status:ekyc.expired` — *(dynamic or unreferenced)*
+- `status:ekyc.in_review` — *(dynamic or unreferenced)*
+- `status:ekyc.not_started` — *(dynamic or unreferenced)*
+- `status:ekyc.on_hold` — *(dynamic or unreferenced)*
+- `status:ekyc.pending` — *(dynamic or unreferenced)*
+- `status:ekyc.pending_manual_review` — *(dynamic or unreferenced)*
+- `status:ekyc.rejected` — *(dynamic or unreferenced)*
+- `status:ekyc.submitted` — *(dynamic or unreferenced)*
+- `status:ekyc.under_review` — *(dynamic or unreferenced)*
+- `status:ekyc.unverified` — *(dynamic or unreferenced)*
+- `status:ekyc.verified` — *(dynamic or unreferenced)*
+- `status:ekyc.void` — *(dynamic or unreferenced)*
+- `status:email_delivery.cancelled` — *(dynamic or unreferenced)*
+- `status:email_delivery.failed` — *(dynamic or unreferenced)*
+- `status:email_delivery.queued` — *(dynamic or unreferenced)*
+- `status:email_delivery.sending` — *(dynamic or unreferenced)*
+- `status:email_delivery.sent` — *(dynamic or unreferenced)*
+- `status:email_delivery.suppressed` — *(dynamic or unreferenced)*
+- `status:employee.active` — *(dynamic or unreferenced)*
+- `status:employee.inactive` — *(dynamic or unreferenced)*
+- `status:employee.on_leave` — *(dynamic or unreferenced)*
+- `status:employee.terminated` — *(dynamic or unreferenced)*
+- `status:generic.active` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/segments/pages/SegmentsPage.tsx`
+- `status:generic.approved` — *(dynamic or unreferenced)*
+- `status:generic.disabled` — *(dynamic or unreferenced)*
+- `status:generic.enabled` — *(dynamic or unreferenced)*
+- `status:generic.error` — *(dynamic or unreferenced)*
+- `status:generic.failed` — *(dynamic or unreferenced)*
+- `status:generic.inactive` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/communications/pages/CommunicationsPage.tsx`, `src/features/segments/pages/SegmentsPage.tsx`
+- `status:generic.info` — *(dynamic or unreferenced)*
+- `status:generic.pending` — *(dynamic or unreferenced)*
+- `status:generic.rejected` — *(dynamic or unreferenced)*
+- `status:generic.success` — *(dynamic or unreferenced)*
+- `status:generic.unknown` — *(dynamic or unreferenced)*
+- `status:generic.warning` — *(dynamic or unreferenced)*
+- `status:housekeeping.assigned` — *(dynamic or unreferenced)*
+- `status:housekeeping.cancelled` — *(dynamic or unreferenced)*
+- `status:housekeeping.completed` — *(dynamic or unreferenced)*
+- `status:housekeeping.in_progress` — *(dynamic or unreferenced)*
+- `status:housekeeping.inspected` — *(dynamic or unreferenced)*
+- `status:housekeeping.pending` — *(dynamic or unreferenced)*
+- `status:housekeeping.void` — *(dynamic or unreferenced)*
+- `status:invoice.cancelled` — *(dynamic or unreferenced)*
+- `status:invoice.draft` — *(dynamic or unreferenced)*
+- `status:invoice.issued` — *(dynamic or unreferenced)*
+- `status:invoice.overdue` — *(dynamic or unreferenced)*
+- `status:invoice.paid` — *(dynamic or unreferenced)*
+- `status:invoice.partial` — *(dynamic or unreferenced)*
+- `status:invoice.refunded` — *(dynamic or unreferenced)*
+- `status:invoice.sent` — *(dynamic or unreferenced)*
+- `status:invoice.void` — *(dynamic or unreferenced)*
+- `status:job_run.error` — *(dynamic or unreferenced)*
+- `status:job_run.ok` — *(dynamic or unreferenced)*
+- `status:ledger.draft` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/helpers.ts`
+- `status:ledger.invoiced` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/helpers.ts`
+- `status:ledger.outstanding` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `status:ledger.overdue` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/helpers.ts`
+- `status:ledger.paid` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/helpers.ts`
+- `status:ledger.partial` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `status:ledger.partially_paid` — `src/features/admin/components/CustomerLedger/helpers.ts`
+- `status:ledger.pending` — `src/features/admin/components/CustomerLedger/components/EditLedgerDialog.tsx`
+- `status:ledger.ready_to_invoice` — `src/features/admin/components/CustomerLedger/helpers.ts`
+- `status:ledger.settled` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/CompanyListPane.tsx`, `src/features/dashboard/components/reports/ReportsAnalytics.tsx`, `src/features/dashboard/components/reports/drawers.tsx`
+- `status:ledger.uninvoiced` — `src/features/admin/components/CustomerLedger/components/CompanyInvoiceDialog.tsx`, `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`
+- `status:ledger.void` — *(dynamic or unreferenced)*
+- `status:ledger.voided` — `src/features/admin/components/CustomerLedger/components/LedgerEntriesTab.tsx`, `src/features/admin/components/CustomerLedger/helpers.ts`
+- `status:loyalty.active` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `status:loyalty.closed` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `status:loyalty.inactive` — *(dynamic or unreferenced)*
+- `status:loyalty.suspended` — *(dynamic or unreferenced)*
+- `status:loyalty_redemption.approved` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `status:loyalty_redemption.fulfilled` — *(dynamic or unreferenced)*
+- `status:loyalty_redemption.pending` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `status:loyalty_redemption.rejected` — `src/features/loyalty/components/LoyaltyPortal.tsx`
+- `status:loyalty_tx.adjust` — *(dynamic or unreferenced)*
+- `status:loyalty_tx.adjusted` — *(dynamic or unreferenced)*
+- `status:loyalty_tx.earn` — *(dynamic or unreferenced)*
+- `status:loyalty_tx.earned` — *(dynamic or unreferenced)*
+- `status:loyalty_tx.expire` — *(dynamic or unreferenced)*
+- `status:loyalty_tx.expired` — *(dynamic or unreferenced)*
+- `status:loyalty_tx.pending` — *(dynamic or unreferenced)*
+- `status:loyalty_tx.redeem` — *(dynamic or unreferenced)*
+- `status:loyalty_tx.redeemed` — *(dynamic or unreferenced)*
+- `status:loyalty_tx.reversed` — *(dynamic or unreferenced)*
+- `status:maintenance.cancelled` — *(dynamic or unreferenced)*
+- `status:maintenance.closed` — *(dynamic or unreferenced)*
+- `status:maintenance.in_progress` — *(dynamic or unreferenced)*
+- `status:maintenance.on_hold` — *(dynamic or unreferenced)*
+- `status:maintenance.open` — *(dynamic or unreferenced)*
+- `status:maintenance.resolved` — *(dynamic or unreferenced)*
+- `status:maintenance_category.appliance` — *(dynamic or unreferenced)*
+- `status:maintenance_category.electrical` — *(dynamic or unreferenced)*
+- `status:maintenance_category.furniture` — *(dynamic or unreferenced)*
+- `status:maintenance_category.hvac` — *(dynamic or unreferenced)*
+- `status:maintenance_category.other` — *(dynamic or unreferenced)*
+- `status:maintenance_category.plumbing` — *(dynamic or unreferenced)*
+- `status:maintenance_category.structural` — *(dynamic or unreferenced)*
+- `status:night_audit.completed` — *(dynamic or unreferenced)*
+- `status:night_audit.failed` — *(dynamic or unreferenced)*
+- `status:night_audit.in_progress` — *(dynamic or unreferenced)*
+- `status:notification.read` — *(dynamic or unreferenced)*
+- `status:notification.unread` — *(dynamic or unreferenced)*
+- `status:payment.completed` — *(dynamic or unreferenced)*
+- `status:payment.deposit_forfeited` — *(dynamic or unreferenced)*
+- `status:payment.failed` — *(dynamic or unreferenced)*
+- `status:payment.forfeited` — *(dynamic or unreferenced)*
+- `status:payment.paid` — `src/features/bookings/components/Bookings/BookingListPanel.tsx`
+- `status:payment.paid_rate` — *(dynamic or unreferenced)*
+- `status:payment.partial` — *(dynamic or unreferenced)*
+- `status:payment.pending` — *(dynamic or unreferenced)*
+- `status:payment.processing` — *(dynamic or unreferenced)*
+- `status:payment.refunded` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `status:payment.unpaid` — *(dynamic or unreferenced)*
+- `status:payment.unpaid_deposit` — *(dynamic or unreferenced)*
+- `status:payment.void` — *(dynamic or unreferenced)*
+- `status:payment.voided` — *(dynamic or unreferenced)*
+- `status:payroll.approved` — *(dynamic or unreferenced)*
+- `status:payroll.cancelled` — *(dynamic or unreferenced)*
+- `status:payroll.draft` — *(dynamic or unreferenced)*
+- `status:payroll.paid` — *(dynamic or unreferenced)*
+- `status:payroll.processing` — *(dynamic or unreferenced)*
+- `status:priority.critical` — *(dynamic or unreferenced)*
+- `status:priority.high` — *(dynamic or unreferenced)*
+- `status:priority.low` — *(dynamic or unreferenced)*
+- `status:priority.medium` — *(dynamic or unreferenced)*
+- `status:priority.normal` — *(dynamic or unreferenced)*
+- `status:priority.urgent` — *(dynamic or unreferenced)*
+- `status:promotion.archived` — `src/features/promotions/constants.ts`
+- `status:promotion.cancelled` — `src/features/promotions/constants.ts`
+- `status:promotion.draft` — `src/features/promotions/constants.ts`
+- `status:promotion.expired` — `src/features/promotions/constants.ts`
+- `status:promotion.live` — `src/features/promotions/constants.ts`
+- `status:promotion.paused` — `src/features/promotions/constants.ts`
+- `status:promotion.published` — `src/features/promotions/constants.ts`
+- `status:promotion.scheduled` — `src/features/promotions/constants.ts`
+- `status:reward_redemption.confirmed` — *(dynamic or unreferenced)*
+- `status:reward_redemption.expired` — *(dynamic or unreferenced)*
+- `status:reward_redemption.pending` — *(dynamic or unreferenced)*
+- `status:reward_redemption.used` — *(dynamic or unreferenced)*
+- `status:reward_redemption.void` — *(dynamic or unreferenced)*
+- `status:room.available` — `src/api/rooms.service.ts`, `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `status:room.booked` — `src/api/rooms.service.ts`
+- `status:room.clean` — *(dynamic or unreferenced)*
+- `status:room.cleaning` — *(dynamic or unreferenced)*
+- `status:room.dirty` — *(dynamic or unreferenced)*
+- `status:room.inspected` — *(dynamic or unreferenced)*
+- `status:room.maintenance` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `status:room.occupied` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `status:room.out_of_order` — *(dynamic or unreferenced)*
+- `status:room.out_of_service` — *(dynamic or unreferenced)*
+- `status:room.reserved` — `src/features/dashboard/components/ReceptionistDashboard.tsx`
+- `status:room.reserved_dirty` — *(dynamic or unreferenced)*
+- `status:room_event.booking` — *(dynamic or unreferenced)*
+- `status:room_event.inspection` — *(dynamic or unreferenced)*
+- `status:room_event.maintenance` — *(dynamic or unreferenced)*
+- `status:room_event.repair` — *(dynamic or unreferenced)*
+- `status:room_event.reserve` — *(dynamic or unreferenced)*
+- `status:room_event.reserved` — *(dynamic or unreferenced)*
+- `status:room_event.status_change` — *(dynamic or unreferenced)*
+- `status:support.closed` — *(dynamic or unreferenced)*
+- `status:support.resolved` — *(dynamic or unreferenced)*
+- `status:support.waiting_for_guest` — *(dynamic or unreferenced)*
+- `status:support.waiting_for_staff` — *(dynamic or unreferenced)*
+- `status:task_type.checkout_clean` — *(dynamic or unreferenced)*
+- `status:task_type.cleaning` — *(dynamic or unreferenced)*
+- `status:task_type.inspection` — *(dynamic or unreferenced)*
+- `status:task_type.maintenance_followup` — *(dynamic or unreferenced)*
+- `status:voucher.available` — `src/features/promotions/constants.ts`, `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `status:voucher.expired` — `src/features/promotions/constants.ts`, `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `status:voucher.redeemed` — `src/features/promotions/constants.ts`, `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `status:voucher.revoked` — `src/features/promotions/constants.ts`, `src/features/promotions/pages/PromotionManagementPage.tsx`
+- `status:voucher_redemption.applied` — *(dynamic or unreferenced)*
+- `status:voucher_redemption.reversed` — *(dynamic or unreferenced)*
+
+### `support`
+
+- `support:access.blockedClosed` — `src/features/support/utils.ts`
+- `support:access.blockedNeedsClaim` — `src/features/support/utils.ts`
+- `support:access.blockedNoPermission` — `src/features/support/utils.ts`
+- `support:access.blockedOtherAssignee` — `src/features/support/utils.ts`
+- `support:access.blockedResolved` — `src/features/support/utils.ts`
+- `support:categories.billing` — *(dynamic or unreferenced)*
+- `support:categories.booking` — *(dynamic or unreferenced)*
+- `support:categories.complaint` — *(dynamic or unreferenced)*
+- `support:categories.loyalty` — *(dynamic or unreferenced)*
+- `support:categories.other` — *(dynamic or unreferenced)*
+- `support:categories.service_request` — *(dynamic or unreferenced)*
+- `support:categories.stay` — *(dynamic or unreferenced)*
+- `support:categories.technical` — *(dynamic or unreferenced)*
+- `support:detail.actionFailed` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.actions.assign` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.actions.claim` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.actions.close` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.actions.escalate` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.actions.release` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.actions.reopen` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.actions.resolve` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.addNote` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.assignedTo` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.bookingLinked` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.composerAria` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.assignTitle` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.assignee` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.closeTitle` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.closingReason` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.escalateTitle` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.escalationReason` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.handoffNote` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.reopenReason` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.reopenTitle` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.resolutionCode` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.resolutionCodePlaceholder` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.resolutionSummary` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.resolutionSummaryHelper` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.resolveTitle` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.unassignedQueue` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.dialog.unavailable` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.guestFallback` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.internalNote` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.loading` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.noActivity` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.noBooking` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.noteAlert` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.noteLabel` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.notePlaceholder` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.noteTab` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.priority` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.replyLabel` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.replyPlaceholder` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.replyTab` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.room` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.selectHint` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.selectTitle` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.sendFailed` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.sendReply` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.staffFallback` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.staffOnly` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.systemFallback` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:detail.unassigned` — `src/features/support/components/SupportConversationDetail.tsx`
+- `support:list.assignedTo` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.empty` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.emptyHint` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.guestFallback` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.loading` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.noMessage` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.perPage` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.refreshing` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.room` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.title` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.total` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.unassigned` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.unread_one` — `src/features/support/components/SupportConversationList.tsx`
+- `support:list.unread_other` — `src/features/support/components/SupportConversationList.tsx`
+- `support:openDialog.agentsError` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.assignee` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.category` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.created` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.failed` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.firstMessage` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.firstMessagePlaceholder` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.firstMessageRequired` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.open` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.opening` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.priority` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.subject` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.subjectPlaceholder` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.title` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:openDialog.unassigned` — `src/features/guestRelations/components/OpenSupportDialog.tsx`
+- `support:page.allPriorities` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.allStatuses` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.loadFailed` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.priorityLabel` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.readOnly` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.refreshAria` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.refreshTooltip` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.searchLabel` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.searchPlaceholder` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.statusLabel` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.subtitle` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.tabsAria` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:page.title` — `src/features/support/components/SupportManagementPage.tsx`
+- `support:queue.at_risk` — `src/features/support/types.ts`
+- `support:queue.mine` — `src/features/support/types.ts`
+- `support:queue.resolved` — `src/features/support/types.ts`
+- `support:queue.unassigned` — `src/features/support/types.ts`
+- `support:queue.waiting_for_guest` — `src/features/support/types.ts`
+- `support:queue.waiting_for_staff` — `src/features/support/types.ts`
+- `support:sla.atRisk` — `src/features/support/components/SupportStatusChip.tsx`
+- `support:sla.breached` — `src/features/support/components/SupportStatusChip.tsx`
+- `support:sla.due` — `src/features/support/components/SupportStatusChip.tsx`
+- `support:title` — *(dynamic or unreferenced)*
+
+### `validation`
+
+- `validation:booking.checkInInvalid` — `src/utils/bookingUtils.ts`
+- `validation:booking.checkOutBeforeCheckIn` — `src/utils/bookingUtils.ts`
+- `validation:booking.checkOutInvalid` — `src/utils/bookingUtils.ts`
+- `validation:booking.checkOutOnOrAfterCheckIn` — `src/utils/bookingUtils.ts`
+- `validation:booking.guestCountRange` — `src/utils/bookingUtils.ts`
+- `validation:booking.guestIdRequired` — `src/utils/bookingUtils.ts`
+- `validation:booking.maxStay` — `src/utils/bookingUtils.ts`
+- `validation:booking.roomIdRequired` — `src/utils/bookingUtils.ts`
+- `validation:booking.specialRequestsTooLong` — `src/utils/bookingUtils.ts`
+- `validation:dateInPast` — *(dynamic or unreferenced)*
+- `validation:email` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/rooms/components/UnifiedBooking/UnifiedBookingModal.tsx`
+- `validation:endBeforeStart` — *(dynamic or unreferenced)*
+- `validation:invalid` — *(dynamic or unreferenced)*
+- `validation:invalidDate` — *(dynamic or unreferenced)*
+- `validation:max` — *(dynamic or unreferenced)*
+- `validation:maxDigits` — *(dynamic or unreferenced)*
+- `validation:maxLength` — *(dynamic or unreferenced)*
+- `validation:maxLength_one` — *(dynamic or unreferenced)*
+- `validation:maxLength_other` — *(dynamic or unreferenced)*
+- `validation:min` — *(dynamic or unreferenced)*
+- `validation:minDigits` — *(dynamic or unreferenced)*
+- `validation:minLength` — *(dynamic or unreferenced)*
+- `validation:minLength_one` — *(dynamic or unreferenced)*
+- `validation:minLength_other` — *(dynamic or unreferenced)*
+- `validation:mustBeInteger` — *(dynamic or unreferenced)*
+- `validation:mustBePositive` — *(dynamic or unreferenced)*
+- `validation:passwordMismatch` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`
+- `validation:passwordTooShort` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`, `src/features/user/components/profile/SecurityTab.tsx`
+- `validation:phone` — *(dynamic or unreferenced)*
+- `validation:required` — `src/features/admin/components/rbac/UsersTab/UsersTab.tsx`

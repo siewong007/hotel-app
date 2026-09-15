@@ -70,14 +70,17 @@ export const Breadcrumbs: React.FC = () => {
   // pages) or an Overview link.
   const isDashboard = route?.id === 'dashboard';
   const parent = isDashboard ? null : route?.navGroup ? (
-    <Typography sx={{ color: 'text.secondary', fontSize: 'inherit' }}>
+    <Typography noWrap sx={{ color: 'text.secondary', fontSize: 'inherit' }}>
       {groupLabel(route.navGroup)}
     </Typography>
   ) : (
     <Typography
       component={Link}
       to="/"
+      noWrap
       sx={{
+        // Block context so the anchor crumb can ellipsize inside its li.
+        display: 'block',
         color: 'text.secondary',
         textDecoration: 'none',
         fontSize: 'inherit',
@@ -92,11 +95,19 @@ export const Breadcrumbs: React.FC = () => {
     <MuiBreadcrumbs
       aria-label={tNav('aria.breadcrumbs')}
       separator="›"
-      sx={{ fontSize: '0.85rem', minWidth: 0 }}
+      sx={{
+        fontSize: '0.85rem',
+        minWidth: 0,
+        // The bar is a fixed 56px: a crumb must ellipsize, never wrap to a
+        // second line (ms crumbs run ~25% longer than en).
+        overflow: 'hidden',
+        '& .MuiBreadcrumbs-li': { minWidth: 0 },
+      }}
     >
       {parent}
       <Typography
         aria-current="page"
+        noWrap
         sx={{ color: 'text.primary', fontSize: 'inherit', fontWeight: 600 }}
       >
         {isDashboard ? overviewLabel : currentLabel}

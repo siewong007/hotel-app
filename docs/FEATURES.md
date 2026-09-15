@@ -52,8 +52,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Legal/policy pages | Delivered | ✓ `features/legal` (`/legal/*`) | — | Terms, privacy, payment terms, identity verification |
 | Offers landing | Delivered | ✓ `/offers` (public) | ✓ public `/api/promotions*` | |
 | Complimentary stays | Delivered | ✓ `features/admin/components/ComplimentaryManagementPage` (`/complimentary`) | ✓ `guest_complimentary_credits` | Credit allocation + restoration on void |
-| Internationalization (EN + BM) | Delivered | ✓ `src/i18n` | ✓ `core/i18n.rs` + `core/locales/` | Intl-based, in-house (ADR 012); parity tests both sides |
-| Simplified Chinese locale | In progress | branch `feat/i18n-zh` (worktree) | — | Not merged; `docs/superpowers/plans/2026-09-14-i18n-zh.md` |
+| Internationalization (EN + BM + zh) | Delivered | ✓ `src/i18n` | ✓ `core/i18n.rs` + `core/locales/` | Intl-based, in-house (ADR 012); parity tests both sides; full UI coverage audited in `docs/i18n-coverage-inventory.md` |
 | Search (global) | Delivered | ✓ | ✓ `routes/search.rs` | |
 | Desktop app (Tauri + embedded PG) | Delivered | ✓ shared | ✓ `hotel-desktop/src-tauri` | Sidecar backend; bundled postgres **19beta2** while the server stack runs 19beta3 (see `ARCHITECTURE.md` → Desktop flow); updater plugin wired but **not armed** (`hotel-desktop/UPDATER.md`) |
 | Realtime (WebSocket) | Delivered | ✓ | ✓ `modules/realtime`, loyalty/support hubs | `/api/updates/socket` (staff), `/api/admin/loyalty/socket`, `/api/guest-portal/me/{loyalty,support}/socket`; reconnect + lag-drop logging |
