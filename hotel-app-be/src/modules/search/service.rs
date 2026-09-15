@@ -4,7 +4,7 @@ use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{GlobalSearchQuery, SearchGroup, SearchResponse};
-use crate::repositories::search::SearchRepository;
+use super::repository::SearchRepository;
 
 pub async fn global_search(
     pool: &DbPool,

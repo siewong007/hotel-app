@@ -8,6 +8,7 @@ pub mod loyalty;
 pub mod promotions;
 pub mod realtime;
 pub mod revenue;
+pub mod search;
 pub mod segments;
 pub mod settings;
 pub mod support;

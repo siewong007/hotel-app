@@ -25,7 +25,7 @@ pub mod profile;
 pub mod rates;
 pub mod rbac;
 pub mod rooms;
-pub mod search;
+// search handlers live in modules::search.
 pub mod two_factor;
 pub mod users;
 pub mod webhooks;

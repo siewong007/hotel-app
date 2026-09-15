@@ -30,5 +30,5 @@ pub mod payment_retry;
 pub mod rate;
 pub mod rbac;
 pub mod rooms_queries;
-pub mod search;
+// search persistence live in modules::search.
 pub mod user;

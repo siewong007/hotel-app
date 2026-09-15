@@ -26,7 +26,7 @@ pub mod profile;
 pub mod rates;
 pub mod rbac;
 pub mod rooms;
-pub mod search;
+// search routes live in modules::search.
 pub mod two_factor;
 pub mod users;
 pub mod webhooks;
@@ -418,7 +418,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(guest_portal::routes())
         .merge(companies::routes())
         .merge(audit::routes())
-        .merge(search::routes())
+        .merge(crate::modules::search::routes::routes())
         .merge(night_audit::routes())
         .merge(data_transfer::routes())
         .merge(passkey::routes())

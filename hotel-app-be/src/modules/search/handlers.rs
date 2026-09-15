@@ -8,7 +8,7 @@ use axum::{
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{GlobalSearchQuery, SearchResponse};
-use crate::services::search as search_service;
+use super::service;
 
 /// GET /search?q=&types=&limit=
 pub async fn global_search(
@@ -17,6 +17,6 @@ pub async fn global_search(
     Query(params): Query<GlobalSearchQuery>,
 ) -> Result<Json<SearchResponse>, ApiError> {
     Ok(Json(
-        search_service::global_search(&pool, user_id, params).await?,
+        service::global_search(&pool, user_id, params).await?,
     ))
 }

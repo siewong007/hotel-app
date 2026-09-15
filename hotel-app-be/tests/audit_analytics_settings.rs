@@ -36,7 +36,7 @@ mod postgres_tests {
     use hotel_app_be::modules::settings::service as settings_service;
     use hotel_app_be::repositories::analytics as analytics_repo;
     use hotel_app_be::repositories::audit::AuditRepository;
-    use hotel_app_be::repositories::search::SearchRepository;
+    use hotel_app_be::modules::search::repository::SearchRepository;
     use hotel_app_be::services::audit as audit_service;
     use hotel_app_be::services::audit::AuditLog;
     use hotel_app_be::services::booking_channels as booking_channels_service;

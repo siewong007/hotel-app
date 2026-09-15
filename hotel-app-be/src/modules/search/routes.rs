@@ -12,7 +12,7 @@ use axum::{
     routing::get,
 };
 
-use crate::handlers::search;
+use super::handlers;
 
 /// Create search routes
 pub fn routes() -> Router<DbPool> {
@@ -25,5 +25,5 @@ async fn global_search(
     query: Query<models::GlobalSearchQuery>,
 ) -> Result<Json<models::SearchResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    search::global_search(State(pool), user_id, query).await
+    handlers::global_search(State(pool), user_id, query).await
 }

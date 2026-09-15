@@ -23,7 +23,6 @@ pub mod rate;
 pub mod rbac;
 pub mod room;
 pub mod row_mappers;
-pub mod search;
 pub mod user;
 
 // Re-export all models for convenience
@@ -46,5 +45,5 @@ pub use payment::*;
 pub use rate::*;
 pub use rbac::*;
 pub use room::*;
-pub use search::*;
+pub use crate::modules::search::models::*;
 pub use user::*;
