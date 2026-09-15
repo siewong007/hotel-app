@@ -1,0 +1,124 @@
+{
+  "title": "线上库存",
+  "kicker": "库存设置",
+  "subtitle": "一次管理 {{days}} 天的线上库存——点击单元格进行选择，在编辑器中暂存修改，然后一次性检查并安全应用所有更改。",
+  "loading": "正在加载客房可售库存…",
+  "empty": {
+    "title": "没有可配置的房型",
+    "body": "请先添加房型，再设置其线上可售库存。"
+  },
+  "confirm": {
+    "discardTitle": "放弃未保存的修改",
+    "discardConfirm": "放弃修改",
+    "discardMove": "移动日期窗口将放弃未保存的库存修改，是否继续？",
+    "discardRefresh": "刷新可售库存将放弃未保存的库存修改，是否继续？"
+  },
+  "changedBar_other": "已修改 {{count}} 个单元格",
+  "discard": "放弃",
+  "reviewApply": "检查并应用",
+  "toolbar": {
+    "aria": "库存窗口控件",
+    "backDays": "后退 {{days}} 天",
+    "prevDay": "前一天",
+    "startDate": "开始日期",
+    "nextDay": "后一天",
+    "forwardDays": "前进 {{days}} 天",
+    "today": "今天",
+    "overridesOnly": "仅显示覆盖项",
+    "selected": "已选 {{count}} 项"
+  },
+  "grid": {
+    "aria": "按房型和日期查看的线上库存",
+    "selectAll": "选择所有单元格",
+    "colHeader": "房型 / 日期",
+    "selectColumn": "选择 {{date}} 的全部",
+    "today": "今天",
+    "selectRow": "选择 {{name}} 行"
+  },
+  "cell": {
+    "closed": "已关闭",
+    "noneLeft": "已售完",
+    "ariaOnline": "线上可售 {{count}} 间，价格 {{price}}",
+    "ariaClosed": "已关闭线上预订",
+    "ariaNoneLeft": "，无剩余",
+    "ariaModified": "，已修改",
+    "ariaResetPending": "，待重置"
+  },
+  "bulk": {
+    "aria": "批量编辑所选单元格",
+    "cellsSelected_other": "已选择 {{count}} 个单元格",
+    "daysAria": "限定星期",
+    "days": {
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六",
+      "sun": "周日"
+    },
+    "inScope": "范围内 {{active}} / {{total}}",
+    "clearSelection": "清除选择",
+    "openOnline": "开放线上",
+    "closeOnline": "关闭线上",
+    "hold": "保留",
+    "setHold": "设置保留",
+    "price": "价格",
+    "setPrice": "设置价格",
+    "percentLabel": "±%",
+    "adjustPercentAria": "按百分比调整",
+    "applyPercent": "应用 %",
+    "amountLabel": "± 金额",
+    "adjustAmountAria": "按金额调整",
+    "applyAmount": "应用金额",
+    "clearOverrides": "清除覆盖",
+    "skipped_other": "已跳过 {{count}} 个单元格——调整会使价格变为零或负数。"
+  },
+  "editor": {
+    "bookable": "可线上预订",
+    "bookableOn": "客人可预订该日期",
+    "bookableOff": "对线上预订隐藏",
+    "holdWalkins": "为上门客保留",
+    "decrease": "减少上门客保留",
+    "increase": "增加上门客保留",
+    "holdAria": "上门客保留",
+    "ofFree": "共 {{count}} 间可用",
+    "overHeld": "高于该日期的实际可用数。",
+    "customPrice": "自定义线上价格",
+    "priceInvalid": "请输入大于零的价格。",
+    "standardRate": "该日期标准价格：{{price}}——留空则使用标准价。",
+    "resetStandard": "重置为标准规则"
+  },
+  "summary": {
+    "physical": "实际可用",
+    "held": "上门客保留",
+    "online": "线上可售",
+    "roomNights": "间夜",
+    "aria": "{{label}}汇总",
+    "selectedCells": "所选单元格",
+    "visibleWindow": "可见窗口"
+  },
+  "review": {
+    "title": "检查修改",
+    "atomicNote_other": "全部 {{count}} 项修改将一并应用——若任一单元格失败，则不会保存任何内容。",
+    "saving": "保存中…",
+    "apply_other": "应用 {{count}} 项修改"
+  },
+  "lines": {
+    "resetStandard": "重置为标准规则",
+    "updated": "已更新",
+    "reopenOnline": "重新开放线上",
+    "closeOnline": "关闭线上",
+    "holdLine": "为上门客保留 {{count}} 间（原为 {{was}} 间）",
+    "priceStandard": "价格 → 标准价",
+    "priceLine": "价格 → {{price}}（标准价 {{standard}}）",
+    "roomTypeFallback": "房型 {{id}}"
+  },
+  "errors": {
+    "load": "无法加载线上库存。",
+    "save": "无法保存库存修改。"
+  },
+  "success": {
+    "updated_other": "已更新 {{count}} 个单元格。"
+  }
+}

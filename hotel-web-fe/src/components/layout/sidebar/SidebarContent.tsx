@@ -103,7 +103,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         <Box
           component={Link}
           to="/"
-          aria-label={hotelName || 'Hotel'}
+          aria-label={hotelName || tNav('aria.brand')}
           sx={{
             display: 'flex',
             alignItems: 'center',
@@ -140,9 +140,9 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
       {bookingsRoute && (
         <Box sx={{ px: collapsed ? 1 : 2, pt: 1.5 }}>
           {collapsed ? (
-            <Tooltip title="New booking" placement="right">
+            <Tooltip title={tNav('mobile.newBooking')} placement="right">
               <IconButton
-                aria-label="New booking"
+                aria-label={tNav('mobile.newBooking')}
                 onClick={handleNewBooking}
                 onMouseEnter={() => preloadRoute('/bookings')}
                 onFocus={() => preloadRoute('/bookings')}
@@ -176,7 +176,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
                 '&:hover': { filter: 'brightness(0.97)' },
               }}
             >
-              <AddIcon sx={{ fontSize: 18 }} /> New booking
+              <AddIcon sx={{ fontSize: 18 }} /> {tNav('mobile.newBooking')}
             </Box>
           )}
         </Box>

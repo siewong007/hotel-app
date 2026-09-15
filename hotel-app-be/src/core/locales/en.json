@@ -55,6 +55,9 @@
       "11": "Nov",
       "12": "Dec"
     },
+    "date": {
+      "pattern": "{{day}} {{month}} {{year}}"
+    },
     "verifyEmail": {
       "subject": "Verify your email · {{hotel}}",
       "preheader": "Confirm your email address to finish setting up your {{hotel}} account.",

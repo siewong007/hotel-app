@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { errorMessage } from '../../../utils';
 import type { GuestSubscription } from '../../../types';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { TOPIC_LABELS, type NotificationTopic } from '../../communications/types';
 import { useRecordGuestConsent } from '../hooks/useGuestRelationsQueries';
 
@@ -57,9 +58,11 @@ const GuestConsentDialog: React.FC<GuestConsentDialogProps> = ({
   subscriptions,
   onClose,
   onSaved,
-}) => (
+}) => {
+  const { t } = useTranslation('guests');
+  return (
   <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-    <DialogTitle>Edit email consent — {guestName}</DialogTitle>
+    <DialogTitle>{t('consent.title', { name: guestName })}</DialogTitle>
     {/* Mounted fresh on each open so the draft seeds from the latest
         subscriptions via useState initializers (no effect needed — the React
         Compiler lint forbids dep-array escapes). */}
@@ -73,7 +76,8 @@ const GuestConsentDialog: React.FC<GuestConsentDialogProps> = ({
       />
     )}
   </Dialog>
-);
+  );
+};
 
 interface ConsentFormProps {
   guestId: number;
@@ -90,6 +94,7 @@ const ConsentForm: React.FC<ConsentFormProps> = ({
   onClose,
   onSaved,
 }) => {
+  const { t, tOr } = useTranslation('guests');
   const recordConsent = useRecordGuestConsent();
   const [baseline] = useState<TopicDraft>(() => draftFrom(subscriptions));
   const [draft, setDraft] = useState<TopicDraft>(baseline);
@@ -110,10 +115,10 @@ const ConsentForm: React.FC<ConsentFormProps> = ({
         guestId,
         data: { subscriptions: changedSubscriptions },
       });
-      onSaved?.(`Email preferences updated for ${guestName}`);
+      onSaved?.(t('consent.updated', { name: guestName }));
       onClose();
     } catch (err) {
-      setFormError(errorMessage(err, 'Failed to update consent'));
+      setFormError(errorMessage(err, t('consent.failed')));
     }
   };
 
@@ -127,9 +132,7 @@ const ConsentForm: React.FC<ConsentFormProps> = ({
             </Alert>
           )}
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            These toggles cover optional marketing and newsletter email only. Transactional mail —
-            booking confirmations, receipts, check-in details — is always sent when the guest has an
-            email address.
+            {t('consent.description')}
           </Typography>
           {TOPICS.map((topic) => (
             <FormControlLabel
@@ -140,34 +143,34 @@ const ConsentForm: React.FC<ConsentFormProps> = ({
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, [topic]: event.target.checked }))
                   }
-                  slotProps={{ input: { role: 'switch', 'aria-label': `toggle ${topic} emails` } }}
+                  slotProps={{ input: { role: 'switch', 'aria-label': t('consent.toggleAria', { topic }) } }}
                 />
               }
               label={
                 <Box>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {TOPIC_LABELS[topic] ?? topic}
+                    {tOr(`consent.topics.${topic}`, TOPIC_LABELS[topic] ?? topic)}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    {draft[topic] ? 'Opted in' : 'Opted out'}
+                    {draft[topic] ? t('consent.optedIn') : t('consent.optedOut')}
                   </Typography>
                 </Box>
               }
             />
           ))}
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            Recorded as staff-captured consent. Confirm the guest's wishes before saving.
+            {t('consent.footnote')}
           </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           variant="contained"
           onClick={() => void handleSubmit()}
           disabled={recordConsent.isPending || changedSubscriptions.length === 0}
         >
-          {recordConsent.isPending ? 'Saving…' : 'Save consent'}
+          {recordConsent.isPending ? t('common:state.saving') : t('consent.save')}
         </Button>
       </DialogActions>
     </>

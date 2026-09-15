@@ -4,6 +4,7 @@ import { ListAlt as SummaryIcon, Check as CheckIcon } from '@mui/icons-material'
 import { Room } from '../../../../../types';
 import { BookingTokens } from '../bookingTokens';
 import { isPositiveMoney } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 
 interface BookingSummaryAsideProps {
   D: BookingTokens;
@@ -57,7 +58,10 @@ const BookingSummaryAside: React.FC<BookingSummaryAsideProps> = ({
   total,
   formatCurrency,
   formatHumanDate,
-}) => (
+}) => {
+  const { t } = useTranslation('rooms');
+
+  return (
   <Box sx={{
     display: { xs: 'none', md: 'flex' },
     flexDirection: 'column',
@@ -68,7 +72,7 @@ const BookingSummaryAside: React.FC<BookingSummaryAsideProps> = ({
     overflowY: 'auto',
   }}>
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 11, letterSpacing: 1.2, fontWeight: 700, color: D.ink3, textTransform: 'uppercase' }}>
-      <SummaryIcon sx={{ fontSize: 14 }} /> Booking summary
+      <SummaryIcon sx={{ fontSize: 14 }} /> {t('unified.summaryTitle')}
     </Box>
 
     {room && (
@@ -84,13 +88,13 @@ const BookingSummaryAside: React.FC<BookingSummaryAsideProps> = ({
       }}>
         <Box>
           <Typography sx={{ fontSize: 24, fontWeight: 800, letterSpacing: '-1px', lineHeight: 1, color: D.ink }}>
-            {roomCount > 1 ? `${roomCount} rooms` : room.room_number}
+            {roomCount > 1 ? t('common:count.rooms', { count: roomCount }) : room.room_number}
           </Typography>
           <Typography sx={{ fontSize: 10, fontWeight: 700, color: D.ink3, letterSpacing: 0.6, mt: 0.25, textTransform: 'uppercase' }}>
             {roomCount > 1 ? selectedRoomNumbers : room.room_type}
           </Typography>
           <Typography sx={{ fontSize: 11, color: D.green, fontWeight: 700, mt: 0.5 }}>
-            ● {roomIsAvailable === false ? 'Conflict' : 'Available now'}
+            ● {roomIsAvailable === false ? t('unified.conflict') : t('unified.availNow')}
           </Typography>
         </Box>
         <Box sx={{ flex: 1, textAlign: 'right' }}>
@@ -116,12 +120,12 @@ const BookingSummaryAside: React.FC<BookingSummaryAsideProps> = ({
 
     <Box sx={{ bgcolor: D.surface, border: `1px solid ${D.border}`, borderRadius: 1.5, p: 1.75 }}>
       {[
-        { k: 'Guest',     v: summaryGuestName },
-        { k: 'Rooms',     v: selectedRoomNumbers || '—' },
-        { k: 'Source',    v: effectiveType === 'online' ? (bookingChannel || '—') : (effectiveType === 'walk_in' ? 'Walk-in' : effectiveType === 'complimentary' ? 'Free credit' : '—') },
-        { k: 'Check-in',  v: formatHumanDate(checkInDate) || '—' },
-        { k: 'Check-out', v: isHourlyBooking ? `${formatHumanDate(checkInDate)} (hourly)` : (formatHumanDate(checkOutDate) || '—') },
-        { k: 'Duration',  v: `${billableNights} ${billableNights === 1 ? 'night' : 'nights'}` },
+        { k: t('fields.guest'),    v: summaryGuestName },
+        { k: t('title'),           v: selectedRoomNumbers || '—' },
+        { k: t('unified.sumSource'),   v: effectiveType === 'online' ? (bookingChannel || '—') : (effectiveType === 'walk_in' ? t('unified.sourceWalkIn') : effectiveType === 'complimentary' ? t('unified.sourceFreeCredit') : '—') },
+        { k: t('fields.checkIn'),  v: formatHumanDate(checkInDate) || '—' },
+        { k: t('fields.checkOut'), v: isHourlyBooking ? t('unified.hourlyCheckout', { date: formatHumanDate(checkInDate) }) : (formatHumanDate(checkOutDate) || '—') },
+        { k: t('unified.sumDuration'), v: t('common:count.nights', { count: billableNights }) },
       ].map((r) => (
         <Box key={r.k} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', py: 0.75, fontSize: 12.5 }}>
           <Box sx={{ color: D.ink3 }}>{r.k}</Box>
@@ -132,26 +136,26 @@ const BookingSummaryAside: React.FC<BookingSummaryAsideProps> = ({
 
     <Box sx={{ bgcolor: D.surface, border: `1px solid ${D.border}`, borderRadius: 1.5, p: 1.75 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
-        <Box sx={{ color: D.ink3 }}>{roomCount > 1 ? 'Room rates' : 'Rate'}</Box>
+        <Box sx={{ color: D.ink3 }}>{roomCount > 1 ? t('unified.sumRoomRates') : t('fields.rate')}</Box>
         <Box sx={{ color: D.ink, fontWeight: 600 }}>
           {roomCount > 1
-            ? `${formatCurrency(nightlyRoomTotal)} / night total`
-            : `${formatCurrency(ratePerNight)} / night`}
+            ? t('unified.ratePerNightTotal', { amount: formatCurrency(nightlyRoomTotal) })
+            : t('unified.ratePerNightValue', { amount: formatCurrency(ratePerNight) })}
         </Box>
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
-        <Box sx={{ color: D.ink3 }}>Subtotal (×{billableNights})</Box>
+        <Box sx={{ color: D.ink3 }}>{t('unified.subtotal', { count: billableNights })}</Box>
         <Box sx={{ color: D.ink, fontWeight: 600 }}>{formatCurrency(subtotal)}</Box>
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
-        <Box sx={{ color: D.ink3 }}>Tourism tax</Box>
+        <Box sx={{ color: D.ink3 }}>{t('unified.tourismTax')}</Box>
         <Box sx={{ color: isPositiveMoney(tourismTaxAmount) ? D.ink : D.ink3, fontWeight: isPositiveMoney(tourismTaxAmount) ? 600 : 500 }}>
           {isPositiveMoney(tourismTaxAmount) ? formatCurrency(tourismTaxAmount) : '—'}
         </Box>
       </Box>
       {isPositiveMoney(extraBedCharge) && (
         <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
-          <Box sx={{ color: D.ink3 }}>Extra bed</Box>
+          <Box sx={{ color: D.ink3 }}>{t('config.extraBed')}</Box>
           <Box sx={{ color: D.ink, fontWeight: 600 }}>{formatCurrency(extraBedCharge)}</Box>
         </Box>
       )}
@@ -163,7 +167,7 @@ const BookingSummaryAside: React.FC<BookingSummaryAsideProps> = ({
         pt: 1.5,
         fontSize: 14,
       }}>
-        <Box sx={{ color: D.ink, fontWeight: 700 }}>Total</Box>
+        <Box sx={{ color: D.ink, fontWeight: 700 }}>{t('common:field.total')}</Box>
         <Box sx={{ color: D.emerald, fontWeight: 800, fontSize: 20, letterSpacing: '-0.4px' }}>
           {formatCurrency(total)}
         </Box>
@@ -181,27 +185,28 @@ const BookingSummaryAside: React.FC<BookingSummaryAsideProps> = ({
     }}>
       {checkingAvailability ? (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: D.ink3 }}>
-          <CircularProgress size={12} /> Checking availability…
+          <CircularProgress size={12} /> {t('unified.checkingAvailability')}
         </Box>
       ) : roomIsAvailable === false ? (
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: D.orange, fontWeight: 700, mb: 0.5 }}>
-            <CheckIcon sx={{ fontSize: 13 }} /> Room conflict
+            <CheckIcon sx={{ fontSize: 13 }} /> {t('unified.roomConflict')}
           </Box>
-          Another booking exists for the selected dates.
+          {t('unified.conflictBody')}
         </Box>
       ) : (
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: D.green, fontWeight: 700, mb: 0.5 }}>
-            <CheckIcon sx={{ fontSize: 13 }} /> No conflicts found
+            <CheckIcon sx={{ fontSize: 13 }} /> {t('unified.noConflicts')}
           </Box>
           {checkInDate && checkOutDate && room
-            ? `${roomCount > 1 ? 'Selected rooms are' : 'Room is'} available for ${formatHumanDate(checkInDate)} → ${formatHumanDate(checkOutDate)}.`
-            : 'Pick check-in and check-out dates to verify.'}
+            ? t(roomCount > 1 ? 'unified.availForMulti' : 'unified.availForSingle', { from: formatHumanDate(checkInDate), to: formatHumanDate(checkOutDate) })
+            : t('unified.pickDatesVerify')}
         </Box>
       )}
     </Box>
   </Box>
-);
+  );
+};
 
 export default BookingSummaryAside;

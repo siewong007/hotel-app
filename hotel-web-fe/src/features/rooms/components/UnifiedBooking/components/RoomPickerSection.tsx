@@ -5,6 +5,7 @@ import { Room } from '../../../../../types';
 import { BookingTokens } from '../bookingTokens';
 import SectionHeader from './SectionHeader';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 
 interface RoomPickerSectionProps {
   D: BookingTokens;
@@ -34,11 +35,15 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
   checkOutDate,
   currencySymbol,
   selectedRoomNumbers,
-  emptyAvailabilityText = 'No rooms available for the selected dates. Pick different dates below.',
+  emptyAvailabilityText,
   noOptionsText,
-}) => (
+}) => {
+  const { t } = useTranslation('rooms');
+  const resolvedEmptyText = emptyAvailabilityText ?? t('unified.noRoomsForDates');
+
+  return (
   <Box sx={{ mb: 2.75 }}>
-    <SectionHeader D={D} number="①" label="Room" />
+    <SectionHeader D={D} number="①" label={t('fields.room')} />
     <Autocomplete
       multiple
       size="small"
@@ -50,12 +55,12 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
           : []
       }
       loading={loadingAvailableRooms}
-      getOptionLabel={(o) => o ? `Room ${o.room_number} · ${o.room_type}` : ''}
+      getOptionLabel={(o) => o ? t('unified.roomOption', { number: o.room_number, type: o.room_type }) : ''}
       isOptionEqualToValue={(o, v) => String(o.id) === String(v?.id)}
       noOptionsText={noOptionsText || (
         checkInDate && checkOutDate
-          ? emptyAvailabilityText
-          : 'Set dates below to filter by availability'
+          ? resolvedEmptyText
+          : t('unified.setDatesHint')
       )}
       renderOption={(props, option) => {
         const { key, ...rest } = props;
@@ -70,8 +75,8 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
                 {option.room_type}
               </Box>
               <Box sx={{ fontSize: 11, color: D.ink3 }}>
-                {isPositiveMoney(price) ? `${currencySymbol} ${price.toFixed(2)} / night` : 'Rate not set'}
-                {option.floor != null ? ` · Floor ${option.floor}` : ''}
+                {isPositiveMoney(price) ? t('unified.optionRate', { symbol: currencySymbol, price: price.toFixed(2) }) : t('unified.rateNotSet')}
+                {option.floor != null ? ` · ${t('header.floorN', { floor: option.floor })}` : ''}
               </Box>
             </Box>
           </Box>
@@ -82,10 +87,10 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
           {...params}
           placeholder={
             !checkInDate || !checkOutDate
-              ? 'Pick rooms (set dates below to filter by availability)'
+              ? t('unified.pickRooms')
               : loadingAvailableRooms
-                ? 'Loading available rooms…'
-                : 'Select one or more rooms'
+                ? t('unified.loadingRooms')
+                : t('unified.selectRooms')
           }
           sx={{ bgcolor: D.surface }}
           slotProps={{
@@ -108,15 +113,16 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
     />
     {checkInDate && checkOutDate && availableRooms.length === 0 && !loadingAvailableRooms && (
       <Typography sx={{ mt: 0.75, fontSize: 11, color: D.ink3, fontStyle: 'italic' }}>
-        {emptyAvailabilityText}
+        {resolvedEmptyText}
       </Typography>
     )}
     {selectedRooms.length > 1 && (
       <Typography sx={{ mt: 0.75, fontSize: 11, color: D.emerald, fontWeight: 700 }}>
-        {selectedRooms.length} rooms selected: {selectedRoomNumbers}
+        {t('unified.roomsSelected', { count: selectedRooms.length, rooms: selectedRoomNumbers })}
       </Typography>
     )}
   </Box>
-);
+  );
+};
 
 export default RoomPickerSection;

@@ -13,6 +13,7 @@ import { Fingerprint as FingerprintIcon } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { errorMessage } from '../../../utils/errorMessage';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
+import { useTranslation } from '../../../i18n';
 
 interface FirstLoginPasskeyPromptProps {
   open: boolean;
@@ -25,6 +26,7 @@ const FirstLoginPasskeyPrompt: React.FC<FirstLoginPasskeyPromptProps> = ({ open,
   const [error, setError] = useState<string | null>(null);
   const errorRef = useAutoFocusError(error);
   const { registerPasskey } = useAuth();
+  const { t } = useTranslation('auth');
 
   const handleRegisterPasskey = async () => {
     setLoading(true);
@@ -33,7 +35,7 @@ const FirstLoginPasskeyPrompt: React.FC<FirstLoginPasskeyPromptProps> = ({ open,
       await registerPasskey(username);
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to register passkey'));
+      setError(errorMessage(err, t('passkeys.registerFailed')));
     } finally {
       setLoading(false);
     }
@@ -45,29 +47,29 @@ const FirstLoginPasskeyPrompt: React.FC<FirstLoginPasskeyPromptProps> = ({ open,
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <FingerprintIcon sx={{ fontSize: 40, color: 'primary.main' }} />
           <Typography variant="h5" component="span" sx={{ fontWeight: 600 }}>
-            Secure Your Account with a Passkey
+            {t('passkeys.firstLoginTitle')}
           </Typography>
         </Box>
       </DialogTitle>
       <DialogContent>
         <Typography variant="body1" gutterBottom sx={{ mb: 2 }}>
-          Welcome! It looks like this is your first time logging in.
+          {t('passkeys.firstLoginWelcome')}
         </Typography>
         <Typography variant="body1" gutterBottom sx={{ mb: 2 }}>
-          We recommend setting up a passkey for secure, passwordless authentication. Passkeys are:
+          {t('passkeys.firstLoginIntro')}
         </Typography>
         <Box component="ul" sx={{ pl: 3, mb: 2 }}>
           <li>
-            <Typography variant="body2">More secure than passwords</Typography>
+            <Typography variant="body2">{t('passkeys.benefitSecure')}</Typography>
           </li>
           <li>
-            <Typography variant="body2">Faster and easier to use</Typography>
+            <Typography variant="body2">{t('passkeys.benefitFast')}</Typography>
           </li>
           <li>
-            <Typography variant="body2">Protected by your device's biometrics or PIN</Typography>
+            <Typography variant="body2">{t('passkeys.benefitBiometric')}</Typography>
           </li>
           <li>
-            <Typography variant="body2">Resistant to phishing attacks</Typography>
+            <Typography variant="body2">{t('passkeys.benefitPhishing')}</Typography>
           </li>
         </Box>
         <Typography
@@ -76,7 +78,7 @@ const FirstLoginPasskeyPrompt: React.FC<FirstLoginPasskeyPromptProps> = ({ open,
             color: "text.secondary",
             mb: 2
           }}>
-          You can add up to 10 passkeys to your account and manage them in your profile settings.
+          {t('passkeys.firstLoginLimit')}
         </Typography>
         {error && (
           <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mt: 2 }}>
@@ -86,7 +88,7 @@ const FirstLoginPasskeyPrompt: React.FC<FirstLoginPasskeyPromptProps> = ({ open,
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={loading}>
-          Skip for Now
+          {t('passkeys.firstLoginSkip')}
         </Button>
         <Button
           variant="contained"
@@ -94,7 +96,7 @@ const FirstLoginPasskeyPrompt: React.FC<FirstLoginPasskeyPromptProps> = ({ open,
           disabled={loading}
           startIcon={<FingerprintIcon />}
         >
-          {loading ? 'Registering...' : 'Register Passkey'}
+          {loading ? t('passkeys.registering') : t('passkeys.register')}
         </Button>
       </DialogActions>
     </Dialog>

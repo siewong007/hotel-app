@@ -11,6 +11,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { EditableCell, GridCellView } from '../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 
@@ -36,32 +37,33 @@ export const CellEditorForm = ({
   overHeld,
   formatPrice,
 }: CellEditorFormProps) => {
+  const { t } = useTranslation('onlineInventory');
   const { symbol } = useCurrency();
 
   return (
     <Stack spacing={2}>
       <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
         <Box>
-          <Typography sx={{ fontWeight: 700 }}>Bookable online</Typography>
+          <Typography sx={{ fontWeight: 700 }}>{t('editor.bookable')}</Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            {draft.online_booking_enabled ? 'Guests can book this date' : 'Hidden from online booking'}
+            {draft.online_booking_enabled ? t('editor.bookableOn') : t('editor.bookableOff')}
           </Typography>
         </Box>
         <Switch
           checked={draft.online_booking_enabled}
           onChange={(event) => onDraftChange({ online_booking_enabled: event.target.checked })}
           color="success"
-          slotProps={{ input: { 'aria-label': 'Bookable online' } }}
+          slotProps={{ input: { 'aria-label': t('editor.bookable') } }}
         />
       </Stack>
 
       <Divider />
 
       <Box>
-        <Typography sx={{ fontWeight: 700, mb: 0.75 }}>Hold for walk-ins</Typography>
+        <Typography sx={{ fontWeight: 700, mb: 0.75 }}>{t('editor.holdWalkins')}</Typography>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <IconButton
-            aria-label="Decrease walk-in hold"
+            aria-label={t('editor.decrease')}
             size="small"
             sx={{ border: 1, borderColor: 'divider' }}
             disabled={draft.walk_in_reserved_rooms <= 0}
@@ -83,10 +85,10 @@ export const CellEditorForm = ({
               })
             }
             sx={{ width: 84, '& input': { textAlign: 'center', fontWeight: 800 } }}
-            slotProps={{ htmlInput: { min: 0, 'aria-label': 'Walk-in hold' } }}
+            slotProps={{ htmlInput: { min: 0, 'aria-label': t('editor.holdAria') } }}
           />
           <IconButton
-            aria-label="Increase walk-in hold"
+            aria-label={t('editor.increase')}
             size="small"
             sx={{ border: 1, borderColor: 'divider' }}
             onClick={() =>
@@ -96,12 +98,12 @@ export const CellEditorForm = ({
             <AddIcon fontSize="small" />
           </IconButton>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            of {view.physical} free
+            {t('editor.ofFree', { count: view.physical })}
           </Typography>
         </Stack>
         {overHeld && (
           <Typography variant="caption" sx={{ color: 'error.main', display: 'block', mt: 0.5 }}>
-            Higher than the physical availability for this date.
+            {t('editor.overHeld')}
           </Typography>
         )}
       </Box>
@@ -109,18 +111,18 @@ export const CellEditorForm = ({
       <TextField
         type="number"
         size="small"
-        label="Custom online price"
+        label={t('editor.customPrice')}
         value={draft.custom_price ?? ''}
         onChange={(event) => onDraftChange({ custom_price: event.target.value || null })}
         error={priceInvalid}
         helperText={
           priceInvalid
-            ? 'Enter a price greater than zero.'
-            : `Standard rate for this date: ${formatPrice(view.standard_price)} — leave blank to use it.`
+            ? t('editor.priceInvalid')
+            : t('editor.standardRate', { price: formatPrice(view.standard_price) })
         }
         slotProps={{
           input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> },
-          htmlInput: { min: 0.01, step: 0.01, 'aria-label': 'Custom online price' },
+          htmlInput: { min: 0.01, step: 0.01, 'aria-label': t('editor.customPrice') },
         }}
       />
     </Stack>

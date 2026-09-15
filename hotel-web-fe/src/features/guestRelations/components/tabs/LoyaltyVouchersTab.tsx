@@ -24,7 +24,8 @@ import {
 } from '@mui/icons-material';
 import type { GuestLoyaltySummary, GuestVoucher } from '../../../../types';
 import { Link } from '../../../../router';
-import { formatStatusLabel } from '../../../../utils/formatters';
+import { useTranslation } from '../../../../i18n/useTranslation';
+import { statusLabel } from '../../../../i18n/statusLabel';
 import { formatHotelDate, formatHotelDateTime } from '../../../../utils/date';
 import { getQueryErrorMessage } from '../../../../api/queryConfig';
 import { ProfileDetailRow, ProfileMetric } from '../../../guests/components/GuestProfileParts';
@@ -103,6 +104,7 @@ interface LoyaltyVouchersTabProps {
  * links hand off to `/loyalty` and `/promotions`.
  */
 const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
+  const { t } = useTranslation('guests');
   const loyaltyQuery = useGuestLoyalty(guestId);
   const vouchersQuery = useGuestVouchers(guestId);
 
@@ -119,20 +121,20 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
           mb: 2,
         }}
       >
-        <ProfileDetailRow label="Member number" value={summary.member_number} />
+        <ProfileDetailRow label={t('loyaltyTab.memberNumber')} value={summary.member_number} />
         <ProfileDetailRow
-          label="Status"
+          label={t('loyaltyTab.status')}
           value={
             <Chip
               size="small"
-              label={formatStatusLabel(summary.status)}
+              label={statusLabel(t, 'loyalty', summary.status)}
               color={loyaltyStatusColor(summary.status)}
               variant={summary.status === 'active' ? 'filled' : 'outlined'}
             />
           }
         />
         <ProfileDetailRow
-          label="Tier"
+          label={t('loyaltyTab.tier')}
           value={
             <Chip
               size="small"
@@ -155,39 +157,39 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
           gap: 1.5,
         }}
       >
-        <ProfileMetric label="Available points" value={summary.available_points.toLocaleString()} />
-        <ProfileMetric label="Lifetime points" value={summary.lifetime_points.toLocaleString()} />
-        <ProfileMetric label="Qualifying nights" value={summary.qualifying_nights.toLocaleString()} />
+        <ProfileMetric label={t('loyaltyTab.availablePoints')} value={summary.available_points.toLocaleString()} />
+        <ProfileMetric label={t('loyaltyTab.lifetimePoints')} value={summary.lifetime_points.toLocaleString()} />
+        <ProfileMetric label={t('loyaltyTab.qualifyingNights')} value={summary.qualifying_nights.toLocaleString()} />
       </Box>
 
       <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mt: 2, mb: 1 }}>
-        RECENT REDEMPTIONS
+        {t('loyaltyTab.recentRedemptions')}
       </Typography>
       {summary.recent_redemptions.length === 0 ? (
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          No redemptions yet.
+          {t('loyaltyTab.noRedemptions')}
         </Typography>
       ) : (
         <TableContainer>
-          <Table size="small" aria-label="Recent loyalty redemptions">
+          <Table size="small" aria-label={t('loyaltyTab.redemptionsAria')}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Reward</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Points</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>{t('loyaltyTab.colReward')}</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">{t('loyaltyTab.colPoints')}</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>{t('loyaltyTab.colStatus')}</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>{t('loyaltyTab.colDate')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {summary.recent_redemptions.map((redemption) => (
                 <TableRow key={redemption.id}>
-                  <TableCell>{redemption.reward_name ?? 'Reward'}</TableCell>
+                  <TableCell>{redemption.reward_name ?? t('loyaltyTab.rewardFallback')}</TableCell>
                   <TableCell align="right">{redemption.points.toLocaleString()}</TableCell>
                   <TableCell>
                     <Chip
                       size="small"
                       variant="outlined"
-                      label={formatStatusLabel(redemption.status)}
+                      label={statusLabel(t, 'loyalty_redemption', redemption.status)}
                     />
                   </TableCell>
                   <TableCell>{formatHotelDate(redemption.created_at)}</TableCell>
@@ -211,9 +213,9 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
           >
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <LoyaltyIcon sx={{ fontSize: 16 }} />
-              <span>Loyalty membership</span>
+              <span>{t('loyaltyTab.title')}</span>
             </Stack>
-            <SectionLink to="/loyalty">Manage in Loyalty</SectionLink>
+            <SectionLink to="/loyalty">{t('loyaltyTab.manage')}</SectionLink>
           </Stack>
         }
       >
@@ -227,21 +229,21 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
             severity="error"
             action={
               <Button color="inherit" size="small" onClick={() => void loyaltyQuery.refetch()}>
-                Retry
+                {t('common:actions.retry')}
               </Button>
             }
           >
-            {getQueryErrorMessage(loyaltyQuery.error, 'Failed to load loyalty summary') ??
-              'Failed to load loyalty summary'}
+            {getQueryErrorMessage(loyaltyQuery.error, t('loyaltyTab.loadFailed')) ??
+              t('loyaltyTab.loadFailed')}
           </Alert>
         ) : loyalty == null ? (
           <Box sx={{ textAlign: 'center', py: 3 }}>
             <LoyaltyIcon sx={{ fontSize: 32, color: 'text.disabled', mb: 0.5 }} />
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-              Not enrolled
+              {t('loyaltyTab.notEnrolled')}
             </Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-              This guest has no loyalty membership. Enrolment is managed in the Loyalty workspace.
+              {t('loyaltyTab.notEnrolledHint')}
             </Typography>
           </Box>
         ) : (
@@ -258,9 +260,9 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
           >
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <VoucherIcon sx={{ fontSize: 16 }} />
-              <span>Vouchers{vouchers.length > 0 ? ` (${vouchers.length})` : ''}</span>
+              <span>{t('loyaltyTab.vouchersTitle')}{vouchers.length > 0 ? ` (${vouchers.length})` : ''}</span>
             </Stack>
-            <SectionLink to="/promotions">Manage in Promotions</SectionLink>
+            <SectionLink to="/promotions">{t('loyaltyTab.managePromotions')}</SectionLink>
           </Stack>
         }
       >
@@ -271,28 +273,28 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
             severity="error"
             action={
               <Button color="inherit" size="small" onClick={() => void vouchersQuery.refetch()}>
-                Retry
+                {t('common:actions.retry')}
               </Button>
             }
           >
-            {getQueryErrorMessage(vouchersQuery.error, 'Failed to load vouchers') ??
-              'Failed to load vouchers'}
+            {getQueryErrorMessage(vouchersQuery.error, t('loyaltyTab.vouchersLoadFailed')) ??
+              t('loyaltyTab.vouchersLoadFailed')}
           </Alert>
         ) : vouchers.length === 0 ? (
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            No vouchers issued to this guest.
+            {t('loyaltyTab.vouchersEmpty')}
           </Typography>
         ) : (
           <TableContainer>
-            <Table size="small" aria-label="Guest vouchers">
+            <Table size="small" aria-label={t('loyaltyTab.vouchersAria')}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>Code</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Promotion</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Source</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Expires</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Redeemed</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('loyaltyTab.colCode')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('loyaltyTab.colPromotion')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('loyaltyTab.colSource')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('loyaltyTab.colStatus')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('loyaltyTab.colExpires')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('loyaltyTab.colRedeemed')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -304,11 +306,11 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
                         {voucher.code}
                       </TableCell>
                       <TableCell>{voucher.promotion_name ?? `#${voucher.promotion_id}`}</TableCell>
-                      <TableCell>{formatStatusLabel(voucher.source)}</TableCell>
+                      <TableCell>{statusLabel(t, 'generic', voucher.source)}</TableCell>
                       <TableCell>
                         <Chip
                           size="small"
-                          label={formatStatusLabel(status)}
+                          label={statusLabel(t, 'voucher', status)}
                           color={voucherStatusColor(status)}
                           variant={status === 'available' ? 'filled' : 'outlined'}
                         />

@@ -824,14 +824,15 @@ BEGIN
     v_booking_id := COALESCE(NEW.booking_id, OLD.booking_id);
 
     -- Money that settles the booking's charges: completed payments excluding
-    -- refunds and held deposits (a keycard deposit is collateral, not a room
-    -- payment). Mirrors PaymentRepository::recompute_booking_payment_status.
+    -- refunds and deposits. A held deposit is collateral, not a room payment;
+    -- a forfeited deposit is money the hotel kept, not a bill settlement.
+    -- Mirrors PaymentRepository::recompute_booking_payment_status.
     SELECT COALESCE(SUM(amount), 0)
       INTO v_settled
       FROM payments
      WHERE booking_id = v_booking_id
        AND status = 'completed'
-       AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit');
+       AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited');
 
     SELECT CASE
         WHEN b.status = 'voided' THEN 'void'
@@ -1959,7 +1960,7 @@ CREATE TABLE public.consent_records (
     withdrawn_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT consent_records_document_type_check CHECK (((document_type)::text = ANY ((ARRAY['terms_of_service'::character varying, 'privacy_notice'::character varying, 'payment_terms'::character varying, 'ekyc_biometric'::character varying])::text[]))),
-    CONSTRAINT consent_records_locale_check CHECK (((locale)::text = ANY ((ARRAY['en'::character varying, 'ms'::character varying])::text[]))),
+    CONSTRAINT consent_records_locale_check CHECK (((locale)::text = ANY ((ARRAY['en'::character varying, 'ms'::character varying, 'zh'::character varying])::text[]))),
     CONSTRAINT consent_records_source_check CHECK (((source)::text = ANY ((ARRAY['registration'::character varying, 'online_booking'::character varying, 'payment'::character varying, 'ekyc'::character varying, 'guest_portal'::character varying, 'front_desk'::character varying])::text[]))),
     CONSTRAINT consent_records_subject_present_check CHECK (((user_id IS NOT NULL) OR (guest_id IS NOT NULL) OR (booking_id IS NOT NULL))),
     CONSTRAINT consent_records_subject_type_check CHECK (((subject_type)::text = ANY ((ARRAY['user'::character varying, 'guest'::character varying, 'anonymous'::character varying])::text[])))
@@ -3891,7 +3892,7 @@ CREATE TABLE public.payments (
     processed_by bigint,
     idempotency_key character varying(160),
     idempotency_fingerprint character varying(64),
-    CONSTRAINT payments_payment_type_check CHECK (((payment_type)::text = ANY ((ARRAY['booking'::character varying, 'deposit'::character varying, 'service'::character varying, 'damage'::character varying, 'refund'::character varying])::text[]))),
+    CONSTRAINT payments_payment_type_check CHECK (((payment_type)::text = ANY ((ARRAY['booking'::character varying, 'deposit'::character varying, 'service'::character varying, 'damage'::character varying, 'refund'::character varying, 'deposit_forfeited'::character varying])::text[]))),
     CONSTRAINT payments_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying, 'failed'::character varying, 'refunded'::character varying, 'void'::character varying])::text[])))
 );
 
@@ -4017,7 +4018,7 @@ CREATE TABLE public.permissions (
     is_system_permission boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT permissions_name_check CHECK (((name)::text = lower((name)::text))),
-    CONSTRAINT valid_action CHECK (((action)::text = ANY ((ARRAY['create'::character varying, 'read'::character varying, 'update'::character varying, 'delete'::character varying, 'manage'::character varying, 'execute'::character varying, 'void'::character varying, 'refund'::character varying, 'write'::character varying, 'verify'::character varying, 'review'::character varying, 'assign'::character varying, 'approve'::character varying, 'reject'::character varying, 'escalate'::character varying, 'override'::character varying, 'export'::character varying, 'download'::character varying, 'reveal'::character varying, 'request_resubmission'::character varying, 'view_provider_raw'::character varying, 'manage_reason_codes'::character varying, 'manage_risk_rules'::character varying, 'compose'::character varying, 'send'::character varying])::text[]))),
+    CONSTRAINT valid_action CHECK (((action)::text = ANY ((ARRAY['create'::character varying, 'read'::character varying, 'update'::character varying, 'delete'::character varying, 'manage'::character varying, 'execute'::character varying, 'void'::character varying, 'refund'::character varying, 'write'::character varying, 'verify'::character varying, 'review'::character varying, 'assign'::character varying, 'approve'::character varying, 'reject'::character varying, 'escalate'::character varying, 'override'::character varying, 'export'::character varying, 'download'::character varying, 'reveal'::character varying, 'request_resubmission'::character varying, 'view_provider_raw'::character varying, 'manage_reason_codes'::character varying, 'manage_risk_rules'::character varying, 'compose'::character varying, 'send'::character varying, 'view'::character varying, 'export_sensitive'::character varying, 'import'::character varying, 'import_sensitive'::character varying, 'restore'::character varying])::text[]))),
     CONSTRAINT valid_permission_format CHECK (((name)::text ~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'::text))
 );
 

@@ -25,7 +25,8 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import { useState } from 'react';
 import StatusChip from '../../../components/common/StatusChip';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type {
   HousekeepingBoardRoom,
   HousekeepingTask,
@@ -35,7 +36,6 @@ import {
   isTaskOverdue,
   PRIORITY_META,
   roomStatusMeta,
-  taskTypeLabel,
   TASK_TYPE_META,
 } from '../housekeepingConfig';
 import type { HousekeepingPriority } from '../../../types/housekeeping.types';
@@ -70,6 +70,7 @@ interface RoomTaskCardProps extends HousekeepingActionContext {
 }
 
 function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
+  const { t } = useTranslation('housekeeping');
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const task = room.open_task;
   const meta = roomStatusMeta(room.status);
@@ -98,14 +99,14 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
         <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" noWrap>
-              Room {room.room_number}
+              {t('card.roomN', { number: room.room_number })}
             </Typography>
             <Typography variant="caption" noWrap component="div" sx={{ color: 'text.secondary' }}>
               {room.room_type}
-              {room.floor != null ? ` · Floor ${room.floor}` : ''}
+              {room.floor != null ? ` · ${t('rooms:header.floorN', { floor: room.floor })}` : ''}
             </Typography>
           </Box>
-          <StatusChip status={room.status} tone={meta.tone} />
+          <StatusChip status={room.status} domain="room" tone={meta.tone} />
         </Stack>
 
         {task ? (
@@ -115,18 +116,18 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
                 size="small"
                 variant="outlined"
                 color={typeTone === 'neutral' || !typeTone ? 'default' : typeTone}
-                label={taskTypeLabel(task.task_type)}
+                label={statusLabel(t, 'task_type', task.task_type)}
               />
               <StatusChip
                 status={task.priority}
-                label={`Priority: ${formatStatusLabel(task.priority)}`}
+                label={t('card.priorityPrefix', { name: statusLabel(t, 'priority', task.priority) })}
                 tone={PRIORITY_META[task.priority as HousekeepingPriority]?.tone ?? 'neutral'}
               />
-              <StatusChip status={task.status} />
+              <StatusChip status={task.status} domain="housekeeping" />
               {task.assigned_to_name ? (
                 <Chip size="small" icon={<AssignmentIndIcon />} label={task.assigned_to_name} />
               ) : (
-                <Chip size="small" variant="outlined" label="Unassigned" />
+                <Chip size="small" variant="outlined" label={t('card.unassigned')} />
               )}
               {task.scheduled_date ? (
                 <Chip
@@ -134,7 +135,7 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
                   color={overdue ? 'error' : 'default'}
                   variant={overdue ? 'filled' : 'outlined'}
                   icon={overdue ? <EventBusyIcon /> : undefined}
-                  label={overdue ? `Overdue ${task.scheduled_date}` : `Due ${task.scheduled_date}`}
+                  label={overdue ? t('card.overdue', { date: task.scheduled_date }) : t('card.due', { date: task.scheduled_date })}
                 />
               ) : null}
             </Stack>
@@ -159,10 +160,10 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
                   disabled={busy}
-                  aria-label={`Start ${taskTypeLabel(task.task_type)} on room ${room.room_number}`}
+                  aria-label={t('card.startAria', { type: statusLabel(t, 'task_type', task.task_type), room: room.room_number })}
                   onClick={() => actions.onStartTask(task)}
                 >
-                  Start
+                  {t('card.start')}
                 </Button>
               ) : null}
               {ctx.canUpdate && task.status === 'in_progress' ? (
@@ -172,10 +173,10 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
                   color="success"
                   startIcon={<CheckCircleIcon />}
                   disabled={busy}
-                  aria-label={`Complete ${taskTypeLabel(task.task_type)} on room ${room.room_number}`}
+                  aria-label={t('card.completeAria', { type: statusLabel(t, 'task_type', task.task_type), room: room.room_number })}
                   onClick={() => actions.onCompleteTask(task)}
                 >
-                  Complete
+                  {t('card.complete')}
                 </Button>
               ) : null}
               {ctx.canUpdate && !task.assigned_to && ctx.currentUserId ? (
@@ -184,16 +185,16 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
                   variant="outlined"
                   startIcon={<AssignmentIndIcon />}
                   disabled={busy}
-                  aria-label={`Assign room ${room.room_number} task to me`}
+                  aria-label={t('card.assignAria', { room: room.room_number })}
                   onClick={() => actions.onAssignMe(task)}
                 >
-                  Assign me
+                  {t('card.assignMe')}
                 </Button>
               ) : null}
-              <Tooltip title="More actions">
+              <Tooltip title={t('card.moreActions')}>
                 <IconButton
                   size="small"
-                  aria-label={`More actions for room ${room.room_number}`}
+                  aria-label={t('card.moreActionsRoom', { room: room.room_number })}
                   aria-haspopup="menu"
                   onClick={(event) => setMenuAnchor(event.currentTarget)}
                 >
@@ -209,20 +210,20 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
                 size="small"
                 variant="outlined"
                 startIcon={<AddIcon />}
-                aria-label={`Add housekeeping task for room ${room.room_number}`}
+                aria-label={t('card.addTaskAria', { room: room.room_number })}
                 onClick={() => actions.onNewTask(room)}
               >
-                Add task
+                {t('card.addTask')}
               </Button>
             ) : (
               <Typography variant="body2" sx={{ color: 'text.secondary', flexGrow: 1 }}>
-                No open task
+                {t('card.noOpenTask')}
               </Typography>
             )}
-            <Tooltip title="More actions">
+            <Tooltip title={t('card.moreActions')}>
               <IconButton
                 size="small"
-                aria-label={`More actions for room ${room.room_number}`}
+                aria-label={t('card.moreActionsRoom', { room: room.room_number })}
                 aria-haspopup="menu"
                 onClick={(event) => setMenuAnchor(event.currentTarget)}
               >
@@ -249,14 +250,14 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
           <ListItemIcon>
             <InfoOutlinedIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Room details</ListItemText>
+          <ListItemText>{t('card.menuRoomDetails')}</ListItemText>
         </MenuItem>
         {task && ctx.canUpdate ? (
           <MenuItem onClick={menuItem(actions.onEditTask)}>
             <ListItemIcon>
               <EditIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Edit task…</ListItemText>
+            <ListItemText>{t('card.menuEditTask')}</ListItemText>
           </MenuItem>
         ) : null}
         {task?.assigned_to && ctx.canUpdate ? (
@@ -264,7 +265,7 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
             <ListItemIcon>
               <PersonOffIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Reassign / unassign…</ListItemText>
+            <ListItemText>{t('card.menuReassign')}</ListItemText>
           </MenuItem>
         ) : null}
         {task && task.status !== 'completed' && task.status !== 'void' && ctx.canUpdate ? (
@@ -272,7 +273,7 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
             <ListItemIcon>
               <EventBusyIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Void task…</ListItemText>
+            <ListItemText>{t('card.menuVoidTask')}</ListItemText>
           </MenuItem>
         ) : null}
         <Divider />
@@ -286,7 +287,7 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
             <ListItemIcon>
               <SwapHorizIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Update room status…</ListItemText>
+            <ListItemText>{t('card.menuUpdateStatus')}</ListItemText>
           </MenuItem>
         ) : null}
         {ctx.canWriteMaintenance ? (
@@ -299,7 +300,7 @@ function RoomTaskCard({ room, actions, ...ctx }: RoomTaskCardProps) {
             <ListItemIcon>
               <BuildIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Report maintenance…</ListItemText>
+            <ListItemText>{t('card.menuReportMaintenance')}</ListItemText>
           </MenuItem>
         ) : null}
       </Menu>

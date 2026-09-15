@@ -12,7 +12,8 @@ import {
   Typography,
 } from '@mui/material';
 import type { Guest } from '../../../types';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { formatHotelDate } from '../../../utils/date';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { DataTable, type ColumnDef } from '../../../components';
@@ -50,19 +51,8 @@ const compareBookingHistoryRows = (a: GuestBookingHistoryRow, b: GuestBookingHis
   return Number(a.id) - Number(b.id);
 };
 
-const bookingStatusLabel = (status: string) => {
-  const labels: Record<string, string> = {
-    checked_out: 'Checked out',
-    completed: 'Completed',
-    voided: 'Voided',
-    comp_void: 'Comp void',
-    checked_in: 'Checked in',
-    auto_checked_in: 'Checked in',
-    confirmed: 'Reserved',
-    pending: 'Pending',
-  };
-  return labels[status] ?? formatStatusLabel(status);
-};
+const bookingStatusLabel = (t: ReturnType<typeof useTranslation>['t'], status: string) =>
+  statusLabel(t, 'booking_history', status);
 
 const bookingStatusChipColor = (status: string): 'default' | 'success' | 'warning' | 'info' => {
   if (CHECKED_OUT_BOOKING_STATUSES.has(status)) return 'success';
@@ -84,6 +74,7 @@ interface GuestBookingHistoryDialogProps {
  * its detail panel (checked out / void / everything else). */
 const GuestBookingHistoryDialog: React.FC<GuestBookingHistoryDialogProps> = ({ guest, open, onClose }) => {
   const { format: formatCurrency } = useCurrency();
+  const { t } = useTranslation('guests');
   const guestBookingsQuery = useGuestBookings(guest?.id, open && !!guest);
   const guestBookings = React.useMemo(
     () => (guestBookingsQuery.data ?? []) as GuestBookingHistoryRow[],
@@ -118,44 +109,44 @@ const GuestBookingHistoryDialog: React.FC<GuestBookingHistoryDialogProps> = ({ g
       enableSorting: false,
       meta: { align: 'right' },
     },
-    { id: 'booking_number', header: 'Booking #', accessorFn: (b: GuestBookingHistoryRow) => b.booking_number },
+    { id: 'booking_number', header: t('history.cols.bookingNumber'), accessorFn: (b: GuestBookingHistoryRow) => b.booking_number },
     {
       id: 'room',
-      header: 'Room',
+      header: t('history.cols.room'),
       accessorFn: (b: GuestBookingHistoryRow) => (
         b.room_number ? `${b.room_number}${b.room_type ? ` (${b.room_type})` : ''}` : '—'
       ),
     },
     {
       id: 'check_in',
-      header: 'Check In',
+      header: t('history.cols.checkIn'),
       accessorFn: (b: GuestBookingHistoryRow) => getBookingHistoryDateTime(b.check_in_date),
       cell: (info) => formatBookingHistoryDate(info.row.original.check_in_date),
     },
     {
       id: 'check_out',
-      header: 'Check Out',
+      header: t('history.cols.checkOut'),
       accessorFn: (b: GuestBookingHistoryRow) => getBookingHistoryDateTime(b.check_out_date),
       cell: (info) => formatBookingHistoryDate(info.row.original.check_out_date),
     },
-    { id: 'nights', header: 'Nights', accessorFn: (b: GuestBookingHistoryRow) => b.nights ?? 0, meta: { align: 'right' } },
+    { id: 'nights', header: t('history.cols.nights'), accessorFn: (b: GuestBookingHistoryRow) => b.nights ?? 0, meta: { align: 'right' } },
     {
       id: 'status',
-      header: 'Status',
+      header: t('history.cols.status'),
       accessorFn: (b: GuestBookingHistoryRow) => b.status,
       cell: (info) => {
         const status = String(info.getValue());
-        return <Chip label={bookingStatusLabel(status)} color={bookingStatusChipColor(status)} size="small" />;
+        return <Chip label={bookingStatusLabel(t, status)} color={bookingStatusChipColor(status)} size="small" />;
       },
     },
     {
       id: 'amount',
-      header: 'Amount',
+      header: t('history.cols.amount'),
       accessorFn: (b: GuestBookingHistoryRow) => Number.parseFloat(String(b.total_amount)) || 0,
       cell: (info) => formatCurrency(info.getValue() as number),
       meta: { align: 'right' },
     },
-  ], [formatCurrency]);
+  ], [formatCurrency, t]);
 
   const renderMobileCard = (b: GuestBookingHistoryRow) => (
     <Box>
@@ -163,13 +154,13 @@ const GuestBookingHistoryDialog: React.FC<GuestBookingHistoryDialogProps> = ({ g
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
           {b.booking_number || `#${b.id}`}
         </Typography>
-        <Chip label={bookingStatusLabel(b.status)} color={bookingStatusChipColor(b.status)} size="small" />
+        <Chip label={bookingStatusLabel(t, b.status)} color={bookingStatusChipColor(b.status)} size="small" />
       </Box>
       <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
         {b.room_number ? `${b.room_number}${b.room_type ? ` (${b.room_type})` : ''}` : '—'}
       </Typography>
       <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-        {formatBookingHistoryDate(b.check_in_date)} → {formatBookingHistoryDate(b.check_out_date)} · {b.nights ?? 0} nights
+        {formatBookingHistoryDate(b.check_in_date)} → {formatBookingHistoryDate(b.check_out_date)} · {t('stays.nights', { count: b.nights ?? 0 })}
       </Typography>
       <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5 }}>
         {formatCurrency(Number.parseFloat(String(b.total_amount)) || 0)}
@@ -184,14 +175,14 @@ const GuestBookingHistoryDialog: React.FC<GuestBookingHistoryDialogProps> = ({ g
     chipColor: 'success' | 'default' | 'info';
     empty: string;
   }> = [
-    { key: 'checked-out', title: 'Checked out bookings', rows: checkedOutGuestBookings, chipColor: 'success', empty: 'No checked out bookings found for this guest.' },
-    { key: 'void', title: 'Void bookings', rows: voidGuestBookings, chipColor: 'default', empty: 'No void bookings found for this guest.' },
-    { key: 'other', title: 'Other bookings', rows: otherGuestBookings, chipColor: 'info', empty: 'No other bookings found for this guest.' },
+    { key: 'checked-out', title: t('history.groups.checkedOut'), rows: checkedOutGuestBookings, chipColor: 'success', empty: t('history.groupEmpty.checkedOut') },
+    { key: 'void', title: t('history.groups.void'), rows: voidGuestBookings, chipColor: 'default', empty: t('history.groupEmpty.void') },
+    { key: 'other', title: t('history.groups.other'), rows: otherGuestBookings, chipColor: 'info', empty: t('history.groupEmpty.other') },
   ];
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Booking History: {guest?.nick_name}</DialogTitle>
+      <DialogTitle>{t('history.title', { name: guest?.nick_name ?? '' })}</DialogTitle>
       <DialogContent>
         {loading ? (
           <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -200,7 +191,7 @@ const GuestBookingHistoryDialog: React.FC<GuestBookingHistoryDialogProps> = ({ g
           </Box>
         ) : guestBookings.length === 0 ? (
           <Alert severity="info" sx={{ mt: 2 }}>
-            No bookings found for this guest.
+            {t('history.empty')}
           </Alert>
         ) : (
           <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
@@ -225,7 +216,7 @@ const GuestBookingHistoryDialog: React.FC<GuestBookingHistoryDialogProps> = ({ g
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t('common:actions.close')}</Button>
       </DialogActions>
     </Dialog>
   );

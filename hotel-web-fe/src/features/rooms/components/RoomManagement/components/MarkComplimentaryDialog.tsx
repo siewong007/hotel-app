@@ -16,6 +16,8 @@ import {
 import { CardGiftcard as GiftIcon } from '@mui/icons-material';
 import { Room, BookingWithDetails } from '../../../../../types';
 import { toMoneyNumber } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n/useTranslation';
+import { formatHotelDate } from '../../../../../utils/date';
 
 interface MarkComplimentaryDialogProps {
   open: boolean;
@@ -42,6 +44,7 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
   processing,
   onConfirm,
 }) => {
+  const { t } = useTranslation('rooms');
   return (
     <Dialog
       open={open}
@@ -53,7 +56,7 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <GiftIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-            Mark Booking as Complimentary
+            {t('complimentary.title')}
           </Typography>
         </Box>
       </DialogTitle>
@@ -64,14 +67,14 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
             <Grid size={12}>
               <Paper sx={{ p: 2, bgcolor: 'var(--hotel-surface-raised)' }}>
                 <Typography variant="subtitle2" gutterBottom>
-                  Booking Details
+                  {t('complimentary.bookingDetails')}
                 </Typography>
                 <Grid container spacing={1}>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      Room:
+                      {t('fields.room')}:
                     </Typography>
                   </Grid>
                   <Grid size={6}>
@@ -85,7 +88,7 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      Guest:
+                      {t('fields.guest')}:
                     </Typography>
                   </Grid>
                   <Grid size={6}>
@@ -99,31 +102,31 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      Check-in Date:
+                      {t('complimentary.checkInDate')}:
                     </Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2">
-                      {new Date(booking.check_in_date).toLocaleDateString()}
+                      {formatHotelDate(booking.check_in_date)}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      Check-out Date:
+                      {t('complimentary.checkOutDate')}:
                     </Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2">
-                      {new Date(booking.check_out_date).toLocaleDateString()}
+                      {formatHotelDate(booking.check_out_date)}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      Original Amount:
+                      {t('complimentary.originalAmount')}:
                     </Typography>
                   </Grid>
                   <Grid size={6}>
@@ -135,7 +138,7 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      New Amount:
+                      {t('complimentary.newAmount')}:
                     </Typography>
                   </Grid>
                   <Grid size={6}>
@@ -145,7 +148,7 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
                         fontWeight: "bold",
                         color: "success.main"
                       }}>
-                      {currencySymbol}0.00 (Complimentary)
+                      {t('complimentary.newAmountValue', { symbol: currencySymbol })}
                     </Typography>
                   </Grid>
                 </Grid>
@@ -156,8 +159,8 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
             <Grid size={12}>
               <TextField
                 fullWidth
-                label="Reason for Complimentary Stay"
-                placeholder="e.g., VIP guest, compensation, promotional offer"
+                label={t('complimentary.reasonLabel')}
+                placeholder={t('complimentary.reasonPlaceholder')}
                 value={reason}
                 onChange={(e) => onReasonChange(e.target.value)}
                 multiline
@@ -168,8 +171,7 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
             {/* Info Alert */}
             <Grid size={12}>
               <Alert severity="info" sx={{ mt: 1 }}>
-                Marking this booking as complimentary will set the total amount to {currencySymbol}0.00.
-                If the guest cancels or doesn't show up, the complimentary nights will be converted to credits for future use.
+                {t('complimentary.info', { symbol: currencySymbol })}
               </Alert>
             </Grid>
           </Grid>
@@ -177,7 +179,7 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-raised)', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onCancel} disabled={processing}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Box sx={{ flex: 1 }} />
         <Button
@@ -188,7 +190,7 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
           startIcon={processing ? <CircularProgress size={20} /> : <GiftIcon />}
           size="large"
         >
-          {processing ? 'Processing...' : 'Confirm Complimentary'}
+          {processing ? t('common:state.processing') : t('complimentary.confirm')}
         </Button>
       </DialogActions>
     </Dialog>

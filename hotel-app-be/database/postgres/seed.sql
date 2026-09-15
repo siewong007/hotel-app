@@ -560,7 +560,7 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 -- stay after every prior seeded permission so patched databases and fresh
 -- seeds agree on its identity value.
 ('guests:reveal', 'guests', 'reveal', 'Reveal sensitive guest identification fields', true),
--- Mirrored by patch 0004 for databases installed before these existed; they
+-- Mirrored by patch 0005 for databases installed before these existed; they
 -- append after guests:reveal there, so they sit after it here too.
 ('data_transfer:view', 'data_transfer', 'view', 'View the data transfer page and transfer history', true),
 ('data_transfer:export', 'data_transfer', 'export', 'Export standard (non-sensitive) data', true),

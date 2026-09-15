@@ -21,14 +21,14 @@ import Alert from '@mui/material/Alert';
 import type { ReactNode } from 'react';
 import StatusChip from '../../../components/common/StatusChip';
 import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { HousekeepingBoardRoom } from '../../../types/housekeeping.types';
 import {
   isOpenTask,
   isTaskOverdue,
   PRIORITY_META,
   roomStatusMeta,
-  taskTypeLabel,
 } from '../housekeepingConfig';
 import { useHousekeepingTasks } from '../hooks/useHousekeepingQueries';
 import { useRoomDetailedStatus, useRoomHistory } from '../../rooms/hooks/useRoomQueries';
@@ -63,6 +63,7 @@ export default function RoomDetailDrawer({
   actions,
   ...ctx
 }: RoomDetailDrawerProps) {
+  const { t } = useTranslation('housekeeping');
   const roomId = room?.id;
   const detailQuery = useRoomDetailedStatus(roomId, open);
   const historyQuery = useRoomHistory(roomId, open);
@@ -83,28 +84,28 @@ export default function RoomDetailDrawer({
       open={open}
       onClose={onClose}
       slotProps={{ paper: { sx: { width: { xs: '100%', sm: 420 } } } }}
-      aria-label={`Room ${room.room_number} details`}
+      aria-label={t('drawer.aria', { number: room.room_number })}
     >
       <Stack spacing={2.5} sx={{ p: 2.5 }}>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box>
             <Typography variant="h6" component="h2">
-              Room {room.room_number}
+              {t('card.roomN', { number: room.room_number })}
             </Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {detail?.room_type ?? room.room_type}
-              {room.floor != null ? ` · Floor ${room.floor}` : ''}
+              {room.floor != null ? ` · ${t('rooms:header.floorN', { floor: room.floor })}` : ''}
             </Typography>
           </Box>
-          <IconButton onClick={onClose} aria-label="Close room details" size="small">
+          <IconButton onClick={onClose} aria-label={t('drawer.closeAria')} size="small">
             <CloseIcon />
           </IconButton>
         </Stack>
 
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }} useFlexGap>
-          <StatusChip status={room.status} tone={roomStatusMeta(room.status).tone} />
+          <StatusChip status={room.status} domain="room" tone={roomStatusMeta(room.status).tone} />
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {roomStatusMeta(room.status).hint}
+            {roomStatusMeta(room.status).hintKey ? t(roomStatusMeta(room.status).hintKey) : ''}
           </Typography>
         </Stack>
 
@@ -116,7 +117,7 @@ export default function RoomDetailDrawer({
               startIcon={<AddIcon />}
               onClick={() => actions.onNewTask(room)}
             >
-              New task
+              {t('drawer.newTask')}
             </Button>
           ) : null}
           {ctx.canUpdateRoomStatus ? (
@@ -126,7 +127,7 @@ export default function RoomDetailDrawer({
               startIcon={<SwapHorizIcon />}
               onClick={() => actions.onUpdateRoomStatus(room)}
             >
-              Update status
+              {t('drawer.updateStatus')}
             </Button>
           ) : null}
           {ctx.canWriteMaintenance ? (
@@ -136,7 +137,7 @@ export default function RoomDetailDrawer({
               startIcon={<BuildIcon />}
               onClick={() => actions.onReportMaintenance(room)}
             >
-              Report maintenance
+              {t('drawer.reportMaintenance')}
             </Button>
           ) : null}
         </Stack>
@@ -145,13 +146,13 @@ export default function RoomDetailDrawer({
 
         <Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-            Open tasks
+            {t('drawer.openTasks')}
           </Typography>
           {tasksQuery.isLoading ? (
             <CircularProgress size={20} />
           ) : openTasks.length === 0 ? (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              No open housekeeping tasks for this room.
+              {t('drawer.noOpenTasksBody')}
             </Typography>
           ) : (
             <Stack spacing={1.25}>
@@ -170,19 +171,19 @@ export default function RoomDetailDrawer({
                   >
                     <Stack spacing={0.75}>
                       <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap' }}>
-                        <Chip size="small" variant="outlined" label={taskTypeLabel(task.task_type)} />
+                        <Chip size="small" variant="outlined" label={statusLabel(t, 'task_type', task.task_type)} />
                         <StatusChip
                           status={task.priority}
-                          label={formatStatusLabel(task.priority)}
+                          domain="priority"
                           tone={
                             PRIORITY_META[task.priority as HousekeepingPriority]?.tone ?? 'neutral'
                           }
                         />
-                        <StatusChip status={task.status} />
+                        <StatusChip status={task.status} domain="housekeeping" />
                         {task.assigned_to_name ? (
                           <Chip size="small" icon={<AssignmentIndIcon />} label={task.assigned_to_name} />
                         ) : (
-                          <Chip size="small" variant="outlined" label="Unassigned" />
+                          <Chip size="small" variant="outlined" label={t('card.unassigned')} />
                         )}
                       </Stack>
                       {task.scheduled_date ? (
@@ -190,7 +191,7 @@ export default function RoomDetailDrawer({
                           variant="caption"
                           sx={{ color: overdue ? 'error.main' : 'text.secondary' }}
                         >
-                          {overdue ? 'Overdue · ' : 'Scheduled · '}
+                          {overdue ? t('drawer.overduePrefix') : t('drawer.scheduledPrefix')}
                           {formatHotelDate(task.scheduled_date)}
                         </Typography>
                       ) : null}
@@ -209,7 +210,7 @@ export default function RoomDetailDrawer({
                               disabled={busy}
                               onClick={() => actions.onStartTask(task)}
                             >
-                              Start
+                              {t('card.start')}
                             </Button>
                           ) : null}
                           {task.status === 'in_progress' ? (
@@ -221,7 +222,7 @@ export default function RoomDetailDrawer({
                               disabled={busy}
                               onClick={() => actions.onCompleteTask(task)}
                             >
-                              Complete
+                              {t('card.complete')}
                             </Button>
                           ) : null}
                           <Button
@@ -230,7 +231,7 @@ export default function RoomDetailDrawer({
                             disabled={busy}
                             onClick={() => actions.onEditTask(task)}
                           >
-                            Edit
+                            {t('common:actions.edit')}
                           </Button>
                           <Button
                             size="small"
@@ -240,7 +241,7 @@ export default function RoomDetailDrawer({
                             disabled={busy}
                             onClick={() => actions.onVoidTask(task)}
                           >
-                            Void
+                            {t('common:actions.void')}
                           </Button>
                         </Stack>
                       ) : null}
@@ -259,10 +260,10 @@ export default function RoomDetailDrawer({
             <Divider />
             <Stack spacing={0.75}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                Status details
+                {t('drawer.statusDetails')}
               </Typography>
               <DetailRow
-                label="Reserved window"
+                label={t('drawer.reservedWindow')}
                 value={
                   detail.reserved_start_date
                     ? `${formatHotelDate(detail.reserved_start_date)} – ${formatHotelDate(detail.reserved_end_date)}`
@@ -270,7 +271,7 @@ export default function RoomDetailDrawer({
                 }
               />
               <DetailRow
-                label="Maintenance window"
+                label={t('drawer.maintenanceWindow')}
                 value={
                   detail.maintenance_start_date
                     ? `${formatHotelDate(detail.maintenance_start_date)} – ${formatHotelDate(detail.maintenance_end_date)}`
@@ -278,19 +279,19 @@ export default function RoomDetailDrawer({
                 }
               />
               <DetailRow
-                label="Cleaning window"
+                label={t('drawer.cleaningWindow')}
                 value={
                   detail.cleaning_start_date
                     ? `${formatHotelDate(detail.cleaning_start_date)} – ${formatHotelDate(detail.cleaning_end_date)}`
                     : undefined
                 }
               />
-              <DetailRow label="Status notes" value={detail.status_notes} />
-              <DetailRow label="Maintenance notes" value={detail.maintenance_notes} />
+              <DetailRow label={t('drawer.statusNotes')} value={detail.status_notes} />
+              <DetailRow label={t('drawer.maintenanceNotes')} value={detail.maintenance_notes} />
             </Stack>
           </>
         ) : detailQuery.error ? (
-          <Alert severity="warning">Room details unavailable — you can still work the tasks above.</Alert>
+          <Alert severity="warning">{t('drawer.detailsUnavailable')}</Alert>
         ) : null}
 
         {detail?.recent_events?.length ? (
@@ -298,12 +299,12 @@ export default function RoomDetailDrawer({
             <Divider />
             <Stack spacing={0.75}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                Recent events
+                {t('drawer.recentEvents')}
               </Typography>
               {detail.recent_events.slice(0, 5).map((event) => (
                 <Stack key={event.id} direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
                   <Typography variant="body2">
-                    {formatStatusLabel(event.event_type)} · {formatStatusLabel(event.status)}
+                    {statusLabel(t, 'room_event', event.event_type)} · {statusLabel(t, 'room', event.status)}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     {formatHotelDateTime(event.created_at)}
@@ -319,12 +320,12 @@ export default function RoomDetailDrawer({
             <Divider />
             <Stack spacing={0.75}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                Recent tasks
+                {t('drawer.recentTasks')}
               </Typography>
               {recentTasks.map((task) => (
                 <Stack key={task.id} direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
                   <Typography variant="body2">
-                    {taskTypeLabel(task.task_type)} · {formatStatusLabel(task.status)}
+                    {statusLabel(t, 'task_type', task.task_type)} · {statusLabel(t, 'housekeeping', task.status)}
                     {task.assigned_to_name ? ` · ${task.assigned_to_name}` : ''}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
@@ -343,13 +344,13 @@ export default function RoomDetailDrawer({
             <Divider />
             <Stack spacing={0.75}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                Status history
+                {t('drawer.statusHistory')}
               </Typography>
               {history.map((entry) => (
                 <Stack key={entry.id} direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
                   <Typography variant="body2">
-                    {entry.from_status ? `${formatStatusLabel(entry.from_status)} → ` : ''}
-                    {formatStatusLabel(entry.to_status)}
+                    {entry.from_status ? `${statusLabel(t, 'room', entry.from_status)} → ` : ''}
+                    {statusLabel(t, 'room', entry.to_status)}
                     {entry.changed_by_name ? ` · ${entry.changed_by_name}` : ''}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>

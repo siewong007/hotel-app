@@ -18,9 +18,12 @@ import {
   isNightAuditInvolved,
   isPastCheckoutWithBalance,
 } from './bookingPageUtils';
+import { t as translate } from '../../../i18n';
 
 const booking = (overrides: Partial<BookingWithDetails>): BookingWithDetails =>
   ({ id: '0', status: 'confirmed', ...overrides }) as BookingWithDetails;
+
+const bookingsT = (key: string) => translate(key, undefined, 'bookings');
 
 describe('date helpers', () => {
   it('strips the time portion from ISO values', () => {
@@ -62,10 +65,10 @@ describe('billing and balance predicates', () => {
   });
 
   it('labels billing chips', () => {
-    expect(getBillingChipLabel(booking({ company_id: 1 }))).toBe('Company Billing');
-    expect(getBillingChipLabel(booking({ guest_type: 'non_member' }))).toBe('Non-member');
-    expect(getBillingChipLabel(booking({ guest_type: 'member' }))).toBe('Member');
-    expect(getBillingChipLabel(booking({}))).toBeNull();
+    expect(getBillingChipLabel(booking({ company_id: 1 }), bookingsT)).toBe('Company Billing');
+    expect(getBillingChipLabel(booking({ guest_type: 'non_member' }), bookingsT)).toBe('Non-member');
+    expect(getBillingChipLabel(booking({ guest_type: 'member' }), bookingsT)).toBe('Member');
+    expect(getBillingChipLabel(booking({}), bookingsT)).toBeNull();
   });
 
   it('treats voided bookings as having no outstanding balance', () => {

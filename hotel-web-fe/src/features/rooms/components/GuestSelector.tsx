@@ -21,8 +21,9 @@ import {
   CardGiftcard as GiftIcon,
   Star as MemberIcon,
 } from '@mui/icons-material';
-import { Guest, GuestType, TourismType, TOURISM_TYPE_CONFIG, GUEST_TYPE_CONFIG } from '../../../types';
+import { Guest, GuestType, TourismType, GUEST_TYPE_CONFIG } from '../../../types';
 import CollapsibleSection from '../../../components/common/CollapsibleSection';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 export interface NewGuestForm {
   first_name: string;
@@ -110,9 +111,10 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
   selectedGuestWithCredits = null,
   onGuestWithCreditsSelect,
   loadingGuestsWithCredits = false,
-  guestCreditsNoOptionsText = 'No guests with free room credits found',
+  guestCreditsNoOptionsText,
   onMemberSelected,
 }) => {
+  const { t } = useTranslation('rooms');
   const guestFilterOptions = React.useMemo(
     () =>
       createFilterOptions<Guest>({
@@ -146,13 +148,13 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
         {loadingGuestsWithCredits ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 2, gap: 1 }}>
             <CircularProgress size={24} />
-            <Typography>Loading guests with credits...</Typography>
+            <Typography>{t('guestSelector.loadingCredits')}</Typography>
           </Box>
         ) : (
           <>
             <Alert severity="info" sx={{ mb: 2 }}>
               <Typography variant="body2">
-                This booking uses the guest's <strong>Free Room Credits</strong>. Only guests with available credits are shown below.
+                {t('guestSelector.creditsInfoPre')} <strong>{t('guestSelector.creditsInfoEmphasis')}</strong>{t('guestSelector.creditsInfoPost')}
               </Typography>
             </Alert>
             <Autocomplete
@@ -160,9 +162,10 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(_, newValue) => onGuestWithCreditsSelect?.(newValue)}
               options={guestsWithCredits}
               getOptionLabel={(option) => {
+                const credits = t('guestSelector.credits', { count: option.total_complimentary_credits });
                 return option.email
-                  ? `${option.nick_name} - ${option.email} (${option.total_complimentary_credits} credits)`
-                  : `${option.nick_name} (${option.total_complimentary_credits} credits)`;
+                  ? t('guestSelector.optionLabelEmail', { name: option.nick_name, email: option.email, credits })
+                  : t('guestSelector.optionLabel', { name: option.nick_name, credits });
               }}
               renderOption={(props, option) => {
                 const { key, ...otherProps } = props;
@@ -178,7 +181,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                         </Box>
                         <Chip
                           icon={<GiftIcon sx={{ fontSize: 14 }} />}
-                          label={`${option.total_complimentary_credits} night${option.total_complimentary_credits !== 1 ? 's' : ''}`}
+                          label={t('guestSelector.nights', { count: option.total_complimentary_credits })}
                           size="small"
                           color="secondary"
                         />
@@ -188,7 +191,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                           {option.credits_by_room_type.map((credit) => (
                             <Chip
                               key={credit.room_type_id}
-                              label={`${credit.room_type_name}: ${credit.nights_available}`}
+                              label={t('guestSelector.creditByType', { type: credit.room_type_name, count: credit.nights_available })}
                               size="small"
                               variant="outlined"
                               sx={{ fontSize: '0.65rem', height: 20 }}
@@ -203,11 +206,11 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Select Guest with Free Room Credits *"
-                  placeholder="Search by name or email"
+                  label={t('guestSelector.selectWithCredits')}
+                  placeholder={t('guestSelector.searchPlaceholder')}
                 />
               )}
-              noOptionsText={guestCreditsNoOptionsText}
+              noOptionsText={guestCreditsNoOptionsText ?? t('guestSelector.noCredits')}
             />
           </>
         )}
@@ -225,14 +228,14 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           onClick={() => onToggleMode(false)}
           size="small"
         >
-          Select Existing Guest
+          {t('guestSelector.selectExisting')}
         </Button>
         <Button
           variant={isCreatingNew ? 'contained' : 'outlined'}
           onClick={() => onToggleMode(true)}
           size="small"
         >
-          Register New Guest
+          {t('guestSelector.registerNew')}
         </Button>
       </Stack>
       {/* Existing Guest Selection */}
@@ -274,7 +277,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                   </Box>
                   {option.guest_type === 'member' && (
                     <Chip
-                      label="Member"
+                      label={t('guestSelector.memberChip')}
                       size="small"
                       color="success"
                       sx={{ fontSize: '0.65rem', height: 20 }}
@@ -286,8 +289,8 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Select Guest *"
-                placeholder="Search by name or email"
+                label={t('guestSelector.selectGuest')}
+                placeholder={t('guestSelector.searchPlaceholder')}
               />
             )}
           />
@@ -295,7 +298,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           {selectedGuest?.guest_type === 'member' && (
             <Alert severity="success" sx={{ mt: 1 }} icon={<GiftIcon />}>
               <Typography variant="body2">
-                <strong>{selectedGuest.nick_name}</strong> is a Member — Room card deposit is <strong>waived</strong>
+                <strong>{selectedGuest.nick_name}</strong> {t('guestSelector.memberAlertMid')} <strong>{t('guestSelector.waived')}</strong>
               </Typography>
             </Alert>
           )}
@@ -308,7 +311,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             <TextField
               fullWidth
               required
-              label="First Name"
+              label={t('guestSelector.firstName')}
               value={newGuestForm.first_name}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, first_name: e.target.value })}
             />
@@ -316,8 +319,8 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
-              label="Last Name"
-              helperText="Optional — a single name is enough for a fast booking"
+              label={t('guestSelector.lastName')}
+              helperText={t('guestSelector.lastNameHint')}
               value={newGuestForm.last_name}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, last_name: e.target.value })}
             />
@@ -325,7 +328,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
-              label="Email"
+              label={t('guestSelector.email')}
               type="email"
               value={newGuestForm.email}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, email: e.target.value })}
@@ -335,8 +338,8 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             <TextField
               fullWidth
               type="tel"
-              label="Phone"
-              helperText="Optional — collected at check-in"
+              label={t('guestSelector.phone')}
+              helperText={t('guestSelector.phoneHint')}
               value={newGuestForm.phone}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, phone: e.target.value })}
             />
@@ -344,8 +347,8 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
-              label="IC/Passport Number"
-              helperText="Optional — collected at check-in"
+              label={t('guestSelector.icNumber')}
+              helperText={t('guestSelector.icNumberHint')}
               value={newGuestForm.ic_number}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, ic_number: e.target.value })}
             />
@@ -353,49 +356,49 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
-              label="Nationality"
+              label={t('guestSelector.nationality')}
               value={newGuestForm.nationality}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, nationality: e.target.value })}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <FormControl fullWidth required error={!newGuestForm.tourism_type}>
-              <InputLabel>Tourism Type</InputLabel>
+              <InputLabel>{t('guestSelector.tourismType')}</InputLabel>
               <Select
                 value={newGuestForm.tourism_type ?? ''}
-                label="Tourism Type"
+                label={t('guestSelector.tourismType')}
                 onChange={(e) => onNewGuestFormChange({ ...newGuestForm, tourism_type: e.target.value as TourismType || undefined })}
               >
                 <MenuItem value="local">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Chip label={TOURISM_TYPE_CONFIG.local.label} size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)' }} />
+                    <Chip label={t('guestSelector.tourismLocal')} size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)' }} />
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>{TOURISM_TYPE_CONFIG.local.taxLabel}</Typography>
+                    }}>{t('guestSelector.tourismLocalTax')}</Typography>
                   </Box>
                 </MenuItem>
                 <MenuItem value="foreign">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Chip label={TOURISM_TYPE_CONFIG.foreign.label} size="small" sx={{ bgcolor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', border: '1px solid var(--hotel-warning-border)' }} />
+                    <Chip label={t('guestSelector.tourismForeign')} size="small" sx={{ bgcolor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', border: '1px solid var(--hotel-warning-border)' }} />
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>{TOURISM_TYPE_CONFIG.foreign.taxLabel}</Typography>
+                    }}>{t('guestSelector.tourismForeignTax')}</Typography>
                   </Box>
                 </MenuItem>
               </Select>
               <FormHelperText>
                 {newGuestForm.tourism_type
-                  ? 'Determines whether tourism tax applies'
-                  : 'Required — determines whether tourism tax applies'}
+                  ? t('guestSelector.tourismHintSet')
+                  : t('guestSelector.tourismHintRequired')}
               </FormHelperText>
             </FormControl>
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <FormControl fullWidth>
-              <InputLabel>Guest Type</InputLabel>
+              <InputLabel>{t('guestSelector.guestType')}</InputLabel>
               <Select
                 value={newGuestForm.guest_type || 'non_member'}
-                label="Guest Type"
+                label={t('guestSelector.guestType')}
                 onChange={(e) => {
                   const guestType = e.target.value as GuestType;
                   onNewGuestFormChange({ ...newGuestForm, guest_type: guestType });
@@ -406,19 +409,19 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               >
                 <MenuItem value="non_member">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Chip label={GUEST_TYPE_CONFIG.non_member.label} size="small" sx={{ bgcolor: 'var(--hotel-neutral-bg)', color: 'var(--hotel-neutral)', border: '1px solid var(--hotel-neutral-border)' }} />
+                    <Chip label={t('guestSelector.nonMember')} size="small" sx={{ bgcolor: 'var(--hotel-neutral-bg)', color: 'var(--hotel-neutral)', border: '1px solid var(--hotel-neutral-border)' }} />
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>{GUEST_TYPE_CONFIG.non_member.discountLabel}</Typography>
+                    }}>{t('guestSelector.nonMemberRate')}</Typography>
                   </Box>
                 </MenuItem>
                 <MenuItem value="member">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <MemberIcon sx={{ color: GUEST_TYPE_CONFIG.member.color, fontSize: 18 }} />
-                    <Chip label={GUEST_TYPE_CONFIG.member.label} size="small" sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', border: '1px solid var(--hotel-success-border)' }} />
+                    <Chip label={t('guestSelector.member')} size="small" sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', border: '1px solid var(--hotel-success-border)' }} />
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>{GUEST_TYPE_CONFIG.member.discountLabel}</Typography>
+                    }}>{t('guestSelector.memberDiscount')}</Typography>
                   </Box>
                 </MenuItem>
               </Select>
@@ -429,7 +432,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             <Grid size={12}>
               <Alert severity="success" icon={<MemberIcon />}>
                 <Typography variant="body2">
-                  Registering as <strong>Member</strong> — Room card deposit will be <strong>waived</strong>
+                  {t('guestSelector.registeringAs')} <strong>{t('guestSelector.member')}</strong> {t('guestSelector.depositWillBe')} <strong>{t('guestSelector.waived')}</strong>
                 </Typography>
               </Alert>
             </Grid>
@@ -438,12 +441,12 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               phones to keep the new-guest form short. Values are controlled
               via newGuestForm, so unmounting the body loses nothing. */}
           <Grid size={12}>
-            <CollapsibleSection title="Additional details" collapseOnPhone>
+            <CollapsibleSection title={t('guestSelector.additionalDetails')} collapseOnPhone>
               <Grid container spacing={2} sx={{ pt: 1 }}>
                 <Grid size={12}>
                   <TextField
                     fullWidth
-                    label="Address"
+                    label={t('guestSelector.address')}
                     value={newGuestForm.address_line1}
                     onChange={(e) => onNewGuestFormChange({ ...newGuestForm, address_line1: e.target.value })}
                   />
@@ -451,7 +454,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                 <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
-                    label="City"
+                    label={t('guestSelector.city')}
                     value={newGuestForm.city}
                     onChange={(e) => onNewGuestFormChange({ ...newGuestForm, city: e.target.value })}
                   />
@@ -459,7 +462,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                 <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
-                    label="State/Province"
+                    label={t('guestSelector.stateProvince')}
                     value={newGuestForm.state_province}
                     onChange={(e) => onNewGuestFormChange({ ...newGuestForm, state_province: e.target.value })}
                   />
@@ -467,7 +470,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                 <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
-                    label="Postal Code"
+                    label={t('guestSelector.postalCode')}
                     value={newGuestForm.postal_code}
                     onChange={(e) => onNewGuestFormChange({ ...newGuestForm, postal_code: e.target.value })}
                   />
@@ -475,7 +478,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                 <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
-                    label="Country"
+                    label={t('guestSelector.country')}
                     value={newGuestForm.country}
                     onChange={(e) => onNewGuestFormChange({ ...newGuestForm, country: e.target.value })}
                   />
@@ -483,10 +486,10 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                 <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
-                    label="Company Name"
+                    label={t('guestSelector.companyName')}
                     value={newGuestForm.company_name}
                     onChange={(e) => onNewGuestFormChange({ ...newGuestForm, company_name: e.target.value })}
-                    placeholder="e.g. Acme Corporation"
+                    placeholder={t('guestSelector.companyPlaceholder')}
                   />
                 </Grid>
               </Grid>

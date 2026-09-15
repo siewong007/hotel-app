@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Chip, Tab, Tabs, Typography } from '@mui/material';
 
+import { useTranslation, statusLabel } from '../../../i18n';
 import type { DeliveryFeedItem, TierFilter } from '../types';
 import { formatRelativeIso } from '../utils/relativeTime';
 
@@ -13,10 +14,11 @@ export const DELIVERY_STATUS_COLORS: Record<string, 'default' | 'info' | 'warnin
   cancelled: 'default',
 };
 
-export const TIER_TAB_LABELS: Record<TierFilter, string> = {
-  all: 'All',
-  transactional: 'Transactional',
-  marketing: 'Marketing',
+/** Tier value → translation key (resolved through the caller's `t`). */
+export const TIER_TAB_KEYS: Record<TierFilter, string> = {
+  all: 'common:field.all',
+  transactional: 'tier.transactional',
+  marketing: 'tier.marketing',
 };
 
 interface DeliveryTabsProps {
@@ -38,7 +40,9 @@ export const DeliveryTabs: React.FC<DeliveryTabsProps> = ({
   items,
   emptyMessage,
   showTabs = true,
-}) => (
+}) => {
+  const { t } = useTranslation('notifications');
+  return (
   <>
     {showTabs && (
     <Tabs
@@ -47,8 +51,8 @@ export const DeliveryTabs: React.FC<DeliveryTabsProps> = ({
       variant="fullWidth"
       sx={{ minHeight: 36, '& .MuiTab-root': { minHeight: 36, fontSize: '0.78rem' } }}
     >
-      {(Object.keys(TIER_TAB_LABELS) as TierFilter[]).map((key) => (
-        <Tab key={key} value={key} label={TIER_TAB_LABELS[key]} />
+      {(Object.keys(TIER_TAB_KEYS) as TierFilter[]).map((key) => (
+        <Tab key={key} value={key} label={t(TIER_TAB_KEYS[key])} />
       ))}
     </Tabs>
     )}
@@ -77,12 +81,12 @@ export const DeliveryTabs: React.FC<DeliveryTabsProps> = ({
                 {item.subject ?? item.kind}
               </Typography>
               <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 0.25 }}>
-                {item.recipient_masked} · {formatRelativeIso(item.created_at)}
+                {item.recipient_masked} · {formatRelativeIso(item.created_at, t)}
               </Typography>
             </Box>
             <Chip
               size="small"
-              label={item.status}
+              label={statusLabel(t, 'email_delivery', item.status)}
               color={DELIVERY_STATUS_COLORS[item.status] ?? 'default'}
               variant="outlined"
               sx={{ flexShrink: 0, fontSize: '0.68rem' }}
@@ -92,4 +96,5 @@ export const DeliveryTabs: React.FC<DeliveryTabsProps> = ({
       )}
     </Box>
   </>
-);
+  );
+};

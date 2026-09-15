@@ -20,6 +20,8 @@ import {
   Save as SaveIcon,
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../../../types';
+import { useTranslation } from '../../../../../i18n/useTranslation';
+import { formatHotelDate } from '../../../../../utils/date';
 
 interface BookingNotesDialogProps {
   open: boolean;
@@ -44,6 +46,7 @@ const BookingNotesDialog: React.FC<BookingNotesDialogProps> = ({
   onSave,
   saving,
 }) => {
+  const { t } = useTranslation('rooms');
   return (
     <Dialog
       open={open}
@@ -55,7 +58,7 @@ const BookingNotesDialog: React.FC<BookingNotesDialogProps> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <NotesIcon sx={{ fontSize: 24 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-            Edit Booking Notes
+            {t('bookingNotes.title')}
           </Typography>
         </Box>
       </DialogTitle>
@@ -64,17 +67,17 @@ const BookingNotesDialog: React.FC<BookingNotesDialogProps> = ({
           <Box>
             <Alert severity="info" sx={{ mb: 2 }}>
               <Typography variant="body2">
-                <strong>Guest:</strong> {booking.guest_name}<br />
-                <strong>Room:</strong> {booking.room_number}<br />
-                <strong>Stay:</strong> {new Date(booking.check_in_date).toLocaleDateString()} - {new Date(booking.check_out_date).toLocaleDateString()}
+                <strong>{t('fields.guest')}:</strong> {booking.guest_name}<br />
+                <strong>{t('fields.room')}:</strong> {booking.room_number}<br />
+                <strong>{t('fields.stay')}:</strong> {formatHotelDate(booking.check_in_date)} - {formatHotelDate(booking.check_out_date)}
               </Typography>
             </Alert>
             <TextField
               fullWidth
               multiline
               rows={4}
-              label="Notes"
-              placeholder="Enter booking notes, special requests, or remarks..."
+              label={t('fields.notes')}
+              placeholder={t('bookingNotes.notesPlaceholder')}
               value={notes}
               onChange={(e) => onNotesChange(e.target.value)}
               variant="outlined"
@@ -83,7 +86,7 @@ const BookingNotesDialog: React.FC<BookingNotesDialogProps> = ({
             {/* Daily cleaning preference */}
             <Box sx={{ mt: 2.5 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                Daily cleaning preference
+                {t('bookingNotes.cleaningPreference')}
               </Typography>
               <ToggleButtonGroup
                 exclusive
@@ -97,14 +100,14 @@ const BookingNotesDialog: React.FC<BookingNotesDialogProps> = ({
                 sx={{ flexWrap: 'wrap', gap: 0.75 }}
               >
                 <ToggleButton value="daily" sx={{ textTransform: 'none', gap: 0.75, borderRadius: '999px !important', px: 1.75 }}>
-                  <SparkleIcon sx={{ fontSize: 16 }} /> Daily cleaning
+                  <SparkleIcon sx={{ fontSize: 16 }} /> {t('card.dailyCleaning')}
                 </ToggleButton>
                 <ToggleButton value="nodaily" sx={{ textTransform: 'none', gap: 0.75, borderRadius: '999px !important', px: 1.75 }}>
-                  <BlockIcon sx={{ fontSize: 16 }} /> No daily cleaning
+                  <BlockIcon sx={{ fontSize: 16 }} /> {t('card.noDailyCleaning')}
                 </ToggleButton>
               </ToggleButtonGroup>
               <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'text.secondary' }}>
-                Shown as a chip on the room card while the guest is checked in.
+                {t('bookingNotes.cleaningHint')}
               </Typography>
             </Box>
           </Box>
@@ -116,7 +119,7 @@ const BookingNotesDialog: React.FC<BookingNotesDialogProps> = ({
           variant="outlined"
           disabled={saving}
         >
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           onClick={onSave}
@@ -124,7 +127,7 @@ const BookingNotesDialog: React.FC<BookingNotesDialogProps> = ({
           disabled={saving}
           startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
         >
-          {saving ? 'Saving...' : 'Save Notes'}
+          {saving ? t('common:state.saving') : t('bookingNotes.save')}
         </Button>
       </DialogActions>
     </Dialog>

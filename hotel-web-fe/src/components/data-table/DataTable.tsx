@@ -30,6 +30,7 @@ import {
   type ColumnFiltersState,
   type RowData,
 } from '@tanstack/react-table';
+import { useTranslation } from '../../i18n';
 
 /**
  * Feature sets stitched into the shared table. Both register
@@ -91,7 +92,7 @@ export interface DataTableProps<TData extends RowData> {
 export function DataTable<TData extends RowData>({
   data,
   columns,
-  emptyMessage = 'No rows',
+  emptyMessage,
   loading = false,
   loadingRowCount = 6,
   renderMobileCard,
@@ -104,8 +105,10 @@ export function DataTable<TData extends RowData>({
   containerProps,
   getRowId,
 }: DataTableProps<TData>) {
+  const { t } = useTranslation('common');
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting ?? []);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(initialColumnFilters ?? []);
+  const resolvedEmptyMessage = emptyMessage ?? t('table.empty');
 
   const table = useTable<DataTableFeatures, TData>({
     features: enablePagination ? paginatedTableFeatures : baseTableFeatures,
@@ -128,10 +131,10 @@ export function DataTable<TData extends RowData>({
 
   const emptyState = (
     <Box sx={{ py: 4, textAlign: 'center' }}>
-      {typeof emptyMessage === 'string' ? (
-        <Typography sx={{ color: "text.secondary" }}>{emptyMessage}</Typography>
+      {typeof resolvedEmptyMessage === 'string' ? (
+        <Typography sx={{ color: "text.secondary" }}>{resolvedEmptyMessage}</Typography>
       ) : (
-        emptyMessage
+        resolvedEmptyMessage
       )}
     </Box>
   );
@@ -218,12 +221,12 @@ export function DataTable<TData extends RowData>({
           ) : rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
-                {typeof emptyMessage === 'string' ? (
+                {typeof resolvedEmptyMessage === 'string' ? (
                   <Typography sx={{
                     color: "text.secondary"
-                  }}>{emptyMessage}</Typography>
+                  }}>{resolvedEmptyMessage}</Typography>
                 ) : (
-                  emptyMessage
+                  resolvedEmptyMessage
                 )}
               </TableCell>
             </TableRow>
@@ -255,11 +258,14 @@ export function DataTable<TData extends RowData>({
           <Typography variant="caption" sx={{
             color: "text.secondary"
           }}>
-            Page {table.state.pagination.pageIndex + 1} of {table.getPageCount() || 1}
+            {t('pagination.pageOf', {
+              page: table.state.pagination.pageIndex + 1,
+              pages: table.getPageCount() || 1,
+            })}
           </Typography>
           <Box
             component="button"
-            aria-label="Previous page"
+            aria-label={t('pagination.previous')}
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
             sx={{ minWidth: 40, minHeight: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', px: 1, py: 0.5, cursor: 'pointer', border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper', '&:disabled': { opacity: 0.4, cursor: 'default' } }}
@@ -268,7 +274,7 @@ export function DataTable<TData extends RowData>({
           </Box>
           <Box
             component="button"
-            aria-label="Next page"
+            aria-label={t('pagination.next')}
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
             sx={{ minWidth: 40, minHeight: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', px: 1, py: 0.5, cursor: 'pointer', border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper', '&:disabled': { opacity: 0.4, cursor: 'default' } }}

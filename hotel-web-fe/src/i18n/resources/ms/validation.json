@@ -1,0 +1,21 @@
+{
+  "required": "{{field}} wajib diisi.",
+  "email": "Sila masukkan alamat e-mel yang sah.",
+  "phone": "Sila masukkan nombor telefon yang sah.",
+  "minLength": "{{field}} mestilah sekurang-kurangnya {{min}} aksara.",
+  "minLength_other": "{{field}} mestilah sekurang-kurangnya {{min}} aksara.",
+  "maxLength": "{{field}} mestilah tidak melebihi {{max}} aksara.",
+  "maxLength_other": "{{field}} mestilah tidak melebihi {{max}} aksara.",
+  "min": "{{field}} mestilah sekurang-kurangnya {{min}}.",
+  "max": "{{field}} mestilah tidak melebihi {{max}}.",
+  "invalidDate": "Sila masukkan tarikh yang sah.",
+  "endBeforeStart": "Tarikh tamat mestilah selepas tarikh mula.",
+  "invalid": "{{field}} tidak sah.",
+  "mustBePositive": "{{field}} mestilah lebih besar daripada sifar.",
+  "mustBeInteger": "{{field}} mestilah nombor bulat.",
+  "dateInPast": "{{field}} tidak boleh berada pada masa lalu.",
+  "passwordTooShort": "Kata laluan mestilah sekurang-kurangnya {{min}} aksara.",
+  "passwordMismatch": "Kata laluan tidak sepadan.",
+  "minDigits": "{{field}} mestilah sekurang-kurangnya {{min}} digit.",
+  "maxDigits": "{{field}} tidak boleh melebihi {{max}} digit."
+}

@@ -191,35 +191,6 @@ export const getBookingStatusColor = (
 };
 
 /**
- * Get booking status display text
- */
-export const getBookingStatusText = (status: BookingStatusType | string): string => {
-  switch (status) {
-    case BookingStatus.CONFIRMED:
-      return 'Confirmed';
-    case BookingStatus.PENDING:
-      return 'Pending';
-    case BookingStatus.CHECKED_IN:
-      return 'Checked In';
-    case BookingStatus.AUTO_CHECKED_IN:
-      return 'Auto Checked In';
-    case BookingStatus.CHECKED_OUT:
-      return 'Checked Out';
-    case BookingStatus.PARTIAL_COMPLIMENTARY:
-    case 'partial_complimentary':
-      return 'Partial Complimentary';
-    case BookingStatus.FULLY_COMPLIMENTARY:
-    case 'fully_complimentary':
-      return 'Fully Complimentary';
-    case BookingStatus.VOIDED:
-    case 'voided':
-      return 'Voided';
-    default:
-      return formatStatusLabel(status, 'Unknown');
-  }
-};
-
-/**
  * Get payment status color
  */
 export const getPaymentStatusColor = (
@@ -242,30 +213,6 @@ export const getPaymentStatusColor = (
       return 'error';
     default:
       return 'default';
-  }
-};
-
-/**
- * Get payment status display text
- */
-export const getPaymentStatusText = (status: string | undefined): string => {
-  switch (status) {
-    case 'paid':
-      return 'Paid';
-    case 'paid_rate':
-      return 'Rate Paid';
-    case 'partial':
-      return 'Partial';
-    case 'unpaid_deposit':
-      return 'Unpaid Deposit';
-    case 'unpaid':
-      return 'Unpaid';
-    case 'refunded':
-      return 'Refunded';
-    case 'void':
-      return 'Void';
-    default:
-      return formatStatusLabel(status, 'Unknown');
   }
 };
 

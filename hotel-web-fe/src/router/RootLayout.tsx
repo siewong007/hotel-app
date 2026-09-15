@@ -13,18 +13,17 @@ import { BootSplash, LoadingFallback, MinimalLoadingFallback } from './RouteFall
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
 import { ErrorBoundary, PageErrorBoundary } from '../components';
 import { GuestPortalShell } from '../features/guestPortal/components/GuestPortalShell';
-import { getHotelSettings } from '../utils/hotelSettings';
 import { useTranslation } from '../i18n';
+import { getHotelSettings } from '../utils/hotelSettings';
 
-// Used only if `hotel_name` is configured empty; the settings themselves carry
-// a default, so this is a last resort rather than the normal title.
-const FALLBACK_APP_TITLE = 'Hotel ERP System';
 const ADMIN_FAVICON = '/favicon.ico';
 const GUEST_FAVICON = '/salim-inn/salim-inn-icon.svg';
 
 export const RootLayout: React.FC = () => {
   const { t } = useTranslation('guestPortal');
   const { isAuthenticated, isLoading, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
+  const { t: tErr } = useTranslation('errors');
+  const { t: tCommon } = useTranslation('common');
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
@@ -55,7 +54,9 @@ export const RootLayout: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const displayName = hotelName.trim() || FALLBACK_APP_TITLE;
+    // `app.title` is the last-resort tab title — the settings themselves carry
+    // a default, so an empty `hotel_name` reaching here is already abnormal.
+    const displayName = hotelName.trim() || tCommon('app.title');
     document.title = displayName;
     // The sign-in/register card's eyebrow is a CSS ::before, so its text has to
     // reach the stylesheet as a quoted custom property (see .auth-card in index.css).
@@ -66,7 +67,7 @@ export const RootLayout: React.FC = () => {
 
     const favicon = document.querySelector<HTMLLinkElement>('#app-favicon');
     if (favicon) favicon.href = isGuestExperience ? GUEST_FAVICON : ADMIN_FAVICON;
-  }, [isGuestExperience, hotelName]);
+  }, [isGuestExperience, hotelName, tCommon]);
 
   useEffect(() => {
     const showResourceLocked = () => {
@@ -98,7 +99,7 @@ export const RootLayout: React.FC = () => {
 
     return (
       <GuestPortalShell showAccountNav={isAuthenticated}>
-        <ErrorBoundary title="Guest Experience Error" detailMessage={t('errorBoundary.detail')}>
+        <ErrorBoundary title={tErr('boundary.guest')} detailMessage={t('errorBoundary.detail')}>
           <Suspense fallback={<LoadingFallback />}>
             <Outlet />
           </Suspense>
@@ -118,7 +119,7 @@ export const RootLayout: React.FC = () => {
   // the operational staff shell.
   if (publicGuestPath) {
     return (
-      <ErrorBoundary title="Guest Experience Error" detailMessage={t('errorBoundary.detail')}>
+      <ErrorBoundary title={tErr('boundary.guest')} detailMessage={t('errorBoundary.detail')}>
         <Suspense fallback={null}>
           <Outlet />
         </Suspense>
@@ -128,7 +129,7 @@ export const RootLayout: React.FC = () => {
 
   if (isOffersPage || isGuestModelHome) {
     return (
-      <ErrorBoundary title="Guest Experience Error" detailMessage={t('errorBoundary.detail')}>
+      <ErrorBoundary title={tErr('boundary.guest')} detailMessage={t('errorBoundary.detail')}>
         <Suspense fallback={<LoadingFallback />}>
           <Outlet />
         </Suspense>
@@ -140,7 +141,7 @@ export const RootLayout: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <ErrorBoundary title="Authentication Error">
+      <ErrorBoundary title={tErr('boundary.auth')}>
         <Suspense fallback={<LoadingFallback />}>
           <Outlet />
         </Suspense>

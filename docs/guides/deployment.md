@@ -323,7 +323,7 @@ is the canonical reference for how it works.
 (revisions 1.2–1.23) was folded into the V1 baseline and `manifest.tsv` was
 reset to empty; generation 1 then reopened at version 2 — the catalog currently
 publishes `1.2 deposit-forfeited`, `1.3 guest-relations-phase2`, and
-`1.4 data-transfer-permissions` (the `data_transfer:*` permission set plus the
+`1.5 data-transfer-permissions` (the `data_transfer:*` permission set plus the
 route-policy repoint — it also widens the `valid_action` check constraint, so
 it must run before any code that checks the new permissions), all
 converge-style (idempotent over a database that already carries the baseline
@@ -381,7 +381,7 @@ psql "$DATABASE_URL" -X -At -v ON_ERROR_STOP=1 -c \
 ```
 
 Expect `1.1` (the baseline) through the highest version in the manifest —
-currently `1.1`–`1.4`.
+currently `1.1`–`1.5`.
 
 #### One-time reset: stale pre-fold patch lineage
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Box, Button, Card, CardContent, Grid, TextField, Typography } from '@mui/material';
 import { Lock as LockIcon } from '@mui/icons-material';
 import { ApiNotificationSeverity } from '../../../../utils/apiNotifications';
+import { useTranslation } from '../../../../i18n';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -17,6 +18,7 @@ interface SecurityTabProps {
 }
 
 const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) => {
+  const { t } = useTranslation('auth');
   const [passwordData, setPasswordData] = useState(EMPTY_FORM);
   const [showNewPasswordFields, setShowNewPasswordFields] = useState(false);
 
@@ -27,11 +29,11 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
 
   const handleCurrentPasswordSubmit = () => {
     if (!passwordData.current_password) {
-      notify('Please enter your current password', 'warning');
+      notify(t('security.enterCurrentPassword'), 'warning');
       return;
     }
     if (passwordData.current_password.length < 3) {
-      notify('Please enter a valid password', 'warning');
+      notify(t('security.enterValidPassword'), 'warning');
       return;
     }
     setShowNewPasswordFields(true);
@@ -39,15 +41,15 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
 
   const handleSubmit = async () => {
     if (!passwordData.current_password || !passwordData.new_password) {
-      notify('Please fill in all password fields', 'warning');
+      notify(t('security.fillAllFields'), 'warning');
       return;
     }
     if (passwordData.new_password !== passwordData.confirm_password) {
-      notify('New passwords do not match', 'warning');
+      notify(t('security.passwordsMismatch'), 'warning');
       return;
     }
     if (passwordData.new_password.length < MIN_PASSWORD_LENGTH) {
-      notify(`Password must be at least ${MIN_PASSWORD_LENGTH} characters long`, 'warning');
+      notify(t('validation:passwordTooShort', { min: MIN_PASSWORD_LENGTH }), 'warning');
       return;
     }
 
@@ -62,21 +64,21 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
     <Card>
       <CardContent>
         <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
-          Change Password
+          {t('security.changePassword')}
         </Typography>
         <Grid container spacing={3}>
           <Grid size={12}>
             <TextField
               fullWidth
               type="password"
-              label="Current Password"
+              label={t('security.currentPassword')}
               value={passwordData.current_password}
               onChange={e =>
                 setPasswordData({ ...passwordData, current_password: e.target.value })
               }
               disabled={showNewPasswordFields}
               helperText={
-                !showNewPasswordFields ? 'Enter your current password to continue' : ''
+                !showNewPasswordFields ? t('security.currentPasswordHint') : ''
               }
             />
           </Grid>
@@ -89,7 +91,7 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
                   onClick={handleCurrentPasswordSubmit}
                   disabled={!passwordData.current_password}
                 >
-                  Continue
+                  {t('common:actions.continue')}
                 </Button>
               </Box>
             </Grid>
@@ -101,19 +103,19 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
                 <TextField
                   fullWidth
                   type="password"
-                  label="New Password"
+                  label={t('security.newPassword')}
                   value={passwordData.new_password}
                   onChange={e =>
                     setPasswordData({ ...passwordData, new_password: e.target.value })
                   }
-                  helperText={`Minimum ${MIN_PASSWORD_LENGTH} characters`}
+                  helperText={t('security.minChars', { min: MIN_PASSWORD_LENGTH })}
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   type="password"
-                  label="Confirm New Password"
+                  label={t('security.confirmNewPassword')}
                   value={passwordData.confirm_password}
                   onChange={e =>
                     setPasswordData({ ...passwordData, confirm_password: e.target.value })
@@ -127,7 +129,7 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
         {showNewPasswordFields && (
           <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
             <Button variant="outlined" onClick={reset}>
-              Cancel
+              {t('common:actions.cancel')}
             </Button>
             <Button
               variant="contained"
@@ -135,7 +137,7 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
               onClick={handleSubmit}
               disabled={!passwordData.new_password || !passwordData.confirm_password}
             >
-              Update Password
+              {t('security.updatePassword')}
             </Button>
           </Box>
         )}

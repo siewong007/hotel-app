@@ -1,4 +1,6 @@
 import { Box, Paper, Stack, Typography, useTheme } from '@mui/material';
+
+import { useTranslation } from '../../../i18n/useTranslation';
 import BedOutlinedIcon from '@mui/icons-material/BedOutlined';
 import DoorFrontOutlinedIcon from '@mui/icons-material/DoorFrontOutlined';
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined';
@@ -25,42 +27,47 @@ const SummaryItem = ({
   value: number;
   icon: React.ReactNode;
   color: string;
-}) => (
-  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
-    <Box
-      sx={{
-        display: 'grid',
-        placeItems: 'center',
-        width: 42,
-        height: 42,
-        borderRadius: 2.5,
-        color,
-        bgcolor: `color-mix(in srgb, ${color} 10%, transparent)`,
-        flex: '0 0 auto',
-      }}
-    >
-      {icon}
-    </Box>
-    <Box sx={{ minWidth: 0 }}>
-      <Typography
-        variant="caption"
-        sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: 0.3 }}
+}) => {
+  const { t } = useTranslation('onlineInventory');
+  return (
+    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+      <Box
+        sx={{
+          display: 'grid',
+          placeItems: 'center',
+          width: 42,
+          height: 42,
+          borderRadius: 2.5,
+          color,
+          bgcolor: `color-mix(in srgb, ${color} 10%, transparent)`,
+          flex: '0 0 auto',
+        }}
       >
-        {label.toUpperCase()}
-      </Typography>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
-        <Typography variant="h5" sx={{ fontWeight: 800 }}>{value}</Typography>
-        <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>
-          room-nights
+        {icon}
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography
+          variant="caption"
+          sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: 0.3 }}
+        >
+          {label.toUpperCase()}
         </Typography>
-      </Stack>
-    </Box>
-  </Stack>
-);
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
+          <Typography variant="h5" sx={{ fontWeight: 800 }}>{value}</Typography>
+          <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>
+            {t('summary.roomNights')}
+          </Typography>
+        </Stack>
+      </Box>
+    </Stack>
+  );
+};
 
 /** Totals across a scope — the visible window by default, or the selection. */
-export const InventorySummary = ({ cells, label = 'Visible window' }: InventorySummaryProps) => {
+export const InventorySummary = ({ cells, label }: InventorySummaryProps) => {
+  const { t } = useTranslation('onlineInventory');
   const theme = useTheme();
+  const scopeLabel = label ?? t('summary.visibleWindow');
   const totals = cells.reduce(
     (summary, cell) => ({
       physical: summary.physical + cell.physical,
@@ -77,13 +84,13 @@ export const InventorySummary = ({ cells, label = 'Visible window' }: InventoryS
         p: 2,
         borderRadius: 3,
       }}
-      aria-label={`${label} summary`}
+      aria-label={t('summary.aria', { label: scopeLabel })}
     >
       <Typography
         variant="caption"
         sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: 0.4, display: 'block', mb: 1 }}
       >
-        {label.toUpperCase()}
+        {scopeLabel.toUpperCase()}
       </Typography>
       <Box
         sx={{
@@ -92,9 +99,9 @@ export const InventorySummary = ({ cells, label = 'Visible window' }: InventoryS
           gap: { xs: 2, sm: 1 },
         }}
       >
-        <SummaryItem label="Physically free" value={totals.physical} icon={<BedOutlinedIcon />} color={theme.palette.info.main} />
-        <SummaryItem label="Held for walk-ins" value={totals.held} icon={<DoorFrontOutlinedIcon />} color={theme.palette.warning.main} />
-        <SummaryItem label="Available online" value={totals.online} icon={<LanguageOutlinedIcon />} color={theme.palette.success.main} />
+        <SummaryItem label={t('summary.physical')} value={totals.physical} icon={<BedOutlinedIcon />} color={theme.palette.info.main} />
+        <SummaryItem label={t('summary.held')} value={totals.held} icon={<DoorFrontOutlinedIcon />} color={theme.palette.warning.main} />
+        <SummaryItem label={t('summary.online')} value={totals.online} icon={<LanguageOutlinedIcon />} color={theme.palette.success.main} />
       </Box>
     </Paper>
   );

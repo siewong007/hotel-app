@@ -15,6 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { BulkRoomRateInput, RatePlan, RoomTypeRef } from '../types';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 
@@ -40,6 +41,7 @@ export const BulkRateDialog = ({
   onClose,
   onSubmit,
 }: BulkRateDialogProps) => {
+  const { t } = useTranslation('rates');
   const [planId, setPlanId] = useState('');
   const [typeIds, setTypeIds] = useState<number[]>([]);
   const [from, setFrom] = useState('');
@@ -55,7 +57,7 @@ export const BulkRateDialog = ({
 
   const rangeError =
     from !== '' && to !== '' && from > to
-      ? 'Effective from must be on or before effective to'
+      ? t('bulk.rangeError')
       : null;
 
   const valid =
@@ -79,12 +81,12 @@ export const BulkRateDialog = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Bulk rate update</DialogTitle>
+      <DialogTitle>{t('bulk.title')}</DialogTitle>
       <DialogContent dividers>
         <Box sx={{ display: 'grid', gap: 2 }}>
           <TextField
             select
-            label="Rate plan"
+            label={t('bulk.ratePlan')}
             value={planId}
             onChange={(event) => setPlanId(event.target.value)}
             required
@@ -97,7 +99,7 @@ export const BulkRateDialog = ({
             ))}
           </TextField>
           <Box>
-            <FormLabel component="legend">Room types</FormLabel>
+            <FormLabel component="legend">{t('bulk.roomTypes')}</FormLabel>
             <FormGroup row>
               {roomTypes.map((type) => (
                 <FormControlLabel
@@ -116,13 +118,13 @@ export const BulkRateDialog = ({
           </Box>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
             <ModernDatePicker
-              label="Effective from"
+              label={t('bulk.effectiveFrom')}
               value={from}
               onChange={setFrom}
               required
             />
             <ModernDatePicker
-              label="Effective to"
+              label={t('bulk.effectiveTo')}
               value={to}
               onChange={setTo}
               required
@@ -131,7 +133,7 @@ export const BulkRateDialog = ({
             />
           </Box>
           <TextField
-            label="Price"
+            label={t('bulk.price')}
             type="number"
             value={price}
             onChange={(event) => setPrice(event.target.value)}
@@ -140,16 +142,14 @@ export const BulkRateDialog = ({
             slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
           />
           <Typography variant="caption" color="text.secondary">
-            Bands with exactly these bounds are repriced in place; other bounds
-            create new bands. The most recently written band wins when ranges
-            overlap within a plan.
+            {t('bulk.hint')}
           </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button variant="contained" onClick={submit} disabled={!valid || saving}>
-          Apply rates
+          {t('bulk.submit')}
         </Button>
       </DialogActions>
     </Dialog>

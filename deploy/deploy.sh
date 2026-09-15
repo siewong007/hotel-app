@@ -51,6 +51,7 @@ flock -n 9 || die "another saliminn deployment is already running"
 required_payload=(
   deploy.sh
   database-backup.sh
+  check-backup-health.sh
   docker-compose.prod.yml
   SHA256SUMS
   images/backend.tar.gz
@@ -63,7 +64,8 @@ required_payload=(
   database/patches/_end.sql
   database/patches/0002_deposit_forfeited.sql
   database/patches/0003_guest_relations_phase2.sql
-  database/patches/0004_data_transfer_permissions.sql
+  database/patches/0004_consent_locale_zh.sql
+  database/patches/0005_data_transfer_permissions.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -318,6 +320,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/docker-compose.prod.yml" "$COMPOSE_FILE"
   install -m 0750 "$RELEASE_DIR/deploy.sh" "$APP_DIR/deploy.sh"
   install -m 0750 "$RELEASE_DIR/database-backup.sh" "$APP_DIR/database-backup.sh"
+  install -m 0750 "$RELEASE_DIR/check-backup-health.sh" "$APP_DIR/check-backup-health.sh"
   # The official PostgreSQL entrypoint processes these files as its non-root
   # postgres user, so this read-only directory must be traversable by it.
   install -d -m 0755 "$APP_DIR/initdb"
@@ -330,7 +333,8 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/_end.sql" "$APP_DIR/database/patches/_end.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0002_deposit_forfeited.sql" "$APP_DIR/database/patches/0002_deposit_forfeited.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0003_guest_relations_phase2.sql" "$APP_DIR/database/patches/0003_guest_relations_phase2.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0004_data_transfer_permissions.sql" "$APP_DIR/database/patches/0004_data_transfer_permissions.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0004_consent_locale_zh.sql" "$APP_DIR/database/patches/0004_consent_locale_zh.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0005_data_transfer_permissions.sql" "$APP_DIR/database/patches/0005_data_transfer_permissions.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.
@@ -387,8 +391,39 @@ Persistent=true
 WantedBy=timers.target
 BACKUP_TIMER
 
+  # The backup itself only reports failure as a printf to a oneshot unit's
+  # stderr, which nothing reads — so a nightly backup could fail indefinitely in
+  # silence. This mirrors the online-shopping backup-health timer already on this
+  # host: it reads backup-status.json and exits non-zero when the last backup
+  # failed or has gone stale, which is the signal a monitor can act on.
+  cat > /etc/systemd/system/saliminn-backup-health.service <<'HEALTH_SERVICE'
+[Unit]
+Description=Check the Saliminn nightly database backup health (backup-status.json)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/saliminn/check-backup-health.sh
+HEALTH_SERVICE
+
+  # Every 15 minutes: a failure or a crossed staleness threshold surfaces within
+  # 15 minutes rather than at the next person who happens to look.
+  cat > /etc/systemd/system/saliminn-backup-health.timer <<'HEALTH_TIMER'
+[Unit]
+Description=Run the Saliminn backup health check periodically
+
+[Timer]
+OnCalendar=*-*-* *:00,15,30,45:00
+Persistent=true
+Unit=saliminn-backup-health.service
+
+[Install]
+WantedBy=timers.target
+HEALTH_TIMER
+
   systemctl daemon-reload
   systemctl enable --now saliminn-backup.timer
+  systemctl enable --now saliminn-backup-health.timer
 }
 
 load_release_images() {

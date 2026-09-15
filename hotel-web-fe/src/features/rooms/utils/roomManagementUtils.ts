@@ -1,4 +1,5 @@
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
+import { intlTag } from '../../../i18n/format';
 import { getHotelSetting } from '../../../utils/hotelSettings';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 
@@ -70,7 +71,7 @@ export const getRoomTypeCode = (roomType?: string | null): string => {
 };
 
 export const formatMenuBookingDate = (date: string): string =>
-  parseLocalDate(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  parseLocalDate(date).toLocaleDateString(intlTag(), { month: 'short', day: 'numeric' });
 
 export const calculateNightCount = (checkInDate?: string, checkOutDate?: string): number => {
   if (!checkInDate || !checkOutDate) return 1;
@@ -126,29 +127,36 @@ export const getNextAvailableDate = (
   return formatLocalDate(date);
 };
 
+/**
+ * Returns a `messageKey` + interpolation `vars` instead of a rendered string so
+ * a future caller can feed the result straight into `t()`. No production caller
+ * exists yet — today only `roomManagementUtils.test.ts` exercises it; wire it
+ * into the complimentary-credit booking flow when that UI lands.
+ */
 export const validateCreditDateSelection = (
   checkInDate: string,
   checkOutDate: string,
   blockedRanges: BlockedDateRange[],
-): { valid: boolean; message: string } => {
+): { valid: boolean; messageKey: string; vars?: Record<string, unknown> } => {
   if (!checkInDate || !checkOutDate) {
-    return { valid: false, message: 'Please select dates' };
+    return { valid: false, messageKey: 'validation.selectDates' };
   }
 
   if (dateSerial(checkOutDate) <= dateSerial(checkInDate)) {
-    return { valid: false, message: 'Check-out must be after check-in' };
+    return { valid: false, messageKey: 'validation.checkoutAfterCheckin' };
   }
 
   for (const date of getCreditBookingDates(checkInDate, checkOutDate)) {
     if (isDateBlockedByRanges(date, blockedRanges)) {
       return {
         valid: false,
-        message: `Date ${parseLocalDate(date).toLocaleDateString()} is already reserved`,
+        messageKey: 'validation.dateReserved',
+        vars: { date: parseLocalDate(date).toLocaleDateString(intlTag()) },
       };
     }
   }
 
-  return { valid: true, message: '' };
+  return { valid: true, messageKey: '' };
 };
 
 export const getCreditBookingDates = (

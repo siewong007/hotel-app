@@ -13,6 +13,7 @@ import {
 import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
 import SettingsSuggestOutlinedIcon from '@mui/icons-material/SettingsSuggestOutlined';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import { formatLocalDate } from '../../../utils/date';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useIsPhone } from '../../../hooks/useIsPhone';
@@ -34,6 +35,7 @@ import { PhoneInventoryView } from '../components/PhoneInventoryView';
 import { ReviewChangesDialog } from '../components/ReviewChangesDialog';
 
 const OnlineInventoryPage = () => {
+  const { t } = useTranslation('onlineInventory');
   const today = formatLocalDate();
   const isPhone = useIsPhone();
   const confirm = useConfirm();
@@ -92,9 +94,9 @@ const OnlineInventoryPage = () => {
 
   const confirmDiscard = (message: string) =>
     confirm({
-      title: 'Discard unsaved changes',
+      title: t('confirm.discardTitle'),
       message,
-      confirmText: 'Discard changes',
+      confirmText: t('confirm.discardConfirm'),
       severity: 'warning',
     });
 
@@ -102,7 +104,7 @@ const OnlineInventoryPage = () => {
     if (!next || next === start) return;
     if (
       inv.changedCount > 0 &&
-      !(await confirmDiscard('Move the window and discard your unsaved inventory changes?'))
+      !(await confirmDiscard(t('confirm.discardMove')))
     ) {
       return;
     }
@@ -114,7 +116,7 @@ const OnlineInventoryPage = () => {
   const refreshInventory = async () => {
     if (
       inv.changedCount > 0 &&
-      !(await confirmDiscard('Refresh availability and discard your unsaved inventory changes?'))
+      !(await confirmDiscard(t('confirm.discardRefresh')))
     ) {
       return;
     }
@@ -169,11 +171,11 @@ const OnlineInventoryPage = () => {
           >
             <SettingsSuggestOutlinedIcon fontSize="small" />
             <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: 1.2 }}>
-              Inventory settings
+              {t('kicker')}
             </Typography>
           </Stack>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 850, letterSpacing: -0.7 }}>
-            Online availability
+            {t('title')}
           </Typography>
           <Typography
             sx={{
@@ -183,8 +185,7 @@ const OnlineInventoryPage = () => {
               display: { xs: 'none', sm: 'block' },
             }}
           >
-            Control {GRID_DAYS} days of online inventory at once — click cells to select, open the
-            editor to stage changes, then review and apply everything in one safe save.
+            {t('subtitle', { days: GRID_DAYS })}
           </Typography>
         </Box>
 
@@ -212,24 +213,24 @@ const OnlineInventoryPage = () => {
           >
             <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
               <CircularProgress size={32} />
-              <Typography sx={{ color: 'text.secondary' }}>Loading room availability…</Typography>
+              <Typography sx={{ color: 'text.secondary' }}>{t('loading')}</Typography>
             </Stack>
           </Paper>
         ) : inv.roomTypes.length === 0 ? (
           <Paper variant="outlined" sx={{ p: 5, textAlign: 'center', borderRadius: 3 }}>
             <CloudDoneOutlinedIcon sx={{ fontSize: 44, color: 'text.secondary', mb: 1 }} />
             <Typography variant="h6" sx={{ fontWeight: 750 }}>
-              No room types to configure
+              {t('empty.title')}
             </Typography>
             <Typography sx={{ color: 'text.secondary' }}>
-              Add a room type before setting its online availability.
+              {t('empty.body')}
             </Typography>
           </Paper>
         ) : (
           <>
             <InventorySummary
               cells={summaryCells}
-              label={selectedViews.length > 0 ? 'Selected cells' : 'Visible window'}
+              label={selectedViews.length > 0 ? t('summary.selectedCells') : t('summary.visibleWindow')}
             />
             {isPhone ? (
               <PhoneInventoryView
@@ -330,17 +331,17 @@ const OnlineInventoryPage = () => {
         >
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <Typography sx={{ fontWeight: 750, flex: 1 }}>
-              {inv.changedCount} {inv.changedCount === 1 ? 'cell' : 'cells'} changed
+              {t('changedBar', { count: inv.changedCount })}
             </Typography>
             <Button onClick={inv.discardChanges} disabled={inv.isSaving} color="inherit">
-              Discard
+              {t('discard')}
             </Button>
             <Button
               variant="contained"
               onClick={() => setReviewOpen(true)}
               disabled={inv.isSaving}
             >
-              Review &amp; apply
+              {t('reviewApply')}
             </Button>
           </Stack>
         </Paper>

@@ -46,7 +46,7 @@ The final `make db-patch` step reads `patches/manifest.tsv` and applies its
 catalog in order. The original V1 convergence catalog (versions 2 through 23)
 was folded into the baseline and the catalog republished from empty; it now
 carries three converge-style patches — `1.2 deposit-forfeited`, `1.3
-guest-relations-phase2`, and `1.4 data-transfer-permissions` — so a fresh
+guest-relations-phase2`, and `1.5 data-transfer-permissions` — so a fresh
 install records revisions 1, 2, 3 and 4.
 A database that still records the pre-fold 1.2+ lineage aborts on a
 checksum-mismatch guard; the one-time lineage reset runbook is in
@@ -157,7 +157,7 @@ The catalog is live: every V1 convergence patch from the original lineage
 (versions 2–23) was folded into `migrations/0001_v1_baseline.sql` and
 `seed.sql`, and the catalog was republished from empty. It currently ships
 `1.2 deposit-forfeited`, `1.3 guest-relations-phase2`, and
-`1.4 data-transfer-permissions`. Fresh installs get
+`1.5 data-transfer-permissions`. Fresh installs get
 every patched object from the baseline, so each patch body is a no-op there —
 but the patch still runs and records its revision row, keeping fresh and
 patched-forward databases on the same supported revision. Databases that

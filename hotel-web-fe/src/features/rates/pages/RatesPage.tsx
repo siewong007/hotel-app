@@ -18,6 +18,7 @@ import EmptyState from '../../../components/common/EmptyState';
 import PageHeader from '../../../components/common/PageHeader';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useAuth } from '../../../auth/AuthContext';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { addLocalDays, formatLocalDate } from '../../../utils/date';
 import { BulkRateDialog } from '../components/BulkRateDialog';
@@ -39,6 +40,7 @@ import type { RateCalendarCell, RatePlan } from '../types';
 type RatesTab = 'calendar' | 'plans';
 
 const RatesPage = () => {
+  const { t } = useTranslation('rates');
   const { hasPermission } = useAuth();
   const confirm = useConfirm();
   const { currency } = useCurrency();
@@ -81,8 +83,8 @@ const RatesPage = () => {
   return (
     <Box>
       <PageHeader
-        title="Rates"
-        subtitle="Resolved rate calendar and rate-plan management"
+        title={t('title')}
+        subtitle={t('subtitle')}
         actions={
           canManagePlans ? (
             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -91,14 +93,14 @@ const RatesPage = () => {
                 startIcon={<EditCalendarIcon />}
                 onClick={() => setBulkOpen(true)}
               >
-                Bulk rates
+                {t('actions.bulkRates')}
               </Button>
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={() => setPlanDialog({ open: true, plan: null })}
               >
-                New plan
+                {t('actions.newPlan')}
               </Button>
             </Box>
           ) : undefined
@@ -110,8 +112,8 @@ const RatesPage = () => {
         onChange={(_, value: RatesTab) => setTab(value)}
         sx={{ mb: 2 }}
       >
-        <Tab value="calendar" label="Rate Calendar" />
-        {canReadPlans && <Tab value="plans" label="Rate Plans" />}
+        <Tab value="calendar" label={t('tabs.calendar')} />
+        {canReadPlans && <Tab value="plans" label={t('tabs.plans')} />}
       </Tabs>
 
       {tab === 'calendar' && (
@@ -122,7 +124,7 @@ const RatesPage = () => {
               startIcon={<ChevronLeftIcon />}
               onClick={() => calendar.shiftWindow(-14)}
             >
-              Previous
+              {t('calendar.prev')}
             </Button>
             <Typography variant="body2" color="text.secondary">
               {calendar.window.from} → {calendar.window.to}
@@ -132,7 +134,7 @@ const RatesPage = () => {
               endIcon={<ChevronRightIcon />}
               onClick={() => calendar.shiftWindow(14)}
             >
-              Next
+              {t('calendar.next')}
             </Button>
           </Box>
           {calendar.isLoading && <Skeleton variant="rounded" height={360} />}
@@ -145,17 +147,17 @@ const RatesPage = () => {
                   size="small"
                   onClick={() => calendar.refetch()}
                 >
-                  Retry
+                  {t('common:state.retry')}
                 </Button>
               }
             >
-              The rate calendar could not be loaded.
+              {t('calendar.loadError')}
             </Alert>
           )}
           {calendar.calendar && calendar.calendar.room_types.length === 0 && (
             <EmptyState
-              title="No active room types"
-              description="Activate a room type before managing rates."
+              title={t('calendar.emptyTitle')}
+              description={t('calendar.emptyBody')}
             />
           )}
           {calendar.calendar && calendar.calendar.room_types.length > 0 && (
@@ -175,12 +177,12 @@ const RatesPage = () => {
         <Paper variant="outlined" sx={{ borderRadius: 3, p: 2 }}>
           {plans.isLoading && <Skeleton variant="rounded" height={240} />}
           {plans.error && (
-            <Alert severity="error">Rate plans could not be loaded.</Alert>
+            <Alert severity="error">{t('plans.loadError')}</Alert>
           )}
           {plans.data && plans.data.length === 0 && (
             <EmptyState
-              title="No rate plans"
-              description="Create a rate plan to start pricing rooms by date."
+              title={t('plans.emptyTitle')}
+              description={t('plans.emptyBody')}
             />
           )}
           {plans.data && plans.data.length > 0 && (
@@ -200,9 +202,9 @@ const RatesPage = () => {
               onDelete={async (plan) => {
                 if (
                   !(await confirm({
-                    title: 'Delete rate plan',
-                    message: `Delete “${plan.name}”? Its rate bands are removed with it.`,
-                    confirmText: 'Delete',
+                    title: t('plans.deleteTitle'),
+                    message: t('plans.deleteMessage', { name: plan.name }),
+                    confirmText: t('common:actions.delete'),
                     severity: 'warning',
                   }))
                 ) {

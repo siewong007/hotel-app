@@ -38,6 +38,7 @@ import {
   type TourismType,
 } from '../../../types';
 import { GUEST_DESIGN } from '../../guests/constants';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { GuestFormData } from '../../guests/types';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { useGuestCompanyOptions } from '../hooks/useGuestCompanyOptions';
@@ -103,12 +104,11 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
   onClose,
   onSubmit,
 }) => {
+  const { t } = useTranslation('guests');
   const isEdit = mode === 'edit';
-  const title = isEdit ? `Edit Guest · ${guestName || 'Guest'}` : 'Create Guest';
-  const subtitle = isEdit
-    ? 'Update guest profile, membership and tourism details.'
-    : 'Add guest profile, membership and tourism details.';
-  const primaryLabel = isEdit ? 'Save Changes' : 'Create Guest';
+  const title = isEdit ? t('form.editTitle', { name: guestName || t('form.guestFallback') }) : t('form.createTitle');
+  const subtitle = isEdit ? t('form.editSubtitle') : t('form.createSubtitle');
+  const primaryLabel = isEdit ? t('form.saveChanges') : t('form.createGuest');
   const [companySearch, setCompanySearch] = React.useState(formData.company_name || '');
   const debouncedCompanySearch = useDebouncedValue(companySearch, 250);
   const companyOptionsQuery = useGuestCompanyOptions(debouncedCompanySearch, open);
@@ -179,7 +179,7 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
         </Box>
         <IconButton
           onClick={onClose}
-          aria-label="Close guest dialog"
+          aria-label={t('form.closeAria')}
           sx={{
             width: 48,
             height: 48,
@@ -203,47 +203,47 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
 
         <Grid container spacing={{ xs: 1.8, md: 2.2 }}>
           <GuestDialogField
-            label="First Name"
-            placeholder="First Name"
+            label={t('form.firstName')}
+            placeholder={t('form.firstName')}
             value={formData.first_name}
             onChange={(value) => updateField('first_name', value)}
             required
           />
           <GuestDialogField
-            label="Last Name"
-            placeholder="Last Name"
+            label={t('form.lastName')}
+            placeholder={t('form.lastName')}
             value={formData.last_name}
             onChange={(value) => updateField('last_name', value)}
             required
           />
           <GuestDialogField
-            label="Email"
-            placeholder="Email"
+            label={t('form.email')}
+            placeholder={t('form.email')}
             value={formData.email || ''}
             onChange={(value) => updateField('email', value)}
             type="email"
           />
           <GuestDialogField
-            label="Phone"
-            placeholder="Phone"
+            label={t('form.phone')}
+            placeholder={t('form.phone')}
             type="tel"
             value={formData.phone || ''}
             onChange={(value) => updateField('phone', value)}
             icon={<PhoneIcon />}
             required={!formData.email?.trim()}
-            helperText={!formData.email?.trim() ? 'Required if email is blank' : undefined}
+            helperText={!formData.email?.trim() ? t('form.phoneRequired') : undefined}
           />
           <GuestDialogField
-            label="IC Number / Passport"
-            placeholder="IC Number / Passport"
+            label={t('form.icNumber')}
+            placeholder={t('form.icNumber')}
             value={formData.ic_number || ''}
             onChange={(value) => updateField('ic_number', value)}
             icon={<IdIcon />}
-            helperText="Optional — can be collected at check-in"
+            helperText={t('form.icHelper')}
           />
           <GuestDialogField
-            label="Nationality"
-            placeholder="Nationality"
+            label={t('form.nationality')}
+            placeholder={t('form.nationality')}
             value={formData.nationality || ''}
             onChange={(value) => updateField('nationality', value)}
             icon={<PublicIcon />}
@@ -257,37 +257,37 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
             onInputChange={handleCompanyInputChange}
           />
           <GuestDialogField
-            label="Address"
-            placeholder="Address"
+            label={t('form.address')}
+            placeholder={t('form.address')}
             value={formData.address_line1 || ''}
             onChange={(value) => updateField('address_line1', value)}
             icon={<LocationIcon />}
             size={{ xs: 12 }}
           />
           <GuestDialogField
-            label="City"
-            placeholder="City"
+            label={t('form.city')}
+            placeholder={t('form.city')}
             value={formData.city || ''}
             onChange={(value) => updateField('city', value)}
             icon={<CompanyIcon />}
           />
           <GuestDialogField
-            label="State/Province"
-            placeholder="State/Province"
+            label={t('form.stateProvince')}
+            placeholder={t('form.stateProvince')}
             value={formData.state_province || ''}
             onChange={(value) => updateField('state_province', value)}
             icon={<CompanyIcon />}
           />
           <GuestDialogField
-            label="Postal Code"
-            placeholder="Postal Code"
+            label={t('form.postalCode')}
+            placeholder={t('form.postalCode')}
             value={formData.postal_code || ''}
             onChange={(value) => updateField('postal_code', value)}
             icon={<MailIcon />}
           />
           <GuestDialogField
-            label="Country"
-            placeholder="Country"
+            label={t('form.country')}
+            placeholder={t('form.country')}
             value={formData.country || ''}
             onChange={(value) => updateField('country', value)}
             icon={<PublicIcon />}
@@ -296,12 +296,12 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
           <Grid size={12}>
             <GuestDialogSection
               icon={<CheckCircleIcon />}
-              title="Membership & Pricing"
+              title={t('form.membershipSection')}
               tint={formData.guest_type === 'member' ? GUEST_DESIGN.gold : GUEST_DESIGN.green700}
             >
               <Grid container spacing={2.2}>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <GuestDialogLabel>Guest Type</GuestDialogLabel>
+                  <GuestDialogLabel>{t('form.guestType')}</GuestDialogLabel>
                   <TextField
                     select
                     fullWidth
@@ -316,19 +316,19 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
                     <MenuItem value="non_member">
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
                         <NonMemberIcon sx={{ fontSize: 22, color: GUEST_TYPE_CONFIG.non_member.color }} />
-                        Non-Member (Standard Rate)
+                        {t('guestType.nonMemberOption')}
                       </Box>
                     </MenuItem>
                     <MenuItem value="member">
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
                         <MemberIcon sx={{ fontSize: 22, color: GUEST_DESIGN.gold }} />
-                        Member (Discounted Rate)
+                        {t('guestType.memberOption')}
                       </Box>
                     </MenuItem>
                   </TextField>
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <GuestDialogLabel>Discount Percentage</GuestDialogLabel>
+                  <GuestDialogLabel>{t('form.discountPercentage')}</GuestDialogLabel>
                   <TextField
                     fullWidth
                     type="number"
@@ -336,7 +336,7 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
                     onChange={(e) => updateField('discount_percentage', parseInt(e.target.value, 10) || 0)}
                     disabled={formData.guest_type !== 'member'}
                     sx={guestInputSx}
-                    helperText={formData.guest_type === 'member' ? 'Discount applied to room rates' : 'Only available for members'}
+                    helperText={formData.guest_type === 'member' ? t('form.discountMemberHelp') : t('form.discountNonMemberHelp')}
                     slotProps={{
                       input: {
                         endAdornment: <InputAdornment position="end">%</InputAdornment>,
@@ -352,12 +352,12 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
           <Grid size={12}>
             <GuestDialogSection
               icon={<PublicIcon />}
-              title="Tourism Classification"
+              title={t('form.tourismSection')}
               tint={formData.tourism_type === 'foreign' ? TOURISM_TYPE_CONFIG.foreign.color : GUEST_DESIGN.green700}
             >
               <Grid container spacing={2.2}>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <GuestDialogLabel>Tourism Type</GuestDialogLabel>
+                  <GuestDialogLabel>{t('form.tourismType')}</GuestDialogLabel>
                   <TextField
                     select
                     fullWidth
@@ -366,18 +366,18 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
                     sx={guestInputSx}
                   >
                     <MenuItem value="" disabled={!isEdit}>
-                      <Box sx={{ color: 'text.secondary' }}>{isEdit ? 'Not specified' : 'Select tourism type'}</Box>
+                      <Box sx={{ color: 'text.secondary' }}>{isEdit ? t('form.notSpecified') : t('form.selectTourism')}</Box>
                     </MenuItem>
                     <MenuItem value="local">
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
-                        <Chip label="Local" size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)', fontWeight: 700, height: 24 }} />
-                        {TOURISM_TYPE_CONFIG.local.taxLabel}
+                        <Chip label={t(TOURISM_TYPE_CONFIG.local.labelKey)} size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)', fontWeight: 700, height: 24 }} />
+                        {t(TOURISM_TYPE_CONFIG.local.taxLabelKey)}
                       </Box>
                     </MenuItem>
                     <MenuItem value="foreign">
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
-                        <Chip label="Foreign" size="small" sx={{ bgcolor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', border: '1px solid var(--hotel-warning-border)', fontWeight: 700, height: 24 }} />
-                        {TOURISM_TYPE_CONFIG.foreign.taxLabel}
+                        <Chip label={t(TOURISM_TYPE_CONFIG.foreign.labelKey)} size="small" sx={{ bgcolor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', border: '1px solid var(--hotel-warning-border)', fontWeight: 700, height: 24 }} />
+                        {t(TOURISM_TYPE_CONFIG.foreign.taxLabelKey)}
                       </Box>
                     </MenuItem>
                   </TextField>
@@ -413,7 +413,7 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
             '&:hover': { bgcolor: `color-mix(in srgb,  8%, transparent)`, borderColor: 'var(--hotel-primary)' },
           }}
         >
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           onClick={onSubmit}
@@ -499,9 +499,11 @@ const GuestCompanyField: React.FC<GuestCompanyFieldProps> = ({
   loading,
   onChange,
   onInputChange,
-}) => (
+}) => {
+  const { t } = useTranslation('guests');
+  return (
   <Grid size={{ xs: 12, md: 6 }}>
-    <GuestDialogLabel>Company Name</GuestDialogLabel>
+    <GuestDialogLabel>{t('form.companyName')}</GuestDialogLabel>
     <Autocomplete<Company, false, false, true>
       freeSolo
       selectOnFocus
@@ -516,7 +518,7 @@ const GuestCompanyField: React.FC<GuestCompanyFieldProps> = ({
       isOptionEqualToValue={(option, selectedValue) =>
         typeof selectedValue !== 'string' && option.id === selectedValue.id
       }
-      noOptionsText={inputValue.trim() ? 'No companies found' : 'No active companies'}
+      noOptionsText={inputValue.trim() ? t('form.noCompaniesMatch') : t('form.noCompanies')}
       renderOption={(props, option) => {
         const { key, ...otherProps } = props;
         return (
@@ -541,7 +543,7 @@ const GuestCompanyField: React.FC<GuestCompanyFieldProps> = ({
         <TextField
           {...params}
           fullWidth
-          placeholder="Company Name"
+          placeholder={t('form.companyName')}
           sx={guestInputSx}
           slotProps={{
             ...params.slotProps,
@@ -560,7 +562,8 @@ const GuestCompanyField: React.FC<GuestCompanyFieldProps> = ({
       )}
     />
   </Grid>
-);
+  );
+};
 
 const GuestDialogLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <Typography sx={{ mb: 0.7, color: 'text.primary', fontSize: 14.5, fontWeight: 500, lineHeight: 1.2 }}>

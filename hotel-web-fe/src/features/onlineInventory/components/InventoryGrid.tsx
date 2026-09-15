@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Box, Chip, Paper, Typography, alpha, useTheme } from '@mui/material';
 
+import { dateFormatter } from '../../../i18n/format';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { CellKey, GridCellView } from '../types';
 import type { InventoryRoomTypeRow } from '../hooks/useOnlineInventory';
 import { cellKey, parseCellKey } from '../utils';
 import { DAY_NUM, WEEKDAY_SHORT } from '../constants';
 import { GridCell } from './GridCell';
-
-const HEADER_DATE = new Intl.DateTimeFormat(undefined, {
-  month: 'long',
-  day: 'numeric',
-  year: 'numeric',
-});
 
 const asDate = (date: string) => new Date(`${date}T12:00:00`);
 
@@ -62,7 +58,11 @@ export const InventoryGrid = ({
   onClearSelection,
   formatPrice,
 }: InventoryGridProps) => {
+  const { t } = useTranslation('onlineInventory');
   const theme = useTheme();
+  const weekdayShort = dateFormatter({ weekday: 'short' });
+  const dayNum = dateFormatter({ day: 'numeric' });
+  const headerDate = dateFormatter({ month: 'long', day: 'numeric', year: 'numeric' });
   const roomTypeIds = roomTypes.map((room) => room.room_type_id);
 
   const cellRefs = useRef(new Map<CellKey, HTMLTableCellElement>());
@@ -160,7 +160,7 @@ export const InventoryGrid = ({
       <Box
         component="table"
         role="grid"
-        aria-label="Online inventory by room type and date"
+        aria-label={t('grid.aria')}
         aria-rowcount={roomTypes.length + 1}
         aria-colcount={dates.length + 1}
         sx={{
@@ -186,7 +186,7 @@ export const InventoryGrid = ({
               <Box
                 component="button"
                 type="button"
-                aria-label="Select all cells"
+                aria-label={t('grid.selectAll')}
                 onClick={onSelectAll}
                 sx={{
                   display: 'block',
@@ -205,7 +205,7 @@ export const InventoryGrid = ({
                   '&:focus-visible': { outline: `3px solid ${theme.palette.primary.dark}`, outlineOffset: -3 },
                 }}
               >
-                ROOM TYPE / DATE
+                {t('grid.colHeader')}
               </Box>
             </Box>
             {dates.map((date) => (
@@ -218,7 +218,7 @@ export const InventoryGrid = ({
                 <Box
                   component="button"
                   type="button"
-                  aria-label={`Select all on ${HEADER_DATE.format(asDate(date))}`}
+                  aria-label={t('grid.selectColumn', { date: headerDate.format(asDate(date)) })}
                   onClick={() => onSelectColumn(date)}
                   sx={{
                     display: 'block',
@@ -234,10 +234,10 @@ export const InventoryGrid = ({
                   }}
                 >
                   <Typography variant="caption" component="div" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                    {date === today ? 'Today' : WEEKDAY_SHORT.format(asDate(date))}
+                    {date === today ? t('grid.today') : weekdayShort.format(asDate(date))}
                   </Typography>
                   <Typography component="div" sx={{ fontWeight: 800, lineHeight: 1.1 }}>
-                    {DAY_NUM.format(asDate(date))}
+                    {dayNum.format(asDate(date))}
                   </Typography>
                 </Box>
               </Box>
@@ -266,7 +266,7 @@ export const InventoryGrid = ({
                 <Box
                   component="button"
                   type="button"
-                  aria-label={`Select row ${room.room_type_name}`}
+                  aria-label={t('grid.selectRow', { name: room.room_type_name })}
                   onClick={() => onSelectRow(room.room_type_id)}
                   sx={{
                     display: 'flex',

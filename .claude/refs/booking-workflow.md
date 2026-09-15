@@ -1,25 +1,56 @@
 # Booking Workflow (reference)
 
-Rewritten 2026-07-12 (13-agent scan, independent verifier confirmed). Line anchors
-re-verified by direct grep 2026-07-26 — verify again with
-`grep -n "fn <name>" hotel-app-be/src/repositories/bookings/lifecycle.rs` before
-relying on them; anchors rot as code moves.
+Rewritten 2026-09-15 against `origin/master` (`923c12bfd`). Every anchor below was
+produced by `grep -n "fn <name>" <file>` on that commit — re-verify before relying
+on one; anchors rot as code moves. The previous version of this file (2026-07-12,
+anchors "re-verified" 2026-07-26) had drifted on **every** anchor and placed two
+handlers in the wrong file, so treat any number here as a starting grep, not a fact.
 
-**Three-layer architecture** (this is the load-bearing fact — previous version of
-this doc described a two-layer handlers-only design that no longer exists):
-- `routes/bookings.rs` — RBAC gate (`require_permission_helper`) + thin dispatch to `handlers::bookings::*`.
-- `handlers/bookings.rs` (277 lines) — thin wrappers; most just destructure params and call `services::bookings` or `repositories::bookings` directly. No business logic.
-- `services/bookings.rs` (618 lines) — holds real logic for **`void_booking`** (line 139) and **`manual_checkin`** (line 241): permission/ownership checks beyond the route-level RBAC gate, then delegates into `repositories::bookings`. Other handlers bypass this layer and call `repositories::bookings` (re-exported as `booking_repo`) directly.
-- `repositories/bookings/lifecycle.rs` (3454 lines) — where almost all booking business logic actually lives: room locking, rate calculation, daily_rates rebuild, checkout accounting, city-ledger posting.
-- `repositories/bookings/{checkin_advisory,complimentary,credits}.rs` — split-out sub-areas (checkin advisories, complimentary stays, guest credits); not covered in detail here.
+**Four layers.** The load-bearing correction versus the old version: `services/`
+is no longer a two-function bypass layer — it has grown to 1024 lines and now owns
+the guest-cancel, unpaid-hold and reactivate flows as well.
 
-**Routes** (`hotel-app-be/src/routes/bookings.rs`) — gated by `bookings:<read|create|update|delete|manage>` per-route via `require_permission_helper` (e.g. `delete_booking` requires `bookings:delete`, `void_booking`/`manual_checkin` require `bookings:update`); code lookups (`/rate-codes`, `/market-codes`) are auth-only/public. Guests reach their own bookings only through the guest portal (`/guest-portal/me/bookings`, `routes/guest_portal.rs`) — the legacy `/bookings/my-bookings` endpoints were removed 2026-07-27. Lifecycle status: `pending` → `confirmed` → `checked_in`/`auto_checked_in` → `checked_out`/`completed`; off-paths `voided`, `late_checkout`.
+- `routes/bookings.rs` — RBAC gate (`require_permission_helper`) + thin dispatch into `handlers::bookings::*`. 26 routes.
+- `handlers/bookings.rs` (262 lines) — thin wrappers. **`delete_booking_handler` (:86) and `manual_checkin_handler` (:119) live HERE**, not in `lifecycle.rs` as the previous version of this doc claimed.
+- `services/bookings.rs` (1024 lines) — `can_book_with_credits_for_guest` (:37), `cancel_pending_booking_by_guest` (:88), `release_pending_payment_booking` (:183), `release_stale_unpaid_holds` (:376, driven by `services/unpaid_hold_scheduler.rs`), `void_booking` (:428), `manual_checkin` (:535), `checkin_booking_flow` (:574), `reactivate_booking` (:810). These do permission/ownership checks beyond the route gate, then delegate to the repository.
+- `repositories/bookings/lifecycle.rs` (3366 lines) — where most booking logic actually lives.
+- `repositories/bookings/{checkin_advisory,complimentary,credits}.rs` — split-out sub-areas.
+
+**Status vocabulary** — the baseline `bookings_status_check` CHECK allows exactly:
+`pending`, `pending_payment`, `pending_confirmation`, `confirmed`, `checked_in`,
+`auto_checked_in`, `checked_out`, `no_show`, `completed`, `comp_void`,
+`partial_complimentary`, `fully_complimentary`, `voided`. No patch alters it.
+
+> **`late_checkout` is NOT a legal booking status** — it is absent from the CHECK
+> constraint, yet three code paths still test for it (`lifecycle.rs:168`,
+> `lifecycle.rs:1456`, `repositories/analytics.rs:1305`). Those branches can never
+> match. The previous version of this doc listed it as a real off-path status.
+> Don't build on it; removing it is a behavior decision, not a cleanup.
+
+**Routes** (`hotel-app-be/src/routes/bookings.rs`) — per-route
+`bookings:<read|create|update|delete|manage>` via `require_permission_helper`;
+code lookups (`/rate-codes`, `/market-codes`) are auth-only. Guests reach their own
+bookings only through the guest portal (`/guest-portal/me/bookings`,
+`routes/guest_portal.rs`); the legacy `/bookings/my-bookings` endpoints were
+removed 2026-07-27.
 
 Key logic in `repositories/bookings/lifecycle.rs`:
 
-- **`create_booking_handler`** (lifecycle.rs:900) — opens a tx, locks the room with `SELECT … FOR UPDATE OF r`, checks for overlapping active bookings (`reserved`, `confirmed`, `checked_in`, `auto_checked_in`, `pending`, excluding `voided`), computes `is_tourist`/tourism tax from the guest (not trusted from the request; computed at lifecycle.rs:998 and bound into the INSERT at lifecycle.rs:1095 — the "unused post-computation" note from the 2026-07-12 version no longer holds), computes `subtotal` from `daily_rates` if present otherwise `room_rate × nights`, inserts with status `'confirmed'` (hardcoded in the INSERT), sets the room `reserved`/`reserved_dirty` (dirty/cleaning rooms get the `_dirty` suffix), and optionally records a deposit `payment` row via `record_checkin_payment_tx` inside the same tx before committing.
-- **`update_booking_handler`** (lifecycle.rs:1239) — RBAC + room/date conflict re-check; when dates change and no explicit `daily_rates` payload is supplied, **rebuilds `daily_rates`** (lifecycle.rs:1410) to span the new `[check_in, check_out)` range, preserving existing per-night values keyed by date and filling new nights with the booking's `room_rate` (without this, shrinking leaves orphan keys → over-charge; extending leaves missing keys → under-charge). Before a `checked_out`/`completed` transition, **`ensure_checkout_balance_resolved`** (lifecycle.rs:726) blocks checkout with balance due unless the booking is company-billed. On the transition itself: marks room `dirty`, generates an invoice via `services::payments::ensure_invoice_for_booking` (best-effort — failure is logged, not fatal), and if company-billed calls **`auto_post_company_ledger`**. Also **syncs existing `customer_ledgers.amount` by delta** (lifecycle.rs:1834) when the booking total changes on a non-checkout edit (preserves user-added extras; only touches `pending`/`partial` `room_charge` rows, skips paid/void).
-- **`manual_checkin_handler`** (lifecycle.rs:2096) — called via `services::bookings::manual_checkin` (services/bookings.rs:241), which does its own permission check (`bookings:update`/`bookings:manage`, OR the booking's creator) before delegating to `checkin_booking_flow_for_booking`. Sets `checked_in` + `actual_check_in`, records optional deposit/payment, sets room `occupied`.
-- **`delete_booking_handler`** (lifecycle.rs:1932) — called via `services::bookings::void_booking` (services/bookings.rs:139), which checks `bookings:update`/`bookings:delete`/`bookings:manage` OR booking ownership. Soft-void inside a tx: status → `voided` (`void_booking_tx`), frees the room (`release_room_tx`), cancels linked payments (`void_booking_payments_tx`, so they don't appear in night audit), and refunds complimentary nights into `guest_complimentary_credits` (`restore_complimentary_credits_tx`).
+- **`create_booking_handler`** (:1003) — opens a tx, locks the room with `SELECT … FOR UPDATE OF r` (:1035), checks overlapping active bookings, then computes `is_tourist`/tourism tax from the guest via the shared helper **`canonical_tourism_tax_for_guest`** (:237, called at :1098) rather than trusting the request. Subtotal comes from `daily_rates` when supplied, else `room_rate × nights` (:1112). Inserts with status `'confirmed'` hardcoded, sets the room `reserved`/`reserved_dirty` (dirty/cleaning rooms take the `_dirty` suffix), and optionally records a deposit `payment` row inside the same tx before committing.
+- **`update_booking_handler`** (:1358) — RBAC + room/date conflict re-check; when dates change with no explicit `daily_rates` payload it **rebuilds `daily_rates`** (:1529) across the new `[check_in, check_out)` range, preserving existing per-night values by date and filling new nights at `room_rate` (without this, shrinking leaves orphan keys → over-charge; extending leaves missing keys → under-charge). Before a `checked_out`/`completed` transition **`ensure_checkout_balance_resolved`** (:824) blocks checkout with a balance due unless the booking is company-billed. On the transition: room → `dirty`, invoice via `services::payments::ensure_invoice_for_booking` (best-effort — failure logged, not fatal), and if company-billed **`auto_post_company_ledger`** (:549). A non-checkout edit that changes the total **syncs `customer_ledgers.amount` by delta** (:1649) — only `pending`/`partial` `room_charge` rows, preserving user-added extras.
+- **`manual_checkin_handler`** — in `handlers/bookings.rs:119`; calls `services::bookings::manual_checkin` (:535), which permission-checks (`bookings:update`/`bookings:manage`, or the booking's creator) and delegates to `checkin_booking_flow_for_booking`. Sets `checked_in` + `actual_check_in`, records optional deposit/payment, sets room `occupied`.
+- **`delete_booking_handler`** — in `handlers/bookings.rs:86`; calls `services::bookings::void_booking` (:428), which checks `bookings:update`/`bookings:delete`/`bookings:manage` or ownership. Soft-void in a tx: status → `voided` (`void_booking_tx`, :2343), frees the room (`release_room_tx`, :2415), cancels linked payments (`void_booking_payments_tx`, :2427) so they stay out of night audit, **voids open unpaid linked ledger rows** (`void_booking_ledgers_tx`, :2459 — rows with `paid_amount > 0` are deliberately left open for reconciliation), and restores complimentary nights (`restore_complimentary_credits_tx`, :2528).
+- **`reactivate_booking_handler`** (:2172) — via `services::bookings::reactivate_booking` (:810).
 
-**Frontend**: `hotel-web-fe/src/api/bookings.service.ts` (`BookingsService`) wraps the endpoints; `features/bookings/hooks/useBookings.ts` composes TanStack Query hooks from `useBookingQueries.ts` (`useBookingsPage` uses `placeholderData: keepPreviousData` — this replaced the older manual request-id-guard pattern) with debounced text inputs (700ms via `useDebouncedValue`); `features/bookings/components/Bookings/BookingsPage.tsx` (2703 lines) orchestrates UI, delegating state to `features/bookings/hooks/useBookingsPageState.ts` (`handleConfirmCheckout` at line 249 just sends `updateBooking({status:'checked_out'})` — the backend handles invoice creation and company-ledger auto-post). `features/invoices/hooks/useCheckoutFlow.ts` is a shared checkout flow also used by `CustomerLedgerPage`.
+**Frontend**: `src/api/bookings.service.ts` (`BookingsService`) wraps the endpoints;
+`features/bookings/hooks/` holds `useBookings.ts`, `useBookingQueries.ts`
+(`useBookingsPage` uses `placeholderData: keepPreviousData`), `useBookingActions.ts`,
+`useCheckInFormData.ts`, `useEnhancedCheckInModalState.ts`.
+**`useBookingsPageState.ts` no longer exists** — the previous version of this doc
+pointed `handleConfirmCheckout` at it; that function now lives in
+`features/invoices/components/CheckoutInvoiceModal.tsx:510`.
+`features/bookings/components/Bookings/BookingsPage.tsx` is now **488 lines** (was
+2703 before the split) and renders `BookingDetailDrawer` (:471) for row clicks.
+`features/invoices/hooks/useCheckoutFlow.ts` is the shared checkout flow, also used
+by `CustomerLedgerPage`; `useDepositResolution.ts` alongside it owns the
+deposit-refund/forfeit resolution shipped with patch `1.2 deposit-forfeited`.

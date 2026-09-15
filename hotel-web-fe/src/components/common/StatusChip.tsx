@@ -1,6 +1,7 @@
 import React from 'react';
 import { Chip } from '@mui/material';
 import type { ChipProps } from '@mui/material';
+import { useTranslation, statusLabel } from '../../i18n';
 import { formatStatusLabel } from '../../utils/formatters';
 
 export type StatusTone =
@@ -73,6 +74,13 @@ export const statusTone = (status: string | null | undefined): StatusTone =>
 export interface StatusChipProps extends Omit<ChipProps, 'color' | 'label'> {
   /** Raw API status, e.g. `pending_payment`. */
   status: string | null | undefined;
+  /**
+   * `status.json` domain (e.g. `'booking'`, `'room'`) — when set the label
+   * resolves through `statusLabel()` and follows the active locale. Without
+   * it the label falls back to the English humanizer (`formatStatusLabel`);
+   * callers in translated surfaces should always pass their domain.
+   */
+  domain?: string;
   /** Override the humanized label. */
   label?: React.ReactNode;
   /** Override the auto-mapped tone. */
@@ -81,6 +89,7 @@ export interface StatusChipProps extends Omit<ChipProps, 'color' | 'label'> {
 
 const StatusChip: React.FC<StatusChipProps> = ({
   status,
+  domain,
   label,
   tone,
   size = 'small',
@@ -88,12 +97,13 @@ const StatusChip: React.FC<StatusChipProps> = ({
   sx,
   ...chipProps
 }) => {
+  const { t } = useTranslation('common');
   const resolved = tone ?? statusTone(status);
   return (
     <Chip
       size={size}
       variant={variant}
-      label={label ?? formatStatusLabel(status)}
+      label={label ?? (domain ? statusLabel(t, domain, status) : formatStatusLabel(status))}
       color={resolved === 'neutral' ? 'default' : resolved}
       sx={[{ fontWeight: 700 }, ...(Array.isArray(sx) ? sx : sx ? [sx] : [])]}
       {...chipProps}

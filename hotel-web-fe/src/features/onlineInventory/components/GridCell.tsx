@@ -2,22 +2,33 @@ import { memo } from 'react';
 import { Box, Typography, alpha, useTheme } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
+import { dateFormatter } from '../../../i18n/format';
+import { t } from '../../../i18n/translate';
 import type { CellKey, GridCellView } from '../types';
-import { FULL_DATE } from '../constants';
 
 export const cellDomId = (key: CellKey) => `inv-cell-${key.replace(':', '-')}`;
 
 export const cellAriaLabel = (view: GridCellView, formatPrice: (v: string) => string): string => {
-  const date = FULL_DATE.format(new Date(`${view.stay_date}T12:00:00`));
+  const date = dateFormatter({
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(`${view.stay_date}T12:00:00`));
   const parts = [
     `${view.room_type_name}, ${date}: `,
     view.current.online_booking_enabled
-      ? `${view.online_available} online at ${formatPrice(view.effective_price)}`
-      : 'closed to online booking',
+      ? t('cell.ariaOnline', {
+          count: view.online_available,
+          price: formatPrice(view.effective_price),
+        }, 'onlineInventory')
+      : t('cell.ariaClosed', undefined, 'onlineInventory'),
   ];
-  if (view.current.online_booking_enabled && view.online_available === 0) parts.push(', none left');
-  if (view.changed) parts.push(', modified');
-  if (view.is_reset) parts.push(', reset pending');
+  if (view.current.online_booking_enabled && view.online_available === 0) {
+    parts.push(t('cell.ariaNoneLeft', undefined, 'onlineInventory'));
+  }
+  if (view.changed) parts.push(t('cell.ariaModified', undefined, 'onlineInventory'));
+  if (view.is_reset) parts.push(t('cell.ariaResetPending', undefined, 'onlineInventory'));
   return parts.join('');
 };
 
@@ -102,7 +113,7 @@ const GridCellInner = ({
         <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
           <LockOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} aria-hidden />
           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-            Closed
+            {t('cell.closed', undefined, 'onlineInventory')}
           </Typography>
         </Box>
       ) : (
@@ -141,7 +152,7 @@ const GridCellInner = ({
           component="div"
           sx={{ lineHeight: 1, color: 'warning.dark', fontWeight: 700 }}
         >
-          None left
+          {t('cell.noneLeft', undefined, 'onlineInventory')}
         </Typography>
       )}
       {(view.changed || view.is_override) && (

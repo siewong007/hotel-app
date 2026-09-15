@@ -4,8 +4,10 @@
  */
 import { useState, useCallback } from 'react';
 import { emitApiNotification } from '../../../utils/apiNotifications';
+import { useTranslation } from '../../../i18n';
 
 export function useEnhancedCheckInModalState() {
+  const { t } = useTranslation('bookings');
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,12 +57,12 @@ export function useEnhancedCheckInModalState() {
   }, [validationErrors]);
 
   const handleCheckIn = useCallback(async () => {
-    emitApiNotification({ message: 'Check-in processing...', severity: 'info' });
-  }, []);
+    emitApiNotification({ message: t('enhancedCheckIn.notices.checkInProcessing'), severity: 'info' });
+  }, [t]);
 
   const handleRegisterNewCompany = useCallback(async () => {
-    emitApiNotification({ message: 'Company registration processing...', severity: 'info' });
-  }, []);
+    emitApiNotification({ message: t('enhancedCheckIn.notices.companyProcessing'), severity: 'info' });
+  }, [t]);
 
   return {
     activeTab, setActiveTab, loading, setLoading, error, setError,

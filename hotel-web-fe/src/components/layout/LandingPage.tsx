@@ -1,8 +1,10 @@
 import { useEffect, type FC } from 'react';
 import { useAuth } from '../../auth/AuthContext';
+import { useTranslation } from '../../i18n';
 
 const LandingPage: FC = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { t } = useTranslation('common');
   const account = isAuthenticated
     ? user?.user_type === 'guest' ? 'guest' : 'admin'
     : undefined;
@@ -16,7 +18,7 @@ const LandingPage: FC = () => {
     window.location.replace(landingUrl);
   }, [isLoading, landingUrl]);
 
-  return isLoading ? <div aria-label="Loading index page" /> : null;
+  return isLoading ? <div aria-label={t('aria.loadingPage')} /> : null;
 };
 
 export default LandingPage;

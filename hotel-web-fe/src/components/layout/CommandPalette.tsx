@@ -39,7 +39,7 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
   const { hasPermission, hasRole, getRoutePolicy, user } = useAuth();
   const isGuest = hasRole('guest') || user?.user_type === 'guest';
   const { navLabel: navLabelFor } = useRouteLabels();
-  const { t: tNav } = useTranslation('nav');
+  const { t: tNav, tOr } = useTranslation('nav');
   const helpArticles = useHelpArticles();
   const visibleItems = React.useMemo(
     () =>
@@ -162,7 +162,7 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
     if (!isGuest && !term && recents.length > 0 && scope === 'all') {
       out.push({
         key: 'recents',
-        label: 'Recent',
+        label: tNav('palette.groups.recent'),
         items: recents.map((r, i) => ({
           key: `recent-${i}`,
           title: r.title,
@@ -174,20 +174,22 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
     }
 
     if (showClient && bookingsRoute) {
+      const newBookingLabel = tNav('mobile.newBooking');
       const m =
         !lowTerm ||
         'new booking'.includes(lowTerm) ||
         'booking'.includes(lowTerm) ||
-        'create'.includes(lowTerm);
+        'create'.includes(lowTerm) ||
+        newBookingLabel.toLowerCase().includes(lowTerm);
       if (m) {
         out.push({
           key: 'actions',
-          label: 'Actions',
+          label: tNav('palette.groups.actions'),
           items: [
             {
               key: 'act-new-booking',
-              title: 'New booking',
-              subtitle: 'Create a reservation',
+              title: newBookingLabel,
+              subtitle: tNav('palette.newBookingHint'),
               icon: <AddIcon sx={{ fontSize: 16 }} />,
               route: '/bookings?create=1',
             },
@@ -199,7 +201,9 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
     serverGroups.forEach((g) => {
       out.push({
         key: g.type,
-        label: g.label,
+        // Localized header for the known types; the server's English label is
+        // the fallback for any type the bundle doesn't map.
+        label: tOr(`palette.scopes.${g.type}`, g.label),
         items: g.results.map((h) => ({
           key: `${g.type}-${h.id}`,
           title: h.title,
@@ -228,7 +232,7 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
           icon: renderNavIcon(item, 16) || dot,
           route: item.path,
         }));
-      if (pages.length) out.push({ key: 'pages', label: 'Pages', items: pages });
+      if (pages.length) out.push({ key: 'pages', label: tNav('palette.groups.pages'), items: pages });
     }
 
     // Help articles are client-side: the same weighted search that powers the
@@ -242,11 +246,11 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
         icon: <HelpOutlineIcon sx={{ fontSize: 16 }} />,
         route: `/help/${hit.article.slug}`,
       }));
-      if (helpItems.length) out.push({ key: 'help', label: 'Help', items: helpItems });
+      if (helpItems.length) out.push({ key: 'help', label: tNav('palette.groups.help'), items: helpItems });
     }
 
     return out;
-  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon, isGuest, navLabelFor, helpArticles]);
+  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon, isGuest, navLabelFor, helpArticles, tNav, tOr]);
 
   const flatItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
@@ -310,7 +314,7 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
             value={cmdQuery}
             onChange={(e) => setCmdQuery(e.target.value)}
             onKeyDown={onPaletteKeyDown}
-            placeholder={isGuest ? 'Search pages…' : 'Search bookings, guests, rooms, pages…'}
+            placeholder={isGuest ? tNav('palette.placeholderGuest') : tNav('palette.placeholder')}
             sx={{ flex: 1, fontSize: '0.9rem' }}
           />
           {serverLoading && <CircularProgress size={14} />}
@@ -322,14 +326,8 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
         {!isGuest && (
           <Box sx={{ display: 'flex', gap: 0.75, px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', flexWrap: 'wrap' }}>
             {([
-              ['all', 'All'],
-              ['bookings', 'Bookings'],
-              ['guests', 'Guests'],
-              ['ledgers', 'Ledger'],
-              ['rooms', 'Rooms'],
-              ['pages', 'Pages'],
-              ['help', 'Help'],
-            ] as const).map(([k, lb]) => {
+              'all', 'bookings', 'guests', 'ledgers', 'rooms', 'pages', 'help',
+            ] as const).map((k) => {
               const on = scope === k;
               return (
                 <Box
@@ -344,7 +342,7 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
                     bgcolor: on ? 'text.primary' : 'transparent',
                   }}
                 >
-                  {lb}
+                  {tNav(`palette.scopes.${k}`)}
                 </Box>
               );
             })}
@@ -358,7 +356,7 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
         >
           {flatItems.length === 0 && (
             <Box sx={{ px: 2, py: 4, textAlign: 'center', color: 'text.secondary', fontSize: '0.85rem' }}>
-              {term.length >= 2 ? 'No matches' : serverLoading ? 'Searching…' : 'Type at least 2 characters, or browse below'}
+              {term.length >= 2 ? tNav('palette.noMatches') : serverLoading ? tNav('common:state.searching') : tNav('palette.hint')}
             </Box>
           )}
           {(() => {

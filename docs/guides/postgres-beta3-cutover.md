@@ -6,7 +6,17 @@ directory has to be rebuilt.
 
 Derived from `deploy/deploy.sh`, `deploy/docker-compose.prod.yml` and
 `deploy/database-backup.sh` at commit `a1fd38e1`, plus the failure log of deploy run
-`32585519355`. Commands assume the Lightsail host as `ubuntu` with `sudo`.
+`32585519355`. Commands assume the **Lightsail** host as `ubuntu` with `sudo`.
+
+> ⚠️ **Host changed after this run — adapt before reusing (audit 2026-09-15).**
+> This runbook executed on 2026-09-04; production migrated to the AIC VPS on
+> 2026-09-05. Every command below is written for the retired Lightsail box. On the
+> current host the SSH target is `root@162.19.81.122 -p 20049`, and **`docker` takes
+> no `sudo` prefix** because that account is already root — so `sudo docker volume rm
+> …` will not run as written. Read
+> [`vps-access.md`](vps-access.md) first and translate the commands. The *procedure*
+> (dump → verify → tarball → drop volume → restore) is still the correct drill for
+> the next engine bump; only the host, user and privilege model differ.
 
 **Status:** completed 2026-09-04. Production now runs 19beta3; the restore matched the
 baseline on all 108 tables and every sequence, and deploys are unblocked. Actual downtime

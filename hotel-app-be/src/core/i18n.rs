@@ -35,7 +35,7 @@ pub const DEFAULT_LOCALE: &str = "en";
 /// Must stay in step with the web client's `src/i18n/locales.ts` registry and
 /// with the `consent_records.locale` check constraint — a locale offered in
 /// the switcher but rejected on write would fail a guest's consent submission.
-pub const SUPPORTED_LOCALES: &[&str] = &["en", "ms"];
+pub const SUPPORTED_LOCALES: &[&str] = &["en", "ms", "zh"];
 
 /// `system_settings` key holding the hotel's preferred default language.
 ///
@@ -151,18 +151,38 @@ impl Locale {
 
     /// Render a calendar date in this language, as `26 Jul 2026`.
     ///
-    /// Month abbreviations come from the catalog rather than from chrono's
-    /// `%b`, which is English-only: four of the twelve Malay abbreviations
-    /// differ (Mac, Mei, Ogo, Okt, Dis), and a guest reading a Malay
-    /// confirmation should not find English months inside it.
+    /// Field order and padding come from the catalog's `email.date.pattern`
+    /// entry — Chinese renders `2026年8月5日` where English and Malay lead
+    /// with the day — with a day-first fallback when the key is absent. The
+    /// pattern interpolates `{{day}}` (2-digit), `{{day_num}}` (unpadded),
+    /// `{{month}}`, and `{{year}}`.
+    ///
+    /// Month names come from the catalog rather than from chrono's `%b`,
+    /// which is English-only: four of the twelve Malay abbreviations differ
+    /// (Mac, Mei, Ogo, Okt, Dis), and a guest reading a Malay confirmation
+    /// should not find English months inside it.
     pub fn format_date(&self, date: chrono::NaiveDate) -> String {
         use chrono::Datelike;
         let month_key = format!("email.months.{:02}", date.month());
-        format!(
-            "{:02} {} {}",
-            date.day(),
-            self.message(&month_key),
-            date.year()
+        let pattern = self.message("email.date.pattern");
+        // A catalog without the key still renders the day-first shape
+        // rather than the literal key.
+        let pattern = if pattern == "email.date.pattern" {
+            "{{day}} {{month}} {{year}}"
+        } else {
+            pattern
+        };
+        let day = format!("{:02}", date.day());
+        let day_num = date.day().to_string();
+        let year = date.year().to_string();
+        interpolate(
+            pattern,
+            &[
+                ("day", day.as_str()),
+                ("day_num", day_num.as_str()),
+                ("month", self.message(&month_key)),
+                ("year", year.as_str()),
+            ],
         )
     }
 
@@ -193,10 +213,12 @@ static CATALOGS: OnceLock<HashMap<&'static str, Catalog>> = OnceLock::new();
 
 const EN_SOURCE: &str = include_str!("locales/en.json");
 const MS_SOURCE: &str = include_str!("locales/ms.json");
+const ZH_SOURCE: &str = include_str!("locales/zh.json");
 
 fn source_for(locale: &str) -> &'static str {
     match locale {
         "ms" => MS_SOURCE,
+        "zh" => ZH_SOURCE,
         _ => EN_SOURCE,
     }
 }
@@ -290,6 +312,7 @@ mod tests {
         assert_eq!(Locale::parse("ms-MY").map(|l| l.as_str()), Some("ms"));
         assert_eq!(Locale::parse("en_US").map(|l| l.as_str()), Some("en"));
         assert_eq!(Locale::parse("  MS-my  ").map(|l| l.as_str()), Some("ms"));
+        assert_eq!(Locale::parse("zh-CN").map(|l| l.as_str()), Some("zh"));
     }
 
     #[test]
@@ -419,7 +442,14 @@ mod tests {
                 let Some(source) = english.get(key) else {
                     continue;
                 };
-                let allowed = placeholders(source);
+                let mut allowed = placeholders(source);
+                // `format_date` offers `email.date.pattern` a wider contract
+                // than the English value can show: `{{day_num}}` (the
+                // unpadded day) exists for languages like Chinese that write
+                // `5日`, which the English `05 Aug 2026` shape never uses.
+                if key == "email.date.pattern" {
+                    allowed.push("day_num".to_string());
+                }
                 for used in placeholders(value) {
                     assert!(
                         allowed.contains(&used),
@@ -497,6 +527,10 @@ mod tests {
         assert_eq!(Locale::default_locale().format_date(date), "05 Aug 2026");
         let malay = Locale::parse("ms").expect("ms is supported");
         assert_eq!(malay.format_date(date), "05 Ogo 2026");
+        let chinese = Locale::parse("zh").expect("zh is supported");
+        // The catalog pattern reorders the fields: Chinese dates lead with
+        // the year and never zero-pad the day.
+        assert_eq!(chinese.format_date(date), "2026年8月5日");
     }
 
     #[test]

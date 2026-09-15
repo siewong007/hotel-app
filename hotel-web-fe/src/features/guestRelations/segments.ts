@@ -140,21 +140,25 @@ export const getGuestRelationsSegmentCounts = ({
   inactive,
 });
 
+/**
+ * `labelKey` resolves under the `guests` namespace — callers translate with
+ * `useTranslation('guests')` so chips follow the active locale.
+ */
 export const GUEST_RELATIONS_SEGMENTS: ReadonlyArray<{
   key: GuestRelationsSegment;
-  label: string;
+  labelKey: string;
 }> = [
-  { key: 'all', label: 'All guests' },
-  { key: 'member', label: 'Members' },
-  { key: 'non', label: 'Non-members' },
-  { key: 'tourist', label: 'Tourists' },
-  { key: 'incomplete', label: 'Missing info' },
-  { key: 'missingTourism', label: 'Missing tourism' },
-  { key: 'vip', label: 'VIP' },
-  { key: 'blacklisted', label: 'Blacklisted' },
-  { key: 'openRequests', label: 'Open requests' },
-  { key: 'returning', label: 'Returning' },
-  { key: 'inHouse', label: 'In house' },
-  { key: 'upcoming', label: 'Upcoming' },
-  { key: 'inactive', label: 'Inactive' },
+  { key: 'all', labelKey: 'segments.all' },
+  { key: 'member', labelKey: 'segments.member' },
+  { key: 'non', labelKey: 'segments.non' },
+  { key: 'tourist', labelKey: 'segments.tourist' },
+  { key: 'incomplete', labelKey: 'segments.incomplete' },
+  { key: 'missingTourism', labelKey: 'segments.missingTourism' },
+  { key: 'vip', labelKey: 'segments.vip' },
+  { key: 'blacklisted', labelKey: 'segments.blacklisted' },
+  { key: 'openRequests', labelKey: 'segments.openRequests' },
+  { key: 'returning', labelKey: 'segments.returning' },
+  { key: 'inHouse', labelKey: 'segments.inHouse' },
+  { key: 'upcoming', labelKey: 'segments.upcoming' },
+  { key: 'inactive', labelKey: 'segments.inactive' },
 ];

@@ -35,7 +35,8 @@ import { useMemo, useState } from 'react';
 import EmptyState from '../../../components/common/EmptyState';
 import StatusChip from '../../../components/common/StatusChip';
 import { formatHotelDate, formatHotelDateTime, toHotelDateString } from '../../../utils/date';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type {
   HousekeepingBoardRoom,
   HousekeepingPriority,
@@ -49,21 +50,11 @@ import {
   PRIORITIES,
   PRIORITY_META,
   TASK_TYPES,
-  taskTypeLabel,
 } from '../housekeepingConfig';
 import { useHousekeepingTasks } from '../hooks/useHousekeepingQueries';
 import type { HousekeepingActionContext, HousekeepingActionHandlers } from './RoomTaskCard';
 
 export type TaskQuickFilter = 'open' | 'mine' | 'unassigned' | 'today' | 'completed' | 'all';
-
-const QUICK_FILTERS: { key: TaskQuickFilter; label: string }[] = [
-  { key: 'open', label: 'Open' },
-  { key: 'mine', label: 'Assigned to me' },
-  { key: 'unassigned', label: 'Unassigned' },
-  { key: 'today', label: 'Due today' },
-  { key: 'completed', label: 'Completed' },
-  { key: 'all', label: 'All tasks' },
-];
 
 const buildQuery = (quick: TaskQuickFilter, currentUserId?: number): ListHousekeepingTasksQuery => {
   const base: ListHousekeepingTasksQuery = { page_size: 200 };
@@ -99,6 +90,7 @@ function TaskActions({
   actions: HousekeepingActionHandlers;
   ctx: HousekeepingActionContext;
 }) {
+  const { t } = useTranslation('housekeeping');
   const busy = ctx.busyTaskId === task.id;
   if (!ctx.canUpdate) return null;
   return (
@@ -109,10 +101,10 @@ function TaskActions({
           variant="contained"
           startIcon={<PlayArrowIcon />}
           disabled={busy}
-          aria-label={`Start ${taskTypeLabel(task.task_type)} on room ${task.room_number}`}
+          aria-label={t('card.startAria', { type: statusLabel(t, 'task_type', task.task_type), room: task.room_number })}
           onClick={() => actions.onStartTask(task)}
         >
-          Start
+          {t('card.start')}
         </Button>
       ) : null}
       {task.status === 'in_progress' ? (
@@ -122,10 +114,10 @@ function TaskActions({
           color="success"
           startIcon={<CheckCircleIcon />}
           disabled={busy}
-          aria-label={`Complete ${taskTypeLabel(task.task_type)} on room ${task.room_number}`}
+          aria-label={t('card.completeAria', { type: statusLabel(t, 'task_type', task.task_type), room: task.room_number })}
           onClick={() => actions.onCompleteTask(task)}
         >
-          Complete
+          {t('card.complete')}
         </Button>
       ) : null}
       {!task.assigned_to && ctx.currentUserId ? (
@@ -134,28 +126,28 @@ function TaskActions({
           variant="outlined"
           startIcon={<AssignmentIndIcon />}
           disabled={busy}
-          aria-label={`Assign room ${task.room_number} task to me`}
+          aria-label={t('card.assignAria', { room: task.room_number })}
           onClick={() => actions.onAssignMe(task)}
         >
-          Assign me
+          {t('card.assignMe')}
         </Button>
       ) : null}
       {task.status !== 'completed' && task.status !== 'void' ? (
         <>
-          <Tooltip title="Edit task">
+          <Tooltip title={t('tasks.editTask')}>
             <IconButton
               size="small"
-              aria-label={`Edit task for room ${task.room_number}`}
+              aria-label={t('tasks.editTaskAria', { room: task.room_number })}
               disabled={busy}
               onClick={() => actions.onEditTask(task)}
             >
               <EditIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Void task">
+          <Tooltip title={t('tasks.voidTask')}>
             <IconButton
               size="small"
-              aria-label={`Void task for room ${task.room_number}`}
+              aria-label={t('tasks.voidTaskAria', { room: task.room_number })}
               disabled={busy}
               onClick={() => actions.onVoidTask(task)}
             >
@@ -169,27 +161,38 @@ function TaskActions({
 }
 
 function TaskChips({ task }: { task: HousekeepingTask }) {
+  const { t } = useTranslation('housekeeping');
   const overdue = isTaskOverdue(task);
   return (
     <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap' }}>
-      <Chip size="small" variant="outlined" label={taskTypeLabel(task.task_type)} />
+      <Chip size="small" variant="outlined" label={statusLabel(t, 'task_type', task.task_type)} />
       <StatusChip
         status={task.priority}
-        label={formatStatusLabel(task.priority)}
+        domain="priority"
         tone={PRIORITY_META[task.priority as HousekeepingPriority]?.tone ?? 'neutral'}
       />
-      <StatusChip status={task.status} />
-      {overdue ? <Chip size="small" color="error" label="Overdue" /> : null}
+      <StatusChip status={task.status} domain="housekeeping" />
+      {overdue ? <Chip size="small" color="error" label={t('tasks.overdue')} /> : null}
     </Stack>
   );
 }
 
 export default function TasksView({ roomById, actions, quick, onQuickChange, ...ctx }: TasksViewProps) {
+  const { t } = useTranslation('housekeeping');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [search, setSearch] = useState('');
   const [priority, setPriority] = useState('all');
   const [taskType, setTaskType] = useState('all');
+
+  const QUICK_FILTERS: { key: TaskQuickFilter; label: string }[] = [
+    { key: 'open', label: t('tasks.quickOpen') },
+    { key: 'mine', label: t('tasks.quickMine') },
+    { key: 'unassigned', label: t('tasks.quickUnassigned') },
+    { key: 'today', label: t('tasks.quickToday') },
+    { key: 'completed', label: t('tasks.quickCompleted') },
+    { key: 'all', label: t('tasks.quickAll') },
+  ];
 
   const queryParams = useMemo(() => buildQuery(quick, ctx.currentUserId), [quick, ctx.currentUserId]);
   const tasksQuery = useHousekeepingTasks(queryParams);
@@ -200,7 +203,7 @@ export default function TasksView({ roomById, actions, quick, onQuickChange, ...
     const needle = search.trim().toLowerCase();
     if (needle) {
       items = items.filter((task) =>
-        `${task.room_number} ${task.room_type} ${task.assigned_to_name ?? ''} ${taskTypeLabel(task.task_type)}`
+        `${task.room_number} ${task.room_type} ${task.assigned_to_name ?? ''} ${statusLabel(t, 'task_type', task.task_type)}`
           .toLowerCase()
           .includes(needle),
       );
@@ -208,7 +211,7 @@ export default function TasksView({ roomById, actions, quick, onQuickChange, ...
     if (priority !== 'all') items = items.filter((task) => task.priority === priority);
     if (taskType !== 'all') items = items.filter((task) => task.task_type === taskType);
     return items;
-  }, [tasksQuery.data, quick, search, priority, taskType]);
+  }, [tasksQuery.data, quick, search, priority, taskType, t]);
 
   const viewRoom = (task: HousekeepingTask) => {
     const room = roomById.get(task.room_id);
@@ -236,11 +239,11 @@ export default function TasksView({ roomById, actions, quick, onQuickChange, ...
       <Stack direction="row" spacing={1.25} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
           size="small"
-          placeholder="Search room or assignee…"
+          placeholder={t('tasks.searchPlaceholder')}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           slotProps={{
-            htmlInput: { 'aria-label': 'Search tasks' },
+            htmlInput: { 'aria-label': t('tasks.searchAria') },
             input: {
               startAdornment: (
                 <InputAdornment position="start">
@@ -252,45 +255,45 @@ export default function TasksView({ roomById, actions, quick, onQuickChange, ...
           sx={{ minWidth: { xs: '100%', sm: 200 } }}
         />
         <FormControl size="small" sx={{ minWidth: 130 }}>
-          <InputLabel id="tasks-priority-filter">Priority</InputLabel>
+          <InputLabel id="tasks-priority-filter">{t('board.priority')}</InputLabel>
           <Select
             labelId="tasks-priority-filter"
-            label="Priority"
+            label={t('board.priority')}
             value={priority}
             onChange={(event) => setPriority(event.target.value)}
           >
-            <MenuItem value="all">All priorities</MenuItem>
+            <MenuItem value="all">{t('board.allPriorities')}</MenuItem>
             {PRIORITIES.map((p) => (
               <MenuItem key={p} value={p}>
-                {formatStatusLabel(p)}
+                {statusLabel(t, 'priority', p)}
               </MenuItem>
             ))}
           </Select>
         </FormControl>
         <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel id="tasks-type-filter">Task type</InputLabel>
+          <InputLabel id="tasks-type-filter">{t('tasks.taskType')}</InputLabel>
           <Select
             labelId="tasks-type-filter"
-            label="Task type"
+            label={t('tasks.taskType')}
             value={taskType}
             onChange={(event) => setTaskType(event.target.value)}
           >
-            <MenuItem value="all">All types</MenuItem>
+            <MenuItem value="all">{t('tasks.allTypes')}</MenuItem>
             {TASK_TYPES.map((type: HousekeepingTaskType) => (
               <MenuItem key={type} value={type}>
-                {taskTypeLabel(type)}
+                {statusLabel(t, 'task_type', type)}
               </MenuItem>
             ))}
           </Select>
         </FormControl>
         <Typography variant="body2" sx={{ color: 'text.secondary', ml: 'auto' }}>
-          {tasksQuery.data ? `${tasks.length} of ${tasksQuery.data.total} tasks` : ''}
+          {tasksQuery.data ? t('tasks.countSummary', { shown: tasks.length, total: tasksQuery.data.total }) : ''}
         </Typography>
       </Stack>
 
       {tasksQuery.error ? (
-        <Alert severity="error" action={<Button onClick={() => tasksQuery.refetch()}>Retry</Button>}>
-          Failed to load housekeeping tasks.
+        <Alert severity="error" action={<Button onClick={() => tasksQuery.refetch()}>{t('common:state.retry')}</Button>}>
+          {t('errors.loadTasks')}
         </Alert>
       ) : null}
 
@@ -302,17 +305,17 @@ export default function TasksView({ roomById, actions, quick, onQuickChange, ...
         </Stack>
       ) : tasks.length === 0 ? (
         <EmptyState
-          title={extraFiltersActive ? 'No tasks match these filters' : 'No tasks here'}
+          title={extraFiltersActive ? t('tasks.emptyFiltered') : t('tasks.emptyTitle')}
           description={
             quick === 'mine'
-              ? 'Nothing is assigned to you right now.'
+              ? t('tasks.emptyMine')
               : quick === 'unassigned'
-                ? 'Every open task has an assignee.'
+                ? t('tasks.emptyUnassigned')
                 : quick === 'today'
-                  ? 'Nothing is scheduled for today.'
+                  ? t('tasks.emptyToday')
                   : extraFiltersActive
-                    ? 'Try widening the search or clearing a filter.'
-                    : 'No housekeeping tasks in this view.'
+                    ? t('board.emptyFilteredBody')
+                    : t('tasks.emptyDefault')
           }
         />
       ) : isMobile ? (
@@ -324,10 +327,10 @@ export default function TasksView({ roomById, actions, quick, onQuickChange, ...
             >
               <Stack spacing={1}>
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="subtitle2">Room {task.room_number}</Typography>
+                  <Typography variant="subtitle2">{t('card.roomN', { number: task.room_number })}</Typography>
                   <IconButton
                     size="small"
-                    aria-label={`Room ${task.room_number} details`}
+                    aria-label={t('tasks.roomDetailsAria', { room: task.room_number })}
                     onClick={() => viewRoom(task)}
                     disabled={!roomById.has(task.room_id)}
                   >
@@ -336,8 +339,8 @@ export default function TasksView({ roomById, actions, quick, onQuickChange, ...
                 </Stack>
                 <TaskChips task={task} />
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {task.assigned_to_name ?? 'Unassigned'}
-                  {task.scheduled_date ? ` · Due ${formatHotelDate(task.scheduled_date)}` : ''}
+                  {task.assigned_to_name ?? t('card.unassigned')}
+                  {task.scheduled_date ? ` · ${t('card.due', { date: formatHotelDate(task.scheduled_date) })}` : ''}
                 </Typography>
                 <TaskActions task={task} actions={actions} ctx={ctx} />
               </Stack>
@@ -346,17 +349,17 @@ export default function TasksView({ roomById, actions, quick, onQuickChange, ...
         </Stack>
       ) : (
         <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-          <Table size="small" aria-label="Housekeeping tasks">
+          <Table size="small" aria-label={t('tasks.tableAria')}>
             <TableHead>
               <TableRow>
-                <TableCell>Room</TableCell>
-                <TableCell>Task</TableCell>
-                <TableCell>Priority</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Assigned to</TableCell>
-                <TableCell>Scheduled</TableCell>
-                <TableCell>Updated</TableCell>
-                {ctx.canUpdate ? <TableCell align="right">Actions</TableCell> : null}
+                <TableCell>{t('tasks.colRoom')}</TableCell>
+                <TableCell>{t('tasks.colTask')}</TableCell>
+                <TableCell>{t('tasks.colPriority')}</TableCell>
+                <TableCell>{t('tasks.colStatus')}</TableCell>
+                <TableCell>{t('tasks.colAssignedTo')}</TableCell>
+                <TableCell>{t('tasks.colScheduled')}</TableCell>
+                <TableCell>{t('tasks.colUpdated')}</TableCell>
+                {ctx.canUpdate ? <TableCell align="right">{t('tasks.colActions')}</TableCell> : null}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -371,21 +374,21 @@ export default function TasksView({ roomById, actions, quick, onQuickChange, ...
                         sx={{ p: 0, minWidth: 0, fontWeight: 700 }}
                         onClick={() => viewRoom(task)}
                         disabled={!roomById.has(task.room_id)}
-                        aria-label={`Room ${task.room_number} details`}
+                        aria-label={t('tasks.roomDetailsAria', { room: task.room_number })}
                       >
                         {task.room_number}
                       </Button>
                     </TableCell>
-                    <TableCell>{taskTypeLabel(task.task_type)}</TableCell>
+                    <TableCell>{statusLabel(t, 'task_type', task.task_type)}</TableCell>
                     <TableCell>
                       <StatusChip
                         status={task.priority}
-                        label={formatStatusLabel(task.priority)}
+                        domain="priority"
                         tone={PRIORITY_META[task.priority as HousekeepingPriority]?.tone ?? 'neutral'}
                       />
                     </TableCell>
                     <TableCell>
-                      <StatusChip status={task.status} />
+                      <StatusChip status={task.status} domain="housekeeping" />
                     </TableCell>
                     <TableCell>{task.assigned_to_name ?? '—'}</TableCell>
                     <TableCell>
@@ -395,7 +398,7 @@ export default function TasksView({ roomById, actions, quick, onQuickChange, ...
                           sx={{ color: overdue ? 'error.main' : 'text.primary', fontWeight: overdue ? 700 : 400 }}
                         >
                           {formatHotelDate(task.scheduled_date)}
-                          {overdue ? ' · overdue' : ''}
+                          {overdue ? t('tasks.overdueSuffix') : ''}
                         </Typography>
                       ) : (
                         '—'

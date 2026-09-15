@@ -55,6 +55,9 @@
       "11": "Nov",
       "12": "Dis"
     },
+    "date": {
+      "pattern": "{{day}} {{month}} {{year}}"
+    },
     "verifyEmail": {
       "subject": "Sahkan e-mel anda · {{hotel}}",
       "preheader": "Sahkan alamat e-mel anda untuk melengkapkan akaun {{hotel}} anda.",

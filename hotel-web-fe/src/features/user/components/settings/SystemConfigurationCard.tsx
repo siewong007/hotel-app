@@ -16,6 +16,7 @@ import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
 
 import type { BookingChannel } from "../../../../utils/hotelSettings";
+import { useTranslation } from "../../../../i18n";
 
 interface SystemConfigurationCardProps {
   isAdmin: boolean;
@@ -58,6 +59,7 @@ export function SystemConfigurationCard({
   paymentMethods,
   onPaymentMethodsChange,
 }: SystemConfigurationCardProps) {
+  const { t } = useTranslation('admin');
   const [newRateCode, setNewRateCode] = useState("");
   const [newMarketCode, setNewMarketCode] = useState("");
   const [newChannelName, setNewChannelName] = useState("");
@@ -78,7 +80,7 @@ export function SystemConfigurationCard({
       <CardContent>
         <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
           <SettingsIcon sx={{ mr: 1, color: "primary.main" }} />
-          <Typography variant="h6">System Configuration</Typography>
+          <Typography variant="h6">{t('settings.systemConfigTitle')}</Typography>
         </Box>
         <Divider sx={{ mb: 3 }} />
 
@@ -88,7 +90,7 @@ export function SystemConfigurationCard({
             <Typography variant="subtitle1" gutterBottom sx={{
               fontWeight: "medium"
             }}>
-              Rate Codes
+              {t('settings.rateCodes')}
             </Typography>
 
             <Stack
@@ -119,7 +121,7 @@ export function SystemConfigurationCard({
             <Box sx={{ display: "flex", gap: 1 }}>
               <TextField
                 size="small"
-                placeholder="Add rate code"
+                placeholder={t('settings.addRateCode')}
                 value={newRateCode}
                 onChange={(e) => setNewRateCode(e.target.value)}
                 onKeyDown={(e) => {
@@ -143,7 +145,7 @@ export function SystemConfigurationCard({
                 }
                 disabled={!isAdmin || !newRateCode.trim()}
               >
-                Add
+                {t('common:actions.add')}
               </Button>
             </Box>
           </Grid>
@@ -153,7 +155,7 @@ export function SystemConfigurationCard({
             <Typography variant="subtitle1" gutterBottom sx={{
               fontWeight: "medium"
             }}>
-              Market Codes
+              {t('settings.marketCodes')}
             </Typography>
 
             <Stack
@@ -184,7 +186,7 @@ export function SystemConfigurationCard({
             <Box sx={{ display: "flex", gap: 1 }}>
               <TextField
                 size="small"
-                placeholder="Add market code"
+                placeholder={t('settings.addMarketCode')}
                 value={newMarketCode}
                 onChange={(e) => setNewMarketCode(e.target.value)}
                 onKeyDown={(e) => {
@@ -208,7 +210,7 @@ export function SystemConfigurationCard({
                 }
                 disabled={!isAdmin || !newMarketCode.trim()}
               >
-                Add
+                {t('common:actions.add')}
               </Button>
             </Box>
           </Grid>
@@ -218,14 +220,12 @@ export function SystemConfigurationCard({
             <Typography variant="subtitle1" gutterBottom sx={{
               fontWeight: "medium"
             }}>
-              Online Booking Channels
+              {t('settings.bookingChannels')}
             </Typography>
             <Typography variant="body2" gutterBottom sx={{
               color: "text.secondary"
             }}>
-              Configure channel name + abbreviation pairs (e.g., Booking.com /
-              B.C). Abbreviations appear next to guest names in the Room Sold
-              Detail by Date report.
+              {t('settings.bookingChannelsHint')}
             </Typography>
 
             <Stack
@@ -257,7 +257,7 @@ export function SystemConfigurationCard({
             <Box sx={{ display: "flex", gap: 1 }}>
               <TextField
                 size="small"
-                placeholder="Channel name (e.g., Booking.com)"
+                placeholder={t('settings.channelNamePlaceholder')}
                 value={newChannelName}
                 onChange={(e) => setNewChannelName(e.target.value)}
                 onKeyPress={(e) => {
@@ -270,7 +270,7 @@ export function SystemConfigurationCard({
               />
               <TextField
                 size="small"
-                placeholder="Abbr. (e.g., B.C)"
+                placeholder={t('settings.channelAbbrPlaceholder')}
                 value={newChannelAbbreviation}
                 onChange={(e) => setNewChannelAbbreviation(e.target.value)}
                 onKeyPress={(e) => {
@@ -287,7 +287,7 @@ export function SystemConfigurationCard({
                 onClick={addBookingChannel}
                 disabled={!newChannelName.trim()}
               >
-                Add
+                {t('common:actions.add')}
               </Button>
             </Box>
           </Grid>
@@ -297,12 +297,12 @@ export function SystemConfigurationCard({
             <Typography variant="subtitle1" gutterBottom sx={{
               fontWeight: "medium"
             }}>
-              Payment Methods
+              {t('settings.paymentMethods')}
             </Typography>
             <Typography variant="body2" gutterBottom sx={{
               color: "text.secondary"
             }}>
-              Configure available payment methods for walk-in guests
+              {t('settings.paymentMethodsHint')}
             </Typography>
 
             <Stack
@@ -330,7 +330,7 @@ export function SystemConfigurationCard({
             <Box sx={{ display: "flex", gap: 1 }}>
               <TextField
                 size="small"
-                placeholder="Add new payment method (e.g., E-Wallet)"
+                placeholder={t('settings.addPaymentMethod')}
                 value={newPaymentMethod}
                 onChange={(e) => setNewPaymentMethod(e.target.value)}
                 onKeyPress={(e) => {
@@ -358,15 +358,14 @@ export function SystemConfigurationCard({
                 }}
                 disabled={!newPaymentMethod.trim()}
               >
-                Add
+                {t('common:actions.add')}
               </Button>
             </Box>
           </Grid>
         </Grid>
 
         <Alert severity="info" sx={{ mt: 2 }}>
-          These options will appear in the booking channels dropdown (online
-          check-in) and payment methods dropdown (walk-in guests).
+          {t('settings.systemConfigNote')}
         </Alert>
       </CardContent>
     </Card>

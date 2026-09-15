@@ -1,0 +1,64 @@
+{
+  "page": {
+    "noPermission": "您没有访问数据传输功能的权限。",
+    "permissionChip": "data_transfer:view"
+  },
+  "export": {
+    "standard": {
+      "title": "标准导出",
+      "description": "仅包含运营与配置数据——客房、房价计划、促销活动、会员计划和系统设置。不包含客人、预订、付款和员工记录。",
+      "tagline": "环境之间的常规数据迁移"
+    },
+    "full": {
+      "title": "完整导出",
+      "restriction": "受限",
+      "description": "所有可传输实体，包括敏感业务数据——客人、预订、付款、账册、员工及运营历史记录。",
+      "tagline": "机密——包含客人与财务数据"
+    },
+    "backup": {
+      "title": "完整系统备份",
+      "restriction": "高度受限",
+      "description": "完整的可传输数据集及关系元数据，采用可直接用于迁移的格式。用于灾难恢复或迁移至新服务器。",
+      "tagline": "机密——包含外键元数据的完整数据集"
+    },
+    "secretsExcluded": "任何导出均不会包含密码、会话、令牌、通行密钥及其他机密信息。",
+    "sensitiveConfirmTitle": "此导出包含机密数据",
+    "sensitiveConfirmBody": "该文件包含客人档案、预订、付款及运营记录。请妥善保管，并仅通过获批渠道传输。",
+    "sensitiveConfirmAck": "本人明白此文件包含机密数据，必须安全处理。",
+    "stepUpRequired": "需要重新验证身份",
+    "missingPermission": "需要 {{permission}} 权限",
+    "preview": "预览数量",
+    "download": "下载",
+    "previewScope": "{{scope}} 导出内容",
+    "neverIncluded": "永不包含——{{count}} 张受保护的表"
+  },
+  "stepUp": {
+    "title": "确认您的身份",
+    "description": "这是一项特权操作。请重新输入您的凭据以继续——验证有效期为 2 分钟，并绑定当前会话。",
+    "password": "密码",
+    "totp": "双重身份验证码",
+    "totpHint": "如您的账户已启用双重身份验证，则必填。",
+    "confirm": "验证并继续",
+    "verifying": "正在验证…"
+  },
+  "import": {
+    "sensitiveTitle": "此文件包含敏感数据",
+    "sensitiveWarning": "此文件包含敏感业务数据——客人、预订、付款或员工记录。导入需要 data_transfer:import_sensitive 权限。",
+    "missingTitle": "需要额外权限",
+    "missingPermissions": "您的账户无法执行此导入——需要以下权限：{{permissions}}",
+    "restoreRequiresPermission": "还原需要 data_transfer:restore 权限及重新身份验证。",
+    "updateRequiresPermission": "需要 data_transfer:override 权限",
+    "restoreStepUp": "还原操作需要重新验证身份——请验证您的身份以继续。"
+  },
+  "history": {
+    "serverBacked": "此服务器上的每次导出、导入和重新验证均会记录在审计日志中。",
+    "reAuth": "重新身份验证",
+    "reAuthDenied": "重新身份验证被拒绝",
+    "importStarted": "导入已开始",
+    "exportTypes": {
+      "standard": "标准导出",
+      "full": "完整导出",
+      "backup": "完整系统备份"
+    }
+  }
+}

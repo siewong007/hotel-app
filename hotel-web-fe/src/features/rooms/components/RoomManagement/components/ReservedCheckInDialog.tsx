@@ -29,6 +29,16 @@ import {
 import { BookingWithDetails } from '../../../../../types';
 import { toMoneyNumber } from '../../../../../utils/money';
 import { getBookingChannelInfo } from '../../../../bookings/utils/bookingChannel';
+import { useTranslation } from '../../../../../i18n/useTranslation';
+import { intlTag } from '../../../../../i18n/format';
+import { parseLocalDate } from '../../../../../utils/date';
+
+const formatStayDay = (value: string): string =>
+  parseLocalDate(value).toLocaleDateString(intlTag(), {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
 
 type PaymentChoice = 'pay_now' | 'pay_later';
 type DepositChoice = 'receive' | 'waive';
@@ -92,6 +102,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
   processing,
   onCheckIn,
 }) => {
+  const { t } = useTranslation('rooms');
   const icMissing = !icNumber.trim();
   // Online reservations are settled on the booking platform (Traveloka,
   // Booking.com, …). The backend auto-records a payment for the outstanding
@@ -100,7 +111,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
   // so the prompt never promises an auto-settlement that won't happen.
   const isOnlineReservation = (booking?.source || '').trim().toLowerCase() === 'online';
   const onlinePlatformName =
-    (booking ? getBookingChannelInfo(booking)?.name : null) || 'the online platform';
+    (booking ? getBookingChannelInfo(booking)?.name : null) || t('bookings:checkIn.onlinePlatformFallback');
 
   return (
     <Dialog
@@ -113,7 +124,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <LoginIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-            Check-In - Room {booking?.room_number}
+            {t('bookings:checkIn.title', { room: booking?.room_number })}
           </Typography>
         </Box>
       </DialogTitle>
@@ -125,7 +136,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
               <Typography variant="subtitle2" gutterBottom sx={{
                 color: "text.secondary"
               }}>
-                Booking #{booking.booking_number}
+                {t('bookings:checkIn.bookingNumber', { number: booking.booking_number })}
               </Typography>
 
               <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -146,32 +157,28 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                 <Grid size={6}>
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
-                  }}>Check-in</Typography>
+                  }}>{t('bookings:checkIn.summary.checkIn')}</Typography>
                   <Typography variant="body2" sx={{
                     fontWeight: 500
                   }}>
-                    {new Date(booking.check_in_date).toLocaleDateString('en-US', {
-                      weekday: 'short', month: 'short', day: 'numeric'
-                    })}
+                    {formatStayDay(booking.check_in_date)}
                   </Typography>
                 </Grid>
                 <Grid size={6}>
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
-                  }}>Check-out</Typography>
+                  }}>{t('bookings:checkIn.summary.checkOut')}</Typography>
                   <Typography variant="body2" sx={{
                     fontWeight: 500
                   }}>
-                    {new Date(booking.check_out_date).toLocaleDateString('en-US', {
-                      weekday: 'short', month: 'short', day: 'numeric'
-                    })}
+                    {formatStayDay(booking.check_out_date)}
                   </Typography>
                 </Grid>
 
                 <Grid size={6}>
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
-                  }}>Room Type</Typography>
+                  }}>{t('bookings:checkIn.summary.roomType')}</Typography>
                   <Typography variant="body2" sx={{
                     fontWeight: 500
                   }}>
@@ -181,7 +188,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                 <Grid size={6}>
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
-                  }}>Total Amount</Typography>
+                  }}>{t('bookings:checkIn.summary.totalAmount')}</Typography>
                   <Typography variant="body2" sx={{
                     fontWeight: 500
                   }}>
@@ -193,18 +200,18 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
 
             {/* Guest Information — IC is collected at check-in (optional at
                 booking creation); phone is optional. */}
-            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Guest Information</Typography>
+            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>{t('bookings:checkIn.guestInformation')}</Typography>
             <Grid container spacing={1.5} sx={{ mb: 2 }}>
               <Grid size={6}>
                 <TextField
                   fullWidth
                   size="small"
                   required
-                  label="IC / Passport Number"
+                  label={t('bookings:checkIn.icPassport')}
                   value={icNumber}
                   onChange={(e) => onIcNumberChange(e.target.value)}
                   error={icMissing}
-                  helperText={icMissing ? 'Required to complete check-in' : ' '}
+                  helperText={icMissing ? t('bookings:checkIn.icRequired') : ' '}
                 />
               </Grid>
               <Grid size={6}>
@@ -212,22 +219,22 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                   fullWidth
                   size="small"
                   type="tel"
-                  label="Phone Number"
+                  label={t('bookings:checkIn.phone')}
                   value={phone}
                   onChange={(e) => onPhoneChange(e.target.value)}
-                  helperText="Optional"
+                  helperText={t('bookings:checkIn.phoneOptional')}
                 />
               </Grid>
             </Grid>
 
             {/* Payment Section */}
-            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Payment</Typography>
+            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>{t('bookings:checkIn.paymentSection')}</Typography>
             {isOnlineReservation && (
               <Alert severity="success" sx={{ mb: 1.5, py: 0 }}>
-                Payment was settled on {onlinePlatformName}. The full amount
-                {' '}({formatCurrency(toMoneyNumber(booking.total_amount))}) is recorded
-                automatically on check-in — keep this on “Settled Online”. Switch to “Make Payment Now”
-                only if you are collecting at the desk instead.
+                {t('bookings:checkIn.settledOnlineNotice', {
+                  platform: onlinePlatformName,
+                  amount: formatCurrency(toMoneyNumber(booking.total_amount)),
+                })}
               </Alert>
             )}
             <ToggleButtonGroup
@@ -240,11 +247,11 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
             >
               <ToggleButton value="pay_now" color="success" sx={{ py: 1, fontWeight: 600 }}>
                 <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                Make Payment Now
+                {t('bookings:checkIn.makePaymentNow')}
               </ToggleButton>
               <ToggleButton value="pay_later" color="warning" sx={{ py: 1, fontWeight: 600 }}>
                 <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                {isOnlineReservation ? 'Settled Online' : 'Pay Later'}
+                {isOnlineReservation ? t('bookings:checkIn.settledOnline') : t('bookings:checkIn.payLater')}
               </ToggleButton>
             </ToggleButtonGroup>
 
@@ -252,11 +259,11 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
               <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
                 <Grid size={6}>
                   <FormControl fullWidth size="small">
-                    <InputLabel>Payment Method</InputLabel>
+                    <InputLabel>{t('bookings:checkIn.paymentMethod')}</InputLabel>
                     <Select
                       value={paymentMethod}
                       onChange={(e) => onPaymentMethodChange(e.target.value)}
-                      label="Payment Method"
+                      label={t('bookings:checkIn.paymentMethod')}
                     >
                       {paymentMethods.map(method => (
                         <MenuItem key={method} value={method}>{method}</MenuItem>
@@ -268,7 +275,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                   <TextField
                     fullWidth
                     size="small"
-                    label="Amount Paid"
+                    label={t('bookings:checkIn.amountPaid')}
                     type="number"
                     value={amountPaid}
                     onChange={(e) => onAmountPaidChange(toMoneyNumber(e.target.value))}
@@ -285,12 +292,12 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
 
             {paymentChoice === 'pay_later' && !isOnlineReservation && (
               <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>
-                Payment will be collected later. Guest checks in with unpaid status.
+                {t('bookings:checkIn.payLaterUnpaid')}
               </Alert>
             )}
 
             {/* Deposit Section */}
-            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Deposit</Typography>
+            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>{t('bookings:checkIn.depositSection')}</Typography>
             <ToggleButtonGroup
               value={depositChoice}
               exclusive
@@ -301,11 +308,11 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
             >
               <ToggleButton value="receive" color="success" sx={{ py: 1, fontWeight: 600 }}>
                 <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                Receive Deposit
+                {t('bookings:checkIn.receiveDeposit')}
               </ToggleButton>
               <ToggleButton value="waive" color="error" sx={{ py: 1, fontWeight: 600 }}>
                 <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                Waive Deposit
+                {t('bookings:checkIn.waiveDeposit')}
               </ToggleButton>
             </ToggleButtonGroup>
 
@@ -313,11 +320,11 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
               <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
                 <Grid size={6}>
                   <FormControl fullWidth size="small">
-                    <InputLabel>Deposit Method</InputLabel>
+                    <InputLabel>{t('bookings:checkIn.depositMethod')}</InputLabel>
                     <Select
                       value={depositMethod}
                       onChange={(e) => onDepositMethodChange(e.target.value)}
-                      label="Deposit Method"
+                      label={t('bookings:checkIn.depositMethod')}
                     >
                       {paymentMethods.map(method => (
                         <MenuItem key={method} value={method}>{method}</MenuItem>
@@ -329,7 +336,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                   <TextField
                     fullWidth
                     size="small"
-                    label="Deposit Amount"
+                    label={t('bookings:checkIn.depositAmount')}
                     type="number"
                     value={depositAmount}
                     onChange={(e) => onDepositAmountChange(toMoneyNumber(e.target.value))}
@@ -348,13 +355,13 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
               <TextField
                 fullWidth
                 size="small"
-                label="Reason for Waiving Deposit"
+                label={t('bookings:checkIn.waiveReasonLabel')}
                 value={waiveReason}
                 onChange={(e) => onWaiveReasonChange(e.target.value)}
                 multiline
                 rows={2}
-                placeholder="e.g., Returning guest, Company account, Manager approval..."
-                helperText="Optional: provide a reason for waiving the deposit"
+                placeholder={t('bookings:checkIn.waiveReasonPlaceholder')}
+                helperText={t('bookings:checkIn.waiveReasonHelper')}
                 sx={{ mb: 1.5 }}
               />
             )}
@@ -362,10 +369,10 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
             {/* Complimentary Badge if applicable */}
             {booking.is_complimentary && (
               <Alert severity="info" icon={<GiftIcon />} sx={{ mb: 2 }}>
-                <strong>Complimentary Stay</strong>
+                <strong>{t('complimentary.stayTitle')}</strong>
                 {booking.complimentary_reason && (
                   <Typography variant="body2">
-                    Reason: {booking.complimentary_reason}
+                    {t('bookings:comp.reason')}: {booking.complimentary_reason}
                   </Typography>
                 )}
               </Alert>
@@ -374,7 +381,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
             {/* Special Requests */}
             {booking.special_requests && (
               <Alert severity="warning" sx={{ mb: 2 }}>
-                <strong>Special Requests:</strong> {booking.special_requests}
+                <strong>{t('fields.specialRequests')}:</strong> {booking.special_requests}
               </Alert>
             )}
           </Box>
@@ -385,7 +392,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
           onClick={onCancel}
           disabled={processing}
         >
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           variant="contained"
@@ -394,7 +401,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
           disabled={processing || icMissing}
           startIcon={processing ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
         >
-          {processing ? 'Processing...' : 'Check-In Now'}
+          {processing ? t('common:state.processing') : t('bookings:checkIn.checkInNow')}
         </Button>
       </DialogActions>
     </Dialog>

@@ -3,6 +3,7 @@ import { Box, Typography, TextField, FormControlLabel, Checkbox } from '@mui/mat
 import { ArrowForward as ArrowForwardIcon, Bedtime as MoonIcon } from '@mui/icons-material';
 import { BookingTokens } from '../bookingTokens';
 import CollapsibleSection from '../../../../../components/common/CollapsibleSection';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 
 interface StaySectionProps {
   D: BookingTokens;
@@ -17,13 +18,6 @@ interface StaySectionProps {
   formatHumanDate: (d: string) => string;
 }
 
-const QUICK_SETS = [
-  { k: '1', label: '1 night', n: 1 },
-  { k: '2', label: '2 nights', n: 2 },
-  { k: '3', label: '3 nights', n: 3 },
-  { k: '7', label: '1 week', n: 7 },
-];
-
 const StaySection: React.FC<StaySectionProps> = ({
   D,
   glyph,
@@ -35,11 +29,21 @@ const StaySection: React.FC<StaySectionProps> = ({
   onHourlyToggle,
   onQuickSetNights,
   formatHumanDate,
-}) => (
-  <CollapsibleSection title={`${glyph} Stay`} sx={{ mb: 2.75 }}>
+}) => {
+  const { t } = useTranslation('rooms');
+
+  const QUICK_SETS = [
+    { k: '1', label: t('common:count.nights', { count: 1 }), n: 1 },
+    { k: '2', label: t('common:count.nights', { count: 2 }), n: 2 },
+    { k: '3', label: t('common:count.nights', { count: 3 }), n: 3 },
+    { k: '7', label: t('unified.quickWeek'), n: 7 },
+  ];
+
+  return (
+  <CollapsibleSection title={`${glyph} ${t('unified.secStay')}`} sx={{ mb: 2.75 }}>
     <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 1.5, alignItems: 'flex-end' }}>
       <Box>
-        <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Check-in</Typography>
+        <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>{t('fields.checkIn')}</Typography>
         <TextField
           type="date"
           fullWidth
@@ -54,7 +58,7 @@ const StaySection: React.FC<StaySectionProps> = ({
         <ArrowForwardIcon sx={{ fontSize: 18 }} />
       </Box>
       <Box>
-        <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Check-out</Typography>
+        <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>{t('fields.checkOut')}</Typography>
         <TextField
           type="date"
           fullWidth
@@ -82,9 +86,9 @@ const StaySection: React.FC<StaySectionProps> = ({
         fontWeight: 700,
       }}>
         <MoonIcon sx={{ fontSize: 12 }} />
-        {billableNights} {billableNights === 1 ? 'night' : 'nights'}
+        {t('common:count.nights', { count: billableNights })}
       </Box>
-      <Typography sx={{ color: D.ink3, fontSize: 11 }}>Quick set:</Typography>
+      <Typography sx={{ color: D.ink3, fontSize: 11 }}>{t('unified.quickSet')}</Typography>
       <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
         {QUICK_SETS.map((q) => (
           <Box
@@ -119,12 +123,13 @@ const StaySection: React.FC<StaySectionProps> = ({
               sx={{ p: 0.5 }}
             />
           }
-          label={<Box sx={{ fontSize: 11, color: D.ink2 }}>Hourly check-in</Box>}
+          label={<Box sx={{ fontSize: 11, color: D.ink2 }}>{t('unified.hourlyCheckIn')}</Box>}
           sx={{ m: 0 }}
         />
       </Box>
     </Box>
   </CollapsibleSection>
-);
+  );
+};
 
 export default StaySection;

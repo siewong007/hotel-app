@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 import { multiplyMoney, toMoneyNumber } from '../../../../utils/money';
+import { useTranslation } from '../../../../i18n';
 import type { Booking, BookingWithDetails } from '../../../../types';
 
 export interface CustomFieldsTabProps {
@@ -67,18 +68,19 @@ export function CustomFieldsTab({
   travelAgent1,
   travelAgent2,
 }: CustomFieldsTabProps) {
+  const { t } = useTranslation('bookings');
   return (
       <Grid container spacing={2}>
         <Grid size={12}>
           <Typography variant="subtitle2" color="primary" gutterBottom>
-            Guest Vehicles
+            {t('checkInForm.custom.guestVehicles')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Car Plate No."
+            label={t('checkInForm.custom.carPlate')}
             value={carPlateNo}
             onChange={(e) => setCarPlateNo(e.target.value)}
           />
@@ -86,23 +88,23 @@ export function CustomFieldsTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="ETA"
+            label={t('checkInForm.custom.eta')}
             value={eta}
             onChange={(e) => setEta(e.target.value)}
-            placeholder="Estimated Time of Arrival"
+            placeholder={t('checkInForm.custom.etaPlaceholder')}
           />
         </Grid>
 
         <Grid size={12}>
           <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-            Travel Information
+            {t('checkInForm.custom.travelInfo')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Group Code"
+            label={t('checkInForm.custom.groupCode')}
             value={groupCode}
             onChange={(e) => setGroupCode(e.target.value)}
             slotProps={{
@@ -118,16 +120,16 @@ export function CustomFieldsTab({
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth>
-            <InputLabel>Language</InputLabel>
+            <InputLabel>{t('checkInForm.custom.language')}</InputLabel>
             <Select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              label="Language"
+              label={t('checkInForm.custom.language')}
             >
-              <MenuItem value="Default Language (English)">Default Language (English)</MenuItem>
-              <MenuItem value="Bahasa Malaysia">Bahasa Malaysia</MenuItem>
-              <MenuItem value="Mandarin">Mandarin</MenuItem>
-              <MenuItem value="Tamil">Tamil</MenuItem>
+              <MenuItem value="Default Language (English)">{t('checkInForm.custom.langDefault')}</MenuItem>
+              <MenuItem value="Bahasa Malaysia">{t('checkInForm.custom.langMalay')}</MenuItem>
+              <MenuItem value="Mandarin">{t('checkInForm.custom.langMandarin')}</MenuItem>
+              <MenuItem value="Tamil">{t('checkInForm.custom.langTamil')}</MenuItem>
             </Select>
           </FormControl>
         </Grid>
@@ -135,7 +137,7 @@ export function CustomFieldsTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Travel Agent 1"
+            label={t('checkInForm.custom.travelAgent1')}
             value={travelAgent1}
             onChange={(e) => setTravelAgent1(e.target.value)}
             slotProps={{
@@ -152,7 +154,7 @@ export function CustomFieldsTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Travel Agent 2"
+            label={t('checkInForm.custom.travelAgent2')}
             value={travelAgent2}
             onChange={(e) => setTravelAgent2(e.target.value)}
             slotProps={{
@@ -170,7 +172,7 @@ export function CustomFieldsTab({
         <Grid size={12}>
           <TextField
             fullWidth
-            label="Drivers Info"
+            label={t('checkInForm.custom.driversInfo')}
             value={driversInfo}
             onChange={(e) => setDriversInfo(e.target.value)}
             multiline
@@ -180,14 +182,14 @@ export function CustomFieldsTab({
 
         <Grid size={12}>
           <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-            Special Charges
+            {t('checkInForm.custom.specialCharges')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Tourism Tax"
+            label={t('checkInForm.custom.tourismTax')}
             value={booking.tourism_tax_amount || 0}
             disabled
             slotProps={{
@@ -202,7 +204,7 @@ export function CustomFieldsTab({
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Extra Bed Count"
+                label={t('checkInForm.custom.extraBedCount')}
                 type="number"
                 value={extraBedCount}
                 onChange={(e) => {
@@ -210,7 +212,7 @@ export function CustomFieldsTab({
                   setExtraBedCount(count);
                   setExtraBedCharge(multiplyMoney(extraBedChargePerBed, count));
                 }}
-                helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
+                helperText={t('checkInForm.custom.perExtraBed', { rate: formatCurrency(extraBedChargePerBed), max: maxExtraBeds })}
                 slotProps={{
                   htmlInput: { min: 0, max: maxExtraBeds }
                 }}
@@ -219,11 +221,11 @@ export function CustomFieldsTab({
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Extra Bed Charge"
+                label={t('checkInForm.custom.extraBedCharge')}
                 type="number"
                 value={extraBedCharge}
                 onChange={(e) => setExtraBedCharge(toMoneyNumber(e.target.value))}
-                helperText="Auto-calculated or manually adjust"
+                helperText={t('checkInForm.custom.extraBedChargeHelper')}
                 slotProps={{
                   input: {
                     startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
@@ -237,17 +239,17 @@ export function CustomFieldsTab({
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Extra Bed Count"
+                label={t('checkInForm.custom.extraBedCount')}
                 type="number"
                 value={extraBedCount}
                 disabled
-                helperText="This room type does not allow extra beds"
+                helperText={t('checkInForm.custom.noExtraBeds')}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Extra Bed Charge"
+                label={t('checkInForm.custom.extraBedCharge')}
                 value={extraBedCharge}
                 disabled
                 slotProps={{

@@ -131,7 +131,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
             noWrap
             sx={{ fontSize: '0.66rem', color: 'text.secondary', textTransform: 'capitalize' }}
           >
-            {roles[0]?.replace(/[_-]+/g, ' ') || user?.username || 'Staff'}
+            {roles[0]?.replace(/[_-]+/g, ' ') || user?.username || tNav('userMenu.defaultRole')}
           </Typography>
         </Box>
         {chevron}
@@ -178,7 +178,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
           <Typography
             sx={{ fontSize: '0.62rem', color: 'text.secondary', textTransform: 'capitalize' }}
           >
-            {user?.username || 'Staff'}
+            {user?.username || tNav('userMenu.defaultRole')}
           </Typography>
         </Box>
         {chevron}

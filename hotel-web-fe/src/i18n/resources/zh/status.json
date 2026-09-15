@@ -1,0 +1,263 @@
+{
+  "booking": {
+    "pending": "待处理",
+    "pending_payment": "待支付",
+    "pending_confirmation": "待确认",
+    "confirmed": "已确认",
+    "checked_in": "已入住",
+    "auto_checked_in": "自动入住",
+    "checked_out": "已退房",
+    "late_checkout": "延迟退房",
+    "no_show": "预订未到",
+    "completed": "已完成",
+    "cancelled": "已取消",
+    "comp_void": "免费作废",
+    "partial_complimentary": "部分免费",
+    "fully_complimentary": "全额免费",
+    "voided": "已作废",
+    "held": "已保留",
+    "expired": "已过期"
+  },
+  "booking_service": {
+    "pending": "待处理",
+    "in_progress": "进行中",
+    "completed": "已完成",
+    "void": "已作废"
+  },
+  "payment": {
+    "pending": "待处理",
+    "processing": "处理中",
+    "completed": "已完成",
+    "failed": "失败",
+    "refunded": "已退款",
+    "void": "作废",
+    "voided": "已作废",
+    "paid": "已支付",
+    "unpaid": "未支付",
+    "unpaid_deposit": "未付押金",
+    "paid_rate": "已付房费",
+    "partial": "部分支付",
+    "forfeited": "已没收",
+    "deposit_forfeited": "押金已没收"
+  },
+  "invoice": {
+    "draft": "草稿",
+    "issued": "已开具",
+    "sent": "已发送",
+    "paid": "已支付",
+    "partial": "部分支付",
+    "overdue": "已逾期",
+    "void": "已作废",
+    "cancelled": "已取消",
+    "refunded": "已退款"
+  },
+  "ledger": {
+    "pending": "待处理",
+    "partial": "部分支付",
+    "paid": "已支付",
+    "overdue": "已逾期",
+    "void": "已作废"
+  },
+  "room": {
+    "available": "可售",
+    "occupied": "占用中",
+    "reserved": "已预订",
+    "reserved_dirty": "已预订待清洁",
+    "cleaning": "清洁中",
+    "dirty": "待清洁",
+    "clean": "已清洁",
+    "inspected": "已检查",
+    "maintenance": "维修中",
+    "out_of_order": "维修停用",
+    "out_of_service": "暂停服务"
+  },
+  "housekeeping": {
+    "pending": "待处理",
+    "assigned": "已分配",
+    "in_progress": "进行中",
+    "completed": "已完成",
+    "inspected": "已检查",
+    "cancelled": "已取消",
+    "void": "已作废"
+  },
+  "maintenance": {
+    "open": "待处理",
+    "in_progress": "进行中",
+    "on_hold": "已挂起",
+    "resolved": "已解决",
+    "closed": "已关闭",
+    "cancelled": "已取消"
+  },
+  "campaign": {
+    "draft": "草稿",
+    "scheduled": "已排期",
+    "running": "进行中",
+    "active": "已上线",
+    "paused": "已暂停",
+    "completed": "已完成",
+    "ended": "已结束",
+    "cancelled": "已取消",
+    "failed": "失败"
+  },
+  "promotion": {
+    "draft": "草稿",
+    "scheduled": "已排期",
+    "published": "已发布",
+    "live": "进行中",
+    "paused": "已暂停",
+    "expired": "已过期",
+    "cancelled": "已取消",
+    "archived": "已归档"
+  },
+  "payroll": {
+    "draft": "草稿",
+    "processing": "处理中",
+    "approved": "已批准",
+    "paid": "已发放",
+    "cancelled": "已取消"
+  },
+  "employee": {
+    "active": "在职",
+    "inactive": "停用",
+    "on_leave": "休假中",
+    "terminated": "已离职"
+  },
+  "notification": {
+    "unread": "未读",
+    "read": "已读"
+  },
+  "ekyc": {
+    "draft": "草稿",
+    "submitted": "已提交",
+    "automated_review": "自动审核中",
+    "pending_manual_review": "待人工审核",
+    "in_review": "审核中",
+    "additional_information_required": "需补充资料",
+    "approved": "已批准",
+    "rejected": "已拒绝",
+    "escalated": "已升级",
+    "expired": "已过期",
+    "void": "已作废",
+    "on_hold": "已挂起",
+    "pending": "待处理",
+    "under_review": "审核中",
+    "verified": "已验证"
+  },
+  "email_delivery": {
+    "queued": "排队中",
+    "sending": "发送中",
+    "sent": "已发送",
+    "failed": "发送失败",
+    "suppressed": "已抑制",
+    "cancelled": "已取消"
+  },
+  "loyalty": {
+    "active": "有效",
+    "inactive": "未激活",
+    "suspended": "已暂停",
+    "closed": "已关闭"
+  },
+  "loyalty_redemption": {
+    "pending": "待处理",
+    "approved": "已批准",
+    "rejected": "已拒绝",
+    "fulfilled": "已兑现"
+  },
+  "reward_redemption": {
+    "pending": "待处理",
+    "confirmed": "已确认",
+    "used": "已使用",
+    "void": "已作废",
+    "expired": "已过期"
+  },
+  "support": {
+    "waiting_for_staff": "等待客服回复",
+    "waiting_for_guest": "等待客人回复",
+    "resolved": "已解决",
+    "closed": "已关闭"
+  },
+  "voucher": {
+    "available": "可用",
+    "redeemed": "已使用",
+    "revoked": "已撤销",
+    "expired": "已过期"
+  },
+  "voucher_redemption": {
+    "applied": "已使用",
+    "reversed": "已撤销"
+  },
+  "night_audit": {
+    "in_progress": "进行中",
+    "completed": "已完成",
+    "failed": "失败"
+  },
+  "booking_history": {
+    "checked_out": "已退房",
+    "completed": "已完成",
+    "voided": "已作废",
+    "comp_void": "免单作废",
+    "checked_in": "已入住",
+    "auto_checked_in": "已入住",
+    "confirmed": "已预订",
+    "pending": "待处理"
+  },
+  "booking_source": {
+    "direct": "直接预订",
+    "walk_in": "上门客",
+    "online": "在线预订",
+    "phone": "电话预订",
+    "email": "邮件预订",
+    "agent": "代理",
+    "travel_agent": "旅行社",
+    "corporate": "公司协议",
+    "ota": "OTA",
+    "guest_portal": "宾客门户"
+  },
+  "priority": {
+    "low": "低",
+    "normal": "普通",
+    "medium": "中",
+    "high": "高",
+    "urgent": "紧急",
+    "critical": "严重"
+  },
+  "task_type": {
+    "cleaning": "清洁",
+    "checkout_clean": "退房清洁",
+    "inspection": "检查",
+    "maintenance_followup": "维修跟进"
+  },
+  "maintenance_category": {
+    "electrical": "电气",
+    "plumbing": "管道",
+    "hvac": "暖通空调",
+    "furniture": "家具",
+    "appliance": "电器",
+    "structural": "结构",
+    "other": "其他"
+  },
+  "room_event": {
+    "reserve": "预订",
+    "booking": "预订",
+    "maintenance": "维修",
+    "inspection": "检查",
+    "repair": "修理",
+    "status_change": "状态变更",
+    "reserved": "已预订"
+  },
+  "generic": {
+    "active": "启用",
+    "inactive": "停用",
+    "pending": "待处理",
+    "approved": "已批准",
+    "rejected": "已拒绝",
+    "enabled": "已启用",
+    "disabled": "已停用",
+    "success": "成功",
+    "failed": "失败",
+    "warning": "警告",
+    "info": "提示",
+    "error": "错误",
+    "unknown": "未知"
+  }
+}

@@ -21,6 +21,17 @@ import {
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../../../types';
 import { toMoneyNumber } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n/useTranslation';
+import { statusLabel } from '../../../../../i18n/statusLabel';
+import { intlTag } from '../../../../../i18n/format';
+import { parseLocalDate } from '../../../../../utils/date';
+
+const formatStayDay = (value: string): string =>
+  parseLocalDate(value).toLocaleDateString(intlTag(), {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
 
 interface UpcomingBookingsDialogProps {
   open: boolean;
@@ -43,6 +54,7 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
   onCheckInBooking,
   onViewAllInBookings,
 }) => {
+  const { t } = useTranslation('rooms');
   return (
     <Dialog
       open={open}
@@ -54,7 +66,7 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <CalendarIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-            Upcoming Bookings - Room {roomNumber}
+            {t('upcoming.title', { room: roomNumber })}
           </Typography>
         </Box>
       </DialogTitle>
@@ -71,7 +83,7 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
           </Box>
         ) : bookings.length === 0 ? (
           <Alert severity="info" sx={{ mt: 2 }}>
-            No upcoming bookings for this room.
+            {t('upcoming.empty')}
           </Alert>
         ) : (
           <Box sx={{ mt: 1 }}>
@@ -93,7 +105,7 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                     <Typography variant="subtitle1" sx={{
                       fontWeight: 600
                     }}>
-                      {booking.guest_name || 'Unknown Guest'}
+                      {booking.guest_name || t('upcoming.unknownGuest')}
                     </Typography>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
@@ -108,16 +120,12 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                         color: "text.secondary",
                         display: "block"
                       }}>
-                      Check-in
+                      {t('fields.checkIn')}
                     </Typography>
                     <Typography variant="body2" sx={{
                       fontWeight: 500
                     }}>
-                      {new Date(booking.check_in_date).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                      })}
+                      {formatStayDay(booking.check_in_date)}
                     </Typography>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 3 }}>
@@ -127,16 +135,12 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                         color: "text.secondary",
                         display: "block"
                       }}>
-                      Check-out
+                      {t('fields.checkOut')}
                     </Typography>
                     <Typography variant="body2" sx={{
                       fontWeight: 500
                     }}>
-                      {new Date(booking.check_out_date).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                      })}
+                      {formatStayDay(booking.check_out_date)}
                     </Typography>
                   </Grid>
                   <Grid size={12}>
@@ -159,7 +163,7 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                         if (booking.status === 'checked_in' || booking.status === 'auto_checked_in') {
                           return (
                             <Chip
-                              label="Currently Occupied"
+                              label={t('upcoming.currentlyOccupied')}
                               size="small"
                               color="warning"
                             />
@@ -174,13 +178,13 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                               onClick={() => onCheckInBooking(booking)}
                               sx={{ fontWeight: 600 }}
                             >
-                              Check-In Now
+                              {t('upcoming.checkInNow')}
                             </Button>
                           );
                         } else {
                           return (
                             <Chip
-                              label={booking.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                              label={statusLabel(t, 'booking', booking.status)}
                               size="small"
                               color={booking.status === 'confirmed' ? 'info' : 'default'}
                             />
@@ -190,7 +194,7 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                       {booking.is_complimentary && (
                         <Chip
                           icon={<GiftIcon />}
-                          label="Free Gift"
+                          label={t('upcoming.freeGift')}
                           size="small"
                           color="secondary"
                         />
@@ -207,7 +211,7 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
                       }}>
-                        <strong>Notes:</strong> {booking.special_requests}
+                        <strong>{t('fields.notes')}:</strong> {booking.special_requests}
                       </Typography>
                     </Grid>
                   )}
@@ -223,10 +227,10 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
           variant="outlined"
           color="primary"
         >
-          View All in Bookings Page
+          {t('upcoming.viewAll')}
         </Button>
         <Button onClick={onClose} variant="contained">
-          Close
+          {t('common:actions.close')}
         </Button>
       </DialogActions>
     </Dialog>

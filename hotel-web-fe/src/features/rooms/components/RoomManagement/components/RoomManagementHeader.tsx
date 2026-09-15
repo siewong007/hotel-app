@@ -15,6 +15,7 @@ import type { Room } from '../../../../../types';
 import { formatHotelDate } from '../../../../../utils/date';
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
 import { SearchAndFilters } from '../../../../../components/common/SearchAndFilters';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 import type { RoomStatusType } from '../../../config';
 import { getStatusAccentColor } from '../../../config';
 import type {
@@ -77,6 +78,7 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
   onTogglePrioritySort,
 }) => {
   const isPhone = useIsPhone();
+  const { t } = useTranslation('rooms');
 
   // Non-default selections surfaced on the phone filter-button badge — the
   // same set handleResetFilters restores (status pills, attribute chips, floor
@@ -158,9 +160,9 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
   );
 
   const attributeChips = ([
-    { key: 'smoking' as const, label: 'Smoking', count: smokingCount, color: 'var(--hotel-warning)', icon: <SmokingIcon sx={{ fontSize: 15 }} /> },
-    { key: 'daily' as const, label: 'Daily cleaning', count: dailyCleaningCount, color: 'var(--hotel-success)', icon: <SparkleIcon sx={{ fontSize: 15 }} /> },
-    { key: 'nodaily' as const, label: 'No cleaning', count: noCleaningCount, color: 'var(--hotel-neutral)', icon: <BlockIcon sx={{ fontSize: 15 }} /> },
+    { key: 'smoking' as const, label: t('header.attrSmoking'), count: smokingCount, color: 'var(--hotel-warning)', icon: <SmokingIcon sx={{ fontSize: 15 }} /> },
+    { key: 'daily' as const, label: t('header.attrDaily'), count: dailyCleaningCount, color: 'var(--hotel-success)', icon: <SparkleIcon sx={{ fontSize: 15 }} /> },
+    { key: 'nodaily' as const, label: t('header.attrNoDaily'), count: noCleaningCount, color: 'var(--hotel-neutral)', icon: <BlockIcon sx={{ fontSize: 15 }} /> },
   ]).map((item) => {
     const selected = attrFilters[item.key];
     return (
@@ -217,7 +219,7 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
         }}
       >
         <Typography variant="caption" sx={{ fontWeight: 700 }}>
-          {floor === 'all' ? 'All floors' : `Floor ${floor}`}
+          {floor === 'all' ? t('header.allFloors') : t('header.floorN', { floor })}
         </Typography>
       </Box>
     );
@@ -228,7 +230,7 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
       size="small"
       value={roomSearch}
       onChange={(e) => onRoomSearchChange(e.target.value)}
-      placeholder="Room #"
+      placeholder={t('header.roomSearchPlaceholder')}
       slotProps={{
         input: {
           startAdornment: (
@@ -237,7 +239,7 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
             </InputAdornment>
           ),
         },
-        htmlInput: { 'aria-label': 'Search by room number' },
+        htmlInput: { 'aria-label': t('header.roomSearchAria') },
       }}
       sx={{
         width: isPhone ? '100%' : 110,
@@ -254,7 +256,7 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
     <Box
       component="button"
       onClick={onTogglePrioritySort}
-      title="Sort rooms by attention needed (dirty, maintenance, reserved first)"
+      title={t('header.prioritySortTitle')}
       sx={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -273,7 +275,7 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
       }}
     >
       <SortIcon sx={{ fontSize: 15 }} />
-      <Typography variant="caption" sx={{ fontWeight: 700 }}>Attention first</Typography>
+      <Typography variant="caption" sx={{ fontWeight: 700 }}>{t('header.prioritySort')}</Typography>
     </Box>
   );
 
@@ -328,20 +330,20 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
           </Box>
           <Box sx={{ minWidth: 0 }}>
             <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
-              Hotel Manager — Rooms
+              {t('header.title')}
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-              {rooms.length} rooms
+              {t('header.roomsCount', { count: rooms.length })}
               {(() => {
                 const floors = Array.from(
                   new Set(rooms.map((r) => r.floor).filter((f): f is number => f != null))
                 ).sort((a, b) => a - b);
                 if (floors.length === 0) return '';
-                if (floors.length === 1) return ` · floor ${floors[0]}`;
-                return ` · floors ${floors[0]}–${floors[floors.length - 1]}`;
+                if (floors.length === 1) return ` · ${t('header.floorSingle', { floor: floors[0] })}`;
+                return ` · ${t('header.floorRange', { first: floors[0], last: floors[floors.length - 1] })}`;
               })()}
               {' · '}
-              {occupancyRate}% occupied
+              {t('header.occupancy', { rate: occupancyRate })}
             </Typography>
           </Box>
         </Box>
@@ -349,18 +351,18 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
         {/* Center: today's date */}
         <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
           <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-            {formatHotelDate(new Date())} · live status
+            {formatHotelDate(new Date())} · {t('header.liveStatus')}
           </Typography>
         </Box>
 
         {/* Quick Stats - soft tinted tiles */}
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           {([
-            { count: availableCount, label: 'Available', status: 'available' as const, show: true },
-            { count: occupiedCount, label: 'Occupied', status: 'occupied' as const, show: true },
-            { count: reservedCount, label: 'Reserved', status: 'reserved' as const, show: true },
-            { count: dirtyCount, label: 'Dirty', status: 'dirty' as const, show: dirtyCount > 0 },
-            { count: maintenanceCount, label: 'Maintenance', status: 'maintenance' as const, show: maintenanceCount > 0 },
+            { count: availableCount, label: t('header.statAvailable'), status: 'available' as const, show: true },
+            { count: occupiedCount, label: t('header.statOccupied'), status: 'occupied' as const, show: true },
+            { count: reservedCount, label: t('header.statReserved'), status: 'reserved' as const, show: true },
+            { count: dirtyCount, label: t('header.statDirty'), status: 'dirty' as const, show: dirtyCount > 0 },
+            { count: maintenanceCount, label: t('header.statMaintenance'), status: 'maintenance' as const, show: maintenanceCount > 0 },
           ])
             .map((s) => ({ ...s, color: getStatusAccentColor(s.status) }))
             .filter((s) => s.show)
@@ -397,28 +399,28 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
           search={searchField}
           activeFilterCount={activeFilterCount}
           onReset={handleResetFilters}
-          sheetTitle="Room filters"
+          sheetTitle={t('header.filtersTitle')}
         >
           <Box>
-            {sheetSectionLabel('Status')}
+            {sheetSectionLabel(t('header.sectionStatus'))}
             {statusFilterGroup}
           </Box>
           <Box>
-            {sheetSectionLabel('Attributes')}
+            {sheetSectionLabel(t('header.sectionAttributes'))}
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               {attributeChips}
             </Box>
           </Box>
           {floors.length > 1 && (
             <Box>
-              {sheetSectionLabel('Floor')}
+              {sheetSectionLabel(t('header.sectionFloor'))}
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 {floorChips}
               </Box>
             </Box>
           )}
           <Box>
-            {sheetSectionLabel('Sort')}
+            {sheetSectionLabel(t('header.sectionSort'))}
             {attentionFirstToggle}
           </Box>
         </SearchAndFilters>
@@ -426,7 +428,7 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
         /* Status Filters */
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', px: 2.5, py: 1.25 }}>
           <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mr: 0.5 }}>
-            Filter:
+            {t('header.filter')}
           </Typography>
           {statusFilterGroup}
 

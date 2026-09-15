@@ -141,62 +141,77 @@ fn polish_message(raw: &str, fallback: &str) -> String {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status, message) = match &self {
+        // Every body carries a stable snake_case `code` alongside the
+        // human-readable `error` so clients can localize or route on the code
+        // without matching English text.
+        let (status, message, code) = match &self {
             ApiError::Database(msg) => {
                 log::error!("Database error: {}", msg);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Something went wrong on our end. Please try again.".to_string(),
+                    "server_error",
                 )
             }
             ApiError::Unauthorized(msg) => (
                 StatusCode::UNAUTHORIZED,
                 polish_message(msg, "You need to sign in to continue."),
+                "unauthorized",
             ),
             ApiError::Forbidden(msg) => (
                 StatusCode::FORBIDDEN,
                 polish_message(msg, "You don't have permission to do that."),
+                "forbidden",
             ),
             ApiError::BadRequest(msg) => (
                 StatusCode::BAD_REQUEST,
                 polish_message(msg, "That request couldn't be processed."),
+                "bad_request",
             ),
             ApiError::NotFound(msg) => (
                 StatusCode::NOT_FOUND,
                 polish_message(msg, "We couldn't find what you were looking for."),
+                "not_found",
             ),
             ApiError::Conflict(msg) => (
                 StatusCode::CONFLICT,
                 polish_message(msg, "That action conflicts with the current state."),
+                "conflict",
             ),
             ApiError::Internal(msg) => {
                 log::error!("Internal error: {}", msg);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Something went wrong on our end. Please try again.".to_string(),
+                    "server_error",
                 )
             }
             ApiError::ServiceUnavailable(msg) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 polish_message(msg, "This service is temporarily unavailable."),
+                "service_unavailable",
             ),
             ApiError::TooManyRequests(msg) => (
                 StatusCode::TOO_MANY_REQUESTS,
                 polish_message(msg, "Too many requests. Please slow down and try again."),
+                "rate_limited",
             ),
             ApiError::TooManyRequestsRetryAfter(msg, _) => (
                 StatusCode::TOO_MANY_REQUESTS,
                 polish_message(msg, "Too many requests. Please slow down and try again."),
+                "rate_limited",
             ),
             ApiError::ProfileIncomplete(_) => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "Complete your profile before making a booking.".to_string(),
+                "profile_incomplete",
             ),
             ApiError::TwoFactorEnrollmentRequired => (
                 StatusCode::FORBIDDEN,
                 "Your role requires two-factor authentication. Ask an administrator to \
                  help you finish setting it up."
                     .to_string(),
+                "two_factor_enrollment_required",
             ),
             ApiError::GuestNameTaken => (
                 StatusCode::CONFLICT,
@@ -204,41 +219,24 @@ impl IntoResponse for ApiError {
                     "This nickname is already used. Please choose another.",
                     "This nickname is already used. Please choose another.",
                 ),
+                "guest_name_taken",
             ),
         };
 
-        // Profile-incomplete errors carry the missing field names so the client
-        // can route the guest straight to profile completion, deviating from the
-        // uniform `{"error": ...}` body the same way TooManyRequestsRetryAfter
-        // deviates below to add its own header.
+        let mut body = serde_json::json!({
+            "error": message,
+            "code": code,
+        });
+
+        // Profile-incomplete errors additionally carry the missing field names
+        // so the client can route the guest straight to profile completion,
+        // deviating from the uniform `{"error": ..., "code": ...}` body the same
+        // way TooManyRequestsRetryAfter deviates below to add its own header.
         if let ApiError::ProfileIncomplete(missing_fields) = &self {
-            let body = with_request_id(Json(serde_json::json!({
-                "error": message,
-                "code": "profile_incomplete",
-                "missing_profile_fields": missing_fields
-            })));
-            return (status, body).into_response();
+            body["missing_profile_fields"] = serde_json::json!(missing_fields);
         }
 
-        if let ApiError::TwoFactorEnrollmentRequired = &self {
-            let body = with_request_id(Json(serde_json::json!({
-                "error": message,
-                "code": "two_factor_enrollment_required"
-            })));
-            return (status, body).into_response();
-        }
-
-        if let ApiError::GuestNameTaken = &self {
-            let body = with_request_id(Json(serde_json::json!({
-                "error": message,
-                "code": "guest_name_taken"
-            })));
-            return (status, body).into_response();
-        }
-
-        let body = with_request_id(Json(serde_json::json!({
-            "error": message
-        })));
+        let body = with_request_id(Json(body));
 
         // Add Retry-After header for rate limit errors
         if let ApiError::TooManyRequestsRetryAfter(_, secs) = &self {
@@ -275,19 +273,137 @@ impl From<std::io::Error> for ApiError {
 }
 
 #[cfg(test)]
-mod guest_name_taken_tests {
+mod tests {
     use super::ApiError;
     use axum::http::StatusCode;
     use axum::response::IntoResponse;
+
+    async fn body_json(response: axum::response::Response) -> serde_json::Value {
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        serde_json::from_slice(&bytes).expect("json")
+    }
+
+    /// Every variant must emit the stable snake_case `code` the frontend's
+    /// error-code → message mapper consumes, paired with its HTTP status.
+    /// Renaming a variant or inventing a new one fails here until a code is
+    /// assigned — the table is the contract.
+    #[tokio::test]
+    async fn every_variant_emits_stable_snake_case_code() {
+        let cases: Vec<(ApiError, StatusCode, &str)> = vec![
+            (
+                ApiError::Database("db down".into()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+            ),
+            (
+                ApiError::Internal("oops".into()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+            ),
+            (
+                ApiError::Unauthorized("no session".into()),
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+            ),
+            (
+                ApiError::Forbidden("not allowed".into()),
+                StatusCode::FORBIDDEN,
+                "forbidden",
+            ),
+            (
+                ApiError::BadRequest("bad input".into()),
+                StatusCode::BAD_REQUEST,
+                "bad_request",
+            ),
+            (
+                ApiError::NotFound("missing".into()),
+                StatusCode::NOT_FOUND,
+                "not_found",
+            ),
+            (
+                ApiError::Conflict("duplicate".into()),
+                StatusCode::CONFLICT,
+                "conflict",
+            ),
+            (
+                ApiError::ServiceUnavailable("gateway down".into()),
+                StatusCode::SERVICE_UNAVAILABLE,
+                "service_unavailable",
+            ),
+            (
+                ApiError::TooManyRequests("slow down".into()),
+                StatusCode::TOO_MANY_REQUESTS,
+                "rate_limited",
+            ),
+            (
+                ApiError::TooManyRequestsRetryAfter("slow down".into(), 30),
+                StatusCode::TOO_MANY_REQUESTS,
+                "rate_limited",
+            ),
+            (
+                ApiError::ProfileIncomplete(vec!["phone".into()]),
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "profile_incomplete",
+            ),
+            (
+                ApiError::TwoFactorEnrollmentRequired,
+                StatusCode::FORBIDDEN,
+                "two_factor_enrollment_required",
+            ),
+            (
+                ApiError::GuestNameTaken,
+                StatusCode::CONFLICT,
+                "guest_name_taken",
+            ),
+        ];
+
+        for (error, expected_status, expected_code) in cases {
+            let label = error.to_string();
+            let response = error.into_response();
+            assert_eq!(response.status(), expected_status, "{label}");
+            let json = body_json(response).await;
+            assert_eq!(json["code"], expected_code, "{label}");
+            assert!(
+                json["error"].as_str().is_some_and(|m| !m.is_empty()),
+                "{label}: body must carry a non-empty error message"
+            );
+            let code = json["code"].as_str().unwrap();
+            assert!(
+                code.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'),
+                "{label}: code {code} must be snake_case"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn profile_incomplete_keeps_missing_fields_alongside_code() {
+        let response =
+            ApiError::ProfileIncomplete(vec!["phone".into(), "email".into()]).into_response();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], "profile_incomplete");
+        assert_eq!(json["missing_profile_fields"], serde_json::json!(["phone", "email"]));
+        assert!(json["error"].is_string());
+    }
+
+    #[tokio::test]
+    async fn retry_after_variant_keeps_header_and_carries_code() {
+        let response = ApiError::TooManyRequestsRetryAfter("slow down".into(), 42).into_response();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(response.headers()["Retry-After"], "42");
+        let json = body_json(response).await;
+        assert_eq!(json["code"], "rate_limited");
+        assert!(json["error"].is_string());
+    }
 
     #[tokio::test]
     async fn guest_name_taken_is_conflict_with_stable_code() {
         let response = ApiError::GuestNameTaken.into_response();
         assert_eq!(response.status(), StatusCode::CONFLICT);
-        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .expect("body");
-        let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let json = body_json(response).await;
         assert_eq!(json["code"], "guest_name_taken");
         assert!(
             json["error"]

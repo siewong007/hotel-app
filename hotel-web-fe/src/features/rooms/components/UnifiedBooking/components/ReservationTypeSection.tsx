@@ -9,6 +9,7 @@ import {
 import { BookingTokens } from '../bookingTokens';
 import { ReservationType } from '../bookingTypes';
 import CollapsibleSection from '../../../../../components/common/CollapsibleSection';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 
 interface BookingChannel {
   name: string;
@@ -55,6 +56,8 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
   onReferenceChange,
   currencySymbol,
 }) => {
+  const { t } = useTranslation('rooms');
+
   const typeTiles: Array<{
     k: ReservationType;
     label: string;
@@ -63,29 +66,29 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
     color: string;
     soft: string;
   }> = [
-    { k: 'walk_in',       label: 'Walk-in',       desc: 'In person or by phone',  icon: <PersonAddIcon sx={{ fontSize: 20 }} />, color: D.orange, soft: D.orangeSoft },
-    { k: 'online',        label: 'Online',        desc: 'OTA or website booking', icon: <BookingIcon sx={{ fontSize: 20 }} />,   color: D.blue,   soft: D.blueSoft },
-    { k: 'complimentary', label: 'Complimentary', desc: 'Use guest free credits', icon: <GiftIcon sx={{ fontSize: 20 }} />,      color: D.purple, soft: D.purpleSoft },
+    { k: 'walk_in',       label: t('unified.typeWalkIn'), desc: t('unified.typeWalkInDesc'), icon: <PersonAddIcon sx={{ fontSize: 20 }} />, color: D.orange, soft: D.orangeSoft },
+    { k: 'online',        label: t('unified.typeOnline'), desc: t('unified.typeOnlineDesc'), icon: <BookingIcon sx={{ fontSize: 20 }} />,   color: D.blue,   soft: D.blueSoft },
+    { k: 'complimentary', label: t('unified.typeComp'),   desc: t('unified.typeCompDesc'),   icon: <GiftIcon sx={{ fontSize: 20 }} />,      color: D.purple, soft: D.purpleSoft },
   ];
 
   return (
     <CollapsibleSection
-      title={`${glyph} Reservation type`}
+      title={`${glyph} ${t('unified.secResType')}`}
       subtitle={reservationType ? typeTiles.find((tile) => tile.k === reservationType)?.label : undefined}
       collapseOnPhone
       sx={{ mb: 2.75 }}
     >
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.25 }}>
-        {typeTiles.map((t) => {
-          const on = reservationType === t.k;
+        {typeTiles.map((tile) => {
+          const on = reservationType === tile.k;
           return (
             <Box
-              key={t.k}
+              key={tile.k}
               component="button"
-              onClick={() => onSelectType(t.k)}
+              onClick={() => onSelectType(tile.k)}
               sx={{
-                bgcolor: on ? t.soft : D.surface,
-                border: `1.5px solid ${on ? t.color : D.border}`,
+                bgcolor: on ? tile.soft : D.surface,
+                border: `1.5px solid ${on ? tile.color : D.border}`,
                 borderRadius: 1.5,
                 p: '14px 12px',
                 display: 'flex',
@@ -97,19 +100,19 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
                 color: D.ink,
                 textAlign: 'center',
                 transition: 'border-color 120ms, background 120ms',
-                '&:hover': { borderColor: on ? t.color : D.borderHi },
+                '&:hover': { borderColor: on ? tile.color : D.borderHi },
               }}
             >
-              <Box sx={{ width: 38, height: 38, borderRadius: 1.25, display: 'grid', placeItems: 'center', bgcolor: t.soft, color: t.color }}>
-                {t.icon}
+              <Box sx={{ width: 38, height: 38, borderRadius: 1.25, display: 'grid', placeItems: 'center', bgcolor: tile.soft, color: tile.color }}>
+                {tile.icon}
               </Box>
               <Box>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, color: D.ink, lineHeight: 1.2 }}>{t.label}</Typography>
-                <Typography sx={{ fontSize: 11, color: D.ink3, lineHeight: 1.35 }}>{t.desc}</Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, color: D.ink, lineHeight: 1.2 }}>{tile.label}</Typography>
+                <Typography sx={{ fontSize: 11, color: D.ink3, lineHeight: 1.35 }}>{tile.desc}</Typography>
               </Box>
               {on && (
-                <Box sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.6, color: t.color, bgcolor: D.surface, border: `1px solid ${t.color}`, px: 0.85, py: '2px', borderRadius: 999 }}>
-                  SELECTED
+                <Box sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.6, color: tile.color, bgcolor: D.surface, border: `1px solid ${tile.color}`, px: 0.85, py: '2px', borderRadius: 999 }}>
+                  {t('unified.selected')}
                 </Box>
               )}
             </Box>
@@ -121,7 +124,7 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
       {reservationType === 'online' && (
         <Box sx={{ mt: 1.5, bgcolor: D.blueSoft, border: '1px solid var(--hotel-info-border)', borderRadius: 1.5, p: 1.75 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 12, fontWeight: 700, color: D.blue, mb: 1.25 }}>
-            <PublicIcon sx={{ fontSize: 14 }} /> Booking channel <Box component="span" sx={{ color: D.blue }}>*</Box>
+            <PublicIcon sx={{ fontSize: 14 }} /> {t('fields.channel')} <Box component="span" sx={{ color: D.blue }}>*</Box>
           </Box>
           <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
             {bookingChannels.map((channel) => {
@@ -171,25 +174,25 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
           </Box>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mt: 1.5 }}>
             <Box>
-              <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Booking reference *</Typography>
+              <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>{t('fields.bookingReference')} *</Typography>
               <TextField
                 fullWidth
                 size="small"
-                placeholder="e.g. 2004721892"
+                placeholder={t('unified.refPlaceholder')}
                 value={bookingReference}
                 onChange={(e) => onReferenceChange(e.target.value)}
                 sx={{ bgcolor: D.surface }}
               />
             </Box>
             <Box>
-              <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Prepaid amount</Typography>
+              <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>{t('fields.prepaidAmount')}</Typography>
               <TextField
                 fullWidth
                 size="small"
                 placeholder={`${currencySymbol} 0.00`}
                 sx={{ bgcolor: D.surface }}
                 disabled
-                helperText="Tracked at check-in"
+                helperText={t('unified.trackedAtCheckIn')}
               />
             </Box>
           </Box>

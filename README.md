@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/siewong007/hotel-app/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/siewong007/hotel-app/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/siewong007/hotel-app/actions/workflows/docker.yml"><img alt="Docker" src="https://github.com/siewong007/hotel-app/actions/workflows/docker.yml/badge.svg"></a>
+  <a href="https://github.com/siewong007/hotel-app/actions/workflows/security.yml"><img alt="Security" src="https://github.com/siewong007/hotel-app/actions/workflows/security.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-blue">
   <img alt="Top language" src="https://img.shields.io/github/languages/top/siewong007/hotel-app">
@@ -15,10 +15,11 @@
 
 <p align="center">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-1.95.0-orange?logo=rust">
-  <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-19.3-61DAFB?logo=react&logoColor=111">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6.0.3%20(pinned)-3178C6?logo=typescript&logoColor=white">
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-8.3-646CFF?logo=vite&logoColor=white">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=111">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-19-4169E1?logo=postgresql&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-19beta3-4169E1?logo=postgresql&logoColor=white">
 </p>
 
 ## 📌 Overview
@@ -62,15 +63,31 @@ This project addresses that problem by implementing a centralized administrative
 
 ## Tech Stack
 
+Versions below are the ones actually resolved in `Cargo.lock` / `bun.lock`,
+verified against crates.io and npm on 2026-09-15. **Every Rust crate and every
+frontend package is on its latest stable release**, with one deliberate pin
+(TypeScript — see below).
+
 | Layer | Technologies |
 | --- | --- |
-| Backend API | Rust 1.95.0, Axum 0.8, Tokio, SQLx 0.9, Serde, Validator |
-| Frontend | React 19, TypeScript 6, Vite 8, MUI v9, TanStack Router, TanStack Query, TanStack Table, ky |
+| Backend API | Rust 1.95.0 (edition 2024), Axum 0.8.9, Tokio 1.53.1, SQLx 0.9.0, Serde 1.0.229, Validator 0.21, reqwest 0.13.5, lettre 0.11.23, rust_decimal 1.43 |
+| Frontend | React 19.3.0, TypeScript 6.0.3 (**pinned** — see note), Vite 8.3.0, MUI 9.4.0, TanStack Router 1.170.36 / Query 5.102.8 / Table 9.2.4, ky 2.1.0, date-fns 4.4.0 |
+| Tooling | Bun 1.3.14 (exact CI pin), ESLint 10.10, Vitest 5.0 + jsdom 30, `@vitejs/plugin-react` 6.1.1, React Compiler via `babel-plugin-react-compiler` |
 | Desktop | Tauri 2, Rust commands, backend sidecar, bundled PostgreSQL resources |
-| Database | PostgreSQL 19, V1 baseline + seed + checksum-verified patch catalog, parameterized SQLx queries |
+| Database | PostgreSQL 19 — `19beta3` on the server/CI stack, `19beta2` still bundled in the desktop app; V1 baseline + seed + checksum-verified patch catalog, parameterized SQLx queries |
 | Security | JWT, refresh tokens, RBAC, TOTP 2FA, passkey endpoints, rate limiting, CORS, and security headers |
 | Reporting | Nivo charts, jsPDF, jsPDF AutoTable, backend analytics endpoints |
-| CI/CD | GitHub Actions: secret scan and `cargo audit`, frontend typecheck/lint/test/build, backend check/test/clippy/release, PostgreSQL schema and workflow smoke, desktop compile check; separate Docker image, desktop build, security, and production deploy workflows |
+| CI/CD | GitHub Actions — six CI jobs: secret scan + `cargo audit`, Markdown link check, frontend typecheck/lint/test/build, backend check/test/clippy/release, PostgreSQL schema and workflow smoke, and a desktop compile check. Separate workflows for security (CodeQL, dependency review), a real desktop Tauri build, the legacy Docker publisher, and staging/production deploy |
+
+> **Why TypeScript is held at 6.** TypeScript 7.0.2 is published, but no
+> released `@typescript-eslint` supports it: the current parser (8.70.0) and even
+> its canary (8.70.1-alpha.15) both declare `peerDependencies.typescript` as
+> `>=4.8.4 <6.1.0`, and `typescript-estree` hard-codes the same range. On TS 7 the
+> parser throws at module load, so `bun run lint:strict` — a CI gate — fails even
+> though `tsc --noEmit` passes. TypeScript 6 with full strictness is therefore the
+> newest version this project can actually run, not a version it has fallen behind
+> on. Tracked upstream at typescript-eslint#10940, targeting TS ≥ 7.1. Re-checked
+> against npm on 2026-09-15; see [Dependencies](docs/DEPENDENCIES.md).
 
 ## 🧱 Architecture
 
@@ -212,7 +229,12 @@ hotel-app/
 │   │   ├── services/             # Business workflow logic
 │   │   └── utils/                # Sanitization and validation helpers
 │   ├── database/
-│   │   └── postgres/             # V1 baseline, one-time data/seed, PG19 tuning
+│   │   └── postgres/
+│   │       ├── migrations/       # 0001_v1_baseline.sql — fresh-install schema
+│   │       ├── patches/          # manifest.tsv-ordered, sha256-verified catalog
+│   │       ├── seed.sql          # one-time system/bootstrap records
+│   │       ├── staging.sql       # optional rerunnable demo dataset
+│   │       └── optimization/     # opt-in PG19 tuning + benchmark + rollback
 │   └── tests/                    # Integration tests (most require DATABASE_URL)
 ├── hotel-web-fe/                 # React frontend
 │   ├── src/
@@ -303,9 +325,9 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 
 - ✅ **Docker Compose full-stack setup** — One-command startup with PostgreSQL + backend + frontend
 - ✅ **OCI Always Free Terraform** — Ampere A1 development VM, networking, Vault access, and Compose bootstrap
-- ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts
+- ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts (`optimization/pg19_beta2*.sql`; guards accept 19beta2/19beta3, but the values were benchmarked on beta2 only — re-run the benchmark script before trusting them on beta3)
 - ✅ **Project Makefile** — Convenience commands for all development workflows
-- ✅ **Frontend test suite** — Vitest + Testing Library across ~230 test files
+- ✅ **Frontend test suite** — Vitest + Testing Library: 235 test files / 1,902 tests green (`bun run test`, 2026-09-15)
 - ✅ **Backend integration tests** — 50 test files covering auth/RBAC, bookings, payments, ledgers, rooms, night audit, data transfer, and portal flows
 - ✅ **Security CI gate** — Committed-secret scan, `cargo audit`, CodeQL, and dependency review
 - ✅ **Generated OpenAPI spec** — `docs/api/openapi.json`, regenerated from the router and enforced by the `openapi_drift` CI test
@@ -329,7 +351,7 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 
 - The project is not presented as production-ready; security, compliance, deployment hardening, and operational procedures require additional validation.
 - Automated test coverage is uneven — core money, booking, and auth paths are covered, but several feature pages and portal flows are not.
-- Backend integration tests skip silently unless `DATABASE_URL` is set, so a green `cargo test` is only meaningful alongside its run count.
+- Backend integration tests skip silently unless `DATABASE_URL` is set, and because a skipped test early-returns (which libtest counts as a pass) the run count goes *up*, not down — a green `cargo test` is only meaningful alongside wall-clock time and per-suite counts. See [DEVELOPMENT.md](docs/DEVELOPMENT.md#validate).
 - Some desktop operational commands are still limited; for example, database backup behavior is not a complete managed backup solution.
 - Desktop packaging is built and verified for macOS only; Windows and Linux are built manually.
 - eKYC document handling is implemented as an application workflow, not a certified identity verification service.

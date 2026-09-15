@@ -33,12 +33,15 @@ import {
   useRegenerateBackupCodes,
 } from '../hooks/useTwoFactorQueries';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useTranslation } from '../../../i18n';
+import { statusLabel } from '../../../i18n/statusLabel';
 
 interface TwoFactorSetupProps {
   onSetupComplete?: () => void;
 }
 
 const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
+  const { t } = useTranslation('auth');
   const { data: twoFactorStatus } = useTwoFactorStatus();
   const setupMutation = useSetupTwoFactor();
   const enableMutation = useEnableTwoFactor();
@@ -76,11 +79,11 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
 
   const handleEnable2FA = async () => {
     if (!verificationCode.trim()) {
-      showSnackbar('Please enter verification code', 'warning');
+      showSnackbar(t('twoFactorSetup.enterVerificationCode'), 'warning');
       return;
     }
     if (!setupData) {
-      showSnackbar('Setup session expired. Restart 2FA setup.', 'warning');
+      showSnackbar(t('twoFactorSetup.setupExpired'), 'warning');
       return;
     }
 
@@ -93,17 +96,17 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       setVerificationCode('');
       setSetupData(null);
       setEnableBackupCodes(result.backup_codes);
-      showSnackbar('2FA enabled successfully', 'success');
+      showSnackbar(t('twoFactorSetup.enabled'), 'success');
       onSetupComplete?.();
     } catch (error) {
       console.error('Failed to enable 2FA:', error);
-      showSnackbar(errorMessage(error, 'Failed to enable 2FA'), 'error');
+      showSnackbar(errorMessage(error, t('twoFactorSetup.enableFailed')), 'error');
     }
   };
 
   const handleDisable2FA = async () => {
     if (!disableCode.trim()) {
-      showSnackbar('Please enter your current 2FA code', 'warning');
+      showSnackbar(t('twoFactorSetup.enterCurrentCode'), 'warning');
       return;
     }
 
@@ -111,17 +114,17 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       await disableMutation.mutateAsync(disableCode);
       setShowDisableDialog(false);
       setDisableCode('');
-      showSnackbar('2FA disabled successfully', 'success');
+      showSnackbar(t('twoFactorSetup.disabled'), 'success');
       onSetupComplete?.();
     } catch (error) {
       console.error('Failed to disable 2FA:', error);
-      showSnackbar(errorMessage(error, 'Failed to disable 2FA'), 'error');
+      showSnackbar(errorMessage(error, t('twoFactorSetup.disableFailed')), 'error');
     }
   };
 
   const handleRegenerateCodes = async () => {
     if (!regenerateCode.trim()) {
-      showSnackbar('Please enter your current 2FA code', 'warning');
+      showSnackbar(t('twoFactorSetup.enterCurrentCode'), 'warning');
       return;
     }
 
@@ -130,18 +133,18 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       setNewBackupCodes(data.backup_codes);
       setShowRegenerateDialog(false);
       setRegenerateCode('');
-      showSnackbar('Backup codes regenerated successfully', 'success');
+      showSnackbar(t('twoFactorSetup.regenerated'), 'success');
     } catch (error) {
       console.error('Failed to regenerate backup codes:', error);
-      showSnackbar(errorMessage(error, 'Failed to regenerate backup codes'), 'error');
+      showSnackbar(errorMessage(error, t('twoFactorSetup.regenerateFailed')), 'error');
     }
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
-      showSnackbar('Copied to clipboard', 'success');
+      showSnackbar(t('notifications:toast.copied'), 'success');
     }).catch(() => {
-      showSnackbar('Failed to copy to clipboard', 'error');
+      showSnackbar(t('notifications:toast.copyFailed'), 'error');
     });
   };
 
@@ -152,7 +155,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
   if (!twoFactorStatus) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-        <Typography>Loading 2FA status...</Typography>
+        <Typography>{t('twoFactorSetup.loadingStatus')}</Typography>
       </Box>
     );
   }
@@ -165,16 +168,16 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <SecurityIcon />
-                Two-Factor Authentication
+                {t('twoFactor.title')}
               </Typography>
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Add an extra layer of security to your account
+                {t('twoFactorSetup.subtitle')}
               </Typography>
             </Box>
             <Chip
-              label={twoFactorStatus.enabled ? 'Enabled' : 'Disabled'}
+              label={statusLabel(t, 'generic', twoFactorStatus.enabled ? 'enabled' : 'disabled')}
               color={twoFactorStatus.enabled ? 'success' : 'default'}
               variant={twoFactorStatus.enabled ? 'filled' : 'outlined'}
             />
@@ -188,7 +191,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
               <Typography variant="h6" gutterBottom sx={{
                 color: "text.secondary"
               }}>
-                Two-factor authentication is not enabled
+                {t('twoFactorSetup.notEnabled')}
               </Typography>
               <Typography
                 variant="body2"
@@ -196,7 +199,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                   color: "text.secondary",
                   mb: 3
                 }}>
-                Protect your account with Google Authenticator, Authy, or any TOTP app
+                {t('twoFactorSetup.notEnabledHint')}
               </Typography>
               <Button
                 variant="contained"
@@ -204,14 +207,15 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 disabled={loading}
                 startIcon={<QrCodeIcon />}
               >
-                {loading ? 'Setting up...' : 'Set Up 2FA'}
+                {loading ? t('twoFactorSetup.settingUp') : t('twoFactorSetup.setup')}
               </Button>
             </Box>
           ) : (
             <Box>
               <Alert severity="success" sx={{ mb: 3 }}>
                 <Typography variant="body2">
-                  <strong>2FA is enabled!</strong> Your account is now protected with two-factor authentication.
+                  <strong>{t('twoFactorSetup.enabledBanner')}</strong>{' '}
+                  {t('twoFactorSetup.enabledBannerDetail')}
                 </Typography>
               </Alert>
 
@@ -219,7 +223,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-                      Backup Codes
+                      {t('twoFactorSetup.backupCodesTitle')}
                     </Typography>
                     <Typography
                       variant="body2"
@@ -227,7 +231,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                         color: "text.secondary",
                         mb: 2
                       }}>
-                      {twoFactorStatus.backup_codes_remaining} codes remaining
+                      {t('twoFactorSetup.codesRemaining', { count: twoFactorStatus.backup_codes_remaining })}
                     </Typography>
                     <Button
                       variant="outlined"
@@ -235,14 +239,14 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                       startIcon={<RefreshIcon />}
                       onClick={() => setShowRegenerateDialog(true)}
                     >
-                      Generate New Codes
+                      {t('twoFactorSetup.generateNewCodes')}
                     </Button>
                   </Paper>
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-                      Disable 2FA
+                      {t('twoFactorSetup.disableTitle')}
                     </Typography>
                     <Typography
                       variant="body2"
@@ -250,7 +254,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                         color: "text.secondary",
                         mb: 2
                       }}>
-                      Disabling 2FA will make your account less secure
+                      {t('twoFactorSetup.disableHint')}
                     </Typography>
                     <Button
                       variant="outlined"
@@ -258,7 +262,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                       color="error"
                       onClick={() => setShowDisableDialog(true)}
                     >
-                      Disable 2FA
+                      {t('twoFactorSetup.disableTitle')}
                     </Button>
                   </Paper>
                 </Grid>
@@ -269,44 +273,44 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       </Card>
       {/* Setup 2FA Dialog */}
       <Dialog open={showSetupDialog} onClose={() => setShowSetupDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Set Up Two-Factor Authentication</DialogTitle>
+        <DialogTitle>{t('twoFactorEnrollment.title')}</DialogTitle>
         <DialogContent>
           {setupData && (
             <Box sx={{ mt: 1 }}>
               <Typography variant="body1" sx={{ mb: 2 }}>
-                1. Install Google Authenticator, Authy, or any TOTP app on your phone
+                {t('twoFactorSetup.stepInstall')}
               </Typography>
               <Typography variant="body1" sx={{ mb: 3 }}>
-                2. Scan this QR code with your authenticator app:
+                {t('twoFactorSetup.stepScan')}
               </Typography>
 
               <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
                 {/* Rendered locally: the otpauth URI contains the TOTP secret and must not be sent to a third-party QR service */}
                 <Box sx={{ border: '1px solid', borderColor: 'divider', lineHeight: 0 }}>
-                  <QRCodeSVG value={setupData.qr_code_url} size={200} marginSize={4} title="QR Code" />
+                  <QRCodeSVG value={setupData.qr_code_url} size={200} marginSize={4} title={t('twoFactorSetup.qrCodeTitle')} />
                 </Box>
               </Box>
 
               <Typography variant="body1" sx={{ mb: 1 }}>
-                Or manually enter this code:
+                {t('twoFactorSetup.manualEntry')}
               </Typography>
               <Paper sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)', mb: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', flexGrow: 1 }}>
                     {setupData.secret}
                   </Typography>
-                  <IconButton size="small" onClick={() => copyToClipboard(setupData.secret)} aria-label="Copy setup key">
+                  <IconButton size="small" onClick={() => copyToClipboard(setupData.secret)} aria-label={t('twoFactorSetup.copySetupKey')}>
                     <CopyIcon fontSize="small" />
                   </IconButton>
                 </Box>
               </Paper>
 
               <Typography variant="body1" sx={{ mb: 2 }}>
-                3. Enter the 6-digit verification code from your authenticator app:
+                {t('twoFactorSetup.stepVerify')}
               </Typography>
               <TextField
                 fullWidth
-                label="Verification Code"
+                label={t('twoFactorSetup.verificationCodeLabel')}
                 value={verificationCode}
                 onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 sx={{ mb: 1 }}
@@ -317,29 +321,28 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Your backup codes will be shown after 2FA is enabled.
+                {t('twoFactorSetup.backupCodesAfterEnable')}
               </Typography>
             </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowSetupDialog(false)}>Cancel</Button>
+          <Button onClick={() => setShowSetupDialog(false)}>{t('common:actions.cancel')}</Button>
           <Button
             onClick={handleEnable2FA}
             variant="contained"
             disabled={verificationCode.length !== 6 || loading}
           >
-            Enable 2FA
+            {t('twoFactorSetup.enableAction')}
           </Button>
         </DialogActions>
       </Dialog>
       {/* Backup Codes Dialog — shown exactly once, right after 2FA is enabled */}
       <Dialog open={enableBackupCodes.length > 0} maxWidth="sm" fullWidth>
-        <DialogTitle>Save Your Backup Codes</DialogTitle>
+        <DialogTitle>{t('twoFactorSetup.backupCodesDialogTitle')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            Use these codes to access your account if you lose your device. They will not be
-            shown again.
+            {t('twoFactorSetup.backupCodesDialogBody')}
           </Typography>
           <Paper
             sx={{
@@ -349,7 +352,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
             }}
           >
             <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-              ⚠️ Store these codes somewhere safe. Each code can only be used once.
+              {t('twoFactorSetup.backupCodesWarning')}
             </Typography>
             <Grid container spacing={1}>
               {enableBackupCodes.map((code, index) => (
@@ -366,27 +369,27 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 startIcon={<CopyIcon />}
                 onClick={() => copyToClipboard(enableBackupCodes.join('\n'))}
               >
-                Copy All Codes
+                {t('twoFactorSetup.copyAll')}
               </Button>
             </Box>
           </Paper>
         </DialogContent>
         <DialogActions>
           <Button variant="contained" onClick={() => setEnableBackupCodes([])}>
-            I saved my codes
+            {t('twoFactorSetup.codesSaved')}
           </Button>
         </DialogActions>
       </Dialog>
       {/* Disable 2FA Dialog */}
       <Dialog open={showDisableDialog} onClose={() => setShowDisableDialog(false)}>
-        <DialogTitle>Disable Two-Factor Authentication</DialogTitle>
+        <DialogTitle>{t('twoFactorSetup.disableDialogTitle')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            Are you sure you want to disable 2FA? This will make your account less secure.
+            {t('twoFactorSetup.disableConfirm')}
           </Typography>
           <TextField
             fullWidth
-            label="Enter your current 2FA code or backup code"
+            label={t('twoFactorSetup.disableCodeLabel')}
             value={disableCode}
             onChange={(e) => setDisableCode(e.target.value)}
             sx={{ mb: 1 }}
@@ -394,31 +397,31 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            This action cannot be undone. Make sure you have access to your authenticator app or backup codes.
+            {t('twoFactorSetup.disableUndoWarning')}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowDisableDialog(false)}>Cancel</Button>
+          <Button onClick={() => setShowDisableDialog(false)}>{t('common:actions.cancel')}</Button>
           <Button
             onClick={handleDisable2FA}
             variant="contained"
             color="error"
             disabled={!disableCode.trim() || loading}
           >
-            Disable 2FA
+            {t('twoFactorSetup.disableTitle')}
           </Button>
         </DialogActions>
       </Dialog>
       {/* Regenerate Backup Codes Dialog */}
       <Dialog open={showRegenerateDialog} onClose={() => setShowRegenerateDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Regenerate Backup Codes</DialogTitle>
+        <DialogTitle>{t('twoFactorSetup.regenerateDialogTitle')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            Generate new backup codes? Your old codes will no longer work.
+            {t('twoFactorSetup.regenerateConfirm')}
           </Typography>
           <TextField
             fullWidth
-            label="Enter your current 2FA code"
+            label={t('twoFactorSetup.regenerateCodeLabel')}
             value={regenerateCode}
             onChange={(e) => setRegenerateCode(e.target.value)}
             sx={{ mb: 2 }}
@@ -434,7 +437,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
               }}
             >
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                ✅ Your new backup codes:
+                {t('twoFactorSetup.newCodesReady')}
               </Typography>
               <Grid container spacing={1}>
                 {newBackupCodes.map((code, index) => (
@@ -451,20 +454,20 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                   startIcon={<CopyIcon />}
                   onClick={() => copyToClipboard(newBackupCodes.join('\n'))}
                 >
-                  Copy All Codes
+                  {t('twoFactorSetup.copyAll')}
                 </Button>
               </Box>
             </Paper>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowRegenerateDialog(false)}>Cancel</Button>
+          <Button onClick={() => setShowRegenerateDialog(false)}>{t('common:actions.cancel')}</Button>
           <Button
             onClick={handleRegenerateCodes}
             variant="contained"
             disabled={!regenerateCode.trim() || loading}
           >
-            {newBackupCodes.length > 0 ? 'Close' : 'Generate New Codes'}
+            {newBackupCodes.length > 0 ? t('common:actions.close') : t('twoFactorSetup.generateNewCodes')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -31,6 +31,16 @@ import {
   Block as BlockIcon,
 } from '@mui/icons-material';
 import { Guest, Room } from '../../../../../types';
+import { useTranslation } from '../../../../../i18n/useTranslation';
+import { intlTag } from '../../../../../i18n/format';
+import { formatHotelDate, parseLocalDate } from '../../../../../utils/date';
+
+const formatStayDay = (value: string): string =>
+  parseLocalDate(value).toLocaleDateString(intlTag(), {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
 
 interface GuestCredits {
   guest_id: number;
@@ -117,6 +127,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
   onToggleDate,
   onBookWithCredits,
 }) => {
+  const { t } = useTranslation('rooms');
   return (
     <Dialog
       open={open}
@@ -128,7 +139,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <PersonIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-            {guest?.nick_name || 'Guest Details'}
+            {guest?.nick_name || t('guestDetails.title')}
           </Typography>
         </Box>
       </DialogTitle>
@@ -148,11 +159,11 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
           }
         }}
       >
-        <Tab label="Guest Info" icon={<PersonIcon />} iconPosition="start" />
+        <Tab label={t('guestDetails.tabInfo')} icon={<PersonIcon />} iconPosition="start" />
         <Tab
           label={
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <span>Free Gift Credits</span>
+              <span>{t('guestDetails.tabCredits')}</span>
               {guestCredits && guestCredits.total_nights > 0 && (
                 <Chip
                   label={guestCredits.total_nights}
@@ -173,20 +184,20 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
             <Grid size={6}>
               <Typography variant="caption" sx={{
                 color: "text.secondary"
-              }}>Email</Typography>
+              }}>{t('common:field.email')}</Typography>
               <Typography variant="body2">{guest.email}</Typography>
             </Grid>
             <Grid size={6}>
               <Typography variant="caption" sx={{
                 color: "text.secondary"
-              }}>Phone</Typography>
+              }}>{t('common:field.phone')}</Typography>
               <Typography variant="body2">{guest.phone || 'N/A'}</Typography>
             </Grid>
             {guest.address_line1 && (
               <Grid size={12}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Address</Typography>
+                }}>{t('common:field.address')}</Typography>
                 <Typography variant="body2">
                   {guest.address_line1}
                   {guest.city && `, ${guest.city}`}
@@ -199,7 +210,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
               <Grid size={6}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Country</Typography>
+                }}>{t('bookings:checkInForm.personal.country')}</Typography>
                 <Typography variant="body2">{guest.country}</Typography>
               </Grid>
             )}
@@ -207,7 +218,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
               <Grid size={6}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Nationality</Typography>
+                }}>{t('bookings:checkInForm.personal.nationality')}</Typography>
                 <Typography variant="body2">{guest.nationality}</Typography>
               </Grid>
             )}
@@ -215,7 +226,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
               <Grid size={6}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>IC Number</Typography>
+                }}>{t('guestDetails.icNumber')}</Typography>
                 <Typography variant="body2">{guest.ic_number}</Typography>
               </Grid>
             )}
@@ -223,7 +234,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
               <Grid size={6}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Company</Typography>
+                }}>{t('guestDetails.company')}</Typography>
                 <Typography variant="body2">{guest.company_name}</Typography>
               </Grid>
             )}
@@ -233,9 +244,9 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
             <Grid size={12}>
               <Typography variant="caption" sx={{
                 color: "text.secondary"
-              }}>Member Since</Typography>
+              }}>{t('guestDetails.memberSince')}</Typography>
               <Typography variant="body2">
-                {new Date(guest.created_at).toLocaleDateString()}
+                {formatHotelDate(guest.created_at)}
               </Typography>
             </Grid>
           </Grid>
@@ -260,10 +271,10 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                   <Typography variant="subtitle1" sx={{
                     fontWeight: 600
                   }}>
-                    🎉 Booking Created Successfully!
+                    {t('guestDetails.bookingCreated')}
                   </Typography>
                   <Typography variant="body2">
-                    Booking #{creditsBookingSuccess.booking_number} - {creditsBookingSuccess.complimentary_nights} night(s) are complimentary
+                    {t('guestDetails.bookingCreatedDetail', { number: creditsBookingSuccess.booking_number, count: creditsBookingSuccess.complimentary_nights })}
                   </Typography>
                 </Alert>
                 <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
@@ -274,13 +285,13 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                     startIcon={<LoginIcon />}
                     onClick={onCheckInFromCreditsBooking}
                   >
-                    Check In Now
+                    {t('bookings:checkIn.checkInNow')}
                   </Button>
                   <Button
                     variant="outlined"
                     onClick={onBookAnother}
                   >
-                    Book Another Room
+                    {t('guestDetails.bookAnother')}
                   </Button>
                 </Box>
               </Box>)
@@ -298,7 +309,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                         alignItems: 'center',
                         gap: 1
                       }}>
-                      <GiftIcon /> Available Free Gift Credits
+                      <GiftIcon /> {t('guestDetails.availableCredits')}
                     </Typography>
                     {guestCredits && guestCredits.total_nights > 0 ? (
                       <Box>
@@ -306,7 +317,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                           <Chip
                             key={credit.id}
                             icon={<GiftIcon />}
-                            label={`${credit.room_type_name}: ${credit.nights_available} night(s)`}
+                            label={`${credit.room_type_name}: ${t('guestDetails.creditNights', { count: credit.nights_available })}`}
                             color="success"
                             sx={{ mr: 1, mb: 1 }}
                           />
@@ -316,7 +327,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                       <Typography variant="body2" sx={{
                         color: "text.secondary"
                       }}>
-                        No complimentary credits available
+                        {t('guestDetails.noCredits')}
                       </Typography>
                     )}
                   </Paper>
@@ -329,13 +340,13 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                       <Typography variant="subtitle1" sx={{
                         fontWeight: 600
                       }}>
-                        Book a Room with Free Gift Credits
+                        {t('guestDetails.bookWithCreditsTitle')}
                       </Typography>
                     </Grid>
 
                     <Grid size={6}>
                       <TextField
-                        label="Check-in Date"
+                        label={t('complimentary.checkInDate')}
                         type="date"
                         fullWidth
                         value={creditsBookingForm.check_in_date}
@@ -347,7 +358,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                     </Grid>
                     <Grid size={6}>
                       <TextField
-                        label="Check-out Date"
+                        label={t('complimentary.checkOutDate')}
                         type="date"
                         fullWidth
                         value={creditsBookingForm.check_out_date}
@@ -360,11 +371,11 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
 
                     <Grid size={12}>
                       <FormControl fullWidth>
-                        <InputLabel>Select Room</InputLabel>
+                        <InputLabel>{t('guestDetails.selectRoom')}</InputLabel>
                         <Select
                           value={creditsBookingForm.room_id}
                           onChange={(e) => onRoomChange(e.target.value)}
-                          label="Select Room"
+                          label={t('guestDetails.selectRoom')}
                         >
                           {[...availableRoomsForCredits]
                             .sort((a, b) => {
@@ -377,7 +388,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                             })
                             .map((room) => (
                               <MenuItem key={room.id} value={room.id.toString()}>
-                                Room {room.room_number} - {room.room_type}
+                                {t('guestDetails.roomOption', { number: room.room_number, type: room.room_type })}
                               </MenuItem>
                             ))}
                         </Select>
@@ -389,10 +400,10 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                       <Grid size={12}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                           <Typography variant="subtitle2">
-                            Select Complimentary Dates (Available: {getTotalCreditsForRoom(creditsBookingForm.room_id)})
+                            {t('guestDetails.selectCompDates', { count: getTotalCreditsForRoom(creditsBookingForm.room_id) })}
                           </Typography>
                           <Button size="small" onClick={onSelectAllAvailable}>
-                            Select All Available
+                            {t('guestDetails.selectAllAvailable')}
                           </Button>
                         </Box>
                         <Paper variant="outlined" sx={{ p: 2, maxHeight: 180, overflow: 'auto' }}>
@@ -402,7 +413,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                               <Typography variant="caption" sx={{
                                 color: "text.secondary"
                               }}>
-                                Reserved (unavailable)
+                                {t('guestDetails.reservedUnavailable')}
                               </Typography>
                             </Box>
                           )}
@@ -440,7 +451,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                                         fontSize: '0.85rem',
                                       }}
                                     >
-                                      {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                      {formatStayDay(date)}
                                     </Typography>
                                   </Box>
                                 );
@@ -457,7 +468,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                                       color="secondary"
                                     />
                                   }
-                                  label={new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                  label={formatStayDay(date)}
                                   sx={{
                                     backgroundColor: isSelected ? 'var(--hotel-selected)' : 'transparent',
                                     borderRadius: 1,
@@ -472,7 +483,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                         </Paper>
                         {selectedComplimentaryDates.length > 0 && (
                           <Alert severity="success" sx={{ mt: 1 }}>
-                            {selectedComplimentaryDates.length} night(s) will be complimentary (Free Gift)
+                            {t('guestDetails.compNightsInfo', { count: selectedComplimentaryDates.length })}
                           </Alert>
                         )}
                       </Grid>
@@ -480,7 +491,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
 
                     <Grid size={6}>
                       <TextField
-                        label="Adults"
+                        label={t('bookings:checkInForm.stay.adults')}
                         type="number"
                         fullWidth
                         value={creditsBookingForm.adults}
@@ -492,7 +503,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                     </Grid>
                     <Grid size={6}>
                       <TextField
-                        label="Children"
+                        label={t('guestDetails.children')}
                         type="number"
                         fullWidth
                         value={creditsBookingForm.children}
@@ -518,7 +529,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
                           getCreditsBookingDates().length === 0
                         }
                       >
-                        {bookingWithCredits ? 'Creating Booking...' : 'Book with Free Gift Credits'}
+                        {bookingWithCredits ? t('guestDetails.creatingBooking') : t('guestDetails.bookWithCredits')}
                       </Button>
                     </Grid>
                   </>
@@ -529,7 +540,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-raised)', borderTop: 1, borderColor: 'divider' }}>
-        <Button onClick={onClose} variant="outlined">Close</Button>
+        <Button onClick={onClose} variant="outlined">{t('common:actions.close')}</Button>
       </DialogActions>
     </Dialog>
   );

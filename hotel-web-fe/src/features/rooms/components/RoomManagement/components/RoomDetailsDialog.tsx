@@ -11,6 +11,8 @@ import {
 } from '@mui/material';
 import { Settings as SettingsIcon } from '@mui/icons-material';
 import { Room } from '../../../../../types';
+import { useTranslation } from '../../../../../i18n/useTranslation';
+import { statusLabel } from '../../../../../i18n/statusLabel';
 import { toMoneyNumber } from '../../../../../utils/money';
 
 interface RoomDetailsDialogProps {
@@ -26,13 +28,14 @@ const RoomDetailsDialog: React.FC<RoomDetailsDialogProps> = ({
   room,
   formatCurrency,
 }) => {
+  const { t } = useTranslation('rooms');
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ bgcolor: 'primary.main', color: 'var(--hotel-on-primary)', py: 2, px: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <SettingsIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-            Room Properties - {room?.room_number}
+            {t('detailsDialog.title', { room: room?.room_number })}
           </Typography>
         </Box>
       </DialogTitle>
@@ -43,7 +46,7 @@ const RoomDetailsDialog: React.FC<RoomDetailsDialogProps> = ({
               <Grid size={6}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Room Number</Typography>
+                }}>{t('fields.roomNumber')}</Typography>
                 <Typography variant="body1" sx={{
                   fontWeight: 600
                 }}>{room.room_number}</Typography>
@@ -51,7 +54,7 @@ const RoomDetailsDialog: React.FC<RoomDetailsDialogProps> = ({
               <Grid size={6}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Room Type</Typography>
+                }}>{t('fields.roomType')}</Typography>
                 <Typography variant="body1" sx={{
                   fontWeight: 600
                 }}>{room.room_type}</Typography>
@@ -59,7 +62,7 @@ const RoomDetailsDialog: React.FC<RoomDetailsDialogProps> = ({
               <Grid size={6}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Price per Night</Typography>
+                }}>{t('fields.pricePerNight')}</Typography>
                 <Typography variant="body1" sx={{
                   fontWeight: 600
                 }}>{formatCurrency(toMoneyNumber(room.price_per_night))}</Typography>
@@ -67,24 +70,24 @@ const RoomDetailsDialog: React.FC<RoomDetailsDialogProps> = ({
               <Grid size={6}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Max Occupancy</Typography>
+                }}>{t('fields.maxOccupancy')}</Typography>
                 <Typography variant="body1" sx={{
                   fontWeight: 600
-                }}>{room.max_occupancy} guests</Typography>
+                }}>{t('common:count.guests', { count: room.max_occupancy ?? 0 })}</Typography>
               </Grid>
               <Grid size={12}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Status</Typography>
+                }}>{t('fields.status')}</Typography>
                 <Typography variant="body1" sx={{
                   fontWeight: 600
-                }}>{room.status}</Typography>
+                }}>{statusLabel(t, 'room', room.status)}</Typography>
               </Grid>
               {room.description && (
                 <Grid size={12}>
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
-                  }}>Description</Typography>
+                  }}>{t('fields.description')}</Typography>
                   <Typography variant="body2">{room.description}</Typography>
                 </Grid>
               )}
@@ -93,7 +96,7 @@ const RoomDetailsDialog: React.FC<RoomDetailsDialogProps> = ({
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-raised)', borderTop: 1, borderColor: 'divider' }}>
-        <Button onClick={onClose} variant="outlined">Close</Button>
+        <Button onClick={onClose} variant="outlined">{t('common:actions.close')}</Button>
       </DialogActions>
     </Dialog>
   );

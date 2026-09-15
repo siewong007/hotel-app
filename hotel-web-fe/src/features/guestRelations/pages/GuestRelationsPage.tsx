@@ -27,6 +27,8 @@ import {
   WorkspacePremiumOutlined as VipIcon,
 } from '@mui/icons-material';
 import type { Guest } from '../../../types';
+import { dateFormatter } from '../../../i18n/format';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { errorMessage } from '../../../utils';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
 import { EmptyState, PageHeader, StatStrip } from '../../../components';
@@ -88,6 +90,7 @@ const emptyGuestForm = (): GuestFormData => ({
 });
 
 const GuestRelationsPage: React.FC = () => {
+  const { t } = useTranslation('guests');
   const [pageSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const confirm = useConfirm();
@@ -198,7 +201,7 @@ const GuestRelationsPage: React.FC = () => {
 
   const handleExportGuests = () => {
     if (visibleGuests.length === 0) {
-      emitApiNotification({ message: 'No guests in the current view to export', severity: 'info' });
+      emitApiNotification({ message: t('page.noExportRows'), severity: 'info' });
       return;
     }
 
@@ -212,7 +215,7 @@ const GuestRelationsPage: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    emitApiNotification({ message: 'Guest CSV exported', severity: 'success' });
+    emitApiNotification({ message: t('page.exported'), severity: 'success' });
   };
 
   const handleSearchChange = (value: string) => {
@@ -291,7 +294,7 @@ const GuestRelationsPage: React.FC = () => {
 
   const handleCreateGuest = async () => {
     if (!formData.first_name || !formData.last_name) {
-      setDialogError('First name and last name are required');
+      setDialogError(t('page.namesRequired'));
       return;
     }
 
@@ -328,13 +331,13 @@ const GuestRelationsPage: React.FC = () => {
         company_name: formData.company_name?.trim() || undefined,
       };
       await createGuestMutation.mutateAsync(sanitizedData);
-      emitApiNotification({ message: 'Guest created successfully', severity: 'success' });
+      emitApiNotification({ message: t('page.created'), severity: 'success' });
       setCreateDialogOpen(false);
       setDialogError(null);
       resetForm();
       await loadGuests();
     } catch (err) {
-      const message = errorMessage(err, 'Failed to create guest');
+      const message = errorMessage(err, t('page.createFailed'));
       setDialogError(message);
       focusDuplicateGuestSearch(message);
     } finally {
@@ -346,7 +349,7 @@ const GuestRelationsPage: React.FC = () => {
     if (!editingGuest) return;
 
     if (!formData.first_name || !formData.last_name) {
-      setDialogError('First name and last name are required');
+      setDialogError(t('page.namesRequired'));
       return;
     }
 
@@ -362,14 +365,14 @@ const GuestRelationsPage: React.FC = () => {
       setFormLoading(true);
       setDialogError(null);
       await updateGuestMutation.mutateAsync({ guestId: editingGuest.id, data: formData });
-      emitApiNotification({ message: 'Guest updated successfully', severity: 'success' });
+      emitApiNotification({ message: t('page.updated'), severity: 'success' });
       setEditDialogOpen(false);
       setEditingGuest(null);
       setDialogError(null);
       resetForm();
       await loadGuests();
     } catch (err) {
-      const message = errorMessage(err, 'Failed to update guest');
+      const message = errorMessage(err, t('page.updateFailed'));
       setDialogError(message);
       focusDuplicateGuestSearch(message);
     } finally {
@@ -382,15 +385,15 @@ const GuestRelationsPage: React.FC = () => {
       setTourismConversionGuestId(guest.id);
       setError(null);
       const response = await applyGuestTourismMutation.mutateAsync(guest.id);
-      const tourismLabel = response.guest.tourism_type === 'foreign' ? 'Tourist' : 'Local';
+      const tourismLabel = response.guest.tourism_type === 'foreign' ? t('page.tourismTourist') : t('page.tourismLocal');
       const bookingLabel = response.source.booking_number || `#${response.source.booking_id}`;
       emitApiNotification({
-        message: `${guest.nick_name} marked ${tourismLabel} from booking ${bookingLabel}`,
+        message: t('page.tourismMarked', { name: guest.nick_name, tourism: tourismLabel, booking: bookingLabel }),
         severity: 'success',
       });
       await loadGuests();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to update guest tourism type'));
+      setError(errorMessage(err, t('page.tourismFailed')));
     } finally {
       setTourismConversionGuestId(null);
     }
@@ -398,20 +401,20 @@ const GuestRelationsPage: React.FC = () => {
 
   const handleDeleteGuest = async (guest: Guest) => {
     const ok = await confirm({
-      title: 'Delete guest',
-      message: `Delete ${guest.nick_name}? This action cannot be undone — all bookings associated with this guest will also be deleted. The guest cannot be deleted while checked in.`,
-      confirmText: 'Delete guest',
+      title: t('page.deleteTitle'),
+      message: t('page.deleteConfirm', { name: guest.nick_name }),
+      confirmText: t('page.deleteTitle'),
       severity: 'error',
     });
     if (!ok) return false;
 
     try {
       await deleteGuestMutation.mutateAsync(guest.id);
-      emitApiNotification({ message: 'Guest deleted successfully', severity: 'success' });
+      emitApiNotification({ message: t('page.deleted'), severity: 'success' });
       await loadGuests();
       return true;
     } catch (err) {
-      setError(errorMessage(err, 'Failed to delete guest'));
+      setError(errorMessage(err, t('page.deleteFailed')));
       return false;
     }
   };
@@ -428,43 +431,43 @@ const GuestRelationsPage: React.FC = () => {
   if (!hasAccess) {
     return (
       <Alert severity="warning" sx={{ m: 2 }}>
-        You do not have permission to access this page. Contact your administrator for access.
+        {t('permissionDenied')}
       </Alert>
     );
   }
 
   const { counts } = stats;
   const today = new Date();
-  const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const dateLabel = dateFormatter({ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(today);
 
   const statItems: StatStripItem[] = [
-    { key: 'all', label: 'Total guests', value: counts.all, icon: <TotalIcon />, color: GUEST_DESIGN.green700, onClick: () => handleSegmentChange('all'), active: segment === 'all' },
-    { key: 'member', label: 'Members', value: counts.member, icon: <MemberIcon />, color: GUEST_DESIGN.gold, onClick: () => handleSegmentChange('member'), active: segment === 'member' },
-    { key: 'non', label: 'Non-members', value: counts.non, icon: <NonMemberIcon />, onClick: () => handleSegmentChange('non'), active: segment === 'non' },
-    { key: 'tourist', label: 'Tourists', value: counts.tourist, icon: <TouristIcon />, color: GUEST_DESIGN.blue, onClick: () => handleSegmentChange('tourist'), active: segment === 'tourist' },
-    { key: 'incomplete', label: 'Missing info', value: counts.incomplete, icon: <MissingInfoIcon />, color: GUEST_DESIGN.amber, onClick: () => handleSegmentChange('incomplete'), active: segment === 'incomplete' },
-    { key: 'missingTourism', label: 'Missing tourism', value: counts.missingTourism, icon: <MissingTourismIcon />, color: GUEST_DESIGN.rose, onClick: () => handleSegmentChange('missingTourism'), active: segment === 'missingTourism' },
-    { key: 'vip', label: 'VIP', value: counts.vip, icon: <VipIcon />, color: '#5b3aa8', onClick: () => handleSegmentChange('vip'), active: segment === 'vip' },
-    { key: 'blacklisted', label: 'Blacklisted', value: counts.blacklisted, icon: <BlacklistedIcon />, color: GUEST_DESIGN.rose, onClick: () => handleSegmentChange('blacklisted'), active: segment === 'blacklisted' },
-    { key: 'openRequests', label: 'Open requests', value: counts.openRequests, icon: <OpenRequestsIcon />, color: GUEST_DESIGN.blue, onClick: () => handleSegmentChange('openRequests'), active: segment === 'openRequests' },
+    { key: 'all', label: t('stats.total'), value: counts.all, icon: <TotalIcon />, color: GUEST_DESIGN.green700, onClick: () => handleSegmentChange('all'), active: segment === 'all' },
+    { key: 'member', label: t('segments.member'), value: counts.member, icon: <MemberIcon />, color: GUEST_DESIGN.gold, onClick: () => handleSegmentChange('member'), active: segment === 'member' },
+    { key: 'non', label: t('segments.non'), value: counts.non, icon: <NonMemberIcon />, onClick: () => handleSegmentChange('non'), active: segment === 'non' },
+    { key: 'tourist', label: t('segments.tourist'), value: counts.tourist, icon: <TouristIcon />, color: GUEST_DESIGN.blue, onClick: () => handleSegmentChange('tourist'), active: segment === 'tourist' },
+    { key: 'incomplete', label: t('segments.incomplete'), value: counts.incomplete, icon: <MissingInfoIcon />, color: GUEST_DESIGN.amber, onClick: () => handleSegmentChange('incomplete'), active: segment === 'incomplete' },
+    { key: 'missingTourism', label: t('segments.missingTourism'), value: counts.missingTourism, icon: <MissingTourismIcon />, color: GUEST_DESIGN.rose, onClick: () => handleSegmentChange('missingTourism'), active: segment === 'missingTourism' },
+    { key: 'vip', label: t('segments.vip'), value: counts.vip, icon: <VipIcon />, color: '#5b3aa8', onClick: () => handleSegmentChange('vip'), active: segment === 'vip' },
+    { key: 'blacklisted', label: t('segments.blacklisted'), value: counts.blacklisted, icon: <BlacklistedIcon />, color: GUEST_DESIGN.rose, onClick: () => handleSegmentChange('blacklisted'), active: segment === 'blacklisted' },
+    { key: 'openRequests', label: t('segments.openRequests'), value: counts.openRequests, icon: <OpenRequestsIcon />, color: GUEST_DESIGN.blue, onClick: () => handleSegmentChange('openRequests'), active: segment === 'openRequests' },
   ];
 
   const isFiltered = Boolean(debouncedSearchTerm.trim()) || segment !== 'all';
   const emptyMessage = isFiltered ? (
     <EmptyState
       icon={<SearchOffIcon />}
-      title="No guests match"
-      description="Try clearing the search or selecting a different filter."
-      action={<Button size="small" onClick={clearFilters}>Clear filters</Button>}
+      title={t('page.emptyFilteredTitle')}
+      description={t('page.emptyFilteredDescription')}
+      action={<Button size="small" onClick={clearFilters}>{t('page.clearFilters')}</Button>}
     />
   ) : (
     <EmptyState
       icon={<PersonIcon />}
-      title="No guests yet"
-      description="Add your first guest to start building guest relations."
+      title={t('page.emptyTitle')}
+      description={t('page.emptyDescription')}
       action={
         <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={handleCreateClick}>
-          Add guest
+          {t('page.addGuest')}
         </Button>
       }
     />
@@ -491,17 +494,17 @@ const GuestRelationsPage: React.FC = () => {
       )}
 
       <PageHeader
-        kicker={`Guest relations · ${dateLabel}`}
-        title="Guests"
+        kicker={t('page.kicker', { date: dateLabel })}
+        title={t('title')}
         subtitle={
           <>
-            <Box component="strong" sx={{ color: GUEST_DESIGN.ink, fontVariantNumeric: 'tabular-nums' }}>{counts.all}</Box> total
+            <Box component="strong" sx={{ color: GUEST_DESIGN.ink, fontVariantNumeric: 'tabular-nums' }}>{counts.all}</Box> {t('page.totalSuffix')}
             {' · '}
-            <Box component="strong" sx={{ color: GUEST_DESIGN.gold, fontVariantNumeric: 'tabular-nums' }}>{counts.member}</Box> members
+            <Box component="strong" sx={{ color: GUEST_DESIGN.gold, fontVariantNumeric: 'tabular-nums' }}>{counts.member}</Box> {t('page.membersSuffix')}
             {' · '}
-            <Box component="strong" sx={{ color: GUEST_DESIGN.ink3, fontVariantNumeric: 'tabular-nums' }}>{counts.non}</Box> non-members
+            <Box component="strong" sx={{ color: GUEST_DESIGN.ink3, fontVariantNumeric: 'tabular-nums' }}>{counts.non}</Box> {t('page.nonMembersSuffix')}
             {' · '}
-            <Box component="strong" sx={{ color: GUEST_DESIGN.rose, fontVariantNumeric: 'tabular-nums' }}>{counts.missingTourism}</Box> missing tourism
+            <Box component="strong" sx={{ color: GUEST_DESIGN.rose, fontVariantNumeric: 'tabular-nums' }}>{counts.missingTourism}</Box> {t('page.missingTourismSuffix')}
           </>
         }
         actions={
@@ -511,10 +514,10 @@ const GuestRelationsPage: React.FC = () => {
               onClick={handleExportGuests}
               variant="outlined"
               disabled={loading}
-              title="Export visible guests"
+              title={t('page.exportCsvTitle')}
               sx={{ textTransform: 'none' }}
             >
-              Export CSV
+              {t('page.exportCsv')}
             </Button>
             <Button
               startIcon={<AddIcon />}
@@ -522,7 +525,7 @@ const GuestRelationsPage: React.FC = () => {
               variant="contained"
               sx={{ textTransform: 'none' }}
             >
-              Add guest
+              {t('page.addGuest')}
             </Button>
           </>
         }
@@ -538,7 +541,7 @@ const GuestRelationsPage: React.FC = () => {
             size="small"
             value={searchTerm}
             onChange={(event) => handleSearchChange(event.target.value)}
-            placeholder="Search by ID, name, phone, email, IC number, or company…"
+            placeholder={t('page.searchPlaceholder')}
             slotProps={{
               input: {
                 startAdornment: (
@@ -548,7 +551,7 @@ const GuestRelationsPage: React.FC = () => {
                 ),
                 endAdornment: searchTerm ? (
                   <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => handleSearchChange('')} aria-label="Clear search">
+                    <IconButton size="small" onClick={() => handleSearchChange('')} aria-label={t('page.clearSearch')}>
                       <CloseIcon sx={{ fontSize: 16 }} />
                     </IconButton>
                   </InputAdornment>
@@ -575,11 +578,11 @@ const GuestRelationsPage: React.FC = () => {
           }}
         >
           <Box>
-            {visibleGuests.length} of {totalGuests} guests
-            {isFiltered && ' (filtered)'}
+            {t('page.shownOfTotal', { shown: visibleGuests.length, total: totalGuests })}
+            {isFiltered && ` ${t('page.filteredSuffix')}`}
           </Box>
           <Box sx={{ fontSize: 11.5, color: GUEST_DESIGN.ink2, fontWeight: 600 }}>
-            Sort: A–Z
+            {t('page.sortAZ')}
           </Box>
         </Box>
 
@@ -589,11 +592,11 @@ const GuestRelationsPage: React.FC = () => {
             sx={{ m: 2 }}
             action={
               <Button color="inherit" size="small" onClick={() => void loadGuests()}>
-                Retry
+                {t('common:state.retry')}
               </Button>
             }
           >
-            {getQueryErrorMessage(guestsQuery.error, 'Failed to load guests')}
+            {getQueryErrorMessage(guestsQuery.error, t('page.loadFailed'))}
           </Alert>
         ) : (
           <GuestListTable
@@ -623,7 +626,11 @@ const GuestRelationsPage: React.FC = () => {
             }}
           >
             <Box>
-              Showing {guestPagination.startItem}–{guestPagination.endItem} of {guestPagination.totalItems}
+              {t('common:pagination.showing', {
+                from: guestPagination.startItem,
+                to: guestPagination.endItem,
+                total: guestPagination.totalItems,
+              })}
             </Box>
             <Pagination
               count={guestPagination.totalPages}

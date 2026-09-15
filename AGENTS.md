@@ -100,9 +100,10 @@ Add or update tests when refactoring pure business logic, SQL builders, date/mon
 status/permission/validation logic, and anything touching auth, 2FA, passkeys, eKYC,
 booking state transitions, payments, ledgers, or night audit.
 
-Backend integration tests require `DATABASE_URL`: 45 of the 50 files in
-`hotel-app-be/tests/` return early without it and the suite still exits 0. Verify by run
-count (a real full run is ~1,300 tests; ~479 means only lib tests ran), never by exit
+Backend integration tests require `DATABASE_URL`: the PG-backed files in
+`hotel-app-be/tests/` return early without it, the suite still exits 0, and each skip
+counts as a PASS — a no-DB run reports *more* tests (~1,317), not fewer, so run count
+cannot detect it. Judge by wall-clock and per-suite counts, never by exit
 code alone. Patch/schema-drift suites also need `psql` on PATH (macOS: libpq). Fix-gated tests carry `#[ignore]`; CI fails when one
 starts passing, which means the fix landed and the attribute is stale.
 

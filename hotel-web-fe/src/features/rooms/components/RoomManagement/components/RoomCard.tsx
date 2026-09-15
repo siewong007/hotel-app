@@ -28,6 +28,7 @@ import type { Room, BookingWithDetails } from '../../../../../types';
 import type { RoomMenuAnchor } from '../types';
 import { getRoomTypeCode, formatMenuBookingDate } from '../../../utils/roomManagementUtils';
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 
 // Ink and borders rendered ON the saturated status fill. The fill is the
 // status accent token, which inverts between modes (deep in light, pastel in
@@ -101,8 +102,10 @@ const CardMoreButton: React.FC<{
   onClick: (event: React.MouseEvent<HTMLElement>) => void;
   /** Hit target in px — 24 on desktop, larger on phone for touch. */
   size?: number;
-}> = ({ onClick, size = 24 }) => (
-  <Tooltip title="More actions" arrow>
+}> = ({ onClick, size = 24 }) => {
+  const { t } = useTranslation('rooms');
+  return (
+  <Tooltip title={t('card.moreActions')} arrow>
     <IconButton
       size="small"
       onClick={(e) => {
@@ -124,7 +127,8 @@ const CardMoreButton: React.FC<{
       <MoreHorizIcon sx={{ fontSize: Math.round(size * 0.6) }} />
     </IconButton>
   </Tooltip>
-);
+  );
+};
 
 interface RoomCardProps {
   room: Room;
@@ -170,19 +174,20 @@ const RoomCard: React.FC<RoomCardProps> = ({
   onMarkAvailable,
 }) => {
   const isPhone = useIsPhone();
+  const { t } = useTranslation('rooms');
 
   // Phone: compact card — room identity, a status line, the guest when one is
   // attached, and ONE next-step action + More (which opens the same context
   // menu that holds every secondary badge/note action).
   if (isPhone) {
     const primary = isOccupied
-      ? { label: 'Check out', tone: 'paper' as const, onClick: () => onCheckOut(room) }
+      ? { label: t('card.checkOut'), tone: 'paper' as const, onClick: () => onCheckOut(room) }
       : isReservedToday
-        ? { label: 'Check in', tone: 'dark' as const, onClick: () => onCheckIn(room) }
+        ? { label: t('card.checkIn'), tone: 'dark' as const, onClick: () => onCheckIn(room) }
         : computedStatus === 'dirty' || computedStatus === 'reserved_dirty'
-          ? { label: 'Mark clean', tone: 'dark' as const, onClick: () => onMarkAvailable(room) }
+          ? { label: t('card.markClean'), tone: 'dark' as const, onClick: () => onMarkAvailable(room) }
           : computedStatus === 'available'
-            ? { label: '+ New booking', tone: 'dark' as const, onClick: () => onNewBooking(room) }
+            ? { label: t('card.newBooking'), tone: 'dark' as const, onClick: () => onNewBooking(room) }
             : null;
     const guestBooking = isOccupied ? booking : isReservedToday ? reservedBooking : undefined;
 
@@ -216,7 +221,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
           }}
           role="button"
           tabIndex={0}
-          aria-label={`Room ${room.room_number}, ${statusLabel} — open actions`}
+          aria-label={t('card.openActionsAria', { room: room.room_number, status: statusLabel })}
           onKeyDown={(e) => {
             if (e.target !== e.currentTarget) return;
             if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -361,7 +366,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
         }}
         role="button"
         tabIndex={0}
-        aria-label={`Room ${room.room_number}, ${statusLabel} — open actions`}
+        aria-label={t('card.openActionsAria', { room: room.room_number, status: statusLabel })}
         onKeyDown={(e) => {
           // Inner buttons handle their own keys — only open the menu when the
           // card itself is focused.
@@ -428,7 +433,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 </Box>
               </Box>
               {room.is_smoking && (
-                <Tooltip title="Designated smoking room" arrow>
+                <Tooltip title={t('card.smokingTooltip')} arrow>
                   <Box
                     sx={{
                       alignSelf: 'center',
@@ -446,7 +451,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                   >
                     <SmokingIcon sx={{ fontSize: 12 }} />
                     <Typography sx={{ fontSize: '0.55rem', fontWeight: 800, letterSpacing: 0.7 }}>
-                      SMOKING
+                      {t('card.smoking')}
                     </Typography>
                   </Box>
                 </Tooltip>
@@ -456,7 +461,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
             {/* Overdue-checkout flag: the banner aggregates these, this ties
                 the warning to the specific room card. */}
             {overdueDays != null && overdueDays > 0 && (
-              <Tooltip title={`${overdueDays} day${overdueDays === 1 ? '' : 's'} past scheduled checkout`} arrow>
+              <Tooltip title={t('card.overdueTooltip', { count: overdueDays })} arrow>
                 <Box
                   sx={{
                     flexShrink: 0,
@@ -472,7 +477,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                   }}
                 >
                   <Typography sx={{ fontSize: '0.55rem', fontWeight: 800, letterSpacing: 0.7 }}>
-                    OVERDUE {overdueDays}d
+                    {t('card.overdueBadge', { count: overdueDays })}
                   </Typography>
                 </Box>
               </Tooltip>
@@ -492,10 +497,10 @@ const RoomCard: React.FC<RoomCardProps> = ({
               }}
             >
               {computedStatus === 'reserved_dirty'
-                ? 'Reserved, needs cleaning'
+                ? t('card.reservedNeedsCleaning')
                 : computedStatus === 'dirty'
-                  ? 'Awaiting cleaning'
-                  : 'Under maintenance'}
+                  ? t('card.awaitingCleaning')
+                  : t('card.underMaintenance')}
             </Typography>
           )}
 
@@ -516,7 +521,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
             >
               <GiftIcon sx={{ fontSize: 12 }} />
               <Typography variant="caption" sx={{ fontSize: '0.55rem', fontWeight: 800, letterSpacing: 0.5 }}>
-                FREE GIFT
+                {t('card.freeGift')}
               </Typography>
             </Box>
           )}
@@ -543,7 +548,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 cursor: 'pointer',
                 '&:hover': { opacity: 1 }
               }}>
-              {room.notes || room.status_notes || '+ Add notes'}
+              {room.notes || room.status_notes || t('card.addNotes')}
             </Typography>
           )}
 
@@ -571,7 +576,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                   fontWeight: 500,
                 }}
               >
-                {new Date(booking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(booking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {formatMenuBookingDate(booking.check_in_date)} – {formatMenuBookingDate(booking.check_out_date)}
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.4 }}>
                 {booking.guest_phone && (
@@ -596,7 +601,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
               {/* Cleaning preference chip (guest preference, occupied only) */}
               {booking.cleaning_preference != null && (
                 <Tooltip
-                  title={booking.cleaning_preference ? 'Guest wants the room cleaned every day' : 'Guest declined daily cleaning'}
+                  title={booking.cleaning_preference ? t('card.cleaningYesHint') : t('card.cleaningNoHint')}
                   arrow
                 >
                   <Box
@@ -628,14 +633,14 @@ const RoomCard: React.FC<RoomCardProps> = ({
                       <BlockIcon sx={{ fontSize: 13 }} />
                     )}
                     <Typography sx={{ fontSize: '0.65rem', fontWeight: 700 }}>
-                      {booking.cleaning_preference ? 'Daily cleaning' : 'No daily cleaning'}
+                      {booking.cleaning_preference ? t('card.dailyCleaning') : t('card.noDailyCleaning')}
                     </Typography>
                   </Box>
                 </Tooltip>
               )}
 
               {/* Booking Notes - Clickable to edit */}
-              <Tooltip title={booking.remarks || booking.special_requests ? "Click to edit notes" : "Click to add notes"} arrow>
+              <Tooltip title={booking.remarks || booking.special_requests ? t('card.clickToEditNotes') : t('card.clickToAddNotes')} arrow>
                 <Box
                   onClick={(e) => onEditBookingNotes(booking, e)}
                   sx={{
@@ -668,7 +673,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                       fontStyle: (booking.remarks || booking.special_requests) ? 'normal' : 'italic',
                     }}
                   >
-                    {booking.remarks || booking.special_requests || 'Add notes...'}
+                    {booking.remarks || booking.special_requests || t('card.addBookingNotes')}
                   </Typography>
                   <EditIcon sx={{ fontSize: 10, opacity: 0.6 }} />
                 </Box>
@@ -677,10 +682,10 @@ const RoomCard: React.FC<RoomCardProps> = ({
               {/* Action row: Check out, Move, More */}
               <CardActionRow>
                 <CardPillButton tone="paper" onClick={() => onCheckOut(room)}>
-                  Check out
+                  {t('card.checkOut')}
                 </CardPillButton>
                 <CardPillButton tone="paper" onClick={() => onChangeRoom(room)}>
-                  Move
+                  {t('card.move')}
                 </CardPillButton>
                 <CardMoreButton onClick={(e) => onMenuOpen(e, room)} />
               </CardActionRow>
@@ -714,11 +719,11 @@ const RoomCard: React.FC<RoomCardProps> = ({
                     fontWeight: 500,
                   }}
                 >
-                  {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(reservedBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {formatMenuBookingDate(reservedBooking.check_in_date)} – {formatMenuBookingDate(reservedBooking.check_out_date)}
                 </Typography>
 
                 {/* Editable booking notes — same affordance as occupied rooms */}
-                <Tooltip title={reservedBooking.remarks || reservedBooking.special_requests ? 'Click to edit notes' : 'Click to add notes'} arrow>
+                <Tooltip title={reservedBooking.remarks || reservedBooking.special_requests ? t('card.clickToEditNotes') : t('card.clickToAddNotes')} arrow>
                   <Box
                     onClick={(e) => onEditBookingNotes(reservedBooking, e)}
                     sx={{
@@ -749,7 +754,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                         fontStyle: (reservedBooking.remarks || reservedBooking.special_requests) ? 'normal' : 'italic',
                       }}
                     >
-                      {reservedBooking.remarks || reservedBooking.special_requests || 'Add notes...'}
+                      {reservedBooking.remarks || reservedBooking.special_requests || t('card.addBookingNotes')}
                     </Typography>
                     <EditIcon sx={{ fontSize: 10, opacity: 0.6 }} />
                   </Box>
@@ -759,7 +764,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
               {/* Action row: Check in (primary) + More */}
               <CardActionRow>
                 <CardPillButton tone="dark" onClick={() => onCheckIn(room)}>
-                  Check in
+                  {t('card.checkIn')}
                 </CardPillButton>
                 <CardMoreButton onClick={(e) => onMenuOpen(e, room)} />
               </CardActionRow>
@@ -780,7 +785,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
               }}>
                 <CalendarIcon sx={{ fontSize: 14, color: onFill(80) }} />
                 <Typography variant="caption" sx={{ color: onFill(80), fontWeight: 600, fontSize: '0.65rem' }}>
-                  Reserved: {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {t('card.reservedOn', { date: formatMenuBookingDate(reservedBooking.check_in_date) })}
                 </Typography>
               </Box>
               {reservedBooking.guest_name && (
@@ -805,7 +810,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
           {(computedStatus === 'dirty' || computedStatus === 'reserved_dirty') && (
             <CardActionRow>
               <CardPillButton tone="dark" onClick={() => onMarkAvailable(room)}>
-                {computedStatus === 'reserved_dirty' ? 'Mark clean' : 'Mark available'}
+                {computedStatus === 'reserved_dirty' ? t('card.markClean') : t('card.markAvailable')}
               </CardPillButton>
               <CardMoreButton onClick={(e) => onMenuOpen(e, room)} />
             </CardActionRow>
@@ -815,7 +820,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
           {computedStatus === 'available' && (
             <CardActionRow>
               <CardPillButton tone="dark" onClick={() => onNewBooking(room)}>
-                + New booking
+                {t('card.newBooking')}
               </CardPillButton>
               <CardMoreButton onClick={(e) => onMenuOpen(e, room)} />
             </CardActionRow>

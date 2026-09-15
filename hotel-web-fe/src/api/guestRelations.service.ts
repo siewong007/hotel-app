@@ -21,8 +21,7 @@ import type {
   GuestVoucher,
 } from '../types';
 import { withRetry } from '../utils/retry';
-
-const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please sign in again.';
+import { t } from '../i18n';
 
 const notifyUnauthorized = () => {
   if (typeof window === 'undefined') return;
@@ -35,7 +34,7 @@ const notifyUnauthorized = () => {
 const toGuestRelationsApiError = async (error: unknown, fallback: string): Promise<APIError> => {
   if (error instanceof HTTPError && error.response.status === 401) {
     notifyUnauthorized();
-    return new APIError(SESSION_EXPIRED_MESSAGE, error.response.status, readErrorData(error));
+    return new APIError(t('errors.sessionExpired', undefined, 'auth'), error.response.status, readErrorData(error));
   }
 
   return toApiError(error, fallback);

@@ -8,8 +8,8 @@ directory — there is no root workspace.
 | Tool | Version | Purpose |
 |---|---|---|
 | Rust + Cargo | 1.95.0 (edition 2024) | backend + desktop |
-| Bun | 1.3.x | frontend/desktop package manager — **not** npm |
-| Node.js | 24+ | Vite/toolchain runtime |
+| Bun | 1.3.14 | frontend/desktop package manager **and** script runtime — not npm, not node. CI pins this exact version (`ci.yml` → `oven-sh/setup-bun`) |
+| Node.js | optional | Nothing in the repo requires it: every script is invoked as `bun …` (the desktop `.mjs` scripts re-spawn via `process.execPath`, i.e. bun), and the CI frontend job installs no Node at all. Install it only if you want `node`/`npx` for ad-hoc tooling |
 | Docker (OrbStack/Desktop) | any recent | PostgreSQL for dev + backend tests |
 | PostgreSQL 19 | `postgres:19beta3` image | tracked beta until GA (see ongoing-dev note) |
 
@@ -94,10 +94,31 @@ cargo fmt --check                               # formatting
 cargo test --all-features                       # needs DATABASE_URL for full coverage
 ```
 
-`DATABASE_URL` must point at a **baseline+seed initialized** database or 45 of
-the 50 test files silently skip (the suite still exits 0 — judge by run count,
-not exit code; a full run reports ~1,300 tests across `src/` unit tests and
-`tests/`). Patch-lifecycle and schema-drift tests also shell out to `psql` —
+`DATABASE_URL` must point at a **baseline+seed initialized** database or the
+PostgreSQL-backed files silently skip. **Do not judge this by run count** —
+measured 2026-09-15, that heuristic is backwards:
+
+| | `cargo test --all-features` with no `DATABASE_URL` |
+|---|---|
+| exit code | `0` |
+| total | **1,317 passed, 0 failed** across 54 binaries |
+| `payment_characterization.rs` | **44 passed** in **0.01s** |
+
+With a real database that same suite reports **29 passed / 2 ignored**. Skipped
+tests early-return, and libtest counts an early return as a *pass* — so removing
+the database makes the number go **up** while testing less. The `~1,300` figure
+older docs quote as proof of "a full run" is in fact the fully-skipped number.
+(958 of those 1,317 are the `src/` unit tests counted twice — `main.rs`
+re-declares every module, so lib and bin each report 479.)
+
+**Judge by wall-clock time and per-suite counts instead.** A PostgreSQL suite
+that finishes in hundredths of a second did nothing. To see the skips explicitly:
+
+```bash
+cargo test --all-features -- --nocapture 2>&1 | grep -ci skipping   # >0 means suites skipped
+```
+
+Patch-lifecycle and schema-drift tests also shell out to `psql` —
 on macOS that means libpq on PATH, e.g. `PATH="/opt/homebrew/opt/libpq/bin:$PATH"`. Postgres-backed suites create and destroy their own scratch
 databases against the server in `DATABASE_URL`.
 
@@ -134,8 +155,11 @@ Deploy itself is scripted in `deploy/deploy.sh` (+ `docs/guides/deployment.md`).
 
 - **`cargo run` → "a bin target must be available"**: the crate ships multiple
   bins; use `cargo run --bin hotel-app-be`.
-- **Backend tests all "pass" but suspiciously fast**: `DATABASE_URL` unset —
-  45/50 files skip. Point it at an initialized db.
+- **Backend tests all "pass" but suspiciously fast**: `DATABASE_URL` unset, so
+  the PostgreSQL suites early-return — and each early return counts as a pass, so
+  the total goes *up*, not down. Point it at an initialized db and compare a known
+  suite: `payment_characterization` is 29 passed / 2 ignored with a database and
+  44 passed / 0 ignored (in ~0.01s) without one.
 - **`postgres_patch_lifecycle` fails with "psql: command not found"**: needs a
   PostgreSQL toolchain on PATH. Shim it through the dev container:
 

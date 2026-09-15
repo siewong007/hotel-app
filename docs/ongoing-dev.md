@@ -4,10 +4,14 @@ Single live tracker for open work. Keep entries to one line; **delete them when 
 rather than striking them through — shipped behavior belongs in
 `docs/architecture/architecture-flow.md`, and detailed plans stay in `.claude/reports/`.
 
-Last pruned 2026-09-13: completed entries from the 2026-08-22 security re-audit,
-the eKYC PII history rewrite, L4 TOTP-at-rest, the `any`-type burn-down, portal
-component coverage, and the GitHub Action SHA-pinning sweep were verified in the
-tree and removed per convention.
+Last pruned 2026-09-15 (doc-sync audit): the L4 `TOTP_ENCRYPTION_KEY` action was
+removed as obsolete — `deploy/deploy.sh:211` already generates and persists that
+key via `ensure_secret_default` on every deploy, so the manual step it asked for
+would have contradicted CLAUDE.md's "never hand-provision secrets on the host".
+The resolved decision entries were pruned in the same pass (see that section).
+Prior prune 2026-09-13: 2026-08-22 security re-audit entries, the eKYC PII
+history rewrite, L4 TOTP-at-rest, the `any`-type burn-down, portal component
+coverage, and the GitHub Action SHA-pinning sweep.
 
 ## P0 — broken or security-relevant
 
@@ -23,9 +27,6 @@ tree and removed per convention.
   mismatched data dirs.
 - Security-eval still OPEN (decisions/design): M10 least-privilege DB role
   rollout; L6 CSP vs PayPal; L14 desktop signing certs; H5 import semaphore.
-- L4 deploy action (from the resolved TOTP-at-rest item): generate
-  `openssl rand -base64 32` and add `TOTP_ENCRYPTION_KEY` to the prod secrets
-  file on next deploy.
 
 ## P1 — decided, not yet executed
 
@@ -48,6 +49,23 @@ tree and removed per convention.
   workflow assertions remain follow-ups. Remaining SettingsPage cards
   (hotel info, times, charges, support workflow, security, appearance) not
   yet split into sibling components.
+- Phone/tablet density backlog (migrated 2026-09-15 from the deleted
+  `superpowers/reports/2026-09-14-mobile-ux-report.md` as that plan's artifacts
+  were pruned; priority order preserved). Item 4 of the original five —
+  `/help/$slug` never mounting — was **verified fixed**: `routes/help.tsx` now
+  renders an `<Outlet/>` via `useChildMatches()`. Remaining, unverified at the
+  stated widths:
+  1. `/housekeeping` at 320px — "+ New task" CTA clipped (pre-existing).
+  2. `GuestProfilePage` — 5 inner tables still desktop-dense.
+  3. `DataTransferPage` ~50 always-expanded cards; `RBACManagementPage`
+     accordions; `AuditLogPage` stream cards. (A session was actively editing
+     these three files on 2026-09-15 — check `git log` before re-reporting.)
+  4. Staged-changes bar still occluded on 600–899px tablets (sm–md); the `xs`
+     occlusion behind `MobileNavBar` was fixed.
+- Desktop postgres lags the server: bundle is `19beta2`
+  (`CONFIGURED_POSTGRES_BUILD_IDENTITY`, `hotel-desktop/src-tauri/src/postgres.rs`)
+  while every server/CI/compose pin is `19beta3`. Bump with the GA move above —
+  it needs re-provisioning plus a pgdata rebuild, not just a constant edit.
 - Desktop packaging: Windows/Linux CI jobs; network-fetch pgsql provisioning
   (today Homebrew/source-local only); arm or hide the updater
   (`hotel-desktop/UPDATER.md`); consolidate hand-maintained origin/proxy lists;
@@ -88,38 +106,29 @@ tree and removed per convention.
 
 ## Decisions needed (user)
 
-- ~~Voided bookings leave their receivable open~~ RESOLVED (cascade chosen):
-  `void_booking_ledgers_tx` (repositories/bookings/lifecycle.rs) now voids
-  every open, non-reversal, unpaid ledger row linked to the booking inside
-  the same transaction — applied in all three void paths (staff void, guest
-  self-cancel, unpaid-hold release). Rows with `paid_amount > 0` are left
-  open for reconciliation (same guard as manual `void_ledger`) and counted
-  in the response as `ledger_entries_with_payments`; `ledger_entries_voided`
-  is also reported. Pinned by
-  `postgres_void_booking_voids_unpaid_ledger_rows_but_keeps_paid_ones`.
-- ~~`GuestUpdateInput.is_active` is accepted but never persisted~~ RESOLVED:
-  already a deliberate, documented no-op (models/guest.rs — activation is an
-  admin-only action via services/users.rs; approved 2026-08-22, removal
-  deferred to the next contract bump). No action.
-- ~~FE zero-balance un-invoiced ledgers read "Paid"~~ RESOLVED (Draft chosen):
-  `getLedgerUiStatus` now returns `'draft'` for `balance <= 0` rows whose
-  stored status never reached `'paid'` — matching the backend
-  `ui_status='draft'` bucket exactly. A "Draft" filter pill was added to
-  `LedgerEntriesTab` so the badge and filter agree. Reversal rows
-  (status='paid' hardcoded) correctly stay "Paid".
-- ~~Branch protection on master~~ RESOLVED: direct-push workflow on master is
-  the chosen process; no ruleset wanted.
-- ~~PayPal refunds/disputes auto-apply~~ RESOLVED (flagging kept):
-  `PAYMENT.CAPTURE.REFUNDED` events only arrive when a refund is issued
-  outside the system (PayPal dashboard/API — in-system refunds go through
-  `refund_deposit` and never call PayPal). Decision: keep audit-flagging
-  rather than auto-writing money rows for out-of-band actions.
-- ~~PayPal conflict banner needed `audit:read`~~ RESOLVED: new narrow
-  endpoint `GET /api/admin/payments/paypal-conflicts` gated by
-  `payments:read` (handlers/payments.rs +
-  `AuditRepository::list_recent_logs_by_actions` with a caller-pinned action
-  set). Frontend now calls it once instead of fanning out over audit-logs,
-  and the banner shows to managers — previously invisible to exactly the
-  approvers it exists for.
-- ~~Guest portal forgot-password + max booking window~~ RESOLVED: won't do —
-  neither is wanted.
+Nothing open. The struck-through RESOLVED entries that used to live here were
+pruned 2026-09-15 per this file's own "delete them when done" rule; git history
+has the full text. Four had already been migrated to an owner doc — the
+void→ledger cascade to `.claude/refs/{booking,ledger}-workflow.md`, both PayPal
+decisions to `architecture/architecture-flow.md` §Payments, and the
+`is_active` no-op to its code comment in `models/guest.rs`.
+
+Three were decisions with no other home, kept here as standing policy:
+
+- **Branch protection on master:** an active ruleset now exists — corrected
+  2026-09-15 after a direct push was accepted with `remote: Bypassed rule
+  violations … Changes must be made through a pull request`. Ruleset
+  `master-protection` (id 21196959) is `enforcement: active` with a single
+  `pull_request` rule and a `RepositoryRole` bypass set to `always`, so repo
+  admins still push straight to master while everyone else must open a PR.
+  The entry this replaces claimed "deliberately none; no ruleset wanted",
+  which was true when written and is no longer. Verify with
+  `gh api repos/siewong007/hotel-app/rules/branches/master` before assuming
+  either way.
+- **Guest portal forgot-password and max-booking-window:** won't do. Neither
+  feature is wanted — do not re-propose them as gaps.
+- **Zero-balance un-invoiced ledger rows read "Draft", not "Paid":**
+  `getLedgerUiStatus` returns `'draft'` for `balance <= 0` rows whose stored
+  status never reached `'paid'`, matching the backend `ui_status='draft'`
+  bucket; `LedgerEntriesTab` carries a matching "Draft" filter pill. Reversal
+  rows (status hardcoded `'paid'`) correctly stay "Paid".

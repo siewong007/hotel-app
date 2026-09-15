@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import { bulkUpdateOnlineInventory, getOnlineInventoryRange } from '../api';
 import type { CellKey, GridCellView, OnlineInventoryAllocation, StagedEdit } from '../types';
 import { buildCellView, cellKey, isRealChange, toCellUpdateInputs } from '../utils';
@@ -19,6 +20,7 @@ export interface InventoryRoomTypeRow {
  * server commits all cells or none.
  */
 export const useOnlineInventory = (from: string, to: string) => {
+  const { t } = useTranslation('onlineInventory');
   const [savedCells, setSavedCells] = useState<Map<CellKey, OnlineInventoryAllocation>>(new Map());
   const [edits, setEdits] = useState<Map<CellKey, StagedEdit>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -38,11 +40,11 @@ export const useOnlineInventory = (from: string, to: string) => {
       );
     } catch (loadError) {
       setSavedCells(new Map());
-      setError(errorMessage(loadError, 'Unable to load online inventory.'));
+      setError(errorMessage(loadError, t('errors.load')));
     } finally {
       setIsLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, t]);
 
   useEffect(() => {
     void load();
@@ -122,19 +124,17 @@ export const useOnlineInventory = (from: string, to: string) => {
         return next;
       });
       setEdits(new Map());
-      setSuccessMessage(
-        `${inputs.length} ${inputs.length === 1 ? 'cell' : 'cells'} updated.`,
-      );
+      setSuccessMessage(t('success.updated', { count: inputs.length }));
       return true;
     } catch (saveError) {
       // The bulk write is atomic server-side — nothing was applied, so the
       // staged edits stay staged and the user loses nothing.
-      setError(errorMessage(saveError, 'Unable to save the inventory changes.'));
+      setError(errorMessage(saveError, t('errors.save')));
       return false;
     } finally {
       setIsSaving(false);
     }
-  }, [edits]);
+  }, [edits, t]);
 
   return {
     roomTypes,

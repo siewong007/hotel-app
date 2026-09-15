@@ -8,7 +8,7 @@
 #
 # deploy/deploy.sh supplies IMAGE_TAG, POSTGRES_PASSWORD, and JWT_SECRET. The
 # application images are loaded directly from the GitHub Actions release bundle;
-# no registry or additional AWS service is involved.
+# no container registry or managed cloud service is involved.
 
 x-logging: &default-logging
   driver: json-file
@@ -21,18 +21,49 @@ services:
     image: postgres:19beta3
     container_name: saliminn-db
     restart: unless-stopped
+    # Settings live here, not in ALTER SYSTEM: a `-c` command-line option outranks
+    # postgresql.auto.conf, so anything set here silently wins over ALTER SYSTEM and
+    # an operator changing it by SQL would see no effect. Keep the two in one place.
     command:
       - postgres
       - -c
       - max_connections=20
       - -c
       - shared_buffers=32MB
+      # Was 4MB-equivalent (1MB); 102 temp files / 31MB spilled to disk over 9 days.
+      # Worst case here is max_connections x work_mem = 80MB against mem_limit 256m,
+      # alongside 32MB of shared_buffers — bounded.
       - -c
-      - work_mem=1MB
+      - work_mem=4MB
       - -c
       - maintenance_work_mem=16MB
       - -c
       - max_parallel_workers=1
+      # PostgreSQL's 4GB default is meaningless in a 256m container on a 2GB host: it
+      # told the planner it had 16x the container's entire memory limit, biasing every
+      # plan toward repeated index probes. 192MB is what this container can actually
+      # cache, and the whole database is 85MB.
+      - -c
+      - effective_cache_size=192MB
+      # Default 4 assumes seek-bound spinning disks. This is SSD-backed.
+      - -c
+      - random_page_cost=1.1
+      # Query telemetry. The extension was already CREATEd in the database but never
+      # loaded, so it silently collected nothing and every pg_stat_statements query
+      # errored. Loading it requires a restart, which is why this rides a deploy.
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      # Server-side slow log, to complement sqlx's app-side 500ms warning. Without it
+      # the only query evidence available was whatever RUST_LOG=warn happened to catch.
+      - -c
+      - log_min_duration_statement=500ms
+      - -c
+      - log_temp_files=0
+      # Bound a leaked transaction so it cannot pin locks and block autovacuum forever.
+      # 5 minutes, not 60s: the data-transfer export path is deliberately allowed a
+      # 120s statement_timeout (see core/db.rs), and this must stay clear of it.
+      - -c
+      - idle_in_transaction_session_timeout=300s
     environment:
       POSTGRES_USER: hotel_admin
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"

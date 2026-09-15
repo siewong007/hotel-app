@@ -32,7 +32,7 @@ import { useCurrency } from '../../../../hooks/useCurrency';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
 import ActionsMenu from '../../../../components/common/ActionsMenu';
 import type { ActionMenuItem } from '../../../../components/common/ActionsMenu';
-import { getBookingStatusText, getPaymentStatusText } from '../../../../utils/bookingUtils';
+import { statusLabel, useTranslation } from '../../../../i18n';
 import { formatStatusLabel } from '../../../../utils/formatters';
 import { isPositiveMoney, toMoneyNumber } from '../../../../utils/money';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
@@ -91,6 +91,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
 }) => {
   const { format: formatCurrency } = useCurrency();
   const isPhone = useIsPhone();
+  const { t } = useTranslation('bookings');
 
   // Action availability gates — evaluated once so the desktop button row and
   // the phone grouping stay in lockstep.
@@ -113,41 +114,41 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
   // night-audit markers the phone list rows dropped stay reachable here, on
   // the detail page, at every viewport width.
   const channelInfo = getBookingChannelInfo(booking);
-  const billingChipLabel = getBillingChipLabel(booking);
+  const billingChipLabel = getBillingChipLabel(booking, t);
   const nightAuditInvolved = isNightAuditInvolved(booking);
 
   // Phone overflow menu: everything past the lifecycle CTA + Payment/Edit.
   const menuActions: ActionMenuItem[] = [
     {
       id: 'workflow',
-      label: 'Workflow',
+      label: t('details.workflow'),
       icon: <HistoryIcon fontSize="small" />,
       onClick: () => onWorkflow(booking),
     },
     {
       id: 'invoice',
-      label: 'Invoice',
+      label: t('details.invoice'),
       icon: <ReceiptIcon fontSize="small" />,
       onClick: () => onInvoice(booking),
       hidden: !showInvoice,
     },
     {
       id: 'release',
-      label: 'Release room',
+      label: t('details.releaseRoom'),
       icon: <VoidIcon fontSize="small" />,
       onClick: () => onRelease(booking),
       hidden: !showRelease,
     },
     {
       id: 'reactivate',
-      label: 'Reactivate',
+      label: t('details.reactivate'),
       icon: <RestoreIcon fontSize="small" />,
       onClick: () => onReactivate(booking),
       hidden: !showReactivate,
     },
     {
       id: 'void',
-      label: 'Void',
+      label: t('details.void'),
       icon: <VoidIcon fontSize="small" />,
       onClick: () => onVoid(booking),
       destructive: true,
@@ -168,19 +169,19 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
             }}>
             <Chip
               size="small"
-              label={getBookingStatusText(booking.status)}
+              label={statusLabel(t, 'booking', booking.status)}
               sx={{ bgcolor: `color-mix(in srgb, ${statusDotColor(booking.status)} 12%, transparent)`, color: statusDotColor(booking.status), fontWeight: 900 }}
             />
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
               {onOpenFullDetails && (
-                <Tooltip title="Open full page" arrow>
-                  <IconButton size="small" aria-label="Open full page" onClick={() => onOpenFullDetails(booking)}>
+                <Tooltip title={t('details.openFullPage')} arrow>
+                  <IconButton size="small" aria-label={t('details.openFullPage')} onClick={() => onOpenFullDetails(booking)}>
                     <OpenFullIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               )}
-              <Tooltip title="Close details" arrow>
-                <IconButton size="small" aria-label="Close details" onClick={onClose}>
+              <Tooltip title={t('details.closeAria')} arrow>
+                <IconButton size="small" aria-label={t('details.closeAria')} onClick={onClose}>
                   <CloseIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -226,22 +227,22 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
 
         <>
           <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Stay</Typography>
+            <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>{t('details.stay')}</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 2, alignItems: 'center', mt: 1 }}>
               <Box>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Check-in</Typography>
+                }}>{t('details.checkIn')}</Typography>
                 <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatShortDate(booking.check_in_date)}</Typography>
               </Box>
               <Box sx={{ textAlign: 'center', color: 'text.secondary' }}>
-                <Typography variant="body2" sx={{ fontWeight: 900 }}>{getNights(booking)}N</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 900 }}>{t('details.nightsAbbrev', { count: getNights(booking) })}</Typography>
                 <ArrowForwardIcon fontSize="small" />
               </Box>
               <Box sx={{ textAlign: 'right' }}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Check-out</Typography>
+                }}>{t('details.checkOut')}</Typography>
                 <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatShortDate(booking.check_out_date)}</Typography>
               </Box>
             </Box>
@@ -250,23 +251,23 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 <RoomIcon fontSize="small" />
               </Box>
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{booking.room_type || 'Room'}</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{booking.room_type || t('details.roomFallback')}</Typography>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Room {booking.room_number || '-'}</Typography>
+                }}>{t('details.roomNumber', { number: booking.room_number || '-' })}</Typography>
               </Box>
             </Box>
           </Box>
 
           <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Charges</Typography>
+            <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>{t('details.charges')}</Typography>
             <Stack spacing={1.2} sx={{ mt: 1 }}>
               <Stack direction="row" sx={{
                 justifyContent: "space-between"
               }}>
                 <Typography sx={{
                   color: "text.secondary"
-                }}>Room · {getNights(booking)} x {formatCurrency(toMoneyNumber(booking.price_per_night))}</Typography>
+                }}>{t('details.roomNights', { nights: getNights(booking), rate: formatCurrency(toMoneyNumber(booking.price_per_night)) })}</Typography>
                 <Typography sx={{ fontWeight: 800 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
               </Stack>
               <Stack direction="row" sx={{
@@ -274,22 +275,24 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               }}>
                 <Typography sx={{
                   color: "text.secondary"
-                }}>Tax & fees</Typography>
+                }}>{t('details.taxAndFees')}</Typography>
                 <Typography sx={{
                   color: "text.secondary"
-                }}>Included</Typography>
+                }}>{t('details.included')}</Typography>
               </Stack>
               <Divider />
               <Stack direction="row" sx={{
                 justifyContent: "space-between"
               }}>
-                <Typography variant="subtitle1">Total</Typography>
+                <Typography variant="subtitle1">{t('details.total')}</Typography>
                 <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
               </Stack>
               <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: isPositiveMoney(getBookingBalance(booking)) ? 'var(--hotel-danger-bg)' : 'var(--hotel-selected)', color: isPositiveMoney(getBookingBalance(booking)) ? 'var(--hotel-danger)' : 'var(--hotel-success)', fontWeight: 900 }}>
                 {isPositiveMoney(getBookingBalance(booking))
-                  ? `Due ${formatCurrency(getBookingBalance(booking))}`
-                  : `✓ Fully paid${booking.payment_method ? ` via ${formatStatusLabel(booking.payment_method)}` : ''}`}
+                  ? t('details.due', { amount: formatCurrency(getBookingBalance(booking)) })
+                  : booking.payment_method
+                    ? t('details.fullyPaidVia', { method: formatStatusLabel(booking.payment_method) })
+                    : t('details.fullyPaid')}
               </Box>
             </Stack>
           </Box>
@@ -297,7 +300,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
           {quickEdit}
 
           <Box sx={{ p: 2.5 }}>
-            <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Actions</Typography>
+            <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>{t('details.actions')}</Typography>
             {isPhone ? (
               // Phone: the first available lifecycle action gets the full-width
               // contained CTA, Payment + Edit stay outlined, and the rest
@@ -306,26 +309,26 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               <Stack spacing={1} sx={{ mt: 1 }}>
                 {showCheckIn ? (
                   earlyCheckIn ? (
-                    <Tooltip title={`Early check-in — before the configured ${getHotelSettings().check_in_time || '15:00'} check-in time`} arrow>
-                      <Button fullWidth variant="contained" color="success" startIcon={<EarlyCheckInIcon />} onClick={() => onCheckIn(String(booking.id))}>Early check-in</Button>
+                    <Tooltip title={t('details.earlyCheckInTooltip', { time: getHotelSettings().check_in_time || '15:00' })} arrow>
+                      <Button fullWidth variant="contained" color="success" startIcon={<EarlyCheckInIcon />} onClick={() => onCheckIn(String(booking.id))}>{t('details.earlyCheckIn')}</Button>
                     </Tooltip>
                   ) : (
-                    <Button fullWidth variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => onCheckIn(String(booking.id))}>Check in</Button>
+                    <Button fullWidth variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => onCheckIn(String(booking.id))}>{t('details.checkInAction')}</Button>
                   )
                 ) : showCheckOut ? (
-                  <Button fullWidth variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => onCheckOut(booking)}>Check out</Button>
+                  <Button fullWidth variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => onCheckOut(booking)}>{t('details.checkOutAction')}</Button>
                 ) : null}
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   {showPayment && (
-                    <Button variant="outlined" color="success" startIcon={<PaymentIcon />} sx={{ flex: 1 }} onClick={() => onPayment(booking)}>Payment</Button>
+                    <Button variant="outlined" color="success" startIcon={<PaymentIcon />} sx={{ flex: 1 }} onClick={() => onPayment(booking)}>{t('details.payment')}</Button>
                   )}
                   {isAdmin && (
-                    <Button variant="outlined" startIcon={<EditIcon />} sx={{ flex: 1 }} onClick={() => onEdit(booking)}>Edit</Button>
+                    <Button variant="outlined" startIcon={<EditIcon />} sx={{ flex: 1 }} onClick={() => onEdit(booking)}>{t('details.edit')}</Button>
                   )}
                   <ActionsMenu
                     trigger={
                       <Button variant="outlined" startIcon={<MoreVertIcon />} sx={{ flex: showPayment || isAdmin ? undefined : 1 }}>
-                        More
+                        {t('details.more')}
                       </Button>
                     }
                     actions={menuActions}
@@ -343,15 +346,15 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               }}>
               {canCheckIn(booking) && (
                 isEarlyCheckIn(booking, getHotelSettings().check_in_time) ? (
-                  <Tooltip title={`Early check-in — before the configured ${getHotelSettings().check_in_time || '15:00'} check-in time`} arrow>
-                    <Button variant="contained" color="success" startIcon={<EarlyCheckInIcon />} onClick={() => onCheckIn(String(booking.id))}>Early check-in</Button>
+                  <Tooltip title={t('details.earlyCheckInTooltip', { time: getHotelSettings().check_in_time || '15:00' })} arrow>
+                    <Button variant="contained" color="success" startIcon={<EarlyCheckInIcon />} onClick={() => onCheckIn(String(booking.id))}>{t('details.earlyCheckIn')}</Button>
                   </Tooltip>
                 ) : (
-                  <Button variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => onCheckIn(String(booking.id))}>Check in</Button>
+                  <Button variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => onCheckIn(String(booking.id))}>{t('details.checkInAction')}</Button>
                 )
               )}
               {canCheckOut(booking) && (
-                <Button variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => onCheckOut(booking)}>Check out</Button>
+                <Button variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => onCheckOut(booking)}>{t('details.checkOutAction')}</Button>
               )}
               {/* Standalone payment entry is only for pre-arrival bookings
                   (confirmed/pending) that have no invoice yet. Once checked in,
@@ -360,21 +363,21 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               {!booking.is_complimentary
                 && isPositiveMoney(getBookingBalance(booking))
                 && !['checked_in', 'checked_out', 'completed'].includes(booking.status) && (
-                <Button variant="outlined" color="success" startIcon={<PaymentIcon />} onClick={() => onPayment(booking)}>Payment</Button>
+                <Button variant="outlined" color="success" startIcon={<PaymentIcon />} onClick={() => onPayment(booking)}>{t('details.payment')}</Button>
               )}
-              <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => onWorkflow(booking)}>Workflow</Button>
-              {isAdmin && <Button variant="outlined" startIcon={<EditIcon />} onClick={() => onEdit(booking)}>Edit</Button>}
+              <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => onWorkflow(booking)}>{t('details.workflow')}</Button>
+              {isAdmin && <Button variant="outlined" startIcon={<EditIcon />} onClick={() => onEdit(booking)}>{t('details.edit')}</Button>}
               {['checked_out', 'completed'].includes(booking.status) && (
-                <Button variant="outlined" startIcon={<ReceiptIcon />} onClick={() => onInvoice(booking)}>Invoice</Button>
+                <Button variant="outlined" startIcon={<ReceiptIcon />} onClick={() => onInvoice(booking)}>{t('details.invoice')}</Button>
               )}
               {canRelease(booking) && (
-                <Button variant="outlined" color="warning" startIcon={<VoidIcon />} onClick={() => onRelease(booking)}>Release room</Button>
+                <Button variant="outlined" color="warning" startIcon={<VoidIcon />} onClick={() => onRelease(booking)}>{t('details.releaseRoom')}</Button>
               )}
               {canVoid(booking) && (
-                <Button variant="outlined" color="error" startIcon={<VoidIcon />} onClick={() => onVoid(booking)}>Void</Button>
+                <Button variant="outlined" color="error" startIcon={<VoidIcon />} onClick={() => onVoid(booking)}>{t('details.void')}</Button>
               )}
               {canReactivate(booking) && (
-                <Button variant="outlined" color="success" startIcon={<RestoreIcon />} onClick={() => onReactivate(booking)}>Reactivate</Button>
+                <Button variant="outlined" color="success" startIcon={<RestoreIcon />} onClick={() => onReactivate(booking)}>{t('details.reactivate')}</Button>
               )}
             </Stack>
             )}
@@ -382,14 +385,14 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               <Box>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Booked via</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800, textTransform: 'capitalize' }}>{getBookedViaText(booking)}</Typography>
+                }}>{t('details.bookedVia')}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800, textTransform: 'capitalize' }}>{getBookedViaText(booking, t)}</Typography>
               </Box>
               <Box>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Payment</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>{getPaymentStatusText(booking.payment_status)}</Typography>
+                }}>{t('details.paymentStatus')}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>{statusLabel(t, 'payment', booking.payment_status)}</Typography>
               </Box>
             </Box>
           </Box>

@@ -160,13 +160,15 @@ export interface SupportMessageRequest {
   payload: SupportMessagePayload;
 }
 
-export const SUPPORT_QUEUE_TABS: Array<{ value: SupportQueue; label: string }> = [
-  { value: 'unassigned', label: 'Unassigned' },
-  { value: 'mine', label: 'Mine' },
-  { value: 'waiting_for_staff', label: 'Needs reply' },
-  { value: 'waiting_for_guest', label: 'Waiting for guest' },
-  { value: 'at_risk', label: 'At risk' },
-  { value: 'resolved', label: 'Resolved' },
+/** Queue tab definitions — `labelKey` resolves through the `support`
+ *  namespace (`queue.<value>`) at render so tabs follow the locale. */
+export const SUPPORT_QUEUE_TABS: Array<{ value: SupportQueue; labelKey: string }> = [
+  { value: 'unassigned', labelKey: 'queue.unassigned' },
+  { value: 'mine', labelKey: 'queue.mine' },
+  { value: 'waiting_for_staff', labelKey: 'queue.waiting_for_staff' },
+  { value: 'waiting_for_guest', labelKey: 'queue.waiting_for_guest' },
+  { value: 'at_risk', labelKey: 'queue.at_risk' },
+  { value: 'resolved', labelKey: 'queue.resolved' },
 ];
 
 export const SUPPORT_STATUS_OPTIONS: SupportConversationStatus[] = [

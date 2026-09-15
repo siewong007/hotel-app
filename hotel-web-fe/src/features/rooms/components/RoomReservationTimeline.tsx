@@ -38,14 +38,17 @@ import {
 } from '@mui/icons-material';
 import { Room, BookingWithDetails } from '../../../types';
 import {
+  getLocalizedStatusLabel,
   getUnifiedStatusColor,
-  getUnifiedStatusLabel,
 } from '../config';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { useBookingsWithDetails } from '../../bookings/hooks/useBookingQueries';
 import { useRooms } from '../hooks/useRoomQueries';
 import { formatLocalDate } from '../../../utils/date';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { dateFormatter } from '../../../i18n/format';
+import { statusLabel } from '../../../i18n/statusLabel';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 import { errorMessage } from '../../../utils/errorMessage';
 
@@ -183,6 +186,7 @@ function buildBookingBarLayout(
 }
 
 const RoomReservationTimeline: React.FC = () => {
+  const { t } = useTranslation('rooms');
   const { format: formatCurrency } = useCurrency();
   const isPhone = useIsPhone();
   const roomCol = isPhone ? 120 : ROOM_COL;
@@ -210,9 +214,9 @@ const RoomReservationTimeline: React.FC = () => {
     try {
       await Promise.all([roomsQuery.refetch(), bookingsQuery.refetch()]);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to load timeline data'));
+      setError(errorMessage(err, t('timeline.errorLoad')));
     }
-  }, [bookingsQuery, roomsQuery]);
+  }, [bookingsQuery, roomsQuery, t]);
 
   useEffect(() => {
     const interval = setInterval(loadData, 30000);
@@ -248,7 +252,7 @@ const RoomReservationTimeline: React.FC = () => {
         room_id: b.room_id,
         room_number: b.room_number,
         room_type: b.room_type,
-        guest_name: b.guest_name || 'Unknown Guest',
+        guest_name: b.guest_name || t('upcoming.unknownGuest'),
         guest_email: b.guest_email,
         guest_phone: b.guest_phone,
         check_in_date: b.check_in_date,
@@ -282,7 +286,7 @@ const RoomReservationTimeline: React.FC = () => {
         syntheticBookings.push({
           id: `synthetic-${room.id}`,
           room_id: room.id,
-          guest_name: 'Walk-in Guest',
+          guest_name: t('timeline.walkInGuest'),
           check_in_date: room.reserved_start_date || formatLocalDate(startDate),
           check_out_date: room.reserved_end_date || formatLocalDate(endDate),
           status: room.status,
@@ -291,7 +295,7 @@ const RoomReservationTimeline: React.FC = () => {
     });
 
     return [...relevantBookings, ...syntheticBookings];
-  }, [bookingsQuery.data, daysToShow, roomsQuery.data, startDate]);
+  }, [bookingsQuery.data, daysToShow, roomsQuery.data, startDate, t]);
 
   const showAgenda = isPhone && view === 'agenda';
 
@@ -405,23 +409,23 @@ const RoomReservationTimeline: React.FC = () => {
     const last = dates[dates.length - 1];
     if (!last) return '';
     const sameYear = startDate.getFullYear() === last.getFullYear();
-    const left = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const right = last.toLocaleDateString('en-US', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+    const left = dateFormatter({ month: 'short', day: 'numeric' }).format(startDate);
+    const right = dateFormatter(sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' }).format(last);
     return `${left} – ${right}, ${last.getFullYear()}`;
   })();
 
-  const agendaLabel = startDate.toLocaleDateString('en-US', {
+  const agendaLabel = dateFormatter({
     weekday: 'short',
     month: 'short',
     day: 'numeric',
-  });
+  }).format(startDate);
 
   // Status pill colors for legend (matches statusBarColors above).
   const LEGEND: Array<{ label: string; color: string }> = [
-    { label: 'Occupied', color: 'var(--hotel-warning)' },
-    { label: 'Reserved', color: 'var(--hotel-info)' },
-    { label: 'Pending', color: 'var(--hotel-chart-4)' },
-    { label: 'Complimentary', color: 'var(--hotel-success)' },
+    { label: getLocalizedStatusLabel(t, 'occupied'), color: 'var(--hotel-warning)' },
+    { label: getLocalizedStatusLabel(t, 'reserved'), color: 'var(--hotel-info)' },
+    { label: getLocalizedStatusLabel(t, 'pending'), color: 'var(--hotel-chart-4)' },
+    { label: t('timeline.legendComplimentary'), color: 'var(--hotel-success)' },
   ];
 
   return (
@@ -459,18 +463,18 @@ const RoomReservationTimeline: React.FC = () => {
         >
           <Box>
             <Typography sx={{ fontFamily: 'inherit', fontSize: 26, fontWeight: 700, color: PALETTE.ink, lineHeight: 1.1 }}>
-              Reservation Timeline
+              {t('timeline.title')}
             </Typography>
             <Typography sx={{ fontFamily: 'inherit', fontSize: 16, color: PALETTE.inkMuted, lineHeight: 1.2 }}>
-              {rooms.length} rooms · {bookings.length} active bookings
+              {t('timeline.summary', { rooms: rooms.length, bookings: bookings.length })}
             </Typography>
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             {isPhone && (
               <>
-                <SketchyBtn filled={view === 'agenda'} onClick={() => setView('agenda')}>List</SketchyBtn>
-                <SketchyBtn filled={view === 'grid'} onClick={() => setView('grid')}>Grid</SketchyBtn>
+                <SketchyBtn filled={view === 'agenda'} onClick={() => setView('agenda')}>{t('timeline.viewList')}</SketchyBtn>
+                <SketchyBtn filled={view === 'grid'} onClick={() => setView('grid')}>{t('timeline.viewGrid')}</SketchyBtn>
               </>
             )}
             <SketchyBtn onClick={goToPreviousWeek}>‹</SketchyBtn>
@@ -489,7 +493,7 @@ const RoomReservationTimeline: React.FC = () => {
               {showAgenda ? agendaLabel : rangeLabel}
             </Box>
             <SketchyBtn onClick={goToNextWeek}>›</SketchyBtn>
-            <SketchyBtn filled onClick={goToToday}>Today</SketchyBtn>
+            <SketchyBtn filled onClick={goToToday}>{t('common:time.today')}</SketchyBtn>
 
             {!showAgenda && (
               <FormControl size="small" sx={{ minWidth: 96 }}>
@@ -504,10 +508,10 @@ const RoomReservationTimeline: React.FC = () => {
                     '& .MuiOutlinedInput-notchedOutline': { borderColor: PALETTE.ink, borderWidth: 1.5 },
                   }}
                 >
-                  <MenuItem value={7}>7 Days</MenuItem>
-                  <MenuItem value={14}>14 Days</MenuItem>
-                  <MenuItem value={30}>30 Days</MenuItem>
-                  <MenuItem value={60}>60 Days</MenuItem>
+                  <MenuItem value={7}>{t('timeline.days', { count: 7 })}</MenuItem>
+                  <MenuItem value={14}>{t('timeline.days', { count: 14 })}</MenuItem>
+                  <MenuItem value={30}>{t('timeline.days', { count: 30 })}</MenuItem>
+                  <MenuItem value={60}>{t('timeline.days', { count: 60 })}</MenuItem>
                 </Select>
               </FormControl>
             )}
@@ -515,7 +519,7 @@ const RoomReservationTimeline: React.FC = () => {
             <IconButton
               onClick={loadData}
               size="small"
-              aria-label="Refresh timeline"
+              aria-label={t('timeline.refreshAria')}
               sx={{ border: `1.5px solid ${PALETTE.ink}`, borderRadius: '4px', color: PALETTE.ink }}
             >
               <Refresh fontSize="small" />
@@ -560,14 +564,14 @@ const RoomReservationTimeline: React.FC = () => {
           <Box sx={{ maxHeight: 'calc(100vh - 240px)', overflow: 'auto' }}>
             {(
               [
-                ['Arriving', agenda.arriving],
-                ['Departing', agenda.departing],
-                ['In-house', agenda.staying],
+                ['arriving', t('timeline.agendaArriving'), agenda.arriving],
+                ['departing', t('timeline.agendaDeparting'), agenda.departing],
+                ['inhouse', t('timeline.agendaInHouse'), agenda.staying],
               ] as const
             ).map(
-              ([label, list]) =>
+              ([sectionKey, label, list]) =>
                 list.length > 0 && (
-                  <Box key={label}>
+                  <Box key={sectionKey}>
                     <Typography
                       sx={{
                         fontFamily: 'inherit',
@@ -588,7 +592,7 @@ const RoomReservationTimeline: React.FC = () => {
                       const sc = statusBarColors(b.status, b.is_complimentary);
                       return (
                         <Box
-                          key={`${label}-${b.id}`}
+                          key={`${sectionKey}-${b.id}`}
                           onClick={(e) => handleBarClick(e, b)}
                           sx={{
                             display: 'flex',
@@ -638,14 +642,14 @@ const RoomReservationTimeline: React.FC = () => {
                                 textOverflow: 'ellipsis',
                               }}
                             >
-                              {new Date(b.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {dateFormatter({ month: 'short', day: 'numeric' }).format(new Date(b.check_in_date))}
                               {' → '}
-                              {new Date(b.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              {b.number_of_guests ? ` · ${b.number_of_guests} guest${b.number_of_guests > 1 ? 's' : ''}` : ''}
+                              {dateFormatter({ month: 'short', day: 'numeric' }).format(new Date(b.check_out_date))}
+                              {b.number_of_guests ? ` · ${t('common:count.guests', { count: b.number_of_guests })}` : ''}
                             </Typography>
                           </Box>
                           <Chip
-                            label={b.is_complimentary ? 'Complimentary' : getUnifiedStatusLabel(b.status)}
+                            label={b.is_complimentary ? t('timeline.legendComplimentary') : getLocalizedStatusLabel(t, b.status)}
                             size="small"
                             sx={{
                               fontFamily: "'Caveat', cursive",
@@ -672,7 +676,7 @@ const RoomReservationTimeline: React.FC = () => {
                   py: 4,
                 }}
               >
-                No bookings on this day
+                {t('timeline.agendaEmpty')}
               </Typography>
             )}
             {agenda.vacant.length > 0 && (
@@ -688,7 +692,7 @@ const RoomReservationTimeline: React.FC = () => {
                     letterSpacing: '0.06em',
                   }}
                 >
-                  Vacant · {agenda.vacant.length}
+                  {t('timeline.agendaVacant')} · {agenda.vacant.length}
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
                   {agenda.vacant.map((r) => (
@@ -738,7 +742,7 @@ const RoomReservationTimeline: React.FC = () => {
                     zIndex: 11,
                   }}
                 >
-                  <Typography sx={{ fontFamily: 'inherit', fontSize: 16, color: PALETTE.inkMuted }}>Room</Typography>
+                  <Typography sx={{ fontFamily: 'inherit', fontSize: 16, color: PALETTE.inkMuted }}>{t('fields.room')}</Typography>
                 </Box>
                 {dates.map((d, i) => {
                   const isToday = sameDay(d, today);
@@ -756,8 +760,8 @@ const RoomReservationTimeline: React.FC = () => {
                     >
                       <Typography sx={{ fontFamily: 'inherit', fontSize: isPhone ? 11 : 13, color: isToday ? PALETTE.todayAccent : PALETTE.inkMuted, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                         {isPhone
-                          ? d.toLocaleDateString('en-US', { weekday: 'narrow' })
-                          : `${d.toLocaleDateString('en-US', { weekday: 'short' })} · ${d.toLocaleDateString('en-US', { month: 'short' })}`}
+                          ? dateFormatter({ weekday: 'narrow' }).format(d)
+                          : `${dateFormatter({ weekday: 'short' }).format(d)} · ${dateFormatter({ month: 'short' }).format(d)}`}
                       </Typography>
                       <Typography
                         sx={{
@@ -772,7 +776,7 @@ const RoomReservationTimeline: React.FC = () => {
                       </Typography>
                       {isToday && !isPhone && (
                         <Typography sx={{ fontFamily: 'inherit', fontSize: 12, color: PALETTE.todayAccent, mt: '-2px' }}>
-                          today
+                          {t('common:time.today')}
                         </Typography>
                       )}
                     </Box>
@@ -819,7 +823,7 @@ const RoomReservationTimeline: React.FC = () => {
                         {room.room_type}
                       </Typography>
                       <Typography sx={{ fontFamily: 'inherit', fontSize: isPhone ? 12 : 14, color: PALETTE.todayAccent, fontWeight: 600, lineHeight: 1.1 }}>
-                        {formatCurrency(toMoneyNumber(room.price_per_night))}/night
+                        {formatCurrency(toMoneyNumber(room.price_per_night))}{t('config.perNight')}
                       </Typography>
                     </Box>
 
@@ -910,7 +914,7 @@ const RoomReservationTimeline: React.FC = () => {
                                   lineHeight: 1.1,
                                 }}
                               >
-                                {b.is_complimentary ? `Complimentary (${b.complimentary_nights || 0}N)` : getUnifiedStatusLabel(b.status)}
+                                {b.is_complimentary ? t('timeline.complimentaryBar', { count: b.complimentary_nights || 0 }) : getLocalizedStatusLabel(t, b.status)}
                               </Typography>
                               {showRate && isPositiveMoney(b.price_per_night) && !b.is_complimentary && (
                                 <Typography
@@ -921,7 +925,7 @@ const RoomReservationTimeline: React.FC = () => {
                                     lineHeight: 1.1,
                                   }}
                                 >
-                                  {formatCurrency(toMoneyNumber(b.price_per_night))}/night
+                                  {formatCurrency(toMoneyNumber(b.price_per_night))}{t('config.perNight')}
                                 </Typography>
                               )}
                             </>
@@ -936,7 +940,7 @@ const RoomReservationTimeline: React.FC = () => {
               {rooms.length === 0 && !loading && (
                 <Box sx={{ p: 6, textAlign: 'center' }}>
                   <Typography sx={{ fontFamily: "'Caveat', cursive", fontSize: 20, color: PALETTE.inkMuted }}>
-                    No rooms found
+                    {t('timeline.noRooms')}
                   </Typography>
                 </Box>
               )}
@@ -1026,16 +1030,16 @@ const RoomReservationTimeline: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
                 <CalendarToday sx={{ fontSize: 16, color: PALETTE.ink }} />
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {new Date(hoveredBooking.check_in_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {dateFormatter({ weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(hoveredBooking.check_in_date))}
                   {' → '}
-                  {new Date(hoveredBooking.check_out_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {dateFormatter({ weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(hoveredBooking.check_out_date))}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <Box>
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
-                  }}>Nights</Typography>
+                  }}>{t('fields.nights')}</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {hoveredBooking.number_of_nights || Math.ceil((new Date(hoveredBooking.check_out_date).getTime() - new Date(hoveredBooking.check_in_date).getTime()) / 86400000)}
                   </Typography>
@@ -1044,7 +1048,7 @@ const RoomReservationTimeline: React.FC = () => {
                   <Box>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Guests</Typography>
+                    }}>{t('fields.guests')}</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {hoveredBooking.number_of_guests}
                     </Typography>
@@ -1054,7 +1058,7 @@ const RoomReservationTimeline: React.FC = () => {
                   <Box>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Extra Beds</Typography>
+                    }}>{t('fields.extraBeds')}</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {hoveredBooking.extra_bed_count}
                     </Typography>
@@ -1074,14 +1078,14 @@ const RoomReservationTimeline: React.FC = () => {
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
                     }}>
-                      {formatCurrency(toMoneyNumber(hoveredBooking.price_per_night))}/night
+                      {formatCurrency(toMoneyNumber(hoveredBooking.price_per_night))}{t('config.perNight')}
                     </Typography>
                   )}
                 </Box>
               </Box>
               <Box sx={{ display: 'flex', gap: 0.5 }}>
                 <Chip
-                  label={getUnifiedStatusLabel(hoveredBooking.status)}
+                  label={getLocalizedStatusLabel(t, hoveredBooking.status)}
                   size="small"
                   sx={{
                     bgcolor: `color-mix(in srgb, ${getUnifiedStatusColor(hoveredBooking.status)} 14%, transparent)`,
@@ -1095,7 +1099,7 @@ const RoomReservationTimeline: React.FC = () => {
                 {hoveredBooking.payment_status && (
                   <Chip
                     icon={<Payment sx={{ fontSize: 14, color: 'inherit !important' }} />}
-                    label={hoveredBooking.payment_status}
+                    label={statusLabel(t, 'payment', hoveredBooking.payment_status)}
                     size="small"
                     sx={{
                       bgcolor: PALETTE.inkWash,
@@ -1113,12 +1117,12 @@ const RoomReservationTimeline: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Deposit:</Typography>
+                }}>{t('fields.deposit')}</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   {formatCurrency(toMoneyNumber(hoveredBooking.deposit_amount))}
                 </Typography>
                 {hoveredBooking.deposit_paid && (
-                  <Chip label="Collected" size="small" color="success" sx={{ height: 18, fontSize: '0.6rem' }} />
+                  <Chip label={t('timeline.depositCollected')} size="small" color="success" sx={{ height: 18, fontSize: '0.6rem' }} />
                 )}
               </Box>
             )}
@@ -1127,7 +1131,7 @@ const RoomReservationTimeline: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
-                }}>Company:</Typography>
+                }}>{t('fields.company')}</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   {hoveredBooking.company_name}
                 </Typography>
@@ -1148,7 +1152,7 @@ const RoomReservationTimeline: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <CardGiftcard sx={{ fontSize: 16, color: 'var(--hotel-success)' }} />
                   <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--hotel-success)' }}>
-                    Complimentary: {hoveredBooking.complimentary_nights || 0} nights
+                    {t('timeline.complimentaryNights', { count: hoveredBooking.complimentary_nights || 0 })}
                   </Typography>
                 </Box>
                 {hoveredBooking.complimentary_reason && (
@@ -1171,7 +1175,7 @@ const RoomReservationTimeline: React.FC = () => {
                   <Box>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Special Requests</Typography>
+                    }}>{t('fields.specialRequests')}</Typography>
                     <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
                       {hoveredBooking.special_requests}
                     </Typography>

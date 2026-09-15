@@ -1,31 +1,36 @@
 import { ArrowBack, Home, Lock, LockPerson, SearchOff } from '@mui/icons-material';
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import { Link } from '@tanstack/react-router';
+import { useTranslation } from '../../i18n';
 
 type StatusPageProps = {
   statusCode: 403 | 404 | 423;
 };
 
+/** Icon + `errors.page.*` translation keys per status code. */
 const STATUS_CONTENT = {
   403: {
-    title: 'Access denied',
-    message: 'You do not have permission to view this page.',
+    titleKey: 'page.forbiddenTitle',
+    messageKey: 'page.forbiddenMessage',
     icon: LockPerson,
   },
   404: {
-    title: 'Page not found',
-    message: 'The page you requested does not exist or may have moved.',
+    titleKey: 'page.notFoundTitle',
+    messageKey: 'page.notFoundMessage',
     icon: SearchOff,
   },
   423: {
-    title: 'Resource locked',
-    message: 'This resource is currently locked. Please try again later or contact an administrator.',
+    titleKey: 'page.lockedTitle',
+    messageKey: 'page.lockedMessage',
     icon: Lock,
   },
 } as const;
 
 export function StatusPage({ statusCode }: StatusPageProps) {
-  const { title, message, icon: Icon } = STATUS_CONTENT[statusCode];
+  const { t } = useTranslation('errors');
+  const { titleKey, messageKey, icon: Icon } = STATUS_CONTENT[statusCode];
+  const title = t(titleKey);
+  const message = t(messageKey);
 
   return (
     <Box
@@ -40,7 +45,7 @@ export function StatusPage({ statusCode }: StatusPageProps) {
           <Icon color="primary" sx={{ fontSize: 56 }} aria-hidden="true" />
           <Typography variant="overline" sx={{
             color: "text.secondary"
-          }}>Error {statusCode}</Typography>
+          }}>{t('page.errorLabel', { code: statusCode })}</Typography>
           <Typography id="status-page-title" variant="h4" component="h1">{title}</Typography>
           <Typography sx={{
             color: "text.secondary"
@@ -49,10 +54,10 @@ export function StatusPage({ statusCode }: StatusPageProps) {
             justifyContent: "center"
           }}>
             <Button component={Link} to="/" variant="contained" startIcon={<Home />}>
-              Go home
+              {t('common:actions.goHome')}
             </Button>
             <Button variant="outlined" startIcon={<ArrowBack />} onClick={() => window.history.back()}>
-              Go back
+              {t('common:actions.goBack')}
             </Button>
           </Stack>
         </Stack>

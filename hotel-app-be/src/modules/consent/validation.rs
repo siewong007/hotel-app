@@ -9,6 +9,7 @@
 
 use super::models::{ConsentAcceptance, ConsentDocument};
 use crate::core::error::ApiError;
+use crate::core::i18n::Locale;
 
 /// Documents a guest must actively agree to before an account is created.
 pub const REGISTRATION_REQUIRED: &[ConsentDocument] = &[
@@ -75,12 +76,21 @@ pub fn require_consents(
 
 /// Reject a submission carrying a locale the schema will not store, before it
 /// reaches the database and fails as an opaque constraint violation.
+///
+/// Driven by [`Locale::parse`] so newly supported locales flow through with
+/// the `consent_records_locale_check` constraint. The constraint stores only
+/// the canonical tag, so a parseable regional variant like `zh-CN` is still
+/// refused: the schema cannot store it verbatim and a consent write must not
+/// die as a constraint violation.
 pub fn validate_locales(submitted: &[ConsentAcceptance]) -> Result<(), ApiError> {
     for entry in submitted {
-        if entry.locale != "en" && entry.locale != "ms" {
-            return Err(ApiError::BadRequest(
-                "Consent locale must be 'en' or 'ms'".to_string(),
-            ));
+        if Locale::parse(&entry.locale).map(|locale| locale.as_str())
+            != Some(entry.locale.as_str())
+        {
+            return Err(ApiError::BadRequest(format!(
+                "Unsupported consent locale: {}",
+                entry.locale
+            )));
         }
     }
     Ok(())
@@ -94,10 +104,9 @@ pub fn validate_locales(submitted: &[ConsentAcceptance]) -> Result<(), ApiError>
 pub fn preferred_locale(submitted: &[ConsentAcceptance]) -> String {
     submitted
         .iter()
-        .map(|entry| entry.locale.as_str())
-        .find(|locale| *locale == "en" || *locale == "ms")
-        .unwrap_or("en")
-        .to_string()
+        .find_map(|entry| Locale::parse(&entry.locale))
+        .map(|locale| locale.as_str().to_string())
+        .unwrap_or_else(|| "en".to_string())
 }
 
 fn human_name(document: ConsentDocument) -> &'static str {
@@ -168,16 +177,51 @@ mod tests {
     }
 
     #[test]
+    fn accepts_every_supported_locale() {
+        for locale in ["en", "ms", "zh"] {
+            let mut entry = accept(ConsentDocument::TermsOfService, true);
+            entry.locale = locale.to_string();
+            assert!(
+                validate_locales(&[entry]).is_ok(),
+                "supported locale '{locale}' must be accepted"
+            );
+        }
+    }
+
+    #[test]
     fn rejects_unknown_locale() {
         let mut entry = accept(ConsentDocument::TermsOfService, true);
         entry.locale = "fr".to_string();
-        assert!(validate_locales(&[entry]).is_err());
+        let error = validate_locales(&[entry]).unwrap_err();
+        assert!(
+            matches!(error, ApiError::BadRequest(ref m) if m.contains("fr")),
+            "the rejection should name the submitted locale: {error:?}"
+        );
+    }
+
+    #[test]
+    fn rejects_locale_the_constraint_cannot_store() {
+        // `zh-CN` parses as zh, but the check constraint admits only the
+        // canonical tag — a regional variant must be refused here rather
+        // than die as a constraint violation at insert.
+        for locale in ["zh-CN", "EN"] {
+            let mut entry = accept(ConsentDocument::TermsOfService, true);
+            entry.locale = locale.to_string();
+            assert!(
+                validate_locales(&[entry]).is_err(),
+                "non-canonical tag '{locale}' must be rejected"
+            );
+        }
     }
 
     #[test]
     fn preferred_locale_follows_the_notice_the_guest_read() {
         let mut malay = accept(ConsentDocument::TermsOfService, true);
         malay.locale = "ms".to_string();
+        assert_eq!(preferred_locale(&[malay.clone()]), "ms");
+        let mut chinese = accept(ConsentDocument::TermsOfService, true);
+        chinese.locale = "zh".to_string();
+        assert_eq!(preferred_locale(&[chinese]), "zh");
         assert_eq!(preferred_locale(&[malay]), "ms");
         assert_eq!(preferred_locale(&[]), "en");
     }

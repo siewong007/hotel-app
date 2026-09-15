@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import type { Guest, GuestSummary } from '../../../types';
 import { formatStatusLabel } from '../../../utils/formatters';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { GUEST_DESIGN } from '../../guests/constants';
 import { formatGuestProfileDate } from '../../guests/components/GuestProfileParts';
 import { avatarFor, guestDisplayName, initialsOf } from '../utils';
@@ -42,10 +43,10 @@ interface GuestProfileHeaderProps {
   onOpenSupport: () => void;
 }
 
-const ContactItem: React.FC<{ icon: React.ReactNode; value?: string | null; label: string }> = ({
+const ContactItem: React.FC<{ icon: React.ReactNode; value?: string | null; emptyText: string }> = ({
   icon,
   value,
-  label,
+  emptyText,
 }) => (
   <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', minWidth: 0 }}>
     <Box sx={{ color: GUEST_DESIGN.ink4, display: 'flex', '& svg': { fontSize: 15 } }}>{icon}</Box>
@@ -53,7 +54,7 @@ const ContactItem: React.FC<{ icon: React.ReactNode; value?: string | null; labe
       variant="body2"
       sx={{ color: value ? GUEST_DESIGN.ink2 : GUEST_DESIGN.ink4, overflowWrap: 'anywhere' }}
     >
-      {value || `No ${label}`}
+      {value || emptyText}
     </Typography>
   </Stack>
 );
@@ -76,6 +77,7 @@ const GuestProfileHeader: React.FC<GuestProfileHeaderProps> = ({
   onAddNote,
   onOpenSupport,
 }) => {
+  const { t } = useTranslation('guests');
   const displayName = guestDisplayName(guest);
   const bookedAs = guest.nick_name.trim() !== displayName ? guest.nick_name.trim() : null;
   const { bg, fg } = avatarFor(guest.id);
@@ -115,8 +117,8 @@ const GuestProfileHeader: React.FC<GuestProfileHeaderProps> = ({
               )}
             </Stack>
             <Typography variant="body2" sx={{ color: GUEST_DESIGN.ink3, mt: 0.25 }}>
-              Guest #{guest.id}
-              {bookedAs && <> · booked as {bookedAs}</>}
+              {t('profile.guestNumber', { id: guest.id })}
+              {bookedAs && <> · {t('profile.bookedAs', { name: bookedAs })}</>}
               {guest.company_name && <> · {guest.company_name}</>}
             </Typography>
 
@@ -125,7 +127,7 @@ const GuestProfileHeader: React.FC<GuestProfileHeaderProps> = ({
                 <Chip
                   size="small"
                   icon={<MemberIcon sx={{ fontSize: 12 }} />}
-                  label="Member"
+                  label={t('profile.member')}
                   sx={{
                     bgcolor: GUEST_DESIGN.goldBg,
                     color: GUEST_DESIGN.gold,
@@ -148,25 +150,25 @@ const GuestProfileHeader: React.FC<GuestProfileHeaderProps> = ({
                 />
               )}
               {summary.completed_stays > 0 && (
-                <Chip size="small" label="Returning guest" color="success" variant="outlined" />
+                <Chip size="small" label={t('profile.returning')} color="success" variant="outlined" />
               )}
               {guest.is_blacklisted && (
-                <Tooltip title={guest.blacklist_reason ? `Reason: ${guest.blacklist_reason}` : 'No reason recorded'}>
+                <Tooltip title={guest.blacklist_reason ? t('profile.blacklistReason', { reason: guest.blacklist_reason }) : t('profile.noReason')}>
                   <Chip
                     size="small"
                     icon={<BlacklistedIcon sx={{ fontSize: 12 }} />}
-                    label="Blacklisted"
+                    label={t('profile.blacklisted')}
                     color="error"
                     sx={{ fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
                   />
                 </Tooltip>
               )}
               {duplicateCount > 0 && (
-                <Tooltip title={`${duplicateCount} possible duplicate profile${duplicateCount === 1 ? '' : 's'} — see Overview`}>
+                <Tooltip title={t('profile.duplicateTooltip', { count: duplicateCount })}>
                   <Chip
                     size="small"
                     icon={<DuplicateIcon sx={{ fontSize: 12 }} />}
-                    label="Duplicate review"
+                    label={t('profile.duplicateChip')}
                     color="warning"
                     variant="outlined"
                     sx={{ fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
@@ -181,15 +183,15 @@ const GuestProfileHeader: React.FC<GuestProfileHeaderProps> = ({
               useFlexGap
               sx={{ flexWrap: 'wrap', mt: 1.5 }}
             >
-              <ContactItem icon={<EmailIcon />} value={guest.email} label="email" />
-              <ContactItem icon={<PhoneIcon />} value={guest.phone} label="phone" />
-              <ContactItem icon={<AltPhoneIcon />} value={guest.alt_phone} label="alt. phone" />
+              <ContactItem icon={<EmailIcon />} value={guest.email} emptyText={t('profile.noEmail')} />
+              <ContactItem icon={<PhoneIcon />} value={guest.phone} emptyText={t('profile.noPhone')} />
+              <ContactItem icon={<AltPhoneIcon />} value={guest.alt_phone} emptyText={t('profile.noAltPhone')} />
             </Stack>
 
             <Typography variant="body2" sx={{ color: GUEST_DESIGN.ink3, mt: 1.5 }}>
-              Last stay: {formatGuestProfileDate(summary.last_stay_at)}
+              {t('profile.lastStay', { date: formatGuestProfileDate(summary.last_stay_at) })}
               {' · '}
-              Next stay: {formatGuestProfileDate(summary.next_stay_at)}
+              {t('profile.nextStay', { date: formatGuestProfileDate(summary.next_stay_at) })}
             </Typography>
           </Box>
         </Stack>
@@ -208,7 +210,7 @@ const GuestProfileHeader: React.FC<GuestProfileHeaderProps> = ({
               onClick={onEdit}
               sx={{ textTransform: 'none' }}
             >
-              Edit
+              {t('profile.edit')}
             </Button>
           )}
           <Button
@@ -218,7 +220,7 @@ const GuestProfileHeader: React.FC<GuestProfileHeaderProps> = ({
             onClick={onNewBooking}
             sx={{ textTransform: 'none' }}
           >
-            New booking
+            {t('profile.newBooking')}
           </Button>
           {canAddNote && (
             <Button
@@ -228,7 +230,7 @@ const GuestProfileHeader: React.FC<GuestProfileHeaderProps> = ({
               onClick={onAddNote}
               sx={{ textTransform: 'none' }}
             >
-              Add note
+              {t('profile.addNote')}
             </Button>
           )}
           {canOpenSupport && (
@@ -239,7 +241,7 @@ const GuestProfileHeader: React.FC<GuestProfileHeaderProps> = ({
               onClick={onOpenSupport}
               sx={{ textTransform: 'none' }}
             >
-              Open support
+              {t('profile.openSupport')}
             </Button>
           )}
         </Stack>

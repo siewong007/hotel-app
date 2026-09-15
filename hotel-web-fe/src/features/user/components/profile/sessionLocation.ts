@@ -1,4 +1,6 @@
 import type { UserSessionInfo } from '../../../../types';
+import { t } from '../../../../i18n';
+import { formatHotelDateTime } from '../../../../utils/date';
 
 /**
  * The approximate place a session was signed in from, or `null` when unknown.
@@ -29,9 +31,9 @@ export function sessionLocation(session: UserSessionInfo): string | null {
  * overstate what the server actually knows.
  */
 export function sessionActivityLine(session: UserSessionInfo): string {
-  const lastActive = new Date(session.last_used_at || session.created_at).toLocaleString();
+  const lastActive = formatHotelDateTime(session.last_used_at || session.created_at);
   const place = sessionLocation(session);
   return place
-    ? `Last active: ${lastActive} · ${place} (approximate)`
-    : `Last active: ${lastActive}`;
+    ? t('devices.lastActiveAt', { time: lastActive, place }, 'auth')
+    : t('devices.lastActive', { time: lastActive }, 'auth');
 }

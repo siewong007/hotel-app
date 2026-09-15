@@ -21,12 +21,16 @@ import {
   Person as PersonIcon,
 } from '@mui/icons-material';
 import { useRoomHistory } from '../hooks/useRoomQueries';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
+import { getLocalizedStatusLabel } from '../config';
 
 interface RoomHistoryTimelineProps {
   roomId: string;
 }
 
 const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => {
+  const { t } = useTranslation('rooms');
   const { data = [], isPending: loading, error } = useRoomHistory(roomId);
 
   // Only show guest actions: check-in (→ occupied) and check-out (occupied →)
@@ -88,23 +92,9 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
     }
   };
 
-  const formatStatusLabel = (status: string) => {
-    if (status === 'change_room') return 'Room Change';
-    if (status === 'out_of_order') return 'Out of Order';
-    if (status === 'reserved_dirty') return 'Reserved / Dirty';
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  };
+  const formatStatusLabel = (status: string) => getLocalizedStatusLabel(t, status);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const formatDate = (dateString: string) => formatHotelDateTime(dateString);
 
   if (loading) {
     return (
@@ -121,10 +111,10 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
 
   if (error) {
     const errorMessage = error instanceof Error && error.message.includes('fetch')
-      ? 'Room history feature is currently unavailable. Please ensure the backend is running and try again.'
+      ? t('history.errorUnavailable')
       : error instanceof Error
         ? error.message
-        : 'Failed to load room history';
+        : t('errors.loadHistory');
     return (
       <Alert severity="error" sx={{ m: 2 }}>
         {errorMessage}
@@ -135,7 +125,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
   if (history.length === 0) {
     return (
       <Alert severity="info" sx={{ m: 2 }}>
-        No history records found for this room.
+        {t('history.empty')}
       </Alert>
     );
   }
@@ -184,7 +174,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                 {record.is_auto_generated && (
                   <Chip
                     icon={<AutoIcon sx={{ fontSize: 14 }} />}
-                    label="Auto"
+                    label={t('history.autoChip')}
                     size="small"
                     color="primary"
                     sx={{ ml: 1, height: 20 }}
@@ -241,7 +231,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                       }}>
                       <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                       <Typography variant="body2">
-                        Guest: <strong>{record.guest_name}</strong>
+                        {t('fields.guest')}: <strong>{record.guest_name}</strong>
                       </Typography>
                     </Box>
                   )}
@@ -251,7 +241,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      Booking: #{record.booking_id}
+                      {t('bookings:checkIn.bookingNumber', { number: record.booking_id })}
                     </Typography>
                   )}
 
@@ -260,7 +250,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      Reward: {record.reward_name}
+                      {t('history.reward', { name: record.reward_name })}
                     </Typography>
                   )}
 
@@ -269,7 +259,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      Period: {new Date(record.start_date).toLocaleDateString()} - {new Date(record.end_date).toLocaleDateString()}
+                      {t('history.period', { start: formatHotelDate(record.start_date), end: formatHotelDate(record.end_date) })}
                     </Typography>
                   )}
 
@@ -278,7 +268,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>
-                      Moved to: Room {record.target_room_number}
+                      {t('history.movedTo', { room: record.target_room_number })}
                     </Typography>
                   )}
 
@@ -306,7 +296,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                         color: "text.secondary",
                         mt: 1
                       }}>
-                      Changed by: {record.changed_by_name}
+                      {t('history.changedBy', { name: record.changed_by_name })}
                     </Typography>
                   )}
                 </Stack>

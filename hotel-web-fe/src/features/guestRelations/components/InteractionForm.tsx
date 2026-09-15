@@ -15,6 +15,7 @@ import type {
   GuestProfileBooking,
 } from '../../../types';
 import type { SupportAgent } from '../../support/types';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { formatStatusLabel } from '../../../utils/formatters';
 import { formatHotelDate, toHotelDateString, toHotelInstantIso } from '../../../utils/date';
 
@@ -108,6 +109,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
   error,
   contentInputRef,
 }) => {
+  const { t, tOr } = useTranslation('guests');
   const [draft, setDraft] = useState<InteractionFormDraft>(initial);
 
   const patch = (fields: Partial<InteractionFormDraft>) =>
@@ -122,12 +124,12 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
       !options.some((agent) => agent.id === initial.assigned_to)
     ) {
       return [
-        { id: initial.assigned_to, name: assigneeName || `User #${initial.assigned_to}` },
+        { id: initial.assigned_to, name: assigneeName || t('interactions.form.userFallback', { id: initial.assigned_to }) },
         ...options,
       ];
     }
     return options;
-  }, [agents, initial.assigned_to, assigneeName]);
+  }, [agents, initial.assigned_to, assigneeName, t]);
 
   // An existing assignment can be moved but never cleared (the update
   // contract has no null representation), so the empty option only exists
@@ -153,7 +155,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
       >
         <TextField
           select
-          label="Type"
+          label={t('interactions.form.type')}
           size="small"
           value={draft.interaction_type}
           onChange={(event) =>
@@ -163,12 +165,12 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
         >
           {INTERACTION_TYPE_OPTIONS.map((type) => (
             <MenuItem key={type} value={type}>
-              {formatStatusLabel(type)}
+              {tOr(`interactions.types.${type}`, formatStatusLabel(type))}
             </MenuItem>
           ))}
         </TextField>
         <TextField
-          label="Subject (optional)"
+          label={t('interactions.form.subject')}
           size="small"
           value={draft.subject}
           onChange={(event) => patch({ subject: event.target.value })}
@@ -178,7 +180,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
       </Box>
 
       <TextField
-        label={mode === 'create' ? 'Note content' : 'Content'}
+        label={mode === 'create' ? t('interactions.form.noteContent') : t('interactions.form.content')}
         size="small"
         value={draft.content}
         onChange={(event) => patch({ content: event.target.value })}
@@ -193,7 +195,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
       {mode === 'create' && (
         <TextField
           select
-          label="Related booking (optional)"
+          label={t('interactions.form.relatedBooking')}
           size="small"
           value={draft.booking_id ?? ''}
           onChange={(event) =>
@@ -201,13 +203,13 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
           }
           disabled={submitting}
         >
-          <MenuItem value="">None</MenuItem>
+          <MenuItem value="">{t('common:field.none')}</MenuItem>
           {bookingOptions.map((booking) => (
             <MenuItem key={booking.id} value={booking.id}>
               {booking.booking_number || `#${booking.id}`} ·{' '}
               {formatHotelDate(booking.check_in_date)} –{' '}
               {formatHotelDate(booking.check_out_date)}
-              {booking.room_number ? ` · Room ${booking.room_number}` : ''}
+              {booking.room_number ? ` · ${t('stays.roomNumber', { number: booking.room_number })}` : ''}
             </MenuItem>
           ))}
         </TextField>
@@ -222,7 +224,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
         }}
       >
         <ModernDatePicker
-          label="Follow-up date (optional)"
+          label={t('interactions.form.followUpDate')}
           value={draft.follow_up_at}
           onChange={(value) => patch({ follow_up_at: value })}
           minDate={toHotelDateString(new Date())}
@@ -231,14 +233,14 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
           disabled={submitting}
           helperText={
             initial.follow_up_at
-              ? 'Follow-ups can be moved but not cleared'
-              : 'Leave empty for no follow-up'
+              ? t('interactions.form.followUpNotClearable')
+              : t('interactions.form.followUpEmpty')
           }
         />
         {canAssign && (
           <TextField
             select
-            label="Assignee (optional)"
+            label={t('interactions.form.assignee')}
             size="small"
             value={draft.assigned_to ?? ''}
             onChange={(event) =>
@@ -250,13 +252,13 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
             disabled={submitting || agentsLoading}
             helperText={
               agentsError
-                ? 'Could not load support staff'
+                ? t('interactions.form.agentsError')
                 : allowEmptyAssignee
                   ? undefined
-                  : 'Assignments can be moved but not cleared'
+                  : t('interactions.form.assigneeNotClearable')
             }
           >
-            {allowEmptyAssignee && <MenuItem value="">Unassigned</MenuItem>}
+            {allowEmptyAssignee && <MenuItem value="">{t('interactions.form.unassigned')}</MenuItem>}
             {assigneeOptions.map((agent) => (
               <MenuItem key={agent.id} value={agent.id}>
                 {agent.name}
@@ -281,7 +283,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
                 disabled={submitting}
               />
             }
-            label="Show as alert"
+            label={t('interactions.form.showAsAlert')}
           />
           <FormControlLabel
             control={
@@ -292,13 +294,13 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
                 disabled={submitting}
               />
             }
-            label="Private — author & managers only"
+            label={t('interactions.form.privateNote')}
           />
         </Stack>
         <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
           {onCancel && (
             <Button onClick={onCancel} disabled={submitting} sx={{ textTransform: 'none' }}>
-              Cancel
+              {t('common:actions.cancel')}
             </Button>
           )}
           <Button
@@ -307,7 +309,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
             disabled={submitting || !draft.content.trim()}
             sx={{ textTransform: 'none' }}
           >
-            {submitting ? 'Saving…' : submitLabel}
+            {submitting ? t('common:state.saving') : submitLabel}
           </Button>
         </Stack>
       </Stack>

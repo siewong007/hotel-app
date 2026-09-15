@@ -22,7 +22,8 @@ import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useAuth } from '../../../auth/AuthContext';
 import { formatHotelDateTime, formatLocalDate } from '../../../utils/date';
 import { errorMessage } from '../../../utils/errorMessage';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type {
   CreateHousekeepingTaskRequest,
   HousekeepingBoardRoom,
@@ -55,6 +56,7 @@ interface Snack {
 }
 
 export default function HousekeepingPage() {
+  const { t } = useTranslation('housekeeping');
   const { user, hasPermission } = useAuth();
   const confirm = useConfirm();
   const canViewMaintenance = hasPermission('maintenance:read') || hasPermission('maintenance:manage');
@@ -133,7 +135,7 @@ export default function HousekeepingPage() {
       await updateTask.mutateAsync({ taskId: task.id, input });
       notify('success', success);
     } catch (err) {
-      notify('error', errorMessage(err, 'Task update failed'));
+      notify('error', errorMessage(err, t('errors.taskUpdate')));
     }
   };
 
@@ -148,21 +150,24 @@ export default function HousekeepingPage() {
 
   const actions: HousekeepingActionHandlers = {
     onStartTask: (task) =>
-      void patchTask(task, { status: 'in_progress' }, `Room ${task.room_number} — task started.`),
+      void patchTask(task, { status: 'in_progress' }, t('success.taskStarted', { room: task.room_number })),
     onCompleteTask: (task) => {
       void (async () => {
         const releasesRoom =
           task.task_type === 'cleaning' || task.task_type === 'checkout_clean';
         const ok = await confirm({
-          title: 'Complete task?',
+          title: t('confirm.completeTitle'),
           message: releasesRoom
-            ? `Room ${task.room_number} will be marked clean and released for sale.`
-            : `The ${formatStatusLabel(task.task_type)} task on room ${task.room_number} will be marked completed.`,
-          confirmText: 'Complete',
+            ? t('confirm.completeRelease', { room: task.room_number })
+            : t('confirm.completeOther', {
+                type: statusLabel(t, 'task_type', task.task_type),
+                room: task.room_number,
+              }),
+          confirmText: t('confirm.completeConfirm'),
           severity: 'info',
         });
         if (ok) {
-          await patchTask(task, { status: 'completed' }, `Room ${task.room_number} — task completed.`);
+          await patchTask(task, { status: 'completed' }, t('success.taskCompleted', { room: task.room_number }));
         }
       })();
     },
@@ -171,20 +176,23 @@ export default function HousekeepingPage() {
       void patchTask(
         task,
         { assigned_to: currentUserId },
-        `Room ${task.room_number} — task assigned to you.`,
+        t('success.taskAssigned', { room: task.room_number }),
       );
     },
     onEditTask: (task) => setEditTask(task),
     onVoidTask: (task) => {
       void (async () => {
         const ok = await confirm({
-          title: 'Void this task?',
-          message: `The ${formatStatusLabel(task.task_type)} task on room ${task.room_number} will be cancelled. The room keeps its current status.`,
-          confirmText: 'Void task',
+          title: t('confirm.voidTitle'),
+          message: t('confirm.voidBody', {
+            type: statusLabel(t, 'task_type', task.task_type),
+            room: task.room_number,
+          }),
+          confirmText: t('confirm.voidConfirm'),
           severity: 'warning',
         });
         if (ok) {
-          await patchTask(task, { status: 'void' }, `Room ${task.room_number} — task voided.`);
+          await patchTask(task, { status: 'void' }, t('success.taskVoided', { room: task.room_number }));
         }
       })();
     },
@@ -197,18 +205,21 @@ export default function HousekeepingPage() {
   const handleCreateTask = async (input: CreateHousekeepingTaskRequest) => {
     await createTask.mutateAsync(input);
     const room = roomById.get(input.room_id);
-    notify('success', `Task created for room ${room?.room_number ?? input.room_id}.`);
+    notify('success', t('success.taskCreated', { room: room?.room_number ?? input.room_id }));
   };
 
   const handleEditTask = async (taskId: number, input: UpdateHousekeepingTaskRequest) => {
     await updateTask.mutateAsync({ taskId, input });
-    notify('success', 'Task updated.');
+    notify('success', t('success.taskUpdated'));
   };
 
   const handleRoomStatus = async (roomId: string | number, input: RoomStatusUpdateInput) => {
     await updateRoomStatus.mutateAsync({ roomId, data: input });
     boardQuery.refetch();
-    notify('success', `Room ${roomById.get(Number(roomId))?.room_number ?? roomId} → ${formatStatusLabel(input.status)}.`);
+    notify('success', t('success.roomStatus', {
+      room: roomById.get(Number(roomId))?.room_number ?? roomId,
+      status: statusLabel(t, 'room', input.status),
+    }));
   };
 
   const goToBoardFilter = (patch: Partial<BoardFilters>) => {
@@ -219,7 +230,7 @@ export default function HousekeepingPage() {
   const statItems = [
     {
       key: 'attention',
-      label: 'Needs attention',
+      label: t('page.statAttention'),
       value: stats.attention,
       color: 'warning.main',
       onClick: () => goToBoardFilter({ attentionOnly: true }),
@@ -227,7 +238,7 @@ export default function HousekeepingPage() {
     },
     {
       key: 'needsCleaning',
-      label: 'Needs cleaning',
+      label: t('page.statNeedsCleaning'),
       value: stats.needsCleaning,
       color: 'warning.main',
       onClick: () => goToBoardFilter({ status: 'dirty' }),
@@ -235,7 +246,7 @@ export default function HousekeepingPage() {
     },
     {
       key: 'inProgress',
-      label: 'In progress',
+      label: t('page.statInProgress'),
       value: stats.inProgress,
       color: 'primary.main',
       onClick: () => goToBoardFilter({ status: 'cleaning' }),
@@ -243,7 +254,7 @@ export default function HousekeepingPage() {
     },
     {
       key: 'unassigned',
-      label: 'Unassigned tasks',
+      label: t('page.statUnassigned'),
       value: stats.unassigned,
       color: 'info.main',
       onClick: () => {
@@ -254,7 +265,7 @@ export default function HousekeepingPage() {
     },
     {
       key: 'blocked',
-      label: 'Blocked rooms',
+      label: t('page.statBlocked'),
       value: stats.blocked,
       color: 'error.main',
       onClick: () => goToBoardFilter({ status: 'maintenance' }),
@@ -262,7 +273,7 @@ export default function HousekeepingPage() {
     },
     {
       key: 'ready',
-      label: 'Ready',
+      label: t('page.statReady'),
       value: stats.ready,
       color: 'success.main',
       onClick: () => goToBoardFilter({ status: 'available' }),
@@ -273,19 +284,23 @@ export default function HousekeepingPage() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1440, mx: 'auto' }}>
       <PageHeader
-        kicker={`Operations · ${formatLocalDate()}`}
-        title="Housekeeping"
+        kicker={t('page.kicker', { date: formatLocalDate() })}
+        title={t('title')}
         subtitle={
           boardQuery.data
-            ? `${rooms.length} rooms · ${stats.attention} need attention · updated ${formatHotelDateTime(new Date(boardQuery.dataUpdatedAt).toISOString())}`
-            : 'Room status and task board'
+            ? t('page.subtitle', {
+                rooms: rooms.length,
+                attention: stats.attention,
+                updated: formatHotelDateTime(new Date(boardQuery.dataUpdatedAt).toISOString()),
+              })
+            : t('page.subtitleFallback')
         }
         actions={
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <Tooltip title="Refresh board">
+            <Tooltip title={t('page.refreshTooltip')}>
               <span>
                 <IconButton
-                  aria-label="Refresh housekeeping board"
+                  aria-label={t('page.refreshAria')}
                   onClick={() => boardQuery.refetch()}
                   disabled={boardQuery.isFetching}
                 >
@@ -301,7 +316,7 @@ export default function HousekeepingPage() {
                 disabled={syncStatuses.isPending}
                 onClick={() => syncStatuses.mutate()}
               >
-                Sync statuses
+                {t('page.syncStatuses')}
               </Button>
             ) : null}
             {canCreate ? (
@@ -311,7 +326,7 @@ export default function HousekeepingPage() {
                 startIcon={<AddIcon />}
                 onClick={() => setNewTaskRoom(null)}
               >
-                New task
+                {t('page.newTask')}
               </Button>
             ) : null}
           </Stack>
@@ -353,9 +368,9 @@ export default function HousekeepingPage() {
         {boardQuery.error ? (
           <Alert
             severity="error"
-            action={<Button onClick={() => boardQuery.refetch()}>Retry</Button>}
+            action={<Button onClick={() => boardQuery.refetch()}>{t('common:state.retry')}</Button>}
           >
-            {errorMessage(boardQuery.error, 'Failed to load the housekeeping board.')}
+            {errorMessage(boardQuery.error, t('errors.loadBoard'))}
           </Alert>
         ) : null}
 
@@ -369,7 +384,7 @@ export default function HousekeepingPage() {
               ? ` — ${syncStatuses.data.changes
                   .map(
                     (change) =>
-                      `${change.room_number}: ${formatStatusLabel(change.old_status)} → ${formatStatusLabel(change.new_status)}`,
+                      `${change.room_number}: ${statusLabel(t, 'room', change.old_status)} → ${statusLabel(t, 'room', change.new_status)}`,
                   )
                   .join(', ')}`
               : ''}
@@ -377,22 +392,22 @@ export default function HousekeepingPage() {
         ) : null}
         {syncStatuses.error ? (
           <Alert severity="error">
-            {errorMessage(syncStatuses.error, 'Status sync failed')}
+            {errorMessage(syncStatuses.error, t('errors.syncFailed'))}
           </Alert>
         ) : null}
 
         <Tabs
           value={tab}
           onChange={(_event, value: number) => setTab(value)}
-          aria-label="Housekeeping views"
+          aria-label={t('page.tabsAria')}
           variant="scrollable"
           scrollButtons={false}
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
-          <Tab label="Board" {...getTabA11yProps(0, 'housekeeping')} />
-          <Tab label="Tasks" {...getTabA11yProps(1, 'housekeeping')} />
+          <Tab label={t('page.tabBoard')} {...getTabA11yProps(0, 'housekeeping')} />
+          <Tab label={t('page.tabTasks')} {...getTabA11yProps(1, 'housekeeping')} />
           {canViewMaintenance ? (
-            <Tab label="Maintenance" {...getTabA11yProps(2, 'housekeeping')} />
+            <Tab label={t('page.tabMaintenance')} {...getTabA11yProps(2, 'housekeeping')} />
           ) : null}
         </Tabs>
 
@@ -454,7 +469,7 @@ export default function HousekeepingPage() {
         onClose={() => setTicketRoom(undefined)}
         onSubmit={async (input) => {
           await createTicket.mutateAsync(input);
-          notify('success', 'Maintenance ticket created.');
+          notify('success', t('success.ticketCreated'));
         }}
       />
 

@@ -150,6 +150,7 @@ jobs:
 
           cp deploy/deploy.sh "$bundle_dir/deploy.sh"
           cp deploy/database-backup.sh "$bundle_dir/database-backup.sh"
+          cp deploy/check-backup-health.sh "$bundle_dir/check-backup-health.sh"
           cp deploy/docker-compose.prod.yml "$bundle_dir/docker-compose.prod.yml"
           cp hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql \
             "$bundle_dir/initdb/01-v1-baseline.sql"
@@ -166,14 +167,17 @@ jobs:
             "$bundle_dir/database/patches/0002_deposit_forfeited.sql"
           cp hotel-app-be/database/postgres/patches/0003_guest_relations_phase2.sql \
             "$bundle_dir/database/patches/0003_guest_relations_phase2.sql"
-          cp hotel-app-be/database/postgres/patches/0004_data_transfer_permissions.sql \
-            "$bundle_dir/database/patches/0004_data_transfer_permissions.sql"
+          cp hotel-app-be/database/postgres/patches/0004_consent_locale_zh.sql \
+            "$bundle_dir/database/patches/0004_consent_locale_zh.sql"
+          cp hotel-app-be/database/postgres/patches/0005_data_transfer_permissions.sql \
+            "$bundle_dir/database/patches/0005_data_transfer_permissions.sql"
 
           (
             cd "$bundle_dir"
             sha256sum \
               deploy.sh \
               database-backup.sh \
+              check-backup-health.sh \
               docker-compose.prod.yml \
               images/backend.tar.gz \
               images/frontend.tar.gz \
@@ -185,7 +189,8 @@ jobs:
               database/patches/_end.sql \
               database/patches/0002_deposit_forfeited.sql \
               database/patches/0003_guest_relations_phase2.sql \
-              database/patches/0004_data_transfer_permissions.sql \
+              database/patches/0004_consent_locale_zh.sql \
+              database/patches/0005_data_transfer_permissions.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

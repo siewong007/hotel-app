@@ -37,8 +37,13 @@ const NEUTRAL_GREY = {
   900: '#151A22',
 };
 
-const SERIF_STACK = 'Georgia, "Times New Roman", serif';
-const SANS_STACK = '"Inter", "Roboto", "Helvetica", "Arial", sans-serif';
+// CJK faces sit after the Latin faces so Latin rendering is unchanged and
+// Chinese glyphs get an intentional fallback everywhere — body and display.
+const CJK_STACK =
+  '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", sans-serif';
+const SERIF_STACK =
+  'Georgia, "Times New Roman", "Songti SC", "Noto Serif CJK SC", serif';
+const SANS_STACK = `"Inter", "Roboto", "Helvetica", "Arial", ${CJK_STACK}`;
 
 /** Elevation ramp: near-flat on surfaces, real lift only for overlays. */
 const buildShadows = (t: DesignTokens): Shadows =>

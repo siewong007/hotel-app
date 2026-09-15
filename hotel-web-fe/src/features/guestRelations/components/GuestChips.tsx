@@ -6,6 +6,7 @@ import {
   SupportAgentOutlined as OpenRequestsIcon,
   WorkspacePremiumOutlined as VipIcon,
 } from '@mui/icons-material';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { Guest } from '../../../types';
 import { formatStatusLabel } from '../../../utils/formatters';
 import { GUEST_DESIGN } from '../../guests/constants';
@@ -35,14 +36,17 @@ export const GuestAvatar: React.FC<{ guest: Guest; size?: number }> = ({ guest, 
   );
 };
 
-export const MemberChip: React.FC = () => (
-  <Chip
-    size="small"
-    icon={<MemberIcon sx={{ fontSize: 12 }} />}
-    label="Member"
-    sx={{ bgcolor: GUEST_DESIGN.goldBg, color: GUEST_DESIGN.gold, fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
-  />
-);
+export const MemberChip: React.FC = () => {
+  const { t } = useTranslation('guests');
+  return (
+    <Chip
+      size="small"
+      icon={<MemberIcon sx={{ fontSize: 12 }} />}
+      label={t('list.member')}
+      sx={{ bgcolor: GUEST_DESIGN.goldBg, color: GUEST_DESIGN.gold, fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
+    />
+  );
+};
 
 export const VipChip: React.FC<{ status: string }> = ({ status }) => (
   <Chip
@@ -53,26 +57,30 @@ export const VipChip: React.FC<{ status: string }> = ({ status }) => (
   />
 );
 
-export const OpenRequestChip: React.FC = () => (
-  <Chip
-    size="small"
-    icon={<OpenRequestsIcon sx={{ fontSize: 13 }} />}
-    label="Open request"
-    sx={{
-      bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.blue} 10%, transparent)`,
-      color: GUEST_DESIGN.blue,
-      fontWeight: 700,
-      '& .MuiChip-icon': { color: 'inherit' },
-    }}
-  />
-);
+export const OpenRequestChip: React.FC = () => {
+  const { t } = useTranslation('guests');
+  return (
+    <Chip
+      size="small"
+      icon={<OpenRequestsIcon sx={{ fontSize: 13 }} />}
+      label={t('list.openRequest')}
+      sx={{
+        bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.blue} 10%, transparent)`,
+        color: GUEST_DESIGN.blue,
+        fontWeight: 700,
+        '& .MuiChip-icon': { color: 'inherit' },
+      }}
+    />
+  );
+};
 
 export const TourismChip: React.FC<{ guest: Guest }> = ({ guest }) => {
+  const { t } = useTranslation('guests');
   if (guestHasMissingTourismType(guest)) {
     return (
       <Chip
         size="small"
-        label="Missing tourism"
+        label={t('list.missingTourism')}
         sx={{ bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`, color: GUEST_DESIGN.rose, fontWeight: 700 }}
       />
     );
@@ -81,7 +89,7 @@ export const TourismChip: React.FC<{ guest: Guest }> = ({ guest }) => {
     return (
       <Chip
         size="small"
-        label="Tourist"
+        label={t('list.tourist')}
         sx={{ bgcolor: GUEST_DESIGN.blueBg, color: GUEST_DESIGN.blue, fontWeight: 700 }}
       />
     );
@@ -90,7 +98,7 @@ export const TourismChip: React.FC<{ guest: Guest }> = ({ guest }) => {
     return (
       <Chip
         size="small"
-        label="Local"
+        label={t('list.local')}
         sx={{ bgcolor: GUEST_DESIGN.green50, color: GUEST_DESIGN.green700, fontWeight: 700 }}
       />
     );
@@ -105,16 +113,19 @@ export const TourismChip: React.FC<{ guest: Guest }> = ({ guest }) => {
  */
 export const BlacklistedChip: React.FC<{ icon?: React.ReactElement }> = ({
   icon = <BlacklistedBadgeIcon sx={{ fontSize: 14 }} />,
-}) => (
-  <Chip
-    size="small"
-    icon={icon}
-    label="Blacklisted"
-    sx={{
-      bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`,
-      color: GUEST_DESIGN.rose,
-      fontWeight: 700,
-      '& .MuiChip-icon': { color: 'inherit' },
-    }}
-  />
-);
+}) => {
+  const { t } = useTranslation('guests');
+  return (
+    <Chip
+      size="small"
+      icon={icon}
+      label={t('list.blacklisted')}
+      sx={{
+        bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`,
+        color: GUEST_DESIGN.rose,
+        fontWeight: 700,
+        '& .MuiChip-icon': { color: 'inherit' },
+      }}
+    />
+  );
+};
