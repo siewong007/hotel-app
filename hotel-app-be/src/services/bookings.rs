@@ -792,7 +792,7 @@ async fn checkin_booking_flow_for_booking(
     // than rolling back a completed check-in. If a stronger guarantee is ever
     // required, move it behind a transactional outbox instead of an inline call.
     if let Err(e) =
-        crate::services::night_audit::backfill_booking_posted_nights(pool, booking_id, user_id)
+        crate::modules::night_audit::service::backfill_booking_posted_nights(pool, booking_id, user_id)
             .await
     {
         log::warn!(

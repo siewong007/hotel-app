@@ -240,7 +240,7 @@ async fn main() {
     // Start the background night-audit scheduler. Inert unless the
     // `night_audit_auto_enabled` setting is turned on; runs for the process
     // lifetime and never blocks startup.
-    services::night_audit_scheduler::spawn(pool.clone());
+    modules::night_audit::scheduler::spawn(pool.clone());
 
     // Automatically expire receipt requests that remain unanswered for 24 hours.
     services::payment_receipt_scheduler::spawn(pool.clone());

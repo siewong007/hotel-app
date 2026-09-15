@@ -3,7 +3,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use crate::handlers::night_audit;
+use super::handlers;
 use crate::models::{
     AuditDetailsResponse, ListAuditsQuery, NightAuditListResponse, NightAuditPreview,
     NightAuditResponse, NightAuditRunWithUser, RunNightAuditRequest,
@@ -32,7 +32,7 @@ async fn get_preview(
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<NightAuditPreview>, ApiError> {
     require_permission_helper(&pool, &headers, "night_audit:read").await?;
-    night_audit::get_night_audit_preview(State(pool), query).await
+    handlers::get_night_audit_preview(State(pool), query).await
 }
 
 async fn run_audit(
@@ -41,7 +41,7 @@ async fn run_audit(
     Json(input): Json<RunNightAuditRequest>,
 ) -> Result<Json<NightAuditResponse>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "night_audit:execute").await?;
-    night_audit::run_night_audit(State(pool), Extension(user_id), Json(input)).await
+    handlers::run_night_audit(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn list_audits(
@@ -50,7 +50,7 @@ async fn list_audits(
     query: Query<ListAuditsQuery>,
 ) -> Result<Json<NightAuditListResponse>, ApiError> {
     require_permission_helper(&pool, &headers, "night_audit:read").await?;
-    night_audit::list_night_audits(State(pool), query).await
+    handlers::list_night_audits(State(pool), query).await
 }
 
 async fn get_audit(
@@ -59,7 +59,7 @@ async fn get_audit(
     path: Path<i64>,
 ) -> Result<Json<NightAuditRunWithUser>, ApiError> {
     require_permission_helper(&pool, &headers, "night_audit:read").await?;
-    night_audit::get_night_audit(State(pool), path).await
+    handlers::get_night_audit(State(pool), path).await
 }
 
 async fn get_audit_details(
@@ -68,7 +68,7 @@ async fn get_audit_details(
     path: Path<i64>,
 ) -> Result<Json<AuditDetailsResponse>, ApiError> {
     require_permission_helper(&pool, &headers, "night_audit:read").await?;
-    night_audit::get_night_audit_details(State(pool), path).await
+    handlers::get_night_audit_details(State(pool), path).await
 }
 
 async fn is_booking_posted(
@@ -77,5 +77,5 @@ async fn is_booking_posted(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "bookings:read").await?;
-    night_audit::is_booking_posted(State(pool), path).await
+    handlers::is_booking_posted(State(pool), path).await
 }

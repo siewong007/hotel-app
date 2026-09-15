@@ -2140,7 +2140,7 @@ pub async fn update_booking_handler(
             updated_status,
             "checked_in" | "auto_checked_in" | "checked_out" | "late_checkout" | "completed"
         ) && let Err(e) =
-            crate::services::night_audit::backfill_booking_posted_nights(&pool, booking_id, user_id)
+            crate::modules::night_audit::service::backfill_booking_posted_nights(&pool, booking_id, user_id)
                 .await
         {
             log::warn!(

@@ -9,7 +9,7 @@ use crate::models::{
     AuditDetailsResponse, ListAuditsQuery, NightAuditListResponse, NightAuditPreview,
     NightAuditResponse, NightAuditRunWithUser, RunNightAuditRequest,
 };
-use crate::repositories::night_audit as repo;
+use super::repository as repo;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 

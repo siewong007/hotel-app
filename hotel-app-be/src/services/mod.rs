@@ -27,8 +27,8 @@ pub mod invoice_numbers;
 pub mod ledgers;
 // Loyalty service logic lives in modules::loyalty::service.
 // maintenance service logic live in modules::maintenance.
-pub mod night_audit;
-pub mod night_audit_scheduler;
+// night_audit service logic live in modules::night_audit.
+// night_audit_scheduler service logic live in modules::night_audit.
 // passkey service logic live in modules::passkey.
 pub mod payment_receipt_scheduler;
 pub mod payment_retry;

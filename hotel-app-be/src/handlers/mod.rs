@@ -17,7 +17,7 @@ pub mod guest_portal;
 pub mod ledgers;
 // Loyalty handlers live in modules::loyalty::handlers.
 // maintenance handlers live in modules::maintenance.
-pub mod night_audit;
+// night_audit handlers live in modules::night_audit.
 // passkey handlers live in modules::passkey.
 pub mod payment_retry;
 pub mod payments;

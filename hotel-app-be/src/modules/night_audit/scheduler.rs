@@ -19,7 +19,7 @@ use chrono::{Datelike, NaiveDateTime, NaiveTime};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
-use crate::services::night_audit;
+use super::service;
 
 /// How often the loop wakes to check whether an audit is due. The audit fires at
 /// most once per business date regardless of this cadence.
@@ -76,9 +76,9 @@ async fn tick(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
             .await as i64;
 
     let now_local = hotel_local_now(pool).await?;
-    let last_completed = night_audit::last_completed_audit_date(pool).await?;
+    let last_completed = service::last_completed_audit_date(pool).await?;
 
-    let dates = night_audit::due_audit_dates(now_local, configured, last_completed, catchup_days);
+    let dates = service::due_audit_dates(now_local, configured, last_completed, catchup_days);
     let due = dates.len();
 
     let mut posted = 0usize;
@@ -86,10 +86,10 @@ async fn tick(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
     for date in dates {
         // Re-check right before running: covers a run (manual or a prior tick)
         // that completed after `last_completed` was read.
-        if night_audit::is_audit_completed(pool, date).await {
+        if service::is_audit_completed(pool, date).await {
             continue;
         }
-        match night_audit::run_automated(pool, date).await {
+        match service::run_automated(pool, date).await {
             Ok(resp) => {
                 posted += 1;
                 log::info!(
