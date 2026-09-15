@@ -114,7 +114,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
   // night-audit markers the phone list rows dropped stay reachable here, on
   // the detail page, at every viewport width.
   const channelInfo = getBookingChannelInfo(booking);
-  const billingChipLabel = getBillingChipLabel(booking);
+  const billingChipLabel = getBillingChipLabel(booking, t);
   const nightAuditInvolved = isNightAuditInvolved(booking);
 
   // Phone overflow menu: everything past the lifecycle CTA + Payment/Edit.
