@@ -19,6 +19,7 @@ import {
   RoomWithOccupancy,
 } from '../types';
 import { withRetry } from '../utils/retry';
+import { t } from '../i18n';
 
 export class RoomsService {
   static async getAllRooms(): Promise<Room[]> {
@@ -58,7 +59,7 @@ export class RoomsService {
     try {
       return await api.patch(`rooms/${id}`, { json: data }).json<Room>();
     } catch (error) {
-      throw toApiError(error, 'Failed to update room');
+      throw toApiError(error, t('errors:request.updateRoom'));
     }
   }
 
@@ -66,7 +67,7 @@ export class RoomsService {
     try {
       return await api.put(`rooms/${id}/status`, { json: data }).json<Room>();
     } catch (error) {
-      throw toApiError(error, 'Failed to update room status');
+      throw toApiError(error, t('errors:request.updateRoomStatus'));
     }
   }
 
@@ -74,7 +75,7 @@ export class RoomsService {
     try {
       return await api.post(`rooms/${roomId}/end-maintenance`).json<Room>();
     } catch (error) {
-      throw toApiError(error, 'Failed to end maintenance');
+      throw toApiError(error, t('errors:request.endMaintenance'));
     }
   }
 
@@ -82,7 +83,7 @@ export class RoomsService {
     try {
       return await api.post('rooms/sync-statuses').json<RoomStatusSyncResult>();
     } catch (error) {
-      throw toApiError(error, 'Failed to sync room statuses');
+      throw toApiError(error, t('errors:request.syncRoomStatuses'));
     }
   }
 
@@ -102,7 +103,7 @@ export class RoomsService {
         }
       }).json();
     } catch (error) {
-      throw toApiError(error, 'Failed to execute room change');
+      throw toApiError(error, t('errors:request.executeRoomChange'));
     }
   }
 
@@ -110,7 +111,7 @@ export class RoomsService {
     try {
       return await api.post(`rooms/${roomId}/events`, { json: event }).json<RoomEvent>();
     } catch (error) {
-      throw toApiError(error, 'Failed to create room event');
+      throw toApiError(error, t('errors:request.createRoomEvent'));
     }
   }
 
@@ -118,7 +119,7 @@ export class RoomsService {
     try {
       return await api.get(`rooms/${roomId}/detailed`).json<RoomDetailedStatus>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch room detailed status');
+      throw toApiError(error, t('errors:request.fetchRoomDetailedStatus'));
     }
   }
 
@@ -138,15 +139,15 @@ export class RoomsService {
     } catch (error) {
       console.error('[API] Room history failed:', error);
       if (error instanceof HTTPError) {
-        throw toApiError(error, 'Failed to fetch room history');
+        throw toApiError(error, t('errors:request.fetchRoomHistory'));
       }
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new APIError('Request was cancelled');
+        throw new APIError(t('errors:request.requestCancelled'));
       }
       if (error instanceof Error && (error.message.includes('fetch') || error.message.includes('Load failed'))) {
-        throw new APIError('Network error - backend may not be accessible. Check if backend is running on port 3030.');
+        throw new APIError(t('errors:request.backendUnreachable'));
       }
-      throw new APIError('Failed to fetch room history');
+      throw new APIError(t('errors:request.fetchRoomHistory'));
     }
   }
 
@@ -165,7 +166,7 @@ export class RoomsService {
     try {
       return await api.post('rooms', { json: roomData }).json<Room>();
     } catch (error) {
-      throw toApiError(error, 'Failed to create room');
+      throw toApiError(error, t('errors:request.createRoom'));
     }
   }
 
@@ -173,7 +174,7 @@ export class RoomsService {
     try {
       return await api.delete(`rooms/${roomId}`).json<{ success: boolean; message: string }>();
     } catch (error) {
-      throw toApiError(error, 'Failed to delete room');
+      throw toApiError(error, t('errors:request.deleteRoom'));
     }
   }
 
@@ -181,7 +182,7 @@ export class RoomsService {
     try {
       return await api.get('room-types').json<RoomType[]>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch room types');
+      throw toApiError(error, t('errors:request.fetchRoomTypes'));
     }
   }
 
@@ -189,7 +190,7 @@ export class RoomsService {
     try {
       return await api.get('room-types/all').json<RoomType[]>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch all room types');
+      throw toApiError(error, t('errors:request.fetchAllRoomTypes'));
     }
   }
 
@@ -197,7 +198,7 @@ export class RoomsService {
     try {
       return await api.get(`room-types/${id}`).json<RoomType>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch room type');
+      throw toApiError(error, t('errors:request.fetchRoomType'));
     }
   }
 
@@ -205,7 +206,7 @@ export class RoomsService {
     try {
       return await api.post('room-types', { json: data }).json<RoomType>();
     } catch (error) {
-      throw toApiError(error, 'Failed to create room type');
+      throw toApiError(error, t('errors:request.createRoomType'));
     }
   }
 
@@ -213,7 +214,7 @@ export class RoomsService {
     try {
       return await api.patch(`room-types/${id}`, { json: data }).json<RoomType>();
     } catch (error) {
-      throw toApiError(error, 'Failed to update room type');
+      throw toApiError(error, t('errors:request.updateRoomType'));
     }
   }
 
@@ -224,7 +225,7 @@ export class RoomsService {
     try {
       return await api.post(`room-types/${id}/images`, { body: formData }).json<RoomType>();
     } catch (error) {
-      throw toApiError(error, 'Failed to upload room type photo');
+      throw toApiError(error, t('errors:request.uploadRoomTypePhoto'));
     }
   }
 
@@ -232,7 +233,7 @@ export class RoomsService {
     try {
       return await api.delete(`room-types/${id}`).json<{ success: boolean; message: string }>();
     } catch (error) {
-      throw toApiError(error, 'Failed to delete room type');
+      throw toApiError(error, t('errors:request.deleteRoomType'));
     }
   }
 
@@ -243,8 +244,8 @@ export class RoomsService {
   static formatRoomForDisplay(room: Room): RoomWithDisplay {
     return {
       ...room,
-      displayPrice: `$${typeof room.price_per_night === 'number' ? room.price_per_night.toFixed(0) : room.price_per_night}/night`,
-      availabilityText: room.available ? 'Available' : 'Booked',
+      displayPrice: `$${typeof room.price_per_night === 'number' ? room.price_per_night.toFixed(0) : room.price_per_night}${t('common:units.perNight')}`,
+      availabilityText: room.available ? t('status:room.available') : t('status:room.booked'),
     };
   }
 
@@ -256,7 +257,7 @@ export class RoomsService {
     try {
       return await api.get('rooms/occupancy').json<RoomCurrentOccupancy[]>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch room occupancy');
+      throw toApiError(error, t('errors:request.fetchRoomOccupancy'));
     }
   }
 
@@ -265,7 +266,7 @@ export class RoomsService {
     try {
       return await api.get(`rooms/${roomId}/occupancy`).json<RoomCurrentOccupancy>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch room occupancy');
+      throw toApiError(error, t('errors:request.fetchRoomOccupancy'));
     }
   }
 
@@ -274,7 +275,7 @@ export class RoomsService {
     try {
       return await api.get('rooms/occupancy/summary').json<HotelOccupancySummary>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch hotel occupancy summary');
+      throw toApiError(error, t('errors:request.fetchHotelOccupancySummary'));
     }
   }
 
@@ -283,7 +284,7 @@ export class RoomsService {
     try {
       return await api.get('rooms/occupancy/by-type').json<OccupancyByRoomType[]>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch occupancy by room type');
+      throw toApiError(error, t('errors:request.fetchOccupancyByRoomType'));
     }
   }
 
@@ -292,7 +293,7 @@ export class RoomsService {
     try {
       return await api.get('rooms/with-occupancy').json<RoomWithOccupancy[]>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch rooms with occupancy');
+      throw toApiError(error, t('errors:request.fetchRoomsWithOccupancy'));
     }
   }
 }

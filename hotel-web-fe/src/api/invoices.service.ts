@@ -1,12 +1,13 @@
 import { api, toApiError } from './client';
 import type { PaymentWorkflowSummary } from '../types';
+import { t } from '../i18n';
 
 export class InvoicesService {
   static async getInvoicePreview(bookingId: string): Promise<any> {
     try {
       return await api.get(`invoices/preview/${bookingId}`).json<any>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch invoice preview');
+      throw toApiError(error, t('errors:request.fetchInvoicePreview'));
     }
   }
 
@@ -14,7 +15,7 @@ export class InvoicesService {
     try {
       return await api.post(`invoices/generate/${bookingId}`).json<any>();
     } catch (error) {
-      throw toApiError(error, 'Failed to generate invoice');
+      throw toApiError(error, t('errors:request.generateInvoice'));
     }
   }
 
@@ -37,7 +38,7 @@ export class InvoicesService {
       };
       return await api.post('payments/record-payment', { json: payload }).json<any>();
     } catch (error) {
-      throw toApiError(error, 'Failed to record payment');
+      throw toApiError(error, t('errors:request.recordPayment'));
     }
   }
 
@@ -45,7 +46,7 @@ export class InvoicesService {
     try {
       return await api.get(`payments/all-payments/${bookingId}`).json<any[]>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch payments');
+      throw toApiError(error, t('errors:request.fetchPayments'));
     }
   }
 
@@ -53,7 +54,7 @@ export class InvoicesService {
     try {
       return await api.get(`payments/workflow-summary/${bookingId}`).json<PaymentWorkflowSummary>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch payment workflow summary');
+      throw toApiError(error, t('errors:request.fetchPaymentWorkflowSummary'));
     }
   }
 
@@ -76,7 +77,7 @@ export class InvoicesService {
       if (note) json.note = note;
       return await api.post(`payments/refund-deposit/${bookingId}`, { json }).json<any>();
     } catch (error) {
-      throw toApiError(error, 'Failed to refund deposit');
+      throw toApiError(error, t('errors:request.refundDeposit'));
     }
   }
 
@@ -91,7 +92,7 @@ export class InvoicesService {
       if (trimmedNotes) json.notes = trimmedNotes;
       return await api.post(`payments/forfeit-deposit/${bookingId}`, { json }).json<any>();
     } catch (error) {
-      throw toApiError(error, 'Failed to forfeit deposit');
+      throw toApiError(error, t('errors:request.forfeitDeposit'));
     }
   }
 
@@ -99,7 +100,7 @@ export class InvoicesService {
     try {
       return await api.post(`payments/revert-deposit-refund/${bookingId}`).json<any>();
     } catch (error) {
-      throw toApiError(error, 'Failed to revert deposit refund');
+      throw toApiError(error, t('errors:request.revertDepositRefund'));
     }
   }
 
@@ -107,7 +108,7 @@ export class InvoicesService {
     try {
       return await api.post(`payments/revert-deposit-void/${bookingId}`).json<any>();
     } catch (error) {
-      throw toApiError(error, 'Failed to restore deposit');
+      throw toApiError(error, t('errors:request.restoreDeposit'));
     }
   }
 
@@ -115,7 +116,7 @@ export class InvoicesService {
     try {
       return await api.get('invoices').json<any[]>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch user invoices');
+      throw toApiError(error, t('errors:request.fetchUserInvoices'));
     }
   }
 
@@ -138,7 +139,7 @@ export class InvoicesService {
 
       return await api.patch(`payments/${paymentId}`, { json: payload }).json<any>();
     } catch (error) {
-      throw toApiError(error, 'Failed to update payment');
+      throw toApiError(error, t('errors:request.updatePayment'));
     }
   }
 
@@ -146,7 +147,7 @@ export class InvoicesService {
     try {
       return await api.delete(`payments/${paymentId}`).json<any>();
     } catch (error) {
-      throw toApiError(error, 'Failed to delete payment');
+      throw toApiError(error, t('errors:request.deletePayment'));
     }
   }
 }

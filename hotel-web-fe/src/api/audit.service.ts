@@ -1,7 +1,8 @@
 import { api } from './client';
 import { withRetry } from '../utils/retry';
-import { formatLocalDate } from '../utils/date';
+import { formatHotelDateTime, formatLocalDate } from '../utils/date';
 import { formatStatusLabel } from '../utils/formatters';
+import { t } from '../i18n';
 import {
   AuditLogResponse,
   AuditLogQuery,
@@ -145,31 +146,44 @@ export class AuditService {
     const autoTable = (await import('jspdf-autotable')).default;
 
     const doc = new jsPDF();
+    const exportT = (key: string, vars?: Record<string, string | number>) =>
+      t(`admin:audit.export.${key}`, vars);
 
     // Title
     doc.setFontSize(16);
-    doc.text('Audit Log Report', 14, 20);
+    doc.text(exportT('reportTitle'), 14, 20);
 
     // Generated date
     doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+    doc.text(exportT('generatedAt', { time: formatHotelDateTime(new Date()) }), 14, 28);
 
     // Table data
     const tableData = response.data.map((log) => [
-      new Date(log.created_at).toLocaleString(),
-      log.username || 'System',
+      formatHotelDateTime(log.created_at),
+      log.username || exportT('systemUser'),
       formatStatusLabel(log.action, ''),
       log.category || '-',
       formatStatusLabel(log.resource_type, ''),
       log.resource_id?.toString() || '-',
-      log.has_changes === false || log.change_kind === 'action_only' ? 'Action only' : 'Field changes',
+      log.has_changes === false || log.change_kind === 'action_only'
+        ? exportT('actionOnly')
+        : exportT('fieldChanges'),
       log.ip_address || '-',
     ]);
 
     // Add table (jspdf-autotable v5 functional API)
     autoTable(doc, {
       startY: 35,
-      head: [['Timestamp', 'User', 'Action', 'Stream', 'Resource', 'ID', 'Change Type', 'IP']],
+      head: [[
+        exportT('col.timestamp'),
+        exportT('col.user'),
+        exportT('col.action'),
+        exportT('col.stream'),
+        exportT('col.resource'),
+        exportT('col.id'),
+        exportT('col.changeType'),
+        exportT('col.ip'),
+      ]],
       body: tableData,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [16, 164, 124] },

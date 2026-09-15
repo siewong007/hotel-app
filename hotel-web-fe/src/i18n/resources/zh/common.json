@@ -163,7 +163,8 @@
   "units": {
     "hours": "小时",
     "days": "天",
-    "minutes": "分钟"
+    "minutes": "分钟",
+    "perNight": "/晚"
   },
   "charts": {
     "loading": "正在加载图表",

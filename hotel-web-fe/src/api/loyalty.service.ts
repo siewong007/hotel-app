@@ -12,6 +12,7 @@ import {
   RewardUpdateInput,
   RewardRedemption,
 } from '../types';
+import { t } from '../i18n';
 
 export class LoyaltyService {
   // Loyalty Program Operations
@@ -76,7 +77,7 @@ export class LoyaltyService {
     try {
       return await api.post('api/rewards', { json: data }).json<LoyaltyReward>();
     } catch (error) {
-      throw toApiError(error, 'Failed to create reward');
+      throw toApiError(error, t('errors:request.createReward'));
     }
   }
 
@@ -84,7 +85,7 @@ export class LoyaltyService {
     try {
       return await api.put(`api/rewards/${id}`, { json: data }).json<LoyaltyReward>();
     } catch (error) {
-      throw toApiError(error, 'Failed to update reward');
+      throw toApiError(error, t('errors:request.updateReward'));
     }
   }
 
@@ -92,7 +93,7 @@ export class LoyaltyService {
     try {
       await api.delete(`api/rewards/${id}`);
     } catch (error) {
-      throw toApiError(error, 'Failed to delete reward');
+      throw toApiError(error, t('errors:request.deleteReward'));
     }
   }
 
@@ -100,7 +101,7 @@ export class LoyaltyService {
     try {
       return await api.get('rewards/redemptions').json<RewardRedemption[]>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch redemption history');
+      throw toApiError(error, t('errors:request.fetchRedemptionHistory'));
     }
   }
 }

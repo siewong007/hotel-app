@@ -13,6 +13,8 @@ import {
 } from '../types';
 import { multiplyMoney, sumMoney, toMoneyNumber } from './money';
 import { formatStatusLabel } from './formatters';
+import { t } from '../i18n';
+import { intlTag } from '../i18n/format';
 
 /**
  * Validate booking dates
@@ -29,11 +31,11 @@ export const validateBookingDates = (
 
   // Check if dates are valid
   if (isNaN(checkInDate.getTime())) {
-    errors.push('Check-in date is invalid');
+    errors.push(t('validation:booking.checkInInvalid'));
   }
 
   if (isNaN(checkOutDate.getTime())) {
-    errors.push('Check-out date is invalid');
+    errors.push(t('validation:booking.checkOutInvalid'));
   }
 
   // Note: Backdated bookings are allowed for administrative purposes
@@ -41,7 +43,7 @@ export const validateBookingDates = (
 
   // Check-out must be on or after check-in (same day allowed for hourly bookings)
   if (checkOutDate < checkInDate) {
-    errors.push('Check-out date must be on or after check-in date');
+    errors.push(t('validation:booking.checkOutOnOrAfterCheckIn'));
   }
 
   // Maximum stay validation (e.g., 30 days)
@@ -50,11 +52,11 @@ export const validateBookingDates = (
   );
 
   if (daysDiff > 30) {
-    errors.push('Maximum stay duration is 30 days');
+    errors.push(t('validation:booking.maxStay', { days: 30 }));
   }
 
   if (daysDiff < 0) {
-    errors.push('Check-out date cannot be before check-in date');
+    errors.push(t('validation:booking.checkOutBeforeCheckIn'));
   }
 
   return {
@@ -73,12 +75,12 @@ export const validateBookingRequest = (
 
   // Validate guest_id (now a number)
   if (!request.guest_id || typeof request.guest_id !== 'number') {
-    errors.push('Guest ID is required and must be a number');
+    errors.push(t('validation:booking.guestIdRequired'));
   }
 
   // Validate room_id
   if (!request.room_id || typeof request.room_id !== 'string' || request.room_id.trim() === '') {
-    errors.push('Room ID is required');
+    errors.push(t('validation:booking.roomIdRequired'));
   }
 
   // Validate dates
@@ -96,12 +98,12 @@ export const validateBookingRequest = (
     request.number_of_guests !== undefined &&
     (request.number_of_guests < 1 || request.number_of_guests > 10)
   ) {
-    errors.push('Number of guests must be between 1 and 10');
+    errors.push(t('validation:booking.guestCountRange', { min: 1, max: 10 }));
   }
 
   // Validate special requests length
   if (request.special_requests && request.special_requests.length > 500) {
-    errors.push('Special requests cannot exceed 500 characters');
+    errors.push(t('validation:booking.specialRequestsTooLong', { max: 500 }));
   }
 
   return {
@@ -140,7 +142,7 @@ export const calculateTotalAmount = (
  */
 export const formatDateForDisplay = (dateString: string): string => {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString(intlTag(), {
     weekday: 'short',
     year: 'numeric',
     month: 'short',

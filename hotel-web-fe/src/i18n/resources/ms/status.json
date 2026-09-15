@@ -77,7 +77,8 @@
     "inspected": "Diperiksa",
     "maintenance": "Penyelenggaraan",
     "out_of_order": "Tidak berfungsi",
-    "out_of_service": "Tidak berkhidmat"
+    "out_of_service": "Tidak berkhidmat",
+    "booked": "Ditempah"
   },
   "housekeeping": {
     "pending": "Menunggu",
@@ -267,5 +268,36 @@
     "info": "Maklumat",
     "error": "Ralat",
     "unknown": "Tidak diketahui"
+  },
+  "audit": {
+    "login_success": "Log Masuk Berjaya",
+    "login_failure": "Log Masuk Gagal",
+    "logout": "Log Keluar",
+    "booking_created": "Tempahan Dicipta",
+    "booking_updated": "Tempahan Dikemas Kini",
+    "booking_cancelled": "Tempahan Dibatalkan",
+    "booking_voided": "Tempahan Dibatalkan",
+    "booking_checkin": "Tetamu Daftar Masuk",
+    "booking_checkout": "Tetamu Daftar Keluar",
+    "room_status_changed": "Status Bilik Diubah",
+    "guest_created": "Tetamu Dicipta",
+    "guest_updated": "Tetamu Dikemas Kini",
+    "guest_deleted": "Tetamu Dipadam",
+    "user_created": "Pengguna Dicipta",
+    "role_assigned": "Peranan Diberikan",
+    "role_removed": "Peranan Dibuang",
+    "settings_changed": "Tetapan Diubah",
+    "password_changed": "Kata Laluan Diubah",
+    "ekyc_approved": "eKYC Diluluskan",
+    "ekyc_rejected": "eKYC Ditolak"
+  },
+  "audit_resource": {
+    "user": "Pengguna",
+    "guest": "Tetamu",
+    "booking": "Tempahan",
+    "room": "Bilik",
+    "user_role": "Peranan Pengguna",
+    "system_setting": "Tetapan",
+    "ekyc_verification": "eKYC"
   }
 }

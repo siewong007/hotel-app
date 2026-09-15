@@ -181,5 +181,24 @@
     "paymentMethodsHint": "配置上门客可用的支付方式",
     "addPaymentMethod": "添加新支付方式（如电子钱包）",
     "systemConfigNote": "这些选项将显示在预订渠道下拉列表（在线入住）和支付方式下拉列表（上门客）中。"
+  },
+  "audit": {
+    "export": {
+      "reportTitle": "审计日志报告",
+      "generatedAt": "生成时间：{{time}}",
+      "systemUser": "系统",
+      "actionOnly": "仅操作",
+      "fieldChanges": "字段变更",
+      "col": {
+        "timestamp": "时间戳",
+        "user": "用户",
+        "action": "操作",
+        "stream": "类别",
+        "resource": "资源",
+        "id": "ID",
+        "changeType": "变更类型",
+        "ip": "IP"
+      }
+    }
   }
 }

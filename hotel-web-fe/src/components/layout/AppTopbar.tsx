@@ -25,7 +25,7 @@ export const AppTopbar: React.FC = () => {
   const { open: openPalette } = useCommandPalette();
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const { t: tNav, tOr } = useTranslation('nav');
+  const { t: tNav } = useTranslation('nav');
 
   // Same path as the account menu's Sign Out: end the session, then leave the
   // staff document for the login page. `logout` settles any in-flight attempt
@@ -34,7 +34,7 @@ export const AppTopbar: React.FC = () => {
     logout();
     navigate('/login');
   };
-  const logoutLabel = tOr('userMenu.logout', 'Log out');
+  const logoutLabel = tNav('userMenu.logout');
 
   return (
     <Box

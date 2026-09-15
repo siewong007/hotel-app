@@ -18,6 +18,7 @@ import { useNavigate } from '../../router';
 import { useAuth } from '../../auth/AuthContext';
 import { useTranslation } from '../../i18n';
 import { preloadRoute } from '../../navigation/routeRegistry';
+import { formatStatusLabel } from '../../utils/formatters';
 
 interface UserMenuProps {
   /**
@@ -131,7 +132,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
             noWrap
             sx={{ fontSize: '0.66rem', color: 'text.secondary', textTransform: 'capitalize' }}
           >
-            {roles[0]?.replace(/[_-]+/g, ' ') || user?.username || tNav('userMenu.defaultRole')}
+            {(roles[0] && tOr(`roles.${roles[0]}`, formatStatusLabel(roles[0]))) || user?.username || tNav('userMenu.defaultRole')}
           </Typography>
         </Box>
         {chevron}
@@ -213,7 +214,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
           <ListItemIcon>
             <PersonIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>{tOr('userMenu.profile', 'My Profile')}</ListItemText>
+          <ListItemText>{tNav('userMenu.profile')}</ListItemText>
         </MenuItem>
         {!isGuest && (
           <MenuItem
@@ -224,7 +225,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
             <ListItemIcon>
               <ManageAccountsIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>{tOr('routes.settings.breadcrumb', 'Hotel Settings')}</ListItemText>
+            <ListItemText>{tNav('routes.settings.breadcrumb')}</ListItemText>
           </MenuItem>
         )}
         <Divider sx={{ my: 1 }} />
@@ -232,7 +233,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
           <ListItemIcon>
             <LogoutIcon fontSize="small" sx={{ color: 'error.main' }} />
           </ListItemIcon>
-          <ListItemText>{tOr('userMenu.logout', 'Sign Out')}</ListItemText>
+          <ListItemText>{tNav('userMenu.logout')}</ListItemText>
         </MenuItem>
       </Menu>
     </>

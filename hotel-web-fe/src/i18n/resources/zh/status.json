@@ -77,7 +77,8 @@
     "inspected": "已检查",
     "maintenance": "维修中",
     "out_of_order": "维修停用",
-    "out_of_service": "暂停服务"
+    "out_of_service": "暂停服务",
+    "booked": "已预订"
   },
   "housekeeping": {
     "pending": "待处理",
@@ -267,5 +268,36 @@
     "info": "提示",
     "error": "错误",
     "unknown": "未知"
+  },
+  "audit": {
+    "login_success": "登录成功",
+    "login_failure": "登录失败",
+    "logout": "退出登录",
+    "booking_created": "预订已创建",
+    "booking_updated": "预订已更新",
+    "booking_cancelled": "预订已作废",
+    "booking_voided": "预订已作废",
+    "booking_checkin": "宾客已入住",
+    "booking_checkout": "宾客已退房",
+    "room_status_changed": "客房状态已变更",
+    "guest_created": "宾客已创建",
+    "guest_updated": "宾客已更新",
+    "guest_deleted": "宾客已删除",
+    "user_created": "用户已创建",
+    "role_assigned": "角色已分配",
+    "role_removed": "角色已移除",
+    "settings_changed": "设置已变更",
+    "password_changed": "密码已修改",
+    "ekyc_approved": "eKYC 已通过",
+    "ekyc_rejected": "eKYC 已拒绝"
+  },
+  "audit_resource": {
+    "user": "用户",
+    "guest": "宾客",
+    "booking": "预订",
+    "room": "客房",
+    "user_role": "用户角色",
+    "system_setting": "设置",
+    "ekyc_verification": "eKYC"
   }
 }

@@ -181,5 +181,24 @@
     "paymentMethodsHint": "Configure available payment methods for walk-in guests",
     "addPaymentMethod": "Add new payment method (e.g., E-Wallet)",
     "systemConfigNote": "These options will appear in the booking channels dropdown (online check-in) and payment methods dropdown (walk-in guests)."
+  },
+  "audit": {
+    "export": {
+      "reportTitle": "Audit Log Report",
+      "generatedAt": "Generated: {{time}}",
+      "systemUser": "System",
+      "actionOnly": "Action only",
+      "fieldChanges": "Field changes",
+      "col": {
+        "timestamp": "Timestamp",
+        "user": "User",
+        "action": "Action",
+        "stream": "Stream",
+        "resource": "Resource",
+        "id": "ID",
+        "changeType": "Change Type",
+        "ip": "IP"
+      }
+    }
   }
 }

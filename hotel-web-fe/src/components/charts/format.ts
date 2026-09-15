@@ -3,6 +3,7 @@
  * currency/date utils so charts format exactly like the rest of the UI.
  */
 import { formatCurrency } from '../../utils/currency';
+import { intlTag } from '../../i18n/format';
 
 /** Full precision: "RM 1,234.56" — tooltips, value labels. */
 export const fmtMoney = (value: number | string | null | undefined): string =>
@@ -19,14 +20,14 @@ export const fmtCompactMoney = (value: number): string => {
 
 export const fmtPct = (value: number, digits = 1): string => `${value.toFixed(digits)}%`;
 
-export const fmtInt = (value: number): string => Math.round(value).toLocaleString('en-US');
+export const fmtInt = (value: number): string => Math.round(value).toLocaleString(intlTag());
 
 /** Axis-tick date: "5 Sep". Input is an ISO "YYYY-MM-DD" day string. */
 export const fmtShortDate = (isoDay: string): string => {
   const d = new Date(`${isoDay}T00:00:00`);
   return Number.isNaN(d.getTime())
     ? isoDay
-    : `${d.getDate()} ${d.toLocaleString('en', { month: 'short' })}`;
+    : `${d.getDate()} ${d.toLocaleString(intlTag(), { month: 'short' })}`;
 };
 
 /** Thin a dense date/category domain to ~maxTicks evenly spaced entries,

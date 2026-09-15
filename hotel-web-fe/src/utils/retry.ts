@@ -2,6 +2,8 @@
  * Retry utility for API calls with exponential backoff
  */
 
+import { t } from '../i18n';
+
 export interface RetryOptions {
   maxAttempts?: number;
   initialDelay?: number;
@@ -70,7 +72,7 @@ export async function withRetry<T>(
     }
   }
 
-  throw lastError || new Error('Retry failed with no error');
+  throw lastError || new Error(t('errors:request.retryExhausted'));
 }
 
 /**

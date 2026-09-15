@@ -19,5 +19,16 @@
   "passwordTooShort": "Password must be at least {{min}} characters.",
   "passwordMismatch": "Passwords do not match.",
   "minDigits": "{{field}} must be at least {{min}} digits.",
-  "maxDigits": "{{field}} cannot exceed {{max}} digits."
+  "maxDigits": "{{field}} cannot exceed {{max}} digits.",
+  "booking": {
+    "checkInInvalid": "Check-in date is invalid",
+    "checkOutInvalid": "Check-out date is invalid",
+    "checkOutOnOrAfterCheckIn": "Check-out date must be on or after check-in date",
+    "maxStay": "Maximum stay duration is {{days}} days",
+    "checkOutBeforeCheckIn": "Check-out date cannot be before check-in date",
+    "guestIdRequired": "Guest ID is required and must be a number",
+    "roomIdRequired": "Room ID is required",
+    "guestCountRange": "Number of guests must be between {{min}} and {{max}}",
+    "specialRequestsTooLong": "Special requests cannot exceed {{max}} characters"
+  }
 }

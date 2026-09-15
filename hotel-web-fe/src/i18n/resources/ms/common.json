@@ -163,7 +163,8 @@
   "units": {
     "hours": "jam",
     "days": "hari",
-    "minutes": "minit"
+    "minutes": "minit",
+    "perNight": "/malam"
   },
   "charts": {
     "loading": "Memuatkan carta",

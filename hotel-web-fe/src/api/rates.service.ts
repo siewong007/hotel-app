@@ -1,5 +1,6 @@
 import { api, toApiError } from './client';
 import { RateCodesResponse, MarketCodesResponse } from '../types';
+import { t } from '../i18n';
 
 export class RatesService {
   static async getRateCodes(): Promise<RateCodesResponse> {
@@ -8,7 +9,7 @@ export class RatesService {
         .get('rate-codes')
         .json<RateCodesResponse>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch rate codes');
+      throw toApiError(error, t('errors:request.fetchRateCodes'));
     }
   }
 
@@ -18,7 +19,7 @@ export class RatesService {
         .get('market-codes')
         .json<MarketCodesResponse>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch market codes');
+      throw toApiError(error, t('errors:request.fetchMarketCodes'));
     }
   }
 }

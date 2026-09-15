@@ -1,6 +1,7 @@
 // Audit log type definitions
 import { AUDIT_ACTION_LABELS, AUDIT_RESOURCE_LABELS } from '../constants/audit.constants';
 import { formatStatusLabel } from '../utils/formatters';
+import { t } from '../i18n';
 
 export interface AuditLogEntry {
   id: number;
@@ -60,12 +61,17 @@ export interface AuditUser {
   username: string;
 }
 
-// Helper function to get action label
+// Helper function to get action label. Mapped actions resolve their bundle
+// key; anything unmapped falls back to the humanized enum code.
 export function getActionLabel(action: string): { label: string; color: string } {
-  return AUDIT_ACTION_LABELS[action] || { label: formatStatusLabel(action), color: 'var(--hotel-neutral)' };
+  const entry = AUDIT_ACTION_LABELS[action];
+  if (entry) return { label: t(entry.labelKey), color: entry.color };
+  return { label: formatStatusLabel(action), color: 'var(--hotel-neutral)' };
 }
 
 // Helper function to get resource label
 export function getResourceLabel(resourceType: string): { label: string; color: string } {
-  return AUDIT_RESOURCE_LABELS[resourceType] || { label: formatStatusLabel(resourceType), color: 'var(--hotel-neutral)' };
+  const entry = AUDIT_RESOURCE_LABELS[resourceType];
+  if (entry) return { label: t(entry.labelKey), color: entry.color };
+  return { label: formatStatusLabel(resourceType), color: 'var(--hotel-neutral)' };
 }

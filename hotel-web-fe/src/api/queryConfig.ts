@@ -1,4 +1,5 @@
 import type { DefaultOptions } from '@tanstack/react-query';
+import { t } from '../i18n';
 
 export const queryStaleTime = {
   realtime: 15_000,
@@ -30,7 +31,7 @@ export function shouldRetryQuery(failureCount: number, error: unknown) {
   return status != null && transientStatuses.has(status);
 }
 
-export function getQueryErrorMessage(error: unknown, fallback = 'Request failed') {
+export function getQueryErrorMessage(error: unknown, fallback = t('errors:status.requestFailed')) {
   if (!error) return null;
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === 'object') {
