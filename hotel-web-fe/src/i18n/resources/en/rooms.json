@@ -110,8 +110,8 @@
     "roomTitle": "Room {{room}}",
     "rate": "Rate",
     "perNight": "per night",
-    "currentBooking": "Current Booking",
-    "nextBooking": "Next Booking",
+    "currentBooking": "Current booking",
+    "nextBooking": "Next booking",
     "housekeeping": "Housekeeping"
   },
   "menu": {

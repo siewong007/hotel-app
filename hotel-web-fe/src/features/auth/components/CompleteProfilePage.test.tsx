@@ -151,7 +151,7 @@ describe('CompleteProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Phone Number is required.')).toBeDefined();
+      expect(screen.getByText('Phone number is required')).toBeDefined();
     });
     expect(mocks.completeGuestProfile).not.toHaveBeenCalled();
   });
