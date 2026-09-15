@@ -12,7 +12,7 @@ import {
   LedgerVoidRequest,
   LedgerReversalRequest,
 } from '../types';
-import { withRetry } from '../utils/retry';
+import { withRetry, batchWithRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
 
 export class LedgerService {
@@ -50,15 +50,15 @@ export class LedgerService {
 
     if (total <= pageSize) return firstData;
 
-    // Fetch remaining pages in parallel
+    // Remaining pages at bounded concurrency, not all at once: the backend pool
+    // is five connections, and an unbounded fan-out from one screen could take
+    // all of them while other requests queued behind it.
     const totalPages = getPaginationState({ page: 1, pageSize, totalItems: total }).totalPages;
-    const remainingPages = await Promise.all(
+    const remainingPages = await batchWithRetry(
       Array.from({ length: totalPages - 1 }, (_, i) =>
-        withRetry(
-          () => api.get('ledgers', { searchParams: { ...searchParams, page: (i + 2).toString() } }).json<any>(),
-          { maxAttempts: 3, initialDelay: 1000 }
-        )
-      )
+        () => api.get('ledgers', { searchParams: { ...searchParams, page: (i + 2).toString() } }).json<any>()
+      ),
+      { maxAttempts: 3, initialDelay: 1000, concurrency: 2 }
     );
 
     return remainingPages.reduce(
