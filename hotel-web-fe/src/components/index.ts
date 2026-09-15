@@ -12,6 +12,8 @@ export { default as BrandMark } from './common/BrandMark';
 export type { BrandMarkProps } from './common/BrandMark';
 export { default as HotelSpinner } from './common/HotelSpinner';
 export { default as LoadingSpinner } from './common/LoadingSpinner';
+export { default as LogoLoader } from './common/LogoLoader';
+export type { LogoLoaderProps, LogoLoaderVariant } from './common/LogoLoader';
 export { default as ModernDatePicker } from './common/ModernDatePicker';
 export { default as StatCard } from './common/StatCard';
 export type { StatCardProps, StatCardTrend } from './common/StatCard';
