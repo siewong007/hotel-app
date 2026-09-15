@@ -1,1 +1,19 @@
-{}
+{
+  "documentNotFound": {
+    "title": "Document not found",
+    "body": "The document you are looking for does not exist or has moved. Our other legal documents are below."
+  },
+  "versionLine": "Version {{version}} · Effective {{date}}",
+  "languageToggle": "Document language",
+  "contentsAria": "Document contents",
+  "inThisDocument": "In this document",
+  "emphasis": {
+    "requirement": "Important",
+    "info": "Good to know"
+  },
+  "questionsTitle": "Questions about this document?",
+  "consent": {
+    "languageToggle": "Legal notice language",
+    "requiredToContinue": "You need to agree to this before you can continue."
+  }
+}

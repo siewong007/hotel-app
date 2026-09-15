@@ -25,12 +25,9 @@ import { useCreateEkycApplication } from '../hooks/useEkycQueries';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { validateEkycCreateForm } from '../utils/ekycCreateValidation';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useTranslation } from '../../../i18n';
 
-const ID_TYPES = [
-  { value: 'passport', label: 'Passport' },
-  { value: 'drivers_license', label: "Driver's License" },
-  { value: 'national_id', label: 'National ID Card' },
-];
+const ID_TYPES = ['passport', 'drivers_license', 'national_id'];
 
 interface EkycCreateDialogProps {
   open: boolean;
@@ -102,6 +99,7 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
   initialGuest = null,
   lockGuest = false,
 }) => {
+  const { t } = useTranslation('ekyc');
   const createMutation = useCreateEkycApplication();
 
   const [guest, setGuest] = useState<Guest | null>(null);
@@ -207,7 +205,7 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
     setError(null);
     const message = validationError;
     if (message || !guest) {
-      setError(message ?? 'Please complete the required fields.');
+      setError(message ?? t('createDialog.completeRequired'));
       return;
     }
     try {
@@ -240,18 +238,20 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
       });
 
       onCreated(
-        `eKYC verified for ${form.fullName.trim()}.${selfCheckin ? ' Self check-in enabled.' : ''}`
+        selfCheckin
+          ? t('createDialog.verifiedSelfCheckin', { name: form.fullName.trim() })
+          : t('createDialog.verified', { name: form.fullName.trim() })
       );
       reset();
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to create eKYC verification.'));
+      setError(errorMessage(err, t('createDialog.submitFailed')));
     }
   };
 
   return (
     <Dialog open={open} onClose={close} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700 }}>Create eKYC verification</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 700 }}>{t('createDialog.title')}</DialogTitle>
       <DialogContent dividers>
         <Typography
           variant="body2"
@@ -259,8 +259,7 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
             color: "text.secondary",
             mb: 2
           }}>
-          Verify a customer's identity documents at the front desk. The verification is created
-          as <strong>approved</strong>, so the customer can check in directly.
+          {t('createDialog.subtitle')}
         </Typography>
 
         {error && (
@@ -284,13 +283,13 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
               }}
               getOptionLabel={(g) => (g ? `${g.nick_name}${g.email ? ` · ${g.email}` : ''}` : '')}
               isOptionEqualToValue={(a, b) => a.id === b.id}
-              noOptionsText={guestInput.trim().length < 2 ? 'Type to search guests…' : 'No guests found'}
+              noOptionsText={guestInput.trim().length < 2 ? t('createDialog.guestSearchPrompt') : t('createDialog.guestNoResults')}
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Guest *"
-                  placeholder={lockGuest ? undefined : 'Search by name, email, or phone'}
-                  helperText={lockGuest ? 'Selected guest' : "Pick the guest this verification is for. Create the guest first if they don't exist."}
+                  label={t('createDialog.guestLabel')}
+                  placeholder={lockGuest ? undefined : t('createDialog.guestPlaceholder')}
+                  helperText={lockGuest ? t('createDialog.guestSelected') : t('createDialog.guestHelp')}
                   slotProps={{
                     ...params.slotProps,
 
@@ -311,15 +310,15 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
 
           <Grid size={12}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1 }}>
-              Identity
+              {t('createDialog.identityHeading')}
             </Typography>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Full name *" fullWidth value={form.fullName} onChange={(e) => set('fullName', e.target.value)} />
+            <TextField label={t('createDialog.fullName')} fullWidth value={form.fullName} onChange={(e) => set('fullName', e.target.value)} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Date of birth *"
+              label={t('createDialog.dateOfBirth')}
               type="date"
               fullWidth
               value={form.dateOfBirth}
@@ -330,41 +329,41 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Nationality" fullWidth value={form.nationality} onChange={(e) => set('nationality', e.target.value)} />
+            <TextField label={t('createDialog.nationality')} fullWidth value={form.nationality} onChange={(e) => set('nationality', e.target.value)} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Phone" type="tel" fullWidth value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+            <TextField label={t('createDialog.phone')} type="tel" fullWidth value={form.phone} onChange={(e) => set('phone', e.target.value)} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Email" type="email" fullWidth value={form.email} onChange={(e) => set('email', e.target.value)} />
+            <TextField label={t('createDialog.email')} type="email" fullWidth value={form.email} onChange={(e) => set('email', e.target.value)} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Current address" fullWidth value={form.currentAddress} onChange={(e) => set('currentAddress', e.target.value)} />
+            <TextField label={t('createDialog.currentAddress')} fullWidth value={form.currentAddress} onChange={(e) => set('currentAddress', e.target.value)} />
           </Grid>
 
           <Grid size={12}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1 }}>
-              ID document
+              {t('createDialog.documentHeading')}
             </Typography>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField select label="ID type *" fullWidth value={form.idType} onChange={(e) => set('idType', e.target.value)}>
-              {ID_TYPES.map((t) => (
-                <MenuItem key={t.value} value={t.value}>
-                  {t.label}
+            <TextField select label={t('createDialog.idType')} fullWidth value={form.idType} onChange={(e) => set('idType', e.target.value)}>
+              {ID_TYPES.map((idType) => (
+                <MenuItem key={idType} value={idType}>
+                  {t(`idTypes.${idType}`)}
                 </MenuItem>
               ))}
             </TextField>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="ID number *" fullWidth value={form.idNumber} onChange={(e) => set('idNumber', e.target.value)} />
+            <TextField label={t('createDialog.idNumber')} fullWidth value={form.idNumber} onChange={(e) => set('idNumber', e.target.value)} />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField label="Issuing country" fullWidth value={form.idIssuingCountry} onChange={(e) => set('idIssuingCountry', e.target.value)} />
+            <TextField label={t('createDialog.issuingCountry')} fullWidth value={form.idIssuingCountry} onChange={(e) => set('idIssuingCountry', e.target.value)} />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
-              label="Issue date"
+              label={t('createDialog.issueDate')}
               type="date"
               fullWidth
               value={form.idIssueDate}
@@ -376,7 +375,7 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
-              label="Expiry date *"
+              label={t('createDialog.expiryDate')}
               type="date"
               fullWidth
               value={form.idExpiryDate}
@@ -389,34 +388,34 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
 
           <Grid size={12}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1 }}>
-              Documents
+              {t('createDialog.documentsHeading')}
             </Typography>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <FileField label="ID front" required file={idFront} onChange={setIdFront} />
+            <FileField label={t('createDialog.idFront')} required file={idFront} onChange={setIdFront} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <FileField label="ID back" file={idBack} onChange={setIdBack} />
+            <FileField label={t('createDialog.idBack')} file={idBack} onChange={setIdBack} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <FileField label="Selfie" required file={selfie} onChange={setSelfie} />
+            <FileField label={t('createDialog.selfie')} required file={selfie} onChange={setSelfie} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <FileField label="Proof of address" file={proof} onChange={setProof} />
+            <FileField label={t('createDialog.proofOfAddress')} file={proof} onChange={setProof} />
           </Grid>
 
           <Grid size={12}>
             <Divider sx={{ my: 1 }} />
             <FormControlLabel
               control={<Switch checked={selfCheckin} onChange={(e) => setSelfCheckin(e.target.checked)} />}
-              label="Enable self / kiosk check-in for this customer"
+              label={t('createDialog.selfCheckin')}
             />
           </Grid>
         </Grid>
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2 }}>
         <Button onClick={close} color="inherit" disabled={createMutation.isPending}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Box sx={{ flex: 1 }} />
         {validationError && (
@@ -436,7 +435,7 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
           disabled={createMutation.isPending}
           startIcon={createMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <CheckIcon />}
         >
-          {createMutation.isPending ? 'Creating…' : 'Create & approve'}
+          {createMutation.isPending ? t('createDialog.creating') : t('createDialog.createApprove')}
         </Button>
       </DialogActions>
     </Dialog>

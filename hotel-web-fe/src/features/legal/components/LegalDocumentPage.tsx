@@ -27,6 +27,7 @@ import {
 } from '../content';
 import { useLegalLocale } from '../LegalLocaleContext';
 import { returnToPreviousPage } from '../../../utils/returnNavigation';
+import { translateFor, type TranslationVars } from '../../../i18n';
 
 const SIBLING_LINKS: { id: LegalDocumentId; label: Record<LegalLocale, string> }[] = [
   { id: 'terms_of_service', label: { en: 'Booking Terms', ms: 'Terma Tempahan' } },
@@ -162,7 +163,11 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
     return () => window.removeEventListener('hotelSettingsChange', refresh);
   }, []);
   const document = documents[documentId];
-  const backLabel = locale === 'ms' ? 'Kembali' : 'Back';
+  // Page chrome follows the corpus locale the reader chose (en/ms), not the
+  // interface locale — the toggle that switches the prose switches these too,
+  // which the reading-experience tests pin.
+  const lt = (key: string, vars?: TranslationVars) => translateFor(locale, key, vars, 'legal');
+  const backLabel = translateFor(locale, 'actions.back', undefined, 'common');
 
   if (!document) {
     return (
@@ -172,12 +177,10 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
             {HOTEL_LEGAL_IDENTITY.tradingName}
           </Typography>
           <Typography variant="h4" component="h1" sx={documentTitleSx}>
-            {locale === 'ms' ? 'Dokumen tidak dijumpai' : 'Document not found'}
+            {lt('documentNotFound.title')}
           </Typography>
           <Typography sx={{ color: 'text.secondary', mt: 1.5 }}>
-            {locale === 'ms'
-              ? 'Dokumen yang anda cari tidak wujud atau telah dialihkan. Dokumen undang-undang kami yang lain tersedia di bawah.'
-              : 'The document you are looking for does not exist or has moved. Our other legal documents are below.'}
+            {lt('documentNotFound.body')}
           </Typography>
           <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 2, mt: 3, alignItems: 'center' }}>
             <Button
@@ -233,7 +236,7 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
             exclusive
             value={locale}
             onChange={(_event, next) => next && setLocale(next as LegalLocale)}
-            aria-label={locale === 'ms' ? 'Bahasa dokumen' : 'Document language'}
+            aria-label={lt('languageToggle')}
             sx={{ flexShrink: 0 }}
           >
             {LEGAL_LOCALES.map((option) => (
@@ -245,9 +248,7 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
         </Stack>
 
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
-          {locale === 'ms'
-            ? `Versi ${document.version} · Berkuat kuasa ${document.effectiveDate}`
-            : `Version ${document.version} · Effective ${document.effectiveDate}`}
+          {lt('versionLine', { version: document.version, date: document.effectiveDate })}
         </Typography>
 
         <Typography sx={{ mt: 3, fontSize: '1.05rem', lineHeight: 1.8, color: 'text.primary', maxWidth: '68ch' }}>
@@ -257,11 +258,11 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
         {document.sections.length > 1 ? (
           <Box
             component="nav"
-            aria-label={locale === 'ms' ? 'Kandungan dokumen' : 'Document contents'}
+            aria-label={lt('contentsAria')}
             sx={(theme) => ({ mt: 4, ...quietFrameSx(theme) })}
           >
             <Typography sx={(theme) => ({ ...eyebrowSx(theme), mb: 1 })}>
-              {locale === 'ms' ? 'Dalam dokumen ini' : 'In this document'}
+              {lt('inThisDocument')}
             </Typography>
             <Box
               component="ol"
@@ -427,12 +428,8 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
                           }}
                         >
                           {emphasis === 'requirement'
-                            ? locale === 'ms'
-                              ? 'Perkara penting'
-                              : 'Important'
-                            : locale === 'ms'
-                              ? 'Baik untuk diketahui'
-                              : 'Good to know'}
+                            ? lt('emphasis.requirement')
+                            : lt('emphasis.info')}
                         </Typography>
                       </Box>
                       {sectionContent}
@@ -450,7 +447,7 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
 
         <Box sx={quietFrameSx}>
           <Typography sx={(theme) => ({ ...eyebrowSx(theme), mb: 1 })}>
-            {locale === 'ms' ? 'Ada soalan tentang dokumen ini?' : 'Questions about this document?'}
+            {lt('questionsTitle')}
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.9 }}>
             {HOTEL_LEGAL_IDENTITY.registeredName}

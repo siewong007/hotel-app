@@ -1,6 +1,8 @@
 // Pure validation for the admin "Create eKYC" dialog. Returns the first
 // human-readable error, or null when the form is ready to submit.
 
+import { t } from '../../../i18n';
+
 export interface EkycCreateFormState {
   guestId: number | null;
   fullName: string;
@@ -13,21 +15,21 @@ export interface EkycCreateFormState {
 }
 
 export function validateEkycCreateForm(form: EkycCreateFormState): string | null {
-  if (!form.guestId) return 'Select the guest this verification is for.';
-  if (!form.fullName.trim()) return 'Full name is required.';
-  if (!form.dateOfBirth) return 'Date of birth is required.';
-  if (!form.idType.trim()) return 'ID type is required.';
-  if (!form.idNumber.trim()) return 'ID number is required.';
-  if (!form.idExpiryDate) return 'ID expiry date is required.';
-  if (!form.hasIdFront) return 'Upload the front of the ID document.';
-  if (!form.hasSelfie) return 'Upload a selfie photo.';
+  if (!form.guestId) return t('ekyc:createDialog.errors.selectGuest');
+  if (!form.fullName.trim()) return t('ekyc:createDialog.errors.fullNameRequired');
+  if (!form.dateOfBirth) return t('ekyc:createDialog.errors.dateOfBirthRequired');
+  if (!form.idType.trim()) return t('ekyc:createDialog.errors.idTypeRequired');
+  if (!form.idNumber.trim()) return t('ekyc:createDialog.errors.idNumberRequired');
+  if (!form.idExpiryDate) return t('ekyc:createDialog.errors.idExpiryRequired');
+  if (!form.hasIdFront) return t('ekyc:createDialog.errors.idFrontRequired');
+  if (!form.hasSelfie) return t('ekyc:createDialog.errors.selfieRequired');
 
   // ID must not already be expired.
   const expiry = new Date(form.idExpiryDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (!Number.isNaN(expiry.getTime()) && expiry <= today) {
-    return 'ID expiry date must be in the future.';
+    return t('ekyc:createDialog.errors.expiryFuture');
   }
   return null;
 }

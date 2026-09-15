@@ -17,8 +17,9 @@ import {
   CheckCircle as CheckIcon,
 } from '@mui/icons-material';
 import { useNavigate, useSearchParams } from '../../../router';
-import { format } from 'date-fns';
 import { useEkycStatus } from '../hooks/useEkycQueries';
+import { statusLabel, useTranslation } from '../../../i18n';
+import { formatHotelDate } from '../../../utils/date';
 
 interface EkycStatus {
   id: number;
@@ -33,11 +34,12 @@ interface EkycStatus {
 }
 
 const EkycStatusCard: React.FC = () => {
+  const { t } = useTranslation('ekyc');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data, isLoading: loading, error: queryError } = useEkycStatus();
   const ekycStatus = (data as EkycStatus | null | undefined) ?? null;
-  const error = queryError ? (queryError as Error).message || 'Failed to fetch eKYC status' : '';
+  const error = queryError ? (queryError as Error).message || t('statusCard.fetchFailed') : '';
   const [justSubmitted, setJustSubmitted] = useState(false);
 
   useEffect(() => {
@@ -54,42 +56,36 @@ const EkycStatusCard: React.FC = () => {
         return {
           color: 'warning' as const,
           icon: <PendingIcon />,
-          label: 'Pending Review',
-          message: 'Your identity verification is pending review by our team.',
+          message: t('statusCard.messages.pending'),
         };
       case 'under_review':
         return {
           color: 'info' as const,
           icon: <PendingIcon />,
-          label: 'Under Review',
-          message: 'Our team is currently reviewing your identity verification.',
+          message: t('statusCard.messages.under_review'),
         };
       case 'approved':
         return {
           color: 'success' as const,
           icon: <CheckIcon />,
-          label: 'Approved',
-          message: 'Your identity has been verified successfully!',
+          message: t('statusCard.messages.approved'),
         };
       case 'rejected':
         return {
           color: 'error' as const,
           icon: <ErrorIcon />,
-          label: 'Rejected',
-          message: 'Your verification was rejected. Please submit again with correct documents.',
+          message: t('statusCard.messages.rejected'),
         };
       case 'expired':
         return {
           color: 'warning' as const,
           icon: <ErrorIcon />,
-          label: 'Expired',
-          message: 'Your ID has expired. Please submit a new verification.',
+          message: t('statusCard.messages.expired'),
         };
       default:
         return {
           color: 'info' as const,
           icon: <PendingIcon />,
-          label: 'Unknown',
           message: '',
         };
     }
@@ -112,7 +108,7 @@ const EkycStatusCard: React.FC = () => {
       <Card>
         <CardContent>
           <Alert severity="warning">
-            Unable to load eKYC status. This feature may not be available yet.
+            {t('statusCard.loadFailed')}
           </Alert>
         </CardContent>
       </Card>
@@ -127,11 +123,11 @@ const EkycStatusCard: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
             <VerifiedIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
             <Box>
-              <Typography variant="h6">Enable Self Check-in</Typography>
+              <Typography variant="h6">{t('statusCard.enableTitle')}</Typography>
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Complete your identity verification
+                {t('statusCard.enableSubtitle')}
               </Typography>
             </Box>
           </Box>
@@ -139,19 +135,18 @@ const EkycStatusCard: React.FC = () => {
           <Typography variant="body2" sx={{
             marginBottom: "16px"
           }}>
-            Complete eKYC (electronic Know Your Customer) verification to enable self-check-in
-            for your bookings. No more waiting at the front desk!
+            {t('statusCard.enableBody')}
           </Typography>
 
           <Alert severity="info" sx={{ mb: 2 }}>
             <Typography variant="body2">
-              <strong>Benefits:</strong>
+              <strong>{t('statusCard.benefitsTitle')}</strong>
             </Typography>
             <Typography variant="caption" component="div">
-              • Skip the front desk queue
+              • {t('statusCard.benefitQueue')}
             </Typography>
             <Typography variant="caption" component="div">
-              • Instant room access upon arrival
+              • {t('statusCard.benefitAccess')}
             </Typography>
           </Alert>
 
@@ -161,7 +156,7 @@ const EkycStatusCard: React.FC = () => {
             startIcon={<AddIcon />}
             onClick={() => navigate('/ekyc')}
           >
-            Start eKYC Verification
+            {t('statusCard.start')}
           </Button>
         </CardContent>
       </Card>
@@ -179,9 +174,9 @@ const EkycStatusCard: React.FC = () => {
             {statusConfig.icon}
           </Box>
           <Box sx={{ flex: 1 }}>
-            <Typography variant="h6">eKYC Verification</Typography>
+            <Typography variant="h6">{t('statusCard.title')}</Typography>
             <Chip
-              label={statusConfig.label}
+              label={statusLabel(t, 'ekyc', ekycStatus.status)}
               color={statusConfig.color}
               size="small"
               sx={{ mt: 0.5 }}
@@ -192,8 +187,7 @@ const EkycStatusCard: React.FC = () => {
         {justSubmitted && (ekycStatus.status === 'pending' || ekycStatus.status === 'under_review') && (
           <Alert severity="success" sx={{ mb: 2 }}>
             <Typography variant="body2">
-              <strong>Submission Received!</strong> Your eKYC verification has been successfully submitted and is now under review.
-              We'll notify you once it's been processed.
+              <strong>{t('statusCard.receivedTitle')}</strong> {t('statusCard.receivedBody')}
             </Typography>
           </Alert>
         )}
@@ -205,7 +199,7 @@ const EkycStatusCard: React.FC = () => {
         {ekycStatus.self_checkin_enabled && (
           <Alert severity="success" sx={{ mb: 2 }}>
             <Typography variant="body2">
-              <strong>Self check-in is enabled!</strong> You can now check in to your bookings without visiting the front desk.
+              <strong>{t('statusCard.selfCheckinTitle')}</strong> {t('statusCard.selfCheckinBody')}
             </Typography>
           </Alert>
         )}
@@ -217,7 +211,7 @@ const EkycStatusCard: React.FC = () => {
               color: "text.secondary",
               display: "block"
             }}>
-            Submitted: {format(new Date(ekycStatus.submitted_at), 'MMM dd, yyyy')}
+            {t('statusCard.submittedAt', { date: formatHotelDate(ekycStatus.submitted_at) })}
           </Typography>
           {ekycStatus.verified_at && (
             <Typography
@@ -226,7 +220,7 @@ const EkycStatusCard: React.FC = () => {
                 color: "text.secondary",
                 display: "block"
               }}>
-              Verified: {format(new Date(ekycStatus.verified_at), 'MMM dd, yyyy')}
+              {t('statusCard.verifiedAt', { date: formatHotelDate(ekycStatus.verified_at) })}
             </Typography>
           )}
           {ekycStatus.verification_notes && (
@@ -237,7 +231,7 @@ const EkycStatusCard: React.FC = () => {
                 display: "block",
                 mt: 1
               }}>
-              <strong>Notes:</strong> {ekycStatus.verification_notes}
+              <strong>{t('statusCard.notesLabel')}</strong> {ekycStatus.verification_notes}
             </Typography>
           )}
         </Box>
@@ -249,7 +243,7 @@ const EkycStatusCard: React.FC = () => {
             sx={{ mt: 2 }}
             onClick={() => navigate('/ekyc')}
           >
-            Submit New Verification
+            {t('statusCard.submitNew')}
           </Button>
         )}
       </CardContent>
