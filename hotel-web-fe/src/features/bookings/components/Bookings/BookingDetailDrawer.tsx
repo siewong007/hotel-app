@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   Box,
@@ -33,12 +33,20 @@ interface QuickEditFields {
   special_requests: string;
 }
 
+const initialFields = (booking: BookingWithDetails): QuickEditFields => ({
+  check_in_date: booking.check_in_date.split('T')[0],
+  check_out_date: booking.check_out_date.split('T')[0],
+  remarks: booking.remarks ?? '',
+  special_requests: booking.special_requests ?? '',
+});
+
 /**
  * Inline edit for the fields front-desk staff change most — stay dates and
  * free-text notes. Everything else (status, channel, company, rate, room,
  * extra beds) stays in the full Edit dialog one row of actions below; unlike
  * that dialog this does NOT re-run the room-availability picker on date
- * changes — the backend still validates conflicts.
+ * changes — the backend still validates conflicts. Remounted per booking via
+ * `key` so field state always starts from that booking's current values.
  */
 const BookingQuickEditSection: React.FC<{
   booking: BookingWithDetails;
@@ -46,23 +54,8 @@ const BookingQuickEditSection: React.FC<{
   onCompleted: () => Promise<void> | void;
 }> = ({ booking, onError, onCompleted }) => {
   const updateBooking = useUpdateBooking();
-  const [fields, setFields] = useState<QuickEditFields>({
-    check_in_date: '',
-    check_out_date: '',
-    remarks: '',
-    special_requests: '',
-  });
+  const [fields, setFields] = useState<QuickEditFields>(() => initialFields(booking));
   const [saving, setSaving] = useState(false);
-
-  // Re-initialise when a different booking is opened.
-  useEffect(() => {
-    setFields({
-      check_in_date: booking.check_in_date.split('T')[0],
-      check_out_date: booking.check_out_date.split('T')[0],
-      remarks: booking.remarks ?? '',
-      special_requests: booking.special_requests ?? '',
-    });
-  }, [booking.id]);
 
   const handleSave = async () => {
     try {
@@ -187,6 +180,7 @@ const BookingDetailDrawer: React.FC<BookingDetailDrawerProps> = ({
           quickEdit={
             isAdmin ? (
               <BookingQuickEditSection
+                key={booking.id}
                 booking={booking}
                 onError={onError}
                 onCompleted={onCompleted}
