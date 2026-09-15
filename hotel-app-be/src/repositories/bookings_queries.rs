@@ -8,11 +8,23 @@
 // because PostgreSQL does not de-duplicate textually identical subqueries and
 // turns each occurrence into its own SubPlan re-executed per output row.
 //
-// Measured on production (3,106 bookings, page of 500 at offset 1500): 16
-// SubPlans x ~2,000 loops, 42,082 shared buffers, 82.9ms. The four LATERAL
-// joins below compute the same values once per row: 10,480 buffers, 13.3ms —
-// 6.2x faster for 75% of the buffer traffic, using only indexes that already
-// exist (uq_customer_ledgers_booking_room_charge and the payments booking key).
+// Measured on production, both shapes run back to back on the same box, same
+// config, same page (500 rows at offset 1500, 3,107 bookings):
+//
+//     old: 16 SubPlans, ~32,000 subquery executions   38,190 shared buffers
+//     new: 0 SubPlans, 4 LATERAL joins                20,997 shared buffers  (-45%)
+//
+// Buffer count is the honest metric here and it is deterministic — identical on
+// every repetition. Wall-clock on this host is NOT: the container is capped at
+// 0.30 CPU on a shared Proxmox node, and repeated runs of the SAME query ranged
+// 24-97ms for both shapes, so the medians overlap and no speed-up multiple can
+// be claimed from them. An earlier draft of this comment claimed "6.2x faster,
+// 82.9ms -> 13.3ms"; that compared the full query against a trimmed two-lateral
+// prototype with far fewer output columns, and was wrong. What is established is
+// that the same result now costs a little under half the buffer traffic, with
+// no new index (uq_customer_ledgers_booking_room_charge and the payments
+// booking key already existed). Production latency effects are visible in
+// pg_stat_statements, which this change also finally enabled.
 //
 // Equivalence rests on one schema fact: uq_customer_ledgers_booking_room_charge
 // is a UNIQUE partial index over exactly this predicate (booking_id) WHERE
