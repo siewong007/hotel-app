@@ -35,7 +35,7 @@ pub mod invoice_numbers;
 // payments service logic live in modules::payments.
 // paypal_client service logic live in modules::payments.
 // profile service logic live in modules::profile.
-pub mod promotion_pricing;
+// promotion_pricing service logic live in modules::promotions.
 // rates service logic live in modules::rates.
 // rbac service logic live in modules::rbac.
 // rooms service logic live in modules::rooms.

@@ -194,7 +194,7 @@ pub struct GuestBookingQuote {
     /// Shared-engine pricing for the applied voucher; `create()` persists its
     /// nightly split. Internal only — never serialized to the guest.
     #[serde(skip)]
-    pub voucher_pricing: Option<crate::services::promotion_pricing::PromotionPricing>,
+    pub voucher_pricing: Option<crate::modules::promotions::pricing::PromotionPricing>,
 }
 
 #[derive(Debug, Clone, Serialize)]
