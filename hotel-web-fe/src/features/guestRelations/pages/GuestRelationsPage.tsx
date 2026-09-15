@@ -415,6 +415,7 @@ const GuestRelationsPage: React.FC = () => {
       return true;
     } catch (err) {
       setError(errorMessage(err, t('page.deleteFailed')));
+      return false;
     }
   };
 

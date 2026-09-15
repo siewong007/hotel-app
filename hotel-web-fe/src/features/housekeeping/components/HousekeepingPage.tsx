@@ -217,7 +217,7 @@ export default function HousekeepingPage() {
     await updateRoomStatus.mutateAsync({ roomId, data: input });
     boardQuery.refetch();
     notify('success', t('success.roomStatus', {
-      room: roomById.get(roomId)?.room_number ?? roomId,
+      room: roomById.get(Number(roomId))?.room_number ?? roomId,
       status: statusLabel(t, 'room', input.status),
     }));
   };
