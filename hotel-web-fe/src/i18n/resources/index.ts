@@ -30,6 +30,7 @@ import enGuests from './en/guests.json';
 import enHelp from './en/help.json';
 import enHousekeeping from './en/housekeeping.json';
 import enLoyalty from './en/loyalty.json';
+import enLegal from './en/legal.json';
 import enNav from './en/nav.json';
 import enNotifications from './en/notifications.json';
 import enOnlineInventory from './en/onlineInventory.json';
@@ -58,6 +59,7 @@ import msGuests from './ms/guests.json';
 import msHelp from './ms/help.json';
 import msHousekeeping from './ms/housekeeping.json';
 import msLoyalty from './ms/loyalty.json';
+import msLegal from './ms/legal.json';
 import msNav from './ms/nav.json';
 import msNotifications from './ms/notifications.json';
 import msOnlineInventory from './ms/onlineInventory.json';
@@ -86,6 +88,7 @@ import zhGuests from './zh/guests.json';
 import zhHelp from './zh/help.json';
 import zhHousekeeping from './zh/housekeeping.json';
 import zhLoyalty from './zh/loyalty.json';
+import zhLegal from './zh/legal.json';
 import zhNav from './zh/nav.json';
 import zhNotifications from './zh/notifications.json';
 import zhOnlineInventory from './zh/onlineInventory.json';
@@ -122,6 +125,7 @@ const enResources = {
   housekeeping: enHousekeeping as TranslationBundle,
   insights: enInsights as TranslationBundle,
   loyalty: enLoyalty as TranslationBundle,
+  legal: enLegal as TranslationBundle,
   nav: enNav as TranslationBundle,
   notifications: enNotifications as TranslationBundle,
   onlineInventory: enOnlineInventory as TranslationBundle,
@@ -153,6 +157,7 @@ const msResources = {
   housekeeping: msHousekeeping as TranslationBundle,
   insights: msInsights as TranslationBundle,
   loyalty: msLoyalty as TranslationBundle,
+  legal: msLegal as TranslationBundle,
   nav: msNav as TranslationBundle,
   notifications: msNotifications as TranslationBundle,
   onlineInventory: msOnlineInventory as TranslationBundle,
@@ -184,6 +189,7 @@ const zhResources = {
   housekeeping: zhHousekeeping as TranslationBundle,
   insights: zhInsights as TranslationBundle,
   loyalty: zhLoyalty as TranslationBundle,
+  legal: zhLegal as TranslationBundle,
   nav: zhNav as TranslationBundle,
   notifications: zhNotifications as TranslationBundle,
   onlineInventory: zhOnlineInventory as TranslationBundle,
