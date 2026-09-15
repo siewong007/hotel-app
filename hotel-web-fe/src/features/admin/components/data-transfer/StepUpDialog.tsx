@@ -62,7 +62,7 @@ const StepUpDialog: React.FC<StepUpDialogProps> = ({ open, reason, onClose, onVe
       });
       onVerified(response.stepUpToken);
     } catch (err) {
-      setError(errorMessage(err, t('stepUp.title')));
+      setError(errorMessage(err, t('errors:request.verifyCredentials')));
     }
   };
 

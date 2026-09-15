@@ -1,6 +1,7 @@
 import { Box, Chip, Paper, Stack, Typography, alpha, useTheme } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { CellKey, GridCellView } from '../types';
 import type { InventoryRoomTypeRow } from '../hooks/useOnlineInventory';
 import { cellKey } from '../utils';
@@ -48,6 +49,7 @@ const PhoneDayCell = ({
   formatPrice,
 }: PhoneDayCellProps) => {
   const theme = useTheme();
+  const { t } = useTranslation('onlineInventory');
   const closed = view !== undefined && !view.current.online_booking_enabled;
   const soldOut = view !== undefined && !closed && view.online_available === 0;
 
@@ -58,7 +60,7 @@ const PhoneDayCell = ({
       disabled={view === undefined}
       aria-label={
         view === undefined
-          ? `${FULL_DATE.format(asDate(date))}: no inventory data`
+          ? t('phone.noDataAria', { date: FULL_DATE.format(asDate(date)) })
           : cellAriaLabel(view, formatPrice)
       }
       aria-pressed={selectMode && view !== undefined ? isSelected : undefined}
@@ -114,7 +116,7 @@ const PhoneDayCell = ({
             lineHeight: 1.2,
           }}
         >
-          {isToday ? 'Today' : WEEKDAY_SHORT.format(asDate(date))}
+          {isToday ? t('grid.today') : WEEKDAY_SHORT.format(asDate(date))}
         </Typography>
         <Typography component="div" sx={{ fontWeight: 800, lineHeight: 1.1 }}>
           {DAY_NUM.format(asDate(date))}
@@ -139,7 +141,7 @@ const PhoneDayCell = ({
           <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
             <LockOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} aria-hidden />
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-              Closed
+              {t('cell.closed')}
             </Typography>
           </Box>
         ) : (
@@ -191,6 +193,7 @@ export const PhoneInventoryView = ({
   onOpenCell,
   formatPrice,
 }: PhoneInventoryViewProps) => {
+  const { t } = useTranslation('onlineInventory');
   const handleTap = (key: CellKey) => {
     if (selectMode) onToggleSelect(key);
     else onOpenCell(key);
@@ -225,13 +228,13 @@ export const PhoneInventoryView = ({
                   variant="caption"
                   sx={{ color: 'text.secondary', fontWeight: 600, flexShrink: 0 }}
                 >
-                  {todayView.online_available} free today
+                  {t('phone.freeToday', { count: todayView.online_available })}
                 </Typography>
               )}
             </Stack>
             <Box
               role="group"
-              aria-label={`${room.room_type_name} availability by day`}
+              aria-label={t('phone.dayStripAria', { name: room.room_type_name })}
               sx={{
                 display: 'flex',
                 overflowX: 'auto',

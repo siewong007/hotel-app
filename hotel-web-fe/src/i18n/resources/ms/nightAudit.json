@@ -147,5 +147,15 @@
     "checkouts": "Daftar keluar",
     "occupancy": "Penghunian",
     "notes": "Nota"
+  },
+  "csv": {
+    "summaryStatistics": "Statistik Ringkasan",
+    "postedBookings": "Tempahan Diposkan",
+    "occupancyRate": "Kadar Penghunian",
+    "totalBookings": "Jumlah Tempahan",
+    "colRoomType": "Jenis Bilik",
+    "colNights": "Malam",
+    "colPaymentMethod": "Kaedah Bayaran",
+    "colPaymentStatus": "Status Bayaran"
   }
 }

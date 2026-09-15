@@ -67,7 +67,7 @@ const TIERS: TierDef[] = [
 
 const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
   const theme = useTheme();
-  const { t } = useTranslation('dataTransfer');
+  const { t, tOr } = useTranslation('dataTransfer');
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
 
@@ -94,7 +94,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
       const report = await previewMutation.mutateAsync(scope);
       setPreviews((prev) => ({ ...prev, [scope]: report }));
     } catch (err) {
-      setError(errorMessage(err, 'Failed to preview export data.'));
+      setError(errorMessage(err, t('export.errors.preview')));
     } finally {
       setPreviewingScope(null);
     }
@@ -107,9 +107,11 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
       const download = await exportMutation.mutateAsync({ scope, stepUpToken });
       // The server audited the export — pull the fresh history row.
       void queryClient.invalidateQueries({ queryKey: queryKeys.dataTransfer.history() });
-      notify(`Backup downloaded — ${download.filename} (${formatBytes(download.bytes)}).`);
+      notify(
+        t('export.downloaded', { filename: download.filename, size: formatBytes(download.bytes) }),
+      );
     } catch (err) {
-      setError(errorMessage(err, 'Failed to export data.'));
+      setError(errorMessage(err, t('export.errors.export')));
     } finally {
       setDownloadingScope(null);
     }
@@ -171,7 +173,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
             {[...exclusionsByReason.entries()].map(([reason, names]) => (
               <Box key={reason} sx={{ mb: 1.25 }}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  {exclusionReasonLabel(reason)}
+                  {exclusionReasonLabel(reason, tOr)}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>
                   {names.join(', ')}
@@ -185,9 +187,9 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
           <Table size="small" stickyHeader aria-label={t('export.previewScope', { scope })}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Entity</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>{t('columns.entity')}</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">
-                  Rows
+                  {t('columns.rows')}
                 </TableCell>
               </TableRow>
             </TableHead>
@@ -240,7 +242,10 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
           </Typography>
           {preview && (
             <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 700 }}>
-              {formatNum(preview.total_records)} records · {formatNum(preview.entities.length)} entities
+              {t('export.previewStats', {
+                records: formatNum(preview.total_records),
+                entities: formatNum(preview.entities.length),
+              })}
             </Typography>
           )}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5, flexWrap: 'wrap' }}>
@@ -365,7 +370,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
               sx={{ p: 0 }}
               onChange={() => setAckSensitive((a) => !a)}
               onClick={(e) => e.stopPropagation()}
-              slotProps={{ input: { 'aria-label': 'Acknowledge sensitive export warning' } }}
+              slotProps={{ input: { 'aria-label': t('export.sensitiveAckAria') } }}
             />
             <Typography variant="body2">{t('export.sensitiveConfirmAck')}</Typography>
           </Box>

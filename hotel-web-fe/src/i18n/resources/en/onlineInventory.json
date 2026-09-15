@@ -75,7 +75,14 @@
     "applyAmount": "Apply amount",
     "clearOverrides": "Clear overrides",
     "skipped_one": "{{count}} cell skipped — the adjustment would make the price zero or negative.",
-    "skipped_other": "{{count}} cells skipped — the adjustment would make the price zero or negative."
+    "skipped_other": "{{count}} cells skipped — the adjustment would make the price zero or negative.",
+    "editSelected": "Edit selected",
+    "editSelectedTitle": "Edit selected cells"
+  },
+  "phone": {
+    "noDataAria": "{{date}}: no inventory data",
+    "dayStripAria": "{{name}} availability by day",
+    "freeToday": "{{count}} free today"
   },
   "editor": {
     "bookable": "Bookable online",

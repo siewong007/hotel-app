@@ -2,6 +2,7 @@ import { Button, Stack } from '@mui/material';
 
 import { BottomSheet } from '../../../components/common/BottomSheet';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { CellKey, GridCellView, StagedEdit } from '../types';
 import { FULL_DATE } from '../constants';
 import { useCellEditorDraft } from '../hooks/useCellEditorDraft';
@@ -20,6 +21,7 @@ interface CellEditorSheetProps {
  * `onApply`; nothing is saved here.
  */
 export const CellEditorSheet = ({ view, onClose, onApply }: CellEditorSheetProps) => {
+  const { t } = useTranslation('onlineInventory');
   const { format } = useCurrency();
   const formatPrice = (value: string) => format(Number(value));
 
@@ -62,16 +64,16 @@ export const CellEditorSheet = ({ view, onClose, onApply }: CellEditorSheetProps
               <Button
                 variant="outlined"
                 color="inherit"
-                aria-label="Reset to standard rules"
+                aria-label={t('editor.resetStandard')}
                 sx={{ minHeight: 44 }}
                 onClick={reset}
                 fullWidth
               >
-                Reset
+                {t('common:actions.reset')}
               </Button>
             )}
             <Button variant="outlined" sx={{ minHeight: 44 }} onClick={onClose} fullWidth>
-              Cancel
+              {t('common:actions.cancel')}
             </Button>
             <Button
               variant="contained"
@@ -80,7 +82,7 @@ export const CellEditorSheet = ({ view, onClose, onApply }: CellEditorSheetProps
               disabled={priceInvalid}
               fullWidth
             >
-              Apply
+              {t('common:actions.apply')}
             </Button>
           </Stack>
         </>

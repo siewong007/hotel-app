@@ -75,7 +75,14 @@
     "applyAmount": "Laksanakan jumlah",
     "clearOverrides": "Kosongkan override",
     "skipped_one": "{{count}} sel dilangkau — pelarasan akan menjadikan harga sifar atau negatif.",
-    "skipped_other": "{{count}} sel dilangkau — pelarasan akan menjadikan harga sifar atau negatif."
+    "skipped_other": "{{count}} sel dilangkau — pelarasan akan menjadikan harga sifar atau negatif.",
+    "editSelected": "Edit terpilih",
+    "editSelectedTitle": "Edit sel terpilih"
+  },
+  "phone": {
+    "noDataAria": "{{date}}: tiada data inventori",
+    "dayStripAria": "Ketersediaan {{name}} mengikut hari",
+    "freeToday": "{{count}} bebas hari ini"
   },
   "editor": {
     "bookable": "Boleh ditempah dalam talian",

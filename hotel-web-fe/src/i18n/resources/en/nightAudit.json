@@ -147,5 +147,15 @@
     "checkouts": "Check-outs",
     "occupancy": "Occupancy",
     "notes": "Notes"
+  },
+  "csv": {
+    "summaryStatistics": "Summary Statistics",
+    "postedBookings": "Posted Bookings",
+    "occupancyRate": "Occupancy Rate",
+    "totalBookings": "Total Bookings",
+    "colRoomType": "Room Type",
+    "colNights": "Nights",
+    "colPaymentMethod": "Payment Method",
+    "colPaymentStatus": "Payment Status"
   }
 }

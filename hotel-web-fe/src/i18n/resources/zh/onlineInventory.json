@@ -72,7 +72,14 @@
     "adjustAmountAria": "按金额调整",
     "applyAmount": "应用金额",
     "clearOverrides": "清除覆盖",
-    "skipped_other": "已跳过 {{count}} 个单元格——调整会使价格变为零或负数。"
+    "skipped_other": "已跳过 {{count}} 个单元格——调整会使价格变为零或负数。",
+    "editSelected": "编辑所选",
+    "editSelectedTitle": "编辑所选单元格"
+  },
+  "phone": {
+    "noDataAria": "{{date}}：无库存数据",
+    "dayStripAria": "{{name}} 每日可用量",
+    "freeToday": "今日剩余 {{count}} 间"
   },
   "editor": {
     "bookable": "可线上预订",

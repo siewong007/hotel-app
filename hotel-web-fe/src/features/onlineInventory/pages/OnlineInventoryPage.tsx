@@ -349,10 +349,10 @@ const OnlineInventoryPage = () => {
 
       {isPhone && selectMode && (
         <StickyActionBar
-          summary={<span aria-live="polite">{`${sel.selected.size} selected`}</span>}
+          summary={<span aria-live="polite">{t('bulk.cellsSelected', { count: sel.selected.size })}</span>}
           secondary={
             <Button onClick={toggleSelectMode} sx={{ minHeight: 44 }}>
-              Done
+              {t('common:actions.done')}
             </Button>
           }
           primary={
@@ -362,7 +362,7 @@ const OnlineInventoryPage = () => {
               onClick={() => setBulkOpen(true)}
               sx={{ minHeight: 44 }}
             >
-              Edit selected
+              {t('bulk.editSelected')}
             </Button>
           }
         />
@@ -371,7 +371,7 @@ const OnlineInventoryPage = () => {
       <BottomSheet
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
-        title="Edit selected cells"
+        title={t('bulk.editSelectedTitle')}
       >
         {selectedViews.length > 0 && (
           <Stack spacing={1.5}>

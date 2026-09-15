@@ -153,27 +153,39 @@ const NightAuditPage: React.FC = () => {
       const lines: string[] = [];
 
       // Header section
-      lines.push('NIGHT AUDIT REPORT');
-      lines.push(`Audit Date,${new Date(audit.audit_date + 'T00:00:00').toLocaleDateString()}`);
-      lines.push(`Run At,${new Date(audit.run_at).toLocaleString()}`);
-      lines.push(`Run By,${audit.run_by_username || 'System'}`);
-      lines.push(`Status,${audit.status}`);
+      lines.push(t('report.title'));
+      lines.push(`${t('fields.auditDate')},${new Date(audit.audit_date + 'T00:00:00').toLocaleDateString()}`);
+      lines.push(`${t('history.colRunAt')},${new Date(audit.run_at).toLocaleString()}`);
+      lines.push(`${t('history.colRunBy')},${audit.run_by_username || t('history.system')}`);
+      lines.push(`${t('history.colStatus')},${audit.status}`);
       lines.push('');
 
       // Summary statistics
-      lines.push('SUMMARY STATISTICS');
-      lines.push(`Bookings Posted,${audit.total_bookings_posted}`);
-      lines.push(`Check-ins,${audit.total_checkins}`);
-      lines.push(`Check-outs,${audit.total_checkouts}`);
-      lines.push(`Occupancy Rate,${Number(audit.occupancy_rate).toFixed(1)}%`);
+      lines.push(t('csv.summaryStatistics'));
+      lines.push(`${t('report.bookingsPosted')},${audit.total_bookings_posted}`);
+      lines.push(`${t('report.checkins')},${audit.total_checkins}`);
+      lines.push(`${t('report.checkouts')},${audit.total_checkouts}`);
+      lines.push(`${t('csv.occupancyRate')},${Number(audit.occupancy_rate).toFixed(1)}%`);
       if (audit.notes) {
-        lines.push(`Notes,"${audit.notes.replace(/"/g, '""')}"`);
+        lines.push(`${t('report.notes')},"${audit.notes.replace(/"/g, '""')}"`);
       }
       lines.push('');
 
       // Booking details
-      lines.push('POSTED BOOKINGS');
-      lines.push('Booking #,Guest Name,Room,Room Type,Check-in,Check-out,Nights,Status,Payment Method,Payment Status,Channel');
+      lines.push(t('csv.postedBookings'));
+      lines.push([
+        t('journal.colBooking'),
+        t('roomSold.colGuest'),
+        t('preview.colRoom'),
+        t('csv.colRoomType'),
+        t('preview.colCheckIn'),
+        t('preview.colCheckOut'),
+        t('csv.colNights'),
+        t('preview.colStatus'),
+        t('csv.colPaymentMethod'),
+        t('csv.colPaymentStatus'),
+        t('preview.colChannel'),
+      ].join(','));
 
       bookings.forEach(booking => {
         lines.push([
@@ -192,17 +204,23 @@ const NightAuditPage: React.FC = () => {
       });
 
       lines.push('');
-      lines.push(`Total Bookings,${bookings.length}`);
+      lines.push(`${t('csv.totalBookings')},${bookings.length}`);
 
       // Journal Sections
       if (details.journal_sections && details.journal_sections.length > 0) {
         lines.push('');
-        lines.push('JOURNAL ENTRIES');
+        lines.push(t('journal.title'));
 
         details.journal_sections.forEach(section => {
           lines.push('');
           lines.push(`${section.display_name.toUpperCase()}`);
-          lines.push('Booking #,Room,Description,Debit,Credit');
+          lines.push([
+            t('journal.colBooking'),
+            t('journal.colRoom'),
+            t('journal.colDescription'),
+            t('journal.colDebit'),
+            t('journal.colCredit'),
+          ].join(','));
 
           section.entries.forEach(entry => {
             lines.push([
@@ -214,19 +232,19 @@ const NightAuditPage: React.FC = () => {
             ].join(','));
           });
 
-          lines.push(`Total,,, ${Number(section.total_debit) > 0 ? Number(section.total_debit).toFixed(2) : ''}, ${Number(section.total_credit) > 0 ? Number(section.total_credit).toFixed(2) : ''}`);
+          lines.push(`${t('journal.total')},,, ${Number(section.total_debit) > 0 ? Number(section.total_debit).toFixed(2) : ''}, ${Number(section.total_credit) > 0 ? Number(section.total_credit).toFixed(2) : ''}`);
         });
 
         // Grand totals
         const grandDebit = details.journal_sections.reduce((sum, s) => sum + Number(s.total_debit), 0);
         const grandCredit = details.journal_sections.reduce((sum, s) => sum + Number(s.total_credit), 0);
         lines.push('');
-        lines.push(`GRAND TOTAL,,, ${grandDebit.toFixed(2)}, ${grandCredit.toFixed(2)}`);
+        lines.push(`${t('journal.grandTotal')},,, ${grandDebit.toFixed(2)}, ${grandCredit.toFixed(2)}`);
 
         // Guest Ledger summary (mirrors PDF page 2)
         lines.push('');
-        lines.push('GUEST LEDGER');
-        lines.push('Account,Debits,Credits');
+        lines.push(t('ledger.title'));
+        lines.push([t('ledger.colAccount'), t('ledger.colDebits'), t('ledger.colCredits')].join(','));
         details.journal_sections.forEach(section => {
           lines.push([
             section.display_name,
@@ -234,14 +252,14 @@ const NightAuditPage: React.FC = () => {
             Number(section.total_credit) > 0 ? Number(section.total_credit).toFixed(2) : ''
           ].join(','));
         });
-        lines.push(`Total,${grandDebit.toFixed(2)},${grandCredit.toFixed(2)}`);
+        lines.push(`${t('journal.total')},${grandDebit.toFixed(2)},${grandCredit.toFixed(2)}`);
       }
 
       // Room Sold Detail by Date (mirrors PDF page 2)
       if (bookings.length > 0) {
         lines.push('');
-        lines.push('ROOM SOLD DETAIL BY DATE');
-        lines.push('Room,Type,Guest Name');
+        lines.push(t('roomSold.title'));
+        lines.push([t('roomSold.colRoom'), t('roomSold.colType'), t('roomSold.colGuest')].join(','));
         bookings.forEach(b => {
           const abbr = channelAbbreviation(b);
           const guestName = abbr ? `${b.guest_name} (${abbr})` : b.guest_name;
@@ -251,7 +269,7 @@ const NightAuditPage: React.FC = () => {
             `"${guestName.replace(/"/g, '""')}"`
           ].join(','));
         });
-        lines.push(`Total Room Sold,${bookings.length},`);
+        lines.push(`${t('roomSold.totalRow')},${bookings.length},`);
       }
 
       const csvContent = lines.join('\n');
@@ -266,7 +284,10 @@ const NightAuditPage: React.FC = () => {
     }
   };
 
-  // Export single audit to PDF matching the night audit report format
+  // Export single audit to PDF matching the night audit report format.
+  // NOTE: document strings stay English on purpose — jsPDF's built-in
+  // helvetica covers Latin-1 only, so zh/ms copy would render as mojibake
+  // until a CJK-capable font is embedded via addFont.
   const exportAuditToPDF = async (audit: NightAuditRun) => {
     try {
       const details = await fetchAuditDetails(audit.id);
