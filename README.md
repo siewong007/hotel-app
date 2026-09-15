@@ -15,10 +15,11 @@
 
 <p align="center">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-1.95.0-orange?logo=rust">
-  <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-19.3-61DAFB?logo=react&logoColor=111">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6.0.3%20(pinned)-3178C6?logo=typescript&logoColor=white">
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-8.3-646CFF?logo=vite&logoColor=white">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=111">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-19-4169E1?logo=postgresql&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-19beta3-4169E1?logo=postgresql&logoColor=white">
 </p>
 
 ## 📌 Overview
@@ -62,15 +63,31 @@ This project addresses that problem by implementing a centralized administrative
 
 ## Tech Stack
 
+Versions below are the ones actually resolved in `Cargo.lock` / `bun.lock`,
+verified against crates.io and npm on 2026-09-15. **Every Rust crate and every
+frontend package is on its latest stable release**, with one deliberate pin
+(TypeScript — see below).
+
 | Layer | Technologies |
 | --- | --- |
-| Backend API | Rust 1.95.0, Axum 0.8, Tokio, SQLx 0.9, Serde, Validator |
-| Frontend | React 19, TypeScript 6, Vite 8, MUI v9, TanStack Router, TanStack Query, TanStack Table, ky |
+| Backend API | Rust 1.95.0 (edition 2024), Axum 0.8.9, Tokio 1.53.1, SQLx 0.9.0, Serde 1.0.229, Validator 0.21, reqwest 0.13.5, lettre 0.11.23, rust_decimal 1.43 |
+| Frontend | React 19.3.0, TypeScript 6.0.3 (**pinned** — see note), Vite 8.3.0, MUI 9.4.0, TanStack Router 1.170.36 / Query 5.102.8 / Table 9.2.4, ky 2.1.0, date-fns 4.4.0 |
+| Tooling | Bun 1.3.14 (exact CI pin), ESLint 10.10, Vitest 5.0 + jsdom 30, `@vitejs/plugin-react` 6.1.1, React Compiler via `babel-plugin-react-compiler` |
 | Desktop | Tauri 2, Rust commands, backend sidecar, bundled PostgreSQL resources |
 | Database | PostgreSQL 19 — `19beta3` on the server/CI stack, `19beta2` still bundled in the desktop app; V1 baseline + seed + checksum-verified patch catalog, parameterized SQLx queries |
 | Security | JWT, refresh tokens, RBAC, TOTP 2FA, passkey endpoints, rate limiting, CORS, and security headers |
 | Reporting | Nivo charts, jsPDF, jsPDF AutoTable, backend analytics endpoints |
 | CI/CD | GitHub Actions — six CI jobs: secret scan + `cargo audit`, Markdown link check, frontend typecheck/lint/test/build, backend check/test/clippy/release, PostgreSQL schema and workflow smoke, and a desktop compile check. Separate workflows for security (CodeQL, dependency review), a real desktop Tauri build, the legacy Docker publisher, and staging/production deploy |
+
+> **Why TypeScript is held at 6.** TypeScript 7.0.2 is published, but no
+> released `@typescript-eslint` supports it: the current parser (8.70.0) and even
+> its canary (8.70.1-alpha.15) both declare `peerDependencies.typescript` as
+> `>=4.8.4 <6.1.0`, and `typescript-estree` hard-codes the same range. On TS 7 the
+> parser throws at module load, so `bun run lint:strict` — a CI gate — fails even
+> though `tsc --noEmit` passes. TypeScript 6 with full strictness is therefore the
+> newest version this project can actually run, not a version it has fallen behind
+> on. Tracked upstream at typescript-eslint#10940, targeting TS ≥ 7.1. Re-checked
+> against npm on 2026-09-15; see [Dependencies](docs/DEPENDENCIES.md).
 
 ## 🧱 Architecture
 

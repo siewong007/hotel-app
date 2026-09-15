@@ -16,7 +16,7 @@
     "@nivo/pie": "0.99.0",
     "@paypal/react-paypal-js": "^10.1.2",
     "@tanstack/react-query": "^5.101.4",
-    "@tanstack/react-router": "^1.170.18",
+    "@tanstack/react-router": "^1.170.36",
     "@tanstack/react-table": "^9.2.4",
     "@tauri-apps/api": "^2.11.1",
     "date-fns": "^4.4.0",
@@ -27,7 +27,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-error-boundary": "^6.1.2",
-    "web-vitals": "^6.2.1"
+    "web-vitals": "^6.2.2"
   },
   "scripts": {
     "start": "vite --strictPort",

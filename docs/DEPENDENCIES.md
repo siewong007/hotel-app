@@ -26,14 +26,33 @@ lockfile dump. Last reviewed during the 2026-09-13 modernization pass.
 
 ### Why TypeScript 6, not 7
 
-TypeScript 7 exists, but `@typescript-eslint/parser` (8.70.0 installed) declares
-`peerDependencies.typescript: ">=4.8.4 <6.1.0"`, and `@typescript-eslint/typescript-estree`
-hard-codes the same range as `SUPPORTED_TYPESCRIPT_VERSIONS`. On TS 7 the parser
-throws at module load, so `lint`/`lint:strict` — a CI gate — die even though
-`tsc --noEmit` passes. TS 6 + full strictness is the correct stable point until
-the parser declares TS 7 support (upstream: typescript-eslint#10940, aimed at
-TS ≥ 7.1). **Re-verified 2026-09-15** against the installed packages: the boundary
-has not moved. Do not retry the bump until that issue closes.
+TypeScript **7.0.2** is published, but no released `@typescript-eslint` supports
+it. Verified against **npm**, not just `node_modules`, on 2026-09-15:
+
+| Package | Version | `peerDependencies.typescript` |
+|---|---|---|
+| `@typescript-eslint/parser` (installed) | 8.70.0 | `>=4.8.4 <6.1.0` |
+| `@typescript-eslint/parser` (npm `latest`) | 8.70.0 | `>=4.8.4 <6.1.0` |
+| `@typescript-eslint/parser` (npm `canary`) | 8.70.1-alpha.15 | `>=4.8.4 <6.1.0` |
+
+`@typescript-eslint/typescript-estree` hard-codes the same range as
+`SUPPORTED_TYPESCRIPT_VERSIONS`, so on TS 7 the parser throws at module load and
+`lint`/`lint:strict` — a CI gate — die even though `tsc --noEmit` passes. There is
+no stable *or* pre-release escape today. TS 6 with full strictness is the newest
+version this project can actually run. Upstream: typescript-eslint#10940, aimed at
+TS ≥ 7.1. Do not retry the bump until that issue closes — re-check with
+`npm view @typescript-eslint/parser@latest peerDependencies`.
+
+### Everything else is current
+
+Checked against crates.io and npm on 2026-09-15: **all 13 audited backend crates
+and all 18 audited frontend packages resolve to their latest stable release.**
+The only gaps found were two patch-level drifts — `@tanstack/react-router`
+1.170.35 → 1.170.36 and `web-vitals` 6.2.1 → 6.2.2 — both direct dependencies,
+both bumped in the same pass and re-gated. Re-run the comparison with
+`npm view <pkg> version` and
+`curl -H 'User-Agent: …' https://crates.io/api/v1/crates/<crate>` (crates.io
+rejects requests without a User-Agent and returns nothing useful).
 
 ## Backend (`hotel-app-be`)
 
