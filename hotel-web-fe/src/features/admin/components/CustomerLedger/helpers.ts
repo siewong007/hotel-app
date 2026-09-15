@@ -93,12 +93,12 @@ export const TONE: Record<ToneName, { bg: string; fg: string; dot: string }> = {
   muted:   { bg: 'var(--hotel-neutral-bg)', fg: 'var(--hotel-text-muted)', dot: 'var(--hotel-text-muted)' },
 };
 
-export const STATUS_TONE: Record<LedgerUiStatus, { label: string; tone: ToneName }> = {
-  draft:            { label: 'Draft',          tone: 'neutral' },
-  ready_to_invoice: { label: 'Ready',          tone: 'blue' },
-  invoiced:         { label: 'Invoiced',       tone: 'indigo' },
-  partial:          { label: 'Partially Paid', tone: 'amber' },
-  paid:             { label: 'Paid',           tone: 'green' },
-  overdue:          { label: 'Overdue',        tone: 'red' },
-  voided:           { label: 'Voided',         tone: 'muted' },
+export const STATUS_TONE: Record<LedgerUiStatus, { labelKey: string; tone: ToneName }> = {
+  draft:            { labelKey: 'status:ledger.draft',            tone: 'neutral' },
+  ready_to_invoice: { labelKey: 'status:ledger.ready_to_invoice', tone: 'blue' },
+  invoiced:         { labelKey: 'status:ledger.invoiced',         tone: 'indigo' },
+  partial:          { labelKey: 'status:ledger.partially_paid',   tone: 'amber' },
+  paid:             { labelKey: 'status:ledger.paid',             tone: 'green' },
+  overdue:          { labelKey: 'status:ledger.overdue',          tone: 'red' },
+  voided:           { labelKey: 'status:ledger.voided',           tone: 'muted' },
 };

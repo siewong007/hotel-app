@@ -85,7 +85,7 @@ export class GuestsService {
       });
 
       if (authError) {
-        throw await toGuestApiError(authError, 'Failed to fetch guests');
+        throw await toGuestApiError(authError, t('generic', undefined, 'errors'));
       }
 
       if (failedPages > 0) {
@@ -96,7 +96,7 @@ export class GuestsService {
 
       return guests;
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to fetch guests');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -139,7 +139,7 @@ export class GuestsService {
         page_size: resp.page_size ?? 50,
       };
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to fetch guests');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -157,7 +157,7 @@ export class GuestsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to fetch guest profile');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -173,7 +173,7 @@ export class GuestsService {
         { maxAttempts: 2, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to create guest');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -181,7 +181,7 @@ export class GuestsService {
     try {
       return await api.patch(`guests/${guestId}`, { json: guestData }).json<Guest>();
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to update guest');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -189,7 +189,7 @@ export class GuestsService {
     try {
       return await api.post(`guests/${guestId}/tourism-from-last-check-in`).json<GuestTourismConversionResponse>();
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to update guest tourism type');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -197,7 +197,7 @@ export class GuestsService {
     try {
       await api.post(`guests/${guestId}/portal-account`, { json: { username } });
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to transfer guest portal account');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -205,7 +205,7 @@ export class GuestsService {
     try {
       return await api.delete(`guests/${guestId}`).json<{ success: boolean; message: string }>();
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to delete guest');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -213,7 +213,7 @@ export class GuestsService {
     try {
       return await api.get(`guests/${guestId}/bookings`).json<any[]>();
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to fetch guest bookings');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -224,7 +224,7 @@ export class GuestsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to fetch your linked guests');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -246,7 +246,7 @@ export class GuestsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to fetch guests with credits');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -268,7 +268,7 @@ export class GuestsService {
     try {
       return await api.get(`guests/${guestId}/credits`).json();
     } catch (error) {
-      throw await toGuestApiError(error, 'Failed to fetch guest credits');
+      throw await toGuestApiError(error, t('generic', undefined, 'errors'));
     }
   }
 }

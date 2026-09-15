@@ -206,5 +206,20 @@
     "newGuest": "New guest",
     "collectPayment": "Collect payment",
     "backToList": "Back to list"
+  },
+  "roles": {
+    "super_admin": "Super Administrator",
+    "admin": "Administrator",
+    "manager": "Manager",
+    "receptionist": "Receptionist",
+    "housekeeping": "Housekeeping",
+    "staff": "Staff",
+    "guest": "Guest",
+    "compliance_admin": "Compliance Administrator",
+    "ekyc_reviewer": "eKYC Reviewer",
+    "senior_reviewer": "Senior Reviewer",
+    "auditor": "Auditor",
+    "support_readonly": "Support (Read-Only)",
+    "front_desk": "Front Desk"
   }
 }

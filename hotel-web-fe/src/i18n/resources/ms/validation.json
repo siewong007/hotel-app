@@ -17,5 +17,16 @@
   "passwordTooShort": "Kata laluan mestilah sekurang-kurangnya {{min}} aksara.",
   "passwordMismatch": "Kata laluan tidak sepadan.",
   "minDigits": "{{field}} mestilah sekurang-kurangnya {{min}} digit.",
-  "maxDigits": "{{field}} tidak boleh melebihi {{max}} digit."
+  "maxDigits": "{{field}} tidak boleh melebihi {{max}} digit.",
+  "booking": {
+    "checkInInvalid": "Tarikh daftar masuk tidak sah",
+    "checkOutInvalid": "Tarikh daftar keluar tidak sah",
+    "checkOutOnOrAfterCheckIn": "Tarikh daftar keluar mestilah pada atau selepas tarikh daftar masuk",
+    "maxStay": "Tempoh penginapan maksimum ialah {{days}} hari",
+    "checkOutBeforeCheckIn": "Tarikh daftar keluar tidak boleh sebelum tarikh daftar masuk",
+    "guestIdRequired": "ID tetamu diperlukan dan mestilah nombor",
+    "roomIdRequired": "ID bilik diperlukan",
+    "guestCountRange": "Bilangan tetamu mestilah antara {{min}} hingga {{max}}",
+    "specialRequestsTooLong": "Permintaan khas tidak boleh melebihi {{max}} aksara"
+  }
 }

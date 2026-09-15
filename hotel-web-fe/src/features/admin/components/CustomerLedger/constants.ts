@@ -1,18 +1,18 @@
 // Constants for the Customer Ledger feature
 
 export const EXPENSE_TYPES = [
-  { value: 'accommodation', label: 'Accommodation' },
-  { value: 'food_beverage', label: 'Food & Beverage' },
-  { value: 'conference', label: 'Conference' },
-  { value: 'service', label: 'Service' },
-  { value: 'other', label: 'Other' },
+  { value: 'accommodation', labelKey: 'finance:ledger.expenseType.accommodation' },
+  { value: 'food_beverage', labelKey: 'finance:ledger.expenseType.food_beverage' },
+  { value: 'conference', labelKey: 'finance:ledger.expenseType.conference' },
+  { value: 'service', labelKey: 'finance:ledger.expenseType.service' },
+  { value: 'other', labelKey: 'finance:ledger.expenseType.other' },
 ];
 
 export const PAYMENT_METHODS = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'card', label: 'Credit/Debit Card' },
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'duitnow', label: 'DuitNow' },
-  { value: 'online_banking', label: 'Online Banking' },
-  { value: 'cheque', label: 'Cheque' },
+  { value: 'cash', labelKey: 'finance:ledger.paymentMethod.cash' },
+  { value: 'card', labelKey: 'finance:ledger.paymentMethod.card' },
+  { value: 'bank_transfer', labelKey: 'finance:ledger.paymentMethod.bank_transfer' },
+  { value: 'duitnow', labelKey: 'finance:ledger.paymentMethod.duitnow' },
+  { value: 'online_banking', labelKey: 'finance:ledger.paymentMethod.online_banking' },
+  { value: 'cheque', labelKey: 'finance:ledger.paymentMethod.cheque' },
 ];

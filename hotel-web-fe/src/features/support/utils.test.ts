@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { SupportConversation } from './types';
 import { getSupportConversationAccess } from './utils';
+import { t as translate } from '../../i18n';
+
+const t = (key: string) => translate(key, undefined, 'support');
 
 function buildConversation(overrides: Partial<SupportConversation> = {}): SupportConversation {
   return {
@@ -43,7 +46,7 @@ describe('getSupportConversationAccess', () => {
       canAssign: true,
       canEscalate: false,
       canManage: false,
-    });
+    }, t);
 
     expect(access).toMatchObject({
       isActive: true,
@@ -64,7 +67,7 @@ describe('getSupportConversationAccess', () => {
       canAssign: true,
       canEscalate: true,
       canManage: true,
-    });
+    }, t);
 
     expect(access).toMatchObject({
       isActive: false,
@@ -91,7 +94,7 @@ describe('getSupportConversationAccess', () => {
       canAssign: false,
       canEscalate: false,
       canManage: false,
-    });
+    }, t);
 
     expect(access.canReply).toBe(false);
     expect(access.canClaim).toBe(false);

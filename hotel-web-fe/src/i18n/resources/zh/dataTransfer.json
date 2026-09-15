@@ -1,7 +1,14 @@
 {
   "page": {
     "noPermission": "您没有访问数据传输功能的权限。",
-    "permissionChip": "data_transfer:view"
+    "permissionChip": "data_transfer:view",
+    "title": "数据迁移",
+    "subtitle": "下载本系统数据的备份，或在此服务器上还原。导入在写入任何数据前会经过暂存、预览和确认。",
+    "tabs": {
+      "export": "导出",
+      "import": "导入",
+      "history": "历史"
+    }
   },
   "export": {
     "standard": {
@@ -30,7 +37,23 @@
     "preview": "预览数量",
     "download": "下载",
     "previewScope": "{{scope}} 导出内容",
-    "neverIncluded": "永不包含——{{count}} 张受保护的表"
+    "neverIncluded": "永不包含——{{count}} 张受保护的表",
+    "errors": {
+      "preview": "预览导出数据失败。",
+      "export": "导出数据失败。"
+    },
+    "downloaded": "备份已下载 — {{filename}}（{{bytes}}）。",
+    "colEntity": "实体",
+    "colRows": "行数",
+    "previewSummary": "{{records}} 条记录 · {{entities}} 个实体",
+    "sensitiveAckAria": "确认敏感导出警告",
+    "exclusions": {
+      "credentials_and_auth_state": "凭据与认证状态",
+      "session_or_token_material": "会话与令牌",
+      "sensitive_ekyc_pii": "eKYC 身份数据",
+      "ephemeral_queue_state": "进行中的队列状态",
+      "internal_system_table": "内部系统表"
+    }
   },
   "stepUp": {
     "title": "确认您的身份",
@@ -48,7 +71,101 @@
     "missingPermissions": "您的账户无法执行此导入——需要以下权限：{{permissions}}",
     "restoreRequiresPermission": "还原需要 data_transfer:restore 权限及重新身份验证。",
     "updateRequiresPermission": "需要 data_transfer:override 权限",
-    "restoreStepUp": "还原操作需要重新验证身份——请验证您的身份以继续。"
+    "restoreStepUp": "还原操作需要重新验证身份——请验证您的身份以继续。",
+    "conflicts": {
+      "skip": "跳过 — 保留现有行",
+      "update": "更新 — 覆盖现有行",
+      "fail": "失败 — 遇到首个重复即中止导入"
+    },
+    "jobFinished_other": "导入完成 — 已应用 {{count}} 行。",
+    "jobFinished_one": "导入完成 — 已应用 {{count}} 行。",
+    "jobFinishedSkipped_other": "导入完成 — 已跳过 {{count}} 行。",
+    "jobFinishedSkipped_one": "导入完成 — 已跳过 {{count}} 行。",
+    "errors": {
+      "preview": "预览备份内容失败。",
+      "upload": "上传备份文件失败。",
+      "start": "启动导入失败。",
+      "tooLarge": "“{{name}}”大小为 {{size}} — 备份文件上限为 {{limit}}。"
+    },
+    "colEntity": "实体",
+    "selectTitle": "选择要导入的备份文件",
+    "selectDrop1": "拖放或选择此应用生成的",
+    "selectDrop2": "备份文件（最大 {{size}}）。写入前会预览并确认其内容。",
+    "selectFile": "选择 JSON 文件",
+    "chooseFileAria": "选择备份文件",
+    "processingAria": "正在上传并分析备份",
+    "analyzing": "正在分析备份内容…",
+    "uploading": "正在上传备份文件…",
+    "metaFormat": "格式 v{{version}}",
+    "metaExported": "导出于 {{date}}",
+    "metaFrom": "来自 {{env}}",
+    "metaApp": "应用 {{version}}",
+    "metaUnavailable": "备份元数据不可用",
+    "removeFile": "移除文件",
+    "cannotImport": "此文件无法导入",
+    "rowsWillBeSkipped_other": "将跳过 {{count}} 行",
+    "problemRows_other": "{{count}} 行 — {{reason}}",
+    "unrecognizedTitle": "未识别的实体将被忽略",
+    "unrecognizedBody": "{{entities}} — 存在于文件中但不属于可迁移集合；它们不会被应用。",
+    "previewSummary": "{{rows}} 行，共 {{entities}} 个实体",
+    "cols": {
+      "rows": "行数",
+      "new": "新增",
+      "existing": "现有",
+      "skipped": "已跳过",
+      "inserted": "已插入",
+      "updated": "已更新"
+    },
+    "entitiesAria": "备份文件中的实体",
+    "resultsAria": "按实体的导入结果",
+    "modeTitle": "导入模式",
+    "modeAria": "导入模式",
+    "modeMerge": "合并 — 追加到现有数据",
+    "modeRestore": "还原 — 替换现有数据",
+    "conflictTitle": "当行已存在时：",
+    "conflictAria": "冲突策略",
+    "restoreWarningTitle": "还原会先删除现有数据",
+    "restoreWarningBody": "备份中实体的每一行 — 以及依赖于它们的表 — 都会在插入文件行之前被删除，包括备份中不存在的行。",
+    "chooseDifferent": "选择其他文件",
+    "reviewImport": "检查并导入",
+    "runningTitle": "正在导入…",
+    "progressAria": "导入进度",
+    "applyingEntity": "正在应用 {{entity}} — {{total}} 行中的 {{applied}} 行",
+    "rowsApplied": "已应用 {{total}} 行中的 {{applied}} 行",
+    "progressRefreshFailed": "进度刷新失败 — 导入仍在服务器上继续，轮询会不断重试。",
+    "failedTitle": "导入失败 — 未应用任何内容",
+    "failedGeneric": "导入失败。",
+    "failedTxn": "导入在单个事务中运行，因此数据库未发生变化。",
+    "viewHistory": "查看历史",
+    "startOver": "重新开始",
+    "completeTitle": "导入完成",
+    "insertedCount_other": "已插入 {{count}} 条",
+    "updatedCount_other": "已更新 {{count}} 条",
+    "skippedCount_other": "已跳过 {{count}} 条",
+    "skippedRefsTitle": "因缺少引用而跳过的行",
+    "notApplied": "文件中这些实体未被应用：{{entities}}。",
+    "confirmRestore": "确认还原",
+    "confirmImport": "确认导入",
+    "confirmAbout": "您即将{{mode}}",
+    "confirmRows_other": "{{count}} 行",
+    "confirmAcross": "，涉及",
+    "confirmEntities_other": "{{count}} 个实体",
+    "confirmLogged": "此操作将记录到迁移历史中。",
+    "modes": {
+      "merge": "合并",
+      "restore": "还原"
+    },
+    "confirmDeleteTitle": "这会先删除现有数据",
+    "confirmDeleteBody1": "还原会清空备份中的实体",
+    "confirmDeleteEm": "以及所有依赖于它们的表",
+    "confirmDeleteBody2": "— 包括文件中不存在的行 — 然后才插入。请先导出最新备份，以便需要时回滚。",
+    "confirmMergeBody": "合并仅插入新行。现有行按冲突策略处理：",
+    "ackAria": "确认导入警告",
+    "ackRestore": "我理解还原会删除现有数据，并且我有可用于回滚的最新备份。",
+    "ackMerge": "我理解这会修改实时数据，且该操作将被记录。",
+    "restoreImport": "还原并导入",
+    "startImport": "开始导入",
+    "importAnother": "导入另一个文件"
   },
   "history": {
     "serverBacked": "此服务器上的每次导出、导入和重新验证均会记录在审计日志中。",
@@ -59,6 +176,31 @@
       "standard": "标准导出",
       "full": "完整导出",
       "backup": "完整系统备份"
-    }
+    },
+    "title": "迁移历史",
+    "loadingAria": "正在加载迁移历史",
+    "empty": "暂无迁移记录。",
+    "colAction": "操作",
+    "colScope": "范围",
+    "colRecords": "记录",
+    "colBy": "操作人",
+    "colDate": "日期与时间",
+    "colStatus": "状态",
+    "recordsCount_one": "{{count}} 条记录",
+    "recordsCount_other": "{{count}} 条记录",
+    "entitiesCount_one": "{{count}} 个实体",
+    "entitiesCount_other": "{{count}} 个实体",
+    "jobRef": "任务 {{id}}",
+    "unknownUser": "系统",
+    "statuses": {
+      "success": "成功",
+      "partial": "部分完成",
+      "failed": "失败",
+      "started": "已开始"
+    },
+    "actionExport": "导出",
+    "actionReAuth": "重新验证",
+    "actionImport": "导入",
+    "actionImportMode": "导入（{{mode}}）"
   }
 }

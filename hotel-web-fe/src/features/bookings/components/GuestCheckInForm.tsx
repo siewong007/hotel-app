@@ -37,6 +37,9 @@ import { GuestPaymentPanel } from '../../guestPortal/components/GuestPaymentPane
 import { IdentitySection } from '../../guestPortal/components/dashboard/IdentitySection';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
+import { toApiError } from '../../../api/client';
+import { formatStatusLabel } from '../../../utils/formatters';
+import { formatHotelDate } from '../../../utils/date';
 import { captureBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
 import { getValidPortalToken } from '../../guestPortal/api/portalTokenStore';
 import { ClaimAccountStep } from './guestCheckIn/ClaimAccountStep';
@@ -50,7 +53,7 @@ function needsOnlinePayment(status: string | undefined): boolean {
 type StepId = 'payment' | 'details' | 'account' | 'identity' | 'done';
 
 export const GuestCheckInForm: React.FC = () => {
-  const { t } = useTranslation('guestPortal');
+  const { t, tOr } = useTranslation('guestPortal');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const token = captureBookingAccessToken(searchParams);
@@ -176,6 +179,19 @@ export const GuestCheckInForm: React.FC = () => {
     [steps, goToStep],
   );
 
+  // The server sends both a stable `block_code` and English reason text; map
+  // the code to a localized message and keep the server text as the fallback
+  // for codes this build doesn't know yet.
+  const blockReasonText = (summary: GuestEkycStatusSummary): string => {
+    const reason = summary.auto_checkin_block_reason ?? '';
+    const code = summary.auto_checkin_block_code;
+    if (!code) return reason;
+    return tOr(`checkin.block.${code}`, reason, {
+      date: booking?.check_in_date ? formatHotelDate(booking.check_in_date) : '',
+      status: booking?.status ? formatStatusLabel(booking.status) : '',
+    });
+  };
+
   const handleCheckIn = async () => {
     if (!token) return;
     setCheckingIn(true);
@@ -188,7 +204,19 @@ export const GuestCheckInForm: React.FC = () => {
       // The backend owns every gate, so a refusal here is authoritative and its
       // message is the reason. Re-read the booking so the panel below agrees
       // with it rather than still offering the button.
-      setCheckinError(guestErrorMessage(err, t('checkin.form.errors.checkinFailed')));
+      const apiError = toApiError(err, t('checkin.form.errors.checkinFailed'));
+      const blockCode =
+        typeof apiError.details === 'object' && apiError.details !== null
+          ? (apiError.details as { block_code?: unknown }).block_code
+          : undefined;
+      setCheckinError(
+        typeof blockCode === 'string'
+          ? tOr(`checkin.block.${blockCode}`, apiError.message, {
+              date: booking?.check_in_date ? formatHotelDate(booking.check_in_date) : '',
+              status: booking?.status ? formatStatusLabel(booking.status) : '',
+            })
+          : apiError.message,
+      );
       void loadBookingData({ keepStep: true });
     } finally {
       setCheckingIn(false);
@@ -514,7 +542,7 @@ export const GuestCheckInForm: React.FC = () => {
                           // passport); the rest are ours (a room still being
                           // cleaned, eKYC in review). Only offer the way back when
                           // going back would actually change the verdict.
-                          ekycSummary.auto_checkin_block_reason.includes('details') ? (
+                          ekycSummary.auto_checkin_block_code === 'identity_document_required' ? (
                             <Button
                               color="inherit"
                               size="small"
@@ -525,7 +553,7 @@ export const GuestCheckInForm: React.FC = () => {
                           ) : undefined
                         }
                       >
-                        {ekycSummary.auto_checkin_block_reason}
+                        {blockReasonText(ekycSummary)}
                       </Alert>
                     ) : null}
                   </>

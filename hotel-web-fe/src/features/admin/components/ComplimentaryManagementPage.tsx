@@ -37,8 +37,10 @@ import type {
   GuestOption,
   RoomTypeOption,
 } from './complimentary/types';
+import { useTranslation } from '../../../i18n';
 
 export default function ComplimentaryManagementPage() {
+  const { t } = useTranslation('admin');
   const queryClient = useQueryClient();
 
   const complimentaryQuery = useQuery({
@@ -124,13 +126,13 @@ export default function ComplimentaryManagementPage() {
         title={
           <>
             <GiftIcon sx={{ mr: 1, fontSize: 28, verticalAlign: 'text-bottom' }} />
-            Complimentary Management
+            {t('complimentary.title')}
           </>
         }
         sx={{ mb: 3 }}
         actions={
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadData}>
-            Refresh
+            {t('common:actions.refresh')}
           </Button>
         }
       />
@@ -153,9 +155,9 @@ export default function ComplimentaryManagementPage() {
           scrollButtons="auto"
           allowScrollButtonsMobile
         >
-          <Tab label={`Complimentary Bookings (${bookings?.length || 0})`} />
+          <Tab label={t('complimentary.tabs.bookings', { count: bookings?.length || 0 })} />
           <Tab
-            label={`Guest Credits (${guestCredits?.length || 0})`}
+            label={t('complimentary.tabs.credits', { count: guestCredits?.length || 0 })}
           />
         </Tabs>
       </Paper>

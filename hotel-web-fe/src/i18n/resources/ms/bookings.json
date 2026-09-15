@@ -7,7 +7,15 @@
     "retry": "Cuba semula",
     "bookingNotFound": "Tempahan tidak dijumpai",
     "workflowLoadFailed": "Gagal memuatkan aliran kerja tempahan",
-    "checkoutSuccess": "Tetamu telah selesai daftar keluar!"
+    "checkoutSuccess": "Tetamu telah selesai daftar keluar!",
+    "kicker": "Kaunter Hadapan · {{date}}",
+    "scopeAll": "melepas tarikh daftar keluar",
+    "scopePage": "melepas tarikh daftar keluar pada halaman ini",
+    "scopeCompanyAll": "{{months}} bulan lepas daripada daftar keluar",
+    "scopeCompanyPage": "{{months}} bulan lepas daripada daftar keluar pada halaman ini",
+    "loadFailed": "Gagal memuatkan tempahan",
+    "backToBookings": "Kembali ke tempahan",
+    "bookingNotFoundHint": "Tempahan ini mungkin telah dialih keluar, atau anda mungkin tidak mempunyai kebenaran untuk melihatnya."
   },
   "filters": {
     "searchPlaceholder": "Cari tempahan, tetamu, invois atau nombor bilik...",
@@ -112,7 +120,16 @@
     "paymentStatus": "Pembayaran",
     "roomFallback": "Bilik",
     "roomNumber": "Bilik {{number}}",
-    "nightsAbbrev": "{{count}} mlm"
+    "nightsAbbrev": "{{count}} mlm",
+    "quickEdit": "Suntingan pantas",
+    "quickEditSuccess": "Tempahan berjaya dikemas kini!",
+    "quickEditFailed": "Gagal mengemas kini tempahan",
+    "ariaLabel": "Butiran tempahan",
+    "unavailable": "Butiran tempahan tidak tersedia.",
+    "notFoundTitle": "Tempahan tidak dijumpai",
+    "loadFailed": "Gagal memuatkan tempahan",
+    "notFoundHint": "Tempahan ini mungkin telah dipadamkan, atau anda tidak mempunyai kebenaran untuk melihatnya.",
+    "backToList": "Kembali ke tempahan"
   },
   "labels": {
     "guest": "Tetamu:",
@@ -285,7 +302,8 @@
       "void": "Batal",
       "checkout": "Daftar keluar",
       "checkoutVoid": "Daftar keluar / Batal"
-    }
+    },
+    "loadFailed": "Gagal memuatkan aliran kerja tempahan"
   },
   "enhancedCheckIn": {
     "title": "Tetamu Walk-in - Folio: {{folio}}",
@@ -425,7 +443,8 @@
       "paymentMethod": "Kaedah Pembayaran:",
       "deposit": "Deposit:",
       "waived": "Diketepikan",
-      "waiveReason": "Sebab Pengecualian:"
+      "waiveReason": "Sebab Pengecualian:",
+      "expirePlaceholder": "BB/TT"
     },
     "custom": {
       "guestVehicles": "Kenderaan Tetamu",
@@ -543,6 +562,19 @@
       "deleteFailed": "Gagal memadam kredit",
       "deleting": "Memadam...",
       "confirm": "Padam Kredit"
-    }
+    },
+    "pageTitle": "Pengurusan Komplimentari",
+    "tabBookings": "Tempahan Komplimentari ({{count}})",
+    "tabCredits": "Kredit Tetamu ({{count}})"
+  },
+  "drawer": {
+    "aria": "Butiran tempahan",
+    "unavailable": "Butiran tempahan tidak tersedia."
+  },
+  "quickEdit": {
+    "title": "Suntingan pantas",
+    "checkOutDate": "Tarikh Daftar Keluar",
+    "remarks": "Ulasan",
+    "saveChanges": "Simpan perubahan"
   }
 }

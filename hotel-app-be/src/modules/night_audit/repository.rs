@@ -14,7 +14,7 @@ use crate::models::{
     AuditDetailsResponse, JournalEntry, JournalSection, NightAuditPreview, NightAuditRunWithUser,
     PostedBookingDetail, RevenueBreakdownItem, RoomSnapshot, UnpostedBooking,
 };
-use crate::utils::report_labels::payment_account_label;
+use crate::utils::report_labels::payment_journal_account_label;
 
 /// Get preview data for what will be posted on an audit date.
 pub async fn preview(pool: &DbPool, audit_date: NaiveDate) -> Result<NightAuditPreview, ApiError> {
@@ -828,6 +828,12 @@ pub async fn generate_journal_sections(
                 COALESCE(napn.extra_bed_charge, 0) as extra_bed_charge,
                 COALESCE(napn.extra_bed_tax, 0) as extra_bed_tax,
                 COALESCE(b.deposit_amount, 0) as deposit_amount,
+                EXISTS (
+                    SELECT 1 FROM payments dp
+                    WHERE dp.booking_id = b.id
+                      AND dp.payment_type = 'deposit'
+                      AND dp.status = 'completed'
+                ) as has_deposit_payment,
                 b.check_in_date,
                 b.status
             FROM night_audit_posted_nights napn
@@ -848,6 +854,7 @@ pub async fn generate_journal_sections(
                     let extra_bed_charge = row_mappers::get_decimal(row, "extra_bed_charge");
                     let extra_bed_tax = row_mappers::get_decimal(row, "extra_bed_tax");
                     let deposit_amount = row_mappers::get_decimal(row, "deposit_amount");
+                    let has_deposit_payment: bool = row.get("has_deposit_payment");
                     let check_in_date: NaiveDate = row.get("check_in_date");
 
                     if room_charge > Decimal::ZERO {
@@ -900,7 +907,17 @@ pub async fn generate_journal_sections(
                             description: Some("Tourism Tax".to_string()),
                         });
                     }
-                    if check_in_date == audit_date && deposit_amount > Decimal::ZERO {
+                    // Fallback only. A deposit collected through the payments
+                    // ledger already has its own dated journal line from the
+                    // payments loop below; posting the booking mirror as well
+                    // would debit the same money twice. Bookings predating the
+                    // payments-backed deposit path (2026-09-12) have no such
+                    // row, so the mirror is the only record they will ever have
+                    // and still has to be reported on the arrival night.
+                    if check_in_date == audit_date
+                        && deposit_amount > Decimal::ZERO
+                        && !has_deposit_payment
+                    {
                         entries.push(JournalEntry {
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
@@ -928,6 +945,12 @@ pub async fn generate_journal_sections(
                 b.room_rate,
                 COALESCE(b.extra_bed_charge, 0) as extra_bed_charge,
                 COALESCE(b.deposit_amount, 0) as deposit_amount,
+                EXISTS (
+                    SELECT 1 FROM payments dp
+                    WHERE dp.booking_id = b.id
+                      AND dp.payment_type = 'deposit'
+                      AND dp.status = 'completed'
+                ) as has_deposit_payment,
                 COALESCE(b.source, 'walk_in') as source,
                 COALESCE(b.remarks, '') as remarks,
                 b.check_in_date,
@@ -959,6 +982,7 @@ pub async fn generate_journal_sections(
                     let nightly_rate = row_mappers::get_decimal(row, "room_rate");
                     let extra_bed_charge_raw = row_mappers::get_decimal(row, "extra_bed_charge");
                     let deposit_amount = row_mappers::get_decimal(row, "deposit_amount");
+                    let has_deposit_payment: bool = row.get("has_deposit_payment");
                     let check_in_date: NaiveDate = row.get("check_in_date");
                     let check_out_date: NaiveDate = row.get("check_out_date");
                     let is_tourist: bool = row.get("is_tourist");
@@ -1027,7 +1051,17 @@ pub async fn generate_journal_sections(
                         }
                     }
 
-                    if check_in_date == audit_date && deposit_amount > Decimal::ZERO {
+                    // Fallback only. A deposit collected through the payments
+                    // ledger already has its own dated journal line from the
+                    // payments loop below; posting the booking mirror as well
+                    // would debit the same money twice. Bookings predating the
+                    // payments-backed deposit path (2026-09-12) have no such
+                    // row, so the mirror is the only record they will ever have
+                    // and still has to be reported on the arrival night.
+                    if check_in_date == audit_date
+                        && deposit_amount > Decimal::ZERO
+                        && !has_deposit_payment
+                    {
                         entries.push(JournalEntry {
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
@@ -1058,8 +1092,6 @@ pub async fn generate_journal_sections(
             COALESCE(p.payment_method, '') as payment_method,
             COALESCE(p.payment_type, '') as payment_type,
             COALESCE(p.notes, '') as payment_notes,
-            COALESCE(b.source, '') as source,
-            COALESCE(b.remarks, '') as booking_remarks,
             b.check_in_date,
             b.check_out_date
         FROM payments p
@@ -1086,19 +1118,17 @@ pub async fn generate_journal_sections(
                 let payment_method: String = row.get("payment_method");
                 let payment_type: String = row.get("payment_type");
                 let payment_notes: String = row.get("payment_notes");
-                let source: String = row.get("source");
-                let booking_remarks: String = row.get("booking_remarks");
                 let check_in_date: NaiveDate = row.get("check_in_date");
 
                 if payment_type.trim().eq_ignore_ascii_case("refund") {
                     continue;
                 }
 
-                let account_name = payment_account_label(
-                    Some(&payment_method),
-                    Some(&source),
-                    Some(&booking_remarks),
-                );
+                // Deposits ride the same payments table as bill settlements, so
+                // group them under their own account or the report shows nothing
+                // but a tender and an amount.
+                let account_name =
+                    payment_journal_account_label(Some(&payment_type), Some(&payment_method));
 
                 let description = if check_in_date > audit_date {
                     let room_desc = if !payment_notes.is_empty() {

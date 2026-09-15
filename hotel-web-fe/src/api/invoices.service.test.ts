@@ -57,7 +57,7 @@ describe('InvoicesService.revertDepositRefund', () => {
     post.mockReturnValue({ json: () => Promise.reject(new Error('network down')) });
 
     await expect(InvoicesService.revertDepositRefund(42)).rejects.toMatchObject({
-      message: 'Failed to revert deposit refund',
+      message: 'Something went wrong. Please try again.',
     });
   });
 });

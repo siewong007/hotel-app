@@ -49,6 +49,7 @@ import {
 import { guestErrorMessage } from '../utils/feedback';
 import { useTranslation, type TranslationVars } from '../../../i18n';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
+import { dateFormatter } from '../../../i18n/format';
 
 const MAX_MESSAGE_LENGTH = 4_000;
 
@@ -76,12 +77,12 @@ function formatDateTime(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return date.toLocaleString(undefined, {
+  return dateFormatter({
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  });
+  }).format(date);
 }
 
 function supportCategoryLabel(category: PortalSupportCategory | string, t: Translate): string {

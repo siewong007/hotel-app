@@ -4,6 +4,7 @@
 //! table-based with inline styles so the branded header still renders.
 
 use super::validation::html_escape;
+use crate::core::i18n::Locale;
 
 pub struct Cta<'a> {
     pub label: &'a str,
@@ -11,6 +12,10 @@ pub struct Cta<'a> {
 }
 
 pub struct GuestEmail<'a> {
+    /// Language the chrome (footer, document `lang`) and caller-supplied
+    /// strings are written in. Callers resolve it from the guest's stored
+    /// preference chain via [`crate::core::i18n::mail_locale`].
+    pub locale: Locale,
     pub preheader: &'a str,
     pub heading: &'a str,
     pub inner_html: &'a str,
@@ -80,13 +85,14 @@ fn host_of(base: &str) -> String {
 /// hotel by typing its address rather than following a link. Claiming more
 /// than that -- "verified", "certified", a delivery guarantee -- would teach
 /// guests to trust a graphic a phisher can reproduce in an afternoon.
-pub fn identity_seal_html() -> String {
-    seal_html_for(&hotel_display_name(), &canonical_host())
+pub fn identity_seal_html(locale: Locale) -> String {
+    seal_html_for(&hotel_display_name(), &canonical_host(), locale)
 }
 
-fn seal_html_for(hotel_name: &str, host_name: &str) -> String {
+fn seal_html_for(hotel_name: &str, host_name: &str, locale: Locale) -> String {
     let hotel = html_escape(hotel_name);
     let host = html_escape(host_name);
+    let caveat = locale.format("email.chrome.sealCaveat", &[("host", &host)]);
     format!(
         "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" \
          style=\"margin:26px 0 4px;border-collapse:collapse;\">\
@@ -97,9 +103,7 @@ fn seal_html_for(hotel_name: &str, host_name: &str) -> String {
                     letter-spacing:0.06em;color:#102a21;\">{hotel}</div>\
                <div style=\"font-size:12px;color:#5b7268;padding-top:2px;\">{host}</div>\
                <div style=\"font-size:11px;color:#5b7268;line-height:1.5;padding-top:8px;\">\
-                 This seal is a visual cue only and can be copied. What actually proves \
-                 this mail is ours is your provider's sender-domain check, and reaching \
-                 {host} by typing it yourself rather than following a link.\
+                 {caveat}\
                </div>\
              </td>\
            </tr>\
@@ -108,16 +112,14 @@ fn seal_html_for(hotel_name: &str, host_name: &str) -> String {
 }
 
 /// Plain-text counterpart of [`identity_seal_html`], carrying the same caveat.
-pub fn identity_seal_text() -> String {
-    seal_text_for(&hotel_display_name(), &canonical_host())
+pub fn identity_seal_text(locale: Locale) -> String {
+    seal_text_for(&hotel_display_name(), &canonical_host(), locale)
 }
 
-fn seal_text_for(hotel: &str, host: &str) -> String {
+fn seal_text_for(hotel: &str, host: &str, locale: Locale) -> String {
     format!(
-        "-- {hotel} ({host}) --\n\
-         This seal is a visual cue only and can be copied. What actually proves this mail \
-         is ours is your provider's sender-domain check, and reaching {host} by typing it \
-         yourself rather than following a link.\n"
+        "-- {hotel} ({host}) --\n{}\n",
+        locale.format("email.chrome.sealCaveat", &[("host", host)])
     )
 }
 
@@ -153,11 +155,14 @@ pub fn details_table(rows: &[(&str, &str)]) -> String {
 }
 
 pub fn render(email: GuestEmail<'_>) -> RenderedEmail {
+    let locale = email.locale;
     let hotel = hotel_display_name();
     let hotel_html = html_escape(&hotel);
     let heading = html_escape(email.heading);
     let preheader = html_escape(email.preheader);
     let site = public_base_url();
+    let lang = locale.as_str();
+    let sent_by = locale.format("email.chrome.sentBy", &[("hotel", &hotel_html)]);
     let cta_html = match email.cta {
         Some(Cta { label, url }) => format!(
             "<table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin:28px 0 8px;\">\
@@ -176,7 +181,7 @@ pub fn render(email: GuestEmail<'_>) -> RenderedEmail {
     };
     let html = format!(
         "<!DOCTYPE html>\
-<html lang=\"en\">\
+<html lang=\"{lang}\">\
 <head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"></head>\
 <body style=\"margin:0;padding:0;background:#f4f7f4;\">\
   <div style=\"display:none;max-height:0;overflow:hidden;mso-hide:all;\">{preheader}</div>\
@@ -204,7 +209,7 @@ pub fn render(email: GuestEmail<'_>) -> RenderedEmail {
           <tr>\
             <td style=\"padding:16px 28px 24px;background:#f4f7f4;font-family:Arial,Helvetica,sans-serif;\
                         font-size:12px;line-height:1.5;color:#5b7268;\">\
-              This message was sent by {hotel_html}.\
+              {sent_by}\
               <br><a href=\"{site}\" style=\"color:#0E8C6A;text-decoration:none;\">{site}</a>\
             </td>\
           </tr>\
@@ -222,7 +227,10 @@ pub fn render(email: GuestEmail<'_>) -> RenderedEmail {
     if let Some(Cta { label, url }) = email.cta {
         text.push_str(&format!("\n{label}: {url}\n"));
     }
-    text.push_str(&format!("\nThis message was sent by {hotel}.\n{site}\n"));
+    text.push_str(&format!(
+        "\n{}\n{site}\n",
+        locale.format("email.chrome.sentBy", &[("hotel", &hotel)])
+    ));
 
     RenderedEmail { html, text }
 }
@@ -233,6 +241,7 @@ mod tests {
 
     fn sample() -> GuestEmail<'static> {
         GuestEmail {
+            locale: Locale::default_locale(),
             preheader: "Reservation BK-1 is pending payment",
             heading: "Reservation received",
             inner_html: "<p>Dear Guest,</p><p>Please pay.</p>",
@@ -280,6 +289,7 @@ mod tests {
     #[test]
     fn render_escapes_heading_and_preheader() {
         let rendered = render(GuestEmail {
+            locale: Locale::default_locale(),
             preheader: "hi <script>",
             heading: "Stay <b>soon</b>",
             inner_html: "<p>ok</p>",
@@ -301,8 +311,8 @@ mod tests {
 
     #[test]
     fn the_identity_seal_names_the_hotel_and_host_without_claiming_verification() {
-        let html = seal_html_for("Salim Inn", "saliminn.my");
-        let text = seal_text_for("Salim Inn", "saliminn.my");
+        let html = seal_html_for("Salim Inn", "saliminn.my", Locale::default_locale());
+        let text = seal_text_for("Salim Inn", "saliminn.my", Locale::default_locale());
         for rendered in [&html, &text] {
             assert!(rendered.contains("saliminn.my"), "seal must name the host");
             assert!(
@@ -328,7 +338,7 @@ mod tests {
 
     #[test]
     fn seal_escapes_a_hostile_hotel_name() {
-        let html = seal_html_for("<script>x</script>", "example.test");
+        let html = seal_html_for("<script>x</script>", "example.test", Locale::default_locale());
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
     }

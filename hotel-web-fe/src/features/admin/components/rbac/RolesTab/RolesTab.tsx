@@ -21,6 +21,7 @@ import RoleCard from './RoleCard';
 import RoleEditDrawer from './RoleEditDrawer';
 import { useCreateRole, useDeleteRole } from '../hooks/useRBACQueries';
 import { errorMessage } from '../../../../../utils/errorMessage';
+import { useTranslation } from '../../../../../i18n';
 
 interface RolesTabProps {
   roles: RoleWithStats[];
@@ -41,6 +42,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
   onRoleDeleted,
   loading = false,
 }) => {
+  const { t } = useTranslation('admin');
   // Edit drawer state
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<RoleWithStats | null>(null);
@@ -73,7 +75,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
   // Handle create
   const handleCreateRole = async () => {
     if (!newRole.name.trim()) {
-      setCreateError('Role name is required');
+      setCreateError(t('rbac.errors.roleNameRequired'));
       return;
     }
 
@@ -85,7 +87,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
       setCreateDialogOpen(false);
       setNewRole({ name: '', description: '' });
     } catch (err) {
-      setCreateError(errorMessage(err, 'Failed to create role'));
+      setCreateError(errorMessage(err, t('rbac.errors.createRole')));
     }
   };
 
@@ -107,7 +109,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
       setDeleteDialogOpen(false);
       setDeletingRole(null);
     } catch (err) {
-      setDeleteError(errorMessage(err, 'Failed to delete role'));
+      setDeleteError(errorMessage(err, t('rbac.errors.deleteRole')));
     }
   };
 
@@ -118,7 +120,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
         <Typography variant="body2" sx={{
           color: "text.secondary"
         }}>
-          {roles.length} role{roles.length !== 1 ? 's' : ''} configured
+          {t('rbac.rolesConfigured', { count: roles.length })}
         </Typography>
 
         <Button
@@ -126,7 +128,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
           startIcon={<AddIcon />}
           onClick={() => setCreateDialogOpen(true)}
         >
-          Create Role
+          {t('rbac.createRole')}
         </Button>
       </Box>
       {/* Role cards */}
@@ -139,7 +141,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
           <Typography sx={{
             color: "text.secondary"
           }}>
-            No roles configured. Click "Create Role" to add one.
+            {t('rbac.noRoles')}
           </Typography>
         </Box>
       ) : (
@@ -174,7 +176,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Create New Role</DialogTitle>
+        <DialogTitle>{t('rbac.createRoleTitle')}</DialogTitle>
         <DialogContent>
           {createError && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -184,33 +186,33 @@ const RolesTab: React.FC<RolesTabProps> = ({
 
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
-              label="Role Name"
+              label={t('rbac.roleName')}
               value={newRole.name}
               onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
               fullWidth
               required
-              placeholder="e.g., Housekeeping"
+              placeholder={t('rbac.roleNamePlaceholder')}
             />
 
             <TextField
-              label="Description"
+              label={t('common:field.description')}
               value={newRole.description}
               onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
               fullWidth
               multiline
               rows={2}
-              placeholder="Brief description of this role's responsibilities"
+              placeholder={t('rbac.descriptionPlaceholder')}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setCreateDialogOpen(false)}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             onClick={handleCreateRole}
             disabled={creating || !newRole.name.trim()}
           >
-            {creating ? <CircularProgress size={20} /> : 'Create'}
+            {creating ? <CircularProgress size={20} /> : t('common:actions.create')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -219,7 +221,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
       >
-        <DialogTitle>Delete Role</DialogTitle>
+        <DialogTitle>{t('rbac.deleteRoleTitle')}</DialogTitle>
         <DialogContent>
           {deleteError && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -228,26 +230,25 @@ const RolesTab: React.FC<RolesTabProps> = ({
           )}
 
           <DialogContentText>
-            Are you sure you want to delete the role <strong>{deletingRole?.name}</strong>?
-            This action cannot be undone.
+            {t('rbac.deleteConfirmStart')}{' '}
+            <strong>{deletingRole?.name}</strong>{t('rbac.deleteConfirmEnd')}
           </DialogContentText>
 
           {deletingRole && deletingRole.permissionCount > 0 && (
             <Alert severity="warning" sx={{ mt: 2 }}>
-              This role has {deletingRole.permissionCount} permissions assigned.
-              Users with this role will lose access to those features.
+              {t('rbac.deleteWarning', { count: deletingRole.permissionCount })}
             </Alert>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             color="error"
             onClick={handleConfirmDelete}
             disabled={deleting}
           >
-            {deleting ? <CircularProgress size={20} /> : 'Delete'}
+            {deleting ? <CircularProgress size={20} /> : t('common:actions.delete')}
           </Button>
         </DialogActions>
       </Dialog>

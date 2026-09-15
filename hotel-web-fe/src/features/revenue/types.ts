@@ -83,6 +83,7 @@ export interface DebtorRow {
   invoice_number: string;
   balance: string;
   bucket: string;
+  bucket_key: string;
   due_date: string | null;
   room: string | null;
 }

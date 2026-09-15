@@ -107,7 +107,17 @@
     "notesLabel": "Notes (optional)",
     "notesPlaceholder": "Add any special requests or notes...",
     "termsLabel": "Terms & Conditions:",
-    "confirmRedemption": "Confirm Redemption"
+    "confirmRedemption": "Confirm Redemption",
+    "txTypes": {
+      "earn": "Earned",
+      "earned": "Earned",
+      "redeem": "Redeemed",
+      "redeemed": "Redeemed",
+      "adjusted": "Adjusted",
+      "reversed": "Reversed",
+      "gift": "Gifted",
+      "expired": "Expired"
+    }
   },
   "portal": {
     "title": "Loyalty",
@@ -128,7 +138,8 @@
       "pendingHint": "awaiting review",
       "byTier": "Members by tier",
       "noMembers": "No members enrolled yet.",
-      "loadMembersFailed": "Failed to load members"
+      "loadMembersFailed": "Failed to load members",
+      "tierShare": "{{tier}} member share"
     },
     "members": {
       "detailTitle": "Member details",
@@ -239,7 +250,12 @@
       "approvalRequired": "Redemptions require approval",
       "save": "Save rules",
       "saveFailed": "Failed to save rules",
-      "loadFailed": "Failed to load rules"
+      "loadFailed": "Failed to load rules",
+      "metrics": {
+        "points": "Points",
+        "nights": "Nights",
+        "spend": "Spend"
+      }
     }
   }
 }

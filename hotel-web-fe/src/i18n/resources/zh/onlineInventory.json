@@ -24,8 +24,11 @@
     "nextDay": "后一天",
     "forwardDays": "前进 {{days}} 天",
     "today": "今天",
-    "overridesOnly": "仅显示覆盖项",
-    "selected": "已选 {{count}} 项"
+    "overridesOnly": "仅覆盖项",
+    "selected": "已选 {{count}} 项",
+    "controlsAria": "库存窗口控制",
+    "refresh": "刷新",
+    "select": "选择"
   },
   "grid": {
     "aria": "按房型和日期查看的线上库存",
@@ -33,7 +36,9 @@
     "colHeader": "房型 / 日期",
     "selectColumn": "选择 {{date}} 的全部",
     "today": "今天",
-    "selectRow": "选择 {{name}} 行"
+    "selectRow": "选择 {{name}} 行",
+    "noInventoryAria": "{{date}}：无库存数据",
+    "closed": "已关闭"
   },
   "cell": {
     "closed": "已关闭",
@@ -72,7 +77,12 @@
     "adjustAmountAria": "按金额调整",
     "applyAmount": "应用金额",
     "clearOverrides": "清除覆盖",
-    "skipped_other": "已跳过 {{count}} 个单元格——调整会使价格变为零或负数。"
+    "skipped_other": "已跳过 {{count}} 个单元格——调整会使价格变为零或负数。",
+    "selectedCount": "已选 {{count}} 项",
+    "selectedCount_one": "已选 {{count}} 项",
+    "selectedCount_other": "已选 {{count}} 项",
+    "editSelected": "编辑所选",
+    "editSelectedCells": "编辑所选单元格"
   },
   "editor": {
     "bookable": "可线上预订",
@@ -87,7 +97,9 @@
     "customPrice": "自定义线上价格",
     "priceInvalid": "请输入大于零的价格。",
     "standardRate": "该日期标准价格：{{price}}——留空则使用标准价。",
-    "resetStandard": "重置为标准规则"
+    "resetStandard": "重置为标准规则",
+    "resetAria": "重置为标准规则",
+    "reset": "重置"
   },
   "summary": {
     "physical": "实际可用",

@@ -20,6 +20,7 @@ import '@fontsource/inter/latin-ext-700.css';
 import './index.css';
 import { logWebVitals } from './reportWebVitals';
 import { initializeDesktopBackendUrl } from './desktop/runtimeApi';
+import { t } from './i18n';
 
 const MODULE_RETRY_PARAM = 'module-retry';
 
@@ -91,7 +92,7 @@ bootstrap().catch((error) => {
 
   root.render(
     <div style={{ padding: 24, fontFamily: 'Inter, Roboto, Helvetica, Arial, sans-serif' }}>
-      Unable to start the application.
+      {t('errors:appStart')}
     </div>
   );
 });

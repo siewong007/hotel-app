@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import type { CustomerLedger } from '../../../../../types';
 import { formatDateForDisplay, asMoney } from '../helpers';
+import { useTranslation } from '../../../../../i18n';
 
 interface DuplicateLedgerDialogProps {
   open: boolean;
@@ -30,12 +31,14 @@ const DuplicateLedgerDialog: React.FC<DuplicateLedgerDialogProps> = ({
   onViewExisting,
   onCreateAnyway,
   formatCurrency,
-}) => (
+}) => {
+  const { t } = useTranslation('finance');
+  return (
   <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-    <DialogTitle>Possible duplicate ledger entry found</DialogTitle>
+    <DialogTitle>{t('ledger.duplicateDialog.title')}</DialogTitle>
     <DialogContent>
       <Alert severity="warning" sx={{ mb: 2 }}>
-        A ledger entry already exists for the same company, room, stay date, and amount.
+        {t('ledger.duplicateDialog.warning')}
       </Alert>
       {duplicate && (
         <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
@@ -43,22 +46,23 @@ const DuplicateLedgerDialog: React.FC<DuplicateLedgerDialogProps> = ({
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            Room {duplicate.room_number || '-'} / {formatDateForDisplay(duplicate.posting_date || duplicate.created_at)}
+            {t('ledger.roomWithNumber', { number: duplicate.room_number || '-' })} / {formatDateForDisplay(duplicate.posting_date || duplicate.created_at)}
           </Typography>
           <Typography variant="body2" sx={{ mt: 1 }}>
-            {formatCurrency(asMoney(duplicate.amount))} / {duplicate.invoice_number || 'Not invoiced'}
+            {formatCurrency(asMoney(duplicate.amount))} / {duplicate.invoice_number || t('ledger.notInvoiced')}
           </Typography>
         </Box>
       )}
     </DialogContent>
     <DialogActions>
-      <Button onClick={onViewExisting}>View existing</Button>
-      <Button onClick={onClose}>Cancel</Button>
+      <Button onClick={onViewExisting}>{t('ledger.duplicateDialog.viewExisting')}</Button>
+      <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
       <Button onClick={onCreateAnyway} variant="contained" disabled={creating}>
-        Create anyway
+        {t('ledger.duplicateDialog.createAnyway')}
       </Button>
     </DialogActions>
   </Dialog>
-);
+  );
+};
 
 export default DuplicateLedgerDialog;

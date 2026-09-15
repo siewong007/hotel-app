@@ -335,7 +335,7 @@ impl GuestBookingRepository {
     pub async fn guest_contact(pool: &DbPool, guest_id: i64) -> Result<GuestContact, ApiError> {
         let row = sqlx::query(
             r#"
-                SELECT g.nick_name, g.email,
+                SELECT g.nick_name, g.email, g.language_preference,
                        (SELECT u.id FROM users u
                         WHERE u.guest_id = g.id AND u.user_type::text = 'guest'
                         ORDER BY u.id LIMIT 1) AS actor_user_id
@@ -350,6 +350,7 @@ impl GuestBookingRepository {
             actor_user_id: row.try_get("actor_user_id").ok().flatten(),
             nick_name: row.try_get("nick_name").unwrap_or_default(),
             email: row.try_get("email").ok().flatten(),
+            language_preference: row.try_get("language_preference").ok().flatten(),
         })
     }
 

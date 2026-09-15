@@ -60,6 +60,7 @@ import type {
   GuestPortalMembershipResponse,
   GuestPortalTransaction,
 } from "../../../../types";
+import { formatNumber } from '../../../../i18n/format';
 import {
   firstName,
   formatPortalCurrency,
@@ -559,7 +560,7 @@ export function OverviewSection({
                     variant="h4"
                     sx={{ fontWeight: 700, color: "var(--hotel-text)", mt: 1 }}
                   >
-                    {member ? member.points_balance.toLocaleString() : "—"}
+                    {member ? formatNumber(member.points_balance) : "—"}
                   </Typography>
                   <Typography sx={{
                     color: "text.secondary"
@@ -693,11 +694,11 @@ function BookingDetailsDialog({
         {!booking.can_cancel ? (
           <Box sx={{ mt: 1.5 }}>
             {booking.cancellation_pending ? (
-              <Chip label="Cancellation under review" color="warning" size="small" />
+              <Chip label={t('dashboard.bookings.details.cancellationUnderReview')} color="warning" size="small" />
             ) : (
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
                 {booking.cancellation_unavailable_reason ??
-                  "This booking cannot be cancelled online."}
+                  t("dashboard.bookings.details.cannotCancelOnline")}
               </Typography>
             )}
           </Box>
@@ -1560,7 +1561,7 @@ export function CreditsSection({ token }: { token: string }) {
                 {t("dashboard.credits.nightsAvailable")}
               </Typography>
               <Typography variant="h3" sx={{ mt: 0.5, fontWeight: 700 }}>
-                {total.toLocaleString()}
+                {formatNumber(total)}
               </Typography>
               <Typography sx={{ color: "var(--hotel-text-secondary)", mt: 1 }}>
                 {t("dashboard.credits.acrossRoomTypes", { count: rows.length })}
@@ -1663,7 +1664,7 @@ export function PointsHistorySection({ token }: { token: string }) {
                   {t("dashboard.points.pointsAvailable")}
                 </Typography>
                 <Typography variant="h3" sx={{ mt: 0.5, fontWeight: 700 }}>
-                  {member.points_balance.toLocaleString()}
+                  {formatNumber(member.points_balance)}
                 </Typography>
                 <Typography sx={{ color: "var(--hotel-text-secondary)" }}>
                   {t("dashboard.points.lifetimePoints", { count: member.lifetime_points })}

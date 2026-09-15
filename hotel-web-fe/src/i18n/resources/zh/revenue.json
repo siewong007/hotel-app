@@ -1,3 +1,71 @@
 {
-  "title": "收益"
+  "title": "收益",
+  "overview": {
+    "title": "收入概览",
+    "subtitle": "住宿日期表现与上一周期对比",
+    "rangeSubtitle": "住宿日期 {{from}} – {{to}} · 对比 {{prevFrom}} – {{prevTo}}",
+    "loadError": "收入指标加载失败。请检查网络连接后重试。",
+    "emptyTitle": "该范围内没有住宿",
+    "emptyDescription": "没有预订占用这些住宿日期。请扩大范围或清除筛选。",
+    "methodology": "KPI 按住宿日期统计；渠道贡献按预订创建日期统计。已取消和未入住的住宿不计入已售指标。"
+  },
+  "kpi": {
+    "roomRevenue": "客房收入",
+    "occupancy": "入住率",
+    "adr": "ADR",
+    "revpar": "RevPAR",
+    "avgStay": "平均住宿",
+    "bookingsCreated": "新增预订",
+    "directShare": "直销占比",
+    "roomNightsSold_other": "已售 {{count}} 个房晚",
+    "adrSubtitle": "每已售房晚",
+    "revparSubtitle": "每可售客房",
+    "avgStayValue": "{{value}} 晚",
+    "avgStaySubtitle": "范围内每笔预订",
+    "bookingsSubtitle": "取消 {{voided}}% · 未入住 {{noShow}}%",
+    "directShareSubtitle": "占净收入",
+    "vsPrior": "较上期",
+    "noPrior": "· 无上期",
+    "noBaseline": "无上一周期基线"
+  },
+  "chart": {
+    "title": "入住率与房晚",
+    "subtitle": "按住宿日期",
+    "empty": "该范围内没有住宿日期",
+    "roomNights": "房晚",
+    "occupancy": "入住率",
+    "roomNightsAria": "各住宿日期的已售房晚",
+    "occupancyAria": "各住宿日期的入住率",
+    "tooltipRoomNights": "房晚：{{value}}",
+    "tooltipRoomRevenue": "客房收入：{{value}}",
+    "tooltipOccupancy": "入住率：{{value}}"
+  },
+  "channels": {
+    "title": "渠道贡献",
+    "subtitle": "按预订创建日期统计的净收入",
+    "empty": "该范围内没有已归因的预订。",
+    "mobileMeta": "{{count}} 笔预订 · {{revenue}}",
+    "colChannel": "渠道",
+    "colBookings": "预订",
+    "colNetRevenue": "净收入",
+    "colShare": "占比"
+  },
+  "channelTypes": {
+    "direct": "直销",
+    "ota": "OTA",
+    "corporate": "企业",
+    "walk_in": "散客上门",
+    "phone": "电话",
+    "website": "网站",
+    "channel_manager": "渠道管理器",
+    "other": "其他"
+  },
+  "filters": {
+    "from": "开始（住宿日期）",
+    "to": "结束（最后一晚）",
+    "roomType": "房型",
+    "allRoomTypes": "所有房型",
+    "channel": "渠道",
+    "allChannels": "所有渠道"
+  }
 }

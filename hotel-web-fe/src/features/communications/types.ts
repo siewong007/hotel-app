@@ -174,8 +174,3 @@ export interface PreferenceUpdateInput {
   policy_version?: string;
 }
 
-export const TOPIC_LABELS: Record<NotificationTopic, string> = {
-  announcement: 'Hotel announcements',
-  promotion: 'Promotions and offers',
-  birthday_voucher: 'Birthday voucher',
-};

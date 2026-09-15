@@ -31,7 +31,7 @@ import {
 import { useNavigate } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import { EkycService } from '../../../api';
-import { validateEmail, validatePhone } from '../../../utils/validation';
+import { validateEmailKey, validatePhoneKey } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { formatLocalDate } from '../../../utils/date';
 import { errorMessage } from '../../../utils/errorMessage';
@@ -39,6 +39,7 @@ import { ConsentBlock } from '../../legal/components/ConsentBlock';
 import { EKYC_CONSENTS, EKYC_KEY_POINTS } from '../../legal/content';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
 import { useConsent } from '../../legal/useConsent';
+import { useTranslation } from '../../../i18n';
 
 interface PersonalInfo {
   fullName: string;
@@ -64,12 +65,12 @@ interface DocumentUploads {
   proofOfAddress: string | null;
 }
 
-const steps = ['Personal Information', 'Document Details', 'Upload Documents', 'Verification'];
+const STEP_KEYS = ['personal', 'document', 'upload', 'verification'] as const;
 
 const idTypes = [
-  { value: 'passport', label: 'Passport' },
-  { value: 'drivers_license', label: 'Driver\'s License' },
-  { value: 'national_id', label: 'National ID Card' },
+  { value: 'passport', labelKey: 'idTypes.passport' },
+  { value: 'drivers_license', labelKey: 'idTypes.drivers_license' },
+  { value: 'national_id', labelKey: 'idTypes.national_id' },
 ];
 
 const countries = [
@@ -80,6 +81,7 @@ const countries = [
 ];
 
 const EkycRegistrationPage: React.FC = () => {
+  const { t } = useTranslation('ekyc');
   const navigate = useNavigate();
   const { user } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
@@ -127,13 +129,13 @@ const EkycRegistrationPage: React.FC = () => {
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file (JPG, PNG)');
+      setError(t('register.errors.imageOnly'));
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      setError('File size must be less than 5MB');
+      setError(t('register.errors.fileTooLarge'));
       return;
     }
 
@@ -145,7 +147,7 @@ const EkycRegistrationPage: React.FC = () => {
       setError('');
     };
     reader.onerror = () => {
-      setError('Failed to read file');
+      setError(t('register.errors.readFile'));
     };
     reader.readAsDataURL(file);
   };
@@ -155,13 +157,14 @@ const EkycRegistrationPage: React.FC = () => {
     if (activeStep === 0) {
       if (!personalInfo.fullName || !personalInfo.dateOfBirth || !personalInfo.nationality ||
           !personalInfo.phone || !personalInfo.email || !personalInfo.currentAddress) {
-        setError('Please fill in all required fields');
+        setError(t('register.errors.requiredPersonal'));
         return;
       }
 
       // Validate email
-      const emailValidation = validateEmail(personalInfo.email);
-      if (emailValidation) {
+      const emailKey = validateEmailKey(personalInfo.email);
+      if (emailKey) {
+        const emailValidation = t(`auth:${emailKey}`);
         setEmailError(emailValidation);
         setError(emailValidation);
         return;
@@ -170,21 +173,21 @@ const EkycRegistrationPage: React.FC = () => {
     } else if (activeStep === 1) {
       if (!documentInfo.idType || !documentInfo.idNumber || !documentInfo.idIssuingCountry ||
           !documentInfo.idExpiryDate) {
-        setError('Please fill in all required document details');
+        setError(t('register.errors.requiredDocument'));
         return;
       }
       // Validate expiry date is in the future
       if (new Date(documentInfo.idExpiryDate) <= new Date()) {
-        setError('ID expiry date must be in the future');
+        setError(t('register.errors.expiryFuture'));
         return;
       }
     } else if (activeStep === 2) {
       if (!uploads.idFront || !uploads.selfie) {
-        setError('Please upload your ID front and selfie photo');
+        setError(t('register.errors.requiredUploads'));
         return;
       }
       if (documentInfo.idType !== 'passport' && !uploads.idBack) {
-        setError('Please upload the back of your ID');
+        setError(t('register.errors.requiredIdBack'));
         return;
       }
     }
@@ -225,7 +228,7 @@ const EkycRegistrationPage: React.FC = () => {
     // prevent.
     if (!consent.allRequiredGranted) {
       consent.setShowErrors(true);
-      setError('Please give your explicit consent to identity verification before submitting.');
+      setError(t('register.errors.consentRequired'));
       return;
     }
 
@@ -272,7 +275,7 @@ const EkycRegistrationPage: React.FC = () => {
         navigate('/profile?ekycSubmitted=true');
       }, 2000);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to submit eKYC verification'));
+      setError(errorMessage(err, t('errors.submit')));
     } finally {
       setLoading(false);
     }
@@ -285,7 +288,7 @@ const EkycRegistrationPage: React.FC = () => {
           <Grid container spacing={3}>
             <Grid size={12}>
               <Typography variant="h6" gutterBottom>
-                Personal Information
+                {t('register.personalTitle')}
               </Typography>
               <Typography
                 variant="body2"
@@ -293,22 +296,22 @@ const EkycRegistrationPage: React.FC = () => {
                   color: "text.secondary",
                   marginBottom: "16px"
                 }}>
-                Please provide your personal details as they appear on your ID document.
+                {t('register.personalSubtitle')}
               </Typography>
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Full Name"
+                label={t('register.fullName')}
                 required
                 value={personalInfo.fullName}
                 onChange={(e) => setPersonalInfo({ ...personalInfo, fullName: e.target.value })}
-                placeholder="As shown on ID"
+                placeholder={t('register.fullNamePlaceholder')}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <ModernDatePicker
-                label="Date of Birth"
+                label={t('register.dob')}
                 value={personalInfo.dateOfBirth}
                 onChange={(value) => setPersonalInfo({ ...personalInfo, dateOfBirth: value })}
                 maxDate={formatLocalDate()}
@@ -319,7 +322,7 @@ const EkycRegistrationPage: React.FC = () => {
               <TextField
                 fullWidth
                 select
-                label="Nationality"
+                label={t('register.nationality')}
                 required
                 value={personalInfo.nationality}
                 onChange={(e) => setPersonalInfo({ ...personalInfo, nationality: e.target.value })}
@@ -335,7 +338,7 @@ const EkycRegistrationPage: React.FC = () => {
               <TextField
                 fullWidth
                 type="tel"
-                label="Phone Number"
+                label={t('register.phone')}
                 required
                 value={personalInfo.phone}
                 onChange={(e) => {
@@ -351,7 +354,7 @@ const EkycRegistrationPage: React.FC = () => {
             <Grid size={12}>
               <TextField
                 fullWidth
-                label="Email Address"
+                label={t('register.email')}
                 type="email"
                 required
                 value={personalInfo.email}
@@ -359,7 +362,10 @@ const EkycRegistrationPage: React.FC = () => {
                   setPersonalInfo({ ...personalInfo, email: e.target.value });
                   setEmailError('');
                 }}
-                onBlur={() => setEmailError(validateEmail(personalInfo.email))}
+                onBlur={() => {
+                  const key = validateEmailKey(personalInfo.email);
+                  setEmailError(key ? t(`auth:${key}`) : '');
+                }}
                 error={!!emailError}
                 helperText={emailError}
               />
@@ -367,13 +373,13 @@ const EkycRegistrationPage: React.FC = () => {
             <Grid size={12}>
               <TextField
                 fullWidth
-                label="Current Address"
+                label={t('register.currentAddress')}
                 required
                 multiline
                 rows={3}
                 value={personalInfo.currentAddress}
                 onChange={(e) => setPersonalInfo({ ...personalInfo, currentAddress: e.target.value })}
-                placeholder="Street, City, State, ZIP, Country"
+                placeholder={t('register.addressPlaceholder')}
               />
             </Grid>
           </Grid>
@@ -384,7 +390,7 @@ const EkycRegistrationPage: React.FC = () => {
           <Grid container spacing={3}>
             <Grid size={12}>
               <Typography variant="h6" gutterBottom>
-                Identity Document Details
+                {t('register.documentTitle')}
               </Typography>
               <Typography
                 variant="body2"
@@ -392,21 +398,21 @@ const EkycRegistrationPage: React.FC = () => {
                   color: "text.secondary",
                   marginBottom: "16px"
                 }}>
-                Enter the details from your government-issued ID.
+                {t('register.documentSubtitle')}
               </Typography>
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 select
-                label="ID Type"
+                label={t('register.idType')}
                 required
                 value={documentInfo.idType}
                 onChange={(e) => setDocumentInfo({ ...documentInfo, idType: e.target.value })}
               >
                 {idTypes.map((type) => (
                   <MenuItem key={type.value} value={type.value}>
-                    {type.label}
+                    {t(type.labelKey)}
                   </MenuItem>
                 ))}
               </TextField>
@@ -414,7 +420,7 @@ const EkycRegistrationPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="ID Number"
+                label={t('register.idNumber')}
                 required
                 value={documentInfo.idNumber}
                 onChange={(e) => setDocumentInfo({ ...documentInfo, idNumber: e.target.value })}
@@ -424,7 +430,7 @@ const EkycRegistrationPage: React.FC = () => {
               <TextField
                 fullWidth
                 select
-                label="Issuing Country"
+                label={t('register.issuingCountry')}
                 required
                 value={documentInfo.idIssuingCountry}
                 onChange={(e) => setDocumentInfo({ ...documentInfo, idIssuingCountry: e.target.value })}
@@ -438,7 +444,7 @@ const EkycRegistrationPage: React.FC = () => {
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <ModernDatePicker
-                label="Issue Date (Optional)"
+                label={t('register.issueDate')}
                 value={documentInfo.idIssueDate}
                 onChange={(value) => setDocumentInfo({ ...documentInfo, idIssueDate: value })}
                 maxDate={formatLocalDate()}
@@ -446,7 +452,7 @@ const EkycRegistrationPage: React.FC = () => {
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <ModernDatePicker
-                label="Expiry Date"
+                label={t('register.expiryDate')}
                 value={documentInfo.idExpiryDate}
                 onChange={(value) => setDocumentInfo({ ...documentInfo, idExpiryDate: value })}
                 minDate={formatLocalDate()}
@@ -461,7 +467,7 @@ const EkycRegistrationPage: React.FC = () => {
           <Grid container spacing={3}>
             <Grid size={12}>
               <Typography variant="h6" gutterBottom>
-                Upload Documents
+                {t('register.uploadTitle')}
               </Typography>
               <Typography
                 variant="body2"
@@ -469,7 +475,7 @@ const EkycRegistrationPage: React.FC = () => {
                   color: "text.secondary",
                   marginBottom: "16px"
                 }}>
-                Please upload clear photos of your ID and a recent selfie.
+                {t('register.uploadSubtitle')}
               </Typography>
             </Grid>
             {/* ID Front */}
@@ -477,14 +483,14 @@ const EkycRegistrationPage: React.FC = () => {
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="subtitle2" gutterBottom>
-                    ID Front <Chip label="Required" color="error" size="small" />
+                    {t('register.idFront')} <Chip label={t('common:form.required')} color="error" size="small" />
                   </Typography>
                   <Box sx={{ mt: 2 }}>
                     {uploads.idFront ? (
                       <>
                         <img
                           src={uploads.idFront}
-                          alt="ID Front"
+                          alt={t('register.idFront')}
                           style={{ width: '100%', borderRadius: 8, marginBottom: 16 }}
                         />
                         <Button
@@ -494,7 +500,7 @@ const EkycRegistrationPage: React.FC = () => {
                           startIcon={<DeleteIcon />}
                           onClick={() => setUploads(prev => ({ ...prev, idFront: null }))}
                         >
-                          Remove
+                          {t('common:actions.remove')}
                         </Button>
                       </>
                     ) : (
@@ -512,7 +518,7 @@ const EkycRegistrationPage: React.FC = () => {
                           startIcon={<UploadIcon />}
                           onClick={() => idFrontRef.current?.click()}
                         >
-                          Upload ID Front
+                          {t('register.uploadIdFront')}
                         </Button>
                       </>
                     )}
@@ -526,14 +532,14 @@ const EkycRegistrationPage: React.FC = () => {
                 <Card variant="outlined">
                   <CardContent>
                     <Typography variant="subtitle2" gutterBottom>
-                      ID Back <Chip label="Required" color="error" size="small" />
+                      {t('register.idBack')} <Chip label={t('common:form.required')} color="error" size="small" />
                     </Typography>
                     <Box sx={{ mt: 2 }}>
                       {uploads.idBack ? (
                         <>
                           <img
                             src={uploads.idBack}
-                            alt="ID Back"
+                            alt={t('register.idBack')}
                             style={{ width: '100%', borderRadius: 8, marginBottom: 16 }}
                           />
                           <Button
@@ -543,7 +549,7 @@ const EkycRegistrationPage: React.FC = () => {
                             startIcon={<DeleteIcon />}
                             onClick={() => setUploads(prev => ({ ...prev, idBack: null }))}
                           >
-                            Remove
+                            {t('common:actions.remove')}
                           </Button>
                         </>
                       ) : (
@@ -561,7 +567,7 @@ const EkycRegistrationPage: React.FC = () => {
                             startIcon={<UploadIcon />}
                             onClick={() => idBackRef.current?.click()}
                           >
-                            Upload ID Back
+                            {t('register.uploadIdBack')}
                           </Button>
                         </>
                       )}
@@ -575,7 +581,7 @@ const EkycRegistrationPage: React.FC = () => {
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="subtitle2" gutterBottom>
-                    Selfie Photo <Chip label="Required" color="error" size="small" />
+                    {t('register.selfie')} <Chip label={t('common:form.required')} color="error" size="small" />
                   </Typography>
                   <Typography
                     variant="caption"
@@ -584,14 +590,14 @@ const EkycRegistrationPage: React.FC = () => {
                       display: "block",
                       mb: 2
                     }}>
-                    Take a clear photo of your face for verification
+                    {t('register.selfieHelp')}
                   </Typography>
                   <Box sx={{ mt: 2 }}>
                     {uploads.selfie ? (
                       <>
                         <img
                           src={uploads.selfie}
-                          alt="Selfie"
+                          alt={t('register.selfie')}
                           style={{ width: '100%', borderRadius: 8, marginBottom: 16 }}
                         />
                         <Button
@@ -601,7 +607,7 @@ const EkycRegistrationPage: React.FC = () => {
                           startIcon={<DeleteIcon />}
                           onClick={() => setUploads(prev => ({ ...prev, selfie: null }))}
                         >
-                          Remove
+                          {t('common:actions.remove')}
                         </Button>
                       </>
                     ) : (
@@ -620,7 +626,7 @@ const EkycRegistrationPage: React.FC = () => {
                           startIcon={<CameraIcon />}
                           onClick={() => selfieRef.current?.click()}
                         >
-                          Take Selfie
+                          {t('register.takeSelfie')}
                         </Button>
                       </>
                     )}
@@ -633,7 +639,7 @@ const EkycRegistrationPage: React.FC = () => {
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="subtitle2" gutterBottom>
-                    Proof of Address <Chip label="Optional" size="small" />
+                    {t('register.proofOfAddress')} <Chip label={t('common:form.optional')} size="small" />
                   </Typography>
                   <Typography
                     variant="caption"
@@ -642,14 +648,14 @@ const EkycRegistrationPage: React.FC = () => {
                       display: "block",
                       mb: 2
                     }}>
-                    Utility bill, bank statement, etc.
+                    {t('register.proofHelp')}
                   </Typography>
                   <Box sx={{ mt: 2 }}>
                     {uploads.proofOfAddress ? (
                       <>
                         <img
                           src={uploads.proofOfAddress}
-                          alt="Proof of Address"
+                          alt={t('register.proofOfAddress')}
                           style={{ width: '100%', borderRadius: 8, marginBottom: 16 }}
                         />
                         <Button
@@ -659,7 +665,7 @@ const EkycRegistrationPage: React.FC = () => {
                           startIcon={<DeleteIcon />}
                           onClick={() => setUploads(prev => ({ ...prev, proofOfAddress: null }))}
                         >
-                          Remove
+                          {t('common:actions.remove')}
                         </Button>
                       </>
                     ) : (
@@ -677,7 +683,7 @@ const EkycRegistrationPage: React.FC = () => {
                           startIcon={<UploadIcon />}
                           onClick={() => proofRef.current?.click()}
                         >
-                          Upload Document
+                          {t('register.uploadDocument')}
                         </Button>
                       </>
                     )}
@@ -692,7 +698,7 @@ const EkycRegistrationPage: React.FC = () => {
         return (
           <Box>
             <Typography variant="h6" gutterBottom>
-              Review & Submit
+              {t('register.reviewTitle')}
             </Typography>
             <Typography
               variant="body2"
@@ -700,42 +706,42 @@ const EkycRegistrationPage: React.FC = () => {
                 color: "text.secondary",
                 marginBottom: "16px"
               }}>
-              Please review your information before submitting.
+              {t('register.reviewSubtitle')}
             </Typography>
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
                 <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Personal Information
+                  {t('register.personalTitle')}
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Full Name:</Typography>
+                    }}>{t('register.reviewFullName')}</Typography>
                     <Typography variant="body1">{personalInfo.fullName}</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Date of Birth:</Typography>
+                    }}>{t('register.reviewDob')}</Typography>
                     <Typography variant="body1">{personalInfo.dateOfBirth}</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Nationality:</Typography>
+                    }}>{t('register.reviewNationality')}</Typography>
                     <Typography variant="body1">{personalInfo.nationality}</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Phone:</Typography>
+                    }}>{t('register.reviewPhone')}</Typography>
                     <Typography variant="body1">{personalInfo.phone}</Typography>
                   </Grid>
                   <Grid size={12}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Email:</Typography>
+                    }}>{t('register.reviewEmail')}</Typography>
                     <Typography variant="body1">{personalInfo.email}</Typography>
                   </Grid>
                 </Grid>
@@ -744,33 +750,33 @@ const EkycRegistrationPage: React.FC = () => {
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
                 <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Document Information
+                  {t('register.reviewDocTitle')}
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>ID Type:</Typography>
+                    }}>{t('register.reviewIdType')}</Typography>
                     <Typography variant="body1">
-                      {idTypes.find(t => t.value === documentInfo.idType)?.label}
+                      {idTypes.find(d => d.value === documentInfo.idType)?.labelKey ? t(idTypes.find(d => d.value === documentInfo.idType)!.labelKey) : documentInfo.idType}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>ID Number:</Typography>
+                    }}>{t('register.reviewIdNumber')}</Typography>
                     <Typography variant="body1">{documentInfo.idNumber}</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Issuing Country:</Typography>
+                    }}>{t('register.reviewIssuingCountry')}</Typography>
                     <Typography variant="body1">{documentInfo.idIssuingCountry}</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
-                    }}>Expiry Date:</Typography>
+                    }}>{t('register.reviewExpiryDate')}</Typography>
                     <Typography variant="body1">{documentInfo.idExpiryDate}</Typography>
                   </Grid>
                 </Grid>
@@ -779,28 +785,27 @@ const EkycRegistrationPage: React.FC = () => {
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Uploaded Documents
+                  {t('register.reviewUploadsTitle')}
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   {uploads.idFront && (
-                    <Chip icon={<CheckIcon />} label="ID Front" color="success" />
+                    <Chip icon={<CheckIcon />} label={t('register.idFront')} color="success" />
                   )}
                   {uploads.idBack && (
-                    <Chip icon={<CheckIcon />} label="ID Back" color="success" />
+                    <Chip icon={<CheckIcon />} label={t('register.idBack')} color="success" />
                   )}
                   {uploads.selfie && (
-                    <Chip icon={<CheckIcon />} label="Selfie" color="success" />
+                    <Chip icon={<CheckIcon />} label={t('register.selfie')} color="success" />
                   )}
                   {uploads.proofOfAddress && (
-                    <Chip icon={<CheckIcon />} label="Proof of Address" color="success" />
+                    <Chip icon={<CheckIcon />} label={t('register.proofOfAddress')} color="success" />
                   )}
                 </Box>
               </CardContent>
             </Card>
             <Alert severity="info" sx={{ mt: 3 }}>
               <Typography variant="body2">
-                Your information will be securely processed and verified. You will be notified once your verification is complete.
-                Once approved, you'll be able to use self-check-in for your bookings.
+                {t('register.reviewNotice')}
               </Typography>
             </Alert>
 
@@ -833,11 +838,11 @@ const EkycRegistrationPage: React.FC = () => {
           severity="info"
           action={
             <Button color="inherit" size="small" onClick={() => navigate('/profile')}>
-              Back to Profile
+              {t('register.backToProfile')}
             </Button>
           }
         >
-          eKYC identity verification is only available for guest accounts.
+          {t('register.guestOnly')}
         </Alert>
       </Container>
     );
@@ -849,7 +854,7 @@ const EkycRegistrationPage: React.FC = () => {
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <CheckIcon sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
           <Typography variant="h4" gutterBottom>
-            eKYC Submitted Successfully!
+            {t('register.successTitle')}
           </Typography>
           <Typography
             variant="body1"
@@ -857,13 +862,12 @@ const EkycRegistrationPage: React.FC = () => {
               color: "text.secondary",
               marginBottom: "16px"
             }}>
-            Your identity verification has been submitted and is under review.
-            You will receive an email notification once your verification is approved.
+            {t('register.successBody')}
           </Typography>
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            Redirecting to your profile...
+            {t('register.redirecting')}
           </Typography>
         </Paper>
       </Container>
@@ -875,19 +879,19 @@ const EkycRegistrationPage: React.FC = () => {
       <Paper sx={{ p: 4 }}>
         <Box sx={{ mb: 4 }}>
           <Typography variant="h4" gutterBottom>
-            eKYC Registration
+            {t('register.title')}
           </Typography>
           <Typography variant="body1" sx={{
             color: "text.secondary"
           }}>
-            Complete your identity verification to enable self-check-in
+            {t('register.subtitle')}
           </Typography>
         </Box>
 
         <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-          {steps.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
+          {STEP_KEYS.map((stepKey) => (
+            <Step key={stepKey}>
+              <StepLabel>{t(`register.steps.${stepKey}`)}</StepLabel>
             </Step>
           ))}
         </Stepper>
@@ -910,7 +914,7 @@ const EkycRegistrationPage: React.FC = () => {
             onClick={handleBack}
             startIcon={<BackIcon />}
           >
-            Back
+            {t('common:actions.back')}
           </Button>
 
           <Box sx={{ display: 'flex', gap: 2 }}>
@@ -918,17 +922,17 @@ const EkycRegistrationPage: React.FC = () => {
               variant="outlined"
               onClick={() => navigate('/profile')}
             >
-              Cancel
+              {t('common:actions.cancel')}
             </Button>
 
-            {activeStep === steps.length - 1 ? (
+            {activeStep === STEP_KEYS.length - 1 ? (
               <Button
                 variant="contained"
                 onClick={handleSubmit}
                 disabled={loading}
                 endIcon={loading ? <CircularProgress size={20} /> : <CheckIcon />}
               >
-                {loading ? 'Submitting...' : 'Submit for Verification'}
+                {loading ? t('register.submitting') : t('register.submit')}
               </Button>
             ) : (
               <Button
@@ -936,7 +940,7 @@ const EkycRegistrationPage: React.FC = () => {
                 onClick={handleNext}
                 endIcon={<ForwardIcon />}
               >
-                Next
+                {t('common:actions.next')}
               </Button>
             )}
           </Box>

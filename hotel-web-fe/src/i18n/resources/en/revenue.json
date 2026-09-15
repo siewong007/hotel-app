@@ -1,3 +1,72 @@
 {
-  "title": "Revenue"
+  "title": "Revenue",
+  "overview": {
+    "title": "Revenue Overview",
+    "subtitle": "Stay-date performance with previous-period comparison",
+    "rangeSubtitle": "Stay dates {{from}} – {{to}} · compared with {{prevFrom}} – {{prevTo}}",
+    "loadError": "Revenue metrics could not be loaded. Check your connection and try again.",
+    "emptyTitle": "No stays in this range",
+    "emptyDescription": "No bookings occupy these stay dates. Widen the range or clear the filters.",
+    "methodology": "KPIs count stay dates; channel contribution counts booking creation dates. Voided and no-show stays are excluded from sold metrics."
+  },
+  "kpi": {
+    "roomRevenue": "Room Revenue",
+    "occupancy": "Occupancy",
+    "adr": "ADR",
+    "revpar": "RevPAR",
+    "avgStay": "Avg Stay",
+    "bookingsCreated": "Bookings Created",
+    "directShare": "Direct Share",
+    "roomNightsSold_one": "{{count}} room night sold",
+    "roomNightsSold_other": "{{count}} room nights sold",
+    "adrSubtitle": "per sold room night",
+    "revparSubtitle": "per sellable room",
+    "avgStayValue": "{{value}} nights",
+    "avgStaySubtitle": "per booking in range",
+    "bookingsSubtitle": "voided {{voided}}% · no-show {{noShow}}%",
+    "directShareSubtitle": "of net revenue",
+    "vsPrior": "vs prior",
+    "noPrior": "· no prior",
+    "noBaseline": "No previous-period baseline"
+  },
+  "chart": {
+    "title": "Occupancy & room nights",
+    "subtitle": "By stay date",
+    "empty": "No stay dates in this range",
+    "roomNights": "Room nights",
+    "occupancy": "Occupancy",
+    "roomNightsAria": "Room nights sold per stay date",
+    "occupancyAria": "Occupancy rate per stay date",
+    "tooltipRoomNights": "Room nights: {{value}}",
+    "tooltipRoomRevenue": "Room revenue: {{value}}",
+    "tooltipOccupancy": "Occupancy: {{value}}"
+  },
+  "channels": {
+    "title": "Channel contribution",
+    "subtitle": "Net revenue by booking creation date",
+    "empty": "No attributed bookings were created in this range.",
+    "mobileMeta": "{{count}} bookings · {{revenue}}",
+    "colChannel": "Channel",
+    "colBookings": "Bookings",
+    "colNetRevenue": "Net revenue",
+    "colShare": "Share"
+  },
+  "channelTypes": {
+    "direct": "Direct",
+    "ota": "OTA",
+    "corporate": "Corporate",
+    "walk_in": "Walk-in",
+    "phone": "Phone",
+    "website": "Website",
+    "channel_manager": "Channel manager",
+    "other": "Other"
+  },
+  "filters": {
+    "from": "From (stay date)",
+    "to": "To (last night)",
+    "roomType": "Room type",
+    "allRoomTypes": "All room types",
+    "channel": "Channel",
+    "allChannels": "All channels"
+  }
 }

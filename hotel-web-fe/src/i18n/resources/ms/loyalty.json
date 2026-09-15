@@ -107,7 +107,17 @@
     "notesLabel": "Nota (pilihan)",
     "notesPlaceholder": "Tambah sebarang permintaan khas atau nota...",
     "termsLabel": "Terma & Syarat:",
-    "confirmRedemption": "Sahkan Penebusan"
+    "confirmRedemption": "Sahkan Penebusan",
+    "txTypes": {
+      "earn": "Diperoleh",
+      "earned": "Diperoleh",
+      "redeem": "Ditebus",
+      "redeemed": "Ditebus",
+      "adjusted": "Dilaraskan",
+      "reversed": "Dibalikkan",
+      "gift": "Dihadiahkan",
+      "expired": "Luput"
+    }
   },
   "portal": {
     "title": "Kesetiaan",
@@ -128,7 +138,8 @@
       "pendingHint": "menunggu semakan",
       "byTier": "Ahli mengikut peringkat",
       "noMembers": "Belum ada ahli berdaftar.",
-      "loadMembersFailed": "Gagal memuatkan ahli"
+      "loadMembersFailed": "Gagal memuatkan ahli",
+      "tierShare": "bahagian ahli {{tier}}"
     },
     "members": {
       "detailTitle": "Butiran ahli",
@@ -239,7 +250,12 @@
       "approvalRequired": "Penebusan memerlukan kelulusan",
       "save": "Simpan peraturan",
       "saveFailed": "Gagal menyimpan peraturan",
-      "loadFailed": "Gagal memuatkan peraturan"
+      "loadFailed": "Gagal memuatkan peraturan",
+      "metrics": {
+        "points": "Mata",
+        "nights": "Malam",
+        "spend": "Perbelanjaan"
+      }
     }
   }
 }

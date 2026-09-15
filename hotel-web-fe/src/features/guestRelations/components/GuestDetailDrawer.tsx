@@ -29,6 +29,7 @@ import type { Guest } from '../../../types';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { errorMessage } from '../../../utils';
 import { formatHotelDate } from '../../../utils/date';
+import { useTranslation } from '../../../i18n';
 import { validateEmail } from '../../../utils/validation';
 import { useUpdateGuest } from '../../guests/hooks/useGuestQueries';
 import type { GuestFormData } from '../../guests/types';
@@ -97,6 +98,7 @@ const GuestQuickEdit: React.FC<{ guest: Guest; onSaved: () => Promise<void> | vo
   guest,
   onSaved,
 }) => {
+  const { t } = useTranslation('guests');
   const updateGuest = useUpdateGuest();
   const [fields, setFields] = useState<QuickEditFields>(() => initialFields(guest));
   const [saving, setSaving] = useState(false);
@@ -137,10 +139,10 @@ const GuestQuickEdit: React.FC<{ guest: Guest; onSaved: () => Promise<void> | vo
       setSaving(true);
       setEditError(null);
       await updateGuest.mutateAsync({ guestId: guest.id, data });
-      emitApiNotification({ message: 'Guest updated successfully', severity: 'success' });
+      emitApiNotification({ message: t('drawer.updateSuccess'), severity: 'success' });
       await onSaved();
     } catch (err) {
-      setEditError(errorMessage(err, 'Failed to update guest'));
+      setEditError(errorMessage(err, t('drawer.updateFailed')));
     } finally {
       setSaving(false);
     }
@@ -148,39 +150,39 @@ const GuestQuickEdit: React.FC<{ guest: Guest; onSaved: () => Promise<void> | vo
 
   return (
     <Stack spacing={1.5}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Quick edit</Typography>
+      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{t('drawer.quickEdit')}</Typography>
       {editError && (
         <Alert severity="error" onClose={() => setEditError(null)}>{editError}</Alert>
       )}
       <Stack direction="row" spacing={1.5}>
         <TextField
-          fullWidth size="small" label="First name" required
+          fullWidth size="small" label={t('form.firstName')} required
           value={fields.first_name}
           onChange={(e) => setFields((prev) => ({ ...prev, first_name: e.target.value }))}
           slotProps={{ inputLabel: { shrink: true } }}
         />
         <TextField
-          fullWidth size="small" label="Last name" required
+          fullWidth size="small" label={t('form.lastName')} required
           value={fields.last_name}
           onChange={(e) => setFields((prev) => ({ ...prev, last_name: e.target.value }))}
           slotProps={{ inputLabel: { shrink: true } }}
         />
       </Stack>
       <TextField
-        fullWidth size="small" label="Email" type="email"
+        fullWidth size="small" label={t('form.email')} type="email"
         value={fields.email}
         onChange={(e) => setFields((prev) => ({ ...prev, email: e.target.value }))}
         slotProps={{ inputLabel: { shrink: true } }}
       />
       <Stack direction="row" spacing={1.5}>
         <TextField
-          fullWidth size="small" label="Phone" type="tel"
+          fullWidth size="small" label={t('form.phone')} type="tel"
           value={fields.phone}
           onChange={(e) => setFields((prev) => ({ ...prev, phone: e.target.value }))}
           slotProps={{ inputLabel: { shrink: true } }}
         />
         <TextField
-          fullWidth size="small" label="Nationality"
+          fullWidth size="small" label={t('form.nationality')}
           value={fields.nationality}
           onChange={(e) => setFields((prev) => ({ ...prev, nationality: e.target.value }))}
           slotProps={{ inputLabel: { shrink: true } }}
@@ -191,7 +193,7 @@ const GuestQuickEdit: React.FC<{ guest: Guest; onSaved: () => Promise<void> | vo
           size="small" variant="contained" onClick={handleSave} disabled={saving}
           startIcon={saving ? <CircularProgress size={14} /> : <SaveIcon />}
         >
-          {saving ? 'Saving…' : 'Save changes'}
+          {saving ? t('common:state.saving') : t('common:actions.saveChanges')}
         </Button>
       </Box>
     </Stack>
@@ -216,6 +218,7 @@ const GuestDetailDrawer: React.FC<GuestDetailDrawerProps> = ({
   onCreateEkyc,
   onDelete,
 }) => {
+  const { t } = useTranslation('guests');
   if (!guest) return null;
 
   const legalName = guestLegalName(guest);
@@ -227,7 +230,7 @@ const GuestDetailDrawer: React.FC<GuestDetailDrawerProps> = ({
       open={open}
       onClose={onClose}
       slotProps={{ paper: { sx: { width: { xs: '100%', sm: 420 } } } }}
-      aria-label={`Guest ${guest.nick_name} details`}
+      aria-label={t('drawer.ariaLabel', { name: guest.nick_name })}
     >
       <Stack spacing={2.5} sx={{ p: 2.5 }}>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -242,7 +245,7 @@ const GuestDetailDrawer: React.FC<GuestDetailDrawerProps> = ({
               </Typography>
             </Box>
           </Stack>
-          <IconButton onClick={onClose} aria-label="Close guest details" size="small">
+          <IconButton onClick={onClose} aria-label={t('drawer.closeAria')} size="small">
             <CloseIcon />
           </IconButton>
         </Stack>
@@ -252,7 +255,7 @@ const GuestDetailDrawer: React.FC<GuestDetailDrawerProps> = ({
           {guest.vip_status?.trim() && <VipChip status={guest.vip_status} />}
           <TourismChip guest={guest} />
           {guest.is_blacklisted && (
-            <Tooltip title={guest.blacklist_reason ? `Blacklisted — ${guest.blacklist_reason}` : 'Blacklisted guest'}>
+            <Tooltip title={guest.blacklist_reason ? t('list.blacklistedReason', { reason: guest.blacklist_reason }) : t('list.blacklistedGuest')}>
               <BlacklistedChip />
             </Tooltip>
           )}
@@ -266,35 +269,35 @@ const GuestDetailDrawer: React.FC<GuestDetailDrawerProps> = ({
           onClick={() => onOpenFullProfile(guest)}
           sx={{ alignSelf: 'flex-start' }}
         >
-          Open guest 360
+          {t('drawer.openGuest360')}
         </Button>
 
         <Divider />
 
         <Stack spacing={0.75}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Details</Typography>
-          <DetailRow label="Email" value={guest.email} />
-          <DetailRow label="Phone" value={guest.phone} />
-          <DetailRow label="IC / Passport" value={guest.ic_number} />
-          <DetailRow label="Nationality" value={guest.nationality} />
-          <DetailRow label="Company" value={guest.company_name} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{t('drawer.details')}</Typography>
+          <DetailRow label={t('form.email')} value={guest.email} />
+          <DetailRow label={t('form.phone')} value={guest.phone} />
+          <DetailRow label={t('form.icNumber')} value={guest.ic_number} />
+          <DetailRow label={t('form.nationality')} value={guest.nationality} />
+          <DetailRow label={t('form.companyName')} value={guest.company_name} />
           <DetailRow
-            label="Last stay"
+            label={t('list.lastStay')}
             value={guest.last_stay_date ? formatHotelDate(guest.last_stay_date, '—') : undefined}
           />
           <DetailRow
-            label="Stays"
-            value={(guest.bookings_count ?? 0) === 0 ? 'No stays' : `${guest.bookings_count}`}
+            label={t('drawer.stays')}
+            value={(guest.bookings_count ?? 0) === 0 ? t('list.noStays') : `${guest.bookings_count}`}
           />
           <DetailRow
-            label="Portal account"
+            label={t('drawer.portalAccount')}
             value={
               guest.account_username
-                ? `${guest.account_username} (${guest.account_is_active ? 'active' : 'deactivated'})`
+                ? `${guest.account_username} (${guest.account_is_active ? t('list.accountActive') : t('list.accountDeactivated')})`
                 : undefined
             }
           />
-          <DetailRow label="Blacklist reason" value={guest.is_blacklisted ? guest.blacklist_reason : undefined} />
+          <DetailRow label={t('drawer.blacklistReason')} value={guest.is_blacklisted ? guest.blacklist_reason : undefined} />
         </Stack>
 
         <Divider />
@@ -304,39 +307,39 @@ const GuestDetailDrawer: React.FC<GuestDetailDrawerProps> = ({
         <Divider />
 
         <Stack spacing={1}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Actions</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{t('drawer.actions')}</Typography>
           <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
             <Button size="small" variant="outlined" startIcon={<NewBookingIcon />} onClick={() => onNewBooking(guest)}>
-              New booking
+              {t('profile.newBooking')}
             </Button>
             <Button size="small" variant="outlined" startIcon={<StayHistoryIcon />} onClick={() => onStayHistory(guest)}>
-              Stay history
+              {t('list.stayHistory')}
             </Button>
             <Button size="small" variant="outlined" startIcon={<CreditsIcon />} onClick={() => onViewCredits(guest)}>
-              Free-night credits
+              {t('drawer.freeNightCredits')}
             </Button>
             <Button
               size="small" variant="outlined" disabled={isConverting}
               startIcon={isConverting ? <CircularProgress size={14} /> : <ConvertIcon />}
               onClick={() => onConvertTourism(guest)}
             >
-              Set tourism from last check-in
+              {t('drawer.setTourismFromCheckIn')}
             </Button>
             {canTransferPortalAccount && (
               <Button size="small" variant="outlined" startIcon={<PortalAccountIcon />} onClick={() => onTransferPortalAccount(guest)}>
-                Transfer portal account
+                {t('drawer.transferPortalAccount')}
               </Button>
             )}
             {canCreateEkyc && (
               <Button size="small" variant="outlined" startIcon={<EkycIcon />} onClick={() => onCreateEkyc(guest)}>
-                Create eKYC
+                {t('drawer.createEkyc')}
               </Button>
             )}
             <Button size="small" variant="outlined" startIcon={<EditIcon />} onClick={() => onEdit(guest)}>
-              Edit
+              {t('common:actions.edit')}
             </Button>
             <Button size="small" variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={() => onDelete(guest)}>
-              Delete guest
+              {t('drawer.deleteGuest')}
             </Button>
           </Stack>
         </Stack>

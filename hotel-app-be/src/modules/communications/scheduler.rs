@@ -27,6 +27,7 @@ use super::tokens;
 use super::validation::{self, html_escape};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::i18n::{self, Locale};
 use crate::core::settings_cache;
 use crate::models::AuditEvent;
 use crate::services::audit::AuditLog;
@@ -51,12 +52,13 @@ fn guest_vars(guest: &AudienceGuest) -> HashMap<String, String> {
     ])
 }
 
-pub(crate) fn unsubscribe_footer_html(guest_id: i64) -> String {
+pub(crate) fn unsubscribe_footer_html(guest_id: i64, locale: Locale) -> String {
     match tokens::sign_unsubscribe_token(guest_id) {
         Ok(token) => format!(
-            "<p style=\"font-size:12px;color:#888\"><a href=\"{}/unsubscribe/{}\">Unsubscribe</a></p>",
+            "<p style=\"font-size:12px;color:#888\"><a href=\"{}/unsubscribe/{}\">{}</a></p>",
             public_base_url(),
-            token
+            token,
+            html_escape(locale.message("email.chrome.unsubscribe"))
         ),
         Err(_) => String::new(),
     }
@@ -156,10 +158,11 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
     let due = Repo::due_pre_arrival_bookings(pool, today, window_days).await?;
     let mut queued = 0;
     for booking in due {
+        let locale = i18n::mail_locale(pool, booking.language_preference.as_deref()).await;
         let hotel = email_layout::hotel_display_name();
-        let subject = format!(
-            "Your stay at {hotel} begins soon · {}",
-            booking.booking_number
+        let subject = locale.format(
+            "email.preArrival.subject",
+            &[("hotel", &hotel), ("booking", &booking.booking_number)],
         );
         // Deep-link into the wizard with a booking token. Without one the CTA
         // lands on the lookup page and the guest has to retype their booking
@@ -179,47 +182,60 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
             }
             None => email_layout::absolute_url("/guest-checkin"),
         };
-        let stay_in = booking.check_in_date.format("%d %b %Y").to_string();
-        let stay_out = booking.check_out_date.format("%d %b %Y").to_string();
+        let stay_in = locale.format_date(booking.check_in_date);
+        let stay_out = locale.format_date(booking.check_out_date);
         let room = format!(
             "{} ({})",
             booking.room_number.as_deref().unwrap_or("-"),
             booking.room_type_name.as_deref().unwrap_or("-"),
         );
         let details = email_layout::details_table(&[
-            ("Booking", &booking.booking_number),
-            ("Room", &room),
-            ("Check-in", &stay_in),
-            ("Check-out", &stay_out),
+            (locale.message("email.labels.booking"), &booking.booking_number),
+            (locale.message("email.labels.room"), &room),
+            (locale.message("email.labels.checkIn"), &stay_in),
+            (locale.message("email.labels.checkOut"), &stay_out),
         ]);
         let inner_html = format!(
-            "<p>Dear {},</p>\
-             <p>We look forward to welcoming you. Your stay <strong>{}</strong> starts on <strong>{}</strong>.</p>\
-             {}\
-             <p>You can complete online check-in from the link below to skip the front desk.</p>",
-            html_escape(&booking.guest_name),
-            html_escape(&booking.booking_number),
-            html_escape(&stay_in),
+            "<p>{}</p><p>{}</p>{}<p>{}</p>",
+            locale.format(
+                "email.greeting",
+                &[("name", &html_escape(&booking.guest_name))]
+            ),
+            locale.format(
+                "email.preArrival.bodyHtml",
+                &[
+                    ("booking", &html_escape(&booking.booking_number)),
+                    ("checkIn", &html_escape(&stay_in)),
+                ],
+            ),
             details,
+            locale.message("email.preArrival.checkInNote"),
         );
-        let inner_text = format!(
-            "Dear {},\nYour stay {} starts on {}. Room: {}. Check-out: {}.\nYou can complete online check-in from the link in this email.",
-            booking.guest_name, booking.booking_number, stay_in, room, stay_out,
+        let inner_text = locale.format(
+            "email.preArrival.bodyText",
+            &[
+                ("name", &booking.guest_name),
+                ("booking", &booking.booking_number),
+                ("checkIn", &stay_in),
+                ("room", &room),
+                ("checkOut", &stay_out),
+            ],
         );
         let rendered = email_layout::render(GuestEmail {
-            preheader: &format!(
-                "Your {hotel} stay {} starts on {stay_in}.",
-                booking.booking_number
+            locale,
+            preheader: &locale.format(
+                "email.preArrival.preheader",
+                &[("hotel", &hotel), ("booking", &booking.booking_number), ("checkIn", &stay_in)],
             ),
-            heading: "Your stay begins soon",
+            heading: locale.message("email.preArrival.heading"),
             inner_html: &inner_html,
             inner_text: &inner_text,
             cta: Some(Cta {
-                label: "Complete pre-check-in",
+                label: locale.message("email.preArrival.cta"),
                 url: &checkin,
             }),
         });
-        let footer = unsubscribe_footer_html(booking.guest_id);
+        let footer = unsubscribe_footer_html(booking.guest_id, locale);
         let body_html = format!("{}{footer}", rendered.html);
         let body_text = rendered.text;
 
@@ -282,7 +298,8 @@ async fn campaign_body_for_guest(
         },
         None => campaign.body_html.clone(),
     };
-    format!("{base}{}", unsubscribe_footer_html(guest.id))
+    let locale = i18n::mail_locale(pool, guest.language_preference.as_deref()).await;
+    format!("{base}{}", unsubscribe_footer_html(guest.id, locale))
 }
 
 async fn expand_campaign(pool: &DbPool, campaign: &EmailCampaign) -> Result<usize, ApiError> {
@@ -391,9 +408,7 @@ pub async fn tick_birthdays(
     }
     let expiry_days =
         settings_cache::get_positive_i32(pool, "birthday_voucher_expiry_days", 30).await as i64;
-    let promotion_name = Repo::promotion_name(pool, promotion_id)
-        .await?
-        .unwrap_or_else(|| "your birthday reward".to_string());
+    let promotion_name = Repo::promotion_name(pool, promotion_id).await?;
     let hotel_name = settings_cache::get_string(pool, "hotel_name", "our hotel").await;
     let source_reference = format!("birthday:{}", today.year());
     let ((m1, d1), (m2, d2)) = birthday_match_pairs(today);
@@ -421,7 +436,7 @@ pub async fn tick_birthdays(
                 pool,
                 guest,
                 promotion_id,
-                &promotion_name,
+                promotion_name.as_deref(),
                 &hotel_name,
                 expiry_days,
                 &source_reference,
@@ -440,7 +455,7 @@ async fn issue_birthday_voucher(
     pool: &DbPool,
     guest: &AudienceGuest,
     promotion_id: i64,
-    promotion_name: &str,
+    promotion_name: Option<&str>,
     hotel_name: &str,
     expiry_days: i64,
     source_reference: &str,
@@ -467,38 +482,54 @@ async fn issue_birthday_voucher(
         return Ok(0);
     };
 
-    let expiry_text = expires_at.format("%d %b %Y").to_string();
-    let subject = format!("Happy birthday from {hotel_name}!");
+    let locale = i18n::mail_locale(pool, guest.language_preference.as_deref()).await;
+    let gift = promotion_name
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| locale.message("email.birthday.fallbackGift").to_string());
+    let expiry_text = locale.format_date(expires_at.date_naive());
+    let subject = locale.format("email.birthday.subject", &[("hotel", hotel_name)]);
     let portal = email_layout::absolute_url("/portal");
     let details = email_layout::details_table(&[
-        ("Gift", promotion_name),
-        ("Voucher code", &code),
-        ("Valid until", &expiry_text),
+        (locale.message("email.birthday.giftLabel"), &gift),
+        (locale.message("email.birthday.codeLabel"), &code),
+        (locale.message("email.birthday.validUntil"), &expiry_text),
     ]);
     let inner_html = format!(
-        "<p>Dear {first},</p>\
-         <p>Happy birthday! As a thank-you for staying with us, here is your gift.</p>\
+        "<p>{}</p>\
+         <p>{}</p>\
          {details}\
-         <p>You can also find it in your guest portal wallet.</p>\
-         <p>Warm wishes,<br>{hotel}</p>",
-        first = html_escape(&guest.first_name),
-        hotel = html_escape(hotel_name),
+         <p>{}</p>\
+         <p>{}<br>{}</p>",
+        locale.format("email.greeting", &[("name", &html_escape(&guest.first_name))]),
+        locale.message("email.birthday.bodyHtml"),
+        locale.message("email.birthday.walletNote"),
+        locale.message("email.birthday.signoff"),
+        html_escape(hotel_name),
     );
-    let inner_text = format!(
-        "Dear {},\nHappy birthday! Your gift is {promotion_name}.\nVoucher code: {code} (valid until {expiry_text}).\nWarm wishes,\n{hotel_name}",
-        guest.first_name,
+    let inner_text = locale.format(
+        "email.birthday.bodyText",
+        &[
+            ("name", &guest.first_name),
+            ("gift", &gift),
+            ("code", &code),
+            ("expiry", &expiry_text),
+            ("hotel", hotel_name),
+        ],
     );
     let rendered = email_layout::render(GuestEmail {
-        preheader: &format!("A birthday gift from {hotel_name} is waiting in your wallet."),
-        heading: "Happy birthday",
+        locale,
+        preheader: &locale.format("email.birthday.preheader", &[("hotel", hotel_name)]),
+        heading: locale.message("email.birthday.heading"),
         inner_html: &inner_html,
         inner_text: &inner_text,
         cta: Some(Cta {
-            label: "Open your wallet",
+            label: locale.message("email.birthday.cta"),
             url: &portal,
         }),
     });
-    let body_html = format!("{}{}", rendered.html, unsubscribe_footer_html(guest.id));
+    let body_html = format!("{}{}", rendered.html, unsubscribe_footer_html(guest.id, locale));
     let body_text = rendered.text;
 
     AuditLog::log_event_tx(

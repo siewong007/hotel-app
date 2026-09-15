@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Box, Typography } from '@mui/material';
+import { useTranslation } from '../../../../i18n';
 import type { ToneName, LedgerUiStatus } from './types';
 import { TONE, STATUS_TONE } from './helpers';
 
@@ -34,8 +35,9 @@ export const StatusPill: React.FC<{ tone: ToneName; children: React.ReactNode; s
 };
 
 export const LedgerStatusBadge: React.FC<{ status: LedgerUiStatus; sm?: boolean }> = ({ status, sm }) => {
+  const { t } = useTranslation();
   const meta = STATUS_TONE[status];
-  return <StatusPill tone={meta.tone} sm={sm}>{meta.label}</StatusPill>;
+  return <StatusPill tone={meta.tone} sm={sm}>{t(meta.labelKey)}</StatusPill>;
 };
 
 export const InfoField: React.FC<{ label: string; value: React.ReactNode; span?: 1 | 2 | 3 }> = ({

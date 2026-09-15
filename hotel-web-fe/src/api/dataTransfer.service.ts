@@ -1,4 +1,5 @@
 import { api, toApiError } from './client';
+import { t } from '../i18n';
 import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import { formatLocalDate } from '../utils/date';
 import type {
@@ -64,7 +65,7 @@ export class DataTransferService {
         })
         .json<ExportPreview>();
     } catch (error) {
-      throw toApiError(error, 'Failed to preview export data');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -95,7 +96,7 @@ export class DataTransferService {
 
       return { filename, bytes: blob.size };
     } catch (error) {
-      throw toApiError(error, 'Failed to export data');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -116,7 +117,7 @@ export class DataTransferService {
         })
         .json<UploadResponse>();
     } catch (error) {
-      throw toApiError(error, 'Failed to upload backup file');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -131,7 +132,7 @@ export class DataTransferService {
         })
         .json<ImportPreview>();
     } catch (error) {
-      throw toApiError(error, 'Failed to preview backup contents');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -149,7 +150,7 @@ export class DataTransferService {
         })
         .json<StepUpResponse>();
     } catch (error) {
-      throw toApiError(error, 'Verification failed — check your credentials and try again');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -163,7 +164,7 @@ export class DataTransferService {
         })
         .json<TransferHistory>();
     } catch (error) {
-      throw toApiError(error, 'Failed to load transfer history');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -186,7 +187,7 @@ export class DataTransferService {
         })
         .json<ImportExecuteResponse>();
     } catch (error) {
-      throw toApiError(error, 'Failed to start the import');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -197,7 +198,7 @@ export class DataTransferService {
         .get(`data-transfer/import/jobs/${jobId}`, { headers: SKIP_NOTIFICATION })
         .json<ImportJobStatus>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch import progress');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -208,7 +209,7 @@ export class DataTransferService {
         headers: SKIP_NOTIFICATION,
       });
     } catch (error) {
-      throw toApiError(error, 'Failed to discard the staged upload');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 }

@@ -1,4 +1,5 @@
 import { api, toApiError } from '../../api/client';
+import { t } from '../../i18n';
 import type {
   SupportActionPayload,
   SupportAgent,
@@ -25,7 +26,7 @@ export class SupportService {
         .get('support/conversations', { searchParams: searchParamsFrom(params) })
         .json<SupportConversationListResponse>();
     } catch (error) {
-      throw toApiError(error, 'Unable to load the support queue');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -33,7 +34,7 @@ export class SupportService {
     try {
       return await api.get(`support/conversations/${id}`).json<SupportConversationDetailResponse>();
     } catch (error) {
-      throw toApiError(error, 'Unable to load this conversation');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -41,7 +42,7 @@ export class SupportService {
     try {
       return await api.get('support/agents').json<SupportAgent[]>();
     } catch (error) {
-      throw toApiError(error, 'Unable to load support staff');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -54,7 +55,7 @@ export class SupportService {
         .post(`support/conversations/${conversationId}/messages`, { json: payload })
         .json<SupportConversationDetailResponse>();
     } catch (error) {
-      throw toApiError(error, 'Unable to send the reply');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -67,7 +68,7 @@ export class SupportService {
         .post(`support/conversations/${conversationId}/actions`, { json: payload })
         .json<SupportConversationDetailResponse>();
     } catch (error) {
-      throw toApiError(error, 'Unable to update this conversation');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 }

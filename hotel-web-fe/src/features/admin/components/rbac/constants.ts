@@ -1,19 +1,19 @@
 // Permission category configuration with display metadata
-export const PERMISSION_CATEGORIES: Record<string, { displayName: string; icon: string; color: string }> = {
-  rooms: { displayName: 'Rooms', icon: 'Hotel', color: 'var(--hotel-info)' },
-  bookings: { displayName: 'Bookings', icon: 'EventNote', color: 'var(--hotel-success)' },
-  guests: { displayName: 'Guests', icon: 'People', color: 'var(--hotel-warning)' },
-  users: { displayName: 'Users', icon: 'PersonAdd', color: 'var(--hotel-chart-4)' },
-  roles: { displayName: 'Roles', icon: 'Security', color: 'var(--hotel-danger)' },
-  permissions: { displayName: 'Permissions', icon: 'VpnKey', color: 'var(--hotel-chart-4)' },
-  navigation: { displayName: 'Navigation', icon: 'Navigation', color: 'var(--hotel-chart-4)' },
-  settings: { displayName: 'Settings', icon: 'Settings', color: 'var(--hotel-neutral)' },
-  ekyc: { displayName: 'eKYC', icon: 'VerifiedUser', color: 'var(--hotel-info)' },
-  rbac: { displayName: 'Access Control', icon: 'Security', color: 'var(--hotel-danger)' },
-  loyalty: { displayName: 'Loyalty', icon: 'CardGiftcard', color: 'var(--hotel-primary)' },
-  rewards: { displayName: 'Rewards', icon: 'Star', color: 'var(--hotel-warning)' },
-  ledgers: { displayName: 'Ledgers', icon: 'AccountBalance', color: 'var(--hotel-neutral)' },
-  analytics: { displayName: 'Analytics', icon: 'Assessment', color: 'var(--hotel-info)' },
+export const PERMISSION_CATEGORIES: Record<string, { labelKey: string; icon: string; color: string }> = {
+  rooms: { labelKey: 'admin:rbac.permCat.rooms', icon: 'Hotel', color: 'var(--hotel-info)' },
+  bookings: { labelKey: 'admin:rbac.permCat.bookings', icon: 'EventNote', color: 'var(--hotel-success)' },
+  guests: { labelKey: 'admin:rbac.permCat.guests', icon: 'People', color: 'var(--hotel-warning)' },
+  users: { labelKey: 'admin:rbac.permCat.users', icon: 'PersonAdd', color: 'var(--hotel-chart-4)' },
+  roles: { labelKey: 'admin:rbac.permCat.roles', icon: 'Security', color: 'var(--hotel-danger)' },
+  permissions: { labelKey: 'admin:rbac.permCat.permissions', icon: 'VpnKey', color: 'var(--hotel-chart-4)' },
+  navigation: { labelKey: 'admin:rbac.permCat.navigation', icon: 'Navigation', color: 'var(--hotel-chart-4)' },
+  settings: { labelKey: 'admin:rbac.permCat.settings', icon: 'Settings', color: 'var(--hotel-neutral)' },
+  ekyc: { labelKey: 'admin:rbac.permCat.ekyc', icon: 'VerifiedUser', color: 'var(--hotel-info)' },
+  rbac: { labelKey: 'admin:rbac.permCat.rbac', icon: 'Security', color: 'var(--hotel-danger)' },
+  loyalty: { labelKey: 'admin:rbac.permCat.loyalty', icon: 'CardGiftcard', color: 'var(--hotel-primary)' },
+  rewards: { labelKey: 'admin:rbac.permCat.rewards', icon: 'Star', color: 'var(--hotel-warning)' },
+  ledgers: { labelKey: 'admin:rbac.permCat.ledgers', icon: 'AccountBalance', color: 'var(--hotel-neutral)' },
+  analytics: { labelKey: 'admin:rbac.permCat.analytics', icon: 'Assessment', color: 'var(--hotel-info)' },
 };
 
 // Role colors for visual distinction

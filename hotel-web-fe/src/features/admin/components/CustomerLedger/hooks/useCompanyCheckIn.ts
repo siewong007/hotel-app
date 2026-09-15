@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useTranslation } from '../../../../../i18n';
 import { BookingsService, GuestsService, RoomsService } from '../../../../../api';
 import { api } from '../../../../../api/client';
 import type { Booking, BookingWithDetails, Company, Guest, Room } from '../../../../../types';
@@ -40,7 +41,9 @@ interface UseCompanyCheckInParams {
   reloadWorkspace: () => Promise<void>;
 }
 
-export function useCompanyCheckIn({ showSnackbar, reloadWorkspace }: UseCompanyCheckInParams) {
+export function useCompanyCheckIn({
+  showSnackbar, reloadWorkspace }: UseCompanyCheckInParams) {
+  const { t } = useTranslation('finance');
   const [checkInDialogOpen, setCheckInDialogOpen] = useState(false);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -125,14 +128,14 @@ export function useCompanyCheckIn({ showSnackbar, reloadWorkspace }: UseCompanyC
   // Handle company check-in
   const handleCompanyCheckIn = async () => {
     if (!checkInCompany || !checkInRoom) {
-      showSnackbar('Please select a company and room', 'warning');
+      showSnackbar(t('ledger.checkIn.validation.selectCompanyRoom'), 'warning');
       return;
     }
 
     const customRoomRateInput = checkInRoomRate.trim();
     const roomRateOverride = customRoomRateInput ? toMoneyNumber(customRoomRateInput) : undefined;
     if (roomRateOverride !== undefined && !isPositiveMoney(roomRateOverride)) {
-      showSnackbar('Please enter a valid room rate', 'warning');
+      showSnackbar(t('ledger.checkIn.validation.validRoomRate'), 'warning');
       return;
     }
 
@@ -144,13 +147,13 @@ export function useCompanyCheckIn({ showSnackbar, reloadWorkspace }: UseCompanyC
       // Create new guest if needed
       if (isCreatingNewCheckInGuest) {
         if (!newCheckInGuestForm.first_name || !newCheckInGuestForm.last_name) {
-          showSnackbar('Please enter guest first and last name', 'warning');
+          showSnackbar(t('ledger.checkIn.validation.guestName'), 'warning');
           setProcessingCheckIn(false);
           return;
         }
 
         if (!newCheckInGuestForm.ic_number.trim()) {
-          showSnackbar('Please enter IC/Passport number for the guest', 'warning');
+          showSnackbar(t('ledger.checkIn.validation.icNumber'), 'warning');
           setProcessingCheckIn(false);
           return;
         }
@@ -161,7 +164,7 @@ export function useCompanyCheckIn({ showSnackbar, reloadWorkspace }: UseCompanyC
         // Validate email format only if provided
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !emailRegex.test(newCheckInGuestForm.email)) {
-          showSnackbar('Please enter a valid email address for the guest', 'warning');
+          showSnackbar(t('ledger.checkIn.validation.validEmail'), 'warning');
           setProcessingCheckIn(false);
           return;
         }
@@ -184,7 +187,7 @@ export function useCompanyCheckIn({ showSnackbar, reloadWorkspace }: UseCompanyC
       }
 
       if (!guestToUse) {
-        showSnackbar('Please select or create a guest', 'warning');
+        showSnackbar(t('ledger.checkIn.validation.selectOrCreateGuest'), 'warning');
         setProcessingCheckIn(false);
         return;
       }
@@ -194,7 +197,7 @@ export function useCompanyCheckIn({ showSnackbar, reloadWorkspace }: UseCompanyC
       // a differently-shaped payload that has never been observed from the API.
       const roomId = checkInRoom.id || (checkInRoom as unknown as { room_id?: string }).room_id;
       if (!roomId) {
-        showSnackbar('Room ID not found. Please select a different room.', 'warning');
+        showSnackbar(t('ledger.checkIn.validation.roomNotFound'), 'warning');
         setProcessingCheckIn(false);
         return;
       }
@@ -231,7 +234,13 @@ export function useCompanyCheckIn({ showSnackbar, reloadWorkspace }: UseCompanyC
         await BookingsService.updateBooking(booking.id, { status: 'checked_out' });
       }
 
-      showSnackbar(`Guest ${guestToUse.nick_name} checked in to Room ${checkInRoom.room_number} (Company: ${checkInCompany.company_name})`);
+      showSnackbar(
+        t('ledger.checkIn.checkedInSuccess', {
+          guest: guestToUse.nick_name,
+          room: checkInRoom.room_number,
+          company: checkInCompany.company_name,
+        }),
+      );
 
       // Reset and close dialog
       setCheckInDialogOpen(false);
@@ -239,7 +248,7 @@ export function useCompanyCheckIn({ showSnackbar, reloadWorkspace }: UseCompanyC
       await reloadWorkspace();
     } catch (err) {
       console.error('Failed to perform company check-in:', err);
-      showSnackbar(err instanceof Error && err.message ? err.message : 'Failed to perform company check-in', 'error');
+      showSnackbar(err instanceof Error && err.message ? err.message : t('ledger.checkIn.validation.checkInFailed'), 'error');
     } finally {
       setProcessingCheckIn(false);
     }

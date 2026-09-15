@@ -14,6 +14,9 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 
 import { useIsPhone } from '../../../hooks/useIsPhone';
+import { useTranslation, statusLabel } from '../../../i18n';
+import { formatRelativeTime } from '../../../i18n/format';
+import { formatHotelDateTime } from '../../../utils/date';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { TableScroll } from '../../../components/data-table/TableScroll';
 import type { JobHealth } from './types';
@@ -24,28 +27,21 @@ function formatDuration(ms: number | null): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function formatRelative(iso: string): string {
-  const diffSec = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
-  if (diffSec < 60) return `${diffSec}s ago`;
-  const diffMin = Math.round(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return new Date(iso).toLocaleString();
-}
-
-const JOB_LABELS: Record<string, string> = {
-  night_audit: 'Night Audit',
-  payment_receipts: 'Payment Receipts',
-  unpaid_hold_release: 'Unpaid Hold Release',
-  email_delivery_worker: 'Email Delivery Worker',
-  email_campaigns: 'Email Campaigns',
-  birthday_vouchers: 'Birthday Vouchers',
-  pre_arrival_reminders: 'Pre-arrival Reminders',
+const JOB_LABEL_KEYS: Record<string, string> = {
+  night_audit: 'admin:jobs.names.night_audit',
+  payment_receipts: 'admin:jobs.names.payment_receipts',
+  unpaid_hold_release: 'admin:jobs.names.unpaid_hold_release',
+  email_delivery_worker: 'admin:jobs.names.email_delivery_worker',
+  email_campaigns: 'admin:jobs.names.email_campaigns',
+  birthday_vouchers: 'admin:jobs.names.birthday_vouchers',
+  pre_arrival_reminders: 'admin:jobs.names.pre_arrival_reminders',
 };
 
 export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => {
   const isPhone = useIsPhone();
+  const { t, tOr } = useTranslation('admin');
+  const jobName = (name: string) =>
+    JOB_LABEL_KEYS[name] ? t(JOB_LABEL_KEYS[name]) : name;
 
   if (isPhone) {
     return (
@@ -56,9 +52,13 @@ export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => {
             sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
           >
             <MobileCardRow
-              title={JOB_LABELS[job.job_name] ?? job.job_name}
-              subtitle={`${formatRelative(job.last_run_at)} · ${job.runs_24h} runs · ${job.failures_24h} failures (24h)`}
-              meta={job.last_error ? `Last error: ${job.last_error}` : `${formatDuration(job.last_duration_ms)} last run`}
+              title={jobName(job.job_name)}
+              subtitle={t('jobs.cardSubtitle', {
+                at: formatRelativeTime(job.last_run_at),
+                runs: job.runs_24h,
+                failures: job.failures_24h,
+              })}
+              meta={job.last_error ? t('jobs.lastError', { error: job.last_error }) : t('jobs.lastRunDuration', { duration: formatDuration(job.last_duration_ms) })}
               status={
                 <Chip
                   size="small"
@@ -69,7 +69,7 @@ export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => {
                       <ErrorOutlineIcon />
                     )
                   }
-                  label={job.last_status}
+                  label={statusLabel(t, 'job', job.last_status)}
                   color={job.last_status === 'ok' ? 'success' : 'error'}
                   variant="outlined"
                 />
@@ -86,13 +86,13 @@ export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => {
     <Table size="small">
       <TableHead>
         <TableRow>
-          <TableCell>Job</TableCell>
-          <TableCell>Last run</TableCell>
-          <TableCell>Status</TableCell>
-          <TableCell align="right">Duration</TableCell>
-          <TableCell align="right">Runs (24h)</TableCell>
-          <TableCell align="right">Failures (24h)</TableCell>
-          <TableCell>Last error</TableCell>
+          <TableCell>{t('jobs.col.job')}</TableCell>
+          <TableCell>{t('jobs.col.lastRun')}</TableCell>
+          <TableCell>{t('common:field.status')}</TableCell>
+          <TableCell align="right">{t('jobs.col.duration')}</TableCell>
+          <TableCell align="right">{t('jobs.col.runs24h')}</TableCell>
+          <TableCell align="right">{t('jobs.col.failures24h')}</TableCell>
+          <TableCell>{t('jobs.col.lastError')}</TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
@@ -100,15 +100,15 @@ export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => {
           <TableRow key={job.job_name} hover>
             <TableCell>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {JOB_LABELS[job.job_name] ?? job.job_name}
+                {jobName(job.job_name)}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 {job.job_name}
               </Typography>
             </TableCell>
             <TableCell>
-              <Tooltip title={new Date(job.last_run_at).toLocaleString()}>
-                <span>{formatRelative(job.last_run_at)}</span>
+              <Tooltip title={formatHotelDateTime(job.last_run_at)}>
+                <span>{formatRelativeTime(job.last_run_at)}</span>
               </Tooltip>
             </TableCell>
             <TableCell>
@@ -121,7 +121,7 @@ export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => {
                     <ErrorOutlineIcon />
                   )
                 }
-                label={job.last_status}
+                label={statusLabel(t, 'job', job.last_status)}
                 color={job.last_status === 'ok' ? 'success' : 'error'}
                 variant="outlined"
               />

@@ -6,6 +6,7 @@ import { Box, Typography, Chip } from '@mui/material';
 import { Logout as CheckOutIcon } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import type { BookingWithDetails } from '../../../../../types';
+import { useTranslation } from '../../../../../i18n';
 
 interface ActiveGuestsRowProps {
   bookings: BookingWithDetails[];
@@ -13,6 +14,7 @@ interface ActiveGuestsRowProps {
 }
 
 const ActiveGuestsRow: React.FC<ActiveGuestsRowProps> = ({ bookings, onCheckout }) => {
+  const { t } = useTranslation('finance');
   if (bookings.length === 0) return null;
 
   return (
@@ -38,7 +40,7 @@ const ActiveGuestsRow: React.FC<ActiveGuestsRowProps> = ({ bookings, onCheckout 
           textTransform: 'uppercase',
         }}
       >
-        {bookings.length} active guest{bookings.length > 1 ? 's' : ''}:
+        {t('ledger.activeGuests', { count: bookings.length })}:
       </Typography>
       {bookings.map((booking) => (
         <Chip
@@ -46,7 +48,7 @@ const ActiveGuestsRow: React.FC<ActiveGuestsRowProps> = ({ bookings, onCheckout 
           size="small"
           label={
             <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
-              <span>Room {booking.room_number}</span>
+              <span>{t('ledger.roomWithNumber', { number: booking.room_number })}</span>
               <Box component="span" sx={{ color: 'text.disabled' }}>/</Box>
               <span>{booking.guest_name}</span>
             </Box>
@@ -64,7 +66,7 @@ const ActiveGuestsRow: React.FC<ActiveGuestsRowProps> = ({ bookings, onCheckout 
                 px: 0.5,
               }}
             >
-              <CheckOutIcon sx={{ fontSize: 13 }} /> Out
+              <CheckOutIcon sx={{ fontSize: 13 }} /> {t('ledger.checkoutShort')}
             </Box>
           }
           sx={{

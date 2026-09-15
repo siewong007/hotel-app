@@ -213,6 +213,8 @@ pub async fn list_guest_promotions(
             can_claim,
             has_voucher,
             claim_unavailable_reason: None,
+            claim_unavailable_code: None,
+            claim_unavailable_points: None,
         });
     }
     let mut has_loyalty_offer = false;
@@ -230,23 +232,39 @@ pub async fn list_guest_promotions(
         let can_claim = reward
             .as_ref()
             .is_some_and(|reward| !has_voucher && member.available_points >= reward.points_cost);
-        let claim_unavailable_reason = if has_voucher {
-            None
-        } else if let Some(reward) = reward {
-            (member.available_points < reward.points_cost).then(|| {
-                format!(
-                    "You need {} loyalty points to redeem this voucher.",
-                    reward.points_cost
+        // `claim_unavailable_*` carries a stable code (+ points for
+        // `insufficient_points`) so clients localize; `reason` stays as the
+        // English fallback for older clients.
+        let (claim_unavailable_reason, claim_unavailable_code, claim_unavailable_points) =
+            if has_voucher {
+                (None, None, None)
+            } else if let Some(reward) = reward {
+                if member.available_points < reward.points_cost {
+                    (
+                        Some(format!(
+                            "You need {} loyalty points to redeem this voucher.",
+                            reward.points_cost
+                        )),
+                        Some("insufficient_points".to_string()),
+                        Some(i64::from(reward.points_cost)),
+                    )
+                } else {
+                    (None, None, None)
+                }
+            } else {
+                (
+                    Some("This loyalty voucher is not configured.".to_string()),
+                    Some("not_configured".to_string()),
+                    None,
                 )
-            })
-        } else {
-            Some("This loyalty voucher is not configured.".to_string())
-        };
+            };
         items.push(GuestPromotion {
             promotion: PublicPromotion::from(promotion),
             can_claim,
             has_voucher,
             claim_unavailable_reason,
+            claim_unavailable_code,
+            claim_unavailable_points,
         });
         has_loyalty_offer = true;
     }

@@ -133,7 +133,8 @@
     "properties": "Properties...",
     "sectionBooking": "Booking",
     "sectionHousekeeping": "Housekeeping",
-    "sectionRoom": "Room"
+    "sectionRoom": "Room",
+    "editBookingNotes": "Edit booking notes"
   },
   "header": {
     "title": "Hotel Manager — Rooms",
@@ -725,5 +726,8 @@
     "selectRooms": "Select one or more rooms",
     "setDatesHint": "Set dates below to filter by availability",
     "roomsSelected": "{{count}} rooms selected: {{rooms}}"
+  },
+  "actions": {
+    "editBookingNotes": "Edit booking notes"
   }
 }

@@ -97,7 +97,7 @@ describe('GuestBookingApi', () => {
     getPortalToken.mockReturnValue(null);
 
     expect(() => GuestBookingApi.search(SEARCH)).toThrow(
-      'Sign in to the guest portal to continue',
+      'Please sign in to continue.',
     );
     expect(get).not.toHaveBeenCalled();
   });

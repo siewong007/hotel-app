@@ -26,6 +26,7 @@ import type { CustomerLedgerCreateRequest, Room } from '../../../../../types';
 import type { CompanyOption } from '../types';
 import { EXPENSE_TYPES } from '../constants';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
+import { useTranslation, statusLabel } from '../../../../../i18n';
 
 interface CreateLedgerDialogProps {
   // Dialog state
@@ -66,9 +67,11 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
   onSubmit,
   onCancel,
   currencySymbol,
-}) => (
+}) => {
+  const { t } = useTranslation('finance');
+  return (
   <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-    <DialogTitle>Create New Ledger Entry</DialogTitle>
+    <DialogTitle>{t('ledger.createDialog.title')}</DialogTitle>
     <DialogContent>
       <Grid container spacing={2} sx={{ mt: 1 }}>
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -87,7 +90,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
               if (inputValue !== '' && !isExisting) {
                 filtered.push({
                   inputValue: state.inputValue,
-                  company_name: `Add "${state.inputValue}" as new company`,
+                  company_name: t('ledger.createDialog.addNewCompany', { name: state.inputValue }),
                   isNew: true,
                 });
               }
@@ -115,7 +118,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
                         <Typography variant="caption" sx={{
                           color: "text.secondary"
                         }}>
-                          Contact: {option.contact_person}
+                          {t('ledger.field.contactPerson')}: {option.contact_person}
                         </Typography>
                       )}
                     </Box>
@@ -127,9 +130,9 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
               <TextField
                 {...params}
                 required
-                label="Company Name"
-                placeholder="Type to search or add new company"
-                helperText="Select existing company or type new name"
+                label={t('ledger.field.companyName')}
+                placeholder={t('ledger.createDialog.companyPlaceholder')}
+                helperText={t('ledger.createDialog.companyHelp')}
               />
             )}
           />
@@ -137,7 +140,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Registration Number"
+            label={t('ledger.field.registrationNumber')}
             value={createFormData.company_registration_number || ''}
             onChange={(e) => setCreateFormData({ ...createFormData, company_registration_number: e.target.value })}
           />
@@ -145,7 +148,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Contact Person"
+            label={t('ledger.field.contactPerson')}
             value={createFormData.contact_person || ''}
             onChange={(e) => setCreateFormData({ ...createFormData, contact_person: e.target.value })}
           />
@@ -153,7 +156,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Contact Email"
+            label={t('ledger.field.contactEmail')}
             type="email"
             value={createFormData.contact_email || ''}
             onChange={(e) => setCreateFormData({ ...createFormData, contact_email: e.target.value })}
@@ -163,7 +166,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
           <TextField
             fullWidth
             type="tel"
-            label="Contact Phone"
+            label={t('ledger.field.contactPhone')}
             value={createFormData.contact_phone || ''}
             onChange={(e) => setCreateFormData({ ...createFormData, contact_phone: e.target.value })}
           />
@@ -171,7 +174,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Billing Address"
+            label={t('ledger.field.billingAddress')}
             value={createFormData.billing_address_line1 || ''}
             onChange={(e) => setCreateFormData({ ...createFormData, billing_address_line1: e.target.value })}
           />
@@ -180,7 +183,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
           <TextField
             fullWidth
             required
-            label="Description"
+            label={t('common:field.description')}
             multiline
             rows={2}
             value={createFormData.description}
@@ -189,15 +192,15 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth required>
-            <InputLabel>Expense Type</InputLabel>
+            <InputLabel>{t('ledger.field.expenseType')}</InputLabel>
             <Select
               value={createFormData.expense_type}
-              label="Expense Type"
+              label={t('ledger.field.expenseType')}
               onChange={(e) => setCreateFormData({ ...createFormData, expense_type: e.target.value })}
             >
               {EXPENSE_TYPES.map((type) => (
                 <MenuItem key={type.value} value={type.value}>
-                  {type.label}
+                  {t(type.labelKey)}
                 </MenuItem>
               ))}
             </Select>
@@ -207,7 +210,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
           <TextField
             fullWidth
             required
-            label="Amount"
+            label={t('common:field.amount')}
             type="number"
             value={createFormData.amount}
             onChange={(e) => setCreateFormData({ ...createFormData, amount: toMoneyNumber(e.target.value) })}
@@ -228,7 +231,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
             })}
             options={ledgerRooms}
             loading={loadingLedgerRooms}
-            getOptionLabel={(option) => `Room ${option.room_number} - ${option.room_type}`}
+            getOptionLabel={(option) => t('ledger.roomOption', { number: option.room_number, type: option.room_type })}
             isOptionEqualToValue={(option, value) => option.id === value.id}
             renderOption={(props, option) => {
               const { key, ...otherProps } = props;
@@ -244,15 +247,15 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
                     <Box>
                       <Typography sx={{
                         fontWeight: "medium"
-                      }}>Room {option.room_number}</Typography>
+                      }}>{t('ledger.roomWithNumber', { number: option.room_number })}</Typography>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
                       }}>
-                        {option.room_type} {option.floor != null ? `| Floor ${option.floor}` : ''}
+                        {option.room_type} {option.floor != null ? `| ${t('ledger.floorWithNumber', { number: option.floor })}` : ''}
                       </Typography>
                     </Box>
                     {option.status && (
-                      <Chip label={option.status} size="small" variant="outlined" />
+                      <Chip label={statusLabel(t, 'room', option.status)} size="small" variant="outlined" />
                     )}
                   </Box>
                 </li>
@@ -261,9 +264,9 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Room"
-                placeholder="Choose a room"
-                helperText="Used to detect possible duplicate stay charges"
+                label={t('ledger.field.room')}
+                placeholder={t('ledger.createDialog.roomPlaceholder')}
+                helperText={t('ledger.createDialog.roomHelp')}
                 slotProps={{
                   ...params.slotProps,
 
@@ -290,7 +293,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Stay / Ledger Date"
+            label={t('ledger.field.stayLedgerDate')}
             type="date"
             value={createFormData.posting_date || ''}
             onChange={(e) => setCreateFormData({
@@ -298,7 +301,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
               posting_date: e.target.value,
               transaction_date: e.target.value,
             })}
-            helperText="Company + room + date + amount is checked for duplicates"
+            helperText={t('ledger.createDialog.duplicateCheckHelp')}
             slotProps={{
               inputLabel: { shrink: true }
             }}
@@ -307,7 +310,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Invoice Date"
+            label={t('ledger.field.invoiceDate')}
             type="date"
             value={createFormData.invoice_date || ''}
             onChange={(e) => setCreateFormData({ ...createFormData, invoice_date: e.target.value })}
@@ -319,7 +322,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Due Date"
+            label={t('ledger.field.dueDate')}
             type="date"
             value={createFormData.due_date || ''}
             onChange={(e) => setCreateFormData({ ...createFormData, due_date: e.target.value })}
@@ -331,7 +334,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
         <Grid size={12}>
           <TextField
             fullWidth
-            label="Notes"
+            label={t('common:field.notes')}
             multiline
             rows={2}
             value={createFormData.notes || ''}
@@ -341,16 +344,17 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
       </Grid>
     </DialogContent>
     <DialogActions>
-      <Button onClick={onCancel}>Cancel</Button>
+      <Button onClick={onCancel}>{t('common:actions.cancel')}</Button>
       <Button
         onClick={onSubmit}
         variant="contained"
         disabled={creating || !createFormData.company_name || !createFormData.description || !isPositiveMoney(createFormData.amount)}
       >
-        {creating ? 'Creating...' : 'Create Entry'}
+        {creating ? t('ledger.createDialog.creating') : t('ledger.createDialog.createEntry')}
       </Button>
     </DialogActions>
   </Dialog>
-);
+  );
+};
 
 export default CreateLedgerDialog;

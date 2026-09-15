@@ -5,6 +5,7 @@ import React from 'react';
 import { Box, Typography, LinearProgress } from '@mui/material';
 import type { CompanyLedgerAggregate } from '../hooks/useCustomerLedgerWorkspace';
 import { isPositiveMoney } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n';
 
 interface CompanyBalanceMeterProps {
   agg: CompanyLedgerAggregate;
@@ -27,18 +28,19 @@ const CompanyBalanceMeter: React.FC<CompanyBalanceMeterProps> = ({
   currencySymbol,
   formatCurrency,
 }) => {
+  const { t } = useTranslation('finance');
   const pct = isPositiveMoney(agg.total) ? (agg.paid / agg.total) * 100 : 0;
   const allCells: BalanceCell[] = [
     {
       key: 'billed',
-      label: 'Total Billed',
+      label: t('ledger.meter.totalBilled'),
       value: agg.total,
       barWidth: 100,
       barColor: 'success.main',
     },
     {
       key: 'collected',
-      label: 'Collected',
+      label: t('ledger.meter.collected'),
       value: agg.paid,
       color: 'success.main',
       barWidth: pct,
@@ -46,30 +48,30 @@ const CompanyBalanceMeter: React.FC<CompanyBalanceMeterProps> = ({
     },
     {
       key: 'outstanding',
-      label: 'Outstanding',
+      label: t('ledger.meter.outstanding'),
       value: agg.due,
       color: 'error.main',
       barWidth: Math.min(100, isPositiveMoney(agg.total) ? (agg.due / agg.total) * 100 : 0),
       barColor: 'error.main',
-      sub: `${agg.pending} open item${agg.pending === 1 ? '' : 's'}`,
+      sub: t('ledger.meter.openItems', { count: agg.pending }),
     },
     {
       key: 'overdue',
-      label: 'Overdue',
+      label: t('ledger.meter.overdue'),
       value: agg.overdue,
       color: isPositiveMoney(agg.overdue) ? 'error.main' : 'success.main',
       barWidth: Math.min(100, isPositiveMoney(agg.total) ? (agg.overdue / agg.total) * 100 : 0),
       barColor: 'error.main',
-      sub: isPositiveMoney(agg.overdue) ? 'needs follow-up' : 'none overdue',
+      sub: isPositiveMoney(agg.overdue) ? t('ledger.meter.needsFollowUp') : t('ledger.meter.noneOverdue'),
     },
     {
       key: 'collection',
-      label: 'Collection',
+      label: t('ledger.meter.collection'),
       value: pct,
       color: 'success.main',
       barWidth: pct,
       barColor: 'success.main',
-      sub: `${Math.round(pct)}% collected`,
+      sub: t('ledger.meter.percentCollected', { percent: Math.round(pct) }),
     },
   ];
   const cells = allCells.filter((cell) => cell.key !== 'overdue' || isPositiveMoney(agg.overdue));

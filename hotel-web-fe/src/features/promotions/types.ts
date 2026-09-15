@@ -74,6 +74,11 @@ export interface GuestPromotion {
   can_claim: boolean;
   has_voucher: boolean;
   claim_unavailable_reason?: string | null;
+  /** Stable code for localizing `claim_unavailable_reason`
+   *  (`insufficient_points` | `not_configured`). */
+  claim_unavailable_code?: string | null;
+  /** Points still required when the code is `insufficient_points`. */
+  claim_unavailable_points?: number | null;
 }
 
 export interface PromotionListParams {

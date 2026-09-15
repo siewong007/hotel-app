@@ -1,4 +1,5 @@
 import { Box, Button, MenuItem, TextField } from '@mui/material';
+import { useTranslation } from '../../../i18n';
 import type { ReportCatalogEntry, ReportQueryParams } from '../types';
 
 export interface ReportFilterBarProps {
@@ -17,13 +18,14 @@ const SHIFT_OPTIONS = ['', 'morning', 'evening', 'night'] as const;
  * selected report's catalog entry declares.
  */
 export function ReportFilterBar({ report, value, onChange, onRun, loading }: ReportFilterBarProps) {
+  const { t } = useTranslation('insights');
   const has = (p: string) => report.params.includes(p);
   const set = (patch: Partial<ReportQueryParams>) => onChange({ ...value, ...patch });
 
   return (
     <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
       <TextField
-        label="Start date"
+        label={t('common:time.startDate')}
         type="date"
         size="small"
         value={value.startDate}
@@ -31,7 +33,7 @@ export function ReportFilterBar({ report, value, onChange, onRun, loading }: Rep
         slotProps={{ inputLabel: { shrink: true } }}
       />
       <TextField
-        label="End date"
+        label={t('common:time.endDate')}
         type="date"
         size="small"
         value={value.endDate}
@@ -41,7 +43,7 @@ export function ReportFilterBar({ report, value, onChange, onRun, loading }: Rep
       {has('shift') && (
         <TextField
           select
-          label="Shift"
+          label={t('filters.shift')}
           size="small"
           sx={{ minWidth: 120 }}
           value={value.shift ?? ''}
@@ -49,14 +51,14 @@ export function ReportFilterBar({ report, value, onChange, onRun, loading }: Rep
         >
           {SHIFT_OPTIONS.map((s) => (
             <MenuItem key={s} value={s}>
-              {s || 'All shifts'}
+              {s ? t(`filters.shifts.${s}`) : t('filters.allShifts')}
             </MenuItem>
           ))}
         </TextField>
       )}
       {has('drawer') && (
         <TextField
-          label="Drawer"
+          label={t('filters.drawer')}
           size="small"
           sx={{ width: 120 }}
           value={value.drawer ?? ''}
@@ -65,7 +67,7 @@ export function ReportFilterBar({ report, value, onChange, onRun, loading }: Rep
       )}
       {has('company_name') && (
         <TextField
-          label="Company"
+          label={t('filters.company')}
           size="small"
           value={value.companyName ?? ''}
           onChange={(e) => set({ companyName: e.target.value || undefined })}
@@ -73,7 +75,7 @@ export function ReportFilterBar({ report, value, onChange, onRun, loading }: Rep
       )}
       {has('room_type') && (
         <TextField
-          label="Room type"
+          label={t('filters.roomType')}
           size="small"
           sx={{ width: 140 }}
           value={value.roomType ?? ''}
@@ -81,7 +83,7 @@ export function ReportFilterBar({ report, value, onChange, onRun, loading }: Rep
         />
       )}
       <Button variant="contained" onClick={onRun} disabled={loading}>
-        Run report
+        {t('filters.run')}
       </Button>
     </Box>
   );

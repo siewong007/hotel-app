@@ -282,6 +282,7 @@ describe('GuestCheckInForm', () => {
         self_checkin_enabled: false,
         can_auto_checkin: false,
         auto_checkin_block_reason: 'eKYC is still in review.',
+        auto_checkin_block_code: 'ekyc_in_review',
       },
     });
 
@@ -355,7 +356,8 @@ describe('GuestCheckInForm', () => {
     const blocked = {
       ...eligible,
       can_auto_checkin: false,
-      auto_checkin_block_reason: 'Housekeeping is still preparing your room.',
+      auto_checkin_block_reason: 'The stay window has closed.',
+      auto_checkin_block_code: 'stay_dates_passed',
     };
     // Eligible at first; the room goes dirty between the page load and the click.
     mocks.getBooking
@@ -375,8 +377,8 @@ describe('GuestCheckInForm', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Check in now' }));
 
-    // The refreshed verdict, not the thrown message.
-    expect(await screen.findByText('Housekeeping is still preparing your room.')).toBeTruthy();
+    // The refreshed verdict (localized from its block code), not the thrown message.
+    expect(await screen.findByText('Booking stay dates have passed.')).toBeTruthy();
     expect(screen.getByText(/the room must be cleaned before check-in/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Check in now' })).toBeNull();
   });
@@ -392,6 +394,7 @@ describe('GuestCheckInForm', () => {
         can_auto_checkin: false,
         auto_checkin_block_reason:
           'Add your IC or passport number to your details to check in online.',
+        auto_checkin_block_code: 'identity_document_required',
       },
     });
 
@@ -416,6 +419,7 @@ describe('GuestCheckInForm', () => {
         self_checkin_enabled: false,
         can_auto_checkin: false,
         auto_checkin_block_reason: 'eKYC is still in review.',
+        auto_checkin_block_code: 'ekyc_in_review',
       },
     });
 

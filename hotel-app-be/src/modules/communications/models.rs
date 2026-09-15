@@ -67,6 +67,8 @@ pub struct PreArrivalBooking {
     pub check_out_date: chrono::NaiveDate,
     pub room_number: Option<String>,
     pub room_type_name: Option<String>,
+    /// `guests.language_preference` — the mail-locale chain's first hop.
+    pub language_preference: Option<String>,
 }
 
 /// Full outbox row. Deliberately NOT Serialize: rendered bodies and raw
@@ -303,6 +305,8 @@ pub struct AudienceGuest {
     pub email: String,
     pub first_name: String,
     pub nick_name: String,
+    /// `guests.language_preference` — the mail-locale chain's first hop.
+    pub language_preference: Option<String>,
 }
 
 /// Masks a recipient address for staff-facing delivery listings:

@@ -3,75 +3,33 @@ import type {
   PromotionDiscountType,
   PromotionInput,
   PromotionKind,
-  PromotionLifecycle,
-  PromotionStatus,
-  VoucherDisplayStatus,
-  VoucherStatus,
-  VoucherStatusFilter,
 } from './types';
-
-export const PROMOTION_STATUS_LABELS: Record<PromotionStatus, string> = {
-  draft: 'Draft',
-  published: 'Published',
-  paused: 'Paused',
-  cancelled: 'Cancelled',
-  archived: 'Archived',
-};
-
-/** Operator-facing lifecycle labels — what the campaigns list filters and
- *  status chips display. `scheduled`/`live`/`expired` are derived, never
- *  stored. */
-export const CAMPAIGN_LIFECYCLE_LABELS: Record<PromotionLifecycle, string> = {
-  draft: 'Draft',
-  scheduled: 'Scheduled',
-  live: 'Live',
-  paused: 'Paused',
-  expired: 'Expired',
-  cancelled: 'Cancelled',
-  archived: 'Archived',
-};
 
 export const CAMPAIGN_OBJECTIVE_OPTIONS: Array<{
   value: CampaignObjective;
-  label: string;
+  /** `promotions:objectives.<value>` */
+  labelKey: string;
 }> = [
-  { value: 'occupancy', label: 'Fill occupancy' },
-  { value: 'acquisition', label: 'Acquire guests' },
-  { value: 'retention', label: 'Retain guests' },
-  { value: 'upsell', label: 'Upsell' },
-  { value: 'loyalty', label: 'Loyalty' },
-  { value: 'other', label: 'Other' },
+  { value: 'occupancy', labelKey: 'objectives.occupancy' },
+  { value: 'acquisition', labelKey: 'objectives.acquisition' },
+  { value: 'retention', labelKey: 'objectives.retention' },
+  { value: 'upsell', labelKey: 'objectives.upsell' },
+  { value: 'loyalty', labelKey: 'objectives.loyalty' },
+  { value: 'other', labelKey: 'objectives.other' },
 ];
 
-export const VOUCHER_STATUS_LABELS: Record<VoucherStatus, string> = {
-  available: 'Available',
-  redeemed: 'Redeemed',
-  revoked: 'Revoked',
-};
-
-export const VOUCHER_DISPLAY_STATUS_LABELS: Record<VoucherDisplayStatus, string> = {
-  available: 'Available',
-  expired: 'Expired',
-  redeemed: 'Redeemed',
-  revoked: 'Revoked',
-};
-
-export const VOUCHER_STATUS_FILTER_LABELS: Record<VoucherStatusFilter, string> = {
-  ...VOUCHER_DISPLAY_STATUS_LABELS,
-  expiring_soon: 'Expiring soon',
-};
-
-export const PROMOTION_KIND_OPTIONS: Array<{ value: PromotionKind; label: string }> = [
-  { value: 'deal', label: 'Deal' },
-  { value: 'voucher', label: 'Voucher' },
+export const PROMOTION_KIND_OPTIONS: Array<{ value: PromotionKind; labelKey: string }> = [
+  { value: 'deal', labelKey: 'kinds.deal' },
+  { value: 'voucher', labelKey: 'kinds.voucher' },
 ];
 
 export const DISCOUNT_TYPE_OPTIONS: Array<{
   value: PromotionDiscountType;
-  label: string;
+  /** `promotions:discountTypes.<value>` */
+  labelKey: string;
 }> = [
-  { value: 'percentage', label: 'Percentage' },
-  { value: 'fixed_amount', label: 'Fixed amount' },
+  { value: 'percentage', labelKey: 'discountTypes.percentage' },
+  { value: 'fixed_amount', labelKey: 'discountTypes.fixed_amount' },
 ];
 
 export const EMPTY_PROMOTION_INPUT: PromotionInput = {

@@ -13,9 +13,10 @@ import {
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PublicCommunicationsApi } from '../api';
-import { TOPIC_LABELS, type NotificationTopic } from '../types';
+import { type NotificationTopic } from '../types';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
+import { formatStatusLabel } from '../../../utils/formatters';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
 const TOPIC_KEYS: Record<NotificationTopic, string> = {
@@ -110,7 +111,7 @@ export default function UnsubscribePage({ token }: { token: string }) {
                   justifyContent: "space-between",
                   alignItems: "center"
                 }}>
-                <Typography>{TOPIC_KEYS[s.topic] ? t(TOPIC_KEYS[s.topic]) : (TOPIC_LABELS[s.topic] ?? s.topic)}</Typography>
+                <Typography>{TOPIC_KEYS[s.topic] ? t(TOPIC_KEYS[s.topic]) : formatStatusLabel(s.topic)}</Typography>
                 <Switch
                   checked={s.subscribed}
                   disabled={!s.subscribed || apply.isPending}
@@ -118,7 +119,7 @@ export default function UnsubscribePage({ token }: { token: string }) {
                   slotProps={{
                     input: {
                       'aria-label': t('unsubscribe.toggleAria', {
-                        topic: TOPIC_KEYS[s.topic] ? t(TOPIC_KEYS[s.topic]) : (TOPIC_LABELS[s.topic] ?? s.topic),
+                        topic: TOPIC_KEYS[s.topic] ? t(TOPIC_KEYS[s.topic]) : formatStatusLabel(s.topic),
                       }),
                     }
                   }}

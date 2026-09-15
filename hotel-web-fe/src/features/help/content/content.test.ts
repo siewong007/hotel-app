@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ARTICLES_EN } from './articles.en';
 import { ARTICLES_MS } from './articles.ms';
+import { ARTICLES_ZH } from './articles.zh';
 import { HELP_CATEGORY_IDS } from '../constants';
 import { getArticles } from './index';
 import type { HelpArticle, HelpBlock } from '../types';
@@ -9,7 +10,7 @@ const blockSignature = (blocks: HelpBlock[]) => blocks.map((b) => b.type).join('
 
 describe('help article catalogue', () => {
   it('has unique slugs in every locale', () => {
-    for (const articles of [ARTICLES_EN, ARTICLES_MS]) {
+    for (const articles of [ARTICLES_EN, ARTICLES_MS, ARTICLES_ZH]) {
       const slugs = articles.map((a) => a.slug);
       expect(new Set(slugs).size).toBe(slugs.length);
     }
@@ -23,7 +24,7 @@ describe('help article catalogue', () => {
 
   it('keeps block structure parity across locales', () => {
     const enBySlug = new Map(ARTICLES_EN.map((a) => [a.slug, a]));
-    for (const msArticle of ARTICLES_MS) {
+    for (const msArticle of [...ARTICLES_MS, ...ARTICLES_ZH]) {
       const enArticle = enBySlug.get(msArticle.slug);
       expect(enArticle, `missing English article for ${msArticle.slug}`).toBeDefined();
       expect(blockSignature(msArticle.blocks), `block mismatch on ${msArticle.slug}`).toBe(
@@ -34,7 +35,7 @@ describe('help article catalogue', () => {
 
   it('keeps metadata parity across locales', () => {
     const enBySlug = new Map(ARTICLES_EN.map((a) => [a.slug, a]));
-    for (const msArticle of ARTICLES_MS) {
+    for (const msArticle of [...ARTICLES_MS, ...ARTICLES_ZH]) {
       const enArticle = enBySlug.get(msArticle.slug)!;
       expect(msArticle.category).toBe(enArticle.category);
       expect(msArticle.routePath).toBe(enArticle.routePath);
@@ -51,7 +52,7 @@ describe('help article catalogue', () => {
   });
 
   it('resolves every related slug within its locale', () => {
-    for (const articles of [ARTICLES_EN, ARTICLES_MS]) {
+    for (const articles of [ARTICLES_EN, ARTICLES_MS, ARTICLES_ZH]) {
       const slugs = new Set(articles.map((a) => a.slug));
       for (const article of articles) {
         for (const related of article.relatedSlugs) {

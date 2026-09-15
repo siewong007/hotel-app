@@ -24,8 +24,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::i18n::{DEFAULT_LOCALE, DEFAULT_LOCALE_SETTING_KEY, Locale};
-use crate::core::settings_cache;
+use crate::core::i18n::Locale;
 use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
@@ -200,9 +199,7 @@ async fn load_source(
 /// English is the floor. A stored value naming a language we no longer ship
 /// falls through rather than failing the send.
 async fn resolve_locale(pool: &DbPool, source: &BookingEmailSource) -> Locale {
-    let hotel_default =
-        settings_cache::get_string(pool, DEFAULT_LOCALE_SETTING_KEY, DEFAULT_LOCALE).await;
-    Locale::resolve([source.guest_locale.as_deref(), Some(hotel_default.as_str())])
+    crate::core::i18n::mail_locale(pool, source.guest_locale.as_deref()).await
 }
 
 /// Queue one `email_deliveries` row in its own transaction. Callers run after
@@ -281,6 +278,7 @@ pub async fn queue_booking_confirmation_email(
         &[("hotel", &hotel), ("booking", booking)],
     );
     let rendered = email_layout::render(GuestEmail {
+        locale,
         preheader: &preheader,
         heading: locale.message("email.bookingConfirmed.heading"),
         inner_html: &inner_html,
@@ -458,6 +456,7 @@ pub async fn queue_payment_confirmation_email(
         &[("hotel", &hotel), ("booking", booking)],
     );
     let rendered = email_layout::render(GuestEmail {
+        locale,
         preheader: &preheader,
         heading: locale.message("email.paymentConfirmed.heading"),
         inner_html: &inner_html,
@@ -493,6 +492,7 @@ pub async fn try_queue_payment_confirmation_email(pool: &DbPool, booking_id: i64
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::i18n::DEFAULT_LOCALE;
     use rust_decimal::Decimal;
 
     fn source() -> BookingEmailSource {

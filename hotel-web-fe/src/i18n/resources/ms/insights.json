@@ -1,0 +1,259 @@
+{
+  "library": {
+    "allReports": "← Semua laporan"
+  },
+  "categories": {
+    "operations": "Operasi",
+    "financial": "Kewangan",
+    "analytics": "Analitik",
+    "accounting": "Perakaunan"
+  },
+  "dateBasis": {
+    "stay": "Tarikh inap",
+    "booking": "Tarikh tempahan",
+    "accounting": "Tarikh perakaunan"
+  },
+  "filters": {
+    "shift": "Syif",
+    "allShifts": "Semua syif",
+    "drawer": "Laci",
+    "company": "Syarikat",
+    "roomType": "Jenis bilik",
+    "run": "Jalankan laporan",
+    "shifts": {
+      "morning": "Pagi",
+      "evening": "Petang",
+      "night": "Malam"
+    }
+  },
+  "report": {
+    "print": "Cetak laporan",
+    "printTitle": "Laporan - {{title}}",
+    "emptySection": "Tiada baris untuk tempoh ini",
+    "noData": "Laporan ini tiada data untuk julat yang dipilih."
+  },
+  "reports": {
+    "daily_operations": {
+      "title": "Operasi Harian",
+      "description": "Ketibaan, perlepasan, tetamu dalam penginapan dan status bilik untuk satu tarikh perniagaan."
+    },
+    "occupancy": {
+      "title": "Kadar Penghunian",
+      "description": "Kadar penghunian, ADR dan RevPAR sepanjang julat tarikh inap, mengikut jenis bilik dan hari."
+    },
+    "rooms_sold": {
+      "title": "Bilik Dijual",
+      "description": "Bilik dijual setiap tarikh inap dengan butiran kadar dan hasil."
+    },
+    "room_performance": {
+      "title": "Prestasi Bilik",
+      "description": "Hasil dan penghunian setiap bilik dan jenis bilik, termasuk yang lemah."
+    },
+    "revenue": {
+      "title": "Hasil",
+      "description": "Hasil mengikut jenis bilik, sumber dan status bayaran sepanjang julat tarikh inap."
+    },
+    "channel_net_revenue": {
+      "title": "Hasil Bersih Saluran",
+      "description": "Hasil kasar-kepada-bersih setiap saluran tempahan selepas komisen."
+    },
+    "ota_commission": {
+      "title": "Komisen OTA",
+      "description": "Alias Hasil Bersih Saluran — komisen terhutang setiap OTA."
+    },
+    "ota_monthly_statement": {
+      "title": "Penyata Bulanan OTA",
+      "description": "Penyata setiap OTA bagi tempahan, komisen dan bayaran bersih untuk tempoh itu."
+    },
+    "payment_status": {
+      "title": "Status Bayaran",
+      "description": "Pecahan status bayaran dan baki tertunggak."
+    },
+    "shift_report": {
+      "title": "Laporan Syif",
+      "description": "Pergerakan dan status bilik untuk satu tarikh, dikecilkan mengikut syif/laci jika perlu."
+    },
+    "complimentary": {
+      "title": "Malam Percuma",
+      "description": "Penginapan percuma dan separa percuma dengan diskaun diberikan."
+    },
+    "guest_statistics": {
+      "title": "Statistik Tetamu",
+      "description": "Tetamu unik/baharu/berulang, campuran warganegara dan tetamu teratas."
+    },
+    "general_journal": {
+      "title": "Jurnal Am",
+      "description": "Catatan jurnal untuk tempoh itu."
+    },
+    "journal_by_type": {
+      "title": "Jurnal mengikut Jenis",
+      "description": "Catatan jurnal dikumpulkan mengikut jenis transaksi."
+    },
+    "balance_sheet": {
+      "title": "Kunci Kira-kira",
+      "description": "Kedudukan aset, liabiliti dan ekuiti untuk tempoh itu."
+    },
+    "company_ledger_statement": {
+      "title": "Penyata Lejar Syarikat",
+      "description": "Penyata setiap syarikat dengan balang penuaan; menyenaraikan syarikat jika tidak dinamakan."
+    }
+  },
+  "fields": {
+    "account": "Akaun",
+    "account_code": "Kod akaun",
+    "accounts": "Akaun",
+    "actual_amount": "Amaun sebenar",
+    "actual_revenue": "Hasil sebenar",
+    "address": "Alamat",
+    "adr": "ADR",
+    "adult_count": "Dewasa",
+    "aging": "Penuaan",
+    "amount": "Amaun",
+    "arrivals": "Ketibaan",
+    "arrivals_count": "Ketibaan",
+    "available_room_nights": "Malam bilik tersedia",
+    "average_stay_nights": "Purata inap (malam)",
+    "balance": "Baki",
+    "balance_due": "Baki tertunggak",
+    "benchmarks": "Tanda aras",
+    "booking_number": "Nombor tempahan",
+    "booking_status": "Status tempahan",
+    "bookings": "Tempahan",
+    "by_nationality": "Mengikut warganegara",
+    "by_payment_method": "Mengikut kaedah bayaran",
+    "by_payment_status": "Mengikut status bayaran",
+    "by_reason": "Mengikut sebab",
+    "by_room": "Mengikut bilik",
+    "by_room_type": "Mengikut jenis bilik",
+    "by_source": "Mengikut sumber",
+    "by_status": "Mengikut status",
+    "by_type": "Mengikut jenis",
+    "check_in": "Daftar masuk",
+    "check_in_date": "Tarikh daftar masuk",
+    "check_out": "Daftar keluar",
+    "check_out_date": "Tarikh daftar keluar",
+    "child_count": "Kanak-kanak",
+    "city": "Bandar",
+    "companies": "Syarikat",
+    "company": "Syarikat",
+    "company_name": "Nama syarikat",
+    "complimentary_end_date": "Tarikh tamat percuma",
+    "complimentary_nights": "Malam percuma",
+    "complimentary_reason": "Sebab percuma",
+    "complimentary_start_date": "Tarikh mula percuma",
+    "contact_email": "E-mel hubungan",
+    "contact_person": "Orang hubungan",
+    "contact_phone": "Telefon hubungan",
+    "contra_account": "Akaun kontra",
+    "contra_amount": "Amaun kontra",
+    "count": "Bilangan",
+    "country": "Negara",
+    "credit": "Kredit",
+    "daily": "Harian",
+    "date": "Tarikh",
+    "days": "Hari",
+    "days_31_60": "31–60 hari",
+    "days_61_90": "61–90 hari",
+    "days_91_120": "91–120 hari",
+    "days_old": "Usia (hari)",
+    "debit": "Debit",
+    "departures": "Perlepasan",
+    "departures_count": "Perlepasan",
+    "deposit_amount": "Amaun deposit",
+    "deposit_paid": "Deposit dibayar",
+    "description": "Keterangan",
+    "discount_given": "Diskaun diberikan",
+    "due_date": "Tarikh matang",
+    "end": "Tamat",
+    "entries": "Catatan",
+    "entry_count": "Catatan",
+    "existing_credit": "Kredit sedia ada",
+    "finance_charges": "Caj kewangan",
+    "folio": "Folio",
+    "fully_complimentary": "Percuma penuh",
+    "guest_name": "Nama tetamu",
+    "id": "ID",
+    "in_house": "Dalam penginapan",
+    "in_house_count": "Tetamu dalam penginapan",
+    "infant_count": "Bayi",
+    "insights": "Cerapan",
+    "invoice": "Invois",
+    "invoice_date": "Tarikh invois",
+    "is_complimentary": "Percuma",
+    "last_payment": "Bayaran terakhir",
+    "line1": "Baris 1",
+    "method": "Kaedah",
+    "metric": "Metrik",
+    "month": "Bulan",
+    "name": "Nama",
+    "nationality": "Warganegara",
+    "net_amount": "Amaun bersih",
+    "new_guests": "Tetamu baharu",
+    "non_tourists": "Bukan pelancong",
+    "occupancy": "Penghunian",
+    "occupancy_rate": "Kadar penghunian",
+    "open_amount": "Amaun terbuka",
+    "open_balance": "Baki terbuka",
+    "original_amount": "Amaun asal",
+    "original_revenue": "Hasil asal",
+    "outstanding_balance": "Baki tertunggak",
+    "over_120_days": "Melebihi 120 hari",
+    "overdue": "Tertunggak",
+    "overdue_count": "Bilangan tertunggak",
+    "partial_complimentary": "Separuh percuma",
+    "payment_method": "Kaedah bayaran",
+    "payment_status": "Status bayaran",
+    "payments": "Bayaran",
+    "payments_received": "Bayaran diterima",
+    "period": "Tempoh",
+    "post_type": "Jenis catatan",
+    "postal_code": "Poskod",
+    "rate_plan": "Pelan kadar",
+    "reason": "Sebab",
+    "reference": "Rujukan",
+    "registration_number": "Nombor pendaftaran",
+    "returning_guests": "Tetamu berulang",
+    "revenue": "Hasil",
+    "revpar": "RevPAR",
+    "room": "Bilik",
+    "room_count": "Bilangan bilik",
+    "room_number": "Nombor bilik",
+    "room_status": "Status bilik",
+    "room_type": "Jenis bilik",
+    "rooms_sold": "Bilik dijual",
+    "sections": "Bahagian",
+    "source": "Sumber",
+    "start": "Mula",
+    "state": "Keadaan",
+    "statement_date": "Tarikh penyata",
+    "status": "Status",
+    "summary": "Ringkasan",
+    "target": "Sasaran",
+    "tonight_occupied": "Berpenghuni malam ini",
+    "top_guests": "Tetamu teratas",
+    "total_amount": "Jumlah amaun",
+    "total_balance": "Jumlah baki",
+    "total_bookings": "Jumlah tempahan",
+    "total_complimentary_nights": "Jumlah malam percuma",
+    "total_credit": "Jumlah kredit",
+    "total_credits": "Jumlah kredit",
+    "total_debit": "Jumlah debit",
+    "total_debits": "Jumlah debit",
+    "total_deposits": "Jumlah deposit",
+    "total_price": "Jumlah harga",
+    "total_revenue": "Jumlah hasil",
+    "total_rooms": "Jumlah bilik",
+    "total_spent": "Jumlah perbelanjaan",
+    "totals": "Jumlah",
+    "tourists": "Pelancong",
+    "transactions": "Transaksi",
+    "type": "Jenis",
+    "underperforming": "Berprestasi lemah",
+    "unique_guests": "Tetamu unik",
+    "unit": "Unit",
+    "utilization": "Penggunaan",
+    "value": "Nilai",
+    "variance": "Varians",
+    "voucher": "Baucar"
+  }
+}

@@ -22,6 +22,7 @@ import { GuestsService } from '../../../api/guests.service';
 import { queryKeys } from '../../../api/queryKeys';
 import { queryStaleTime } from '../../../api/queryConfig';
 import type { Guest } from '../../../types/guest.types';
+import { useTranslation } from '../../../i18n';
 import type { Promotion, VoucherIssueInput } from '../types';
 import {
   formatPromotionDiscount,
@@ -49,6 +50,7 @@ export function VoucherIssueDialog({
   onClose,
   onIssue,
 }: VoucherIssueDialogProps) {
+  const { t } = useTranslation('promotions');
   const [promotionId, setPromotionId] = useState<number | ''>('');
   const [guest, setGuest] = useState<Guest | null>(null);
   const [guestSearch, setGuestSearch] = useState('');
@@ -88,25 +90,25 @@ export function VoucherIssueDialog({
 
   const handleIssue = () => {
     if (!selectedPromotion) {
-      setError('Choose an offer to issue the voucher from.');
+      setError(t('issue.errors.chooseOffer'));
       return;
     }
-    const claimIssue = promotionClaimIssue(selectedPromotion);
+    const claimIssue = promotionClaimIssue(selectedPromotion, t);
     if (claimIssue) {
       setError(claimIssue);
       return;
     }
     if (!guest) {
-      setError('Choose a guest to issue the voucher to.');
+      setError(t('issue.errors.chooseGuest'));
       return;
     }
     const normalizedCode = code.trim().toUpperCase().replace(/[\s-]/g, '');
     if (normalizedCode && !CODE_PATTERN.test(normalizedCode)) {
-      setError('Voucher code must use 8-64 letters or numbers.');
+      setError(t('issue.errors.codePattern'));
       return;
     }
     if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
-      setError('Expiry must be in the future.');
+      setError(t('issue.errors.expiryFuture'));
       return;
     }
 
@@ -121,21 +123,21 @@ export function VoucherIssueDialog({
 
   return (
     <Dialog open={open} onClose={isSaving ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Issue voucher</DialogTitle>
+      <DialogTitle>{t('issue.title')}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2.5} sx={{ pt: 0.5 }}>
           <FormControl fullWidth required>
-            <InputLabel id="voucher-offer-label">Offer</InputLabel>
+            <InputLabel id="voucher-offer-label">{t('issue.offerLabel')}</InputLabel>
             <Select
               labelId="voucher-offer-label"
-              label="Offer"
+              label={t('issue.offerLabel')}
               value={promotionId}
               onChange={(event) =>
                 setPromotionId(event.target.value as number | '')
               }
             >
               {promotions.map((promotion) => {
-                const claimIssue = promotionClaimIssue(promotion);
+                const claimIssue = promotionClaimIssue(promotion, t);
                 const remaining =
                   promotion.claim_limit != null
                     ? promotion.claim_limit - promotion.claimed_count
@@ -149,11 +151,11 @@ export function VoucherIssueDialog({
                     <Box>
                       <Typography variant="body2">{promotion.name}</Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {formatPromotionDiscount(promotion)}
+                        {formatPromotionDiscount(promotion, t)}
                         {claimIssue
                           ? ` — ${claimIssue}`
                           : remaining != null
-                            ? ` — ${remaining} left`
+                            ? ` — ${t('issue.remainingLeft', { count: remaining })}`
                             : ''}
                       </Typography>
                     </Box>
@@ -162,8 +164,7 @@ export function VoucherIssueDialog({
               })}
             </Select>
             <FormHelperText>
-              Only published offers inside their claim window can issue
-              vouchers.
+              {t('issue.offerHelp')}
             </FormHelperText>
           </FormControl>
           <Autocomplete
@@ -178,8 +179,8 @@ export function VoucherIssueDialog({
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Guest"
-                helperText="Each guest can hold one voucher per offer."
+                label={t('issue.guestLabel')}
+                helperText={t('issue.guestHelp')}
               />
             )}
             renderOption={(props, option) => (
@@ -196,20 +197,20 @@ export function VoucherIssueDialog({
             )}
           />
           <TextField
-            label="Custom voucher code"
-            helperText="Optional — leave blank to generate a secure code."
+            label={t('issue.codeLabel')}
+            helperText={t('issue.codeHelp')}
             value={code}
             onChange={(event) => setCode(event.target.value)}
             slotProps={{ htmlInput: { maxLength: 64 } }}
             fullWidth
           />
           <TextField
-            label="Expires at"
+            label={t('issue.expiresLabel')}
             type="datetime-local"
             value={expiresAt}
             onChange={(event) => setExpiresAt(event.target.value)}
             slotProps={{ inputLabel: { shrink: true } }}
-            helperText="Optional — the voucher stays usable until this time."
+            helperText={t('issue.expiresHelp')}
             fullWidth
           />
           {error ? <Alert severity="error">{error}</Alert> : null}
@@ -220,10 +221,10 @@ export function VoucherIssueDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={isSaving}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button variant="contained" onClick={handleIssue} disabled={isSaving}>
-          {isSaving ? 'Issuing…' : 'Issue voucher'}
+          {isSaving ? t('issue.issuing') : t('issue.title')}
         </Button>
       </DialogActions>
     </Dialog>

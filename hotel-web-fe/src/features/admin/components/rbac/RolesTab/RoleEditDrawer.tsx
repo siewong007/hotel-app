@@ -18,6 +18,7 @@ import NavigationAccessSection from './NavigationAccessSection';
 import PermissionSummarySection from './PermissionSummarySection';
 import { useUpdateRole, useReplaceRolePermissions } from '../hooks/useRBACQueries';
 import { errorMessage } from '../../../../../utils/errorMessage';
+import { useTranslation } from '../../../../../i18n';
 
 interface RoleEditDrawerProps {
   open: boolean;
@@ -36,6 +37,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
   onClose,
   onSave,
 }) => {
+  const { t } = useTranslation('admin');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedNavItems, setSelectedNavItems] = useState<string[]>([]);
@@ -165,9 +167,9 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
         <Typography variant="h6" sx={{
           fontWeight: 600
         }}>
-          {role ? `Edit Role: ${role.name}` : 'Edit Role'}
+          {role ? t('rbac.editRoleTitle', { name: role.name }) : t('rbac.editRoleTitleNew')}
         </Typography>
-        <IconButton onClick={onClose} size="small" aria-label="Close">
+        <IconButton onClick={onClose} size="small" aria-label={t('common:actions.close')}>
           <CloseIcon />
         </IconButton>
       </Box>
@@ -187,11 +189,11 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
               fontWeight: 600,
               mb: 2
             }}>
-            Basic Information
+            {t('rbac.basicInfo')}
           </Typography>
 
           <TextField
-            label="Role Name"
+            label={t('rbac.roleName')}
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -203,7 +205,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
           />
 
           <TextField
-            label="Description"
+            label={t('common:field.description')}
             value={description}
             onChange={(e) => {
               setDescription(e.target.value);
@@ -213,7 +215,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
             size="small"
             multiline
             rows={2}
-            placeholder="Brief description of this role's responsibilities"
+            placeholder={t('rbac.descriptionPlaceholder')}
           />
         </Box>
 
@@ -227,7 +229,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
               fontWeight: 600,
               mb: 2
             }}>
-            Navigation Access
+            {t('rbac.navAccess')}
           </Typography>
 
           <NavigationAccessSection
@@ -248,7 +250,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
               fontWeight: 600,
               mb: 2
             }}>
-            Permission Summary
+            {t('rbac.permissionSummary')}
           </Typography>
 
           <PermissionSummarySection
@@ -271,7 +273,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
         }}
       >
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           variant="contained"
@@ -279,7 +281,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
           onClick={handleSave}
           disabled={saving || !hasChanges}
         >
-          {saving ? 'Saving...' : 'Save Changes'}
+          {saving ? t('common:state.saving') : t('rbac.saveChanges')}
         </Button>
       </Box>
     </Drawer>

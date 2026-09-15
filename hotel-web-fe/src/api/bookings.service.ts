@@ -1,4 +1,5 @@
 import { api, APIError, toApiError } from './client';
+import { t } from '../i18n';
 import {
   Booking,
   BookingCreateRequest,
@@ -122,7 +123,7 @@ export class BookingsService {
         firstData
       );
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch bookings');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -173,7 +174,7 @@ export class BookingsService {
       };
       return await api.post('bookings', { json: backendData }).json<Booking>();
     } catch (error) {
-      throw toApiError(error, 'Failed to create booking');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -183,7 +184,7 @@ export class BookingsService {
         .patch(`bookings/${bookingId}`, { json: updateData })
         .json<Booking>();
     } catch (error) {
-      throw toApiError(error, 'Failed to update booking');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -193,7 +194,7 @@ export class BookingsService {
         .post(`bookings/${bookingId}/checkin`, { json: checkinData || {} })
         .json<Booking>();
     } catch (error) {
-      throw toApiError(error, 'Failed to check in guest');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -208,7 +209,7 @@ export class BookingsService {
         .get(`bookings/${bookingId}/checkin-advisory`)
         .json<CheckInAdvisory>();
     } catch (error) {
-      throw toApiError(error, 'Failed to load check-in advisory');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -222,7 +223,7 @@ export class BookingsService {
         .get('bookings/checkin-advisory', { searchParams: { guest_id: String(guestId) } })
         .json<CheckInAdvisory>();
     } catch (error) {
-      throw toApiError(error, 'Failed to load check-in advisory');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -232,7 +233,7 @@ export class BookingsService {
         .post('bookings/void', { json: cancellationData })
         .json<BookingVoidResponse>();
     } catch (error) {
-      throw toApiError(error, 'Failed to void booking');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -252,7 +253,7 @@ export class BookingsService {
         .post(`bookings/${bookingId}/release`, { json: { reason } })
         .json<BookingReleaseResponse>();
     } catch (error) {
-      throw toApiError(error, 'Failed to release booking');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -265,7 +266,7 @@ export class BookingsService {
       const booking = await api.get(`bookings/${bookingId}`).json<BookingWithDetails>();
       return enhanceBookingDetails(booking);
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch booking');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -273,7 +274,7 @@ export class BookingsService {
     try {
       return await api.get(`bookings/${bookingId}/timeline`).json<BookingTimelineEntry[]>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch booking timeline');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -323,7 +324,7 @@ export class BookingsService {
         page_size: meta.page_size ?? 50,
       };
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch bookings');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -343,7 +344,7 @@ export class BookingsService {
       const bookings = await this.getAllBookings(filters);
       return bookings.map(booking => enhanceBookingDetails(booking));
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch booking details');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -379,7 +380,7 @@ export class BookingsService {
         })
         .json();
     } catch (error) {
-      throw toApiError(error, 'Failed to mark booking as complimentary');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -391,7 +392,7 @@ export class BookingsService {
         .post(`bookings/${bookingId}/convert-credits`)
         .json<{ success: boolean; message: string; nights_credited: number; guest_id: number }>();
     } catch (error) {
-      throw toApiError(error, 'Failed to convert complimentary to credits');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -422,7 +423,7 @@ export class BookingsService {
         .post('bookings/book-with-credits', { json: data })
         .json();
     } catch (error) {
-      throw toApiError(error, 'Failed to book with complimentary credits');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -435,7 +436,7 @@ export class BookingsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch complimentary bookings');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -448,7 +449,7 @@ export class BookingsService {
     try {
       return await api.get('complimentary/summary').json();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch complimentary summary');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -471,7 +472,7 @@ export class BookingsService {
         .patch(`bookings/${bookingId}/complimentary`, { json: data })
         .json();
     } catch (error) {
-      throw toApiError(error, 'Failed to update complimentary booking');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -484,7 +485,7 @@ export class BookingsService {
     try {
       return await api.delete(`bookings/${bookingId}/complimentary`).json();
     } catch (error) {
-      throw toApiError(error, 'Failed to remove complimentary status');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -503,7 +504,7 @@ export class BookingsService {
     try {
       return await api.get('guests/credits').json();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch guests with credits');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -528,7 +529,7 @@ export class BookingsService {
     try {
       return await api.post('guests/credits', { json: data }).json();
     } catch (error) {
-      throw toApiError(error, 'Failed to add guest credits');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -554,7 +555,7 @@ export class BookingsService {
     try {
       return await api.patch(`guests/${guestId}/credits/${roomTypeId}`, { json: data }).json();
     } catch (error) {
-      throw toApiError(error, 'Failed to update guest credits');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -575,7 +576,7 @@ export class BookingsService {
     try {
       return await api.delete(`guests/${guestId}/credits/${roomTypeId}`).json();
     } catch (error) {
-      throw toApiError(error, 'Failed to delete guest credits');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -585,7 +586,7 @@ export class BookingsService {
         .post(`bookings/${bookingId}/reactivate`)
         .json<Booking>();
     } catch (error) {
-      throw toApiError(error, 'Failed to reactivate booking');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 }

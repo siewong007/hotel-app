@@ -65,17 +65,17 @@ export const GridToolbar = ({
           '&::-webkit-scrollbar': { display: 'none' },
         }}
         role="toolbar"
-        aria-label="Inventory window controls"
+        aria-label={t('toolbar.controlsAria')}
       >
         <IconButton
-          aria-label="Previous day"
+          aria-label={t('toolbar.prevDay')}
           onClick={() => onStartChange(shiftDate(start, -1))}
           sx={NAV_SX}
         >
           <ChevronLeftIcon />
         </IconButton>
         <IconButton
-          aria-label="Next day"
+          aria-label={t('toolbar.nextDay')}
           onClick={() => onStartChange(shiftDate(start, 1))}
           sx={NAV_SX}
         >
@@ -85,7 +85,7 @@ export const GridToolbar = ({
         <TextField
           type="date"
           size="small"
-          label="Start date"
+          label={t('toolbar.startDate')}
           value={start}
           onChange={(event) => {
             if (event.target.value) onStartChange(event.target.value);
@@ -100,12 +100,12 @@ export const GridToolbar = ({
             onClick={() => onStartChange(today)}
             sx={{ minHeight: 44, flexShrink: 0 }}
           >
-            Today
+            {t('common:time.today')}
           </Button>
         )}
 
         <IconButton
-          aria-label="Refresh"
+          aria-label={t('toolbar.refresh')}
           onClick={onRefresh}
           disabled={refreshing}
           sx={NAV_SX}
@@ -114,7 +114,7 @@ export const GridToolbar = ({
         </IconButton>
 
         <Chip
-          label="Overrides only"
+          label={t('toolbar.overridesOnly')}
           variant={overridesOnly ? 'filled' : 'outlined'}
           color={overridesOnly ? 'primary' : 'default'}
           onClick={onToggleOverrides}
@@ -130,7 +130,7 @@ export const GridToolbar = ({
             onClick={onToggleSelectMode}
             sx={{ minHeight: 44, flexShrink: 0 }}
           >
-            {selectMode ? 'Done' : 'Select'}
+            {selectMode ? t('common:actions.done') : t('toolbar.select')}
           </Button>
         )}
       </Stack>

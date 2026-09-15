@@ -46,6 +46,7 @@ import { PAYMENT_CONSENTS, PAYMENT_KEY_POINTS } from '../../legal/content';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
 import { useConsent } from '../../legal/useConsent';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
+import { numberFormatter } from '../../../i18n/format';
 
 export interface GuestPaymentPanelProps {
   amount?: string | number | null;
@@ -70,7 +71,7 @@ function formatAmount(amount: string | number | null | undefined, currency?: str
   if (!Number.isFinite(value)) return '';
   const code = currency || getCurrentCurrency();
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: code }).format(value);
+    return numberFormatter({ style: 'currency', currency: code }).format(value);
   } catch {
     return formatCurrency(value, code);
   }

@@ -105,12 +105,12 @@ export default function SupportManagementPage() {
   };
 
   const handleAction = async (payload: SupportActionPayload) => {
-    if (!selectedConversationId) throw new Error('Select a conversation first');
+    if (!selectedConversationId) throw new Error(t('detail.actionFailed'));
     await actionMutation.mutateAsync({ conversationId: selectedConversationId, payload });
   };
 
   const handleSendMessage = async (payload: { message: string; client_message_id: string; expected_version: number }) => {
-    if (!selectedConversationId) throw new Error('Select a conversation first');
+    if (!selectedConversationId) throw new Error(t('detail.sendFailed'));
     await messageMutation.mutateAsync({ conversationId: selectedConversationId, payload });
   };
 

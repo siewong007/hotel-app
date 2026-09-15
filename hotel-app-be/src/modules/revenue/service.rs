@@ -141,6 +141,7 @@ impl RevenueService {
             bucket.count += 1;
             total += inv.debtor.balance;
             inv.debtor.bucket = label;
+            inv.debtor.bucket_key = key;
             // `bill_to_corporate_id` marks company receivables; everything
             // else (guest-linked or unclassified billing name) lands on the
             // guest tab.

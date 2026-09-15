@@ -18,8 +18,11 @@ import enAdmin from './en/admin.json';
 import enAuth from './en/auth.json';
 import enBookings from './en/bookings.json';
 import enCommon from './en/common.json';
+import enCommunications from './en/communications.json';
+import enInsights from './en/insights.json';
 import enDashboard from './en/dashboard.json';
 import enDataTransfer from './en/dataTransfer.json';
+import enEkyc from './en/ekyc.json';
 import enErrors from './en/errors.json';
 import enFinance from './en/finance.json';
 import enGuestPortal from './en/guestPortal.json';
@@ -30,6 +33,7 @@ import enLoyalty from './en/loyalty.json';
 import enNav from './en/nav.json';
 import enNotifications from './en/notifications.json';
 import enOnlineInventory from './en/onlineInventory.json';
+import enPromotions from './en/promotions.json';
 import enNightAudit from './en/nightAudit.json';
 import enRates from './en/rates.json';
 import enRevenue from './en/revenue.json';
@@ -42,8 +46,11 @@ import msAdmin from './ms/admin.json';
 import msAuth from './ms/auth.json';
 import msBookings from './ms/bookings.json';
 import msCommon from './ms/common.json';
+import msCommunications from './ms/communications.json';
+import msInsights from './ms/insights.json';
 import msDashboard from './ms/dashboard.json';
 import msDataTransfer from './ms/dataTransfer.json';
+import msEkyc from './ms/ekyc.json';
 import msErrors from './ms/errors.json';
 import msFinance from './ms/finance.json';
 import msGuestPortal from './ms/guestPortal.json';
@@ -54,6 +61,7 @@ import msLoyalty from './ms/loyalty.json';
 import msNav from './ms/nav.json';
 import msNotifications from './ms/notifications.json';
 import msOnlineInventory from './ms/onlineInventory.json';
+import msPromotions from './ms/promotions.json';
 import msNightAudit from './ms/nightAudit.json';
 import msRates from './ms/rates.json';
 import msRevenue from './ms/revenue.json';
@@ -66,8 +74,11 @@ import zhAdmin from './zh/admin.json';
 import zhAuth from './zh/auth.json';
 import zhBookings from './zh/bookings.json';
 import zhCommon from './zh/common.json';
+import zhCommunications from './zh/communications.json';
+import zhInsights from './zh/insights.json';
 import zhDashboard from './zh/dashboard.json';
 import zhDataTransfer from './zh/dataTransfer.json';
+import zhEkyc from './zh/ekyc.json';
 import zhErrors from './zh/errors.json';
 import zhFinance from './zh/finance.json';
 import zhGuestPortal from './zh/guestPortal.json';
@@ -78,6 +89,7 @@ import zhLoyalty from './zh/loyalty.json';
 import zhNav from './zh/nav.json';
 import zhNotifications from './zh/notifications.json';
 import zhOnlineInventory from './zh/onlineInventory.json';
+import zhPromotions from './zh/promotions.json';
 import zhNightAudit from './zh/nightAudit.json';
 import zhRates from './zh/rates.json';
 import zhRevenue from './zh/revenue.json';
@@ -98,18 +110,22 @@ const enResources = {
   auth: enAuth as TranslationBundle,
   bookings: enBookings as TranslationBundle,
   common: enCommon as TranslationBundle,
+  communications: enCommunications as TranslationBundle,
   dashboard: enDashboard as TranslationBundle,
   dataTransfer: enDataTransfer as TranslationBundle,
+  ekyc: enEkyc as TranslationBundle,
   errors: enErrors as TranslationBundle,
   finance: enFinance as TranslationBundle,
   guestPortal: enGuestPortal as TranslationBundle,
   guests: enGuests as TranslationBundle,
   help: enHelp as TranslationBundle,
   housekeeping: enHousekeeping as TranslationBundle,
+  insights: enInsights as TranslationBundle,
   loyalty: enLoyalty as TranslationBundle,
   nav: enNav as TranslationBundle,
   notifications: enNotifications as TranslationBundle,
   onlineInventory: enOnlineInventory as TranslationBundle,
+  promotions: enPromotions as TranslationBundle,
   nightAudit: enNightAudit as TranslationBundle,
   rates: enRates as TranslationBundle,
   revenue: enRevenue as TranslationBundle,
@@ -125,18 +141,22 @@ const msResources = {
   auth: msAuth as TranslationBundle,
   bookings: msBookings as TranslationBundle,
   common: msCommon as TranslationBundle,
+  communications: msCommunications as TranslationBundle,
   dashboard: msDashboard as TranslationBundle,
   dataTransfer: msDataTransfer as TranslationBundle,
+  ekyc: msEkyc as TranslationBundle,
   errors: msErrors as TranslationBundle,
   finance: msFinance as TranslationBundle,
   guestPortal: msGuestPortal as TranslationBundle,
   guests: msGuests as TranslationBundle,
   help: msHelp as TranslationBundle,
   housekeeping: msHousekeeping as TranslationBundle,
+  insights: msInsights as TranslationBundle,
   loyalty: msLoyalty as TranslationBundle,
   nav: msNav as TranslationBundle,
   notifications: msNotifications as TranslationBundle,
   onlineInventory: msOnlineInventory as TranslationBundle,
+  promotions: msPromotions as TranslationBundle,
   nightAudit: msNightAudit as TranslationBundle,
   rates: msRates as TranslationBundle,
   revenue: msRevenue as TranslationBundle,
@@ -152,18 +172,22 @@ const zhResources = {
   auth: zhAuth as TranslationBundle,
   bookings: zhBookings as TranslationBundle,
   common: zhCommon as TranslationBundle,
+  communications: zhCommunications as TranslationBundle,
   dashboard: zhDashboard as TranslationBundle,
   dataTransfer: zhDataTransfer as TranslationBundle,
+  ekyc: zhEkyc as TranslationBundle,
   errors: zhErrors as TranslationBundle,
   finance: zhFinance as TranslationBundle,
   guestPortal: zhGuestPortal as TranslationBundle,
   guests: zhGuests as TranslationBundle,
   help: zhHelp as TranslationBundle,
   housekeeping: zhHousekeeping as TranslationBundle,
+  insights: zhInsights as TranslationBundle,
   loyalty: zhLoyalty as TranslationBundle,
   nav: zhNav as TranslationBundle,
   notifications: zhNotifications as TranslationBundle,
   onlineInventory: zhOnlineInventory as TranslationBundle,
+  promotions: zhPromotions as TranslationBundle,
   nightAudit: zhNightAudit as TranslationBundle,
   rates: zhRates as TranslationBundle,
   revenue: zhRevenue as TranslationBundle,

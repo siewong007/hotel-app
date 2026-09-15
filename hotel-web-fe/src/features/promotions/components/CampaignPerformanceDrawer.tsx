@@ -16,6 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import { TableScroll } from "../../../components/data-table/TableScroll";
+import { useTranslation } from "../../../i18n";
 import { getQueryErrorMessage } from "../../../api/queryConfig";
 import { useCampaignPerformance } from "../hooks/usePromotionAdmin";
 import type { Promotion } from "../types";
@@ -61,6 +62,7 @@ export function CampaignPerformanceDrawer({
   open,
   onClose,
 }: CampaignPerformanceDrawerProps) {
+  const { t } = useTranslation('promotions');
   const query = useCampaignPerformance(promotion?.id ?? null, open);
   const performance = query.data;
   const currency = performance?.currency ?? promotion?.currency ?? "USD";
@@ -84,13 +86,13 @@ export function CampaignPerformanceDrawer({
       >
         <Box sx={{ minWidth: 0 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }} noWrap>
-            Campaign performance
+            {t('perf.title')}
           </Typography>
           <Typography variant="caption" sx={{ color: "text.secondary" }} noWrap>
             {promotion?.name}
           </Typography>
         </Box>
-        <IconButton onClick={onClose} aria-label="Close performance">
+        <IconButton onClick={onClose} aria-label={t('perf.close')}>
           <CloseIcon />
         </IconButton>
       </Stack>
@@ -106,7 +108,7 @@ export function CampaignPerformanceDrawer({
           <Alert severity="error">
             {getQueryErrorMessage(
               query.error,
-              "Unable to load campaign performance",
+              t('perf.loadError'),
             )}
           </Alert>
         ) : performance ? (
@@ -116,7 +118,7 @@ export function CampaignPerformanceDrawer({
                 variant="subtitle2"
                 sx={{ fontWeight: 700, mb: 1 }}
               >
-                Voucher funnel
+                {t('perf.funnel')}
               </Typography>
               <Stack
                 direction="row"
@@ -124,40 +126,40 @@ export function CampaignPerformanceDrawer({
                 useFlexGap
                 sx={{ flexWrap: "wrap" }}
               >
-                <Chip size="small" label={`${performance.vouchers.total} issued`} />
+                <Chip size="small" label={t('perf.funnelIssued', { count: performance.vouchers.total })} />
                 <Chip
                   size="small"
                   variant="outlined"
-                  label={`${performance.vouchers.guest_claims} guest claims`}
+                  label={t('perf.funnelGuestClaims', { count: performance.vouchers.guest_claims })}
                 />
                 <Chip
                   size="small"
                   variant="outlined"
-                  label={`${performance.vouchers.admin_issues} admin issued`}
+                  label={t('perf.funnelAdminIssued', { count: performance.vouchers.admin_issues })}
                 />
                 <Chip
                   size="small"
                   variant="outlined"
-                  label={`${performance.vouchers.available} available`}
+                  label={t('perf.funnelAvailable', { count: performance.vouchers.available })}
                 />
                 <Chip
                   size="small"
                   variant="outlined"
-                  label={`${performance.vouchers.redeemed} redeemed`}
+                  label={t('perf.funnelRedeemed', { count: performance.vouchers.redeemed })}
                 />
                 {performance.vouchers.revoked > 0 ? (
                   <Chip
                     size="small"
                     variant="outlined"
                     color="error"
-                    label={`${performance.vouchers.revoked} revoked`}
+                    label={t('perf.funnelRevoked', { count: performance.vouchers.revoked })}
                   />
                 ) : null}
                 {performance.vouchers.expired > 0 ? (
                   <Chip
                     size="small"
                     variant="outlined"
-                    label={`${performance.vouchers.expired} expired`}
+                    label={t('perf.funnelExpired', { count: performance.vouchers.expired })}
                   />
                 ) : null}
               </Stack>
@@ -168,7 +170,7 @@ export function CampaignPerformanceDrawer({
                 variant="subtitle2"
                 sx={{ fontWeight: 700, mb: 1 }}
               >
-                Redemptions
+                {t('perf.redemptions')}
               </Typography>
               <Box
                 sx={{
@@ -178,38 +180,41 @@ export function CampaignPerformanceDrawer({
                 }}
               >
                 <Metric
-                  label="Applied"
+                  label={t('perf.applied')}
                   value={String(performance.redemptions.applied)}
                   hint={
                     performance.redemptions.reversed > 0
-                      ? `${performance.redemptions.reversed} reversed`
+                      ? t('perf.reversedHint', { count: performance.redemptions.reversed })
                       : undefined
                   }
                 />
                 <Metric
-                  label="Conversion"
+                  label={t('perf.conversion')}
                   value={
                     performance.redemptions.conversion_rate != null
                       ? `${Math.round(performance.redemptions.conversion_rate * 100)}%`
                       : "—"
                   }
-                  hint="Redeemed / issued"
+                  hint={t('perf.conversionHint')}
                 />
                 <Metric
-                  label="Gross booked"
+                  label={t('perf.grossBooked')}
                   value={money(performance.redemptions.gross_subtotal)}
                 />
                 <Metric
-                  label="Discount given"
+                  label={t('perf.discountGiven')}
                   value={money(performance.redemptions.discount_amount)}
                 />
                 <Metric
-                  label="Net revenue"
+                  label={t('perf.netRevenue')}
                   value={money(performance.redemptions.net_total)}
                 />
                 <Metric
-                  label="Bookings / guests"
-                  value={`${performance.redemptions.bookings} / ${performance.redemptions.guests}`}
+                  label={t('perf.bookingsGuests')}
+                  value={t('perf.bookingsGuestsValue', {
+                    bookings: performance.redemptions.bookings,
+                    guests: performance.redemptions.guests,
+                  })}
                 />
               </Box>
             </Box>
@@ -219,13 +224,14 @@ export function CampaignPerformanceDrawer({
                 variant="subtitle2"
                 sx={{ fontWeight: 700, mb: 1 }}
               >
-                Stay nights
+                {t('perf.stayNights')}
               </Typography>
               <Typography variant="body2">
-                {performance.per_night.nights} night
-                {performance.per_night.nights === 1 ? "" : "s"} discounted ·{" "}
-                {money(performance.per_night.discount_amount)} off{" "}
-                {money(performance.per_night.gross_amount)} gross
+                {t('perf.stayNightsLine', {
+                  count: performance.per_night.nights,
+                  discount: money(performance.per_night.discount_amount),
+                  gross: money(performance.per_night.gross_amount),
+                })}
               </Typography>
             </Box>
 
@@ -234,23 +240,23 @@ export function CampaignPerformanceDrawer({
                 variant="subtitle2"
                 sx={{ fontWeight: 700, mb: 1 }}
               >
-                Channel mix
+                {t('perf.channelMix')}
               </Typography>
               {performance.channel_mix.length === 0 ? (
                 <Typography
                   variant="body2"
                   sx={{ color: "text.secondary" }}
                 >
-                  No redemptions yet.
+                  {t('perf.noRedemptions')}
                 </Typography>
               ) : (
                 <TableScroll>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell>Channel</TableCell>
-                        <TableCell align="right">Redemptions</TableCell>
-                        <TableCell align="right">Net revenue</TableCell>
+                        <TableCell>{t('perf.colChannel')}</TableCell>
+                        <TableCell align="right">{t('perf.redemptions')}</TableCell>
+                        <TableCell align="right">{t('perf.netRevenue')}</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>

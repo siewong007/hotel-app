@@ -26,7 +26,10 @@
     "forwardDays": "Forward {{days}} days",
     "today": "Today",
     "overridesOnly": "Overrides only",
-    "selected": "{{count}} selected"
+    "selected": "{{count}} selected",
+    "controlsAria": "Inventory window controls",
+    "refresh": "Refresh",
+    "select": "Select"
   },
   "grid": {
     "aria": "Online inventory by room type and date",
@@ -34,7 +37,9 @@
     "colHeader": "ROOM TYPE / DATE",
     "selectColumn": "Select all on {{date}}",
     "today": "Today",
-    "selectRow": "Select row {{name}}"
+    "selectRow": "Select row {{name}}",
+    "noInventoryAria": "{{date}}: no inventory data",
+    "closed": "Closed"
   },
   "cell": {
     "closed": "Closed",
@@ -75,7 +80,12 @@
     "applyAmount": "Apply amount",
     "clearOverrides": "Clear overrides",
     "skipped_one": "{{count}} cell skipped — the adjustment would make the price zero or negative.",
-    "skipped_other": "{{count}} cells skipped — the adjustment would make the price zero or negative."
+    "skipped_other": "{{count}} cells skipped — the adjustment would make the price zero or negative.",
+    "selectedCount": "{{count}} selected",
+    "selectedCount_one": "{{count}} selected",
+    "selectedCount_other": "{{count}} selected",
+    "editSelected": "Edit selected",
+    "editSelectedCells": "Edit selected cells"
   },
   "editor": {
     "bookable": "Bookable online",
@@ -90,7 +100,9 @@
     "customPrice": "Custom online price",
     "priceInvalid": "Enter a price greater than zero.",
     "standardRate": "Standard rate for this date: {{price}} — leave blank to use it.",
-    "resetStandard": "Reset to standard rules"
+    "resetStandard": "Reset to standard rules",
+    "resetAria": "Reset to standard rules",
+    "reset": "Reset"
   },
   "summary": {
     "physical": "Physically free",

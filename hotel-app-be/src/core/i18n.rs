@@ -195,6 +195,27 @@ impl Locale {
     }
 }
 
+/// Decide which language a guest's mail is written in: the guest's stored
+/// `language_preference` tag first, then the hotel's `default_locale`
+/// setting, then English. `stored` is free text from the guest record —
+/// [`Locale::parse`] decides whether it names a language we still ship.
+///
+/// Lives here rather than beside each sender because every queued mail
+/// resolves the same chain at render time; there is no request or session
+/// left to consult when the worker sends.
+pub async fn mail_locale(
+    pool: &crate::core::db::DbPool,
+    stored: Option<&str>,
+) -> Locale {
+    let hotel_default = crate::core::settings_cache::get_string(
+        pool,
+        DEFAULT_LOCALE_SETTING_KEY,
+        DEFAULT_LOCALE,
+    )
+    .await;
+    Locale::resolve([stored, Some(hotel_default.as_str())])
+}
+
 impl Default for Locale {
     fn default() -> Self {
         Locale::default_locale()

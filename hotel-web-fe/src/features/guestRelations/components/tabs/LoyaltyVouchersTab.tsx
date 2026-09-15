@@ -30,6 +30,7 @@ import { formatHotelDate, formatHotelDateTime } from '../../../../utils/date';
 import { getQueryErrorMessage } from '../../../../api/queryConfig';
 import { ProfileDetailRow, ProfileMetric } from '../../../guests/components/GuestProfileParts';
 import { useGuestLoyalty, useGuestVouchers } from '../../hooks/useGuestRelationsQueries';
+import { formatNumber } from '../../../../i18n/format';
 
 const SectionCard: React.FC<{ title: React.ReactNode; children: React.ReactNode }> = ({
   title,
@@ -157,9 +158,9 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
           gap: 1.5,
         }}
       >
-        <ProfileMetric label={t('loyaltyTab.availablePoints')} value={summary.available_points.toLocaleString()} />
-        <ProfileMetric label={t('loyaltyTab.lifetimePoints')} value={summary.lifetime_points.toLocaleString()} />
-        <ProfileMetric label={t('loyaltyTab.qualifyingNights')} value={summary.qualifying_nights.toLocaleString()} />
+        <ProfileMetric label={t('loyaltyTab.availablePoints')} value={formatNumber(summary.available_points)} />
+        <ProfileMetric label={t('loyaltyTab.lifetimePoints')} value={formatNumber(summary.lifetime_points)} />
+        <ProfileMetric label={t('loyaltyTab.qualifyingNights')} value={formatNumber(summary.qualifying_nights)} />
       </Box>
 
       <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mt: 2, mb: 1 }}>
@@ -184,7 +185,7 @@ const LoyaltyVouchersTab: React.FC<LoyaltyVouchersTabProps> = ({ guestId }) => {
               {summary.recent_redemptions.map((redemption) => (
                 <TableRow key={redemption.id}>
                   <TableCell>{redemption.reward_name ?? t('loyaltyTab.rewardFallback')}</TableCell>
-                  <TableCell align="right">{redemption.points.toLocaleString()}</TableCell>
+                  <TableCell align="right">{formatNumber(redemption.points)}</TableCell>
                   <TableCell>
                     <Chip
                       size="small"

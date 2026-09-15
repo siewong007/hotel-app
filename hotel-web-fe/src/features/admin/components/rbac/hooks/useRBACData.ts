@@ -4,6 +4,7 @@ import type { Permission, RbacSnapshot, Role, RouteAccessPolicy, User } from '..
 import type { PermissionCategory, RolePermissionMap, RoleWithStats } from '../types';
 import { PERMISSION_CATEGORIES } from '../constants';
 import { rbacQueryKeys, useRbacSnapshot } from './useRBACQueries';
+import { useTranslation } from '../../../../../i18n';
 
 interface UserWithRoles extends User {
   roles?: Role[];
@@ -47,6 +48,7 @@ function toSnapshotUser(user: UserWithRoles): User {
 }
 
 export function useRBACData(): UseRBACDataReturn {
+  const { t } = useTranslation('admin');
   const queryClient = useQueryClient();
   const snapshotQuery = useRbacSnapshot();
   const snapshot = snapshotQuery.data;
@@ -196,13 +198,13 @@ export function useRBACData(): UseRBACDataReturn {
     return Object.entries(grouped)
       .map(([name, perms]) => ({
         name,
-        displayName: PERMISSION_CATEGORIES[name]?.displayName || name.charAt(0).toUpperCase() + name.slice(1),
+        displayName: PERMISSION_CATEGORIES[name] ? t(PERMISSION_CATEGORIES[name].labelKey) : name.charAt(0).toUpperCase() + name.slice(1),
         icon: PERMISSION_CATEGORIES[name]?.icon || 'VpnKey',
         color: PERMISSION_CATEGORIES[name]?.color || 'var(--hotel-neutral)',
         permissions: perms.sort((a, b) => a.name.localeCompare(b.name)),
       }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [permissions]);
+  }, [permissions, t]);
 
   // Compute roles with stats
   const rolesWithStats = useMemo<RoleWithStats[]>(() => {

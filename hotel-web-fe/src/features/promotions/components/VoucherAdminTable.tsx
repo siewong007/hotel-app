@@ -24,6 +24,7 @@ import {
 } from '@mui/material';
 import { useState } from 'react';
 import EmptyState from '../../../components/common/EmptyState';
+import { useTranslation } from '../../../i18n';
 import type { Voucher } from '../types';
 import {
   formatPromotionDate,
@@ -53,6 +54,7 @@ const COLUMN_COUNT = 8;
 const SKELETON_ROWS = 5;
 
 function CodeCell({ voucher }: { voucher: Voucher }) {
+  const { t } = useTranslation('promotions');
   const [copied, setCopied] = useState(false);
   const label = voucherCodeLabel(voucher);
 
@@ -80,10 +82,10 @@ function CodeCell({ voucher }: { voucher: Voucher }) {
           '& .MuiChip-label': { px: 0.75 },
         }}
       />
-      <Tooltip title={copied ? 'Copied' : 'Copy code'}>
+      <Tooltip title={copied ? t('vouchers.copied') : t('vouchers.copyCode')}>
         <IconButton
           size="small"
-          aria-label={copied ? 'Copied' : `Copy voucher code ${label}`}
+          aria-label={copied ? t('vouchers.copied') : t('vouchers.copyCodeAria', { code: label })}
           onClick={copy}
         >
           {copied ? (
@@ -98,8 +100,9 @@ function CodeCell({ voucher }: { voucher: Voucher }) {
 }
 
 function ExpiryCell({ voucher }: { voucher: Voucher }) {
+  const { t } = useTranslation('promotions');
   const expired = voucherDisplayStatus(voucher) === 'expired';
-  const relative = relativeExpiryLabel(voucher.expires_at);
+  const relative = relativeExpiryLabel(voucher.expires_at, t);
   return (
     <Box>
       <Typography variant="body2">
@@ -124,6 +127,7 @@ function VoucherCardItem({
   voucher: Voucher;
   onView: (voucher: Voucher) => void;
 }) {
+  const { t } = useTranslation('promotions');
   return (
     <Box
       onClick={() => onView(voucher)}
@@ -154,7 +158,7 @@ function VoucherCardItem({
       </Stack>
       <Stack spacing={0.25} sx={{ mt: 1.25 }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {guestDisplayName(voucher)}
+          {guestDisplayName(voucher, t)}
         </Typography>
         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
           {voucher.promotion_name}
@@ -168,7 +172,7 @@ function VoucherCardItem({
                 : 'text.secondary',
           }}
         >
-          {relativeExpiryLabel(voucher.expires_at)}
+          {relativeExpiryLabel(voucher.expires_at, t)}
         </Typography>
       </Stack>
     </Box>
@@ -188,14 +192,15 @@ export function VoucherAdminTable({
   onPageChange,
   onPageSizeChange,
 }: VoucherAdminTableProps) {
+  const { t, tOr } = useTranslation('promotions');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const emptyState = (
     <EmptyState
       icon={<ConfirmationNumberOutlinedIcon />}
-      title="No vouchers found"
-      description="Try a different search or status filter, or issue a voucher to a guest."
+      title={t('vouchers.empty')}
+      description={t('vouchers.emptyHint')}
     />
   );
 
@@ -252,14 +257,14 @@ export function VoucherAdminTable({
         <Table size="small" sx={{ minWidth: 960 }} aria-busy={isLoading || undefined}>
           <TableHead>
             <TableRow>
-              <TableCell>Voucher</TableCell>
-              <TableCell>Offer</TableCell>
-              <TableCell>Guest</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Expires</TableCell>
-              <TableCell>Source</TableCell>
-              <TableCell>Issued</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{t('vouchers.colVoucher')}</TableCell>
+              <TableCell>{t('vouchers.colOffer')}</TableCell>
+              <TableCell>{t('vouchers.colGuest')}</TableCell>
+              <TableCell>{t('vouchers.colStatus')}</TableCell>
+              <TableCell>{t('vouchers.colExpires')}</TableCell>
+              <TableCell>{t('vouchers.colSource')}</TableCell>
+              <TableCell>{t('vouchers.colIssued')}</TableCell>
+              <TableCell align="right">{t('vouchers.colActions')}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -313,7 +318,7 @@ export function VoucherAdminTable({
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {guestDisplayName(voucher)}
+                        {guestDisplayName(voucher, t)}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -324,7 +329,7 @@ export function VoucherAdminTable({
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {voucherSourceLabel(voucher.source)}
+                        {voucherSourceLabel(voucher.source, tOr)}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -341,22 +346,22 @@ export function VoucherAdminTable({
                         spacing={0.25}
                         sx={{ justifyContent: 'flex-end' }}
                       >
-                        <Tooltip title="View details">
+                        <Tooltip title={t('vouchers.viewDetails')}>
                           <IconButton
                             size="small"
-                            aria-label={`View voucher ${displayCode}`}
+                            aria-label={t('vouchers.viewVoucherAria', { code: displayCode })}
                             onClick={() => onView(voucher)}
                           >
                             <VisibilityOutlinedIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         {canRevoke ? (
-                          <Tooltip title="Revoke voucher">
+                          <Tooltip title={t('vouchers.revokeVoucher')}>
                             <IconButton
                               size="small"
                               color="error"
                               disabled={isRevoking}
-                              aria-label="Revoke voucher"
+                              aria-label={t('vouchers.revokeVoucher')}
                               onClick={() =>
                                 onRevoke(voucher.id, displayCode)
                               }

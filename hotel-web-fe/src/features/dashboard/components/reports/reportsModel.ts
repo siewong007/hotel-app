@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { addLocalDays, formatLocalDate, formatHotelDate, parseLocalDate } from '../../../../utils/date';
 import { getQueryErrorMessage, queryGcTime, queryStaleTime } from '../../../../api/queryConfig';
+import { dateFormatter, useTranslation, type UseTranslationResult } from '../../../../i18n';
 import { useInsightsOverview } from '../../../insights/hooks';
 import { RevenueApi } from '../../../revenue/api';
 import { useRevenueOverview } from '../../../revenue/hooks/useRevenueOverview';
@@ -47,7 +48,7 @@ export type KpiKind = 'occupancy' | 'adr' | 'revpar' | 'roomRev' | 'totalRev' | 
 export interface SourceSlice { label: string; value: number; bookings: number; channelId: number | null }
 export interface RoomTypePerf { id: number; type: string; rooms: number; occ: number; adr: number; rev: number }
 export interface AgeingBucket { key: string; bucket: string; value: number; count: number }
-export interface BalanceRow { name: string; ref: string; bal: number; age: string; stay?: string; terms?: string }
+export interface BalanceRow { name: string; ref: string; bal: number; age: string; ageKey: string; stay?: string; terms?: string }
 export interface RoomStatusSlice { label: string; count: number; color: string }
 export interface RevenueState { label: string; desc: string; value: number; color: string }
 export interface ArrivalRow { name: string; room: string; type: string; source: string; nights: number; eta: string; bal: number; vip?: boolean }
@@ -123,6 +124,8 @@ function buildModel(
   baseline: RevenueKpis | undefined,
   insights: ReturnType<typeof useInsightsOverview>['data'],
   receivables: Receivables | undefined,
+  t: UseTranslationResult['t'],
+  tOr: UseTranslationResult['tOr'],
 ): ReportsModel {
   const periodDays = query.rangeDays;
   const periodRooms = insights?.rooms.total ?? 0;
@@ -133,7 +136,7 @@ function buildModel(
     const date = parseLocalDate(d.date);
     return {
       date: d.date,
-      label: `${date.getDate()} ${date.toLocaleString('en', { month: 'short' })}`,
+      label: dateFormatter({ day: 'numeric', month: 'short' }).format(date),
       occ: num(d.occupancy_rate),
       occRooms: d.room_nights_sold,
       adr: num(d.adr),
@@ -198,7 +201,7 @@ function buildModel(
   };
 
   const live: LiveOps = {
-    updated: new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    updated: dateFormatter({ hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()),
     arrivals: insights?.bookings.today_check_ins ?? 0,
     departures: insights?.bookings.today_check_outs ?? 0,
     inHouse: insights?.rooms.occupied ?? 0,
@@ -233,27 +236,33 @@ function buildModel(
     name: d.name,
     ref: d.invoice_number,
     bal: num(d.balance),
-    age: d.bucket,
-    stay: d.room ? `Room ${d.room}` : undefined,
-    terms: d.due_date ? `Due ${d.due_date}` : undefined,
+    age: tOr(`reports.ageBuckets.${d.bucket_key}`, d.bucket),
+    ageKey: d.bucket_key,
+    stay: d.room ? t('reports.roomLabel', { room: d.room }) : undefined,
+    terms: d.due_date ? t('reports.dueDate', { date: formatHotelDate(d.due_date) }) : undefined,
   });
 
   const roomStatus: RoomStatusSlice[] = [
-    { label: 'Occupied', count: live.inHouse, color: 'var(--amber)' },
-    { label: 'Vacant · ready', count: live.ready, color: 'var(--emerald)' },
-    { label: 'Vacant · clean', count: live.toClean, color: 'var(--rose)' },
-    { label: 'Arriving today', count: live.arrivals, color: 'var(--blue)' },
+    { label: t('reports.roomStatus.occupied'), count: live.inHouse, color: 'var(--amber)' },
+    { label: t('reports.roomStatus.vacantReady'), count: live.ready, color: 'var(--emerald)' },
+    { label: t('reports.roomStatus.vacantClean'), count: live.toClean, color: 'var(--rose)' },
+    { label: t('reports.roomStatus.arrivingToday'), count: live.arrivals, color: 'var(--blue)' },
   ];
 
   const p = overview?.pipeline;
   const revenueStates: RevenueState[] = [
-    { label: 'Booked', desc: 'Confirmed future bookings', value: num(p?.booked), color: 'var(--hotel-info)' },
-    { label: 'Earned', desc: 'Completed room nights', value: num(p?.earned), color: 'var(--hotel-primary)' },
-    { label: 'Collected', desc: 'Payments received', value: num(p?.collected), color: 'var(--hotel-chart-3)' },
-    { label: 'Outstanding', desc: 'Unpaid invoices', value: num(p?.outstanding), color: 'var(--hotel-warning)' },
+    { label: t('reports.pipeline.booked'), desc: t('reports.pipeline.bookedDesc'), value: num(p?.booked), color: 'var(--hotel-info)' },
+    { label: t('reports.pipeline.earned'), desc: t('reports.pipeline.earnedDesc'), value: num(p?.earned), color: 'var(--hotel-primary)' },
+    { label: t('reports.pipeline.collected'), desc: t('reports.pipeline.collectedDesc'), value: num(p?.collected), color: 'var(--hotel-chart-3)' },
+    { label: t('reports.pipeline.outstanding'), desc: t('reports.pipeline.outstandingDesc'), value: num(p?.outstanding), color: 'var(--hotel-warning)' },
   ];
 
-  const todayLabel = new Date().toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const todayLabel = dateFormatter({
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date());
 
   return {
     periodRooms,
@@ -303,6 +312,7 @@ export interface UseReportsModelResult {
 }
 
 export function useReportsModel(query: ReportsQuery, revenueEnabled: boolean): UseReportsModelResult {
+  const { t, tOr } = useTranslation('dashboard');
   const to = formatLocalDate(new Date());
   const from = formatLocalDate(addLocalDays(new Date(), -(query.rangeDays - 1)));
   const overviewParams = useMemo(
@@ -347,8 +357,8 @@ export function useReportsModel(query: ReportsQuery, revenueEnabled: boolean): U
   );
 
   const model = useMemo(
-    () => buildModel(query, overview.data, baseline, insights.data, receivables.data),
-    [query, overview.data, baseline, insights.data, receivables.data],
+    () => buildModel(query, overview.data, baseline, insights.data, receivables.data, t, tOr),
+    [query, overview.data, baseline, insights.data, receivables.data, t, tOr],
   );
 
   const revenuePending =

@@ -55,7 +55,7 @@ describe('RatesService.getRateCodes', () => {
     get.mockReturnValue({ json: () => Promise.reject(httpErrorWith(500, {})) });
 
     await expect(RatesService.getRateCodes()).rejects.toMatchObject({
-      message: 'Failed to fetch rate codes',
+      message: 'Something went wrong. Please try again.',
     });
   });
 
@@ -63,7 +63,7 @@ describe('RatesService.getRateCodes', () => {
     get.mockReturnValue({ json: () => Promise.reject(new Error('network down')) });
 
     await expect(RatesService.getRateCodes()).rejects.toMatchObject({
-      message: 'Failed to fetch rate codes',
+      message: 'Something went wrong. Please try again.',
     });
   });
 });
@@ -98,7 +98,7 @@ describe('RatesService.getMarketCodes', () => {
     get.mockReturnValue({ json: () => Promise.reject(httpErrorWith(500, {})) });
 
     await expect(RatesService.getMarketCodes()).rejects.toMatchObject({
-      message: 'Failed to fetch market codes',
+      message: 'Something went wrong. Please try again.',
     });
   });
 
@@ -106,7 +106,7 @@ describe('RatesService.getMarketCodes', () => {
     get.mockReturnValue({ json: () => Promise.reject(new Error('network down')) });
 
     await expect(RatesService.getMarketCodes()).rejects.toMatchObject({
-      message: 'Failed to fetch market codes',
+      message: 'Something went wrong. Please try again.',
     });
   });
 });

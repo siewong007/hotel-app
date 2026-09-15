@@ -206,5 +206,20 @@
     "newGuest": "Tetamu baharu",
     "collectPayment": "Kutip bayaran",
     "backToList": "Kembali ke senarai"
+  },
+  "roles": {
+    "super_admin": "Pentadbir Super",
+    "admin": "Pentadbir",
+    "manager": "Pengurus",
+    "receptionist": "Penyambut Tetamu",
+    "housekeeping": "Kemas Bilik",
+    "staff": "Kakitangan",
+    "guest": "Tetamu",
+    "compliance_admin": "Pentadbir Pematuhan",
+    "ekyc_reviewer": "Pemeriksa eKYC",
+    "senior_reviewer": "Pemeriksa Kanan",
+    "auditor": "Juruaudit",
+    "support_readonly": "Sokongan (Baca Sahaja)",
+    "front_desk": "Kaunter Hadapan"
   }
 }

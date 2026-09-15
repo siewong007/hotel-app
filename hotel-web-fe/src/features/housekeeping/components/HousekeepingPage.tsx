@@ -346,14 +346,14 @@ export default function HousekeepingPage() {
         overflowActions={[
           {
             id: 'refresh-board',
-            label: 'Refresh board',
+            label: t('board.refreshBoard'),
             icon: <RefreshIcon fontSize="small" />,
             onClick: () => boardQuery.refetch(),
             disabled: boardQuery.isFetching,
           },
           {
             id: 'sync-statuses',
-            label: 'Sync statuses',
+            label: t('board.syncStatuses'),
             icon: <SyncIcon fontSize="small" />,
             onClick: () => syncStatuses.mutate(),
             disabled: syncStatuses.isPending,

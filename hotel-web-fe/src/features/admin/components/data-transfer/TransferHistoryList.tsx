@@ -33,11 +33,11 @@ interface TransferHistoryListProps {
   loading?: boolean;
 }
 
-const STATUS_LABEL: Record<TransferHistoryEntry['status'], string> = {
-  success: 'Success',
-  partial: 'Partial',
-  failed: 'Failed',
-  started: 'Started',
+const STATUS_KEY: Record<TransferHistoryEntry['status'], string> = {
+  success: 'history.statuses.success',
+  partial: 'history.statuses.partial',
+  failed: 'history.statuses.failed',
+  started: 'history.statuses.started',
 };
 
 const STATUS_COLOR: Record<TransferHistoryEntry['status'], 'success' | 'warning' | 'error' | 'info'> = {
@@ -47,9 +47,9 @@ const STATUS_COLOR: Record<TransferHistoryEntry['status'], 'success' | 'warning'
   started: 'info',
 };
 
-const statusChip = (status: TransferHistoryEntry['status']) => (
+const statusChip = (t: (key: string) => string, status: TransferHistoryEntry['status']) => (
   <Chip
-    label={STATUS_LABEL[status]}
+    label={t(STATUS_KEY[status])}
     size="small"
     color={STATUS_COLOR[status]}
     sx={{ height: 20, fontSize: 11, fontWeight: 700 }}
@@ -66,10 +66,10 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, load
 
   const metaLine = (entry: TransferHistoryEntry) =>
     [
-      entry.records === undefined ? null : `${formatNum(entry.records)} records`,
+      entry.records === undefined ? null : t('history.recordsCount', { count: entry.records }),
       entry.by,
       formatWhen(entry.at),
-      entry.jobId ? `job ${entry.jobId.slice(0, 8)}` : null,
+      entry.jobId ? t('history.jobRef', { id: entry.jobId.slice(0, 8) }) : null,
       entry.error,
     ]
       .filter(Boolean)
@@ -85,7 +85,7 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, load
       }}
     >
       <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
-        <Typography sx={{ fontWeight: 800, fontSize: 15 }}>Transfer History</Typography>
+        <Typography sx={{ fontWeight: 800, fontSize: 15 }}>{t('history.title')}</Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 12.5 }}>
           {t('history.serverBacked')}
         </Typography>
@@ -93,11 +93,11 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, load
       {entries.length === 0 ? (
         <Box sx={{ p: 6, textAlign: 'center', color: 'text.secondary' }}>
           {loading ? (
-            <CircularProgress size={28} aria-label="Loading transfer history" />
+            <CircularProgress size={28} aria-label={t('history.loadingAria')} />
           ) : (
             <>
               <HistoryIcon sx={{ fontSize: 40, opacity: 0.4, mb: 1 }} />
-              <Typography variant="body2">No transfers recorded yet.</Typography>
+              <Typography variant="body2">{t('history.empty')}</Typography>
             </>
           )}
         </Box>
@@ -109,10 +109,10 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, load
               sx={{ borderBottom: `1px solid ${theme.palette.divider}`, '&:last-child': { borderBottom: 0 } }}
             >
               <MobileCardRow
-                title={describeHistoryAction(entry)}
+                title={describeHistoryAction(entry, t)}
                 subtitle={entry.categories}
                 meta={metaLine(entry)}
-                status={statusChip(entry.status)}
+                status={statusChip(t, entry.status)}
               />
             </Box>
           ))}
@@ -122,14 +122,14 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, load
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Scope</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>{t('history.colAction')}</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>{t('history.colScope')}</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">
-                  Records
+                  {t('history.colRecords')}
                 </TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Performed by</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Date &amp; time</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>{t('history.colBy')}</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>{t('history.colDate')}</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>{t('history.colStatus')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -152,7 +152,7 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, load
                       >
                         {typeIcon(entry.type)}
                       </Box>
-                      {describeHistoryAction(entry)}
+                      {describeHistoryAction(entry, t)}
                     </Box>
                   </TableCell>
                   <TableCell sx={{ maxWidth: 280 }}>
@@ -165,7 +165,7 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, load
                           variant="caption"
                           sx={{ color: 'text.secondary', fontFamily: 'monospace' }}
                         >
-                          job {entry.jobId.slice(0, 8)}…
+                          {t('history.jobRef', { id: entry.jobId.slice(0, 8) })}…
                         </Typography>
                       </Tooltip>
                     )}
@@ -180,7 +180,7 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, load
                   </TableCell>
                   <TableCell>{entry.by}</TableCell>
                   <TableCell>{formatWhen(entry.at)}</TableCell>
-                  <TableCell>{statusChip(entry.status)}</TableCell>
+                  <TableCell>{statusChip(t, entry.status)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

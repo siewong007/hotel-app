@@ -38,22 +38,26 @@ import { SegmentsApi } from '../api';
 import { segmentFieldMeta, NO_VALUE_OPS } from '../constants';
 import type { SegmentCondition, SegmentSummary } from '../types';
 import { SegmentEditorDialog } from '../components/SegmentEditorDialog';
+import { useTranslation, type UseTranslationResult } from '../../../i18n';
 
 /** "country is Malaysia · total stays at least 3" — one line per condition. */
-const describeCondition = (c: SegmentCondition): string => {
-  const field = segmentFieldMeta(c.field)?.label ?? c.field;
-  const op = segmentFieldMeta(c.field)?.ops.find((o) => o.op === c.op)?.label ?? c.op;
+const describeCondition = (t: UseTranslationResult['t'], c: SegmentCondition): string => {
+  const meta = segmentFieldMeta(c.field);
+  const field = meta ? t(meta.labelKey) : c.field;
+  const opMeta = meta?.ops.find((o) => o.op === c.op);
+  const op = opMeta ? t(opMeta.labelKey) : c.op;
   if (NO_VALUE_OPS.has(c.op)) return `${field} ${op}`;
   const value = Array.isArray(c.value) ? c.value.join(', ') : String(c.value ?? '');
   return `${field} ${op} ${value}`;
 };
 
-const describeRules = (s: SegmentSummary): string =>
+const describeRules = (t: UseTranslationResult['t'], s: SegmentSummary): string =>
   s.rules.groups
-    .map((g) => g.conditions.map(describeCondition).join(' · '))
-    .join('  OR  ');
+    .map((g) => g.conditions.map((c) => describeCondition(t, c)).join(' · '))
+    .join(`  ${t('builder.or')}  `);
 
 const SegmentsPage = () => {
+  const { t } = useTranslation('segments');
   const { hasPermission } = useAuth();
   const isPhone = useIsPhone();
   const confirm = useConfirm();
@@ -94,21 +98,21 @@ const SegmentsPage = () => {
         is_active: !segment.is_active,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['segments'] }),
-    onError: (e) => setError(e instanceof Error ? e.message : 'Update failed'),
+    onError: (e) => setError(e instanceof Error ? e.message : t('page.updateFailed')),
   });
 
   const remove = useMutation({
     mutationFn: (id: number) => SegmentsApi.remove(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['segments'] }),
-    onError: (e) => setError(e instanceof Error ? e.message : 'Delete failed'),
+    onError: (e) => setError(e instanceof Error ? e.message : t('page.deleteFailed')),
   });
 
   return (
     <Box>
       <PageHeader
-        kicker="Revenue · Marketing"
-        title="Guest segments"
-        subtitle="Dynamic rule-based audiences — evaluated live, never stored. Attach a segment to an email campaign to narrow its audience."
+        kicker={t('page.kicker')}
+        title={t('page.title')}
+        subtitle={t('page.subtitle')}
         actions={
           canManage ? (
             <Button
@@ -116,7 +120,7 @@ const SegmentsPage = () => {
               startIcon={<AddIcon />}
               onClick={() => setEditor({ open: true, segment: null })}
             >
-              New segment
+              {t('page.newSegment')}
             </Button>
           ) : undefined
         }
@@ -130,29 +134,29 @@ const SegmentsPage = () => {
         <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
           <TextField
             size="small"
-            label="Search"
+            label={t('common:actions.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <TextField
             select
             size="small"
-            label="Status"
+            label={t('common:field.status')}
             value={activeFilter}
             onChange={(e) => setActiveFilter(e.target.value as typeof activeFilter)}
             sx={{ minWidth: 140 }}
           >
-            <MenuItem value="all">All</MenuItem>
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="inactive">Inactive</MenuItem>
+            <MenuItem value="all">{t('page.filterAll')}</MenuItem>
+            <MenuItem value="active">{t('page.filterActive')}</MenuItem>
+            <MenuItem value="inactive">{t('page.filterInactive')}</MenuItem>
           </TextField>
         </Stack>
         {segments.isLoading ? (
           <Skeleton variant="rectangular" height={200} />
         ) : (segments.data?.items.length ?? 0) === 0 ? (
           <EmptyState
-            title="No segments"
-            description="Create a segment to target email campaigns at a dynamic guest audience."
+            title={t('page.emptyTitle')}
+            description={t('page.emptyDescription')}
           />
         ) : isPhone ? (
           <Box>
@@ -160,31 +164,31 @@ const SegmentsPage = () => {
               <MobileCardRow
                 key={s.id}
                 title={s.name}
-                subtitle={s.description || describeRules(s)}
-                meta={`${s.member_count} members · Updated ${formatHotelDate(s.updated_at)}`}
+                subtitle={s.description || describeRules(t, s)}
+                meta={t('page.cardMeta', { count: s.member_count, date: formatHotelDate(s.updated_at) })}
                 status={
                   <Chip
                     size="small"
-                    label={s.is_active ? 'Active' : 'Inactive'}
+                    label={s.is_active ? t('page.filterActive') : t('page.filterInactive')}
                     color={s.is_active ? 'success' : 'default'}
                   />
                 }
                 footer={
                   <>
                     <Button size="small" onClick={() => setPreviewFor(s)}>
-                      Preview
+                      {t('page.preview')}
                     </Button>
                     {canManage && (
                       <>
                         <Button size="small" onClick={() => setEditor({ open: true, segment: s })}>
-                          Edit
+                          {t('common:actions.edit')}
                         </Button>
                         <Button
                           size="small"
                           onClick={() => toggleActive.mutate(s)}
                           disabled={toggleActive.isPending}
                         >
-                          {s.is_active ? 'Deactivate' : 'Activate'}
+                          {s.is_active ? t('page.deactivate') : t('page.activate')}
                         </Button>
                         <Button
                           size="small"
@@ -193,9 +197,9 @@ const SegmentsPage = () => {
                           onClick={async () => {
                             if (
                               !(await confirm({
-                                title: 'Delete segment',
-                                message: `Delete “${s.name}”? Campaigns using it keep their audience — deactivate instead if unsure.`,
-                                confirmText: 'Delete',
+                                title: t('page.deleteTitle'),
+                                message: t('page.deleteConfirm', { name: s.name }),
+                                confirmText: t('common:actions.delete'),
                                 severity: 'warning',
                               }))
                             ) {
@@ -204,7 +208,7 @@ const SegmentsPage = () => {
                             remove.mutate(s.id);
                           }}
                         >
-                          Delete
+                          {t('common:actions.delete')}
                         </Button>
                       </>
                     )}
@@ -218,12 +222,12 @@ const SegmentsPage = () => {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Rules</TableCell>
-                  <TableCell>Members</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Updated</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  <TableCell>{t('common:field.name')}</TableCell>
+                  <TableCell>{t('page.colRules')}</TableCell>
+                  <TableCell>{t('page.colMembers')}</TableCell>
+                  <TableCell>{t('common:field.status')}</TableCell>
+                  <TableCell>{t('page.colUpdated')}</TableCell>
+                  <TableCell align="right">{t('common:field.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -241,14 +245,14 @@ const SegmentsPage = () => {
                     </TableCell>
                     <TableCell>
                       <Typography variant="caption" color="text.secondary">
-                        {describeRules(s)}
+                        {describeRules(t, s)}
                       </Typography>
                     </TableCell>
                     <TableCell>{s.member_count}</TableCell>
                     <TableCell>
                       <Chip
                         size="small"
-                        label={s.is_active ? 'Active' : 'Inactive'}
+                        label={s.is_active ? t('page.filterActive') : t('page.filterInactive')}
                         color={s.is_active ? 'success' : 'default'}
                       />
                     </TableCell>
@@ -256,7 +260,7 @@ const SegmentsPage = () => {
                     <TableCell align="right">
                       <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
                         <Button size="small" onClick={() => setPreviewFor(s)}>
-                          Preview
+                          {t('page.preview')}
                         </Button>
                         {canManage && (
                           <>
@@ -264,14 +268,14 @@ const SegmentsPage = () => {
                               size="small"
                               onClick={() => setEditor({ open: true, segment: s })}
                             >
-                              Edit
+                              {t('common:actions.edit')}
                             </Button>
                             <Button
                               size="small"
                               onClick={() => toggleActive.mutate(s)}
                               disabled={toggleActive.isPending}
                             >
-                              {s.is_active ? 'Deactivate' : 'Activate'}
+                              {s.is_active ? t('page.deactivate') : t('page.activate')}
                             </Button>
                             <Button
                               size="small"
@@ -280,9 +284,9 @@ const SegmentsPage = () => {
                               onClick={async () => {
                                 if (
                                   !(await confirm({
-                                    title: 'Delete segment',
-                                    message: `Delete “${s.name}”? Campaigns using it keep their audience — deactivate instead if unsure.`,
-                                    confirmText: 'Delete',
+                                    title: t('page.deleteTitle'),
+                                    message: t('page.deleteConfirm', { name: s.name }),
+                                    confirmText: t('common:actions.delete'),
                                     severity: 'warning',
                                   }))
                                 ) {
@@ -291,7 +295,7 @@ const SegmentsPage = () => {
                                 remove.mutate(s.id);
                               }}
                             >
-                              Delete
+                              {t('common:actions.delete')}
                             </Button>
                           </>
                         )}
@@ -317,22 +321,22 @@ const SegmentsPage = () => {
       )}
 
       <Dialog open={previewFor !== null} onClose={() => setPreviewFor(null)}>
-        <DialogTitle>Preview — {previewFor?.name}</DialogTitle>
+        <DialogTitle>{t('page.previewTitle', { name: previewFor?.name })}</DialogTitle>
         <DialogContent>
           {preview.isLoading ? (
             <Skeleton variant="rectangular" height={120} />
           ) : preview.isError ? (
-            <Alert severity="error">Preview failed to load.</Alert>
+            <Alert severity="error">{t('page.previewFailed')}</Alert>
           ) : (
             <Stack spacing={2} sx={{ minWidth: 320 }}>
               <Typography variant="body2">
-                <strong>{preview.data?.count ?? 0}</strong> active guests match
+                {t('editor.previewCount', { count: preview.data?.count ?? 0 })}
               </Typography>
               {(preview.data?.sample.length ?? 0) > 0 && (
                 <List dense>
                   {preview.data!.sample.map((g) => (
                     <ListItem key={g.id} disablePadding>
-                      <ListItemText primary={g.name} secondary={`Guest #${g.id}`} />
+                      <ListItemText primary={g.name} secondary={t('page.guestNumber', { id: g.id })} />
                     </ListItem>
                   ))}
                 </List>
@@ -341,7 +345,7 @@ const SegmentsPage = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPreviewFor(null)}>Close</Button>
+          <Button onClick={() => setPreviewFor(null)}>{t('common:actions.close')}</Button>
         </DialogActions>
       </Dialog>
     </Box>

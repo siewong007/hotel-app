@@ -145,6 +145,7 @@ fn audience_guest_from_row(row: &DbRow) -> AudienceGuest {
         email: row.try_get("email").unwrap_or_default(),
         first_name: row.try_get("first_name").unwrap_or_default(),
         nick_name: row.try_get("nick_name").unwrap_or_default(),
+        language_preference: row.try_get("language_preference").ok().flatten(),
     }
 }
 
@@ -790,7 +791,8 @@ impl CommunicationsRepository {
                    b.check_in_date,
                    b.check_out_date,
                    r.room_number,
-                   rt.name AS room_type_name
+                   rt.name AS room_type_name,
+                   g.language_preference
             FROM bookings b
             JOIN guests g ON g.id = b.guest_id
             LEFT JOIN rooms r ON r.id = b.room_id
@@ -835,8 +837,23 @@ impl CommunicationsRepository {
                     .try_get::<Option<String>, _>("room_type_name")
                     .ok()
                     .flatten(),
+                language_preference: row.try_get("language_preference").ok().flatten(),
             })
             .collect())
+    }
+
+    /// `guests.language_preference` for a single recipient — the first hop of
+    /// the mail-locale chain for senders that only hold a `guest_id`.
+    pub async fn guest_language_preference(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<Option<String>, ApiError> {
+        sqlx::query_scalar("SELECT language_preference FROM guests WHERE id = $1")
+            .bind(guest_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)
+            .map(|row| row.flatten())
     }
 
     /// Paged, campaign-independent delivery feed for the admin notification
@@ -938,7 +955,7 @@ impl CommunicationsRepository {
         };
         let sql = format!(
             r#"
-                SELECT g.id, g.email, g.first_name, g.nick_name FROM guests g
+                SELECT g.id, g.email, g.first_name, g.nick_name, g.language_preference FROM guests g
                 WHERE g.is_active IS TRUE
                   AND g.email IS NOT NULL AND length(trim(g.email)) > 0
                   AND EXISTS (SELECT 1 FROM notification_subscriptions ns
@@ -985,7 +1002,7 @@ impl CommunicationsRepository {
             limit,
         } = params;
         let rows = query(r#"
-                SELECT g.id, g.email, g.first_name, g.nick_name FROM guests g
+                SELECT g.id, g.email, g.first_name, g.nick_name, g.language_preference FROM guests g
                 WHERE g.is_active IS TRUE
                   AND g.email IS NOT NULL AND length(trim(g.email)) > 0
                   AND g.date_of_birth IS NOT NULL

@@ -12,6 +12,7 @@ import type { CustomerLedger } from '../../../../../types';
 import type { CustomerLedgerSummary } from '../hooks/useCustomerLedgerWorkspace';
 import { asMoney, getLedgerUiStatus } from '../helpers';
 import { isPositiveMoney, sumMoney, toMoneyNumber } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n';
 
 interface LedgerSummaryStripProps {
   summary: CustomerLedgerSummary | null;
@@ -28,6 +29,7 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
   formatCurrency,
   currencySymbol,
 }) => {
+  const { t } = useTranslation('finance');
   if (!summary) return null;
 
   const totalAmount = toMoneyNumber(summary.total_amount);
@@ -49,9 +51,9 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
       icon: <MoneyIcon fontSize="small" />,
       iconBg: (theme: Theme) => alpha(theme.palette.info.main, 0.12),
       iconColor: 'info.main',
-      label: 'Total Billed',
+      label: t('ledger.meter.totalBilled'),
       value: formatCurrency(totalAmount).replace(currencySymbol, '').trim(),
-      delta: `${summary.total_entries} entries / ${companiesCount} ${companiesCount === 1 ? 'company' : 'companies'}`,
+      delta: t('ledger.meter.entriesPerCompanies', { count: companiesCount, entries: summary.total_entries, companies: companiesCount }),
       currency: currencySymbol,
     },
     {
@@ -59,9 +61,9 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
       icon: <CheckCircleIcon fontSize="small" />,
       iconBg: (theme: Theme) => alpha(theme.palette.success.main, 0.12),
       iconColor: 'success.main',
-      label: 'Collected',
+      label: t('ledger.meter.collected'),
       value: formatCurrency(totalPaid).replace(currencySymbol, '').trim(),
-      delta: `${collectionPct}% of billed`,
+      delta: t('ledger.meter.percentOfBilled', { percent: collectionPct }),
       currency: currencySymbol,
     },
     {
@@ -69,9 +71,9 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
       icon: <WarningIcon fontSize="small" />,
       iconBg: (theme: Theme) => alpha(theme.palette.warning.main, 0.14),
       iconColor: 'warning.main',
-      label: 'Outstanding',
+      label: t('ledger.meter.outstanding'),
       value: formatCurrency(totalDue).replace(currencySymbol, '').trim(),
-      delta: `${openInvoiceCount} open item${openInvoiceCount === 1 ? '' : 's'}`,
+      delta: t('ledger.meter.openItems', { count: openInvoiceCount }),
       currency: currencySymbol,
     },
     {
@@ -79,9 +81,9 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
       icon: <WarningIcon fontSize="small" />,
       iconBg: (theme: Theme) => alpha(theme.palette.error.main, 0.12),
       iconColor: isPositiveMoney(overdueAmount) ? 'error.main' : 'text.secondary',
-      label: 'Overdue',
+      label: t('ledger.meter.overdue'),
       value: formatCurrency(overdueAmount).replace(currencySymbol, '').trim(),
-      delta: `${overdueCount} overdue item${overdueCount === 1 ? '' : 's'}`,
+      delta: t('ledger.meter.overdueItems', { count: overdueCount }),
       currency: currencySymbol,
     },
   ].filter((stat) => stat.key !== 'overdue' || isPositiveMoney(overdueAmount));

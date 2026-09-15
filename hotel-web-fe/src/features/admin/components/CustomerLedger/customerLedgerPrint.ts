@@ -10,7 +10,7 @@
 import type { CustomerLedger, Company } from '../../../../types';
 import type { HotelSettings } from '../../../../utils/hotelSettings';
 import { formatDateForDisplay } from './helpers';
-import { formatHotelDate } from '../../../../utils/date';
+import { formatHotelDate, formatHotelDateTime } from '../../../../utils/date';
 import { isPositiveMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 
 type FormatCurrency = (value: number) => string;
@@ -393,7 +393,7 @@ export function printCompanyStatement(params: {
           </tbody>
         </table>
         <div class="footer">
-          <p>Generated on ${new Date().toLocaleString()}</p>
+          <p>Generated on ${formatHotelDateTime(new Date())}</p>
           <p>${hotelSettings.hotel_name} - Hotel Management System</p>
         </div>
       </body>
@@ -506,7 +506,7 @@ export function printSingleReceipt(params: {
         </div>
         ${entry.notes ? `<div style="margin-top: 15px;"><strong>Notes:</strong> ${entry.notes}</div>` : ''}
         <div class="footer">
-          <p>Generated on ${new Date().toLocaleString()}</p>
+          <p>Generated on ${formatHotelDateTime(new Date())}</p>
           <p>${hotelSettings.hotel_name} - Hotel Management System</p>
         </div>
       </body>

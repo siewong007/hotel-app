@@ -111,7 +111,7 @@ describe('SupportService', () => {
 
     await expect(SupportService.listConversations({ queue: 'mine' })).rejects.toMatchObject({
       name: 'APIError',
-      message: 'Unable to load the support queue',
+      message: 'Something went wrong. Please try again.',
     });
   });
 

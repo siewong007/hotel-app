@@ -44,6 +44,7 @@ import { TabPanel, getTabA11yProps } from '../../../components/common/TabPanel';
 import PageHeader from '../../../components/common/PageHeader';
 import { formatLocalDate } from '../../../utils/date';
 import { dateFormatter } from '../../../i18n/format';
+import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
 import { statusLabel } from '../../../i18n/statusLabel';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
@@ -154,8 +155,8 @@ const NightAuditPage: React.FC = () => {
 
       // Header section
       lines.push('NIGHT AUDIT REPORT');
-      lines.push(`Audit Date,${new Date(audit.audit_date + 'T00:00:00').toLocaleDateString()}`);
-      lines.push(`Run At,${new Date(audit.run_at).toLocaleString()}`);
+      lines.push(`Audit Date,${formatHotelDate(audit.audit_date)}`);
+      lines.push(`Run At,${formatHotelDateTime(audit.run_at)}`);
       lines.push(`Run By,${audit.run_by_username || 'System'}`);
       lines.push(`Status,${audit.status}`);
       lines.push('');
@@ -181,8 +182,8 @@ const NightAuditPage: React.FC = () => {
           `"${booking.guest_name.replace(/"/g, '""')}"`,
           booking.room_number,
           booking.room_type,
-          new Date(booking.check_in_date + 'T00:00:00').toLocaleDateString(),
-          new Date(booking.check_out_date + 'T00:00:00').toLocaleDateString(),
+          formatHotelDate(booking.check_in_date),
+          formatHotelDate(booking.check_out_date),
           booking.nights,
           booking.status,
           booking.payment_method || 'N/A',
@@ -503,7 +504,7 @@ const NightAuditPage: React.FC = () => {
         doc.setFontSize(8);
         doc.setTextColor(150, 150, 150);
         doc.text(
-          `Generated: ${new Date().toLocaleString()} | Page ${i} of ${totalPages}`,
+          `Generated: ${formatHotelDateTime(new Date())} | Page ${i} of ${totalPages}`,
           margin,
           pageHeight - 10
         );

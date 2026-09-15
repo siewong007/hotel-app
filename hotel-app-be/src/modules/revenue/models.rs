@@ -141,6 +141,8 @@ pub struct DebtorRow {
     pub balance: Decimal,
     /// Bucket label matching `ReceivablesBucket::label`.
     pub bucket: &'static str,
+    /// Bucket key matching `ReceivablesBucket::key` — stable for UI i18n.
+    pub bucket_key: &'static str,
     pub due_date: Option<NaiveDate>,
     /// Stay context: the booking's room number when one is assigned.
     pub room: Option<String>,

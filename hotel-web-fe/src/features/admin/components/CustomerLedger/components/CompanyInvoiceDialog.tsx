@@ -34,6 +34,7 @@ import { LedgerStatusBadge } from '../StatusPill';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../../../components/data-table/MobileCardRow';
+import { useTranslation } from '../../../../../i18n';
 
 type InvoiceListFilter = 'billable' | 'all' | 'invoiced';
 
@@ -112,6 +113,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
   formatCurrency,
 }) => {
   const isPhone = useIsPhone();
+  const { t } = useTranslation('finance');
   return (
   <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
     <DialogTitle>
@@ -122,7 +124,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
           gap: 1
         }}>
         <InvoiceIcon color="secondary" />
-        {showInvoicePreview ? 'Invoice Preview' : 'Generate Company Invoice'}
+        {showInvoicePreview ? t('ledger.invoice.previewTitle') : t('ledger.invoice.title')}
       </Box>
     </DialogTitle>
     <DialogContent>
@@ -135,7 +137,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               {invoiceCompany.company_name}
             </Typography>
             {invoiceCompany.contact_person && (
-              <Typography variant="caption">Contact: {invoiceCompany.contact_person}</Typography>
+              <Typography variant="caption">{t('ledger.field.contactPerson')}: {invoiceCompany.contact_person}</Typography>
             )}
           </Alert>
 
@@ -145,7 +147,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               <TextField
                 fullWidth
                 required
-                label="Invoice Number"
+                label={t('ledger.invoice.number')}
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
               />
@@ -154,7 +156,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               <TextField
                 fullWidth
                 required
-                label="Invoice Date"
+                label={t('ledger.field.invoiceDate')}
                 type="date"
                 value={invoiceDate}
                 onChange={(e) => setInvoiceDate(e.target.value)}
@@ -167,7 +169,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               <TextField
                 fullWidth
                 required
-                label="Due Date"
+                label={t('ledger.field.dueDate')}
                 type="date"
                 value={invoiceDueDate}
                 onChange={(e) => setInvoiceDueDate(e.target.value)}
@@ -192,9 +194,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               >
                 <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
                   {([
-                    { key: 'billable', label: 'Uninvoiced', count: invoiceFilterCounts.billable },
-                    { key: 'all', label: 'All entries', count: invoiceFilterCounts.all },
-                    { key: 'invoiced', label: 'Already invoiced', count: invoiceFilterCounts.invoiced },
+                    { key: 'billable', label: t('status:ledger.uninvoiced'), count: invoiceFilterCounts.billable },
+                    { key: 'all', label: t('ledger.invoice.filterAll'), count: invoiceFilterCounts.all },
+                    { key: 'invoiced', label: t('ledger.invoice.filterInvoiced'), count: invoiceFilterCounts.invoiced },
                   ] as const).map(f => {
                     const on = invoiceListFilter === f.key;
                     return (
@@ -252,15 +254,14 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                   display: 'block',
                   mb: 0.5
                 }}>
-                Already-invoiced entries are protected and cannot be added to a new invoice. Use a credit note
-                instead.
+                {t('ledger.invoice.protectedNote')}
               </Typography>
             </Grid>
 
             {visibleInvoiceLedgerEntries.length === 0 ? (
               <Grid size={12}>
                 <Alert severity="warning">
-                  No uninvoiced outstanding ledger entries are eligible for invoice generation.
+                  {t('ledger.invoice.noEligible')}
                 </Alert>
               </Grid>
             ) : (
@@ -310,12 +311,12 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                   <Table size="small" stickyHeader>
                     <TableHead>
                       <TableRow>
-                        <TableCell padding="checkbox">Select</TableCell>
-                        <TableCell>Description</TableCell>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell align="right">Amount</TableCell>
-                        <TableCell align="right">Balance</TableCell>
+                        <TableCell padding="checkbox">{t('common:actions.select')}</TableCell>
+                        <TableCell>{t('common:field.description')}</TableCell>
+                        <TableCell>{t('common:field.date')}</TableCell>
+                        <TableCell>{t('common:field.status')}</TableCell>
+                        <TableCell align="right">{t('common:field.amount')}</TableCell>
+                        <TableCell align="right">{t('ledger.col.balance')}</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -349,7 +350,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                                 <Typography variant="caption" sx={{
                                   color: "text.secondary"
                                 }}>
-                                  Already invoiced: {ledger.invoice_number}
+                                  {t('ledger.invoice.alreadyInvoiced', { number: ledger.invoice_number })}
                                 </Typography>
                               )}
                             </TableCell>
@@ -379,13 +380,13 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                     <Grid size={{ xs: 6, sm: 3 }}>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
-                      }}>Selected Items</Typography>
+                      }}>{t('ledger.invoice.selectedItems')}</Typography>
                       <Typography variant="h6">{getSelectedInvoiceLedgers().length}</Typography>
                     </Grid>
                     <Grid size={{ xs: 6, sm: 3 }}>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
-                      }}>Total Amount</Typography>
+                      }}>{t('ledger.payment.totalAmount')}</Typography>
                       <Typography variant="h6" sx={{
                         color: "primary.main"
                       }}>
@@ -395,7 +396,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                     <Grid size={{ xs: 6, sm: 3 }}>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
-                      }}>Already Paid</Typography>
+                      }}>{t('ledger.payment.alreadyPaid')}</Typography>
                       <Typography variant="h6" sx={{
                         color: "success.main"
                       }}>
@@ -405,7 +406,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                     <Grid size={{ xs: 6, sm: 3 }}>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
-                      }}>Balance Due</Typography>
+                      }}>{t('ledger.payment.balanceDue')}</Typography>
                       <Typography variant="h6" sx={{
                         color: "error.main"
                       }}>
@@ -419,7 +420,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                   return !entry || !isInvoiceEligible(entry);
                 }) && (
                   <Alert severity="warning" sx={{ mt: 1 }}>
-                    Some selected entries are no longer eligible and will be excluded from the invoice preview.
+                    {t('ledger.invoice.ineligibleWarning')}
                   </Alert>
                 )}
               </Grid>
@@ -431,10 +432,10 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                 fullWidth
                 multiline
                 rows={2}
-                label="Invoice Notes"
+                label={t('ledger.invoice.notesLabel')}
                 value={invoiceNotes}
                 onChange={(e) => setInvoiceNotes(e.target.value)}
-                placeholder="Additional notes to include on the invoice..."
+                placeholder={t('ledger.invoice.notesPlaceholder')}
               />
             </Grid>
           </Grid>
@@ -466,7 +467,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Phone: {hotelSettings.hotel_phone} | Email: {hotelSettings.hotel_email}
+              {t('common:field.phone')}: {hotelSettings.hotel_phone} | {t('common:field.email')}: {hotelSettings.hotel_email}
             </Typography>
           </Box>
 
@@ -484,7 +485,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
             }}
           >
             <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
-              Invoice
+              {t('ledger.invoice.docTitle')}
             </Typography>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>
               #{invoiceNumber}
@@ -496,13 +497,13 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
             {/* Bill To */}
             <Box sx={{ flex: 1 }}>
               <Typography variant="overline" sx={{ color: '#1976d2', fontWeight: 700, letterSpacing: 1.5, display: 'block', mb: 1 }}>
-                Bill To
+                {t('ledger.invoice.billTo')}
               </Typography>
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{invoiceCompany.company_name}</Typography>
               {invoiceCompany.registration_number && (
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Reg No: {invoiceCompany.registration_number}</Typography>
+                }}>{t('ledger.invoice.regNo', { number: invoiceCompany.registration_number })}</Typography>
               )}
               {invoiceCompany.billing_address && (
                 <Typography variant="body2">{invoiceCompany.billing_address}</Typography>
@@ -514,19 +515,19 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               )}
               {invoiceCompany.contact_person && (
                 <Typography variant="body2" sx={{ mt: 1 }}>
-                  <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>Attn:</Box>
+                  <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>{t('ledger.invoice.attn')}:</Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>{invoiceCompany.contact_person}</Box>
                 </Typography>
               )}
               {invoiceCompany.contact_email && (
                 <Typography variant="body2">
-                  <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>Email:</Box>
+                  <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>{t('common:field.email')}:</Box>
                   <Box component="span">{invoiceCompany.contact_email}</Box>
                 </Typography>
               )}
               {invoiceCompany.contact_phone && (
                 <Typography variant="body2">
-                  <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>Phone:</Box>
+                  <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>{t('common:field.phone')}:</Box>
                   <Box component="span">{invoiceCompany.contact_phone}</Box>
                 </Typography>
               )}
@@ -535,24 +536,24 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
             {/* Invoice Details */}
             <Box sx={{ minWidth: 220, textAlign: 'right' }}>
               <Typography variant="overline" sx={{ color: '#1976d2', fontWeight: 700, letterSpacing: 1.5, display: 'block', mb: 1 }}>
-                Invoice Details
+                {t('ledger.invoice.docDetails')}
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="body2" sx={{ color: '#666' }}>Invoice Date:</Typography>
+                <Typography variant="body2" sx={{ color: '#666' }}>{t('ledger.field.invoiceDate')}:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600, ml: 2 }}>{formatDateForDisplay(invoiceDate)}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="body2" sx={{ color: '#666' }}>Due Date:</Typography>
+                <Typography variant="body2" sx={{ color: '#666' }}>{t('ledger.field.dueDate')}:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600, ml: 2 }}>{formatDateForDisplay(invoiceDueDate)}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="body2" sx={{ color: '#666' }}>Terms:</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600, ml: 2 }}>{invoiceCompany.payment_terms_days || 30} days</Typography>
+                <Typography variant="body2" sx={{ color: '#666' }}>{t('ledger.invoice.terms')}:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, ml: 2 }}>{t('ledger.paymentTermsDays', { days: invoiceCompany.payment_terms_days || 30 })}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="body2" sx={{ color: '#666' }}>Status:</Typography>
+                <Typography variant="body2" sx={{ color: '#666' }}>{t('common:field.status')}:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600, ml: 2, color: isPositiveMoney(getSelectedLedgerBalanceDue()) ? '#d32f2f' : '#2e7d32' }}>
-                  {isPositiveMoney(getSelectedLedgerBalanceDue()) ? 'Outstanding' : 'Settled'}
+                  {isPositiveMoney(getSelectedLedgerBalanceDue()) ? t('status:ledger.outstanding') : t('status:ledger.settled')}
                 </Typography>
               </Box>
             </Box>
@@ -564,22 +565,22 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
-                    Description
+                    {t('common:field.description')}
                   </TableCell>
                   <TableCell sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
-                    Date
+                    {t('common:field.date')}
                   </TableCell>
                   <TableCell sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
-                    Room
+                    {t('ledger.field.room')}
                   </TableCell>
                   <TableCell align="right" sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
-                    Amount
+                    {t('common:field.amount')}
                   </TableCell>
                   <TableCell align="right" sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
-                    Paid
+                    {t('ledger.col.paid')}
                   </TableCell>
                   <TableCell align="right" sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
-                    Balance
+                    {t('ledger.col.balance')}
                   </TableCell>
                 </TableRow>
               </TableHead>
@@ -611,7 +612,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                 {/* Subtotal */}
                 <TableRow>
                   <TableCell colSpan={3} align="right" sx={{ borderTop: '2px solid #ddd', pt: 2, fontWeight: 600, fontSize: 13 }}>
-                    Subtotal:
+                    {t('ledger.invoice.subtotal')}:
                   </TableCell>
                   <TableCell align="right" sx={{ borderTop: '2px solid #ddd', pt: 2, fontWeight: 700, fontSize: 13 }}>
                     {formatCurrency(getSelectedLedgerTotal())}
@@ -623,7 +624,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                   <TableCell colSpan={5} align="right" sx={{ borderTop: '3px double #1976d2', py: 2 }}>
                     <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#1976d2' }}>
-                      Total Amount Due:
+                      {t('ledger.invoice.totalDue')}:
                     </Typography>
                   </TableCell>
                   <TableCell align="right" sx={{ borderTop: '3px double #1976d2', py: 2 }}>
@@ -639,7 +640,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
           {/* Notes */}
           {invoiceNotes && (
             <Box sx={{ mt: 3, p: 2, bgcolor: '#fff3cd', borderLeft: '4px solid #ffc107', borderRadius: 0.5 }}>
-              <Typography variant="subtitle2" sx={{ color: '#856404', mb: 0.5 }}>Notes:</Typography>
+              <Typography variant="subtitle2" sx={{ color: '#856404', mb: 0.5 }}>{t('common:field.notes')}:</Typography>
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#856404' }}>
                 {invoiceNotes}
               </Typography>
@@ -649,12 +650,12 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
           {/* Footer */}
           <Box sx={{ mt: 5, pt: 2, borderTop: '1px solid #ddd', textAlign: 'center' }}>
             <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2', mb: 0.5 }}>
-              Thank you for your business!
+              {t('ledger.invoice.thanks')}
             </Typography>
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Please make payment within {invoiceCompany.payment_terms_days || 30} days of invoice date.
+              {t('ledger.invoice.paymentTermsNote', { days: invoiceCompany.payment_terms_days || 30 })}
             </Typography>
             <Typography
               variant="caption"
@@ -663,7 +664,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                 display: "block",
                 mt: 1
               }}>
-              This is a computer-generated invoice. | {hotelSettings.hotel_name}
+              {t('ledger.invoice.generated')} | {hotelSettings.hotel_name}
             </Typography>
           </Box>
         </Box>
@@ -673,7 +674,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
       {!showInvoicePreview ? (
         <>
           <Button onClick={onClose}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             onClick={onPreview}
@@ -681,27 +682,27 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
             disabled={getSelectedInvoiceLedgers().length === 0 || !invoiceNumber}
             startIcon={<InvoiceIcon />}
           >
-            Preview Invoice
+            {t('ledger.invoice.preview')}
           </Button>
         </>
       ) : (
         <>
           <Button onClick={onBackToEdit}>
-            Back to Edit
+            {t('ledger.invoice.backToEdit')}
           </Button>
           <Button
             onClick={onPrint}
             variant="outlined"
             startIcon={<PrintIcon />}
           >
-            Print
+            {t('common:actions.print')}
           </Button>
           <Button
             onClick={onDownload}
             variant="contained"
             startIcon={<DownloadIcon />}
           >
-            Download
+            {t('common:actions.download')}
           </Button>
         </>
       )}

@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 const PDF_CONTENT_TYPE = 'application/pdf';
 const PDF_MARGIN_MM = 12;
 
@@ -20,7 +21,7 @@ export async function receiptAsPdf(receipt: Blob): Promise<Blob> {
   }
 
   if (!receipt.type.toLowerCase().startsWith('image/')) {
-    throw new Error('This receipt is not a PDF or supported image file.');
+    throw new Error(t('paymentApprovals.errors.receiptUnsupported', undefined, 'admin'));
   }
 
   const imageUrl = URL.createObjectURL(receipt);

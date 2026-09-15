@@ -27,6 +27,7 @@ import {
 import type { Company, Guest, Room, BookingWithDetails } from '../../../../../types';
 import { formatDateForDisplay } from '../helpers';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n';
 
 export interface NewCheckInGuestForm {
   first_name: string;
@@ -105,6 +106,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
   currencySymbol,
   formatCurrency,
 }) => {
+  const { t } = useTranslation('finance');
   const selectedRoomDefaultRate = checkInRoom ? toMoneyNumber(checkInRoom.price_per_night) : 0;
   const customRateValue = customRoomRate.trim() ? toMoneyNumber(customRoomRate) : undefined;
   const effectiveRoomRate = customRateValue !== undefined && isPositiveMoney(customRateValue)
@@ -121,7 +123,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
             gap: 1
           }}>
           <CheckInIcon color="success" />
-          Company Check-In
+          {t('ledger.checkin.title')}
         </Box>
       </DialogTitle>
       <DialogContent>
@@ -146,7 +148,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                         <Typography variant="caption" sx={{
                           color: "text.secondary"
                         }}>
-                          Contact: {option.contact_person}
+                          {t('ledger.field.contactPerson')}: {option.contact_person}
                         </Typography>
                       )}
                     </Box>
@@ -157,8 +159,8 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 <TextField
                   {...params}
                   required
-                  label="Select Company"
-                  placeholder="Search for a company"
+                  label={t('ledger.checkin.selectCompany')}
+                  placeholder={t('ledger.checkin.companyPlaceholder')}
                   slotProps={{
                     ...params.slotProps,
 
@@ -183,14 +185,14 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
               <Alert severity="info" icon={<BusinessIcon />}>
                 <Typography variant="subtitle2">{checkInCompany.company_name}</Typography>
                 {checkInCompany.contact_person && (
-                  <Typography variant="body2">Contact: {checkInCompany.contact_person}</Typography>
+                  <Typography variant="body2">{t('ledger.field.contactPerson')}: {checkInCompany.contact_person}</Typography>
                 )}
                 {checkInCompany.contact_email && (
-                  <Typography variant="body2">Email: {checkInCompany.contact_email}</Typography>
+                  <Typography variant="body2">{t('common:field.email')}: {checkInCompany.contact_email}</Typography>
                 )}
                 {companyBookings.length > 0 && (
                   <Typography variant="body2" sx={{ mt: 1 }}>
-                    Active Bookings: {companyBookings.filter(b => b.status === 'checked_in').length}
+                    {t('ledger.checkin.activeBookings', { count: companyBookings.filter(b => b.status === 'checked_in').length })}
                   </Typography>
                 )}
               </Alert>
@@ -199,7 +201,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
 
           <Grid size={12}>
             <Divider>
-              <Chip label="Guest Details" size="small" />
+              <Chip label={t('ledger.checkin.guestDetails')} size="small" />
             </Divider>
           </Grid>
 
@@ -217,7 +219,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 size="small"
                 onClick={() => setIsCreatingNewCheckInGuest(false)}
               >
-                Select Existing Guest
+                {t('ledger.checkin.selectExisting')}
               </Button>
               <Button
                 variant={isCreatingNewCheckInGuest ? 'contained' : 'outlined'}
@@ -225,7 +227,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 startIcon={<PersonAddIcon />}
                 onClick={() => setIsCreatingNewCheckInGuest(true)}
               >
-                New Guest
+                {t('ledger.checkin.newGuest')}
               </Button>
             </Box>
 
@@ -254,8 +256,8 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Select Guest"
-                    placeholder="Search for a guest"
+                    label={t('ledger.checkin.selectGuest')}
+                    placeholder={t('ledger.checkin.guestPlaceholder')}
                     slotProps={{
                       ...params.slotProps,
 
@@ -278,7 +280,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                   <TextField
                     fullWidth
                     required
-                    label="First Name"
+                    label={t('guests:form.firstName')}
                     value={newCheckInGuestForm.first_name}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, first_name: e.target.value })}
                   />
@@ -287,7 +289,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                   <TextField
                     fullWidth
                     required
-                    label="Last Name"
+                    label={t('guests:form.lastName')}
                     value={newCheckInGuestForm.last_name}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, last_name: e.target.value })}
                   />
@@ -295,11 +297,11 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    label="Email"
+                    label={t('common:field.email')}
                     type="email"
                     value={newCheckInGuestForm.email}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, email: e.target.value })}
-                    helperText="Used for sending booking confirmations and invoices"
+                    helperText={t('ledger.checkin.emailHelp')}
                     error={newCheckInGuestForm.email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email)}
                   />
                 </Grid>
@@ -307,7 +309,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                   <TextField
                     fullWidth
                     type="tel"
-                    label="Phone"
+                    label={t('common:field.phone')}
                     value={newCheckInGuestForm.phone}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, phone: e.target.value })}
                     required={!newCheckInGuestForm.email.trim()}
@@ -317,7 +319,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                   <TextField
                     fullWidth
                     required
-                    label="IC/Passport Number"
+                    label={t('ledger.checkin.icNumber')}
                     value={newCheckInGuestForm.ic_number}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, ic_number: e.target.value })}
                   />
@@ -325,37 +327,37 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    label="Nationality"
+                    label={t('guests:form.nationality')}
                     value={newCheckInGuestForm.nationality}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, nationality: e.target.value })}
-                    placeholder="e.g. Malaysian"
+                    placeholder={t('ledger.checkin.nationalityPlaceholder')}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     select
-                    label="Tourism Type"
+                    label={t('guests:form.tourismType')}
                     value={newCheckInGuestForm.tourism_type || 'local'}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, tourism_type: e.target.value })}
                   >
-                    <MenuItem value="local">Local - no tourism tax</MenuItem>
-                    <MenuItem value="foreign">Foreign - tourism tax applies</MenuItem>
+                    <MenuItem value="local">{t('guests:tourismType.local')} - {t('guests:tourismType.noTax')}</MenuItem>
+                    <MenuItem value="foreign">{t('guests:tourismType.foreign')} - {t('guests:tourismType.taxApplies')}</MenuItem>
                   </TextField>
                 </Grid>
                 <Grid size={12}>
                   <TextField
                     fullWidth
-                    label="Address"
+                    label={t('common:field.address')}
                     value={newCheckInGuestForm.address_line1}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, address_line1: e.target.value })}
-                    placeholder="Street address"
+                    placeholder={t('ledger.checkin.addressPlaceholder')}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    label="City"
+                    label={t('ledger.field.city')}
                     value={newCheckInGuestForm.city}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, city: e.target.value })}
                   />
@@ -363,7 +365,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    label="State/Province"
+                    label={t('guests:form.stateProvince')}
                     value={newCheckInGuestForm.state_province}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, state_province: e.target.value })}
                   />
@@ -371,7 +373,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    label="Postal Code"
+                    label={t('ledger.field.postalCode')}
                     value={newCheckInGuestForm.postal_code}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, postal_code: e.target.value })}
                   />
@@ -379,7 +381,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    label="Country"
+                    label={t('guests:form.country')}
                     value={newCheckInGuestForm.country}
                     onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, country: e.target.value })}
                   />
@@ -390,7 +392,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
 
           <Grid size={12}>
             <Divider>
-              <Chip label="Room & Dates" size="small" />
+              <Chip label={t('ledger.checkin.roomDates')} size="small" />
             </Divider>
           </Grid>
 
@@ -399,7 +401,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
             <TextField
               fullWidth
               required
-              label="Check-In Date"
+              label={t('ledger.checkin.checkInDate')}
               type="date"
               value={checkInDate}
               onChange={(e) => onCheckInDateChange(e.target.value)}
@@ -412,7 +414,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
             <TextField
               fullWidth
               required
-              label="Check-Out Date"
+              label={t('ledger.checkin.checkOutDate')}
               type="date"
               value={checkOutDate}
               onChange={(e) => onCheckOutDateChange(e.target.value)}
@@ -447,11 +449,11 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                       <Box>
                         <Typography sx={{
                           fontWeight: "medium"
-                        }}>Room {option.room_number}</Typography>
+                        }}>{t('ledger.roomWithNumber', { number: option.room_number })}</Typography>
                         <Typography variant="caption" sx={{
                           color: "text.secondary"
                         }}>
-                          {option.room_type} | Max: {option.max_occupancy} guests
+                          {option.room_type} | {t('ledger.checkin.maxGuests', { count: option.max_occupancy })}
                         </Typography>
                       </Box>
                       <Typography
@@ -469,9 +471,9 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 <TextField
                   {...params}
                   required
-                  label="Select Room"
-                  placeholder="Choose an available room"
-                  helperText={availableRooms.length === 0 ? 'No rooms available for selected dates' : `${availableRooms.length} room(s) available`}
+                  label={t('ledger.checkin.selectRoom')}
+                  placeholder={t('ledger.checkin.roomPlaceholder')}
+                  helperText={availableRooms.length === 0 ? t('ledger.checkin.noRooms') : t('ledger.checkin.roomsAvailable', { count: availableRooms.length })}
                   slotProps={{
                     ...params.slotProps,
 
@@ -494,12 +496,12 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Room Rate"
+                label={t('ledger.checkin.roomRate')}
                 type="number"
                 value={customRoomRate}
                 onChange={(e) => setCustomRoomRate(e.target.value)}
                 placeholder={Number.isFinite(selectedRoomDefaultRate) ? selectedRoomDefaultRate.toFixed(2) : ''}
-                helperText={`Default ${formatCurrency(selectedRoomDefaultRate)} / night`}
+                helperText={t('ledger.checkin.rateDefault', { amount: formatCurrency(selectedRoomDefaultRate) })}
                 slotProps={{
                   input: {
                     startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
@@ -517,24 +519,24 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
           {checkInCompany && checkInRoom && (checkInGuest || (isCreatingNewCheckInGuest && newCheckInGuestForm.first_name)) && (
             <Grid size={12}>
               <Alert severity="success">
-                <Typography variant="subtitle2">Ready to Check-In</Typography>
+                <Typography variant="subtitle2">{t('ledger.checkin.ready')}</Typography>
                 <Typography variant="body2">
-                  Guest: {isCreatingNewCheckInGuest ? `${newCheckInGuestForm.first_name} ${newCheckInGuestForm.last_name}` : checkInGuest?.nick_name}
+                  {t('ledger.checkin.summaryGuest', { name: isCreatingNewCheckInGuest ? `${newCheckInGuestForm.first_name} ${newCheckInGuestForm.last_name}` : checkInGuest?.nick_name })}
                 </Typography>
                 <Typography variant="body2">
-                  Email: {isCreatingNewCheckInGuest ? newCheckInGuestForm.email : checkInGuest?.email}
+                  {t('ledger.checkin.summaryEmail', { email: isCreatingNewCheckInGuest ? newCheckInGuestForm.email : checkInGuest?.email })}
                 </Typography>
                 <Typography variant="body2">
-                  Room: {checkInRoom.room_number} ({checkInRoom.room_type})
+                  {t('ledger.checkin.summaryRoom', { number: checkInRoom.room_number, type: checkInRoom.room_type })}
                 </Typography>
                 <Typography variant="body2">
-                  Rate: {formatCurrency(effectiveRoomRate)} / night
+                  {t('ledger.checkin.summaryRate', { amount: formatCurrency(effectiveRoomRate) })}
                 </Typography>
                 <Typography variant="body2">
-                  Company: {checkInCompany.company_name}
+                  {t('ledger.checkin.summaryCompany', { name: checkInCompany.company_name })}
                 </Typography>
                 <Typography variant="body2">
-                  Dates: {formatDateForDisplay(checkInDate)} to {formatDateForDisplay(checkOutDate)}
+                  {t('ledger.checkin.summaryDates', { from: formatDateForDisplay(checkInDate), to: formatDateForDisplay(checkOutDate) })}
                 </Typography>
               </Alert>
             </Grid>
@@ -543,7 +545,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           onClick={onSubmit}
@@ -564,7 +566,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
           }
           startIcon={processingCheckIn ? <CircularProgress size={20} /> : <CheckInIcon />}
         >
-          {processingCheckIn ? 'Processing...' : 'Check-In Guest'}
+          {processingCheckIn ? t('common:state.processing') : t('ledger.checkin.submit')}
         </Button>
       </DialogActions>
     </Dialog>

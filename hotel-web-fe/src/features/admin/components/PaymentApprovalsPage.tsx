@@ -28,6 +28,7 @@ import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { PaymentApprovalsService, PendingPaymentEntry } from '../../../api';
 import { formatCurrency } from '../../../utils/currency';
+import { formatStatusLabel } from '../../../utils/formatters';
 import { useAuth } from '../../../auth/AuthContext';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
@@ -41,6 +42,8 @@ import {
   useRequestPaymentReceipt,
 } from '../hooks/usePaymentApprovalsQueries';
 import { receiptAsPdf } from '../utils/paymentReceiptPdf';
+import { useTranslation, statusLabel } from '../../../i18n';
+import { formatHotelDateTime } from '../../../utils/date';
 
 const CONFLICT_EVENTS_SHOWN = 10;
 
@@ -60,6 +63,7 @@ function statusColor(status: string): 'default' | 'warning' | 'success' | 'error
 }
 
 const PaymentApprovalsPage: React.FC = () => {
+  const { t, tOr } = useTranslation('admin');
   const { hasPermission } = useAuth();
   const isPhone = useIsPhone();
   const [page, setPage] = useState(0);
@@ -110,7 +114,7 @@ const PaymentApprovalsPage: React.FC = () => {
         setPageSize(parseInt(event.target.value, 10));
         setPage(0);
       }}
-      labelRowsPerPage="Claims per page"
+      labelRowsPerPage={t('paymentApprovals.perPage')}
     />
   );
 
@@ -119,11 +123,9 @@ const PaymentApprovalsPage: React.FC = () => {
     setSuccess(null);
     try {
       await approveMutation.mutateAsync(entry.id);
-      setSuccess(
-        `Payment for booking ${entry.booking_number ?? entry.booking_id} approved — booking confirmed.`
-      );
+      setSuccess(t('paymentApprovals.toast.approved', { ref: entry.booking_number ?? entry.booking_id }));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to approve this payment.');
+      setError(caught instanceof Error ? caught.message : t('paymentApprovals.errors.approve'));
     }
   };
 
@@ -143,10 +145,10 @@ const PaymentApprovalsPage: React.FC = () => {
         paymentId: receiptTarget.id,
         message: receiptMessage.trim() || undefined,
       });
-      setSuccess(`Receipt requested from the guest for booking ${receiptTarget.booking_number ?? receiptTarget.booking_id}.`);
+      setSuccess(t('paymentApprovals.toast.receiptRequested', { ref: receiptTarget.booking_number ?? receiptTarget.booking_id }));
       setReceiptTarget(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to request a receipt.');
+      setError(caught instanceof Error ? caught.message : t('paymentApprovals.errors.requestReceipt'));
     }
   };
 
@@ -168,12 +170,12 @@ const PaymentApprovalsPage: React.FC = () => {
       });
       setSuccess(
         rejectTarget.payment_method === 'paypal'
-          ? `PayPal attempt for booking ${rejectTarget.booking_number ?? rejectTarget.booking_id} was cancelled.`
-          : `Payment for booking ${rejectTarget.booking_number ?? rejectTarget.booking_id} was rejected.`,
+          ? t('paymentApprovals.toast.paypalCancelled', { ref: rejectTarget.booking_number ?? rejectTarget.booking_id })
+          : t('paymentApprovals.toast.rejected', { ref: rejectTarget.booking_number ?? rejectTarget.booking_id }),
       );
       setRejectTarget(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to reject this payment.');
+      setError(caught instanceof Error ? caught.message : t('paymentApprovals.errors.reject'));
     }
   };
 
@@ -189,7 +191,7 @@ const PaymentApprovalsPage: React.FC = () => {
         file: blob,
       });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to open this receipt.');
+      setError(caught instanceof Error ? caught.message : t('paymentApprovals.errors.openReceipt'));
     }
   };
 
@@ -220,18 +222,17 @@ const PaymentApprovalsPage: React.FC = () => {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <PageHeader
-        title="Payment Approvals"
-        subtitle="Review guest-submitted bank-transfer and PayPal payment claims. Approving a bank-transfer claim marks the payment complete and confirms the booking. A PayPal payment is completed only after PayPal capture; unstarted attempts expire after 10 minutes."
+        title={t('paymentApprovals.title')}
+        subtitle={t('paymentApprovals.subtitle')}
         sx={{ mb: 3 }}
       />
       {canViewConflicts && conflictEvents.length > 0 && (
         <Alert severity="warning" sx={{ mb: 3 }}>
           <AlertTitle>
-            {conflictTotal} PayPal payment {conflictTotal === 1 ? 'conflict' : 'conflicts'} in the last 30 days
+            {t('paymentApprovals.conflicts.title', { count: conflictTotal })}
           </AlertTitle>
           <Typography variant="body2" sx={{ mb: 1 }}>
-            Money moved at PayPal but did not match the local payment record. Do not charge the
-            guest again — review each entry below before taking action.
+            {t('paymentApprovals.conflicts.body')}
           </Typography>
           <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
             {conflictEvents.slice(0, CONFLICT_EVENTS_SHOWN).map((event) => {
@@ -241,9 +242,9 @@ const PaymentApprovalsPage: React.FC = () => {
               return (
                 <Box component="li" key={event.id}>
                   <Typography variant="body2">
-                    {new Date(event.created_at).toLocaleString()} — payment #{event.resource_id ?? '—'}
+                    {t('paymentApprovals.conflicts.eventLine', { at: formatHotelDateTime(event.created_at), id: event.resource_id ?? '—' })}
                     {typeof bookingId === 'number' || typeof bookingId === 'string'
-                      ? `, booking #${bookingId}`
+                      ? `, ${t('paymentApprovals.conflicts.bookingRef', { id: bookingId })}`
                       : ''}
                     {typeof reason === 'string' ? `: ${reason}` : ''}
                   </Typography>
@@ -255,15 +256,14 @@ const PaymentApprovalsPage: React.FC = () => {
             <Typography variant="caption" sx={{
               color: "text.secondary"
             }}>
-              Showing {Math.min(conflictEvents.length, CONFLICT_EVENTS_SHOWN)} of {conflictTotal}. See
-              the Audit Log for the full history.
+              {t('paymentApprovals.conflicts.showing', { shown: Math.min(conflictEvents.length, CONFLICT_EVENTS_SHOWN), total: conflictTotal })}
             </Typography>
           )}
         </Alert>
       )}
       <Tabs value={view} onChange={(_, value: 'pending' | 'history') => { setView(value); setPage(0); }} sx={{ mb: 2 }}>
-        <Tab value="pending" label="Pending claims" />
-        <Tab value="history" label="Approval history" />
+        <Tab value="pending" label={t('paymentApprovals.tabs.pending')} />
+        <Tab value="history" label={t('paymentApprovals.tabs.history')} />
       </Tabs>
       {effectiveError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -280,7 +280,7 @@ const PaymentApprovalsPage: React.FC = () => {
           <CircularProgress />
         </Box>
       ) : items.length === 0 ? (
-        <Alert severity="info">{view === 'pending' ? 'No pending payment claims right now.' : 'No payment approvals have been recorded yet.'}</Alert>
+        <Alert severity="info">{view === 'pending' ? t('paymentApprovals.empty.pending') : t('paymentApprovals.empty.history')}</Alert>
       ) : isPhone ? (
         <Paper variant="outlined" component="div" sx={{ overflow: 'hidden' }}>
           {items.map((entry) => {
@@ -293,13 +293,13 @@ const PaymentApprovalsPage: React.FC = () => {
               <MobileCardRow
                 key={entry.id}
                 title={entry.guest_name ?? entry.booking_number ?? `#${entry.booking_id}`}
-                subtitle={`${entry.booking_number ?? `#${entry.booking_id}`} · ${formatCurrency(entry.amount)} · ${entry.payment_method}`}
-                meta={`Submitted ${new Date(entry.created_at).toLocaleString()}${
+                subtitle={`${entry.booking_number ?? `#${entry.booking_id}`} · ${formatCurrency(entry.amount)} · ${tOr(`finance:ledger.paymentMethod.${entry.payment_method}`, formatStatusLabel(entry.payment_method))}`}
+                meta={t('paymentApprovals.submittedAt', { at: formatHotelDateTime(entry.created_at) }) + (
                   view === 'history' && entry.processed_at
-                    ? ` · Reviewed ${new Date(entry.processed_at).toLocaleString()}`
+                    ? ` · ${t('paymentApprovals.reviewedAt', { at: formatHotelDateTime(entry.processed_at) })}`
                     : ''
-                }`}
-                status={<Chip label={entry.status} size="small" color={statusColor(entry.status)} />}
+                )}
+                status={<Chip label={statusLabel(t, 'payment', entry.status)} size="small" color={statusColor(entry.status)} />}
                 footer={
                   <>
                     {entry.receipt_file_available ? (
@@ -308,7 +308,7 @@ const PaymentApprovalsPage: React.FC = () => {
                         startIcon={<DescriptionOutlinedIcon />}
                         onClick={() => void handleViewReceipt(entry)}
                       >
-                        Receipt
+                        {t('paymentApprovals.receipt')}
                       </Button>
                     ) : null}
                     {view !== 'history' ? (
@@ -328,7 +328,7 @@ const PaymentApprovalsPage: React.FC = () => {
                             disabled={isBusy}
                             onClick={() => void handleApprove(entry)}
                           >
-                            Approve
+                            {t('paymentApprovals.approve')}
                           </Button>
                         ) : null}
                         {entry.payment_method === 'bank_transfer' ? (
@@ -339,7 +339,7 @@ const PaymentApprovalsPage: React.FC = () => {
                             disabled={isBusy}
                             onClick={() => openReceiptDialog(entry)}
                           >
-                            {entry.receipt_uploaded ? 'Receipt uploaded' : entry.receipt_requested ? 'Request again' : 'Request receipt'}
+                            {entry.receipt_uploaded ? t('paymentApprovals.receiptUploaded') : entry.receipt_requested ? t('paymentApprovals.requestAgain') : t('paymentApprovals.requestReceipt')}
                           </Button>
                         ) : null}
                         <Button
@@ -349,7 +349,7 @@ const PaymentApprovalsPage: React.FC = () => {
                           disabled={isBusy}
                           onClick={() => openRejectDialog(entry)}
                         >
-                          {isPaypal ? 'Cancel PayPal attempt' : 'Reject'}
+                          {isPaypal ? t('paymentApprovals.cancelPaypal') : t('paymentApprovals.reject')}
                         </Button>
                       </>
                     ) : null}
@@ -365,15 +365,15 @@ const PaymentApprovalsPage: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Booking</TableCell>
-                <TableCell>Guest</TableCell>
-                <TableCell align="right">Amount</TableCell>
-                <TableCell>Method</TableCell>
-                <TableCell>Submitted</TableCell>
-                <TableCell>Status</TableCell>
-                {view === 'history' ? <TableCell>Reviewed</TableCell> : null}
-                <TableCell>Receipt</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell>{t('paymentApprovals.col.booking')}</TableCell>
+                <TableCell>{t('paymentApprovals.col.guest')}</TableCell>
+                <TableCell align="right">{t('common:field.amount')}</TableCell>
+                <TableCell>{t('paymentApprovals.col.method')}</TableCell>
+                <TableCell>{t('paymentApprovals.col.submitted')}</TableCell>
+                <TableCell>{t('common:field.status')}</TableCell>
+                {view === 'history' ? <TableCell>{t('paymentApprovals.col.reviewed')}</TableCell> : null}
+                <TableCell>{t('paymentApprovals.receipt')}</TableCell>
+                <TableCell align="right">{t('common:field.actions')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -388,18 +388,18 @@ const PaymentApprovalsPage: React.FC = () => {
                     <TableCell>{entry.booking_number ?? `#${entry.booking_id}`}</TableCell>
                     <TableCell>{entry.guest_name ?? '—'}</TableCell>
                     <TableCell align="right">{formatCurrency(entry.amount)}</TableCell>
-                    <TableCell>{entry.payment_method}</TableCell>
-                    <TableCell>{new Date(entry.created_at).toLocaleString()}</TableCell>
+                    <TableCell>{tOr(`finance:ledger.paymentMethod.${entry.payment_method}`, formatStatusLabel(entry.payment_method))}</TableCell>
+                    <TableCell>{formatHotelDateTime(entry.created_at)}</TableCell>
                     <TableCell>
                       <Chip
-                        label={entry.status}
+                        label={statusLabel(t, 'payment', entry.status)}
                         size="small"
                         color={statusColor(entry.status)}
                       />
                     </TableCell>
                     {view === 'history' ? (
                       <TableCell>
-                        {entry.processed_at ? new Date(entry.processed_at).toLocaleString() : '—'}
+                        {entry.processed_at ? formatHotelDateTime(entry.processed_at) : '—'}
                         {entry.processed_by_name ? <Typography variant="caption" sx={{
                           display: "block"
                         }}>{entry.processed_by_name}</Typography> : null}
@@ -409,7 +409,7 @@ const PaymentApprovalsPage: React.FC = () => {
                       </TableCell>
                     ) : null}
                     <TableCell>
-                      {entry.receipt_file_available ? <Button size="small" startIcon={<DescriptionOutlinedIcon />} onClick={() => void handleViewReceipt(entry)}>View</Button> : '—'}
+                      {entry.receipt_file_available ? <Button size="small" startIcon={<DescriptionOutlinedIcon />} onClick={() => void handleViewReceipt(entry)}>{t('common:actions.view')}</Button> : '—'}
                     </TableCell>
                     <TableCell align="right">
                       {view === 'history' ? '—' : <>
@@ -429,7 +429,7 @@ const PaymentApprovalsPage: React.FC = () => {
                           onClick={() => void handleApprove(entry)}
                           sx={{ mr: 1 }}
                         >
-                          Approve
+                          {t('paymentApprovals.approve')}
                         </Button>
                       ) : null}
                       {entry.payment_method === 'bank_transfer' ? (
@@ -466,54 +466,51 @@ const PaymentApprovalsPage: React.FC = () => {
         </TableContainer>
       )}
       <Dialog open={Boolean(receiptTarget)} onClose={() => setReceiptTarget(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>{receiptTarget?.receipt_requested ? 'Request receipt again' : 'Request payment receipt'}</DialogTitle>
+        <DialogTitle>{receiptTarget?.receipt_requested ? t('paymentApprovals.receiptDialog.titleAgain') : t('paymentApprovals.receiptDialog.title')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            Ask the guest to upload proof of payment for booking{' '}
-            <strong>{receiptTarget?.booking_number ?? receiptTarget?.booking_id}</strong>. If no
-            receipt is uploaded within 24 hours, the claim will be automatically rejected.
+            {t('paymentApprovals.receiptDialog.bodyStart')}{' '}
+            <strong>{receiptTarget?.booking_number ?? receiptTarget?.booking_id}</strong>{t('paymentApprovals.receiptDialog.bodyEnd')}
           </Typography>
           <TextField
             autoFocus
             fullWidth
             multiline
             minRows={3}
-            label="Message to guest (optional)"
-            placeholder="For example: Please include the bank reference and transfer date."
+            label={t('paymentApprovals.receiptDialog.messageLabel')}
+            placeholder={t('paymentApprovals.receiptDialog.messagePlaceholder')}
             value={receiptMessage}
             onChange={(event) => setReceiptMessage(event.target.value)}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setReceiptTarget(null)}>Cancel</Button>
+          <Button onClick={() => setReceiptTarget(null)}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             disabled={receiptMutation.isPending}
             onClick={() => void handleRequestReceipt()}
           >
-            {receiptTarget?.receipt_requested ? 'Send request again' : 'Send request'}
+            {receiptTarget?.receipt_requested ? t('paymentApprovals.receiptDialog.sendAgain') : t('paymentApprovals.receiptDialog.send')}
           </Button>
         </DialogActions>
       </Dialog>
       <Dialog open={Boolean(rejectTarget)} onClose={() => !rejectMutation.isPending && setRejectTarget(null)} maxWidth="sm" fullWidth>
         <DialogTitle>
           {rejectTarget?.payment_method === 'paypal'
-            ? 'Cancel PayPal attempt'
-            : 'Reject payment claim'}
+            ? t('paymentApprovals.cancelPaypal')
+            : t('paymentApprovals.rejectDialog.title')}
         </DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
             {rejectTarget?.payment_method === 'paypal' ? (
               <>
-                Cancel the uncompleted PayPal attempt for booking{' '}
-                <strong>{rejectTarget?.booking_number ?? rejectTarget?.booking_id}</strong>. Only
-                do this when you know no funds were captured; this message is sent to the guest.
+                {t('paymentApprovals.rejectDialog.paypalBodyStart')}{' '}
+                <strong>{rejectTarget?.booking_number ?? rejectTarget?.booking_id}</strong>{t('paymentApprovals.rejectDialog.paypalBodyEnd')}
               </>
             ) : (
               <>
-                Explain why the payment for booking{' '}
-                <strong>{rejectTarget?.booking_number ?? rejectTarget?.booking_id}</strong> was
-                rejected. This message is sent to the guest.
+                {t('paymentApprovals.rejectDialog.bodyStart')}{' '}
+                <strong>{rejectTarget?.booking_number ?? rejectTarget?.booking_id}</strong>{t('paymentApprovals.rejectDialog.bodyEnd')}
               </>
             )}
           </Typography>
@@ -523,15 +520,15 @@ const PaymentApprovalsPage: React.FC = () => {
             required
             multiline
             minRows={3}
-            label={rejectTarget?.payment_method === 'paypal' ? 'Cancellation message' : 'Rejection message'}
+            label={rejectTarget?.payment_method === 'paypal' ? t('paymentApprovals.rejectDialog.labelPaypal') : t('paymentApprovals.rejectDialog.labelReject')}
             placeholder={
               rejectTarget?.payment_method === 'paypal'
-                ? 'For example: The PayPal attempt was cancelled before completion.'
-                : 'For example: The transfer amount does not match the booking total.'
+                ? t('paymentApprovals.rejectDialog.placeholderPaypal')
+                : t('paymentApprovals.rejectDialog.placeholderReject')
             }
             value={rejectionReason}
             onChange={(event) => setRejectionReason(event.target.value)}
-            helperText={`${1_000 - rejectionReason.length} characters remaining`}
+            helperText={t('paymentApprovals.rejectDialog.charsLeft', { count: 1_000 - rejectionReason.length })}
             disabled={rejectMutation.isPending}
             slotProps={{
               htmlInput: { maxLength: 1_000 }
@@ -539,7 +536,7 @@ const PaymentApprovalsPage: React.FC = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRejectTarget(null)} disabled={rejectMutation.isPending}>Cancel</Button>
+          <Button onClick={() => setRejectTarget(null)} disabled={rejectMutation.isPending}>{t('common:actions.cancel')}</Button>
           <Button
             color="error"
             variant="contained"
@@ -548,29 +545,29 @@ const PaymentApprovalsPage: React.FC = () => {
           >
             {rejectMutation.isPending
               ? rejectTarget?.payment_method === 'paypal'
-                ? 'Cancelling…'
-                : 'Rejecting…'
+                ? t('paymentApprovals.rejectDialog.cancelling')
+                : t('paymentApprovals.rejectDialog.rejecting')
               : rejectTarget?.payment_method === 'paypal'
-                ? 'Cancel PayPal attempt'
-                : 'Reject payment'}
+                ? t('paymentApprovals.cancelPaypal')
+                : t('paymentApprovals.rejectDialog.submit')}
           </Button>
         </DialogActions>
       </Dialog>
       <Dialog open={Boolean(receiptPreview)} onClose={closeReceiptPreview} maxWidth="md" fullWidth>
-        <DialogTitle>Payment receipt — booking {receiptPreview?.bookingNumber}</DialogTitle>
+        <DialogTitle>{t('paymentApprovals.receiptPreview.title', { ref: receiptPreview?.bookingNumber ?? '' })}</DialogTitle>
         <DialogContent dividers sx={{ p: 0, height: '75vh' }}>
           {receiptPreview ? (
             <Box
               component="iframe"
-              title={`Payment receipt for booking ${receiptPreview.bookingNumber}`}
+              title={t('paymentApprovals.receiptPreview.iframeTitle', { ref: receiptPreview.bookingNumber })}
               src={receiptPreview.url}
               sx={{ border: 0, display: 'block', width: '100%', height: '100%' }}
             />
           ) : null}
         </DialogContent>
         <DialogActions>
-          <Button onClick={downloadReceipt}>Download</Button>
-          <Button onClick={closeReceiptPreview}>Close</Button>
+          <Button onClick={downloadReceipt}>{t('common:actions.download')}</Button>
+          <Button onClick={closeReceiptPreview}>{t('common:actions.close')}</Button>
         </DialogActions>
       </Dialog>
     </Box>

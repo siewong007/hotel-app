@@ -132,7 +132,8 @@
     "properties": "属性…",
     "sectionBooking": "预订",
     "sectionHousekeeping": "客房服务",
-    "sectionRoom": "客房"
+    "sectionRoom": "客房",
+    "editBookingNotes": "编辑预订备注"
   },
   "header": {
     "title": "酒店管理 — 客房",
@@ -710,5 +711,8 @@
     "selectRooms": "选择一间或多间客房",
     "setDatesHint": "先在下方设置日期以筛选可售",
     "roomsSelected": "已选 {{count}} 间客房：{{rooms}}"
+  },
+  "actions": {
+    "editBookingNotes": "编辑预订备注"
   }
 }

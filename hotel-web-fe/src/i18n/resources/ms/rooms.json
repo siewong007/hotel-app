@@ -133,7 +133,8 @@
     "properties": "Sifat...",
     "sectionBooking": "Tempahan",
     "sectionHousekeeping": "Pengemasan",
-    "sectionRoom": "Bilik"
+    "sectionRoom": "Bilik",
+    "editBookingNotes": "Edit nota tempahan"
   },
   "header": {
     "title": "Pengurus Hotel — Bilik",
@@ -723,5 +724,8 @@
     "selectRooms": "Pilih satu atau lebih bilik",
     "setDatesHint": "Tetapkan tarikh di bawah untuk menapis mengikut ketersediaan",
     "roomsSelected": "{{count}} bilik dipilih: {{rooms}}"
+  },
+  "actions": {
+    "editBookingNotes": "Sunting nota tempahan"
   }
 }

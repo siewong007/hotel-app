@@ -25,8 +25,11 @@
     "nextDay": "Hari berikutnya",
     "forwardDays": "Maju {{days}} hari",
     "today": "Hari ini",
-    "overridesOnly": "Override sahaja",
-    "selected": "{{count}} dipilih"
+    "overridesOnly": "Penggantian sahaja",
+    "selected": "{{count}} dipilih",
+    "controlsAria": "Kawalan tetingkap inventori",
+    "refresh": "Muat semula",
+    "select": "Pilih"
   },
   "grid": {
     "aria": "Inventori dalam talian mengikut jenis bilik dan tarikh",
@@ -34,7 +37,9 @@
     "colHeader": "JENIS BILIK / TARIKH",
     "selectColumn": "Pilih semua pada {{date}}",
     "today": "Hari ini",
-    "selectRow": "Pilih baris {{name}}"
+    "selectRow": "Pilih baris {{name}}",
+    "noInventoryAria": "{{date}}: tiada data inventori",
+    "closed": "Ditutup"
   },
   "cell": {
     "closed": "Ditutup",
@@ -75,7 +80,12 @@
     "applyAmount": "Laksanakan jumlah",
     "clearOverrides": "Kosongkan override",
     "skipped_one": "{{count}} sel dilangkau — pelarasan akan menjadikan harga sifar atau negatif.",
-    "skipped_other": "{{count}} sel dilangkau — pelarasan akan menjadikan harga sifar atau negatif."
+    "skipped_other": "{{count}} sel dilangkau — pelarasan akan menjadikan harga sifar atau negatif.",
+    "selectedCount": "{{count}} dipilih",
+    "selectedCount_one": "{{count}} dipilih",
+    "selectedCount_other": "{{count}} dipilih",
+    "editSelected": "Sunting yang dipilih",
+    "editSelectedCells": "Sunting sel yang dipilih"
   },
   "editor": {
     "bookable": "Boleh ditempah dalam talian",
@@ -90,7 +100,9 @@
     "customPrice": "Harga dalam talian tersuai",
     "priceInvalid": "Masukkan harga lebih besar daripada sifar.",
     "standardRate": "Kadar standard untuk tarikh ini: {{price}} — biarkan kosong untuk menggunakannya.",
-    "resetStandard": "Set semula kepada peraturan standard"
+    "resetStandard": "Set semula kepada peraturan standard",
+    "resetAria": "Tetapkan semula kepada peraturan standard",
+    "reset": "Tetapkan semula"
   },
   "summary": {
     "physical": "Bebas secara fizikal",

@@ -11,6 +11,7 @@ import { Add as AddIcon } from '@mui/icons-material';
 import type { Permission, Role } from '../../../../../types';
 import RoleChip from './RoleChip';
 import AddRolePopover from './AddRolePopover';
+import { useTranslation } from '../../../../../i18n';
 
 interface PermissionRowProps {
   permission: Permission;
@@ -29,6 +30,7 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
   onRemoveRole,
   disabled = false,
 }) => {
+  const { t } = useTranslation('admin');
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [removingRoleId, setRemovingRoleId] = useState<number | null>(null);
 
@@ -117,12 +119,12 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
                 color: "text.disabled",
                 fontStyle: 'italic'
               }}>
-              No roles assigned
+              {t('rbac.noRolesAssigned')}
             </Typography>
           )}
         </Stack>
 
-        <Tooltip title="Add role">
+        <Tooltip title={t('rbac.addRole')}>
           <span>
             <IconButton
               size="small"

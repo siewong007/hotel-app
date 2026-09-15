@@ -206,5 +206,20 @@
     "newGuest": "新增客人",
     "collectPayment": "收取款项",
     "backToList": "返回列表"
+  },
+  "roles": {
+    "super_admin": "超级管理员",
+    "admin": "管理员",
+    "manager": "经理",
+    "receptionist": "前台接待",
+    "housekeeping": "客房服务",
+    "staff": "员工",
+    "guest": "宾客",
+    "compliance_admin": "合规管理员",
+    "ekyc_reviewer": "eKYC 审核员",
+    "senior_reviewer": "高级审核员",
+    "auditor": "审计员",
+    "support_readonly": "支持（只读）",
+    "front_desk": "前台"
   }
 }

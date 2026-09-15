@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
 import { useInsightsOverview } from '../../insights/hooks';
 import type { InsightsOverview } from '../../insights/types';
+import { dateFormatter } from '../../../i18n/format';
 
 export interface RoomStats {
   totalRooms: number;
@@ -75,7 +76,7 @@ function buildRevenueData(
     date.setDate(now.getDate() - i);
     days.push({
       key: toDateKey(date),
-      name: date.toLocaleDateString(undefined, { weekday: 'short' }),
+      name: dateFormatter({ weekday: 'short' }).format(date),
       revenue: 0,
     });
   }

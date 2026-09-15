@@ -64,6 +64,14 @@ pub enum ApiError {
     /// (or the pre-rename `idx_guests_full_name_unique`). Stable `code` so the
     /// public form can highlight the nickname without matching English text.
     GuestNameTaken,
+    /// Guest self check-in was refused by the eligibility gates. The body
+    /// carries `block_code` — the same stable code
+    /// `GuestEkycStatusSummary.auto_checkin_block_code` reports — so the guest
+    /// UI renders a localized explanation instead of matching English text.
+    AutoCheckinBlocked {
+        block_code: String,
+        message: String,
+    },
 }
 
 impl std::fmt::Display for ApiError {
@@ -87,6 +95,9 @@ impl std::fmt::Display for ApiError {
             ApiError::GuestNameTaken => write!(f, "Conflict: nickname taken"),
             ApiError::TwoFactorEnrollmentRequired => {
                 write!(f, "Forbidden: two-factor enrolment required")
+            }
+            ApiError::AutoCheckinBlocked { message, .. } => {
+                write!(f, "Bad request: {}", message)
             }
         }
     }
@@ -221,6 +232,11 @@ impl IntoResponse for ApiError {
                 ),
                 "guest_name_taken",
             ),
+            ApiError::AutoCheckinBlocked { message, .. } => (
+                StatusCode::BAD_REQUEST,
+                polish_message(message, "That request couldn't be processed."),
+                "auto_checkin_blocked",
+            ),
         };
 
         let mut body = serde_json::json!({
@@ -234,6 +250,9 @@ impl IntoResponse for ApiError {
         // way TooManyRequestsRetryAfter deviates below to add its own header.
         if let ApiError::ProfileIncomplete(missing_fields) = &self {
             body["missing_profile_fields"] = serde_json::json!(missing_fields);
+        }
+        if let ApiError::AutoCheckinBlocked { block_code, .. } = &self {
+            body["block_code"] = serde_json::json!(block_code);
         }
 
         let body = with_request_id(Json(body));
@@ -356,6 +375,14 @@ mod tests {
                 ApiError::GuestNameTaken,
                 StatusCode::CONFLICT,
                 "guest_name_taken",
+            ),
+            (
+                ApiError::AutoCheckinBlocked {
+                    block_code: "ekyc_pending".into(),
+                    message: "eKYC is pending approval.".into(),
+                },
+                StatusCode::BAD_REQUEST,
+                "auto_checkin_blocked",
             ),
         ];
 

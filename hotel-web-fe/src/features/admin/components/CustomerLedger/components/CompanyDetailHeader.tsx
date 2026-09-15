@@ -8,6 +8,7 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import type { Company } from '../../../../../types';
+import { useTranslation } from '../../../../../i18n';
 import { companyInitials } from '../helpers';
 import { toMoneyNumber } from '../../../../../utils/money';
 
@@ -28,6 +29,7 @@ const CompanyDetailHeader: React.FC<CompanyDetailHeaderProps> = ({
   onPrintStatement,
   onDelete,
 }) => {
+  const { t } = useTranslation('finance');
   return (
     <Box
       sx={{
@@ -97,7 +99,7 @@ const CompanyDetailHeader: React.FC<CompanyDetailHeaderProps> = ({
         </Box>
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-        <Tooltip title="Print statement">
+        <Tooltip title={t('ledger.printStatement')}>
           <span>
             <IconButton
               size="small"
@@ -108,7 +110,7 @@ const CompanyDetailHeader: React.FC<CompanyDetailHeaderProps> = ({
             </IconButton>
           </span>
         </Tooltip>
-        <Tooltip title="Delete company">
+        <Tooltip title={t('ledger.deleteCompany')}>
           <span>
             <IconButton
               size="small"

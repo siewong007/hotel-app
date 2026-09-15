@@ -510,7 +510,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     renderModal(false, { deposit_paid: true, deposit_amount: 50 });
     const dialog = await screen.findByRole('dialog');
 
-    await waitFor(() => expect(within(dialog).getByText('Bill balance: RM60.00 — Partially paid')).toBeDefined());
+    await waitFor(() => expect(within(dialog).getByText('Bill balance: RM60.00 — Partially Paid')).toBeDefined());
     expect(within(dialog).getAllByRole('button', { name: 'Record Payment' }).length).toBeGreaterThan(0);
   });
 

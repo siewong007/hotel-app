@@ -21,6 +21,7 @@ import { api } from '../../../api/client';
 import type { ConsentAcceptance } from '../../legal/useConsent';
 import { SKIP_API_NOTIFICATION_HEADER } from '../../../utils/apiNotifications';
 import { getPortalToken } from './portalTokenStore';
+import { t } from '../../../i18n';
 import type {
   GuestPortalBenefitsResponse,
   GuestPortalBookingSummary,
@@ -49,7 +50,7 @@ export interface PortalPageParams {
 function authHeaders(token?: string): Record<string, string> {
   const guestToken = token ?? getPortalToken();
   if (!guestToken) {
-    throw new Error('Not signed in to the guest portal');
+    throw new Error(t('api.unauthorized', undefined, 'errors'));
   }
   // Guest surfaces render every failure inline — the shared client's
   // global toast would repeat the same message.

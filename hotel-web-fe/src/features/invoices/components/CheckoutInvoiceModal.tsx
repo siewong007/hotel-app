@@ -48,11 +48,12 @@ import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
 import DepositSection, { DEPOSIT_STATUS_CHIP } from './DepositSection';
 import type { DepositForfeitInput, DepositRefundInput } from './DepositSection';
-import { formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
+import { formatHotelDate, formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
 import { divideMoney, isGreaterMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../utils/money';
 import { formatStatusLabel } from '../../../utils/formatters';
 import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/idempotency';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
+import { useTranslation, statusLabel } from '../../../i18n';
 import CollapsibleSection, { type CollapsibleSectionProps } from '../../../components/common/CollapsibleSection';
 import StatusChip from '../../../components/common/StatusChip';
 import { useIsPhone } from '../../../hooks/useIsPhone';
@@ -119,6 +120,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   ledger = null,
   onLedgerPaymentsChanged,
 }) => {
+  const { t, tOr } = useTranslation('finance');
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -347,7 +349,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setPaymentNotes('');
       setPaymentDate(formatLocalDate());
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to record payment');
+      setError(err instanceof Error && err.message ? err.message : t('checkout.errors.recordPayment'));
     } finally {
       setRecordingPayment(false);
     }
@@ -415,7 +417,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       }
       handleCancelEdit();
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to update payment');
+      setError(err instanceof Error && err.message ? err.message : t('checkout.errors.updatePayment'));
     } finally {
       setUpdatingPayment(false);
     }
@@ -423,9 +425,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
   const handleDeletePayment = async (paymentId: number) => {
     const accepted = await confirm({
-      title: 'Delete payment record',
-      message: 'This removes the payment from the folio and restores the outstanding balance. This cannot be undone.',
-      confirmText: 'Delete payment',
+      title: t('checkout.confirm.deletePayment.title'),
+      message: t('checkout.confirm.deletePayment.message'),
+      confirmText: t('checkout.confirm.deletePayment.confirmText'),
       severity: 'error',
     });
     if (!accepted) return;
@@ -451,7 +453,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       // re-opens the deposit as refundable — no flag to clear here since
       // the resolution re-derives `pending` from the rows on the next render.
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to delete payment');
+      setError(err instanceof Error && err.message ? err.message : t('checkout.errors.deletePayment'));
     } finally {
       setDeletingPaymentId(null);
     }
@@ -475,11 +477,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const handleCancelDeposit = async (reason: string) => {
     const hadCompletedDepositRows = completedDepositCount > 0;
     const accepted = await confirm({
-      title: 'Cancel deposit',
+      title: t('checkout.confirm.cancelDeposit.title'),
       message: hadCompletedDepositRows
-        ? 'Marks the deposit as not collected. The payment record is kept as void and the cancellation can be reverted.'
-        : 'Marks the deposit as not collected — no money was received. The booking deposit flag is cleared.',
-      confirmText: 'Cancel deposit',
+        ? t('checkout.confirm.cancelDeposit.messageCollected')
+        : t('checkout.confirm.cancelDeposit.messageUncollected'),
+      confirmText: t('checkout.confirm.cancelDeposit.confirmText'),
       severity: 'warning',
     });
     if (!accepted) return;
@@ -494,9 +496,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
   const handleRevertDepositRefund = async () => {
     const accepted = await confirm({
-      title: 'Revert deposit refund',
-      message: 'This removes the refund record so the deposit can be refunded again.',
-      confirmText: 'Revert refund',
+      title: t('checkout.confirm.revertRefund.title'),
+      message: t('checkout.confirm.revertRefund.message'),
+      confirmText: t('checkout.confirm.revertRefund.confirmText'),
       severity: 'warning',
     });
     if (!accepted) return;
@@ -518,14 +520,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       }
 
       if (requiresFullPaymentBeforeCheckout) {
-        setError('Please settle the full balance before proceeding to checkout.');
+        setError(t('checkout.errors.settleFirst'));
         return;
       }
 
       await onConfirmCheckout?.(undefined, paymentMethod);
       onClose();
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to process checkout');
+      setError(err instanceof Error && err.message ? err.message : t('checkout.errors.processCheckout'));
     } finally {
       setLoading(false);
     }
@@ -543,7 +545,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       invalidateInvoiceState();
       setEditingRates(false);
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to save daily rates');
+      setError(err instanceof Error && err.message ? err.message : t('checkout.errors.saveDailyRates'));
     } finally {
       setSavingRates(false);
     }
@@ -776,16 +778,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const isEarlyCheckout = () => getCheckoutVariance() === 'early';
   const isLateCheckout = () => getCheckoutVariance() === 'late';
 
-  const formatBookingStatus = (status?: string) => formatStatusLabel(status, 'Unknown');
+  const formatBookingStatus = (status?: string) => statusLabel(t, 'booking', status);
 
   // Bill balance strip — explicit wording instead of the bare "Fully Paid"/
   // "Balance Due" labels: a held deposit is collateral owed to the guest,
   // so the bill's own state must read unambiguously next to it.
   const billBalanceLabel = !hasBalanceDue
-    ? 'Paid'
+    ? t('status:ledger.paid')
     : isPositiveMoney(paymentRowsTotal)
-      ? 'Partially paid'
-      : 'Outstanding';
+      ? t('status:ledger.partially_paid')
+      : t('status:ledger.outstanding');
 
   // Checkout readiness — one strip states every unmet condition, replacing
   // the old scattered deposit alerts (and the confirm step's duplicate).
@@ -796,44 +798,42 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     : depositResolution.mirrorDue;
   const blockers: string[] = [];
   if (depositResolution.status === 'pending') {
-    blockers.push(`Resolve the ${formatCurrency(depositHeld)} security deposit`);
+    blockers.push(t('checkout.blocker.resolveDeposit', { amount: formatCurrency(depositHeld) }));
   }
   if (requiresFullPaymentBeforeCheckout) {
-    blockers.push(`Settle the outstanding bill balance of ${formatCurrency(balanceDue)}`);
+    blockers.push(t('checkout.blocker.settleBalance', { amount: formatCurrency(balanceDue) }));
   }
   // Resolved-state wording shared by the readiness strip and the confirm
   // step's deposit row. 'none' returns '' (no deposit line at all).
   const depositResolutionWording = (() => {
     switch (depositResolution.status) {
       case 'refunded':
-        return `refunded ${formatCurrency(depositResolution.refunded)}${
-          depositResolution.refundMethod ? ` via ${depositResolution.refundMethod}` : ''
-        }`;
+        return depositResolution.refundMethod
+          ? t('deposit.wording.refundedVia', { amount: formatCurrency(depositResolution.refunded), method: depositResolution.refundMethod })
+          : t('deposit.wording.refunded', { amount: formatCurrency(depositResolution.refunded) });
       case 'forfeited':
-        return `forfeited ${formatCurrency(depositResolution.forfeited)}`;
+        return t('deposit.wording.forfeited', { amount: formatCurrency(depositResolution.forfeited) });
       case 'partially_forfeited':
-        return `partially forfeited ${formatCurrency(depositResolution.forfeited)}${
-          isPositiveMoney(depositResolution.refunded)
-            ? ` · remainder refunded ${formatCurrency(depositResolution.refunded)}`
-            : ''
-        }`;
+        return isPositiveMoney(depositResolution.refunded)
+          ? t('deposit.wording.partiallyForfeitedRefund', { forfeited: formatCurrency(depositResolution.forfeited), refunded: formatCurrency(depositResolution.refunded) })
+          : t('deposit.wording.partiallyForfeited', { amount: formatCurrency(depositResolution.forfeited) });
       case 'cancelled':
       case 'waived':
-        return 'cancelled — not collected';
+        return t('deposit.wording.cancelled');
       case 'pending':
-        return `pending — ${formatCurrency(depositHeld)} still held`;
+        return t('deposit.wording.pending', { amount: formatCurrency(depositHeld) });
       default:
         return '';
     }
   })();
   // A positive balance is only compatible with readiness under company
   // billing, where the bill posts to the company ledger instead.
-  const billWording = hasBalanceDue ? 'Bill to the company ledger' : 'Bill paid';
+  const billWording = hasBalanceDue ? t('checkout.billToLedger') : t('checkout.billPaid');
   const readinessMessage = blockers.length
-    ? `Checkout is not ready — ${blockers.join(' · ')}`
-    : `Ready for checkout — ${billWording}${
-        depositResolutionWording ? ` · Deposit ${depositResolutionWording}` : ''
-      }`;
+    ? t('checkout.notReady', { reasons: blockers.join(' · ') })
+    : t('checkout.ready', {
+        summary: billWording + (depositResolutionWording ? ` · ${t('deposit.summary', { status: depositResolutionWording })}` : ''),
+      });
   // Suppressed in readOnly — a read-only receipt isn't a checkout, so it
   // shouldn't carry "Checkout is not ready"/"Ready for checkout" framing.
   const readinessStrip = readOnly ? null : (
@@ -861,10 +861,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             <ReceiptIcon sx={{ mr: 1, color: 'primary.main' }} />
             <Typography variant="h6">
               {readOnly
-                ? 'Invoice'
+                ? t('checkout.titleInvoice')
                 : checkoutStep === 'preview'
-                  ? 'Invoice Preview - Review Before Checkout'
-                  : 'Confirm Checkout'}
+                  ? t('checkout.titlePreview')
+                  : t('checkout.titleConfirm')}
             </Typography>
           </Box>
           <Chip
@@ -889,8 +889,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Alert severity="info" sx={{ mb: 3 }}>
                 <Typography variant="body2" sx={{
                   fontWeight: 600
-                }}>Please review the invoice carefully before proceeding with checkout.</Typography>
-                <Typography variant="caption">Verify all charges, taxes, and refunds are correct.</Typography>
+                }}>{t('checkout.reviewTitle')}</Typography>
+                <Typography variant="caption">{t('checkout.reviewSubtitle')}</Typography>
               </Alert>
             )}
             {/* Company Billing Indicator */}
@@ -903,10 +903,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <Typography variant="body2" sx={{
                   fontWeight: 600
                 }}>
-                  Company Billing: {booking.company_name}
+                  {t('checkout.companyBilling', { name: booking.company_name })}
                 </Typography>
                 <Typography variant="caption">
-                  Room charges will be automatically posted to the company ledger upon checkout.
+                  {t('checkout.companyBillingNoteCheckout')}
                 </Typography>
               </Alert>
             )}
@@ -923,34 +923,30 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                Phone: {hotelSettings.hotel_phone} | Email: {hotelSettings.hotel_email}
+                {t('checkout.phoneEmail', { phone: hotelSettings.hotel_phone, email: hotelSettings.hotel_email })}
               </Typography>
             </Box>
             {/* Invoice Meta */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
               <Grid size={{ xs: 12, md: 4 }}>
-                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>
-                  Invoice Details
-                </Typography>
+                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>{t('checkout.invoiceDetails')}</Typography>
                 <Typography variant="body2" sx={{ mb: 0.5 }}>
-                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '120px' }}>
-                    Invoice Number:
-                  </Box>
+                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '120px' }}>{t('checkout.field.invoiceNumber')}:</Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
                     {booking?.invoice_number || booking?.folio_number || `#${booking?.id}`}
                   </Box>
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 0.5 }}>
                   <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '120px' }}>
-                    Date:
+                    {t('common:field.date')}:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
-                    {new Date().toLocaleDateString()}
+                    {formatHotelDate(new Date())}
                   </Box>
                 </Typography>
                 <Typography variant="body2">
                   <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '120px' }}>
-                    Status:
+                    {t('common:field.status')}:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
                     {formatBookingStatus(booking.status)}
@@ -960,15 +956,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
               <Grid size={{ xs: 12, md: 4 }}>
                 <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1.5, textTransform: 'uppercase' }}>
-                  Guest Information
+                  {t('checkout.guestInfo')}
                 </Typography>
                 {([
-                  { label: 'Name', value: booking?.guest_name },
-                  { label: 'Room', value: `${booking?.room_number} - ${booking?.room_type}` },
-                  guestCompanyName ? { label: 'Company', value: guestCompanyName } : null,
-                  guestPhone ? { label: 'Phone', value: guestPhone } : null,
-                  guestIcNumber ? { label: 'ID / IC', value: guestIcNumber } : null,
-                  guestAddress ? { label: 'Address', value: guestAddress } : null,
+                  { label: t('common:field.name'), value: booking?.guest_name },
+                  { label: t('ledger.field.room'), value: `${booking?.room_number} - ${booking?.room_type}` },
+                  guestCompanyName ? { label: t('ledger.field.company'), value: guestCompanyName } : null,
+                  guestPhone ? { label: t('common:field.phone'), value: guestPhone } : null,
+                  guestIcNumber ? { label: t('checkout.field.idIc'), value: guestIcNumber } : null,
+                  guestAddress ? { label: t('common:field.address'), value: guestAddress } : null,
                 ] as Array<{ label: string; value: React.ReactNode } | null>)
                   .filter((item): item is { label: string; value: React.ReactNode } => item !== null)
                   .map((item) => (
@@ -984,65 +980,61 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Grid>
 
               <Grid size={{ xs: 12, md: 4 }}>
-                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>
-                  Stay Details
-                </Typography>
+                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>{t('checkout.stayDetails')}</Typography>
                 <Typography variant="body2" sx={{ mb: 0.5 }}>
                   <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
-                    Check-in:
+                    {t('checkout.checkIn')}:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
-                    {new Date(booking?.check_in_date || '').toLocaleDateString()}
+                    {formatHotelDate(booking?.check_in_date)}
                   </Box>
                 </Typography>
                 <Typography variant="body2" component="div" sx={{ mb: 0.5 }}>
                   <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
-                    Check-out:
+                    {t('checkout.checkOut')}:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
-                    {getActualCheckoutDate().toLocaleDateString()}
+                    {formatHotelDate(getActualCheckoutDate())}
                     {isEarlyCheckout() && (
-                      <Chip label="Early" size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
+                      <Chip label={t('checkout.early')} size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
                     )}
                     {isLateCheckout() && (
-                      <Chip label="Late" size="small" color="warning" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
+                      <Chip label={t('checkout.late')} size="small" color="warning" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
                     )}
                   </Box>
                 </Typography>
                 {getCheckoutVariance() && (
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
-                      Scheduled:
+                      {t('checkout.scheduled')}:
                     </Box>
                     <Box component="span" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                      {new Date(booking?.check_out_date || '').toLocaleDateString()}
+                      {formatHotelDate(booking?.check_out_date)}
                     </Box>
                   </Typography>
                 )}
                 <Typography variant="body2">
                   <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
-                    Duration:
+                    {t('checkout.duration')}:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
-                    {isHourlyBooking ? 'Hourly Stay' : `${calculateNights()} night(s)`}
+                    {isHourlyBooking ? t('checkout.hourlyStay') : t('checkout.nights', { count: calculateNights() })}
                   </Box>
                 </Typography>
               </Grid>
             </Grid>
             {/* Charges Table */}
-            <PhoneCollapsibleSection isPhone={isPhone} title="Charges">
+            <PhoneCollapsibleSection isPhone={isPhone} title={t('checkout.sections.charges')}>
             <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
               <Box sx={{ bgcolor: '#1976d2', color: 'white', p: 1.5 }}>
                 <Grid container>
                   <Grid size={8}>
                     <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
-                      Description
+                      {t('common:field.description')}
                     </Typography>
                   </Grid>
                   <Grid sx={{ textAlign: 'right' }} size={4}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
-                      Amount
-                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>{t('common:field.amount')}</Typography>
                   </Grid>
                 </Grid>
               </Box>
@@ -1053,7 +1045,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
                     <Grid container>
                       <Grid size={8}>
-                        <Typography variant="body2">Room Charges (Hourly Stay)</Typography>
+                        <Typography variant="body2">{t('checkout.roomChargesHourly')}</Typography>
                       </Grid>
                       <Grid sx={{ textAlign: 'right' }} size={4}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -1084,9 +1076,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             variant="outlined"
                             startIcon={<EditIcon />}
                             onClick={() => setEditingRates(true)}
-                          >
-                            Edit Rates
-                          </Button>
+                          >{t('checkout.editRates')}</Button>
                         )}
                       </Box>
                     )}
@@ -1097,7 +1087,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       const checkIn = parseLocalDate(booking.check_in_date);
                       return Array.from({ length: nights }, (_, i) => {
                         const date = addLocalDays(checkIn, i);
-                        const dateStr = date.toLocaleDateString();
+                        const dateStr = formatHotelDate(date);
                         const dateKey = formatLocalDate(date);
                         const taxInclusiveRate = editableDailyRates[dateKey] || 0;
                         const dayRate = divideMoney(taxInclusiveRate, taxMultiplier);
@@ -1110,7 +1100,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               }}>
                                 <Grid size={editingRates ? { xs: 12, sm: 5 } : 8}>
                                   <Typography variant="body2">
-                                    Room Charge — {dateStr}
+                                    {t('checkout.roomChargeDay', { date: dateStr })}
                                   </Typography>
                                 </Grid>
                                 <Grid sx={{ textAlign: 'right' }} size={editingRates ? { xs: 12, sm: 7 } : 4}>
@@ -1146,7 +1136,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                     <Typography variant="body2" sx={{
                                       color: "text.secondary"
                                     }}>
-                                      Service Tax ({hotelSettings.service_tax_rate}%)
+                                      {t('checkout.serviceTaxPct', { rate: hotelSettings.service_tax_rate })}
                                     </Typography>
                                   </Grid>
                                   <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -1177,7 +1167,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
                         <Grid container>
                           <Grid size={8}>
-                            <Typography variant="body2">Tourism Tax</Typography>
+                            <Typography variant="body2">{t('checkout.tourismTax')}</Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={4}>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -1198,7 +1188,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         <Grid container>
                           <Grid size={8}>
                             <Typography variant="body2">
-                              Tourism Tax — {date.toLocaleDateString()}
+                              {t('checkout.tourismTaxDay', { date: formatHotelDate(date) })}
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -1217,7 +1207,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
                     <Grid container>
                       <Grid size={8}>
-                        <Typography variant="body2">Extra Bed Charge</Typography>
+                        <Typography variant="body2">{t('checkout.extraBedCharge')}</Typography>
                       </Grid>
                       <Grid sx={{ textAlign: 'right' }} size={4}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -1234,7 +1224,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 pl: 2,
                                 fontSize: '0.8rem'
                               }}>
-                              Service Tax ({hotelSettings.service_tax_rate}%)
+                              {t('checkout.serviceTaxPct', { rate: hotelSettings.service_tax_rate })}
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -1269,7 +1259,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </Box>
             </PhoneCollapsibleSection>
             {/* Deposit status card — guided refund/forfeit/cancel workflow. */}
-            <PhoneCollapsibleSection isPhone={isPhone} title="Deposit adjustments" collapseOnPhone>
+            <PhoneCollapsibleSection isPhone={isPhone} title={t('checkout.sections.depositAdjustments')} collapseOnPhone>
               <DepositSection
                 resolution={depositResolution}
                 busy={{
@@ -1287,7 +1277,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   restore: canRestoreDeposit,
                 }}
                 readOnly={readOnly}
-                noDepositLabel={booking?.company_id ? 'City Ledger - N/A' : undefined}
+                noDepositLabel={booking?.company_id ? t('deposit.cityLedgerNa') : undefined}
                 hotelSettings={hotelSettings}
                 onRefund={handleRefundDeposit}
                 onForfeit={handleForfeitDeposit}
@@ -1301,7 +1291,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             {/* Payments Section */}
             <PhoneCollapsibleSection
               isPhone={isPhone}
-              title="Payments"
+              title={t('checkout.sections.payments')}
               actions={hasBalanceDue && !editingPayment ? (
                 <Button
                   size="small"
@@ -1309,7 +1299,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   onClick={() => setShowPaymentForm(!showPaymentForm)}
                   startIcon={showPaymentForm ? <CloseIcon /> : <AddIcon />}
                 >
-                  {showPaymentForm ? 'Cancel' : 'Record Payment'}
+                  {showPaymentForm ? t('common:actions.cancel') : t('ledger.payment.record')}
                 </Button>
               ) : undefined}
             >
@@ -1319,9 +1309,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   button in `actions`) replaces it. */}
               <Box sx={{ bgcolor: '#2e7d32', color: 'white', p: 1.5, display: { xs: 'none', sm: 'flex' }, alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
-                  <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
-                  Payments
-                </Typography>
+                  <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />{t('checkout.sections.payments')}</Typography>
                 {!readOnly && hasBalanceDue && !editingPayment && (
                   <Button
                     size="small"
@@ -1330,7 +1318,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     startIcon={showPaymentForm ? <CloseIcon /> : <AddIcon />}
                     sx={{ color: 'white', borderColor: 'white', fontSize: '0.75rem', py: 0.25, '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
                   >
-                    {showPaymentForm ? 'Cancel' : 'Record Payment'}
+                    {showPaymentForm ? t('common:actions.cancel') : t('ledger.payment.record')}
                   </Button>
                 )}
               </Box>
@@ -1346,7 +1334,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           <Grid container spacing={1} sx={{ mb: 1 }}>
                             <Grid size={{ xs: 12, sm: 4 }}>
                               <TextField
-                                label="Amount"
+                                label={t('common:field.amount')}
                                 type="number"
                                 size="small"
                                 fullWidth
@@ -1361,10 +1349,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Grid>
                             <Grid size={{ xs: 12, sm: 4 }}>
                               <FormControl fullWidth size="small">
-                                <InputLabel>Method</InputLabel>
+                                <InputLabel>{t('checkout.field.method')}</InputLabel>
                                 <Select
                                   value={editMethod}
-                                  label="Method"
+                                  label={t('checkout.field.method')}
                                   onChange={(e) => setEditMethod(e.target.value)}
                                 >
                                   {hotelSettings.payment_methods.map((method) => (
@@ -1375,7 +1363,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Grid>
                             <Grid size={{ xs: 12, sm: 4 }}>
                               <TextField
-                                label="Payment Date"
+                                label={t('ledger.payment.date')}
                                 type="date"
                                 size="small"
                                 fullWidth
@@ -1388,7 +1376,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Grid>
                             <Grid size={{ xs: 12, sm: 6 }}>
                               <TextField
-                                label="Reference"
+                                label={t('checkout.field.reference')}
                                 size="small"
                                 fullWidth
                                 value={editReference}
@@ -1397,7 +1385,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Grid>
                             <Grid size={{ xs: 12, sm: 6 }}>
                               <TextField
-                                label="Notes"
+                                label={t('common:field.notes')}
                                 size="small"
                                 fullWidth
                                 value={editNotes}
@@ -1410,9 +1398,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               size="small"
                               onClick={handleCancelEdit}
                               disabled={updatingPayment}
-                            >
-                              Cancel
-                            </Button>
+                            >{t('common:actions.cancel')}</Button>
                             <Button
                               size="small"
                               variant="contained"
@@ -1491,9 +1477,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               {depositPayments.length > 0 && (
                 <Box sx={{ p: 0 }}>
                   <Box sx={{ px: 1.5, py: 0.75, bgcolor: '#eceff1', borderBottom: '1px solid #eee' }}>
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      Deposits — collateral, not bill payments
-                    </Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('deposit.collateralNote')}</Typography>
                   </Box>
                   {depositPayments.map((p, idx) => {
                     const forfeited = (p.payment_type || '').toLowerCase() === 'deposit_forfeited';
@@ -1508,10 +1492,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             <Grid container spacing={1} sx={{ mb: 1 }}>
                               <Grid size={4}>
                                 <FormControl fullWidth size="small">
-                                  <InputLabel>Method</InputLabel>
+                                  <InputLabel>{t('checkout.field.method')}</InputLabel>
                                   <Select
                                     value={editMethod}
-                                    label="Method"
+                                    label={t('checkout.field.method')}
                                     onChange={(e) => setEditMethod(e.target.value)}
                                   >
                                     {hotelSettings.payment_methods.map((method) => (
@@ -1526,9 +1510,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 size="small"
                                 onClick={handleCancelEdit}
                                 disabled={updatingPayment}
-                              >
-                                Cancel
-                              </Button>
+                              >{t('common:actions.cancel')}</Button>
                               <Button
                                 size="small"
                                 variant="contained"
@@ -1555,7 +1537,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Grid>
                             <Grid size={5}>
                               <Chip
-                                label={forfeited ? 'Deposit forfeited' : 'Deposit held'}
+                                label={forfeited ? t('deposit.chipForfeited') : t('deposit.chipHeld')}
                                 size="small"
                                 color={forfeited ? 'warning' : 'info'}
                                 sx={{ height: 20, fontSize: '0.7rem' }}
@@ -1580,7 +1562,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 sx={{ minWidth: 'auto', p: 0.5 }}
                                 onClick={() => handleStartEdit(p)}
                                 disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
-                                aria-label="Edit deposit payment method"
+                                aria-label={t('deposit.editMethod')}
                               >
                                 <EditIcon fontSize="small" />
                               </Button>)}
@@ -1603,7 +1585,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           <Grid container spacing={1} sx={{ mb: 1 }}>
                             <Grid size={{ xs: 12, sm: 4 }}>
                               <TextField
-                                label="Amount"
+                                label={t('common:field.amount')}
                                 type="number"
                                 size="small"
                                 fullWidth
@@ -1618,10 +1600,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Grid>
                             <Grid size={{ xs: 12, sm: 4 }}>
                               <FormControl fullWidth size="small">
-                                <InputLabel>Method</InputLabel>
+                                <InputLabel>{t('checkout.field.method')}</InputLabel>
                                 <Select
                                   value={editMethod}
-                                  label="Method"
+                                  label={t('checkout.field.method')}
                                   onChange={(e) => setEditMethod(e.target.value)}
                                 >
                                   {hotelSettings.payment_methods.map((method) => (
@@ -1632,7 +1614,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Grid>
                             <Grid size={{ xs: 12, sm: 4 }}>
                               <TextField
-                                label="Refund Date"
+                                label={t('checkout.field.refundDate')}
                                 type="date"
                                 size="small"
                                 fullWidth
@@ -1645,7 +1627,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Grid>
                             <Grid size={{ xs: 12, sm: 6 }}>
                               <TextField
-                                label="Reference"
+                                label={t('checkout.field.reference')}
                                 size="small"
                                 fullWidth
                                 value={editReference}
@@ -1654,7 +1636,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Grid>
                             <Grid size={{ xs: 12, sm: 6 }}>
                               <TextField
-                                label="Notes"
+                                label={t('common:field.notes')}
                                 size="small"
                                 fullWidth
                                 value={editNotes}
@@ -1667,9 +1649,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               size="small"
                               onClick={handleCancelEdit}
                               disabled={updatingPayment}
-                            >
-                              Cancel
-                            </Button>
+                            >{t('common:actions.cancel')}</Button>
                             <Button
                               size="small"
                               variant="contained"
@@ -1686,7 +1666,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         }}>
                           <Grid size={5}>
                             <Typography variant="body2" sx={{ color: '#2e7d32' }}>
-                              Deposit Refund ({formatStatusLabel(p.payment_method, '')})
+                              {t('deposit.refundLine', { method: formatStatusLabel(p.payment_method, '') })}
                             </Typography>
                             <Typography variant="caption" sx={{
                               color: "text.secondary"
@@ -1695,7 +1675,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Typography>
                           </Grid>
                           <Grid size={2}>
-                            <Chip label="Refunded" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
+                            <Chip label={t('deposit.chipRefunded')} size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={3}>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
@@ -1740,7 +1720,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <Box sx={{ p: 2, textAlign: 'center' }}>
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
-                  }}>No payments recorded yet</Typography>
+                  }}>{t('checkout.paymentsEmpty')}</Typography>
                 </Box>
               )}
 
@@ -1751,7 +1731,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 12, sm: 4 }}>
                       <TextField
-                        label="Amount"
+                        label={t('common:field.amount')}
                         type="number"
                         size="small"
                         fullWidth
@@ -1766,10 +1746,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                     <Grid size={{ xs: 12, sm: 4 }}>
                       <FormControl fullWidth size="small">
-                        <InputLabel>Method</InputLabel>
+                        <InputLabel>{t('checkout.field.method')}</InputLabel>
                         <Select
                           value={paymentMethod}
-                          label="Method"
+                          label={t('checkout.field.method')}
                           onChange={(e) => setPaymentMethod(e.target.value)}
                         >
                           {hotelSettings.payment_methods.map((method) => (
@@ -1780,7 +1760,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                     <Grid size={{ xs: 12, sm: 4 }}>
                       <TextField
-                        label="Payment Date"
+                        label={t('ledger.payment.date')}
                         type="date"
                         size="small"
                         fullWidth
@@ -1793,7 +1773,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <TextField
-                        label="Reference (Optional)"
+                        label={t('checkout.field.referenceOptional')}
                         size="small"
                         fullWidth
                         value={paymentReference}
@@ -1802,7 +1782,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <TextField
-                        label="Notes (Optional)"
+                        label={t('checkout.field.notesOptional')}
                         size="small"
                         fullWidth
                         value={paymentNotes}
@@ -1828,7 +1808,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   back to the guest is not "overpayment". */}
               <Box sx={{ p: 1.5, bgcolor: hasBalanceDue ? '#fff3e0' : '#e8f5e9', borderTop: '2px solid #ddd' }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, color: hasBalanceDue ? '#e65100' : '#2e7d32' }}>
-                  Bill balance: {formatCurrency(Math.abs(balanceDue))} — {billBalanceLabel}
+                  {t('checkout.billBalance', { amount: formatCurrency(Math.abs(balanceDue)), state: billBalanceLabel })}
                 </Typography>
               </Box>
             </Box>
@@ -1854,24 +1834,22 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <Typography variant="body2" sx={{
                   fontWeight: 600
                 }}>
-                  Company Billing: {booking.company_name}
+                  {t('checkout.companyBilling', { name: booking.company_name })}
                 </Typography>
                 <Typography variant="caption">
-                  Room charges will be automatically posted to the company ledger.
+                  {t('checkout.companyBillingNote')}
                 </Typography>
               </Alert>
             )}
             {/* Guest Information */}
             <Paper elevation={0} sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)', borderRadius: 2 }}>
-              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                Guest Information
-              </Typography>
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>{t('checkout.guestInfo')}</Typography>
               <Grid container spacing={1}>
                 <Grid size={6}>
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
                   }}>
-                    Guest Name:
+                    {t('checkout.field.guestName')}:
                   </Typography>
                 </Grid>
                 <Grid size={6}>
@@ -1883,7 +1861,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
                   }}>
-                    Room:
+                    {t('ledger.field.room')}:
                   </Typography>
                 </Grid>
                 <Grid size={6}>
@@ -1895,29 +1873,29 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
                   }}>
-                    Check-in:
+                    {t('checkout.checkIn')}:
                   </Typography>
                 </Grid>
                 <Grid size={6}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {new Date(booking.check_in_date).toLocaleString()}
+                    {formatHotelDateTime(booking.check_in_date)}
                   </Typography>
                 </Grid>
                 <Grid size={6}>
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
                   }}>
-                    Check-out:
+                    {t('checkout.checkOut')}:
                   </Typography>
                 </Grid>
                 <Grid size={6}>
                   <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
-                    {getActualCheckoutDate().toLocaleString()}
+                    {formatHotelDateTime(getActualCheckoutDate())}
                     {isEarlyCheckout() && (
-                      <Chip label="Early" size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
+                      <Chip label={t('checkout.early')} size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
                     )}
                     {isLateCheckout() && (
-                      <Chip label="Late" size="small" color="warning" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
+                      <Chip label={t('checkout.late')} size="small" color="warning" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
                     )}
                   </Typography>
                 </Grid>
@@ -1927,12 +1905,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       <Typography variant="body2" sx={{
                         color: "text.secondary"
                       }}>
-                        Scheduled:
+                        {t('checkout.scheduled')}:
                       </Typography>
                     </Grid>
                     <Grid size={6}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                        {new Date(booking.check_out_date).toLocaleDateString()}
+                        {formatHotelDate(booking.check_out_date)}
                       </Typography>
                     </Grid>
                   </>
@@ -1941,28 +1919,26 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
                   }}>
-                    Duration:
+                    {t('checkout.duration')}:
                   </Typography>
                 </Grid>
                 <Grid size={6}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {calculateNights()} night(s)
+                    {t('checkout.nights', { count: calculateNights() })}
                   </Typography>
                 </Grid>
               </Grid>
             </Paper>
             {/* Charges Breakdown */}
             <Paper elevation={0} sx={{ p: 2, bgcolor: 'primary.50', borderRadius: 2 }}>
-              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                Charges Breakdown
-              </Typography>
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>{t('checkout.chargesBreakdown')}</Typography>
               <Grid container spacing={1}>
                 {/* Room Charges */}
                 <Grid size={8}>
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
                   }}>
-                    Room Charges ({calculateNights()} nights)
+                    {t('checkout.roomChargesNights', { count: calculateNights() })}
                   </Typography>
                 </Grid>
                 <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -1978,7 +1954,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       <Typography variant="body2" sx={{
                         color: "text.secondary"
                       }}>
-                        Service Tax ({hotelSettings.service_tax_rate}%)
+                        {t('checkout.serviceTaxPct', { rate: hotelSettings.service_tax_rate })}
                       </Typography>
                     </Grid>
                     <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -1999,7 +1975,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           <Typography variant="body2" sx={{
                             color: "text.secondary"
                           }}>
-                            Tourism Tax
+                            {t('checkout.tourismTax')}
                           </Typography>
                         </Grid>
                         <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -2021,7 +1997,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           <Typography variant="body2" sx={{
                             color: "text.secondary"
                           }}>
-                            Tourism Tax — {date.toLocaleDateString()}
+                            {t('checkout.tourismTaxDay', { date: formatHotelDate(date) })}
                           </Typography>
                         </Grid>
                         <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -2041,7 +2017,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       <Typography variant="body2" sx={{
                         color: "text.secondary"
                       }}>
-                        Extra Bed Charge
+                        {t('checkout.extraBedCharge')}
                       </Typography>
                     </Grid>
                     <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -2058,7 +2034,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               color: "text.secondary",
                               pl: 2
                             }}>
-                            Service Tax ({hotelSettings.service_tax_rate}%)
+                            {t('checkout.serviceTaxPct', { rate: hotelSettings.service_tax_rate })}
                           </Typography>
                         </Grid>
                         <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -2080,7 +2056,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 {/* Subtotal */}
                 <Grid size={8}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Subtotal
+                    {t('ledger.invoice.subtotal')}
                   </Typography>
                 </Grid>
                 <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -2095,20 +2071,20 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <>
                     <Grid size={8}>
                       <Typography variant="body2">
-                        Security deposit
+                        {t('deposit.securityDeposit')}
                       </Typography>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
                       }}>
                         {depositResolution.status === 'waived' && depositWaiveReason
                           ? depositWaiveReason
-                          : `Deposit ${depositResolutionWording}`}
+                          : t('deposit.summary', { status: depositResolutionWording })}
                       </Typography>
                     </Grid>
                     <Grid sx={{ textAlign: 'right' }} size={4}>
                       <StatusChip
                         status={depositResolution.status}
-                        label={DEPOSIT_STATUS_CHIP[depositResolution.status].label}
+                        label={t(DEPOSIT_STATUS_CHIP[depositResolution.status].labelKey)}
                         tone={DEPOSIT_STATUS_CHIP[depositResolution.status].tone}
                         sx={{ height: 20, fontSize: '0.7rem' }}
                       />
@@ -2123,7 +2099,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 {/* Grand Total */}
                 <Grid size={8}>
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    {charges.grandTotal >= 0 ? 'Total to Collect' : 'Total to Refund'}
+                    {charges.grandTotal >= 0 ? t('checkout.totalCollect') : t('checkout.totalRefund')}
                   </Typography>
                 </Grid>
                 <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -2146,48 +2122,34 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       <DialogActions sx={{ px: 3, py: 2 }}>
         {readOnly ? (
           <>
-            <Button onClick={onClose}>
-              Close
-            </Button>
+            <Button onClick={onClose}>{t('common:actions.close')}</Button>
             <Button
               variant="outlined"
               onClick={handlePrint}
               startIcon={<PrintIcon />}
-            >
-              Print Invoice
-            </Button>
+            >{t('checkout.printInvoice')}</Button>
           </>
         ) : checkoutStep === 'preview' ? (
           <>
-            <Button onClick={onClose}>
-              Cancel
-            </Button>
+            <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
             <Button
               variant="outlined"
               onClick={handlePrint}
               startIcon={<PrintIcon />}
               disabled={blockers.length > 0}
-            >
-              Print Preview
-            </Button>
+            >{t('checkout.printPreview')}</Button>
             <Button
               variant="contained"
               onClick={handleProceedToConfirm}
               startIcon={<CheckIcon />}
               disabled={blockers.length > 0}
-            >
-              Proceed to Checkout
-            </Button>
+            >{t('checkout.proceedCheckout')}</Button>
           </>
         ) : (
           <>
-            <Button onClick={handleBackToPreview}>
-              Back to Invoice
-            </Button>
+            <Button onClick={handleBackToPreview}>{t('checkout.backToInvoice')}</Button>
             <Box sx={{ flex: 1 }} />
-            <Button onClick={onClose} disabled={loading}>
-              Cancel
-            </Button>
+            <Button onClick={onClose} disabled={loading}>{t('common:actions.cancel')}</Button>
             <Button
               variant="contained"
               onClick={handleConfirmCheckout}

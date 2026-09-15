@@ -55,7 +55,7 @@ import { MobileCardRow } from '../../../../components/data-table/MobileCardRow';
 import { IMPORT_JOB_POLL_MS, MAX_BACKUP_FILE_BYTES } from './constants';
 import StepUpDialog from './StepUpDialog';
 import type { NotifyFn } from './types';
-import { formatBytes, formatNum, shortEntityName } from './utils';
+import { formatBytes, formatNum, formatWhen, shortEntityName } from './utils';
 import type { BackupImportMode, ConflictPolicy } from '../../../../types';
 
 interface ImportWizardProps {
@@ -75,10 +75,10 @@ interface EntityTableRow {
   cells: Array<number | null>;
 }
 
-const CONFLICT_LABELS: Record<ConflictPolicy, string> = {
-  skip: 'Skip — keep the existing row',
-  update: 'Update — overwrite the existing row',
-  fail: 'Fail — abort the import on the first duplicate',
+const CONFLICT_KEYS: Record<ConflictPolicy, string> = {
+  skip: 'import.conflicts.skip',
+  update: 'import.conflicts.update',
+  fail: 'import.conflicts.fail',
 };
 
 const errorMessage = (error: unknown, fallback: string) =>
@@ -134,13 +134,13 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
       invalidateImportedData(queryClient);
       notify(
         skipped > 0
-          ? `Import finished — ${formatNum(skipped)} row(s) skipped.`
-          : `Import completed — ${formatNum(inserted + updated)} row(s) applied.`,
+          ? t('import.jobFinishedSkipped', { count: skipped })
+          : t('import.jobFinished', { count: inserted + updated }),
         skipped > 0 ? 'warning' : 'success',
       );
     }
     setStep('done');
-  }, [job, jobId, notify, queryClient]);
+  }, [job, jobId, notify, queryClient, t]);
 
   const reset = () => {
     setFile(null);
@@ -180,11 +180,11 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
       } catch (previewError) {
         // Without a preview the upload is unusable — free the staged file.
         void deleteUploadMutation.mutateAsync(staged.uploadId).catch(() => undefined);
-        setError(errorMessage(previewError, 'Failed to preview backup contents.'));
+        setError(errorMessage(previewError, t('import.errors.preview')));
         setStep('select');
       }
     } catch (uploadError) {
-      setError(errorMessage(uploadError, 'Failed to upload backup file.'));
+      setError(errorMessage(uploadError, t('import.errors.upload')));
       setStep('select');
     }
   };
@@ -194,7 +194,11 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
     setError(null);
     if (picked.size > MAX_BACKUP_FILE_BYTES) {
       setError(
-        `"${picked.name}" is ${formatBytes(picked.size)} — backup files are limited to ${formatBytes(MAX_BACKUP_FILE_BYTES)}.`,
+        t('import.errors.tooLarge', {
+          name: picked.name,
+          size: formatBytes(picked.size),
+          limit: formatBytes(MAX_BACKUP_FILE_BYTES),
+        }),
       );
       return;
     }
@@ -231,7 +235,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
       setStep('running');
     } catch (err) {
       setConfirmOpen(false);
-      setError(errorMessage(err, 'Failed to start the import.'));
+      setError(errorMessage(err, t('import.errors.start')));
     }
   };
 
@@ -283,7 +287,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
         <Table size="small" stickyHeader aria-label={ariaLabel}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 700 }}>Entity</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>{t('import.colEntity')}</TableCell>
               {headers.map((header) => (
                 <TableCell key={header} sx={{ fontWeight: 700 }} align="right">
                   {header}
@@ -342,20 +346,19 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
         <CloudUploadIcon />
       </Box>
       <Box>
-        <Typography sx={{ fontWeight: 800, fontSize: 18 }}>Select a backup file to import</Typography>
+        <Typography sx={{ fontWeight: 800, fontSize: 18 }}>{t('import.selectTitle')}</Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5, maxWidth: 480 }}>
-          Drop or choose a <strong>.json</strong> backup produced by this app (up to{' '}
-          {formatBytes(MAX_BACKUP_FILE_BYTES)}). Its contents are previewed and confirmed before anything is written.
+          {t('import.selectDrop1')} <strong>.json</strong> {t('import.selectDrop2', { size: formatBytes(MAX_BACKUP_FILE_BYTES) })}
         </Typography>
       </Box>
       <Button variant="contained" component="label" startIcon={<UploadIcon />} sx={{ fontWeight: 700 }}>
-        Select JSON file
+        {t('import.selectFile')}
         <input
           type="file"
           accept=".json,application/json"
           hidden
           onChange={handleFileInput}
-          aria-label="Choose backup file"
+          aria-label={t('import.chooseFileAria')}
         />
       </Button>
     </Paper>
@@ -390,9 +393,9 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
       </Box>
       {/* No byte-level upload progress: fetch/ky cannot report it, so the bar
           stays indeterminate while the file streams and is analyzed. */}
-      <LinearProgress aria-label="Uploading and analyzing backup" />
+      <LinearProgress aria-label={t('import.processingAria')} />
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-        {previewMutation.isPending ? 'Analyzing backup contents…' : 'Uploading backup file…'}
+        {previewMutation.isPending ? t('import.analyzing') : t('import.uploading')}
       </Typography>
     </Paper>
   );
@@ -444,13 +447,13 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
               </Box>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                 {[
-                  preview.version !== null ? `format v${preview.version}` : null,
-                  preview.exportedAt ? `exported ${new Date(preview.exportedAt).toLocaleString()}` : null,
-                  preview.sourceEnvironment ? `from ${preview.sourceEnvironment}` : null,
-                  preview.applicationVersion ? `app ${preview.applicationVersion}` : null,
+                  preview.version !== null ? t('import.metaFormat', { version: preview.version }) : null,
+                  preview.exportedAt ? t('import.metaExported', { date: formatWhen(Date.parse(preview.exportedAt)) }) : null,
+                  preview.sourceEnvironment ? t('import.metaFrom', { env: preview.sourceEnvironment }) : null,
+                  preview.applicationVersion ? t('import.metaApp', { version: preview.applicationVersion }) : null,
                 ]
                   .filter(Boolean)
-                  .join(' · ') || 'Backup metadata unavailable'}
+                  .join(' · ') || t('import.metaUnavailable')}
               </Typography>
             </Box>
           </Box>
@@ -460,13 +463,13 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
             onClick={discardAndReset}
             sx={{ color: 'text.secondary', fontWeight: 600 }}
           >
-            Remove file
+            {t('import.removeFile')}
           </Button>
         </Paper>
 
         {preview.validationErrors.length > 0 && (
           <Alert severity="error" sx={{ borderRadius: 2 }}>
-            <AlertTitle sx={{ fontWeight: 700 }}>This file cannot be imported</AlertTitle>
+            <AlertTitle sx={{ fontWeight: 700 }}>{t('import.cannotImport')}</AlertTitle>
             <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
               {preview.validationErrors.map((validationError) => (
                 <li key={validationError}>{validationError}</li>
@@ -498,12 +501,12 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
         {preview.relationshipProblems.length > 0 && (
           <Alert severity="warning" sx={{ borderRadius: 2 }}>
             <AlertTitle sx={{ fontWeight: 700 }}>
-              {formatNum(preview.relationshipProblems.reduce((sum, p) => sum + p.rows, 0))} row(s) will be skipped
+              {t('import.rowsWillBeSkipped', { count: preview.relationshipProblems.reduce((sum, p) => sum + p.rows, 0) })}
             </AlertTitle>
             <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
               {preview.relationshipProblems.map((problem) => (
                 <li key={`${problem.entity}-${problem.reason}`}>
-                  <strong>{shortEntityName(problem.entity)}</strong>: {formatNum(problem.rows)} row(s) — {problem.reason}
+                  <strong>{shortEntityName(problem.entity)}</strong>: {t('import.problemRows', { count: problem.rows, reason: problem.reason })}
                 </li>
               ))}
             </Box>
@@ -512,16 +515,15 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
 
         {preview.unsupportedEntities.length > 0 && (
           <Alert severity="info" sx={{ borderRadius: 2 }}>
-            <AlertTitle sx={{ fontWeight: 700 }}>Unrecognized entities are ignored</AlertTitle>
-            {preview.unsupportedEntities.map(shortEntityName).join(', ')} — present in the file but not part of the
-            transferable set; they are never applied.
+            <AlertTitle sx={{ fontWeight: 700 }}>{t('import.unrecognizedTitle')}</AlertTitle>
+            {t('import.unrecognizedBody', { entities: preview.unsupportedEntities.map(shortEntityName).join(', ') })}
           </Alert>
         )}
 
         <Paper elevation={0} sx={cardSx}>
           <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
             <Typography sx={{ fontWeight: 800, fontSize: 15 }}>
-              {formatNum(preview.totalRows)} rows in {formatNum(preview.entities.length)} entities
+              {t('import.previewSummary', { rows: formatNum(preview.totalRows), entities: formatNum(preview.entities.length) })}
             </Typography>
           </Box>
           {renderEntityTable(
@@ -529,30 +531,30 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
               name: entity.name,
               cells: [entity.rows, entity.new, entity.existing, entity.skipped],
             })),
-            ['Rows', 'New', 'Existing', 'Skipped'],
-            'Entities in the backup file',
+            [t('import.cols.rows'), t('import.cols.new'), t('import.cols.existing'), t('import.cols.skipped')],
+            t('import.entitiesAria'),
           )}
         </Paper>
 
         <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-          <Typography sx={{ fontWeight: 800, fontSize: 14, mb: 1.5 }}>Import mode</Typography>
+          <Typography sx={{ fontWeight: 800, fontSize: 14, mb: 1.5 }}>{t('import.modeTitle')}</Typography>
           <ToggleButtonGroup
             value={mode}
             exclusive
             size="small"
             onChange={(_, value) => value && setMode(value)}
-            aria-label="Import mode"
+            aria-label={t('import.modeAria')}
             sx={{ mb: mode === 'merge' ? 2 : 0 }}
           >
             <ToggleButton value="merge" sx={{ textTransform: 'none', fontWeight: 700 }}>
-              Merge — add to existing data
+              {t('import.modeMerge')}
             </ToggleButton>
             <ToggleButton
               value="restore"
               disabled={!canRestore}
               sx={{ textTransform: 'none', fontWeight: 700 }}
             >
-              Restore — replace existing data
+              {t('import.modeRestore')}
             </ToggleButton>
           </ToggleButtonGroup>
           {!canRestore && (
@@ -564,22 +566,22 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
           {mode === 'merge' && (
             <Box>
               <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                When a row already exists:
+                {t('import.conflictTitle')}
               </Typography>
               <RadioGroup
                 value={onConflict}
                 onChange={(e) => setOnConflict(e.target.value as ConflictPolicy)}
-                aria-label="Conflict policy"
+                aria-label={t('import.conflictAria')}
               >
-                {(Object.keys(CONFLICT_LABELS) as ConflictPolicy[]).map((policy) => (
+                {(Object.keys(CONFLICT_KEYS) as ConflictPolicy[]).map((policy) => (
                   <FormControlLabel
                     key={policy}
                     value={policy}
                     control={<Radio size="small" />}
                     label={
                       policy === 'update' && !canOverride
-                        ? `${CONFLICT_LABELS[policy]} (${t('import.updateRequiresPermission')})`
-                        : CONFLICT_LABELS[policy]
+                        ? `${t(CONFLICT_KEYS[policy])} (${t('import.updateRequiresPermission')})`
+                        : t(CONFLICT_KEYS[policy])
                     }
                     disabled={policy === 'update' && !canOverride}
                   />
@@ -590,9 +592,8 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
 
           {mode === 'restore' && (
             <Alert severity="error" sx={{ borderRadius: 2, mt: 1.5 }}>
-              <AlertTitle sx={{ fontWeight: 700 }}>Restore deletes existing data first</AlertTitle>
-              Every row in the backup's entities — and in tables that depend on them — is deleted before the file's
-              rows are inserted, including rows not present in the backup.
+              <AlertTitle sx={{ fontWeight: 700 }}>{t('import.restoreWarningTitle')}</AlertTitle>
+              {t('import.restoreWarningBody')}
             </Alert>
           )}
         </Paper>
@@ -602,7 +603,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
           sx={{ ...cardSx, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, p: 2 }}
         >
           <Button color="inherit" onClick={discardAndReset} sx={{ color: 'text.secondary', fontWeight: 600 }}>
-            Choose a different file
+            {t('import.chooseDifferent')}
           </Button>
           <Button
             variant="contained"
@@ -610,7 +611,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
             disabled={blockedByValidation || missingPermissions.length > 0 || busy}
             sx={{ fontWeight: 700 }}
           >
-            Review &amp; import
+            {t('import.reviewImport')}
           </Button>
         </Paper>
       </Box>
@@ -626,21 +627,21 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
       <Paper elevation={0} sx={{ ...cardSx, p: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <CircularProgress size={22} />
-          <Typography sx={{ fontWeight: 800, fontSize: 15 }}>Import running…</Typography>
+          <Typography sx={{ fontWeight: 800, fontSize: 15 }}>{t('import.runningTitle')}</Typography>
         </Box>
         <LinearProgress
           variant={total > 0 ? 'determinate' : 'indeterminate'}
           value={total > 0 ? Math.min(100, (applied / total) * 100) : undefined}
-          aria-label="Import progress"
+          aria-label={t('import.progressAria')}
         />
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
           {progress?.entity
-            ? `Applying ${shortEntityName(progress.entity)} — ${formatNum(applied)} of ${formatNum(total)} rows`
-            : `${formatNum(applied)} of ${formatNum(total)} rows applied`}
+            ? t('import.applyingEntity', { entity: shortEntityName(progress.entity), applied: formatNum(applied), total: formatNum(total) })
+            : t('import.rowsApplied', { applied: formatNum(applied), total: formatNum(total) })}
         </Typography>
         {jobQuery.isError && (
           <Alert severity="warning" sx={{ borderRadius: 2 }}>
-            Progress refresh failed — the import itself continues on the server and polling keeps retrying.
+            {t('import.progressRefreshFailed')}
           </Alert>
         )}
       </Paper>
@@ -653,16 +654,15 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
       return (
         <Paper elevation={0} sx={{ ...cardSx, p: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Alert severity="error" icon={<ErrorIcon />} sx={{ borderRadius: 2 }}>
-            <AlertTitle sx={{ fontWeight: 700 }}>Import failed — nothing was applied</AlertTitle>
-            {job.error ?? 'The import failed.'} The import runs in a single transaction, so the database was left
-            unchanged.
+            <AlertTitle sx={{ fontWeight: 700 }}>{t('import.failedTitle')}</AlertTitle>
+            {job.error ?? t('import.failedGeneric')} {t('import.failedTxn')}
           </Alert>
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
             <Button variant="outlined" onClick={onFinished} sx={{ fontWeight: 700 }}>
-              View history
+              {t('import.viewHistory')}
             </Button>
             <Button variant="contained" onClick={reset} sx={{ fontWeight: 700 }}>
-              Start over
+              {t('import.startOver')}
             </Button>
           </Box>
         </Paper>
@@ -675,13 +675,13 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
         <Paper elevation={0} sx={{ ...cardSx, p: 2.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <SuccessIcon color="success" />
-            <Typography sx={{ fontWeight: 800, fontSize: 16 }}>Import complete</Typography>
+            <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{t('import.completeTitle')}</Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Chip label={`${formatNum(result?.inserted ?? 0)} inserted`} color="success" variant="outlined" sx={{ fontWeight: 700 }} />
-            <Chip label={`${formatNum(result?.updated ?? 0)} updated`} variant="outlined" sx={{ fontWeight: 700 }} />
+            <Chip label={t('import.insertedCount', { count: result?.inserted ?? 0 })} color="success" variant="outlined" sx={{ fontWeight: 700 }} />
+            <Chip label={t('import.updatedCount', { count: result?.updated ?? 0 })} variant="outlined" sx={{ fontWeight: 700 }} />
             <Chip
-              label={`${formatNum(result?.skipped ?? 0)} skipped`}
+              label={t('import.skippedCount', { count: result?.skipped ?? 0 })}
               color={result?.skipped ? 'warning' : 'default'}
               variant="outlined"
               sx={{ fontWeight: 700 }}
@@ -691,11 +691,11 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
 
         {result && result.report.relationshipProblems.length > 0 && (
           <Alert severity="warning" sx={{ borderRadius: 2 }}>
-            <AlertTitle sx={{ fontWeight: 700 }}>Rows skipped because their references are missing</AlertTitle>
+            <AlertTitle sx={{ fontWeight: 700 }}>{t('import.skippedRefsTitle')}</AlertTitle>
             <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
               {result.report.relationshipProblems.map((problem) => (
                 <li key={`${problem.entity}-${problem.reason}`}>
-                  <strong>{shortEntityName(problem.entity)}</strong>: {formatNum(problem.rows)} row(s) — {problem.reason}
+                  <strong>{shortEntityName(problem.entity)}</strong>: {t('import.problemRows', { count: problem.rows, reason: problem.reason })}
                 </li>
               ))}
             </Box>
@@ -704,8 +704,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
 
         {result && result.report.unsupportedEntities.length > 0 && (
           <Alert severity="info" sx={{ borderRadius: 2 }}>
-            These entities in the file were not applied:{' '}
-            {result.report.unsupportedEntities.map(shortEntityName).join(', ')}.
+            {t('import.notApplied', { entities: result.report.unsupportedEntities.map(shortEntityName).join(', ') })}
           </Alert>
         )}
 
@@ -716,18 +715,18 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
                 name: outcome.entity,
                 cells: [outcome.inserted, outcome.updated, outcome.skipped],
               })),
-              ['Inserted', 'Updated', 'Skipped'],
-              'Import results by entity',
+              [t('import.cols.inserted'), t('import.cols.updated'), t('import.cols.skipped')],
+              t('import.resultsAria'),
             )}
           </Paper>
         )}
 
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
           <Button variant="outlined" onClick={onFinished} sx={{ fontWeight: 700 }}>
-            View history
+            {t('import.viewHistory')}
           </Button>
           <Button variant="contained" onClick={reset} sx={{ fontWeight: 700 }}>
-            Import another file
+            {t('import.importAnother')}
           </Button>
         </Box>
       </Box>
@@ -778,25 +777,22 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
             {mode === 'restore' ? <ErrorIcon /> : <WarningIcon />}
           </Box>
           <Typography id="import-confirm-title" sx={{ fontWeight: 800, fontSize: 18, mb: 1 }}>
-            {mode === 'restore' ? 'Confirm restore' : 'Confirm import'}
+            {mode === 'restore' ? t('import.confirmRestore') : t('import.confirmImport')}
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-            You're about to {mode === 'restore' ? 'restore' : 'merge'}{' '}
-            <strong>{formatNum(preview?.totalRows ?? 0)} rows</strong> across{' '}
-            <strong>{formatNum(preview?.entities.length ?? 0)} entities</strong>. This action is logged to the
-            transfer history.
+            {t('import.confirmAbout', { mode: t(`import.modes.${mode}`) })}{' '}
+            <strong>{t('import.confirmRows', { count: preview?.totalRows ?? 0 })}</strong> {t('import.confirmAcross')}{' '}
+            <strong>{t('import.confirmEntities', { count: preview?.entities.length ?? 0 })}</strong>. {t('import.confirmLogged')}
           </Typography>
 
           {mode === 'restore' ? (
             <Alert severity="error" sx={{ textAlign: 'left', mb: 2, borderRadius: 2 }}>
-              <AlertTitle sx={{ fontWeight: 700 }}>This deletes existing data first</AlertTitle>
-              Restore clears the backup's entities <em>and every table that depends on them</em> — including rows not
-              present in the file — before inserting. Export a fresh backup first so you can roll back if needed.
+              <AlertTitle sx={{ fontWeight: 700 }}>{t('import.confirmDeleteTitle')}</AlertTitle>
+              {t('import.confirmDeleteBody1')} <em>{t('import.confirmDeleteEm')}</em> {t('import.confirmDeleteBody2')}
             </Alert>
           ) : (
             <Alert severity="info" sx={{ textAlign: 'left', mb: 2, borderRadius: 2 }}>
-              Merge inserts only new rows. Existing rows are handled per the conflict policy:{' '}
-              <strong>{CONFLICT_LABELS[onConflict]}</strong>.
+              {t('import.confirmMergeBody')} <strong>{t(CONFLICT_KEYS[onConflict])}</strong>.
             </Alert>
           )}
 
@@ -819,18 +815,18 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
               sx={{ p: 0 }}
               onChange={() => setAck((a) => !a)}
               onClick={(e) => e.stopPropagation()}
-              slotProps={{ input: { 'aria-label': 'Acknowledge import warning' } }}
+              slotProps={{ input: { 'aria-label': t('import.ackAria') } }}
             />
             <Typography variant="body2">
               {mode === 'restore'
-                ? 'I understand restore deletes existing data, and I have a current backup to roll back with.'
-                : 'I understand this modifies live data and that the action will be recorded.'}
+                ? t('import.ackRestore')
+                : t('import.ackMerge')}
             </Typography>
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 3, pt: 0 }}>
           <Button onClick={() => setConfirmOpen(false)} color="inherit" fullWidth>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             variant="contained"
@@ -841,7 +837,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
             onClick={confirmAndContinue}
             sx={{ fontWeight: 700 }}
           >
-            {mode === 'restore' ? 'Restore & import' : 'Start import'}
+            {mode === 'restore' ? t('import.restoreImport') : t('import.startImport')}
           </Button>
         </DialogActions>
       </Dialog>

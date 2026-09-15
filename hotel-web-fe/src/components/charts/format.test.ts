@@ -22,7 +22,8 @@ describe('chart formatters', () => {
   });
 
   it('fmtShortDate renders day + short month', () => {
-    expect(fmtShortDate('2026-09-14')).toBe('14 Sep');
+    // Interface-locale output: en-US orders month before day.
+    expect(fmtShortDate('2026-09-14')).toBe('Sep 14');
     expect(fmtShortDate('not-a-date')).toBe('not-a-date');
   });
 

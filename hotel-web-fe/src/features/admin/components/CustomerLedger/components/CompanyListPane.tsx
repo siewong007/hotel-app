@@ -27,6 +27,7 @@ import type {
 } from '../hooks/useCustomerLedgerWorkspace';
 import { companyInitials } from '../helpers';
 import { isPositiveMoney } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n';
 
 interface CompanyListRow {
   c: Company;
@@ -62,6 +63,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
   onRegister,
   formatCurrency,
 }) => {
+  const { t } = useTranslation('finance');
   return (
     <Card variant="outlined" sx={{ overflow: 'hidden' }}>
       <Box
@@ -77,7 +79,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
       >
         <BusinessIcon fontSize="small" color="action" />
         <Typography sx={{ fontWeight: 700, fontSize: 13, letterSpacing: 0.2 }}>
-          Companies
+          {t('ledger.companies')}
         </Typography>
         <Chip
           label={companies.length}
@@ -92,7 +94,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
           onClick={onRegister}
           sx={{ minWidth: 0, px: 1, fontSize: 12 }}
         >
-          Add
+          {t('common:actions.add')}
         </Button>
       </Box>
       <Box
@@ -106,7 +108,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
         <TextField
           size="small"
           fullWidth
-          placeholder="Search by name, contact, phone..."
+          placeholder={t('ledger.searchPlaceholder')}
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           slotProps={{
@@ -122,7 +124,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
                     size="small"
                     onClick={() => onSearchChange('')}
                     sx={{ p: 0.25 }}
-                    aria-label="Clear search"
+                    aria-label={t('ledger.searchClear')}
                   >
                     <CloseIcon sx={{ fontSize: 14 }} />
                   </IconButton>
@@ -134,9 +136,9 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
         />
         <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
           {([
-            { key: 'all', label: 'All', count: companies.length },
-            { key: 'due', label: 'Has balance', count: dueCount },
-            { key: 'clear', label: 'Settled', count: clearCount },
+            { key: 'all', label: t('common:field.all'), count: companies.length },
+            { key: 'due', label: t('ledger.filters.hasBalance'), count: dueCount },
+            { key: 'clear', label: t('ledger.filters.settled'), count: clearCount },
           ] as const).map(f => (
             <Chip
               key={f.key}
@@ -190,7 +192,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
                 color: "text.secondary",
                 mb: 1.5
               }}>
-              No companies registered yet.
+              {t('ledger.empty.none')}
             </Typography>
             <Button
               size="small"
@@ -198,7 +200,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
               startIcon={<AddIcon />}
               onClick={onRegister}
             >
-              Register Company
+              {t('ledger.registerCompany')}
             </Button>
           </Box>
         ) : companyListRows.length === 0 ? (
@@ -206,7 +208,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              No companies match.
+              {t('ledger.empty.noMatch')}
             </Typography>
           </Box>
         ) : (

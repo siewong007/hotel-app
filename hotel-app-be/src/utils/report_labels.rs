@@ -147,9 +147,27 @@ pub fn payment_account_label(
         .unwrap_or_else(|| title_case_label(method))
 }
 
+/// Return the account label for a night-audit journal payment line.
+///
+/// Deposit tenders are money held against the room rather than a settlement of
+/// the bill, so a bare method label ("Cash") reads on the report as an ordinary
+/// payment. Name the deposit types so the line says what it is; every other
+/// payment type keeps the plain tender label.
+pub fn payment_journal_account_label(
+    payment_type: Option<&str>,
+    payment_method: Option<&str>,
+) -> String {
+    let tender = payment_account_label(payment_method, None, None);
+    match payment_type.unwrap_or("").trim().to_ascii_lowercase().as_str() {
+        "deposit" => format!("Deposit ({tender})"),
+        "deposit_forfeited" => format!("Deposit Forfeited ({tender})"),
+        _ => tender,
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{booking_channel_label, payment_account_label};
+    use super::{booking_channel_label, payment_account_label, payment_journal_account_label};
 
     #[test]
     fn extracts_configured_online_booking_channel_from_remarks() {
@@ -201,5 +219,36 @@ mod tests {
     fn payment_label_falls_back_to_cash_for_missing_method() {
         assert_eq!(payment_account_label(None, Some("walk_in"), None), "Cash");
         assert_eq!(payment_account_label(Some(""), None, None), "Cash");
+    }
+
+    #[test]
+    fn journal_label_names_the_deposit_tenders() {
+        assert_eq!(
+            payment_journal_account_label(Some("deposit"), Some("cash")),
+            "Deposit (Cash)"
+        );
+        assert_eq!(
+            payment_journal_account_label(Some("Deposit"), Some("visa_card")),
+            "Deposit (Visa Card)"
+        );
+        // A deposit with no tender recorded still reads as a deposit.
+        assert_eq!(
+            payment_journal_account_label(Some("deposit"), None),
+            "Deposit (Cash)"
+        );
+        assert_eq!(
+            payment_journal_account_label(Some("deposit_forfeited"), Some("cash")),
+            "Deposit Forfeited (Cash)"
+        );
+    }
+
+    #[test]
+    fn journal_label_leaves_bill_payments_on_the_plain_tender() {
+        assert_eq!(
+            payment_journal_account_label(Some("booking"), Some("sarawak_pay")),
+            "Sarawak Pay"
+        );
+        assert_eq!(payment_journal_account_label(Some(""), Some("cash")), "Cash");
+        assert_eq!(payment_journal_account_label(None, Some("cash")), "Cash");
     }
 }

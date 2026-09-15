@@ -17,6 +17,7 @@ import {
   Edit as EditIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
+import { useTranslation } from '../../../../../i18n';
 
 export interface CompanyFormValues {
   company_name: string;
@@ -59,8 +60,9 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
   currencySymbol,
   onSubmit,
 }) => {
+  const { t } = useTranslation('finance');
   const isCreate = mode === 'create';
-  const ph = (text: string) => (isCreate ? text : undefined);
+  const ph = (key: string) => (isCreate ? t(key) : undefined);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -72,7 +74,7 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
             gap: 1
           }}>
           {isCreate ? <BusinessIcon color="primary" /> : <EditIcon color="primary" />}
-          {isCreate ? 'Register New Company' : 'Edit Company'}
+          {isCreate ? t('ledger.companyForm.titleCreate') : t('ledger.companyForm.titleEdit')}
         </Box>
       </DialogTitle>
       <DialogContent>
@@ -80,26 +82,26 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
           {/* Company Basic Info */}
           <Grid size={12}>
             <Typography variant="subtitle2" color="primary" gutterBottom>
-              Company Information
+              {t('ledger.companyForm.sectionCompany')}
             </Typography>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               required
-              label="Company Name"
+              label={t('ledger.field.companyName')}
               value={form.company_name}
               onChange={(e) => setForm({ ...form, company_name: e.target.value })}
-              placeholder={ph('Enter company name')}
+              placeholder={ph('ledger.companyForm.ph.companyName')}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
-              label="Registration Number"
+              label={t('ledger.field.registrationNumber')}
               value={form.registration_number}
               onChange={(e) => setForm({ ...form, registration_number: e.target.value })}
-              placeholder={ph('Business registration number')}
+              placeholder={ph('ledger.companyForm.ph.registrationNumber')}
             />
           </Grid>
 
@@ -107,36 +109,36 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
           <Grid size={12}>
             <Divider sx={{ my: 1 }} />
             <Typography variant="subtitle2" color="primary" gutterBottom>
-              Contact Information
+              {t('ledger.companyForm.sectionContact')}
             </Typography>
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               fullWidth
-              label="Contact Person"
+              label={t('ledger.field.contactPerson')}
               value={form.contact_person}
               onChange={(e) => setForm({ ...form, contact_person: e.target.value })}
-              placeholder={ph('Primary contact name')}
+              placeholder={ph('ledger.companyForm.ph.contactPerson')}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               fullWidth
-              label="Contact Email"
+              label={t('ledger.field.contactEmail')}
               type="email"
               value={form.contact_email}
               onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
-              placeholder={ph('email@company.com')}
+              placeholder={ph('ledger.companyForm.ph.contactEmail')}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               fullWidth
               type="tel"
-              label="Contact Phone"
+              label={t('ledger.field.contactPhone')}
               value={form.contact_phone}
               onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
-              placeholder={ph('+60 12-345 6789')}
+              placeholder={ph('ledger.companyForm.ph.contactPhone')}
             />
           </Grid>
 
@@ -144,22 +146,22 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
           <Grid size={12}>
             <Divider sx={{ my: 1 }} />
             <Typography variant="subtitle2" color="primary" gutterBottom>
-              Billing Address
+              {t('ledger.companyForm.sectionBilling')}
             </Typography>
           </Grid>
           <Grid size={12}>
             <TextField
               fullWidth
-              label="Street Address"
+              label={t('ledger.field.streetAddress')}
               value={form.billing_address}
               onChange={(e) => setForm({ ...form, billing_address: e.target.value })}
-              placeholder={ph('Street address, building, floor')}
+              placeholder={ph('ledger.companyForm.ph.streetAddress')}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               fullWidth
-              label="City"
+              label={t('ledger.field.city')}
               value={form.billing_city}
               onChange={(e) => setForm({ ...form, billing_city: e.target.value })}
             />
@@ -167,7 +169,7 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               fullWidth
-              label="State"
+              label={t('ledger.field.state')}
               value={form.billing_state}
               onChange={(e) => setForm({ ...form, billing_state: e.target.value })}
             />
@@ -175,7 +177,7 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               fullWidth
-              label="Postal Code"
+              label={t('ledger.field.postalCode')}
               value={form.billing_postal_code}
               onChange={(e) => setForm({ ...form, billing_postal_code: e.target.value })}
             />
@@ -185,17 +187,17 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
           <Grid size={12}>
             <Divider sx={{ my: 1 }} />
             <Typography variant="subtitle2" color="primary" gutterBottom>
-              Billing Terms
+              {t('ledger.sections.billingTerms')}
             </Typography>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
-              label="Credit Limit"
+              label={t('ledger.field.creditLimit')}
               type="number"
               value={form.credit_limit}
               onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
-              placeholder={ph('0.00')}
+              placeholder={ph('ledger.companyForm.ph.creditLimit')}
               slotProps={{
                 input: {
                   startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
@@ -206,11 +208,11 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
-              label="Payment Terms (Days)"
+              label={t('ledger.field.paymentTermsDays')}
               type="number"
               value={form.payment_terms_days}
               onChange={(e) => setForm({ ...form, payment_terms_days: e.target.value })}
-              helperText={isCreate ? 'Number of days for payment after invoice' : undefined}
+              helperText={isCreate ? t('ledger.companyForm.paymentTermsHelp') : undefined}
             />
           </Grid>
 
@@ -223,16 +225,16 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
               fullWidth
               multiline
               rows={2}
-              label="Notes"
+              label={t('common:field.notes')}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder={ph('Additional notes about this company...')}
+              placeholder={ph('ledger.companyForm.ph.notes')}
             />
           </Grid>
         </Grid>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onCancel}>Cancel</Button>
+        <Button onClick={onCancel}>{t('common:actions.cancel')}</Button>
         <Button
           onClick={onSubmit}
           variant="contained"
@@ -240,8 +242,8 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
           startIcon={submitting ? <CircularProgress size={20} /> : (isCreate ? <AddIcon /> : <EditIcon />)}
         >
           {isCreate
-            ? (submitting ? 'Registering...' : 'Register Company')
-            : (submitting ? 'Updating...' : 'Update Company')}
+            ? (submitting ? t('ledger.companyForm.registering') : t('ledger.registerCompany'))
+            : (submitting ? t('ledger.companyForm.updating') : t('ledger.companyForm.updateCompany'))}
         </Button>
       </DialogActions>
     </Dialog>

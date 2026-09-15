@@ -86,7 +86,7 @@ describe('EkycService', () => {
 
       await expect(EkycService.submitEkycVerification({})).rejects.toMatchObject({
         name: 'APIError',
-        message: 'eKYC submission failed',
+        message: 'Something went wrong. Please try again.',
       });
     });
   });

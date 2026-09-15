@@ -105,7 +105,7 @@ describe('GuestPortalDashboardService', () => {
     getPortalToken.mockReturnValue(null);
 
     await expect(GuestPortalDashboardService.me()).rejects.toThrow(
-      'Not signed in to the guest portal',
+      'Please sign in to continue.',
     );
     expect(get).not.toHaveBeenCalled();
   });

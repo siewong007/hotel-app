@@ -12,11 +12,12 @@ import {
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PortalCommunicationsApi } from '../api';
-import { TOPIC_LABELS, type NotificationTopic } from '../types';
+import { type NotificationTopic } from '../types';
 import { portalSessionScope } from '../../promotions/utils';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
+import { formatStatusLabel } from '../../../utils/formatters';
 
 
 const TOPIC_KEYS: Record<NotificationTopic, string> = {
@@ -42,7 +43,7 @@ export default function PortalNotificationPreferences({ token }: { token: string
 
   const topicLabel = (topic: NotificationTopic): string => {
     const key = TOPIC_KEYS[topic];
-    return key ? t(key) : (TOPIC_LABELS[topic] ?? topic);
+    return key ? t(key) : formatStatusLabel(topic);
   };
 
   const update = useMutation({

@@ -7,7 +7,15 @@
     "retry": "重试",
     "bookingNotFound": "未找到预订",
     "workflowLoadFailed": "加载预订工作流失败",
-    "checkoutSuccess": "客人已成功退房！"
+    "checkoutSuccess": "客人已成功退房！",
+    "kicker": "前台 · {{date}}",
+    "scopeAll": "已过退房日期",
+    "scopePage": "本页已过退房日期",
+    "scopeCompanyAll": "退房后 {{months}} 个月内",
+    "scopeCompanyPage": "本页退房后 {{months}} 个月内",
+    "loadFailed": "加载预订失败",
+    "backToBookings": "返回预订列表",
+    "bookingNotFoundHint": "该预订可能已被删除，或者您没有查看权限。"
   },
   "filters": {
     "searchPlaceholder": "搜索预订、客人、发票或房号…",
@@ -112,7 +120,16 @@
     "paymentStatus": "支付状态",
     "roomFallback": "客房",
     "roomNumber": "客房 {{number}}",
-    "nightsAbbrev": "{{count}} 晚"
+    "nightsAbbrev": "{{count}} 晚",
+    "quickEdit": "快速编辑",
+    "quickEditSuccess": "预订更新成功！",
+    "quickEditFailed": "更新预订失败",
+    "ariaLabel": "预订详情",
+    "unavailable": "预订详情不可用。",
+    "notFoundTitle": "未找到预订",
+    "loadFailed": "加载预订失败",
+    "notFoundHint": "该预订可能已被删除，或您没有查看权限。",
+    "backToList": "返回预订列表"
   },
   "labels": {
     "guest": "客人：",
@@ -285,7 +302,8 @@
       "void": "作废",
       "checkout": "退房",
       "checkoutVoid": "退房 / 作废"
-    }
+    },
+    "loadFailed": "加载预订工作流失败"
   },
   "enhancedCheckIn": {
     "title": "上门客 - 账单：{{folio}}",
@@ -425,7 +443,8 @@
       "paymentMethod": "支付方式：",
       "deposit": "押金：",
       "waived": "已免收",
-      "waiveReason": "免收原因："
+      "waiveReason": "免收原因：",
+      "expirePlaceholder": "MM/YY"
     },
     "custom": {
       "guestVehicles": "客人车辆",
@@ -543,6 +562,19 @@
       "deleteFailed": "删除免费房晚失败",
       "deleting": "删除中…",
       "confirm": "删除免费房晚"
-    }
+    },
+    "pageTitle": "免费预订管理",
+    "tabBookings": "免费预订（{{count}}）",
+    "tabCredits": "客人免费房晚（{{count}}）"
+  },
+  "drawer": {
+    "aria": "预订详情",
+    "unavailable": "预订详情不可用。"
+  },
+  "quickEdit": {
+    "title": "快速编辑",
+    "checkOutDate": "退房日期",
+    "remarks": "备注",
+    "saveChanges": "保存更改"
   }
 }

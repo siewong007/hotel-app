@@ -8,6 +8,7 @@ use crate::models::{
     PaypalCreateOrderResponse, PendingPaymentEntry, PendingPaymentPage, RecordPaymentRequest,
     UpdatePaymentRequest,
 };
+use crate::core::i18n;
 use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
@@ -50,50 +51,73 @@ pub async fn queue_paid_online_booking_room_assignment(
         return Ok(false);
     };
 
+    let stored_locale = CommunicationsRepository::guest_language_preference(pool, assignment.guest_id)
+        .await
+        .ok()
+        .flatten();
+    let locale = i18n::mail_locale(pool, stored_locale.as_deref()).await;
     let hotel = email_layout::hotel_display_name();
-    let subject = format!(
-        "{hotel} · room {} assigned · {}",
-        assignment.room_number, assignment.booking_number
+    let subject = locale.format(
+        "email.roomAssigned.subject",
+        &[
+            ("hotel", &hotel),
+            ("room", &assignment.room_number),
+            ("booking", &assignment.booking_number),
+        ],
     );
     let portal = email_layout::absolute_url("/portal");
-    let stay = format!(
-        "{} to {}",
-        assignment.check_in_date.format("%d %b %Y"),
-        assignment.check_out_date.format("%d %b %Y"),
+    let stay = locale.format(
+        "email.stay.rangeShort",
+        &[
+            ("from", &locale.format_date(assignment.check_in_date)),
+            ("to", &locale.format_date(assignment.check_out_date)),
+        ],
     );
     let room = format!("{} ({})", assignment.room_number, assignment.room_type_name);
     let details = email_layout::details_table(&[
-        ("Booking", &assignment.booking_number),
-        ("Room", &room),
-        ("Stay", &stay),
+        (locale.message("email.labels.booking"), &assignment.booking_number),
+        (locale.message("email.labels.room"), &room),
+        (locale.message("email.labels.stay"), &stay),
     ]);
     let inner_html = format!(
-        "<p>Dear {},</p>\
-         <p>Your online payment is confirmed and your room has been assigned.</p>\
-         {}\
-         <p>You can also view these details in your guest portal.</p>",
-        html_escape(&assignment.guest_name),
+        "<p>{}</p><p>{}</p>{}<p>{}</p>",
+        locale.format(
+            "email.greeting",
+            &[("name", &html_escape(&assignment.guest_name))]
+        ),
+        locale.message("email.roomAssigned.bodyHtml"),
         details,
+        locale.message("email.roomAssigned.portalNote"),
     );
     let inner_text = format!(
-        "Dear {},\nYour online payment is confirmed and your room has been assigned.\n\
-         Booking: {}\nRoom: {} ({})\nStay: {}",
-        assignment.guest_name,
-        assignment.booking_number,
-        assignment.room_number,
-        assignment.room_type_name,
-        stay,
+        "{}\n{}",
+        locale.format("email.greeting", &[("name", &assignment.guest_name)]),
+        locale.format(
+            "email.roomAssigned.bodyText",
+            &[
+                ("booking", &assignment.booking_number),
+                ("room", &assignment.room_number),
+                ("roomType", &assignment.room_type_name),
+                ("from", &locale.format_date(assignment.check_in_date)),
+                ("to", &locale.format_date(assignment.check_out_date)),
+            ],
+        ),
     );
     let rendered = email_layout::render(GuestEmail {
-        preheader: &format!(
-            "Room {} assigned for {hotel} reservation {}.",
-            assignment.room_number, assignment.booking_number
+        locale,
+        preheader: &locale.format(
+            "email.roomAssigned.preheader",
+            &[
+                ("room", &assignment.room_number),
+                ("hotel", &hotel),
+                ("booking", &assignment.booking_number),
+            ],
         ),
-        heading: "Your room is assigned",
+        heading: locale.message("email.roomAssigned.heading"),
         inner_html: &inner_html,
         inner_text: &inner_text,
         cta: Some(Cta {
-            label: "View your booking",
+            label: locale.message("email.cta.viewBooking"),
             url: &portal,
         }),
     });
@@ -1045,6 +1069,7 @@ pub async fn queue_checkout_receipt_email(
         extra_bed_charge: rust_decimal::Decimal,
         room_number: Option<String>,
         room_type: Option<String>,
+        guest_locale: Option<String>,
     }
 
     let source = sqlx::query_as::<_, ReceiptSource>(
@@ -1060,7 +1085,8 @@ pub async fn queue_checkout_receipt_email(
                COALESCE(b.tourism_tax_amount, 0) AS tourism_tax_amount,
                COALESCE(b.extra_bed_charge, 0) AS extra_bed_charge,
                r.room_number,
-               rt.name AS room_type
+               rt.name AS room_type,
+               g.language_preference AS guest_locale
         FROM bookings b
         JOIN guests g ON g.id = b.guest_id
         LEFT JOIN rooms r ON r.id = b.room_id
@@ -1112,15 +1138,21 @@ pub async fn queue_checkout_receipt_email(
     let billable_total = source.total_amount + source.tourism_tax_amount + source.extra_bed_charge;
     let balance = (billable_total - paid).max(rust_decimal::Decimal::ZERO);
 
+    let locale = i18n::mail_locale(pool, source.guest_locale.as_deref()).await;
     let hotel = email_layout::hotel_display_name();
     let booking_number = source.booking_number.as_deref().unwrap_or("");
-    let subject = format!("Your {hotel} receipt · {booking_number}");
+    let subject = locale.format(
+        "email.receipt.subject",
+        &[("hotel", &hotel), ("booking", booking_number)],
+    );
     let portal = email_layout::absolute_url("/portal");
-    let stay = format!(
-        "{} to {} · {} night(s)",
-        source.check_in_date.format("%d %b %Y"),
-        source.check_out_date.format("%d %b %Y"),
-        nights,
+    let stay = locale.format(
+        "email.stay.range",
+        &[
+            ("from", &locale.format_date(source.check_in_date)),
+            ("to", &locale.format_date(source.check_out_date)),
+            ("nights", &nights.to_string()),
+        ],
     );
     let room = format!(
         "{} ({})",
@@ -1131,39 +1163,54 @@ pub async fn queue_checkout_receipt_email(
     let paid_label = format!("{paid:.2}");
     let balance_label = format!("{balance:.2}");
     let details = email_layout::details_table(&[
-        ("Booking", booking_number),
-        ("Invoice", invoice_number),
-        ("Room", &room),
-        ("Stay", &stay),
-        ("Total charged", &total),
-        ("Payments received", &paid_label),
-        ("Balance", &balance_label),
+        (locale.message("email.labels.booking"), booking_number),
+        (locale.message("email.labels.invoice"), invoice_number),
+        (locale.message("email.labels.room"), &room),
+        (locale.message("email.labels.stay"), &stay),
+        (locale.message("email.labels.totalCharged"), &total),
+        (locale.message("email.labels.paymentsReceived"), &paid_label),
+        (locale.message("email.labels.balance"), &balance_label),
     ]);
     let inner_html = format!(
-        "<p>Dear {},</p>\
-         <p>Thank you for staying with us. Here is your receipt.</p>\
-         {}\
-         <p>You can review your bookings any time in your guest portal.</p>",
-        html_escape(&source.guest_name),
+        "<p>{}</p><p>{}</p>{}<p>{}</p>",
+        locale.format(
+            "email.greeting",
+            &[("name", &html_escape(&source.guest_name))]
+        ),
+        locale.message("email.receipt.bodyHtml"),
         details,
+        locale.message("email.receipt.portalNote"),
     );
-    let inner_text = format!(
-        "Dear {},\nThank you for staying with us. Here is your receipt.\n\
-         Booking: {}\nInvoice: {}\nStay: {}\nTotal charged: {}\nPayments received: {}\nBalance: {}",
-        source.guest_name, booking_number, invoice_number, stay, total, paid_label, balance_label,
+    let inner_text = locale.format(
+        "email.receipt.bodyText",
+        &[
+            ("name", &source.guest_name),
+            ("booking", booking_number),
+            ("invoice", invoice_number),
+            ("stay", &stay),
+            ("total", &total),
+            ("paid", &paid_label),
+            ("balance", &balance_label),
+        ],
     );
     let rendered = email_layout::render(GuestEmail {
-        preheader: &format!("Receipt for your {hotel} stay {booking_number}."),
-        heading: "Your receipt",
+        locale,
+        preheader: &locale.format(
+            "email.receipt.preheader",
+            &[("hotel", &hotel), ("booking", booking_number)],
+        ),
+        heading: locale.message("email.receipt.heading"),
         inner_html: &inner_html,
         inner_text: &inner_text,
         cta: Some(Cta {
-            label: "View your booking",
+            label: locale.message("email.cta.viewBooking"),
             url: &portal,
         }),
     });
-    let footer =
-        crate::modules::communications::scheduler::unsubscribe_footer_html(source.guest_id);
+    let footer = crate::modules::communications::scheduler::unsubscribe_footer_html(
+        source.guest_id,
+        locale,
+    );
     let body_html_with_footer = format!("{}{footer}", rendered.html);
     let body_text = rendered.text;
 
@@ -2163,9 +2210,13 @@ fn receipt_request_mail(
     booking: &str,
     message: &str,
     access_token: Option<&str>,
+    locale: crate::core::i18n::Locale,
 ) -> (String, String, String) {
     let hotel = email_layout::hotel_display_name();
-    let subject = format!("Receipt requested · {hotel} {booking}");
+    let subject = locale.format(
+        "email.receiptRequest.subject",
+        &[("hotel", &hotel), ("booking", booking)],
+    );
     let cta_url = match access_token
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -2178,24 +2229,34 @@ fn receipt_request_mail(
         .filter(|value| !value.is_empty())
         .is_some()
     {
-        "Upload receipt"
+        locale.message("email.cta.uploadReceipt")
     } else {
-        "Open guest portal"
+        locale.message("email.cta.portal")
     };
     let inner_html = format!(
-        "<p>Dear {},</p><p>Please upload your bank-transfer receipt for booking <strong>{}</strong> within 24 hours.</p><p>{}</p>",
-        html_escape(guest_name),
-        html_escape(booking),
+        "<p>{}</p><p>{}</p><p>{}</p>",
+        locale.format("email.greeting", &[("name", &html_escape(guest_name))]),
+        locale.format(
+            "email.receiptRequest.bodyHtml",
+            &[("booking", &html_escape(booking))],
+        ),
         html_escape(message)
     );
-    let inner_text = format!(
-        "Dear {guest_name},\nPlease upload your bank-transfer receipt for booking {booking} within 24 hours.\n{message}",
+    let inner_text = locale.format(
+        "email.receiptRequest.bodyText",
+        &[
+            ("name", guest_name),
+            ("booking", booking),
+            ("message", message),
+        ],
     );
     let rendered = email_layout::render(GuestEmail {
-        preheader: &format!(
-            "Please upload your transfer receipt for {hotel} reservation {booking}."
+        locale,
+        preheader: &locale.format(
+            "email.receiptRequest.preheader",
+            &[("hotel", &hotel), ("booking", booking)],
         ),
-        heading: "Receipt needed",
+        heading: locale.message("email.receiptRequest.heading"),
         inner_html: &inner_html,
         inner_text: &inner_text,
         cta: Some(Cta {
@@ -2251,15 +2312,22 @@ async fn queue_payment_receipt_request_notification(
             return;
         }
     };
-    let booking = booking_number.unwrap_or("your booking");
-    let message =
-        message.unwrap_or("Please upload a clear receipt showing the transfer reference and date.");
+    let stored_locale = CommunicationsRepository::guest_language_preference(pool, guest_id)
+        .await
+        .ok()
+        .flatten();
+    let locale = i18n::mail_locale(pool, stored_locale.as_deref()).await;
+    let booking = booking_number.unwrap_or_else(|| locale.message("email.fallback.booking"));
+    let default_message = locale.message("email.receiptRequest.defaultMessage");
+    let message = message.unwrap_or(default_message);
+    let fallback_name = locale.message("email.fallback.guest");
     let access_token = issue_anonymous_receipt_upload_token(pool, guest_id, booking_id).await;
     let (subject, body_html, body_text) = receipt_request_mail(
-        guest_name.unwrap_or("Guest"),
+        guest_name.unwrap_or(fallback_name),
         booking,
         message,
         access_token.as_deref(),
+        locale,
     );
     let mut tx = match pool.begin().await {
         Ok(tx) => tx,
@@ -2411,64 +2479,89 @@ async fn queue_payment_rejected_notification(
         }
     };
 
+    let stored_locale = CommunicationsRepository::guest_language_preference(pool, guest_id)
+        .await
+        .ok()
+        .flatten();
+    let locale = i18n::mail_locale(pool, stored_locale.as_deref()).await;
     let hotel = email_layout::hotel_display_name();
-    let subject = format!("Payment update · {hotel} {booking_number}");
+    let subject = locale.format(
+        "email.paymentRejected.subject",
+        &[("hotel", &hotel), ("booking", booking_number)],
+    );
     let portal = email_layout::absolute_url("/portal");
-    let seal_html = email_layout::identity_seal_html();
-    let seal_text = email_layout::identity_seal_text();
+    let seal_html = email_layout::identity_seal_html(locale);
+    let seal_text = email_layout::identity_seal_text(locale);
 
     let expiry_label = recovery
         .as_ref()
-        .map(|link| link.expires_at.format("%e %b %Y, %H:%M UTC").to_string());
-    let mut rows: Vec<(&str, &str)> = vec![("Booking", booking_number), ("Reason", reason)];
+        .map(|link| {
+            format!(
+                "{}, {} UTC",
+                locale.format_date(link.expires_at.date_naive()),
+                link.expires_at.format("%H:%M")
+            )
+        });
+    let mut rows: Vec<(&str, &str)> = vec![
+        (locale.message("email.labels.booking"), booking_number),
+        (locale.message("email.labels.reason"), reason),
+    ];
     if let Some(expiry) = expiry_label.as_deref() {
-        rows.push(("Link valid until", expiry));
+        rows.push((locale.message("email.labels.linkValidUntil"), expiry));
     }
     let details = email_layout::details_table(&rows);
 
     let (action_html, action_text, cta) = match recovery.as_ref() {
         Some(link) => (
-            "<p>You can pay again using the button below. The link works once and \
-             then expires, so please do not share it.</p>"
-                .to_string(),
-            "You can pay again using the link below. It works once and then expires, \
-             so please do not share it."
+            format!("<p>{}</p>", locale.message("email.paymentRejected.payAgainHtml")),
+            locale
+                .message("email.paymentRejected.payAgainText")
                 .to_string(),
             Cta {
-                label: "Complete your payment",
+                label: locale.message("email.cta.completePayment"),
                 url: &link.url,
             },
         ),
         None => (
-            "<p>Please contact the hotel and we will help you complete this booking.</p>"
+            format!("<p>{}</p>", locale.message("email.paymentRejected.contactHtml")),
+            locale
+                .message("email.paymentRejected.contactText")
                 .to_string(),
-            "Please contact the hotel and we will help you complete this booking.".to_string(),
             Cta {
-                label: "Open guest portal",
+                label: locale.message("email.cta.portal"),
                 url: &portal,
             },
         ),
     };
 
     let inner_html = format!(
-        "<p>Dear {},</p>\
-         <p>We were unable to confirm your recent payment for booking <strong>{}</strong>.</p>\
-         {}\
-         {}\
-         {}",
-        html_escape(guest_name),
-        html_escape(booking_number),
+        "<p>{}</p><p>{}</p>{}{}{}",
+        locale.format("email.greeting", &[("name", &html_escape(guest_name))]),
+        locale.format(
+            "email.paymentRejected.bodyHtml",
+            &[("booking", &html_escape(booking_number))],
+        ),
         details,
         action_html,
         seal_html,
     );
-    let inner_text = format!(
-        "Dear {guest_name},\nWe were unable to confirm your recent payment for booking {booking_number}.\n\
-         Reason: {reason}\n{action_text}\n\n{seal_text}",
+    let inner_text = locale.format(
+        "email.paymentRejected.bodyText",
+        &[
+            ("name", guest_name),
+            ("booking", booking_number),
+            ("reason", reason),
+            ("action", &action_text),
+            ("seal", &seal_text),
+        ],
     );
     let rendered = email_layout::render(GuestEmail {
-        preheader: &format!("An update on your payment for {hotel} reservation {booking_number}."),
-        heading: "Payment not confirmed",
+        locale,
+        preheader: &locale.format(
+            "email.paymentRejected.preheader",
+            &[("hotel", &hotel), ("booking", booking_number)],
+        ),
+        heading: locale.message("email.paymentRejected.heading"),
         inner_html: &inner_html,
         inner_text: &inner_text,
         cta: Some(cta),
@@ -2807,6 +2900,7 @@ pub async fn load_payment_receipt(
 #[cfg(test)]
 mod receipt_request_mail_tests {
     use super::receipt_request_mail;
+    use crate::core::i18n::Locale;
 
     #[test]
     fn signed_in_guest_is_sent_to_the_guest_portal() {
@@ -2819,6 +2913,7 @@ mod receipt_request_mail_tests {
             "BK-20260910-a3a2579f",
             "Please upload a clear receipt showing the transfer reference and date.",
             None,
+            Locale::default_locale(),
         );
         assert!(subject.contains("Receipt requested"));
         assert!(html.contains("Receipt needed"));
@@ -2839,6 +2934,7 @@ mod receipt_request_mail_tests {
             "BK-20260910-a3a2579f",
             "Please upload a clear receipt showing the transfer reference and date.",
             Some("deadbeefcafebabe"),
+            Locale::default_locale(),
         );
         assert!(subject.contains("BK-20260910-a3a2579f"));
         assert!(html.contains("Upload receipt"));

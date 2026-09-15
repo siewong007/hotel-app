@@ -1,3 +1,230 @@
 {
-  "title": "概览"
+  "title": "概览",
+  "sections": {
+    "offers": "优惠"
+  },
+  "frontDesk": {
+    "title": "前台",
+    "subtitle": "酒店运营与客房状态的实时概览",
+    "ariaRefresh": "刷新仪表板",
+    "accessDenied": "此仪表板仅限前台接待员和经理访问。",
+    "guestFallback": "客人",
+    "notAvailable": "不适用",
+    "roomPrefix": "房间 {{number}}",
+    "errors": {
+      "loadFailed": "加载仪表板数据失败",
+      "loadCheckInFailed": "加载入住数据失败"
+    },
+    "cards": {
+      "availableRooms": "可用客房",
+      "occupiedRooms": "已入住客房",
+      "reservedRooms": "已预订客房",
+      "occupancyRate": "入住率"
+    },
+    "activity": {
+      "checkIns": "今日入住",
+      "checkOuts": "今日退房",
+      "viewAllArrivals": "查看全部 {{count}} 个到店",
+      "viewAllDepartures": "查看全部 {{count}} 个离店",
+      "noCheckIns": "暂无已安排的入住",
+      "noCheckOuts": "暂无已安排的退房",
+      "attentionRequired": "需要注意",
+      "maintenanceRooms": "维修客房",
+      "viewAllArrivals_one": "查看全部 {{count}} 个到店",
+      "viewAllArrivals_other": "查看全部 {{count}} 个到店",
+      "viewAllDepartures_one": "查看全部 {{count}} 个离店",
+      "viewAllDepartures_other": "查看全部 {{count}} 个离店"
+    },
+    "legend": {
+      "cleaningAuto": "清洁中（自动）"
+    },
+    "statusOverview": "客房状态概览",
+    "tooltip": {
+      "type": "类型：",
+      "guest": "客人：",
+      "notes": "备注：",
+      "clickDetails": "点击查看房间详情"
+    },
+    "tile": {
+      "out": "退房：",
+      "next": "下次：",
+      "start": "开始：",
+      "end": "结束："
+    }
+  },
+  "reports": {
+    "title": "报表与分析",
+    "subtitle": "运营与财务综合概览 · {{property}}",
+    "mainProperty": "主物业",
+    "crumbReports": "报表",
+    "crumbAnalytics": "分析",
+    "restricted": "受限",
+    "financeOnly": "仅限财务",
+    "accessFull": "完整权限",
+    "accessScoped": "受限权限",
+    "viewAll": "查看全部",
+    "settled": "已结清",
+    "roomLabel": "房间 {{room}}",
+    "checkoutAt": "退房 {{time}}",
+    "dueDate": "到期 {{date}}",
+    "kpiTrendAria": "{{label}}趋势",
+    "rangeDays": "{{count}} 天",
+    "rangeDays_one": "{{count}} 天",
+    "rangeDays_other": "{{count}} 天",
+    "footNote": "运营磁贴（到店、离店、在住、客房服务）反映实时预订与客房数据。收入、入住率趋势、渠道组合、各房型与管道数据来自收入分析——趋势按住宿日期，渠道份额按预订创建日期。应收账龄读取截至今日的未结发票。",
+    "compare": {
+      "month": "对比上月同期",
+      "year": "对比去年同期",
+      "prev": "对比前 {{count}} 天",
+      "prev_one": "对比前 {{count}} 天",
+      "prev_other": "对比前 {{count}} 天",
+      "noPrior": "· 无前期数据"
+    },
+    "filters": {
+      "roomType": "房型",
+      "source": "来源",
+      "compare": "对比",
+      "comparePrev": "上一周期",
+      "compareMonth": "上月",
+      "compareYear": "去年"
+    },
+    "live": {
+      "title": "今日 · 实时",
+      "updated": "更新于 {{time}} · 自动刷新",
+      "arrivals": "到店",
+      "departures": "离店",
+      "inHouse": "在住客人",
+      "occupancyNow": "当前入住率",
+      "toClean": "待清洁房间",
+      "unassigned": "未分配"
+    },
+    "kpi": {
+      "occupancyRate": "入住率",
+      "roomRevenue": "客房收入",
+      "totalRevenue": "总收入",
+      "outstanding": "未结款项"
+    },
+    "charts": {
+      "dailyRevenue": "每日收入趋势",
+      "dailyRevenueSub": "客房 {{room}} · 其他 {{other}} · 最近 {{days}} 天",
+      "dailyRevenueAria": "按住宿日期划分的每日收入趋势",
+      "dailyRevenueLocked": "收入分析",
+      "roomRevenue": "客房收入",
+      "otherRevenue": "其他收入",
+      "sourceMix": "预订渠道组合",
+      "sourceMixSub": "按净收入 · 预订创建日期",
+      "occupancyTrend": "入住率趋势",
+      "occupancyTrendSub": "平均 {{avg}} · {{rooms}} 间客房 · 最近 {{days}} 天",
+      "occupancyTrendAria": "按住宿日期划分的每日入住率",
+      "dailyOccupancy": "每日入住率",
+      "occupancy": "入住率",
+      "roomTypePerf": "房型表现",
+      "roomTypePerfSub": "按客房收入",
+      "roomTypePerfAria": "按房型划分的客房收入",
+      "ageing": "未结账龄",
+      "ageingSub": "点击深入查看",
+      "ageingEmpty": "无未结发票",
+      "ageingAria": "未结发票账龄",
+      "tooltipBookings": "{{count}} 个预订",
+      "tooltipBookings_one": "{{count}} 个预订",
+      "tooltipBookings_other": "{{count}} 个预订",
+      "tooltipOccupancy": "入住率：{{value}}",
+      "tooltipRoomsSold": "已售 {{count}} 间房",
+      "tooltipRoomsSold_one": "已售 {{count}} 间房",
+      "tooltipRoomsSold_other": "已售 {{count}} 间房",
+      "tooltipRoomRevenue": "客房收入 {{value}}",
+      "tooltipOccAdr": "入住率 {{occ}} · ADR {{adr}}",
+      "total": "总计"
+    },
+    "flow": {
+      "arrivals": "今日到店",
+      "departures": "今日离店",
+      "expectedSub": "预计 {{count}}",
+      "expectedSub_one": "预计 {{count}}",
+      "expectedSub_other": "预计 {{count}}",
+      "subArrivals": "{{date}} · 预计 {{count}} 个入住",
+      "subArrivals_one": "{{date}} · 预计 {{count}} 个入住",
+      "subArrivals_other": "{{date}} · 预计 {{count}} 个入住",
+      "subDepartures": "{{date}} · 预计 {{count}} 个退房",
+      "subDepartures_one": "{{date}} · 预计 {{count}} 个退房",
+      "subDepartures_other": "{{date}} · 预计 {{count}} 个退房",
+      "liveNote": "实时运营列表 · 自动刷新",
+      "openFrontDesk": "打开前台"
+    },
+    "occupancy": {
+      "title": "入住率详情",
+      "sub": "客房状态快照 · 深入查看房间时间线",
+      "openTimeline": "打开房间时间线",
+      "byRoomType": "按房型入住率",
+      "byRoomTypeAria": "按房型划分的入住率",
+      "departuresToday": "今日离店",
+      "foot": "入住率 {{pct}} · {{rooms}} 间中已入住 {{occupied}} 间",
+      "tooltipOccupied": "已入住 {{pct}}",
+      "tooltipRooms": "{{count}} 间",
+      "tooltipRooms_one": "{{count}} 间",
+      "tooltipRooms_other": "{{count}} 间"
+    },
+    "outstanding": {
+      "title": "未结余额",
+      "sub": "客人及公司未付余额 · 截至 {{date}}",
+      "source": "权威来源：发票总额 − 有效付款",
+      "total": "未结总额",
+      "buckets": "账龄分组",
+      "bucketsAria": "未结发票账龄分组",
+      "guestBalances": "客人余额",
+      "companyBalances": "公司余额",
+      "guest": "客人",
+      "company": "公司",
+      "colAgeing": "账龄",
+      "colBalance": "余额",
+      "invoiceCount": "{{count}} 张发票",
+      "invoiceCount_one": "{{count}} 张发票",
+      "invoiceCount_other": "{{count}} 张发票",
+      "shareOfTotal": "占总额 {{pct}}%"
+    },
+    "revenue": {
+      "sub": "收入状态是不同的经济事件——不可相加",
+      "earnedNote": "已实现 = 已过账的客房费用分类账条目",
+      "viewBookings": "查看预订",
+      "byRoomType": "按房型"
+    },
+    "pipeline": {
+      "booked": "已预订",
+      "bookedDesc": "已确认的未来预订",
+      "earned": "已实现",
+      "earnedDesc": "已完成的间夜",
+      "collected": "已收取",
+      "collectedDesc": "已收到的付款",
+      "outstanding": "未结",
+      "outstandingDesc": "未付发票",
+      "info1": "未来的预订记为",
+      "info2": "；已完成的间夜记为",
+      "info3": "；已收到的付款记为",
+      "info4": "；未付发票记为",
+      "info5": "。仪表板按住宿日期报告",
+      "info6": "收入。"
+    },
+    "roomStatus": {
+      "occupied": "已入住",
+      "vacantReady": "空房 · 就绪",
+      "vacantClean": "空房 · 已清洁",
+      "arrivingToday": "今日到店"
+    },
+    "titles": {
+      "roomRev": "客房收入",
+      "totalRev": "总收入",
+      "adr": "平均每日房价",
+      "revpar": "RevPAR",
+      "revenue": "收入"
+    },
+    "colGuest": "客人",
+    "colRoom": "房间",
+    "colEta": "预计到店",
+    "colNights": "间夜",
+    "colBalance": "余额",
+    "colType": "类型",
+    "colOcc": "入住率",
+    "colRevenue": "收入",
+    "roomCheckout": "房间 {{room}} · {{out}}"
+  }
 }

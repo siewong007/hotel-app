@@ -37,7 +37,7 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
   disabled = false,
 }) => {
   const { groupLabel } = useRouteLabels();
-  const { tOr } = useTranslation('nav');
+  const { t, tOr } = useTranslation('nav');
 
   // Group policies by the registry's navGroup so this matrix mirrors the
   // sidebar — the DB's nav_group column still holds the legacy
@@ -77,7 +77,7 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
           color: "text.secondary",
           mb: 2
         }}>
-        Which tabs can this role access?
+        {t('admin:rbac.navAccessPrompt')}
       </Typography>
       {navByGroup.sections.map((section) => (
         <Box key={section.group} sx={{ mb: 2 }}>

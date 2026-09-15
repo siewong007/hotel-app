@@ -787,6 +787,11 @@ mod postgres_tests {
             Some("Add your IC or passport number to your details to check in online."),
             "the reason must tell the guest what to do about it"
         );
+        assert_eq!(
+            blocked.auto_checkin_block_code.as_deref(),
+            Some("identity_document_required"),
+            "the block code must stay stable so the guest UI can localize it"
+        );
 
         sqlx::query("UPDATE guests SET ic_number = 'A1234567' WHERE id = $1")
             .bind(guest_id)

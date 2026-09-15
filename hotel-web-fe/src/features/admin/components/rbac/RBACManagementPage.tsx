@@ -41,6 +41,7 @@ import {
 import { UsersTab } from './UsersTab';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { errorMessage } from '../../../../utils/errorMessage';
+import { useTranslation } from '../../../../i18n';
 
 /* ---------- Design tokens — aliases onto the global --hotel-* vars ---------- */
 const T = {
@@ -123,6 +124,7 @@ const initials = (s: string) =>
   s.split(/[\s._-]+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 
 const RBACManagementPage: React.FC = () => {
+  const { t } = useTranslation('admin');
   const {
     roles,
     permissions,
@@ -276,10 +278,10 @@ const RBACManagementPage: React.FC = () => {
       const nextPerms = permissions.filter((p) => draftSet.has(p.id));
       updateRolePermissions(selectedId, nextPerms);
       showSnackbar(
-        `Saved ${selectedRole.name} — ${added.length} added, ${removed.length} removed`
+        t('rbac.toast.saved', { name: selectedRole.name, added: added.length, removed: removed.length })
       );
     } catch (e) {
-      showSnackbar(errorMessage(e, 'Failed to save permissions'), 'error');
+      showSnackbar(errorMessage(e, t('rbac.errors.savePermissions')), 'error');
       reload();
     } finally {
       setSaving(false);
@@ -307,7 +309,7 @@ const RBACManagementPage: React.FC = () => {
         setRoles((prev) => [...prev, created]);
         updateRolePermissions(created.id, []);
         setSelectedId(created.id);
-        showSnackbar(`Role "${created.name}" created`);
+        showSnackbar(t('rbac.toast.roleCreated', { name: created.name }));
       } else if (roleDialog === 'rename' && selectedRole) {
         const updated = await updateRoleMutation.mutateAsync({
           roleId: String(selectedRole.id),
@@ -317,18 +319,18 @@ const RBACManagementPage: React.FC = () => {
           },
         });
         setRoles((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-        showSnackbar(`Role "${updated.name}" updated`);
+        showSnackbar(t('rbac.toast.roleUpdated', { name: updated.name }));
       }
       setRoleDialog(null);
     } catch (e) {
-      showSnackbar(errorMessage(e, 'Failed to save role'), 'error');
+      showSnackbar(errorMessage(e, t('rbac.errors.saveRole')), 'error');
     }
   };
   const duplicateRole = async () => {
     if (!selectedRole) return;
     try {
       const created = await createRoleMutation.mutateAsync({
-        name: `${selectedRole.name} (Copy)`,
+        name: t('rbac.copyName', { name: selectedRole.name }),
         description: selectedRole.description || undefined,
       });
       const perms = [...(rolePermissionMap[selectedRole.id] || [])];
@@ -342,9 +344,9 @@ const RBACManagementPage: React.FC = () => {
         permissions.filter((p) => perms.includes(p.id))
       );
       setSelectedId(created.id);
-      showSnackbar(`Duplicated as "${created.name}"`);
+      showSnackbar(t('rbac.toast.roleDuplicated', { name: created.name }));
     } catch (e) {
-      showSnackbar(errorMessage(e, 'Failed to duplicate role'), 'error');
+      showSnackbar(errorMessage(e, t('rbac.errors.duplicateRole')), 'error');
     }
   };
   const confirmDelete = async () => {
@@ -356,29 +358,29 @@ const RBACManagementPage: React.FC = () => {
         const remaining = roles.filter((r) => r.id !== deleteTarget.id);
         setSelectedId(remaining.length ? remaining[0].id : null);
       }
-      showSnackbar(`Role "${deleteTarget.name}" deleted`);
+      showSnackbar(t('rbac.toast.roleDeleted', { name: deleteTarget.name }));
       setDeleteTarget(null);
     } catch (e) {
-      showSnackbar(errorMessage(e, 'Failed to delete role'), 'error');
+      showSnackbar(errorMessage(e, t('rbac.errors.deleteRole')), 'error');
     }
   };
 
   // Users tab handlers (reuse existing UsersTab functionality)
   const handleUserCreated = (user: User) => {
     setUsers((prev) => [...prev, { ...user, roles: [] }]);
-    showSnackbar(`User "${user.username}" created`);
+    showSnackbar(t('rbac.toast.userCreated', { name: user.username }));
   };
   const handleUserUpdated = (user: User) => {
     setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, ...user } : u)));
-    showSnackbar(`User "${user.username}" updated`);
+    showSnackbar(t('rbac.toast.userUpdated', { name: user.username }));
   };
   const handleUserDeleted = (userId: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
-    showSnackbar('User deleted');
+    showSnackbar(t('rbac.toast.userDeleted'));
   };
   const handleRolesAssigned = (userId: string, roleIds: number[]) => {
     updateUserRoles(userId, roleIds);
-    showSnackbar('User roles updated');
+    showSnackbar(t('rbac.toast.userRolesUpdated'));
   };
 
   if (error && !loading) {
@@ -387,7 +389,7 @@ const RBACManagementPage: React.FC = () => {
         <Alert
           severity="error"
           action={
-            <IconButton color="inherit" size="small" onClick={reload} aria-label="Retry">
+            <IconButton color="inherit" size="small" onClick={reload} aria-label={t('common:actions.retry')}>
               <RefreshIcon />
             </IconButton>
           }
@@ -426,23 +428,23 @@ const RBACManagementPage: React.FC = () => {
       <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap', mb: 2.25 }}>
         <Box>
           <Box sx={{ fontSize: 11.5, color: T.ink3, fontWeight: 500, display: 'flex', gap: 0.75, mb: 0.75 }}>
-            <span>Settings</span><span style={{ color: T.ink4 }}>/</span>
-            <span>Access Control</span><span style={{ color: T.ink4 }}>/</span>
-            <span style={{ color: T.ink2, fontWeight: 600 }}>Roles &amp; Permissions</span>
+            <span>{t('audit.crumbs.settings')}</span><span style={{ color: T.ink4 }}>/</span>
+            <span>{t('rbac.crumbs.accessControl')}</span><span style={{ color: T.ink4 }}>/</span>
+            <span style={{ color: T.ink2, fontWeight: 600 }}>{t('rbac.title')}</span>
           </Box>
           <Typography component="h1" sx={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px', display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: T.emeraldSoft, color: T.emeraldDarker, display: 'grid', placeItems: 'center', border: `1px solid color-mix(in srgb, ${T.emerald} 16%, transparent)` }}>
               <SecurityIcon sx={{ fontSize: 20 }} />
             </Box>
-            Roles &amp; Permissions
+            {t('rbac.title')}
           </Typography>
           <Typography sx={{ fontSize: 13, color: T.ink3, mt: 0.5 }}>
-            Manage access policies, assign roles, and audit who can do what across the property.
+            {t('rbac.subtitle')}
           </Typography>
         </Box>
-        <Tooltip title="Refresh">
+        <Tooltip title={t('common:actions.refresh')}>
           <span>
-            <IconButton onClick={reload} disabled={loading} aria-label="Refresh roles" sx={{ border: `1px solid ${T.border}`, borderRadius: '9px' }}>
+            <IconButton onClick={reload} disabled={loading} aria-label={t('rbac.refresh')} sx={{ border: `1px solid ${T.border}`, borderRadius: '9px' }}>
               {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
             </IconButton>
           </span>
@@ -465,8 +467,8 @@ const RBACManagementPage: React.FC = () => {
         p: '4px',
         mb: 2,
       }}>
-        <PtabBtn id="roles" label="Roles & Permissions" count={`${roles.length} / ${totalPerms}`} />
-        <PtabBtn id="users" label="Users" count={`${users.length}`} />
+        <PtabBtn id="roles" label={t('rbac.title')} count={`${roles.length} / ${totalPerms}`} />
+        <PtabBtn id="users" label={t('rbac.usersTab')} count={`${users.length}`} />
       </Box>
       {loading && (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
@@ -478,12 +480,12 @@ const RBACManagementPage: React.FC = () => {
           {/* Sidebar */}
           <Box sx={{ bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '14px', overflow: 'hidden', position: { md: 'sticky' }, top: 16 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', p: '12px 14px', borderBottom: `1px solid ${T.border}`, background: `linear-gradient(180deg,${T.surface},${T.surface2})` }}>
-              <Box sx={{ fontSize: 11, fontWeight: 700, color: T.ink3, letterSpacing: '0.6px', textTransform: 'uppercase' }}>Roles</Box>
-              <Box sx={{ ml: 'auto', fontSize: 11, fontWeight: 700, color: T.ink3 }}>{roles.length} configured</Box>
+              <Box sx={{ fontSize: 11, fontWeight: 700, color: T.ink3, letterSpacing: '0.6px', textTransform: 'uppercase' }}>{t('rbac.rolesHeading')}</Box>
+              <Box sx={{ ml: 'auto', fontSize: 11, fontWeight: 700, color: T.ink3 }}>{t('rbac.configuredCount', { count: roles.length })}</Box>
             </Box>
             <Box sx={{ p: '8px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 1 }}>
               <SearchIcon sx={{ fontSize: 16, color: T.ink3 }} />
-              <Box component="input" placeholder="Search roles…" value={roleSearch}
+              <Box component="input" placeholder={t('rbac.searchRoles')} value={roleSearch}
                 onChange={(e) => setRoleSearch((e.target as HTMLInputElement).value)}
                 sx={{ flex: 1, border: 'none', outline: 'none', bgcolor: 'transparent', fontSize: 13, fontFamily: 'inherit' }} />
             </Box>
@@ -507,7 +509,7 @@ const RBACManagementPage: React.FC = () => {
                     <Box sx={{ minWidth: 0 }}>
                       <Box sx={{ fontSize: 13.5, fontWeight: 700, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</Box>
                       <Box sx={{ fontSize: 11, color: T.ink3, fontWeight: 500, mt: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {uCount} {uCount === 1 ? 'user' : 'users'} · {cnt}/{totalPerms} perms
+                        {t('rbac.roleCardMeta', { users: uCount, cnt, total: totalPerms })}
                       </Box>
                     </Box>
                     <Box sx={{ width: 28, height: 4, borderRadius: 4, bgcolor: T.surface3, overflow: 'hidden' }}>
@@ -520,7 +522,7 @@ const RBACManagementPage: React.FC = () => {
             <Box sx={{ p: '10px', borderTop: `1px solid ${T.border}`, bgcolor: T.surface2 }}>
               <Button fullWidth variant="contained" startIcon={<AddIcon />} onClick={openCreate}
                 sx={{ textTransform: 'none', bgcolor: T.emerald, '&:hover': { bgcolor: T.emeraldDeep } }}>
-                New role
+                {t('rbac.newRole')}
               </Button>
             </Box>
           </Box>
@@ -538,13 +540,13 @@ const RBACManagementPage: React.FC = () => {
                     </Box>
                     <Box sx={{ minWidth: 0 }}>
                       <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                        ROLE
+                        {t('rbac.roleTag')}
                         <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, bgcolor: acc.soft, color: acc.deep, px: 1, py: '2px', borderRadius: 999, textTransform: 'none', fontWeight: 700, fontSize: 11, border: `1px solid color-mix(in srgb, ${acc.deep} 14%, transparent)` }}>
-                          {isBuiltin(selectedRole) ? <><LockIcon sx={{ fontSize: 12 }} /> Built-in</> : 'Custom'}
+                          {isBuiltin(selectedRole) ? <><LockIcon sx={{ fontSize: 12 }} /> {t('rbac.builtin')}</> : t('rbac.custom')}
                         </Box>
                         {locked && (
                           <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, bgcolor: T.roseSoft, color: T.roseDeep, px: 1, py: '2px', borderRadius: 999, textTransform: 'none', fontWeight: 700, fontSize: 11, border: `1px solid color-mix(in srgb, ${T.rose} 22%, transparent)` }}>
-                            <BoltIcon sx={{ fontSize: 12 }} /> Full access
+                            <BoltIcon sx={{ fontSize: 12 }} /> {t('rbac.fullAccess')}
                           </Box>
                         )}
                       </Box>
@@ -555,22 +557,22 @@ const RBACManagementPage: React.FC = () => {
                         </Box>
                       </Typography>
                       <Typography sx={{ mt: 0.75, fontSize: 13.5, color: T.ink2, maxWidth: '60ch' }}>
-                        {selectedRole.description || 'No description provided for this role.'}
+                        {selectedRole.description || t('rbac.noDescription')}
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, mt: 1.5, flexWrap: 'wrap', fontFamily: 'JetBrains Mono, monospace' }}>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
                           <Box sx={{ fontSize: 18, fontWeight: 800 }}>{enabledCount}</Box>
-                          <Box sx={{ fontSize: 11, color: T.ink3, fontWeight: 600, fontFamily: 'Inter' }}>/ {totalPerms} permissions</Box>
+                          <Box sx={{ fontSize: 11, color: T.ink3, fontWeight: 600, fontFamily: 'Inter' }}>{t('rbac.ofPermissions', { total: totalPerms })}</Box>
                         </Box>
                         <Box sx={{ color: T.ink4 }}>·</Box>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
                           <Box sx={{ fontSize: 18, fontWeight: 800 }}>{heroUsers.length}</Box>
-                          <Box sx={{ fontSize: 11, color: T.ink3, fontWeight: 600, fontFamily: 'Inter' }}>{heroUsers.length === 1 ? 'user' : 'users'} assigned</Box>
+                          <Box sx={{ fontSize: 11, color: T.ink3, fontWeight: 600, fontFamily: 'Inter' }}>{t('rbac.usersAssigned', { count: heroUsers.length })}</Box>
                         </Box>
                         <Box sx={{ color: T.ink4 }}>·</Box>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
                           <Box sx={{ fontSize: 18, fontWeight: 800 }}>{pct}%</Box>
-                          <Box sx={{ fontSize: 11, color: T.ink3, fontWeight: 600, fontFamily: 'Inter' }}>coverage</Box>
+                          <Box sx={{ fontSize: 11, color: T.ink3, fontWeight: 600, fontFamily: 'Inter' }}>{t('rbac.coverage')}</Box>
                         </Box>
                       </Box>
                     </Box>
@@ -589,9 +591,9 @@ const RBACManagementPage: React.FC = () => {
                         )}
                       </Box>
                       <Box sx={{ display: 'flex', gap: 0.5 }}>
-                        <Tooltip title="Rename"><span><IconButton size="small" onClick={openRename} disabled={locked}><EditIcon sx={{ fontSize: 16 }} /></IconButton></span></Tooltip>
-                        <Tooltip title="Duplicate"><IconButton size="small" onClick={duplicateRole}><CopyIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
-                        <Tooltip title={isBuiltin(selectedRole) ? 'Built-in roles cannot be deleted' : 'Delete'}>
+                        <Tooltip title={t('rbac.rename')}><span><IconButton size="small" onClick={openRename} disabled={locked}><EditIcon sx={{ fontSize: 16 }} /></IconButton></span></Tooltip>
+                        <Tooltip title={t('rbac.duplicate')}><IconButton size="small" onClick={duplicateRole}><CopyIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
+                        <Tooltip title={isBuiltin(selectedRole) ? t('rbac.builtinNoDelete') : t('common:actions.delete')}>
                           <span><IconButton size="small" onClick={() => setDeleteTarget(selectedRole)} disabled={isBuiltin(selectedRole)}><DeleteIcon sx={{ fontSize: 16, color: isBuiltin(selectedRole) ? undefined : T.rose }} /></IconButton></span>
                         </Tooltip>
                       </Box>
@@ -604,7 +606,7 @@ const RBACManagementPage: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: '12px 22px', borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
                 <TextField
                   size="small" value={permSearch} onChange={(e) => setPermSearch(e.target.value)}
-                  placeholder="Search permissions by name, code or description…"
+                  placeholder={t('rbac.searchPermissionsDetail')}
                   sx={{ flex: 1, minWidth: 240, bgcolor: T.surface, '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
                   slotProps={{
                     input: { startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>) }
@@ -612,9 +614,9 @@ const RBACManagementPage: React.FC = () => {
                 />
                 <Box sx={{ display: 'inline-flex', bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '9px', p: '3px' }}>
                   {([
-                    ['all', `All ${totalPerms}`],
-                    ['on', `Enabled ${enabledCount}`],
-                    ['off', `Disabled ${totalPerms - enabledCount}`],
+                    ['all', t('rbac.filterAll', { count: totalPerms })],
+                    ['on', t('rbac.filterEnabled', { count: enabledCount })],
+                    ['off', t('rbac.filterDisabled', { count: totalPerms - enabledCount })],
                   ] as const).map(([k, lb]) => (
                     <Box key={k} component="button" onClick={() => setFilter(k)}
                       sx={{ px: 1.25, py: 0.75, fontSize: 12, fontWeight: 600, borderRadius: '6px', cursor: 'pointer', border: 'none', color: filter === k ? 'var(--hotel-bg)' : T.ink3, bgcolor: filter === k ? T.ink : 'transparent' }}>
@@ -623,7 +625,7 @@ const RBACManagementPage: React.FC = () => {
                   ))}
                 </Box>
                 <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, bgcolor: T.surface2, border: `1px solid ${T.border}`, borderRadius: '9px', fontSize: 12, fontWeight: 600, color: T.ink2 }}>
-                  <span>Coverage</span>
+                  <span>{t('rbac.coverage')}</span>
                   <Box sx={{ width: 80, height: 6, borderRadius: 4, bgcolor: T.surface4, overflow: 'hidden' }}>
                     <Box sx={{ height: '100%', width: `${pct}%`, background: T.emerald }} />
                   </Box>
@@ -631,10 +633,10 @@ const RBACManagementPage: React.FC = () => {
                 </Box>
                 <Button size="small" onClick={() => setHideEmpty((v) => !v)} startIcon={hideEmpty ? <CheckIcon /> : <ModulesIcon />}
                   sx={{ textTransform: 'none', color: T.ink2, border: `1px solid ${T.border}` }}>
-                  {hideEmpty ? 'Hide empty modules' : 'Show all modules'}
+                  {hideEmpty ? t('rbac.hideEmpty') : t('rbac.showAll')}
                 </Button>
-                <Button size="small" onClick={() => setOpenCats(new Set(permissionCategories.map((c) => c.name)))} sx={{ textTransform: 'none', color: T.ink3 }}>Expand all</Button>
-                <Button size="small" onClick={() => setOpenCats(new Set())} sx={{ textTransform: 'none', color: T.ink3 }}>Collapse all</Button>
+                <Button size="small" onClick={() => setOpenCats(new Set(permissionCategories.map((c) => c.name)))} sx={{ textTransform: 'none', color: T.ink3 }}>{t('rbac.expandAll')}</Button>
+                <Button size="small" onClick={() => setOpenCats(new Set())} sx={{ textTransform: 'none', color: T.ink3 }}>{t('rbac.collapseAll')}</Button>
               </Box>
 
               {/* Groups */}
@@ -670,7 +672,7 @@ const RBACManagementPage: React.FC = () => {
                           </Box>
                           <Box sx={{ minWidth: 0 }}>
                             <Box sx={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.2px' }}>{cat.displayName}</Box>
-                            <Box sx={{ fontSize: 11.5, color: T.ink3, fontWeight: 500, mt: '1px' }}>{cat.permissions.length} permissions</Box>
+                            <Box sx={{ fontSize: 11.5, color: T.ink3, fontWeight: 500, mt: '1px' }}>{t('rbac.catPermCount', { count: cat.permissions.length })}</Box>
                           </Box>
                           <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, fontSize: 12, fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: T.ink2, bgcolor: T.surface2, border: `1px solid ${T.border}`, borderRadius: '7px', px: 1, py: '3px' }}>
                             <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: cat.color }} />
@@ -679,7 +681,7 @@ const RBACManagementPage: React.FC = () => {
                           <Button size="small" disabled={locked}
                             onClick={(e) => { e.stopPropagation(); setCatPerms(cat.permissions, !allOn); }}
                             sx={{ textTransform: 'none', color: T.ink3, minWidth: 0 }}>
-                            {allOn ? 'Disable all' : 'Enable all'}
+                            {allOn ? t('rbac.disableAll') : t('rbac.enableAll')}
                           </Button>
                           <ChevronRightIcon sx={{ color: T.ink3, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 180ms' }} />
                         </Box>
@@ -713,7 +715,7 @@ const RBACManagementPage: React.FC = () => {
                                   </Box>
                                   <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.75, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                     {others.length === 0 ? (
-                                      <Box sx={{ fontSize: 11, color: T.ink4, fontWeight: 600 }}>Only this role</Box>
+                                      <Box sx={{ fontSize: 11, color: T.ink4, fontWeight: 600 }}>{t('rbac.onlyThisRole')}</Box>
                                     ) : others.slice(0, 5).map((r) => {
                                       const a = roleAccent(r);
                                       return (
@@ -742,7 +744,7 @@ const RBACManagementPage: React.FC = () => {
                             <LockIcon sx={{ fontSize: 16 }} />
                           </Box>
                           <Box sx={{ fontSize: 12.5, color: T.ink2 }}>
-                            <strong style={{ color: T.ink }}>{hiddenCats.length} module{hiddenCats.length === 1 ? '' : 's'} hidden</strong> — this role has no permissions in:
+                            <strong style={{ color: T.ink }}>{t('rbac.modulesHidden', { count: hiddenCats.length })}</strong> — {t('rbac.modulesHiddenNote')}
                             <Box sx={{ display: 'flex', gap: 0.625, flexWrap: 'wrap', mt: 0.75 }}>
                               {hiddenCats.map((c) => (
                                 <Box key={c.name} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.625, fontSize: 11, fontWeight: 700, color: c.color, bgcolor: `color-mix(in srgb, ${c.color} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${c.color} 18%, transparent)`, px: 1, py: '3px', borderRadius: 999 }}>
@@ -752,12 +754,12 @@ const RBACManagementPage: React.FC = () => {
                             </Box>
                           </Box>
                           <Button size="small" onClick={() => setHideEmpty(false)} startIcon={<AddIcon />} sx={{ textTransform: 'none', border: `1px solid ${T.border}`, color: T.ink2 }}>
-                            Grant access
+                            {t('rbac.grantAccess')}
                           </Button>
                         </Box>
                       )}
                       {blocks.length === 0 && hiddenCats.length === 0 && (
-                        <Box sx={{ p: 6, textAlign: 'center', color: T.ink3, fontSize: 13 }}>No permissions match these filters.</Box>
+                        <Box sx={{ p: 6, textAlign: 'center', color: T.ink3, fontSize: 13 }}>{t('rbac.noPermsMatch')}</Box>
                       )}
                     </>
                   );
@@ -769,25 +771,25 @@ const RBACManagementPage: React.FC = () => {
                 <Box sx={{ position: 'sticky', bottom: 16, m: '14px 14px 0', bgcolor: T.ink, color: 'var(--hotel-bg)', borderRadius: '12px', p: '10px 14px 10px 18px', display: 'flex', alignItems: 'center', gap: 1.5, boxShadow: 'var(--hotel-shadow-lg)' }}>
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: T.amber, boxShadow: `0 0 0 4px color-mix(in srgb, ${T.amber} 22%, transparent)` }} />
                   <Box sx={{ fontSize: 13, fontWeight: 600 }}>
-                    <Box component="em" sx={{ fontStyle: 'normal', color: T.amber }}>Unsaved changes</Box> —{' '}
+                    <Box component="em" sx={{ fontStyle: 'normal', color: T.amber }}>{t('rbac.unsavedChanges')}</Box> —{' '}
                     {[...draftSet].filter((id) => !currentSet.has(id)).length +
                       [...currentSet].filter((id) => !draftSet.has(id)).length}{' '}
-                    permission(s) modified
+                    {t('rbac.permsModified')}
                   </Box>
                   <Box sx={{ flex: 1 }} />
                   <Button size="small" onClick={discard} disabled={saving} sx={{ textTransform: 'none', color: 'var(--hotel-bg)', border: '1px solid color-mix(in srgb, var(--hotel-bg) 18%, transparent)', bgcolor: 'color-mix(in srgb, var(--hotel-bg) 8%, transparent)' }}>
-                    Discard
+                    {t('common:actions.discard')}
                   </Button>
                   <Button size="small" variant="contained" onClick={save} disabled={saving} startIcon={saving ? <CircularProgress size={14} /> : <CheckIcon />}
                     sx={{ textTransform: 'none', bgcolor: T.emerald, '&:hover': { bgcolor: T.emeraldDeep } }}>
-                    Save changes
+                    {t('rbac.saveChanges')}
                   </Button>
                 </Box>
               )}
             </Box>
           ) : (
             <Box sx={{ p: 6, textAlign: 'center', color: T.ink3, bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '14px' }}>
-              Select a role to view and edit its permissions.
+              {t('rbac.selectRole')}
             </Box>
           )}
         </Box>
@@ -807,38 +809,38 @@ const RBACManagementPage: React.FC = () => {
       )}
       {/* Create / Rename role dialog */}
       <Dialog open={!!roleDialog} onClose={() => setRoleDialog(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>{roleDialog === 'create' ? 'New role' : 'Rename role'}</DialogTitle>
+        <DialogTitle>{roleDialog === 'create' ? t('rbac.newRole') : t('rbac.renameRoleTitle')}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'grid', gap: 2, mt: 1 }}>
-            <TextField autoFocus label="Role name" required value={roleForm.name}
+            <TextField autoFocus label={t('rbac.roleName')} required value={roleForm.name}
               onChange={(e) => setRoleForm((f) => ({ ...f, name: e.target.value }))} />
-            <TextField label="Description" multiline rows={2} value={roleForm.description}
+            <TextField label={t('common:field.description')} multiline rows={2} value={roleForm.description}
               onChange={(e) => setRoleForm((f) => ({ ...f, description: e.target.value }))} />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRoleDialog(null)} disabled={roleDialogSaving}>Cancel</Button>
+          <Button onClick={() => setRoleDialog(null)} disabled={roleDialogSaving}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             onClick={submitRole}
             disabled={roleDialogSaving || !roleForm.name.trim()}
             startIcon={roleDialogSaving ? <CircularProgress size={16} /> : null}
             sx={{ bgcolor: T.emerald, '&:hover': { bgcolor: T.emeraldDeep } }}>
-            {roleDialog === 'create' ? 'Create' : 'Save'}
+            {roleDialog === 'create' ? t('common:actions.create') : t('common:actions.save')}
           </Button>
         </DialogActions>
       </Dialog>
       {/* Delete role */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete role</DialogTitle>
+        <DialogTitle>{t('rbac.deleteRoleTitle')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Delete <strong>{deleteTarget?.name}</strong>? Users assigned to this role will lose its access.
-            This cannot be undone.
+            {t('rbac.deleteDialogStart')}{' '}
+            <strong>{deleteTarget?.name}</strong>{t('rbac.deleteDialogEnd')}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)} disabled={deleteRoleMutation.isPending}>Cancel</Button>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleteRoleMutation.isPending}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             color="error"
@@ -846,7 +848,7 @@ const RBACManagementPage: React.FC = () => {
             disabled={deleteRoleMutation.isPending}
             startIcon={deleteRoleMutation.isPending ? <CircularProgress size={16} /> : null}
           >
-            Delete
+            {t('common:actions.delete')}
           </Button>
         </DialogActions>
       </Dialog>

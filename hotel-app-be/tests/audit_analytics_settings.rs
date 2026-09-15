@@ -40,6 +40,7 @@ mod postgres_tests {
     use hotel_app_be::services::audit as audit_service;
     use hotel_app_be::services::audit::AuditLog;
     use hotel_app_be::modules::booking_channels::service as booking_channels_service;
+    use hotel_app_be::modules::night_audit::repository as night_audit_repo;
     use hotel_app_be::modules::night_audit::service as night_audit_service;
     use rust_decimal::Decimal;
     use sqlx::{PgPool, postgres::PgPoolOptions};
@@ -1058,6 +1059,307 @@ mod postgres_tests {
         }
 
         cleanup(&pool, user_id, audit_date).await;
+    }
+
+    // -----------------------------------------------------------------
+    // Regression: a deposit must appear in the night audit journal exactly
+    // once, under a line that says it is a deposit.
+    //
+    // Deposits live in `payments` (payment_type='deposit') AND are mirrored
+    // onto `bookings.deposit_amount`. The journal read both sources without
+    // knowing they were the same money: the payment surfaced inside the
+    // tender's section (a bare "Cash" line, indistinguishable from a bill
+    // settlement) and the mirror surfaced again as a `Deposit` entry on the
+    // arrival night -- debiting one deposit twice. Measured on 2026-08-19 in
+    // dev: RM400 of keycard deposits counted twice across 8 bookings.
+    //
+    // The mirror is now a fallback that only fires when the booking has no
+    // completed deposit payment at all, which is the whole pre-2026-09-12
+    // population (2,290 bookings on production carry a mirror with no payment
+    // row behind it -- blanking those would erase the deposit line from every
+    // reprinted historical report). Fixture ids use the free `990_x07/x08`
+    // slots in this file's documented ranges.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn night_audit_journal_labels_deposits_and_never_debits_one_twice() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let guest_id: i64 = 990_207;
+        let room_type_id: i64 = 990_407;
+        let paid_room_id: i64 = 990_307;
+        let mirror_room_id: i64 = 990_308;
+        let paid_booking_id: i64 = 990_107;
+        let mirror_booking_id: i64 = 990_108;
+        // Far enough in the future that no real dev-seeded booking or audit
+        // run can share this date, so the entries below are the only ones
+        // these two bookings contribute.
+        let audit_date = NaiveDate::from_ymd_opt(2093, 9, 15).unwrap();
+        let check_out = NaiveDate::from_ymd_opt(2093, 9, 17).unwrap();
+        let paid_deposit = Decimal::new(5_000, 2); // 50.00, backed by a payment
+        let mirror_deposit = Decimal::new(7_500, 2); // 75.00, mirror only
+        let paid_booking_number = format!("BK-AUD990-{paid_booking_id}");
+        let mirror_booking_number = format!("BK-AUD990-{mirror_booking_id}");
+
+        async fn cleanup(
+            pool: &PgPool,
+            bookings: [i64; 2],
+            guest_id: i64,
+            rooms: [i64; 2],
+            room_type_id: i64,
+        ) {
+            for booking_id in bookings {
+                sqlx::query("DELETE FROM night_audit_posted_nights WHERE booking_id = $1")
+                    .bind(booking_id)
+                    .execute(pool)
+                    .await
+                    .unwrap();
+                sqlx::query("DELETE FROM payments WHERE booking_id = $1")
+                    .bind(booking_id)
+                    .execute(pool)
+                    .await
+                    .unwrap();
+            }
+            // Not `cleanup_booking_fixture`: that helper owns one room per
+            // room_type per guest, and these two bookings share both, so it
+            // would drop the room_type while the second room still points at
+            // it. Delete the whole set in FK order instead.
+            for booking_id in bookings {
+                sqlx::query("DELETE FROM bookings WHERE id = $1")
+                    .bind(booking_id)
+                    .execute(pool)
+                    .await
+                    .unwrap();
+            }
+            for room_id in rooms {
+                // `trg_sync_room_status_booking` writes these behind the test's
+                // back and neither FK cascades.
+                sqlx::query("DELETE FROM room_status_change_log WHERE room_id = $1")
+                    .bind(room_id)
+                    .execute(pool)
+                    .await
+                    .unwrap();
+                sqlx::query("DELETE FROM room_events WHERE room_id = $1")
+                    .bind(room_id)
+                    .execute(pool)
+                    .await
+                    .unwrap();
+                sqlx::query("DELETE FROM rooms WHERE id = $1")
+                    .bind(room_id)
+                    .execute(pool)
+                    .await
+                    .unwrap();
+            }
+            sqlx::query("DELETE FROM room_types WHERE id = $1")
+                .bind(room_type_id)
+                .execute(pool)
+                .await
+                .unwrap();
+            sqlx::query("DELETE FROM guests WHERE id = $1")
+                .bind(guest_id)
+                .execute(pool)
+                .await
+                .unwrap();
+        }
+
+        cleanup(
+            &pool,
+            [paid_booking_id, mirror_booking_id],
+            guest_id,
+            [paid_room_id, mirror_room_id],
+            room_type_id,
+        )
+        .await;
+
+        sqlx::query(
+            "INSERT INTO room_types (id, code, name, base_price, max_occupancy) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, 'AUD990DP', 'AUD990 Deposit Room Type', $2, 2) \
+             ON CONFLICT (id) DO UPDATE SET base_price = EXCLUDED.base_price",
+        )
+        .bind(room_type_id)
+        .bind(Decimal::new(10_000, 2))
+        .execute(&pool)
+        .await
+        .expect("seeding room_types must succeed");
+
+        for room_id in [paid_room_id, mirror_room_id] {
+            sqlx::query(
+                "INSERT INTO rooms (id, room_number, room_type_id, status) \
+                 OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 'occupied') \
+                 ON CONFLICT (id) DO UPDATE SET room_type_id = EXCLUDED.room_type_id",
+            )
+            .bind(room_id)
+            .bind(format!("AUD{room_id}"))
+            .bind(room_type_id)
+            .execute(&pool)
+            .await
+            .expect("seeding rooms must succeed");
+        }
+
+        sqlx::query(
+            "INSERT INTO guests (id, nick_name, first_name, last_name) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, 'Aud990 Deposit Guest', 'Aud990', 'Guest') \
+             ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
+        )
+        .bind(guest_id)
+        .execute(&pool)
+        .await
+        .expect("seeding guests must succeed");
+
+        for (booking_id, room_id, deposit) in [
+            (paid_booking_id, paid_room_id, paid_deposit),
+            (mirror_booking_id, mirror_room_id, mirror_deposit),
+        ] {
+            sqlx::query(
+                "INSERT INTO bookings ( \
+                    id, booking_number, guest_id, guest_name, room_id, \
+                    check_in_date, check_out_date, adults, children, \
+                    room_rate, subtotal, total_amount, status, payment_status, \
+                    payment_method, deposit_paid, deposit_amount \
+                 ) \
+                 OVERRIDING SYSTEM VALUE \
+                 VALUES ($1, $2, $3, 'Aud990 Guest', $4, $5, $6, 1, 0, $7, $7, $7, \
+                         'checked_in', 'unpaid', 'cash', true, $8) \
+                 ON CONFLICT (id) DO UPDATE SET \
+                    check_in_date = EXCLUDED.check_in_date, \
+                    check_out_date = EXCLUDED.check_out_date, \
+                    status = EXCLUDED.status, \
+                    deposit_amount = EXCLUDED.deposit_amount",
+            )
+            .bind(booking_id)
+            .bind(format!("BK-AUD990-{booking_id}"))
+            .bind(guest_id)
+            .bind(room_id)
+            .bind(audit_date)
+            .bind(check_out)
+            .bind(Decimal::new(10_000, 2))
+            .bind(deposit)
+            .execute(&pool)
+            .await
+            .expect("seeding bookings must succeed");
+        }
+
+        // Only the first booking gets a real deposit payment. `created_at` is
+        // pinned to noon of the audit date IN THE HOTEL'S TIMEZONE, because
+        // the journal buckets payments by `(created_at AT TIME ZONE <hotel
+        // tz>)::date` and this suite must not depend on the box's own zone.
+        sqlx::query(
+            "INSERT INTO payments \
+                (booking_id, amount, payment_method, payment_type, status, notes, created_at) \
+             VALUES ($1, $2, 'cash', 'deposit', 'completed', 'Keycard deposit', \
+                     (($3::date + time '12:00') AT TIME ZONE \
+                      COALESCE((SELECT value FROM system_settings WHERE key = 'timezone'), 'UTC')))",
+        )
+        .bind(paid_booking_id)
+        .bind(paid_deposit)
+        .bind(audit_date)
+        .execute(&pool)
+        .await
+        .expect("seeding the deposit payment must succeed");
+
+        // Asserted against BOTH journal sources: the pending preview reads
+        // live bookings, the posted report reads night_audit_posted_nights.
+        // The fix had to land in both or one of the two views keeps
+        // double-counting.
+        fn assert_deposits_are_labeled_and_counted_once(
+            sections: &[hotel_app_be::models::JournalSection],
+            paid_booking_number: &str,
+            mirror_booking_number: &str,
+            paid_deposit: Decimal,
+            mirror_deposit: Decimal,
+            view: &str,
+        ) {
+            let entries_for = |booking: &str| -> Vec<(String, Decimal, Decimal)> {
+                sections
+                    .iter()
+                    .flat_map(|s| {
+                        s.entries
+                            .iter()
+                            .filter(|e| e.booking_number == booking)
+                            .map(|e| (s.display_name.clone(), e.debit, e.credit))
+                    })
+                    .collect()
+            };
+
+            let paid = entries_for(paid_booking_number);
+            let paid_debits: Vec<&(String, Decimal, Decimal)> =
+                paid.iter().filter(|(_, debit, _)| *debit > Decimal::ZERO).collect();
+            assert_eq!(
+                paid_debits.len(),
+                1,
+                "[{view}] a payment-backed deposit must be debited exactly once, got {paid_debits:?}"
+            );
+            assert_eq!(
+                paid_debits[0].0, "Deposit (Cash)",
+                "[{view}] the deposit line must name itself a deposit, not just the tender"
+            );
+            assert_eq!(paid_debits[0].1, paid_deposit, "[{view}] wrong deposit amount");
+
+            let mirror = entries_for(mirror_booking_number);
+            let mirror_debits: Vec<&(String, Decimal, Decimal)> = mirror
+                .iter()
+                .filter(|(_, debit, _)| *debit > Decimal::ZERO)
+                .collect();
+            assert_eq!(
+                mirror_debits.len(),
+                1,
+                "[{view}] a legacy mirror-only deposit must still be reported once, got {mirror_debits:?}"
+            );
+            assert_eq!(
+                mirror_debits[0].0, "Deposit",
+                "[{view}] the mirror fallback keeps the plain Deposit section"
+            );
+            assert_eq!(
+                mirror_debits[0].1, mirror_deposit,
+                "[{view}] wrong fallback deposit amount"
+            );
+        }
+
+        let preview = night_audit_repo::generate_journal_sections(&pool, audit_date, false).await;
+        assert_deposits_are_labeled_and_counted_once(
+            &preview,
+            &paid_booking_number,
+            &mirror_booking_number,
+            paid_deposit,
+            mirror_deposit,
+            "preview",
+        );
+
+        for (booking_id, room_rate) in [
+            (paid_booking_id, Decimal::new(10_000, 2)),
+            (mirror_booking_id, Decimal::new(10_000, 2)),
+        ] {
+            sqlx::query(
+                "INSERT INTO night_audit_posted_nights \
+                    (booking_id, audit_date, room_rate, room_charge, service_tax, total_posted) \
+                 VALUES ($1, $2, $3, $3, 0, $3)",
+            )
+            .bind(booking_id)
+            .bind(audit_date)
+            .bind(room_rate)
+            .execute(&pool)
+            .await
+            .expect("seeding posted nights must succeed");
+        }
+
+        let posted = night_audit_repo::generate_journal_sections(&pool, audit_date, true).await;
+        assert_deposits_are_labeled_and_counted_once(
+            &posted,
+            &paid_booking_number,
+            &mirror_booking_number,
+            paid_deposit,
+            mirror_deposit,
+            "posted",
+        );
+
+        cleanup(
+            &pool,
+            [paid_booking_id, mirror_booking_id],
+            guest_id,
+            [paid_room_id, mirror_room_id],
+            room_type_id,
+        )
+        .await;
     }
 
     // -----------------------------------------------------------------

@@ -27,8 +27,6 @@ export type ReportTypographyPresetKey =
 
 export interface ReportTypographyPreset {
   key: ReportTypographyPresetKey;
-  label: string;
-  description: string;
   sizes: Pick<
     ReportTypographySettings,
     | 'report_font_size'
@@ -63,8 +61,6 @@ type ReportContentSx = Record<string, unknown>;
 export const REPORT_TYPOGRAPHY_PRESETS: ReportTypographyPreset[] = [
   {
     key: 'very_small',
-    label: 'Very Small',
-    description: 'Dense reports with maximum rows per page',
     sizes: {
       report_font_size: 10,
       report_heading_font_size: 18,
@@ -76,8 +72,6 @@ export const REPORT_TYPOGRAPHY_PRESETS: ReportTypographyPreset[] = [
   },
   {
     key: 'small',
-    label: 'Small',
-    description: 'Compact reports for longer tables',
     sizes: {
       report_font_size: 12,
       report_heading_font_size: 20,
@@ -89,8 +83,6 @@ export const REPORT_TYPOGRAPHY_PRESETS: ReportTypographyPreset[] = [
   },
   {
     key: 'medium',
-    label: 'Medium',
-    description: 'Balanced default for screen and print',
     sizes: {
       report_font_size: 14,
       report_heading_font_size: 24,
@@ -102,8 +94,6 @@ export const REPORT_TYPOGRAPHY_PRESETS: ReportTypographyPreset[] = [
   },
   {
     key: 'large',
-    label: 'Large',
-    description: 'Roomier reports with stronger headings',
     sizes: {
       report_font_size: 18,
       report_heading_font_size: 30,
@@ -115,8 +105,6 @@ export const REPORT_TYPOGRAPHY_PRESETS: ReportTypographyPreset[] = [
   },
   {
     key: 'very_large',
-    label: 'Very Large',
-    description: 'High-readability reports for review screens',
     sizes: {
       report_font_size: 22,
       report_heading_font_size: 36,

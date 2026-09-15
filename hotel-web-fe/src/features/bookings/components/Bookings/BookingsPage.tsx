@@ -38,9 +38,11 @@ import {
 import BookingSummarySection from './BookingSummarySection';
 import BookingFiltersBar from './BookingFiltersBar';
 import BookingListPanel from './BookingListPanel';
+import { useTranslation } from '../../../../i18n';
 import BookingDetailDrawer from './BookingDetailDrawer';
 
 const BookingsPage: React.FC = () => {
+  const { t } = useTranslation('bookings');
   const [pageSearchParams, setPageSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -231,8 +233,10 @@ const BookingsPage: React.FC = () => {
   const roomCount = rooms.length || 0;
   const normalOutstandingDue = normalDueBookings.reduce((sum, booking) => sumMoney([sum, getBookingBalance(booking)]), 0);
   const companyOutstandingDue = companyDueBookings.reduce((sum, booking) => sumMoney([sum, getBookingBalance(booking)]), 0);
-  const normalBalanceScope = summaryLoaded ? 'past checkout date' : 'past checkout date on this page';
-  const companyBalanceScope = summaryLoaded ? `past ${COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT} month from checkout` : `past ${COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT} month from checkout on this page`;
+  const normalBalanceScope = summaryLoaded ? t('page.scopeAll') : t('page.scopePage');
+  const companyBalanceScope = summaryLoaded
+    ? t('page.scopeCompanyAll', { months: COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT })
+    : t('page.scopeCompanyPage', { months: COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT });
 
   const selectBookingView = (view: BookingView) => {
     setBookingView(view);
@@ -279,10 +283,10 @@ const BookingsPage: React.FC = () => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 3, flexDirection: { xs: 'column', md: 'row' } }}>
         <Box>
           <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900, letterSpacing: 2 }}>
-            Front Desk · {formatOperationalDate()}
+            {t('page.kicker', { date: formatOperationalDate() })}
           </Typography>
           <Typography variant="h4" sx={{ fontWeight: 900, color: 'text.primary', lineHeight: 1.05 }}>
-            Bookings
+            {t('title')}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
@@ -292,7 +296,7 @@ const BookingsPage: React.FC = () => {
             onClick={reloadBookingData}
             sx={{ minHeight: 44 }}
           >
-            Refresh
+            {t('common:actions.refresh')}
           </Button>
           <Button
             variant="contained"
@@ -306,7 +310,7 @@ const BookingsPage: React.FC = () => {
             disabled={rooms.length === 0}
             sx={{ minHeight: 44, px: 2.5, bgcolor: 'primary.main', '&:hover': { bgcolor: 'primary.dark' } }}
           >
-            New booking
+            {t('page.newBooking')}
           </Button>
         </Stack>
       </Box>
@@ -316,7 +320,7 @@ const BookingsPage: React.FC = () => {
           sx={{ mb: 3 }}
           action={
             <Button color="inherit" size="small" onClick={reloadBookingData}>
-              Retry
+              {t('common:actions.retry')}
             </Button>
           }
         >

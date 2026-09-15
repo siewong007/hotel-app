@@ -1,0 +1,259 @@
+{
+  "library": {
+    "allReports": "← All reports"
+  },
+  "categories": {
+    "operations": "Operations",
+    "financial": "Financial",
+    "analytics": "Analytics",
+    "accounting": "Accounting"
+  },
+  "dateBasis": {
+    "stay": "Stay dates",
+    "booking": "Booking dates",
+    "accounting": "Accounting dates"
+  },
+  "filters": {
+    "shift": "Shift",
+    "allShifts": "All shifts",
+    "drawer": "Drawer",
+    "company": "Company",
+    "roomType": "Room type",
+    "run": "Run report",
+    "shifts": {
+      "morning": "Morning",
+      "evening": "Evening",
+      "night": "Night"
+    }
+  },
+  "report": {
+    "print": "Print report",
+    "printTitle": "Report - {{title}}",
+    "emptySection": "No rows for this period",
+    "noData": "This report produced no data for the selected range."
+  },
+  "reports": {
+    "daily_operations": {
+      "title": "Daily Operations",
+      "description": "Arrivals, departures, in-house guests and room status for one business date."
+    },
+    "occupancy": {
+      "title": "Occupancy",
+      "description": "Occupancy rate, ADR and RevPAR over a stay-date range, by room type and day."
+    },
+    "rooms_sold": {
+      "title": "Rooms Sold",
+      "description": "Rooms sold per stay date with rate and revenue detail."
+    },
+    "room_performance": {
+      "title": "Room Performance",
+      "description": "Revenue and occupancy per room and per room type, with underperformers."
+    },
+    "revenue": {
+      "title": "Revenue",
+      "description": "Revenue by room type, source and payment status over a stay-date range."
+    },
+    "channel_net_revenue": {
+      "title": "Channel Net Revenue",
+      "description": "Gross-to-net revenue per booking channel after commission."
+    },
+    "ota_commission": {
+      "title": "OTA Commission",
+      "description": "Alias of Channel Net Revenue — commission owed per OTA."
+    },
+    "ota_monthly_statement": {
+      "title": "OTA Monthly Statement",
+      "description": "Per-OTA statement of bookings, commission and net payout for the period."
+    },
+    "payment_status": {
+      "title": "Payment Status",
+      "description": "Payment-state breakdown and overdue balances."
+    },
+    "shift_report": {
+      "title": "Shift Report",
+      "description": "Movements and room status for one date, optionally narrowed to a shift/drawer."
+    },
+    "complimentary": {
+      "title": "Complimentary Nights",
+      "description": "Complimentary and partially-comped stays with the discount given."
+    },
+    "guest_statistics": {
+      "title": "Guest Statistics",
+      "description": "Unique/new/returning guests, nationality mix and top guests."
+    },
+    "general_journal": {
+      "title": "General Journal",
+      "description": "Journal entries for the period."
+    },
+    "journal_by_type": {
+      "title": "Journal by Type",
+      "description": "Journal entries grouped by transaction type."
+    },
+    "balance_sheet": {
+      "title": "Balance Sheet",
+      "description": "Assets, liabilities and equity position for the period."
+    },
+    "company_ledger_statement": {
+      "title": "Company Ledger Statement",
+      "description": "Per-company statement with aging buckets; lists companies when unnamed."
+    }
+  },
+  "fields": {
+    "account": "Account",
+    "account_code": "Account code",
+    "accounts": "Accounts",
+    "actual_amount": "Actual amount",
+    "actual_revenue": "Actual revenue",
+    "address": "Address",
+    "adr": "ADR",
+    "adult_count": "Adults",
+    "aging": "Aging",
+    "amount": "Amount",
+    "arrivals": "Arrivals",
+    "arrivals_count": "Arrivals",
+    "available_room_nights": "Available room nights",
+    "average_stay_nights": "Average stay (nights)",
+    "balance": "Balance",
+    "balance_due": "Balance due",
+    "benchmarks": "Benchmarks",
+    "booking_number": "Booking number",
+    "booking_status": "Booking status",
+    "bookings": "Bookings",
+    "by_nationality": "By nationality",
+    "by_payment_method": "By payment method",
+    "by_payment_status": "By payment status",
+    "by_reason": "By reason",
+    "by_room": "By room",
+    "by_room_type": "By room type",
+    "by_source": "By source",
+    "by_status": "By status",
+    "by_type": "By type",
+    "check_in": "Check-in",
+    "check_in_date": "Check-in date",
+    "check_out": "Check-out",
+    "check_out_date": "Check-out date",
+    "child_count": "Children",
+    "city": "City",
+    "companies": "Companies",
+    "company": "Company",
+    "company_name": "Company name",
+    "complimentary_end_date": "Complimentary end date",
+    "complimentary_nights": "Complimentary nights",
+    "complimentary_reason": "Complimentary reason",
+    "complimentary_start_date": "Complimentary start date",
+    "contact_email": "Contact email",
+    "contact_person": "Contact person",
+    "contact_phone": "Contact phone",
+    "contra_account": "Contra account",
+    "contra_amount": "Contra amount",
+    "count": "Count",
+    "country": "Country",
+    "credit": "Credit",
+    "daily": "Daily",
+    "date": "Date",
+    "days": "Days",
+    "days_31_60": "31–60 days",
+    "days_61_90": "61–90 days",
+    "days_91_120": "91–120 days",
+    "days_old": "Days old",
+    "debit": "Debit",
+    "departures": "Departures",
+    "departures_count": "Departures",
+    "deposit_amount": "Deposit amount",
+    "deposit_paid": "Deposit paid",
+    "description": "Description",
+    "discount_given": "Discount given",
+    "due_date": "Due date",
+    "end": "End",
+    "entries": "Entries",
+    "entry_count": "Entries",
+    "existing_credit": "Existing credit",
+    "finance_charges": "Finance charges",
+    "folio": "Folio",
+    "fully_complimentary": "Fully complimentary",
+    "guest_name": "Guest name",
+    "id": "ID",
+    "in_house": "In-house",
+    "in_house_count": "In-house guests",
+    "infant_count": "Infants",
+    "insights": "Insights",
+    "invoice": "Invoice",
+    "invoice_date": "Invoice date",
+    "is_complimentary": "Complimentary",
+    "last_payment": "Last payment",
+    "line1": "Line 1",
+    "method": "Method",
+    "metric": "Metric",
+    "month": "Month",
+    "name": "Name",
+    "nationality": "Nationality",
+    "net_amount": "Net amount",
+    "new_guests": "New guests",
+    "non_tourists": "Non-tourists",
+    "occupancy": "Occupancy",
+    "occupancy_rate": "Occupancy rate",
+    "open_amount": "Open amount",
+    "open_balance": "Open balance",
+    "original_amount": "Original amount",
+    "original_revenue": "Original revenue",
+    "outstanding_balance": "Outstanding balance",
+    "over_120_days": "Over 120 days",
+    "overdue": "Overdue",
+    "overdue_count": "Overdue count",
+    "partial_complimentary": "Partially complimentary",
+    "payment_method": "Payment method",
+    "payment_status": "Payment status",
+    "payments": "Payments",
+    "payments_received": "Payments received",
+    "period": "Period",
+    "post_type": "Post type",
+    "postal_code": "Postal code",
+    "rate_plan": "Rate plan",
+    "reason": "Reason",
+    "reference": "Reference",
+    "registration_number": "Registration number",
+    "returning_guests": "Returning guests",
+    "revenue": "Revenue",
+    "revpar": "RevPAR",
+    "room": "Room",
+    "room_count": "Room count",
+    "room_number": "Room number",
+    "room_status": "Room status",
+    "room_type": "Room type",
+    "rooms_sold": "Rooms sold",
+    "sections": "Sections",
+    "source": "Source",
+    "start": "Start",
+    "state": "State",
+    "statement_date": "Statement date",
+    "status": "Status",
+    "summary": "Summary",
+    "target": "Target",
+    "tonight_occupied": "Occupied tonight",
+    "top_guests": "Top guests",
+    "total_amount": "Total amount",
+    "total_balance": "Total balance",
+    "total_bookings": "Total bookings",
+    "total_complimentary_nights": "Total complimentary nights",
+    "total_credit": "Total credit",
+    "total_credits": "Total credits",
+    "total_debit": "Total debit",
+    "total_debits": "Total debits",
+    "total_deposits": "Total deposits",
+    "total_price": "Total price",
+    "total_revenue": "Total revenue",
+    "total_rooms": "Total rooms",
+    "total_spent": "Total spent",
+    "totals": "Totals",
+    "tourists": "Tourists",
+    "transactions": "Transactions",
+    "type": "Type",
+    "underperforming": "Underperforming",
+    "unique_guests": "Unique guests",
+    "unit": "Unit",
+    "utilization": "Utilization",
+    "value": "Value",
+    "variance": "Variance",
+    "voucher": "Voucher"
+  }
+}

@@ -82,7 +82,9 @@
     "emptyFiltered": "Tiada bilik sepadan dengan penapis ini",
     "emptyFilteredBody": "Cuba luaskan carian atau kosongkan penapis.",
     "clearAll": "Kosongkan semua penapis",
-    "laneAria": "Bilik {{status}}"
+    "laneAria": "Bilik {{status}}",
+    "refreshBoard": "Muat semula papan",
+    "syncStatuses": "Segerakkan status"
   },
   "card": {
     "roomN": "Bilik {{number}}",

@@ -161,6 +161,7 @@ fn verification_mail(
     );
 
     let rendered = email_layout::render(GuestEmail {
+        locale,
         preheader: &locale.format("email.verifyEmail.preheader", &[("hotel", &hotel)]),
         heading: locale.message("email.verifyEmail.heading"),
         inner_html: &inner_html,

@@ -13,6 +13,7 @@ import {
 } from '../types';
 import { multiplyMoney, sumMoney, toMoneyNumber } from './money';
 import { formatStatusLabel } from './formatters';
+import { dateFormatter, numberFormatter } from '../i18n/format';
 
 /**
  * Validate booking dates
@@ -140,12 +141,12 @@ export const calculateTotalAmount = (
  */
 export const formatDateForDisplay = (dateString: string): string => {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
+  return dateFormatter({
     weekday: 'short',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  });
+  }).format(date);
 };
 
 /**
@@ -153,10 +154,7 @@ export const formatDateForDisplay = (dateString: string): string => {
  */
 export const formatCurrency = (amount: number | string): string => {
   const numAmount = toMoneyNumber(amount);
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(numAmount);
+  return numberFormatter({ style: 'currency', currency: 'USD' }).format(numAmount);
 };
 
 /**

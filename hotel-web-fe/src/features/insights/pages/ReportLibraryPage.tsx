@@ -15,6 +15,7 @@ import { useReportCatalog, useReportEnvelope } from '../hooks';
 import type { ReportCatalogEntry, ReportQueryParams } from '../types';
 import { formatLocalDate } from '../../../utils/date';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
+import { useTranslation } from '../../../i18n';
 
 const CATEGORY_ORDER = ['operations', 'financial', 'analytics', 'accounting'];
 
@@ -23,6 +24,7 @@ const CATEGORY_ORDER = ['operations', 'financial', 'analytics', 'accounting'];
  * bar's parameter controls; every report renders through ReportShell.
  */
 export default function ReportLibraryPage() {
+  const { t, tOr } = useTranslation('insights');
   const catalog = useReportCatalog();
   const today = formatLocalDate();
   const [selected, setSelected] = useState<ReportCatalogEntry | null>(null);
@@ -52,7 +54,7 @@ export default function ReportLibraryPage() {
     );
   }
   if (catalog.error) {
-    return <Alert severity="error">{getQueryErrorMessage(catalog.error, 'Failed to load reports')}</Alert>;
+    return <Alert severity="error">{getQueryErrorMessage(catalog.error, t('errors:api.server_error'))}</Alert>;
   }
 
   return (
@@ -61,7 +63,7 @@ export default function ReportLibraryPage() {
         grouped.map((group) => (
           <Box key={group.category} sx={{ mb: 3 }}>
             <Typography variant="subtitle1" sx={{ mb: 1, textTransform: 'capitalize' }}>
-              {group.category}
+              {tOr(`categories.${group.category}`, group.category)}
             </Typography>
             <Grid container spacing={2}>
               {group.reports.map((entry) => (
@@ -69,9 +71,11 @@ export default function ReportLibraryPage() {
                   <Card variant="outlined">
                     <CardActionArea onClick={() => handleSelect(entry)}>
                       <CardContent>
-                        <Typography variant="subtitle2">{entry.title}</Typography>
+                        <Typography variant="subtitle2">
+                          {tOr(`reports.${entry.id}.title`, entry.title)}
+                        </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {entry.description}
+                          {tOr(`reports.${entry.id}.description`, entry.description)}
                         </Typography>
                       </CardContent>
                     </CardActionArea>
@@ -86,12 +90,12 @@ export default function ReportLibraryPage() {
         <ReportShell
           envelope={report.data ?? null}
           loading={report.isFetching}
-          error={getQueryErrorMessage(report.error, 'Failed to run report') || null}
+          error={getQueryErrorMessage(report.error, t('errors:api.server_error')) || null}
           toolbar={
             <Box>
               <Typography variant="body2" sx={{ cursor: 'pointer', mb: 1.5 }}
                 onClick={() => { setSelected(null); setRunParams(null); }}>
-                ← All reports
+                {t('library.allReports')}
               </Typography>
               <ReportFilterBar
                 report={selected}

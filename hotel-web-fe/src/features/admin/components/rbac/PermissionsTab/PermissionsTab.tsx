@@ -26,6 +26,7 @@ import { getRoleColor, PERMISSION_CATEGORIES } from '../constants';
 import PermissionCategoryAccordion from './PermissionCategoryAccordion';
 import { useCreatePermission } from '../hooks/useRBACQueries';
 import { errorMessage } from '../../../../../utils/errorMessage';
+import { useTranslation } from '../../../../../i18n';
 
 interface PermissionsTabProps {
   permissions: Permission[];
@@ -48,6 +49,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
   onPermissionCreated,
   loading = false,
 }) => {
+  const { t } = useTranslation('admin');
   const [searchQuery, setSearchQuery] = useState('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -87,7 +89,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
   // Handle create permission
   const handleCreatePermission = async () => {
     if (!newPermission.name || !newPermission.resource || !newPermission.action) {
-      setCreateError('Name, resource, and action are required');
+      setCreateError(t('rbac.errors.permissionFieldsRequired'));
       return;
     }
 
@@ -99,7 +101,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
       setCreateDialogOpen(false);
       setNewPermission({ name: '', resource: '', action: '', description: '' });
     } catch (err) {
-      setCreateError(errorMessage(err, 'Failed to create permission'));
+      setCreateError(errorMessage(err, t('rbac.errors.createPermission')));
     }
   };
 
@@ -135,7 +137,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
               color: "text.secondary",
               mb: 1
             }}>
-            {totalPermissions} permissions across {totalCategories} categories
+            {t('rbac.permSummary', { permissions: totalPermissions, categories: totalCategories })}
           </Typography>
 
           {/* Role legend */}
@@ -161,7 +163,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
         <Box sx={{ display: 'flex', gap: 1.5 }}>
           <TextField
             size="small"
-            placeholder="Search permissions..."
+            placeholder={t('rbac.searchPermissions')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             sx={{ width: 250 }}
@@ -181,7 +183,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
             startIcon={<AddIcon />}
             onClick={() => setCreateDialogOpen(true)}
           >
-            New Permission
+            {t('rbac.newPermission')}
           </Button>
         </Box>
       </Box>
@@ -195,7 +197,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
           <Typography sx={{
             color: "text.secondary"
           }}>
-            {searchQuery ? 'No permissions match your search' : 'No permissions configured'}
+            {searchQuery ? t('rbac.noPermissionsMatch') : t('rbac.noPermissionsConfigured')}
           </Typography>
         </Paper>
       ) : (
@@ -219,7 +221,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Create New Permission</DialogTitle>
+        <DialogTitle>{t('rbac.createPermissionTitle')}</DialogTitle>
         <DialogContent>
           {createError && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -230,7 +232,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
               select
-              label="Resource"
+              label={t('rbac.permResource')}
               value={newPermission.resource}
               onChange={(e) => handleResourceOrActionChange('resource', e.target.value)}
               fullWidth
@@ -238,65 +240,65 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
             >
               {Object.entries(PERMISSION_CATEGORIES).map(([key, config]) => (
                 <MenuItem key={key} value={key}>
-                  {config.displayName}
+                  {t(config.labelKey)}
                 </MenuItem>
               ))}
-              <MenuItem value="other">Other</MenuItem>
+              <MenuItem value="other">{t('rbac.permOther')}</MenuItem>
             </TextField>
 
             {newPermission.resource === 'other' && (
               <TextField
-                label="Custom Resource"
+                label={t('rbac.customResource')}
                 value={newPermission.resource === 'other' ? '' : newPermission.resource}
                 onChange={(e) => setNewPermission({ ...newPermission, resource: e.target.value })}
                 fullWidth
-                placeholder="e.g., reports"
+                placeholder={t('rbac.customResourcePlaceholder')}
               />
             )}
 
             <TextField
               select
-              label="Action"
+              label={t('rbac.permAction')}
               value={newPermission.action}
               onChange={(e) => handleResourceOrActionChange('action', e.target.value)}
               fullWidth
               required
             >
-              <MenuItem value="read">Read - View access</MenuItem>
-              <MenuItem value="write">Write - Create access</MenuItem>
-              <MenuItem value="update">Update - Modify access</MenuItem>
-              <MenuItem value="delete">Delete - Remove access</MenuItem>
-              <MenuItem value="manage">Manage - Full access</MenuItem>
+              <MenuItem value="read">{t('rbac.permActions.read')}</MenuItem>
+              <MenuItem value="write">{t('rbac.permActions.write')}</MenuItem>
+              <MenuItem value="update">{t('rbac.permActions.update')}</MenuItem>
+              <MenuItem value="delete">{t('rbac.permActions.delete')}</MenuItem>
+              <MenuItem value="manage">{t('rbac.permActions.manage')}</MenuItem>
             </TextField>
 
             <TextField
-              label="Permission Name"
+              label={t('rbac.permName')}
               value={newPermission.name}
               onChange={(e) => setNewPermission({ ...newPermission, name: e.target.value })}
               fullWidth
               required
-              helperText="Auto-generated from resource:action"
+              helperText={t('rbac.permNameHint')}
             />
 
             <TextField
-              label="Description"
+              label={t('common:field.description')}
               value={newPermission.description}
               onChange={(e) => setNewPermission({ ...newPermission, description: e.target.value })}
               fullWidth
               multiline
               rows={2}
-              placeholder="Optional description of what this permission allows"
+              placeholder={t('rbac.permDescPlaceholder')}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setCreateDialogOpen(false)}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             onClick={handleCreatePermission}
             disabled={creating || !newPermission.name || !newPermission.resource || !newPermission.action}
           >
-            {creating ? <CircularProgress size={20} /> : 'Create'}
+            {creating ? <CircularProgress size={20} /> : t('common:actions.create')}
           </Button>
         </DialogActions>
       </Dialog>

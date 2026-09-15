@@ -3,6 +3,8 @@ import { Box, Tooltip, Typography } from '@mui/material';
 
 import { StatCard } from '../../../components/common/StatCard';
 import { formatCurrency } from '../../../utils/currency';
+import { formatNumber } from '../../../i18n';
+import { useTranslation } from '../../../i18n';
 import type { RevenueDeltas, RevenueKpis } from '../types';
 
 interface RevenueKpiGridProps {
@@ -14,11 +16,11 @@ interface RevenueKpiGridProps {
 const toNumber = (value: string): number => Number.parseFloat(value) || 0;
 
 /** Trend descriptor for one KPI; `null` delta renders a muted "no prior" tag. */
-function trendFor(delta: number | null) {
+function trendFor(delta: number | null, vsPrior: string) {
   if (delta === null) {
     return undefined;
   }
-  return { value: delta, label: 'vs prior' };
+  return { value: delta, label: vsPrior };
 }
 
 /**
@@ -27,6 +29,7 @@ function trendFor(delta: number | null) {
  * the direction explicitly instead of colouring green.
  */
 const RevenueKpiGrid: React.FC<RevenueKpiGridProps> = ({ kpis, deltas, currency }) => {
+  const { t } = useTranslation('revenue');
   const cards: Array<{
     key: keyof RevenueKpis;
     title: string;
@@ -35,44 +38,47 @@ const RevenueKpiGrid: React.FC<RevenueKpiGridProps> = ({ kpis, deltas, currency 
   }> = [
     {
       key: 'room_revenue',
-      title: 'Room Revenue',
+      title: t('kpi.roomRevenue'),
       value: formatCurrency(toNumber(kpis.room_revenue), currency),
     },
     {
       key: 'occupancy_rate',
-      title: 'Occupancy',
-      value: `${toNumber(kpis.occupancy_rate).toFixed(1)}%`,
-      subtitle: `${kpis.room_nights_sold} room nights sold`,
+      title: t('kpi.occupancy'),
+      value: `${formatNumber(toNumber(kpis.occupancy_rate), { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%`,
+      subtitle: t('kpi.roomNightsSold', { count: kpis.room_nights_sold }),
     },
     {
       key: 'adr',
-      title: 'ADR',
+      title: t('kpi.adr'),
       value: formatCurrency(toNumber(kpis.adr), currency),
-      subtitle: 'per sold room night',
+      subtitle: t('kpi.adrSubtitle'),
     },
     {
       key: 'revpar',
-      title: 'RevPAR',
+      title: t('kpi.revpar'),
       value: formatCurrency(toNumber(kpis.revpar), currency),
-      subtitle: 'per sellable room',
+      subtitle: t('kpi.revparSubtitle'),
     },
     {
       key: 'alos_nights',
-      title: 'Avg Stay',
-      value: `${toNumber(kpis.alos_nights).toFixed(1)} nights`,
-      subtitle: 'per booking in range',
+      title: t('kpi.avgStay'),
+      value: t('kpi.avgStayValue', { value: formatNumber(toNumber(kpis.alos_nights), { maximumFractionDigits: 1, minimumFractionDigits: 1 }) }),
+      subtitle: t('kpi.avgStaySubtitle'),
     },
     {
       key: 'bookings_created',
-      title: 'Bookings Created',
-      value: String(kpis.bookings_created),
-      subtitle: `voided ${toNumber(kpis.void_rate).toFixed(1)}% · no-show ${toNumber(kpis.no_show_rate).toFixed(1)}%`,
+      title: t('kpi.bookingsCreated'),
+      value: formatNumber(kpis.bookings_created),
+      subtitle: t('kpi.bookingsSubtitle', {
+        voided: formatNumber(toNumber(kpis.void_rate), { maximumFractionDigits: 1, minimumFractionDigits: 1 }),
+        noShow: formatNumber(toNumber(kpis.no_show_rate), { maximumFractionDigits: 1, minimumFractionDigits: 1 }),
+      }),
     },
     {
       key: 'direct_share',
-      title: 'Direct Share',
-      value: `${toNumber(kpis.direct_share).toFixed(1)}%`,
-      subtitle: 'of net revenue',
+      title: t('kpi.directShare'),
+      value: `${formatNumber(toNumber(kpis.direct_share), { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%`,
+      subtitle: t('kpi.directShareSubtitle'),
     },
   ];
 
@@ -100,15 +106,15 @@ const RevenueKpiGrid: React.FC<RevenueKpiGridProps> = ({ kpis, deltas, currency 
               <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                 {card.subtitle}
                 {delta === null && (
-                  <Tooltip title="No previous-period baseline">
+                  <Tooltip title={t('kpi.noBaseline')}>
                     <Typography variant="caption" color="text.disabled" component="span">
-                      · no prior
+                      {t('kpi.noPrior')}
                     </Typography>
                   </Tooltip>
                 )}
               </Box>
             }
-            trend={trendFor(delta)}
+            trend={trendFor(delta, t('kpi.vsPrior'))}
             showPositiveTrendSign
           />
         );

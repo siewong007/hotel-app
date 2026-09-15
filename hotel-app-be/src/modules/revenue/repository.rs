@@ -383,6 +383,7 @@ impl RevenueRepository {
                         balance: row.get::<Decimal, _>("balance_due"),
                         // Filled by the service once the age is known.
                         bucket: "",
+                        bucket_key: "",
                         due_date: row.get("due_date"),
                         room: row.get("room_number"),
                     },

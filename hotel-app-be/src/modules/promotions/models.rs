@@ -137,6 +137,14 @@ pub struct GuestPromotion {
     pub has_voucher: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claim_unavailable_reason: Option<String>,
+    /// Stable machine code for `claim_unavailable_reason` so clients can
+    /// localize instead of rendering the English string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claim_unavailable_code: Option<String>,
+    /// Points still required when `claim_unavailable_code` is
+    /// `insufficient_points`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claim_unavailable_points: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]

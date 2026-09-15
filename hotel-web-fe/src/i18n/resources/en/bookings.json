@@ -7,7 +7,15 @@
     "retry": "Retry",
     "bookingNotFound": "Booking not found",
     "workflowLoadFailed": "Failed to load booking workflow",
-    "checkoutSuccess": "Guest checked out successfully!"
+    "checkoutSuccess": "Guest checked out successfully!",
+    "kicker": "Front Desk · {{date}}",
+    "scopeAll": "past checkout date",
+    "scopePage": "past checkout date on this page",
+    "scopeCompanyAll": "past {{months}} month from checkout",
+    "scopeCompanyPage": "past {{months}} month from checkout on this page",
+    "loadFailed": "Failed to load booking",
+    "backToBookings": "Back to bookings",
+    "bookingNotFoundHint": "This booking may have been removed, or you may not have permission to view it."
   },
   "filters": {
     "searchPlaceholder": "Search booking, guest, invoice, or room number...",
@@ -113,7 +121,16 @@
     "paymentStatus": "Payment",
     "roomFallback": "Room",
     "roomNumber": "Room {{number}}",
-    "nightsAbbrev": "{{count}}N"
+    "nightsAbbrev": "{{count}}N",
+    "quickEdit": "Quick edit",
+    "quickEditSuccess": "Booking updated successfully!",
+    "quickEditFailed": "Failed to update booking",
+    "ariaLabel": "Booking details",
+    "unavailable": "Booking details unavailable.",
+    "notFoundTitle": "Booking not found",
+    "loadFailed": "Failed to load booking",
+    "notFoundHint": "This booking may have been removed, or you may not have permission to view it.",
+    "backToList": "Back to bookings"
   },
   "labels": {
     "guest": "Guest:",
@@ -286,7 +303,8 @@
       "void": "Void",
       "checkout": "Checkout",
       "checkoutVoid": "Checkout / Void"
-    }
+    },
+    "loadFailed": "Failed to load booking workflow"
   },
   "enhancedCheckIn": {
     "title": "Walk-in Guest - Folio: {{folio}}",
@@ -426,7 +444,8 @@
       "paymentMethod": "Payment Method:",
       "deposit": "Deposit:",
       "waived": "Waived",
-      "waiveReason": "Waive Reason:"
+      "waiveReason": "Waive Reason:",
+      "expirePlaceholder": "MM/YY"
     },
     "custom": {
       "guestVehicles": "Guest Vehicles",
@@ -546,6 +565,19 @@
       "deleteFailed": "Failed to delete credits",
       "deleting": "Deleting...",
       "confirm": "Delete Credits"
-    }
+    },
+    "pageTitle": "Complimentary Management",
+    "tabBookings": "Complimentary Bookings ({{count}})",
+    "tabCredits": "Guest Credits ({{count}})"
+  },
+  "drawer": {
+    "aria": "Booking details",
+    "unavailable": "Booking details unavailable."
+  },
+  "quickEdit": {
+    "title": "Quick edit",
+    "checkOutDate": "Check-Out Date",
+    "remarks": "Remarks",
+    "saveChanges": "Save changes"
   }
 }

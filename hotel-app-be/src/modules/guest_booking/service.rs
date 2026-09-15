@@ -1196,6 +1196,11 @@ pub async fn create(
             settled_by_credits,
             anonymous: false,
             access_token: None,
+            locale: crate::core::i18n::mail_locale(
+                pool,
+                contact.language_preference.as_deref(),
+            )
+            .await,
         });
         CommunicationsRepository::insert_delivery_tx(
             &mut tx,
@@ -1445,6 +1450,7 @@ pub async fn create_anonymous(
         settled_by_credits: false,
         anonymous: true,
         access_token: Some(&access_token),
+        locale: crate::core::i18n::mail_locale(pool, Some(language_preference.as_str())).await,
     });
     CommunicationsRepository::insert_delivery_tx(
         &mut tx,
@@ -1527,6 +1533,8 @@ struct PortalBookingMail<'a> {
     /// Booking access token for anonymous pending-payment deep links.
     /// Logged-in portal bookings leave this `None`.
     access_token: Option<&'a str>,
+    /// Resolved from the guest's `language_preference` chain by the caller.
+    locale: crate::core::i18n::Locale,
 }
 
 fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) {
@@ -1541,17 +1549,18 @@ fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) 
         settled_by_credits,
         anonymous,
         access_token,
+        locale,
     } = mail;
     let hotel = email_layout::hotel_display_name();
-    let stay_in = check_in.format("%d %b %Y").to_string();
-    let stay_out = check_out.format("%d %b %Y").to_string();
+    let stay_in = locale.format_date(check_in);
+    let stay_out = locale.format_date(check_out);
     let total_label = money_label(currency, total);
     let details = email_layout::details_table(&[
-        ("Booking", booking_number),
-        ("Room", room_type_name),
-        ("Check-in", &stay_in),
-        ("Check-out", &stay_out),
-        ("Total", &total_label),
+        (locale.message("email.labels.booking"), booking_number),
+        (locale.message("email.labels.room"), room_type_name),
+        (locale.message("email.labels.checkIn"), &stay_in),
+        (locale.message("email.labels.checkOut"), &stay_out),
+        (locale.message("email.labels.total"), &total_label),
     ]);
     let view_url = email_layout::absolute_url("/portal");
     // Prefer a token deep-link into the pre-arrival payment form. The frontend
@@ -1568,69 +1577,113 @@ fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) 
     let (subject, heading, preheader, intro_html, closing_html, intro_text, closing_text, cta) =
         if settled_by_credits {
             (
-                format!("{hotel} reservation confirmed {booking_number}"),
-                "Reservation confirmed",
-                format!("Your {hotel} reservation {booking_number} is confirmed."),
-                format!(
-                    "<p>Dear {},</p><p>Your reservation <strong>{}</strong> is confirmed and fully covered by complimentary nights.</p>",
-                    html_escape(guest_name),
-                    html_escape(booking_number),
+                locale.format(
+                    "email.bookingConfirmed.subject",
+                    &[("hotel", &hotel), ("booking", booking_number)],
                 ),
-                "<p>There is nothing left to pay. You can view this booking any time in your guest portal.</p>\
-                 <p>If this message is not in your Primary inbox, check Spam and Promotions and mark it as not spam so the next one arrives.</p>"
-                    .to_string(),
-                format!(
-                    "Dear {guest_name},\nYour reservation {booking_number} is confirmed and fully covered by complimentary nights."
+                locale.message("email.bookingConfirmed.heading").to_string(),
+                locale.format(
+                    "email.bookingConfirmed.preheader",
+                    &[("hotel", &hotel), ("booking", booking_number)],
                 ),
-                "There is nothing left to pay. You can view this booking any time in your guest portal.\nIf this message is not in your Primary inbox, check Spam and Promotions and mark it as not spam so the next one arrives."
-                    .to_string(),
+                format!(
+                    "<p>{}</p><p>{}</p>",
+                    locale.format("email.greeting", &[("name", &html_escape(guest_name))]),
+                    locale.format(
+                        "email.portalBooking.creditSettledHtml",
+                        &[("booking", &html_escape(booking_number))],
+                    ),
+                ),
+                format!(
+                    "<p>{}</p><p>{}</p>",
+                    locale.message("email.portalBooking.nothingToPay"),
+                    locale.message("email.chrome.spamNote"),
+                ),
+                format!(
+                    "{}\n{}",
+                    locale.format("email.greeting", &[("name", guest_name)]),
+                    locale.format(
+                        "email.portalBooking.creditSettledText",
+                        &[("booking", booking_number)],
+                    ),
+                ),
+                format!(
+                    "{}\n{}",
+                    locale.message("email.portalBooking.nothingToPay"),
+                    locale.message("email.chrome.spamNote"),
+                ),
                 Cta {
-                    label: "View your booking",
+                    label: locale.message("email.cta.viewBooking"),
                     url: &view_url,
                 },
             )
         } else {
-            let spam_html = "<p>If this message is not in your Primary inbox, check Spam and Promotions and mark it as not spam so the next one arrives.</p>";
-            let spam_text = "If this message is not in your Primary inbox, check Spam and Promotions and mark it as not spam so the next one arrives.";
+            let spam_html = format!("<p>{}</p>", locale.message("email.chrome.spamNote"));
+            let spam_text = locale.message("email.chrome.spamNote");
             let closing_html = if anonymous {
                 format!(
-                    "<p>Please complete payment to confirm this stay.</p>\
-                     <p>To view it later, use booking number <strong>{}</strong> with this email address.</p>\
+                    "<p>{}</p>\
+                     <p>{}</p>\
                      {spam_html}",
-                    html_escape(booking_number),
+                    locale.message("email.portalBooking.payToConfirm"),
+                    locale.format(
+                        "email.portalBooking.viewLater",
+                        &[("booking", &html_escape(booking_number))],
+                    ),
                 )
             } else {
                 format!(
-                    "<p>Please complete payment to confirm this stay. You can pay online from your guest portal or complete a bank transfer.</p>\
-                     {spam_html}"
+                    "<p>{}</p>\
+                     {spam_html}",
+                    locale.message("email.portalBooking.payToConfirmOnline"),
                 )
             };
             let closing_text = if anonymous {
                 format!(
-                    "Please complete payment to confirm this stay.\nTo view it later, use booking number {booking_number} with this email address.\n{spam_text}"
+                    "{}\n{}\n{spam_text}",
+                    locale.message("email.portalBooking.payToConfirm"),
+                    locale.format(
+                        "email.portalBooking.viewLaterText",
+                        &[("booking", booking_number)],
+                    ),
                 )
             } else {
                 format!(
-                    "Please complete payment to confirm this stay. You can pay online from your guest portal or complete a bank transfer.\n{spam_text}"
+                    "{}\n{spam_text}",
+                    locale.message("email.portalBooking.payToConfirmOnline"),
                 )
             };
             let cta_url = if anonymous { &pay_url } else { &view_url };
             (
-                format!("{hotel} reservation {booking_number}"),
-                "Reservation received",
-                format!("Your {hotel} reservation {booking_number} is pending payment."),
+                locale.format(
+                    "email.portalBooking.pendingSubject",
+                    &[("hotel", &hotel), ("booking", booking_number)],
+                ),
+                locale.message("email.portalBooking.pendingHeading").to_string(),
+                locale.format(
+                    "email.portalBooking.pendingPreheader",
+                    &[("hotel", &hotel), ("booking", booking_number)],
+                ),
                 format!(
-                    "<p>Dear {},</p><p>Your reservation <strong>{}</strong> has been received and is pending payment.</p>",
-                    html_escape(guest_name),
-                    html_escape(booking_number),
+                    "<p>{}</p><p>{}</p>",
+                    locale.format("email.greeting", &[("name", &html_escape(guest_name))]),
+                    locale.format(
+                        "email.portalBooking.pendingIntroHtml",
+                        &[("booking", &html_escape(booking_number))],
+                    ),
                 ),
                 closing_html,
                 format!(
-                    "Dear {guest_name},\nYour reservation {booking_number} has been received and is pending payment."
+                    "{}\n{}",
+                    locale.format("email.greeting", &[("name", guest_name)]),
+                    locale.format(
+                        "email.portalBooking.pendingIntroText",
+                        &[("booking", booking_number)],
+                    ),
                 ),
                 closing_text,
                 Cta {
-                    label: "Complete payment",
+                    label: locale.message("email.cta.completePayment"),
                     url: cta_url,
                 },
             )
@@ -1638,17 +1691,29 @@ fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) 
 
     let inner_html = format!("{intro_html}{details}{closing_html}");
     let inner_text = format!(
-        "{intro_text}\n\nBooking: {booking_number}\nRoom: {room_type_name}\nCheck-in: {stay_in}\nCheck-out: {stay_out}\nTotal: {total_label}\n\n{closing_text}"
+        "{intro_text}\n\n{}\n\n{closing_text}",
+        locale.format(
+            "email.portalBooking.detailsText",
+            &[
+                ("booking", booking_number),
+                ("room", room_type_name),
+                ("checkIn", &stay_in),
+                ("checkOut", &stay_out),
+                ("total", &total_label),
+            ],
+        ),
     );
     let rendered = email_layout::render(GuestEmail {
+        locale,
         preheader: &preheader,
-        heading,
+        heading: &heading,
         inner_html: &inner_html,
         inner_text: &inner_text,
         cta: Some(cta),
     });
     (subject, rendered.html, rendered.text)
 }
+
 
 #[cfg(test)]
 mod tourism_tax_tests {
@@ -1942,6 +2007,7 @@ mod tests {
             settled_by_credits: false,
             anonymous: true,
             access_token: Some("deadbeefcafebabe"),
+            locale: crate::core::i18n::Locale::default_locale(),
         });
         assert!(subject.contains("Salim Inn"));
         assert!(subject.contains("BK-20260908-6eed1312"));
@@ -1986,6 +2052,7 @@ mod tests {
             settled_by_credits: true,
             anonymous: false,
             access_token: None,
+            locale: crate::core::i18n::Locale::default_locale(),
         });
         assert!(subject.contains("confirmed"));
         assert!(html.contains("View your booking"));

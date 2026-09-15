@@ -23,8 +23,11 @@ import PageHeader from '../../../components/common/PageHeader';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { TableScroll } from '../../../components/data-table/TableScroll';
+import { useTranslation } from '../../../i18n';
+import { formatHotelDateTime } from '../../../utils/date';
 
 const JobsPage: React.FC = () => {
+  const { t } = useTranslation('admin');
   const isPhone = useIsPhone();
   const health = useSystemHealth();
   const failures = useJobFailures(health.data?.job_runs_enabled ?? true);
@@ -34,11 +37,11 @@ const JobsPage: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       <PageHeader
-        title="Jobs"
-        subtitle="Every scheduler iteration writes a heartbeat row — a quiet job still proves it is alive."
+        title={t('jobs.title')}
+        subtitle={t('jobs.subtitle')}
         sx={{ mb: 2 }}
         actions={
-          <Tooltip title="Refresh now">
+          <Tooltip title={t('common:actions.refresh')}>
             <span>
               <IconButton
                 onClick={() => {
@@ -46,7 +49,7 @@ const JobsPage: React.FC = () => {
                   failures.refetch();
                 }}
                 disabled={health.isFetching || failures.isFetching}
-                aria-label="Refresh jobs"
+                aria-label={t('jobs.refresh')}
               >
                 {health.isFetching || failures.isFetching ? (
                   <CircularProgress size={18} />
@@ -61,7 +64,7 @@ const JobsPage: React.FC = () => {
 
       {health.isError && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          Job status could not be loaded.
+          {t('jobs.loadError')}
         </Alert>
       )}
 
@@ -71,8 +74,9 @@ const JobsPage: React.FC = () => {
         </Box>
       ) : health.data && !health.data.job_runs_enabled ? (
         <Alert severity="info">
-          Job monitoring is not installed on this database yet — the <code>job_runs</code> table
-          arrives with its migration patch.
+          {t('jobs.notInstalledStart')}
+          <code>job_runs</code>
+          {t('jobs.notInstalledEnd')}
         </Alert>
       ) : (
         <>
@@ -83,10 +87,10 @@ const JobsPage: React.FC = () => {
           )}
 
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-            Recent failures
+            {t('jobs.recentFailures')}
           </Typography>
           {failures.data && failures.data.length === 0 ? (
-            <Alert severity="success">No failed iterations on record.</Alert>
+            <Alert severity="success">{t('jobs.noFailures')}</Alert>
           ) : isPhone ? (
             <Card variant="outlined">
               {(failures.data ?? []).map((run) => (
@@ -96,7 +100,7 @@ const JobsPage: React.FC = () => {
                 >
                   <MobileCardRow
                     title={run.job_name}
-                    subtitle={new Date(run.created_at).toLocaleString()}
+                    subtitle={formatHotelDateTime(run.created_at)}
                     meta={run.error ? `${run.error} · ${run.duration_ms !== null ? `${run.duration_ms}ms` : '—'}` : (run.duration_ms !== null ? `${run.duration_ms}ms` : '—')}
                   />
                 </Box>
@@ -108,17 +112,17 @@ const JobsPage: React.FC = () => {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>When</TableCell>
-                      <TableCell>Job</TableCell>
-                      <TableCell>Error</TableCell>
-                      <TableCell align="right">Duration</TableCell>
+                      <TableCell>{t('jobs.col.when')}</TableCell>
+                      <TableCell>{t('jobs.col.job')}</TableCell>
+                      <TableCell>{t('jobs.col.error')}</TableCell>
+                      <TableCell align="right">{t('jobs.col.duration')}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {(failures.data ?? []).map((run) => (
                       <TableRow key={run.id} hover>
                         <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          {new Date(run.created_at).toLocaleString()}
+                          {formatHotelDateTime(run.created_at)}
                         </TableCell>
                         <TableCell>
                           <Chip size="small" label={run.job_name} variant="outlined" />

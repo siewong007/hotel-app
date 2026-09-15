@@ -8,6 +8,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
+import { useTranslation } from "../../../i18n";
 import type { Promotion } from "../types";
 
 interface CancelCampaignDialogProps {
@@ -25,6 +26,7 @@ export function CancelCampaignDialog({
   onClose,
   onConfirm,
 }: CancelCampaignDialogProps) {
+  const { t } = useTranslation('promotions');
   const [reason, setReason] = useState("");
 
   useEffect(() => {
@@ -38,14 +40,13 @@ export function CancelCampaignDialog({
       maxWidth="xs"
       fullWidth
     >
-      <DialogTitle>Cancel campaign</DialogTitle>
+      <DialogTitle>{t('cancel.title')}</DialogTitle>
       <DialogContent>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          Cancel “{promotion?.name}”? This is permanent — the campaign stops
-          claiming and its outstanding vouchers can no longer be redeemed.
+          {t('cancel.body', { name: promotion?.name })}
         </Typography>
         <TextField
-          label="Reason"
+          label={t('cancel.reason')}
           value={reason}
           onChange={(event) => setReason(event.target.value)}
           multiline
@@ -57,7 +58,7 @@ export function CancelCampaignDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={isCancelling}>
-          Keep campaign
+          {t('cancel.keep')}
         </Button>
         <Button
           variant="contained"
@@ -69,7 +70,7 @@ export function CancelCampaignDialog({
             onConfirm(promotion, trimmed || undefined);
           }}
         >
-          {isCancelling ? "Cancelling…" : "Cancel campaign"}
+          {isCancelling ? t('cancel.cancelling') : t('cancel.title')}
         </Button>
       </DialogActions>
     </Dialog>

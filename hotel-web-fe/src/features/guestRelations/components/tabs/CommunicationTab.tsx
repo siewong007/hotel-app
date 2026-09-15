@@ -29,7 +29,7 @@ import { formatHotelDateTime } from '../../../../utils/date';
 import { getQueryErrorMessage } from '../../../../api/queryConfig';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { ProfileDetailRow } from '../../../guests/components/GuestProfileParts';
-import { TOPIC_LABELS, type NotificationTopic } from '../../../communications/types';
+import { type NotificationTopic } from '../../../communications/types';
 import { useGuestCommunications } from '../../hooks/useGuestRelationsQueries';
 import GuestConsentDialog from '../GuestConsentDialog';
 
@@ -219,8 +219,7 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
                         <TableCell>
                           {tOr(
                             `consent.topics.${subscription.topic}`,
-                            TOPIC_LABELS[subscription.topic as NotificationTopic] ??
-                              formatStatusLabel(subscription.topic),
+                            formatStatusLabel(subscription.topic),
                           )}
                         </TableCell>
                         <TableCell>

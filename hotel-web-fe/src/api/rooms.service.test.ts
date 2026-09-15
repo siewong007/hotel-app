@@ -171,7 +171,7 @@ describe('RoomsService.updateRoom', () => {
     patch.mockReturnValue({ json: () => Promise.reject(new Error('network down')) });
 
     await expect(RoomsService.updateRoom('room-1', {})).rejects.toMatchObject({
-      message: 'Failed to update room',
+      message: 'Something went wrong. Please try again.',
     });
   });
 });
@@ -218,7 +218,7 @@ describe('RoomsService.endMaintenance', () => {
     post.mockReturnValue({ json: () => Promise.reject(httpErrorWith(500, {})) });
 
     await expect(RoomsService.endMaintenance('room-1')).rejects.toMatchObject({
-      message: 'Failed to end maintenance',
+      message: 'Something went wrong. Please try again.',
     });
   });
 });
@@ -375,13 +375,13 @@ describe('RoomsService.getRoomHistory', () => {
     });
   });
 
-  it('reports cancellation as "Request was cancelled" for AbortError', async () => {
+  it('reports cancellation as a request failure for AbortError', async () => {
     const abortError = new Error('aborted');
     abortError.name = 'AbortError';
     get.mockReturnValue({ json: () => Promise.reject(abortError) });
 
     await expect(RoomsService.getRoomHistory('room-1')).rejects.toMatchObject({
-      message: 'Request was cancelled',
+      message: 'Request failed.',
     });
   });
 
@@ -389,7 +389,7 @@ describe('RoomsService.getRoomHistory', () => {
     get.mockReturnValue({ json: () => Promise.reject(new Error('Failed to fetch')) });
 
     await expect(RoomsService.getRoomHistory('room-1')).rejects.toMatchObject({
-      message: 'Network error - backend may not be accessible. Check if backend is running on port 3030.',
+      message: 'We could not reach the server. Check your connection and try again.',
     });
   });
 
@@ -397,7 +397,7 @@ describe('RoomsService.getRoomHistory', () => {
     get.mockReturnValue({ json: () => Promise.reject(new Error('Load failed')) });
 
     await expect(RoomsService.getRoomHistory('room-1')).rejects.toMatchObject({
-      message: 'Network error - backend may not be accessible. Check if backend is running on port 3030.',
+      message: 'We could not reach the server. Check your connection and try again.',
     });
   });
 
@@ -405,7 +405,7 @@ describe('RoomsService.getRoomHistory', () => {
     get.mockReturnValue({ json: () => Promise.reject(new Error('boom')) });
 
     await expect(RoomsService.getRoomHistory('room-1')).rejects.toMatchObject({
-      message: 'Failed to fetch room history',
+      message: 'Something went wrong. Please try again.',
     });
   });
 });

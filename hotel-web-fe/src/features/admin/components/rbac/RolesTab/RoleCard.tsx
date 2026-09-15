@@ -22,6 +22,7 @@ import {
 } from '@mui/icons-material';
 import type { RoleWithStats } from '../types';
 import { getRoleColor } from '../constants';
+import { useTranslation } from '../../../../../i18n';
 
 // Icon mapping for roles
 const ROLE_ICON_MAP: Record<string, React.ElementType> = {
@@ -38,6 +39,7 @@ interface RoleCardProps {
 }
 
 const RoleCard: React.FC<RoleCardProps> = ({ role, onEdit, onDelete }) => {
+  const { t } = useTranslation('admin');
   const color = getRoleColor(role.name);
   const IconComponent = ROLE_ICON_MAP[role.name.toLowerCase()] || PersonIcon;
 
@@ -123,7 +125,7 @@ const RoleCard: React.FC<RoleCardProps> = ({ role, onEdit, onDelete }) => {
 
             {/* Actions */}
             <Box sx={{ display: 'flex', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
-              <Tooltip title="Edit role">
+              <Tooltip title={t('rbac.editRole')}>
                 <IconButton
                   size="small"
                   onClick={(e) => {
@@ -138,7 +140,7 @@ const RoleCard: React.FC<RoleCardProps> = ({ role, onEdit, onDelete }) => {
                   <EditIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Delete role">
+              <Tooltip title={t('rbac.deleteRole')}>
                 <IconButton
                   size="small"
                   onClick={(e) => {

@@ -230,7 +230,7 @@ describe('LoyaltyService', () => {
 
       await expect(
         LoyaltyService.createReward({ name: 'X', category: 'spa', points_cost: 1, minimum_tier_level: 1 }),
-      ).rejects.toMatchObject({ name: 'APIError', message: 'Failed to create reward' });
+      ).rejects.toMatchObject({ name: 'APIError', message: 'Something went wrong. Please try again.' });
     });
   });
 

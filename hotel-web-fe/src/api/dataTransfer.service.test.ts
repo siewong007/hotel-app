@@ -117,7 +117,7 @@ describe('DataTransferService', () => {
 
       await expect(DataTransferService.previewExport()).rejects.toMatchObject({
         name: 'APIError',
-        message: 'Failed to preview export data',
+        message: 'Something went wrong. Please try again.',
       });
     });
   });
@@ -366,7 +366,7 @@ describe('DataTransferService', () => {
 
       await expect(DataTransferService.deleteUpload('u1')).rejects.toMatchObject({
         name: 'APIError',
-        message: 'Failed to discard the staged upload',
+        message: 'Something went wrong. Please try again.',
       });
     });
   });

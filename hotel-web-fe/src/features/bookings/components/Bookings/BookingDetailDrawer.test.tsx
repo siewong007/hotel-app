@@ -107,7 +107,7 @@ describe('BookingDetailDrawer', () => {
     cleanup();
     const { onCompleted } = renderDrawer({ isAdmin: true });
     expect(screen.getByText('Quick edit')).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('Remarks'), { target: { value: 'Late arrival' } });
+    fireEvent.change(screen.getByLabelText('Notes / Remarks'), { target: { value: 'Late arrival' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(mocks.updateBookingMutation.mutateAsync).toHaveBeenCalledWith({

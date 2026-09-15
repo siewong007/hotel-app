@@ -106,6 +106,12 @@ export interface GuestEkycStatusSummary {
   verified_at?: string | null;
   can_auto_checkin: boolean;
   auto_checkin_block_reason?: string | null;
+  /**
+   * Stable machine code for `auto_checkin_block_reason` (e.g.
+   * `identity_document_required`); clients map it to a localized message via
+   * `guestPortal:checkin.block.*` and fall back to the server reason text.
+   */
+  auto_checkin_block_code?: string | null;
 }
 
 export interface GuestPortalMeResponse {

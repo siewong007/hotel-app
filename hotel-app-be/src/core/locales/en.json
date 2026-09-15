@@ -13,16 +13,26 @@
       "payment": "Payment",
       "method": "Method",
       "paymentsReceived": "Payments received",
-      "balance": "Balance"
+      "balance": "Balance",
+      "checkIn": "Check-in",
+      "checkOut": "Check-out",
+      "invoice": "Invoice",
+      "totalCharged": "Total charged",
+      "reason": "Reason",
+      "linkValidUntil": "Link valid until"
     },
     "stay": {
       "range": "{{from}} to {{to}} · {{nights}} night(s)",
-      "text": "Booking: {{booking}}\nRoom: {{room}} ({{roomType}})\nStay: {{from}} to {{to}} ({{nights}} night(s))\nTotal: {{total}}"
+      "text": "Booking: {{booking}}\nRoom: {{room}} ({{roomType}})\nStay: {{from}} to {{to}} ({{nights}} night(s))\nTotal: {{total}}",
+      "rangeShort": "{{from}} to {{to}}"
     },
     "cta": {
       "viewBooking": "View your booking",
       "preCheckIn": "Start online check-in",
-      "verifyEmail": "Verify my email"
+      "verifyEmail": "Verify my email",
+      "portal": "Open guest portal",
+      "uploadReceipt": "Upload receipt",
+      "completePayment": "Complete payment"
     },
     "bookingConfirmed": {
       "subject": "{{hotel}} reservation confirmed {{booking}}",
@@ -64,6 +74,85 @@
       "heading": "Verify your email",
       "bodyHtml": "Please confirm this is your email address so you can sign in to your account. The link below works for 24 hours.",
       "bodyText": "Please confirm this is your email address so you can sign in to your account. The link below works for 24 hours."
+    },
+    "chrome": {
+      "sentBy": "This message was sent by {{hotel}}.",
+      "sealCaveat": "This seal is a visual cue only and can be copied. What actually proves this mail is ours is your provider's sender-domain check, and reaching {{host}} by typing it yourself rather than following a link.",
+      "unsubscribe": "Unsubscribe",
+      "spamNote": "If this message is not in your Primary inbox, check Spam and Promotions and mark it as not spam so the next one arrives."
+    },
+    "preArrival": {
+      "subject": "Your stay at {{hotel}} begins soon · {{booking}}",
+      "preheader": "Your {{hotel}} stay {{booking}} starts on {{checkIn}}.",
+      "heading": "Your stay begins soon",
+      "bodyHtml": "We look forward to welcoming you. Your stay <strong>{{booking}}</strong> starts on <strong>{{checkIn}}</strong>.",
+      "checkInNote": "You can complete online check-in from the link below to skip the front desk.",
+      "bodyText": "Dear {{name}},\nYour stay {{booking}} starts on {{checkIn}}. Room: {{room}}. Check-out: {{checkOut}}.\nYou can complete online check-in from the link in this email.",
+      "cta": "Complete pre-check-in"
+    },
+    "birthday": {
+      "subject": "Happy birthday from {{hotel}}!",
+      "preheader": "A birthday gift from {{hotel}} is waiting in your wallet.",
+      "heading": "Happy birthday",
+      "bodyHtml": "Happy birthday! As a thank-you for staying with us, here is your gift.",
+      "walletNote": "You can also find it in your guest portal wallet.",
+      "signoff": "Warm wishes,",
+      "bodyText": "Dear {{name}},\nHappy birthday! Your gift is {{gift}}.\nVoucher code: {{code}} (valid until {{expiry}}).\nWarm wishes,\n{{hotel}}",
+      "cta": "Open your wallet",
+      "giftLabel": "Gift",
+      "codeLabel": "Voucher code",
+      "validUntil": "Valid until",
+      "fallbackGift": "your birthday reward"
+    },
+    "roomAssigned": {
+      "subject": "{{hotel}} · room {{room}} assigned · {{booking}}",
+      "preheader": "Room {{room}} assigned for {{hotel}} reservation {{booking}}.",
+      "heading": "Your room is assigned",
+      "bodyHtml": "Your online payment is confirmed and your room has been assigned.",
+      "portalNote": "You can also view these details in your guest portal.",
+      "bodyText": "Your online payment is confirmed and your room has been assigned.\nBooking: {{booking}}\nRoom: {{room}} ({{roomType}})\nStay: {{from}} to {{to}}"
+    },
+    "receipt": {
+      "subject": "Your {{hotel}} receipt · {{booking}}",
+      "preheader": "Receipt for your {{hotel}} stay {{booking}}.",
+      "heading": "Your receipt",
+      "bodyHtml": "Thank you for staying with us. Here is your receipt.",
+      "portalNote": "You can review your bookings any time in your guest portal.",
+      "bodyText": "Dear {{name}},\nThank you for staying with us. Here is your receipt.\nBooking: {{booking}}\nInvoice: {{invoice}}\nStay: {{stay}}\nTotal charged: {{total}}\nPayments received: {{paid}}\nBalance: {{balance}}"
+    },
+    "receiptRequest": {
+      "subject": "Receipt requested · {{hotel}} {{booking}}",
+      "preheader": "Please upload your transfer receipt for {{hotel}} reservation {{booking}}.",
+      "heading": "Receipt needed",
+      "bodyHtml": "Please upload your bank-transfer receipt for booking <strong>{{booking}}</strong> within 24 hours.",
+      "bodyText": "Dear {{name}},\nPlease upload your bank-transfer receipt for booking {{booking}} within 24 hours.\n{{message}}",
+      "defaultMessage": "Please upload a clear receipt showing the transfer reference and date."
+    },
+    "paymentRejected": {
+      "subject": "Payment update · {{hotel}} {{booking}}",
+      "preheader": "An update on your payment for {{hotel}} reservation {{booking}}.",
+      "heading": "Payment not confirmed",
+      "bodyHtml": "We were unable to confirm your recent payment for booking <strong>{{booking}}</strong>.",
+      "bodyText": "Dear {{name}},\nWe were unable to confirm your recent payment for booking {{booking}}.\nReason: {{reason}}\n{{action}}\n\n{{seal}}",
+      "payAgainHtml": "You can pay again using the button below. The link works once and then expires, so please do not share it.",
+      "payAgainText": "You can pay again using the link below. It works once and then expires, so please do not share it.",
+      "contactHtml": "Please contact the hotel and we will help you complete this booking.",
+      "contactText": "Please contact the hotel and we will help you complete this booking."
+    },
+    "portalBooking": {
+      "pendingSubject": "{{hotel}} reservation {{booking}}",
+      "pendingHeading": "Reservation received",
+      "pendingPreheader": "Your {{hotel}} reservation {{booking}} is pending payment.",
+      "pendingIntroHtml": "Your reservation <strong>{{booking}}</strong> has been received and is pending payment.",
+      "pendingIntroText": "Your reservation {{booking}} has been received and is pending payment.",
+      "creditSettledHtml": "Your reservation <strong>{{booking}}</strong> is confirmed and fully covered by complimentary nights.",
+      "creditSettledText": "Your reservation {{booking}} is confirmed and fully covered by complimentary nights.",
+      "nothingToPay": "There is nothing left to pay. You can view this booking any time in your guest portal.",
+      "payToConfirm": "Please complete payment to confirm this stay.",
+      "payToConfirmOnline": "Please complete payment to confirm this stay. You can pay online from your guest portal or complete a bank transfer.",
+      "viewLater": "To view it later, use booking number <strong>{{booking}}</strong> with this email address.",
+      "viewLaterText": "To view it later, use booking number {{booking}} with this email address.",
+      "detailsText": "Booking: {{booking}}\nRoom: {{room}}\nCheck-in: {{checkIn}}\nCheck-out: {{checkOut}}\nTotal: {{total}}"
     }
   }
 }

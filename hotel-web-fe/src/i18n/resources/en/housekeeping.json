@@ -82,7 +82,9 @@
     "emptyFiltered": "No rooms match these filters",
     "emptyFilteredBody": "Try widening the search or clearing a filter.",
     "clearAll": "Clear all filters",
-    "laneAria": "{{status}} rooms"
+    "laneAria": "{{status}} rooms",
+    "refreshBoard": "Refresh board",
+    "syncStatuses": "Sync statuses"
   },
   "card": {
     "roomN": "Room {{number}}",

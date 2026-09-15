@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from './Icon';
+import { formatNumber, useTranslation } from '../../../../i18n';
 
 // The reports subsystem's short var names (`--emerald`, `--ink`…) alias onto
 // the global --hotel-* design tokens in reports.css.
@@ -42,7 +43,7 @@ type MoneyTone = 'due' | 'paid' | 'muted' | undefined;
 export const Money: React.FC<{ value: number; dp?: number; prefix: string; tone?: MoneyTone }> = ({
   value, dp = 0, prefix, tone,
 }) => {
-  const n = (value || 0).toFixed(dp).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const n = formatNumber(value || 0, { minimumFractionDigits: dp, maximumFractionDigits: dp });
   const color = tone === 'due' ? 'var(--rose)' : tone === 'paid' ? 'var(--emerald)'
     : tone === 'muted' ? 'var(--ink-3)' : 'var(--ink)';
   return (
@@ -55,15 +56,17 @@ export const Money: React.FC<{ value: number; dp?: number; prefix: string; tone?
 export const Delta: React.FC<{ cur: number; prev: number | null; pp?: boolean; invert?: boolean; suffix?: string }> = ({
   cur, prev, pp = false, invert = false, suffix = '',
 }) => {
+  const { t } = useTranslation('dashboard');
   if (prev == null) {
-    return <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>· no prior</span>;
+    return <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{t('reports.compare.noPrior')}</span>;
   }
   const diff = cur - prev;
   const up = diff >= 0;
   const good = invert ? !up : up;
+  const num = (v: number) => formatNumber(v, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const txt = pp
-    ? `${up ? '+' : '−'}${Math.abs(diff).toFixed(1)} pp`
-    : `${up ? '+' : '−'}${Math.abs((diff / (prev || 1)) * 100).toFixed(1)}%`;
+    ? `${up ? '+' : '−'}${num(Math.abs(diff))} pp`
+    : `${up ? '+' : '−'}${num(Math.abs((diff / (prev || 1)) * 100))}%`;
   return (
     <span className="delta" data-good={good}>
       <Icon name={up ? 'trend-up' : 'trend-down'} size={13} />

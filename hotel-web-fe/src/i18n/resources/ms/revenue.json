@@ -1,3 +1,71 @@
 {
-  "title": "Hasil"
+  "title": "Hasil",
+  "overview": {
+    "title": "Gambaran Hasil",
+    "subtitle": "Prestasi tarikh inap dengan perbandingan tempoh sebelumnya",
+    "rangeSubtitle": "Tarikh inap {{from}} – {{to}} · berbanding {{prevFrom}} – {{prevTo}}",
+    "loadError": "Metrik hasil tidak dapat dimuatkan. Semak sambungan anda dan cuba lagi.",
+    "emptyTitle": "Tiada penginapan dalam julat ini",
+    "emptyDescription": "Tiada tempahan menduduki tarikh inap ini. Luaskan julat atau kosongkan penapis.",
+    "methodology": "KPI mengira tarikh inap; sumbangan saluran mengira tarikh penciptaan tempahan. Penginapan batal dan tidak hadir dikecualikan daripada metrik jualan."
+  },
+  "kpi": {
+    "roomRevenue": "Hasil Bilik",
+    "occupancy": "Penghunian",
+    "adr": "ADR",
+    "revpar": "RevPAR",
+    "avgStay": "Purata Inap",
+    "bookingsCreated": "Tempahan Dicipta",
+    "directShare": "Kongsi Langsung",
+    "roomNightsSold_other": "{{count}} malam bilik dijual",
+    "adrSubtitle": "setiap malam bilik dijual",
+    "revparSubtitle": "setiap bilik boleh dijual",
+    "avgStayValue": "{{value}} malam",
+    "avgStaySubtitle": "setiap tempahan dalam julat",
+    "bookingsSubtitle": "batal {{voided}}% · tidak hadir {{noShow}}%",
+    "directShareSubtitle": "daripada hasil bersih",
+    "vsPrior": "berbanding sebelumnya",
+    "noPrior": "· tiada sebelumnya",
+    "noBaseline": "Tiada garis dasar tempoh sebelumnya"
+  },
+  "chart": {
+    "title": "Penghunian & malam bilik",
+    "subtitle": "Mengikut tarikh inap",
+    "empty": "Tiada tarikh inap dalam julat ini",
+    "roomNights": "Malam bilik",
+    "occupancy": "Penghunian",
+    "roomNightsAria": "Malam bilik dijual setiap tarikh inap",
+    "occupancyAria": "Kadar penghunian setiap tarikh inap",
+    "tooltipRoomNights": "Malam bilik: {{value}}",
+    "tooltipRoomRevenue": "Hasil bilik: {{value}}",
+    "tooltipOccupancy": "Penghunian: {{value}}"
+  },
+  "channels": {
+    "title": "Sumbangan saluran",
+    "subtitle": "Hasil bersih mengikut tarikh penciptaan tempahan",
+    "empty": "Tiada tempahan beratribut dicipta dalam julat ini.",
+    "mobileMeta": "{{count}} tempahan · {{revenue}}",
+    "colChannel": "Saluran",
+    "colBookings": "Tempahan",
+    "colNetRevenue": "Hasil bersih",
+    "colShare": "Kongsi"
+  },
+  "channelTypes": {
+    "direct": "Langsung",
+    "ota": "OTA",
+    "corporate": "Korporat",
+    "walk_in": "Walk-in",
+    "phone": "Telefon",
+    "website": "Laman web",
+    "channel_manager": "Pengurus saluran",
+    "other": "Lain-lain"
+  },
+  "filters": {
+    "from": "Dari (tarikh inap)",
+    "to": "Hingga (malam terakhir)",
+    "roomType": "Jenis bilik",
+    "allRoomTypes": "Semua jenis bilik",
+    "channel": "Saluran",
+    "allChannels": "Semua saluran"
+  }
 }

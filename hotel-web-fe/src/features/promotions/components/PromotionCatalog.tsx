@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from '../../../router';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
-import { useTranslation } from '../../../i18n';
+import { useTranslation, type UseTranslationResult } from '../../../i18n';
 import {
   useClaimPromotion,
   useGuestPromotionCatalog,
@@ -14,6 +14,22 @@ import { PromotionCard } from './PromotionCard';
 
 interface PromotionCatalogProps {
   token?: string;
+}
+
+/** Localizes the backend's `claim_unavailable_*` code; falls back to the
+ *  server-supplied English reason for codes this build doesn't know. */
+function claimUnavailableLabel(
+  entry: GuestPromotion,
+  t: UseTranslationResult['t'],
+): string | null | undefined {
+  switch (entry.claim_unavailable_code) {
+    case 'insufficient_points':
+      return t('offers.needPoints', { points: entry.claim_unavailable_points ?? 0 });
+    case 'not_configured':
+      return t('offers.notConfigured');
+    default:
+      return entry.claim_unavailable_reason;
+  }
 }
 
 function createClaimRequestId(): string {
@@ -130,7 +146,7 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
               isPortal={isPortal}
               canClaim={entry.can_claim}
               hasVoucher={entry.has_voucher}
-              claimUnavailableReason={entry.claim_unavailable_reason}
+              claimUnavailableReason={claimUnavailableLabel(entry, t)}
               isClaiming={
                 claimMutation.isPending &&
                 claimMutation.variables?.promotionId === entry.promotion.id

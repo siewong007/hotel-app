@@ -28,6 +28,7 @@ export interface EkycSubmitPayload {
 }
 
 import { api, toApiError } from './client';
+import { t } from '../i18n';
 import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
 
@@ -231,7 +232,7 @@ export class EkycService {
     try {
       await api.post('ekyc/submit', { json: data });
     } catch (error) {
-      throw toApiError(error, 'eKYC submission failed');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -256,7 +257,7 @@ export class EkycService {
         .post(`ekyc/admin/applications/${applicationId}/actions`, { json: payload })
         .json();
     } catch (error) {
-      throw toApiError(error, 'eKYC action failed');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -272,7 +273,7 @@ export class EkycService {
         })
         .json();
     } catch (error) {
-      throw toApiError(error, 'Sensitive field reveal failed');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -307,7 +308,7 @@ export class EkycService {
     try {
       return await api.post('ekyc/upload-document', { body: formData }).json();
     } catch (error) {
-      throw toApiError(error, 'Document upload failed');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -317,7 +318,7 @@ export class EkycService {
     try {
       return await api.post('ekyc/admin/applications', { json: payload }).json();
     } catch (error) {
-      throw toApiError(error, 'Unable to create eKYC verification');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 }

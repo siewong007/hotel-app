@@ -17,5 +17,16 @@
   "passwordTooShort": "密码长度至少为 {{min}} 个字符。",
   "passwordMismatch": "两次输入的密码不一致。",
   "minDigits": "{{field}}至少需要 {{min}} 位数字。",
-  "maxDigits": "{{field}}不能超过 {{max}} 位数字。"
+  "maxDigits": "{{field}}不能超过 {{max}} 位数字。",
+  "booking": {
+    "checkInInvalid": "入住日期无效",
+    "checkOutInvalid": "退房日期无效",
+    "checkOutOnOrAfterCheckIn": "退房日期必须不早于入住日期",
+    "maxStay": "最长住宿天数为 {{days}} 天",
+    "checkOutBeforeCheckIn": "退房日期不能早于入住日期",
+    "guestIdRequired": "宾客 ID 必填且必须为数字",
+    "roomIdRequired": "客房 ID 必填",
+    "guestCountRange": "宾客人数必须在 {{min}} 至 {{max}} 之间",
+    "specialRequestsTooLong": "特殊要求不能超过 {{max}} 个字符"
+  }
 }

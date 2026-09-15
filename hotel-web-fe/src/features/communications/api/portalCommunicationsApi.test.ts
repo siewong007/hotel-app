@@ -65,7 +65,7 @@ describe('PortalCommunicationsApi', () => {
     getPortalToken.mockReturnValue(null);
 
     expect(() => PortalCommunicationsApi.getPreferences()).toThrow(
-      'Sign in to the guest portal to continue'
+      'Please sign in to continue.'
     );
     expect(get).not.toHaveBeenCalled();
   });

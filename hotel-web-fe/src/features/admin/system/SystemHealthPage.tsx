@@ -14,6 +14,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 
 import { useSystemHealth } from './hooks';
 import { JobsTable } from './JobsTable';
+import { useTranslation } from '../../../i18n';
+import { formatNumber } from '../../../i18n/format';
 
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
@@ -47,6 +49,7 @@ const Stat: React.FC<{ label: string; value: React.ReactNode; hint?: string }> =
 );
 
 const SystemHealthPage: React.FC = () => {
+  const { t } = useTranslation('admin');
   const health = useSystemHealth();
 
   return (
@@ -54,18 +57,18 @@ const SystemHealthPage: React.FC = () => {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <Box sx={{ flex: 1 }}>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            System Health
+            {t('systemHealth.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Process metrics reset on restart — counters describe this process only.
+            {t('systemHealth.subtitle')}
           </Typography>
         </Box>
-        <Tooltip title="Refresh now">
+        <Tooltip title={t('common:actions.refresh')}>
           <span>
             <IconButton
               onClick={() => health.refetch()}
               disabled={health.isFetching}
-              aria-label="Refresh system health"
+              aria-label={t('systemHealth.refresh')}
             >
               {health.isFetching ? <CircularProgress size={18} /> : <RefreshIcon />}
             </IconButton>
@@ -75,7 +78,7 @@ const SystemHealthPage: React.FC = () => {
 
       {health.isError && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          System health could not be loaded — the backend may be unreachable.
+          {t('systemHealth.loadError')}
         </Alert>
       )}
 
@@ -89,42 +92,42 @@ const SystemHealthPage: React.FC = () => {
             <Grid container spacing={1.5} sx={{ mb: 3 }}>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                 <Stat
-                  label="Database"
-                  value={health.data.database === 'ok' ? 'Connected' : health.data.database}
+                  label={t('systemHealth.database')}
+                  value={health.data.database === 'ok' ? t('systemHealth.connected') : health.data.database}
                 />
               </Grid>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-                <Stat label="Uptime" value={formatUptime(health.data.uptime_seconds)} />
+                <Stat label={t('systemHealth.uptime')} value={formatUptime(health.data.uptime_seconds)} />
               </Grid>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                 <Stat
-                  label="Requests"
-                  value={health.data.metrics.requests_total.toLocaleString()}
-                  hint={`${health.data.metrics.requests_slow} slow`}
+                  label={t('systemHealth.requests')}
+                  value={formatNumber(health.data.metrics.requests_total)}
+                  hint={t('systemHealth.slowHint', { count: formatNumber(health.data.metrics.requests_slow) })}
                 />
               </Grid>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                 <Stat
-                  label="Errors"
+                  label={t('systemHealth.errors')}
                   value={`${health.data.metrics.responses_4xx} / ${health.data.metrics.responses_5xx}`}
                   hint="4xx / 5xx"
                 />
               </Grid>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                 <Stat
-                  label="Denied"
+                  label={t('systemHealth.denied')}
                   value={`${health.data.metrics.auth_denied} / ${health.data.metrics.permission_denied}`}
-                  hint="auth / permission"
+                  hint={t('systemHealth.deniedHint')}
                 />
               </Grid>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                 <Stat
-                  label="Audit failures"
+                  label={t('systemHealth.auditFailures')}
                   value={health.data.metrics.audit_write_failures}
                   hint={
                     health.data.metrics.audit_write_failures > 0
-                      ? 'Audit trail has holes'
-                      : 'None recorded'
+                      ? t('systemHealth.auditHoles')
+                      : t('systemHealth.noneRecorded')
                   }
                 />
               </Grid>
@@ -133,27 +136,30 @@ const SystemHealthPage: React.FC = () => {
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-                  Email queue
+                  {t('systemHealth.emailQueue')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {health.data.email_queue.queued} queued · {health.data.email_queue.sending}{' '}
-                  sending · {health.data.email_queue.failed} failed ·{' '}
-                  {health.data.email_queue.sent_24h} sent in the last 24h
+                  {t('systemHealth.emailQueueLine', {
+                    queued: formatNumber(health.data.email_queue.queued),
+                    sending: formatNumber(health.data.email_queue.sending),
+                    failed: formatNumber(health.data.email_queue.failed),
+                    sent: formatNumber(health.data.email_queue.sent_24h),
+                  })}
                 </Typography>
               </CardContent>
             </Card>
 
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-              Background jobs
+              {t('systemHealth.backgroundJobs')}
             </Typography>
             {!health.data.job_runs_enabled ? (
               <Alert severity="info">
-                Job monitoring is not installed on this database yet — the <code>job_runs</code>{' '}
-                table arrives with its migration patch. Loops still run; they are simply not
-                recorded.
+                {t('systemHealth.jobsNotInstalledStart')}
+                <code>job_runs</code>
+                {t('systemHealth.jobsNotInstalledEnd')}
               </Alert>
             ) : health.data.jobs.length === 0 ? (
-              <Alert severity="info">No job runs recorded yet.</Alert>
+              <Alert severity="info">{t('systemHealth.noJobRuns')}</Alert>
             ) : (
               <Card variant="outlined">
                 <JobsTable jobs={health.data.jobs} />

@@ -1,0 +1,259 @@
+{
+  "library": {
+    "allReports": "← 所有报告"
+  },
+  "categories": {
+    "operations": "运营",
+    "financial": "财务",
+    "analytics": "分析",
+    "accounting": "会计"
+  },
+  "dateBasis": {
+    "stay": "住宿日期",
+    "booking": "预订日期",
+    "accounting": "记账日期"
+  },
+  "filters": {
+    "shift": "班次",
+    "allShifts": "所有班次",
+    "drawer": "抽屉",
+    "company": "公司",
+    "roomType": "房型",
+    "run": "生成报告",
+    "shifts": {
+      "morning": "早班",
+      "evening": "晚班",
+      "night": "夜班"
+    }
+  },
+  "report": {
+    "print": "打印报告",
+    "printTitle": "报告 - {{title}}",
+    "emptySection": "该期间没有数据行",
+    "noData": "该报告在所选范围内没有产生数据。"
+  },
+  "reports": {
+    "daily_operations": {
+      "title": "每日运营",
+      "description": "单个营业日的到店、离店、在住客人和客房状态。"
+    },
+    "occupancy": {
+      "title": "入住率",
+      "description": "按住宿日期范围和房型统计的入住率、ADR 和 RevPAR。"
+    },
+    "rooms_sold": {
+      "title": "已售客房",
+      "description": "按住宿日期统计的已售客房，含房价和收入明细。"
+    },
+    "room_performance": {
+      "title": "客房表现",
+      "description": "每间客房和每种房型的收入与入住率，含表现不佳项。"
+    },
+    "revenue": {
+      "title": "收入",
+      "description": "按房型、来源和付款状态统计的住宿日期范围收入。"
+    },
+    "channel_net_revenue": {
+      "title": "渠道净收入",
+      "description": "各预订渠道扣除佣金后的毛收入到净收入。"
+    },
+    "ota_commission": {
+      "title": "OTA 佣金",
+      "description": "渠道净收入的别名 — 每个 OTA 应付的佣金。"
+    },
+    "ota_monthly_statement": {
+      "title": "OTA 月度对账单",
+      "description": "各 OTA 在该期间的预订、佣金和净结算对账单。"
+    },
+    "payment_status": {
+      "title": "付款状态",
+      "description": "付款状态分布和逾期余额。"
+    },
+    "shift_report": {
+      "title": "班次报告",
+      "description": "某日的变动和客房状态，可按班次/抽屉筛选。"
+    },
+    "complimentary": {
+      "title": "免费房晚",
+      "description": "免费和部分免费的住宿及给予的折扣。"
+    },
+    "guest_statistics": {
+      "title": "客人统计",
+      "description": "独立/新/回头客、国籍构成和高消费客人。"
+    },
+    "general_journal": {
+      "title": "总日记账",
+      "description": "该期间的日记账分录。"
+    },
+    "journal_by_type": {
+      "title": "按类型日记账",
+      "description": "按交易类型分组的日记账分录。"
+    },
+    "balance_sheet": {
+      "title": "资产负债表",
+      "description": "该期间的资产、负债和权益状况。"
+    },
+    "company_ledger_statement": {
+      "title": "公司账册对账单",
+      "description": "各公司的对账单及账龄分组；未命名时列出公司。"
+    }
+  },
+  "fields": {
+    "account": "账户",
+    "account_code": "账户代码",
+    "accounts": "账户",
+    "actual_amount": "实际金额",
+    "actual_revenue": "实际收入",
+    "address": "地址",
+    "adr": "ADR",
+    "adult_count": "成人",
+    "aging": "账龄",
+    "amount": "金额",
+    "arrivals": "到店",
+    "arrivals_count": "到店",
+    "available_room_nights": "可售房晚",
+    "average_stay_nights": "平均住宿（晚）",
+    "balance": "余额",
+    "balance_due": "应付余额",
+    "benchmarks": "基准",
+    "booking_number": "预订号",
+    "booking_status": "预订状态",
+    "bookings": "预订",
+    "by_nationality": "按国籍",
+    "by_payment_method": "按支付方式",
+    "by_payment_status": "按付款状态",
+    "by_reason": "按原因",
+    "by_room": "按房间",
+    "by_room_type": "按房型",
+    "by_source": "按来源",
+    "by_status": "按状态",
+    "by_type": "按类型",
+    "check_in": "入住",
+    "check_in_date": "入住日期",
+    "check_out": "退房",
+    "check_out_date": "退房日期",
+    "child_count": "儿童",
+    "city": "城市",
+    "companies": "公司",
+    "company": "公司",
+    "company_name": "公司名称",
+    "complimentary_end_date": "免费结束日期",
+    "complimentary_nights": "免费房晚",
+    "complimentary_reason": "免费原因",
+    "complimentary_start_date": "免费开始日期",
+    "contact_email": "联系邮箱",
+    "contact_person": "联系人",
+    "contact_phone": "联系电话",
+    "contra_account": "对冲账户",
+    "contra_amount": "对冲金额",
+    "count": "数量",
+    "country": "国家",
+    "credit": "贷方",
+    "daily": "每日",
+    "date": "日期",
+    "days": "天数",
+    "days_31_60": "31–60 天",
+    "days_61_90": "61–90 天",
+    "days_91_120": "91–120 天",
+    "days_old": "账龄（天）",
+    "debit": "借方",
+    "departures": "离店",
+    "departures_count": "离店",
+    "deposit_amount": "押金金额",
+    "deposit_paid": "已付押金",
+    "description": "说明",
+    "discount_given": "已给折扣",
+    "due_date": "到期日",
+    "end": "结束",
+    "entries": "分录",
+    "entry_count": "分录数",
+    "existing_credit": "现有信用",
+    "finance_charges": "财务费用",
+    "folio": "账单",
+    "fully_complimentary": "全额免费",
+    "guest_name": "客人姓名",
+    "id": "ID",
+    "in_house": "在住",
+    "in_house_count": "在住客人",
+    "infant_count": "婴儿",
+    "insights": "洞察",
+    "invoice": "发票",
+    "invoice_date": "发票日期",
+    "is_complimentary": "免费",
+    "last_payment": "最近付款",
+    "line1": "第一行",
+    "method": "方式",
+    "metric": "指标",
+    "month": "月份",
+    "name": "名称",
+    "nationality": "国籍",
+    "net_amount": "净额",
+    "new_guests": "新客人",
+    "non_tourists": "非游客",
+    "occupancy": "入住率",
+    "occupancy_rate": "入住率",
+    "open_amount": "未结金额",
+    "open_balance": "未结余额",
+    "original_amount": "原始金额",
+    "original_revenue": "原始收入",
+    "outstanding_balance": "未清余额",
+    "over_120_days": "超过 120 天",
+    "overdue": "逾期",
+    "overdue_count": "逾期数量",
+    "partial_complimentary": "部分免费",
+    "payment_method": "支付方式",
+    "payment_status": "付款状态",
+    "payments": "付款",
+    "payments_received": "已收付款",
+    "period": "期间",
+    "post_type": "记账类型",
+    "postal_code": "邮编",
+    "rate_plan": "房价计划",
+    "reason": "原因",
+    "reference": "参考号",
+    "registration_number": "登记号",
+    "returning_guests": "回头客",
+    "revenue": "收入",
+    "revpar": "RevPAR",
+    "room": "房间",
+    "room_count": "房间数",
+    "room_number": "房号",
+    "room_status": "客房状态",
+    "room_type": "房型",
+    "rooms_sold": "已售客房",
+    "sections": "部分",
+    "source": "来源",
+    "start": "开始",
+    "state": "状态",
+    "statement_date": "对账日期",
+    "status": "状态",
+    "summary": "汇总",
+    "target": "目标",
+    "tonight_occupied": "今晚已住",
+    "top_guests": "高消费客人",
+    "total_amount": "总金额",
+    "total_balance": "总余额",
+    "total_bookings": "总预订数",
+    "total_complimentary_nights": "总免费房晚",
+    "total_credit": "总贷方",
+    "total_credits": "总贷方",
+    "total_debit": "总借方",
+    "total_debits": "总借方",
+    "total_deposits": "总押金",
+    "total_price": "总价",
+    "total_revenue": "总收入",
+    "total_rooms": "总房数",
+    "total_spent": "总消费",
+    "totals": "合计",
+    "tourists": "游客",
+    "transactions": "交易",
+    "type": "类型",
+    "underperforming": "表现不佳",
+    "unique_guests": "独立客人",
+    "unit": "单位",
+    "utilization": "利用率",
+    "value": "数值",
+    "variance": "差异",
+    "voucher": "代金券"
+  }
+}

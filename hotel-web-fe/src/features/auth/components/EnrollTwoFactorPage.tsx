@@ -5,6 +5,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { useTranslation } from '../../../i18n';
 import TwoFactorSetup from './TwoFactorSetup';
 import { parseEnrollmentDeadline } from '../twoFactorEnrollment';
+import { formatHotelDate } from '../../../utils/date';
 
 /**
  * Forced two-factor enrolment.
@@ -46,7 +47,7 @@ const EnrollTwoFactorPage: React.FC = () => {
           <Alert severity="warning" sx={{ mb: 2 }}>
             {deadline
               ? t('twoFactorEnrollment.deadlineWarning', {
-                  date: deadline.toLocaleDateString(),
+                  date: formatHotelDate(deadline, ''),
                 })
               : t('twoFactorEnrollment.warning')}
           </Alert>

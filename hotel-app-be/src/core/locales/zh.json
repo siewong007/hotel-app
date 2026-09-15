@@ -13,16 +13,26 @@
       "payment": "付款",
       "method": "方式",
       "paymentsReceived": "已收款项",
-      "balance": "余额"
+      "balance": "余额",
+      "checkIn": "入住",
+      "checkOut": "退房",
+      "invoice": "发票",
+      "totalCharged": "收费总额",
+      "reason": "原因",
+      "linkValidUntil": "链接有效期至"
     },
     "stay": {
       "range": "{{from}}至{{to}} · {{nights}}晚",
-      "text": "预订：{{booking}}\n房间：{{room}}（{{roomType}}）\n住宿：{{from}}至{{to}}（{{nights}}晚）\n总额：{{total}}"
+      "text": "预订：{{booking}}\n房间：{{room}}（{{roomType}}）\n住宿：{{from}}至{{to}}（{{nights}}晚）\n总额：{{total}}",
+      "rangeShort": "{{from}} 至 {{to}}"
     },
     "cta": {
       "viewBooking": "查看您的预订",
       "preCheckIn": "开始在线办理入住",
-      "verifyEmail": "验证我的电子邮箱"
+      "verifyEmail": "验证我的电子邮箱",
+      "portal": "打开宾客门户",
+      "uploadReceipt": "上传收据",
+      "completePayment": "完成支付"
     },
     "bookingConfirmed": {
       "subject": "{{hotel}}预订已确认 {{booking}}",
@@ -64,6 +74,85 @@
       "heading": "验证您的电子邮箱",
       "bodyHtml": "请确认这是您的电子邮箱地址，以便登录您的账户。以下链接24小时内有效。",
       "bodyText": "请确认这是您的电子邮箱地址，以便登录您的账户。以下链接24小时内有效。"
+    },
+    "chrome": {
+      "sentBy": "此邮件由 {{hotel}} 发送。",
+      "sealCaveat": "此标识仅为视觉提示，可以被复制。真正能证明此邮件来自我们的是您邮箱服务商的发件域验证，以及您手动输入 {{host}} 访问，而不是点击链接。",
+      "unsubscribe": "退订",
+      "spamNote": "如果此邮件不在您的主要收件箱中，请检查垃圾邮件和促销文件夹并将其标记为非垃圾邮件，以便下一封正常送达。"
+    },
+    "preArrival": {
+      "subject": "您在 {{hotel}} 的住宿即将开始 · {{booking}}",
+      "preheader": "您在 {{hotel}} 的住宿 {{booking}} 将于 {{checkIn}} 开始。",
+      "heading": "您的住宿即将开始",
+      "bodyHtml": "我们期待您的光临。您的住宿 <strong>{{booking}}</strong> 将于 <strong>{{checkIn}}</strong> 开始。",
+      "checkInNote": "您可以通过下方链接完成在线入住，无需前往前台。",
+      "bodyText": "尊敬的 {{name}}，\n您的住宿 {{booking}} 将于 {{checkIn}} 开始。房间：{{room}}。退房：{{checkOut}}。\n您可以通过此邮件中的链接完成在线入住。",
+      "cta": "完成预登记"
+    },
+    "birthday": {
+      "subject": "来自 {{hotel}} 的生日祝福！",
+      "preheader": "一份来自 {{hotel}} 的生日礼物正在您的钱包中等待。",
+      "heading": "生日快乐",
+      "bodyHtml": "生日快乐！感谢您入住我们酒店，这是送给您的礼物。",
+      "walletNote": "您也可以在宾客门户钱包中找到它。",
+      "signoff": "诚挚祝福，",
+      "bodyText": "尊敬的 {{name}}，\n生日快乐！您的礼物是 {{gift}}。\n代金券代码：{{code}}（有效期至 {{expiry}}）。\n诚挚祝福，\n{{hotel}}",
+      "cta": "打开您的钱包",
+      "giftLabel": "礼物",
+      "codeLabel": "代金券代码",
+      "validUntil": "有效期至",
+      "fallbackGift": "您的生日礼遇"
+    },
+    "roomAssigned": {
+      "subject": "{{hotel}} · 房间 {{room}} 已分配 · {{booking}}",
+      "preheader": "房间 {{room}} 已分配给 {{hotel}} 预订 {{booking}}。",
+      "heading": "您的房间已分配",
+      "bodyHtml": "您的在线支付已确认，房间已分配。",
+      "portalNote": "您也可以在宾客门户中查看这些详情。",
+      "bodyText": "您的在线支付已确认，房间已分配。\n预订：{{booking}}\n房间：{{room}}（{{roomType}}）\n住宿：{{from}} 至 {{to}}"
+    },
+    "receipt": {
+      "subject": "您的 {{hotel}} 收据 · {{booking}}",
+      "preheader": "您在 {{hotel}} 住宿 {{booking}} 的收据。",
+      "heading": "您的收据",
+      "bodyHtml": "感谢您的入住。这是您的收据。",
+      "portalNote": "您可以随时在宾客门户中查看您的预订。",
+      "bodyText": "尊敬的 {{name}}，\n感谢您的入住。这是您的收据。\n预订：{{booking}}\n发票：{{invoice}}\n住宿：{{stay}}\n收费总额：{{total}}\n已收款：{{paid}}\n余额：{{balance}}"
+    },
+    "receiptRequest": {
+      "subject": "需要收据 · {{hotel}} {{booking}}",
+      "preheader": "请为 {{hotel}} 预订 {{booking}} 上传您的转账收据。",
+      "heading": "需要收据",
+      "bodyHtml": "请在 24 小时内上传预订 <strong>{{booking}}</strong> 的银行转账收据。",
+      "bodyText": "尊敬的 {{name}}，\n请在 24 小时内上传预订 {{booking}} 的银行转账收据。\n{{message}}",
+      "defaultMessage": "请上传清晰显示转账参考号和日期的收据。"
+    },
+    "paymentRejected": {
+      "subject": "支付更新 · {{hotel}} {{booking}}",
+      "preheader": "关于您为 {{hotel}} 预订 {{booking}} 支付的更新。",
+      "heading": "支付未确认",
+      "bodyHtml": "我们无法确认您对预订 <strong>{{booking}}</strong> 的最近一笔支付。",
+      "bodyText": "尊敬的 {{name}}，\n我们无法确认您对预订 {{booking}} 的最近一笔支付。\n原因：{{reason}}\n{{action}}\n\n{{seal}}",
+      "payAgainHtml": "您可以使用下方按钮重新支付。该链接只能使用一次，随后即失效，请勿分享。",
+      "payAgainText": "您可以使用下方链接重新支付。该链接只能使用一次，随后即失效，请勿分享。",
+      "contactHtml": "请联系酒店，我们将协助您完成此预订。",
+      "contactText": "请联系酒店，我们将协助您完成此预订。"
+    },
+    "portalBooking": {
+      "pendingSubject": "{{hotel}} 预订 {{booking}}",
+      "pendingHeading": "预订已收到",
+      "pendingPreheader": "您的 {{hotel}} 预订 {{booking}} 正在等待支付。",
+      "pendingIntroHtml": "您的预订 <strong>{{booking}}</strong> 已收到，正在等待支付。",
+      "pendingIntroText": "您的预订 {{booking}} 已收到，正在等待支付。",
+      "creditSettledHtml": "您的预订 <strong>{{booking}}</strong> 已确认，并由免费房晚全额抵扣。",
+      "creditSettledText": "您的预订 {{booking}} 已确认，并由免费房晚全额抵扣。",
+      "nothingToPay": "无需再支付任何费用。您可以随时在宾客门户中查看此预订。",
+      "payToConfirm": "请完成支付以确认此住宿。",
+      "payToConfirmOnline": "请完成支付以确认此住宿。您可以通过宾客门户在线支付或进行银行转账。",
+      "viewLater": "如需稍后查看，请使用预订号 <strong>{{booking}}</strong> 和此邮箱地址。",
+      "viewLaterText": "如需稍后查看，请使用预订号 {{booking}} 和此邮箱地址。",
+      "detailsText": "预订：{{booking}}\n房间：{{room}}\n入住：{{checkIn}}\n退房：{{checkOut}}\n总额：{{total}}"
     }
   }
 }

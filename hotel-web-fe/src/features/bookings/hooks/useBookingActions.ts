@@ -19,6 +19,7 @@ import {
   useUpdateBooking,
 } from './useBookingQueries';
 import BookingActionDialogs from '../components/Bookings/dialogs/BookingActionDialogs';
+import { useTranslation } from '../../../i18n';
 import type { PaymentDialogContext } from '../components/Bookings/dialogs/PaymentDialog';
 
 /** The action callbacks BookingDetailsPanel (and its phone action menu) fire. */
@@ -63,6 +64,7 @@ export function useBookingActions({
   onError,
   onCompleted,
 }: UseBookingActionsOptions) {
+  const { t } = useTranslation('bookings');
   const updateBookingMutation = useUpdateBooking();
 
   const showSnackbar = (message: string) => {
@@ -187,7 +189,7 @@ export function useBookingActions({
       setWorkflowSummary(summary);
       setWorkflowTimeline(timeline);
     } catch (err: unknown) {
-      onError(getErrorMessage(err) || 'Failed to load booking workflow');
+      onError(getErrorMessage(err) || t('workflow.loadFailed'));
     } finally {
       setWorkflowLoading(false);
     }

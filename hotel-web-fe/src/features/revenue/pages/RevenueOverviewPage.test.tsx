@@ -81,8 +81,8 @@ describe('RevenueOverviewPage', () => {
   it('renders KPIs, trend chart and channel mix', () => {
     renderPage();
     expect(screen.getByTestId('trend-chart')).toBeTruthy();
-    expect(screen.getByText('Direct')).toBeTruthy();
-    expect(screen.getByText(/Stay dates 2026-09-01/)).toBeTruthy();
+    expect(screen.getAllByText('Direct').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Stay dates Sep 1, 2026/)).toBeTruthy();
   });
 
   it('shows the empty state when there is no activity', () => {

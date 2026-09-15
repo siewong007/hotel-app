@@ -44,6 +44,8 @@ import {
   useUpdateUser,
 } from '../hooks/useRBACQueries';
 import { errorMessage } from '../../../../../utils/errorMessage';
+import { useTranslation } from '../../../../../i18n';
+import { formatHotelDate } from '../../../../../utils/date';
 
 interface UserWithRoles extends User {
   roles?: Role[];
@@ -90,6 +92,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
   onUserDeleted,
   onRolesAssigned,
 }) => {
+  const { t } = useTranslation('admin');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -149,12 +152,12 @@ export const UsersTab: React.FC<UsersTabProps> = ({
   };
 
   const validateForm = (): string | null => {
-    if (!formData.username.trim()) return 'Username is required';
-    if (!formData.email.trim()) return 'Email is required';
-    if (!editingUser && !formData.password) return 'Password is required for new users';
-    if (formData.password && formData.password.length < 6) return 'Password must be at least 6 characters';
-    if (formData.password && formData.password !== formData.confirmPassword) return 'Passwords do not match';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return 'Invalid email format';
+    if (!formData.username.trim()) return t('validation:required', { field: t('rbac.users.username') });
+    if (!formData.email.trim()) return t('validation:required', { field: t('common:field.email') });
+    if (!editingUser && !formData.password) return t('validation:required', { field: t('rbac.users.password') });
+    if (formData.password && formData.password.length < 6) return t('validation:passwordTooShort', { min: 6 });
+    if (formData.password && formData.password !== formData.confirmPassword) return t('validation:passwordMismatch');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return t('validation:email');
     return null;
   };
 
@@ -220,7 +223,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
 
       handleClose();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to save user'));
+      setError(errorMessage(err, t('rbac.errors.saveUser')));
     }
   };
 
@@ -233,7 +236,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
       setDeleteDialogOpen(false);
       setUserToDelete(null);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to delete user'));
+      setError(errorMessage(err, t('rbac.errors.deleteUser')));
     }
   };
 
@@ -245,7 +248,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
   const columns = useMemo<ColumnDef<UserWithRoles, any>[]>(() => [
     {
       id: 'username',
-      header: 'Username',
+      header: t('rbac.users.username'),
       accessorFn: (row) => row.username,
       cell: (info) => <Typography sx={{
         fontWeight: 500
@@ -253,18 +256,18 @@ export const UsersTab: React.FC<UsersTabProps> = ({
     },
     {
       id: 'email',
-      header: 'Email',
+      header: t('common:field.email'),
       accessorFn: (row) => row.email,
     },
     {
       id: 'full_name',
-      header: 'Full Name',
+      header: t('common:field.fullName'),
       accessorFn: (row) => row.full_name || '',
       cell: (info) => (info.getValue() as string) || '-',
     },
     {
       id: 'roles',
-      header: 'Roles',
+      header: t('rbac.roles'),
       accessorFn: (row) => (row.roles || []).map((r) => r.name).join(', '),
       enableSorting: false,
       cell: (info) => {
@@ -273,7 +276,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
           return (
             <Typography variant="body2" sx={{
               color: "text.secondary"
-            }}>No roles</Typography>
+            }}>{t('rbac.users.noRoles')}</Typography>
           );
         }
         return (
@@ -298,13 +301,13 @@ export const UsersTab: React.FC<UsersTabProps> = ({
     },
     {
       id: 'status',
-      header: 'Status',
-      accessorFn: (row) => (row.is_active ? 'Active' : 'Inactive'),
+      header: t('common:field.status'),
+      accessorFn: (row) => (row.is_active ? t('status:generic.active') : t('status:generic.inactive')),
       cell: (info) => {
         const user = info.row.original;
         return (
           <Chip
-            label={user.is_active ? 'Active' : 'Inactive'}
+            label={user.is_active ? t('status:generic.active') : t('status:generic.inactive')}
             size="small"
             color={user.is_active ? 'success' : 'default'}
             variant={user.is_active ? 'filled' : 'outlined'}
@@ -314,21 +317,21 @@ export const UsersTab: React.FC<UsersTabProps> = ({
     },
     {
       id: 'created',
-      header: 'Created',
+      header: t('common:field.createdAt'),
       accessorFn: (row) => (row.created_at ? new Date(row.created_at).getTime() : 0),
       cell: (info) => {
         const ts = info.getValue() as number;
-        return ts ? new Date(ts).toLocaleDateString() : '-';
+        return ts ? formatHotelDate(new Date(ts)) : '-';
       },
     },
     {
       id: 'actions',
-      header: 'Actions',
+      header: t('common:field.actions'),
       enableSorting: false,
       enableColumnFilter: false,
       meta: { align: 'right', stopRowClick: true },
       cell: (info) => (
-        <Tooltip title="Delete User">
+        <Tooltip title={t('rbac.users.deleteUser')}>
           <IconButton
             size="small"
             onClick={() => handleOpenDelete(info.row.original)}
@@ -339,7 +342,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
         </Tooltip>
       ),
     },
-  ], []);
+  ], [t]);
 
   return (
     <Box>
@@ -349,18 +352,18 @@ export const UsersTab: React.FC<UsersTabProps> = ({
           <Typography variant="h6" sx={{
             fontWeight: 600
           }}>
-            User Management
+            {t('rbac.users.title')}
           </Typography>
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            Create, edit, and manage user accounts and their role assignments
+            {t('rbac.users.subtitle')}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
           <TextField
             size="small"
-            placeholder="Search users..."
+            placeholder={t('rbac.users.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             sx={{ width: 240 }}
@@ -379,7 +382,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
             startIcon={<PersonAddIcon />}
             onClick={handleOpenCreate}
           >
-            Add User
+            {t('rbac.users.addUser')}
           </Button>
         </Box>
       </Box>
@@ -388,7 +391,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
         columns={columns}
         loading={loading}
         globalFilter={searchQuery}
-        emptyMessage="No users found"
+        emptyMessage={t('rbac.users.empty')}
         onRowClick={handleOpenEdit}
         getRowId={(row) => row.id}
         renderMobileCard={(u) => (
@@ -402,7 +405,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                 )}
               </Box>
               <Chip
-                label={u.is_active ? 'Active' : 'Inactive'}
+                label={u.is_active ? t('status:generic.active') : t('status:generic.inactive')}
                 size="small"
                 color={u.is_active ? 'success' : 'default'}
                 variant={u.is_active ? 'filled' : 'outlined'}
@@ -426,13 +429,13 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                     />
                   ))
                 ) : (
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>No roles</Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>{t('rbac.users.noRoles')}</Typography>
                 )}
               </Box>
               <IconButton
                 size="small"
                 color="error"
-                aria-label="Delete user"
+                aria-label={t('rbac.users.deleteUser')}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleOpenDelete(u);
@@ -450,7 +453,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {editingUser ? <EditIcon color="primary" /> : <PersonAddIcon color="primary" />}
             <Typography variant="h6">
-              {editingUser ? 'Edit User' : 'Create New User'}
+              {editingUser ? t('rbac.users.editTitle') : t('rbac.users.createTitle')}
             </Typography>
           </Box>
         </DialogTitle>
@@ -462,7 +465,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
           )}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
             <TextField
-              label="Username"
+              label={t('rbac.users.username')}
               value={formData.username}
               onChange={(e) => handleChange('username', e.target.value)}
               required
@@ -470,7 +473,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
               disabled={!!editingUser}
             />
             <TextField
-              label="Email"
+              label={t('common:field.email')}
               type="email"
               value={formData.email}
               onChange={(e) => handleChange('email', e.target.value)}
@@ -478,13 +481,13 @@ export const UsersTab: React.FC<UsersTabProps> = ({
               fullWidth
             />
             <TextField
-              label="Full Name"
+              label={t('common:field.fullName')}
               value={formData.full_name}
               onChange={(e) => handleChange('full_name', e.target.value)}
               fullWidth
             />
             <TextField
-              label={editingUser ? 'New Password (leave blank to keep current)' : 'Password'}
+              label={editingUser ? t('rbac.users.newPassword') : t('rbac.users.password')}
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={(e) => handleChange('password', e.target.value)}
@@ -497,7 +500,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                       <IconButton
                         onClick={() => setShowPassword(!showPassword)}
                         edge="end"
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-label={showPassword ? t('common:aria.hidePassword') : t('common:aria.showPassword')}
                       >
                         {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
                       </IconButton>
@@ -508,7 +511,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
             />
             {(formData.password || !editingUser) && (
               <TextField
-                label="Confirm Password"
+                label={t('rbac.users.confirmPassword')}
                 type={showPassword ? 'text' : 'password'}
                 value={formData.confirmPassword}
                 onChange={(e) => handleChange('confirmPassword', e.target.value)}
@@ -517,7 +520,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
               />
             )}
             <FormControl fullWidth>
-              <InputLabel>Roles</InputLabel>
+              <InputLabel>{t('rbac.roles')}</InputLabel>
               <Select
                 multiple
                 value={formData.role_ids}
@@ -529,7 +532,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                     : [];
                   handleChange('role_ids', ids);
                 }}
-                input={<OutlinedInput label="Roles" />}
+                input={<OutlinedInput label={t('rbac.roles')} />}
                 renderValue={(selected) =>
                   roles
                     .filter((r) => selected.includes(r.id))
@@ -557,14 +560,14 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                     color="success"
                   />
                 }
-                label="Active"
+                label={t('status:generic.active')}
               />
             )}
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={handleClose} disabled={submitting}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             variant="contained"
@@ -572,22 +575,22 @@ export const UsersTab: React.FC<UsersTabProps> = ({
             disabled={submitting}
             startIcon={submitting ? <CircularProgress size={20} /> : null}
           >
-            {submitting ? 'Saving...' : editingUser ? 'Update' : 'Create'}
+            {submitting ? t('common:state.saving') : editingUser ? t('common:actions.update') : t('common:actions.create')}
           </Button>
         </DialogActions>
       </Dialog>
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete User</DialogTitle>
+        <DialogTitle>{t('rbac.users.deleteTitle')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete user <strong>{userToDelete?.username}</strong>?
-            This action cannot be undone.
+            {t('rbac.users.deleteConfirmStart')}{' '}
+            <strong>{userToDelete?.username}</strong>{t('rbac.users.deleteConfirmEnd')}
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)} disabled={submitting}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             variant="contained"
@@ -596,7 +599,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
             disabled={submitting}
             startIcon={submitting ? <CircularProgress size={20} /> : <DeleteIcon />}
           >
-            {submitting ? 'Deleting...' : 'Delete'}
+            {submitting ? t('common:state.deleting') : t('common:actions.delete')}
           </Button>
         </DialogActions>
       </Dialog>

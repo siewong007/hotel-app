@@ -62,19 +62,14 @@ export function getSupportConversationAccess(
   if (!canReply) {
     if (!isActive) {
       blockedReplyMessage = conversation.status === 'closed'
-        ? t?.('access.blockedClosed')
-          ?? 'This conversation must be reopened before another reply or internal note can be added.'
-        : t?.('access.blockedResolved')
-          ?? 'This conversation is resolved. Reopen it before sending another reply or internal note.';
+        ? t?.('access.blockedClosed') ?? null
+        : t?.('access.blockedResolved') ?? null;
     } else if (isUnassigned && permissions.canWrite && !permissions.canAssign) {
-      blockedReplyMessage = t?.('access.blockedNeedsClaim')
-        ?? 'A support coordinator must claim this conversation before you can reply.';
+      blockedReplyMessage = t?.('access.blockedNeedsClaim') ?? null;
     } else if (conversation.assigned_to_user_id && !isAssignedToCurrentUser && !permissions.canManage) {
-      blockedReplyMessage = t?.('access.blockedOtherAssignee')
-        ?? 'This conversation is assigned to another support staff member.';
+      blockedReplyMessage = t?.('access.blockedOtherAssignee') ?? null;
     } else {
-      blockedReplyMessage = t?.('access.blockedNoPermission')
-        ?? 'You do not have permission to reply to this conversation.';
+      blockedReplyMessage = t?.('access.blockedNoPermission') ?? null;
     }
   }
 

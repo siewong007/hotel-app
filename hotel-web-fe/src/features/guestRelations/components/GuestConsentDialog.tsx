@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatStatusLabel } from '../../../utils/formatters';
 import {
   Alert,
   Box,
@@ -14,7 +15,7 @@ import {
 import { errorMessage } from '../../../utils';
 import type { GuestSubscription } from '../../../types';
 import { useTranslation } from '../../../i18n/useTranslation';
-import { TOPIC_LABELS, type NotificationTopic } from '../../communications/types';
+import { type NotificationTopic } from '../../communications/types';
 import { useRecordGuestConsent } from '../hooks/useGuestRelationsQueries';
 
 const TOPICS: NotificationTopic[] = ['announcement', 'promotion', 'birthday_voucher'];
@@ -149,7 +150,7 @@ const ConsentForm: React.FC<ConsentFormProps> = ({
               label={
                 <Box>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {tOr(`consent.topics.${topic}`, TOPIC_LABELS[topic] ?? topic)}
+                    {tOr(`consent.topics.${topic}`, formatStatusLabel(topic))}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     {draft[topic] ? t('consent.optedIn') : t('consent.optedOut')}

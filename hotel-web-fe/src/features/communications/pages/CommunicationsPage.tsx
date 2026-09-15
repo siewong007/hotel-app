@@ -25,6 +25,8 @@ import {
   Typography,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { statusLabel, useTranslation } from '../../../i18n';
+import { formatStatusLabel } from '../../../utils/formatters';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { TableScroll } from '../../../components/data-table/TableScroll';
@@ -49,9 +51,10 @@ const STATUS_COLORS: Record<string, 'default' | 'info' | 'warning' | 'success' |
 };
 
 function useErrorText() {
+  const { t } = useTranslation('communications');
   const [error, setError] = useState<string | null>(null);
   const capture = (e: unknown) =>
-    setError(e instanceof Error ? e.message : 'Request failed');
+    setError(e instanceof Error ? e.message : t('errors:api.server_error'));
   return { error, setError, capture };
 }
 
@@ -76,6 +79,7 @@ function CampaignDialog({
   campaignId: number | null;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('communications');
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
   const [form, setForm] = useState<CampaignInput>(initial);
@@ -114,19 +118,19 @@ function CampaignDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle>{campaignId === null ? 'New campaign' : 'Edit campaign'}</DialogTitle>
+      <DialogTitle>{campaignId === null ? t('campaigns.new') : t('campaigns.edit')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
           <TextField
-            label="Name"
+            label={t('campaigns.name')}
             value={form.name}
             onChange={(e) => set({ name: e.target.value })}
             fullWidth
           />
           <TextField
             select
-            label="Type"
+            label={t('campaigns.type')}
             value={form.campaign_type}
             onChange={(e) =>
               set({
@@ -135,33 +139,33 @@ function CampaignDialog({
               })
             }
           >
-            <MenuItem value="announcement">Announcement</MenuItem>
-            <MenuItem value="promotion">Promotion</MenuItem>
+            <MenuItem value="announcement">{t('campaigns.types.announcement')}</MenuItem>
+            <MenuItem value="promotion">{t('campaigns.types.promotion')}</MenuItem>
           </TextField>
           {form.campaign_type === 'promotion' && (
             <TextField
               select
-              label="Published promotion"
+              label={t('campaigns.publishedPromotion')}
               value={form.promotion_id ?? ''}
               onChange={(e) =>
                 set({ promotion_id: e.target.value ? Number(e.target.value) : null })
               }
               helperText={
                 promotions.isError
-                  ? 'Published promotions could not be loaded'
-                  : 'Choose the offer this campaign advertises'
+                  ? t('campaigns.promotionsLoadFailed')
+                  : t('campaigns.promotionHelp')
               }
               disabled={promotions.isLoading || promotions.isError}
               required
             >
               {promotions.isLoading ? (
                 <MenuItem value="" disabled>
-                  Loading promotions…
+                  {t('campaigns.promotionsLoading')}
                 </MenuItem>
               ) : null}
               {!promotions.isLoading && (promotions.data?.items.length ?? 0) === 0 ? (
                 <MenuItem value="" disabled>
-                  No published promotions available
+                  {t('campaigns.noPublishedPromotions')}
                 </MenuItem>
               ) : null}
               {(promotions.data?.items ?? []).map((promotion) => (
@@ -173,21 +177,21 @@ function CampaignDialog({
           )}
           <TextField
             select
-            label="Guest segment"
+            label={t('campaigns.segment')}
             value={form.segment_id ?? ''}
             onChange={(e) =>
               set({ segment_id: e.target.value ? Number(e.target.value) : null })
             }
             helperText={
               segments.isError
-                ? 'Segments could not be loaded'
+                ? t('campaigns.segmentsLoadFailed')
                 : form.segment_id
-                  ? 'Only segment members who are subscribed and unsuppressed receive this campaign'
-                  : 'Optional — leave empty to reach every eligible subscriber'
+                  ? t('campaigns.segmentScopedHelp')
+                  : t('campaigns.segmentAllHelp')
             }
             disabled={segments.isLoading || segments.isError}
           >
-            <MenuItem value="">All eligible guests</MenuItem>
+            <MenuItem value="">{t('campaigns.allEligibleGuests')}</MenuItem>
             {(segments.data?.items ?? []).map((s) => (
               <MenuItem key={s.id} value={s.id}>
                 {s.name}
@@ -196,20 +200,21 @@ function CampaignDialog({
           </TextField>
           {audience.data && (
             <Alert severity="info" icon={false} sx={{ py: 0.5 }}>
-              Audience: <strong>{audience.data.eligible}</strong> eligible
+              {t('campaigns.audienceLabel')} <strong>{audience.data.eligible}</strong>{' '}
+              {t('campaigns.audienceEligible')}
               {form.segment_id
-                ? ` — ${audience.data.excluded_segment} eligible guests fall outside the segment`
+                ? t('campaigns.audienceOutsideSegment', { count: audience.data.excluded_segment })
                 : ''}
             </Alert>
           )}
           <TextField
-            label="Subject"
+            label={t('campaigns.subject')}
             value={form.subject}
             onChange={(e) => set({ subject: e.target.value })}
             fullWidth
           />
           <TextField
-            label="Body (HTML)"
+            label={t('campaigns.bodyHtml')}
             value={form.body_html}
             onChange={(e) => set({ body_html: e.target.value })}
             fullWidth
@@ -219,7 +224,7 @@ function CampaignDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t('common:actions.close')}</Button>
         <Button
           variant="contained"
           disabled={
@@ -232,7 +237,7 @@ function CampaignDialog({
             save.mutate(form);
           }}
         >
-          Save
+          {t('common:actions.save')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -240,6 +245,7 @@ function CampaignDialog({
 }
 
 function CampaignsTab() {
+  const { t, tOr } = useTranslation('communications');
   const isPhone = useIsPhone();
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
@@ -279,7 +285,7 @@ function CampaignsTab() {
     mutationFn: () =>
       CommunicationsApi.testSendCampaign(testSendFor!.id, testEmail),
     onSuccess: () => {
-      setNotice('Test email sent.');
+      setNotice(t('campaigns.testSent'));
       setTestSendFor(null);
     },
     onError: capture,
@@ -301,12 +307,12 @@ function CampaignsTab() {
           justifyContent: "space-between",
           mb: 2
         }}>
-        <Typography variant="h6">Campaigns</Typography>
+        <Typography variant="h6">{t('campaigns.title')}</Typography>
         <Button
           variant="contained"
           onClick={() => setEditor({ id: null, input: EMPTY_CAMPAIGN })}
         >
-          New campaign
+          {t('campaigns.new')}
         </Button>
       </Stack>
       {error && (
@@ -328,10 +334,16 @@ function CampaignsTab() {
             >
               <MobileCardRow
                 title={c.name}
-                subtitle={`${c.campaign_type} · ${c.total_recipients} recipients`}
-                meta={`${c.sent_count} sent / ${c.failed_count} failed`}
+                subtitle={t('campaigns.rowSubtitle', {
+                  type: tOr(`campaigns.types.${c.campaign_type}`, formatStatusLabel(c.campaign_type)),
+                  count: c.total_recipients,
+                })}
+                meta={t('campaigns.rowMeta', {
+                  sent: c.sent_count,
+                  failed: c.failed_count,
+                })}
                 status={
-                  <Chip size="small" label={c.status} color={STATUS_COLORS[c.status] ?? 'default'} />
+                  <Chip size="small" label={statusLabel(t, 'campaign', c.status)} color={STATUS_COLORS[c.status] ?? 'default'} />
                 }
                 footer={
                   <>
@@ -355,17 +367,17 @@ function CampaignsTab() {
                             })
                           }
                         >
-                          Edit
+                          {t('common:actions.edit')}
                         </Button>
                         <Button size="small" onClick={() => setTestSendFor(c)}>
-                          Test send
+                          {t('campaigns.testSend')}
                         </Button>
                         <Button
                           size="small"
                           variant="outlined"
                           onClick={() => act.mutate({ action: 'schedule', campaign: c })}
                         >
-                          Send
+                          {t('campaigns.send')}
                         </Button>
                       </>
                     )}
@@ -375,14 +387,14 @@ function CampaignsTab() {
                         color="error"
                         onClick={() => act.mutate({ action: 'cancel', campaign: c })}
                       >
-                        Cancel
+                        {t('common:actions.cancel')}
                       </Button>
                     )}
                     <Button size="small" onClick={() => act.mutate({ action: 'preview', campaign: c })}>
-                      Preview
+                      {t('campaigns.preview')}
                     </Button>
                     <Button size="small" onClick={() => setDeliveriesFor(c)}>
-                      Deliveries
+                      {t('campaigns.deliveries')}
                     </Button>
                   </>
                 }
@@ -395,21 +407,23 @@ function CampaignsTab() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Recipients</TableCell>
-              <TableCell>Sent / Failed</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{t('campaigns.colName')}</TableCell>
+              <TableCell>{t('campaigns.colType')}</TableCell>
+              <TableCell>{t('campaigns.colStatus')}</TableCell>
+              <TableCell>{t('campaigns.colRecipients')}</TableCell>
+              <TableCell>{t('campaigns.colSentFailed')}</TableCell>
+              <TableCell align="right">{t('campaigns.colActions')}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {(campaigns.data?.items ?? []).map((c) => (
               <TableRow key={c.id} hover>
                 <TableCell>{c.name}</TableCell>
-                <TableCell>{c.campaign_type}</TableCell>
                 <TableCell>
-                  <Chip size="small" label={c.status} color={STATUS_COLORS[c.status] ?? 'default'} />
+                  {tOr(`campaigns.types.${c.campaign_type}`, formatStatusLabel(c.campaign_type))}
+                </TableCell>
+                <TableCell>
+                  <Chip size="small" label={statusLabel(t, 'campaign', c.status)} color={STATUS_COLORS[c.status] ?? 'default'} />
                 </TableCell>
                 <TableCell>{c.total_recipients}</TableCell>
                 <TableCell>
@@ -439,21 +453,21 @@ function CampaignsTab() {
                             })
                           }
                         >
-                          Edit
+                          {t('common:actions.edit')}
                         </Button>
                         <Button
                           size="small"
                           onClick={() => setTestSendFor(c)}
                         >
-                          Test send
+                          {t('campaigns.testSend')}
                         </Button>
-                        <Tooltip title="Queues the campaign for sending to all eligible subscribers">
+                        <Tooltip title={t('campaigns.sendTooltip')}>
                           <Button
                             size="small"
                             variant="outlined"
                             onClick={() => act.mutate({ action: 'schedule', campaign: c })}
                           >
-                            Send
+                            {t('campaigns.send')}
                           </Button>
                         </Tooltip>
                       </>
@@ -464,14 +478,14 @@ function CampaignsTab() {
                         color="error"
                         onClick={() => act.mutate({ action: 'cancel', campaign: c })}
                       >
-                        Cancel
+                        {t('common:actions.cancel')}
                       </Button>
                     )}
                     <Button size="small" onClick={() => act.mutate({ action: 'preview', campaign: c })}>
-                      Preview
+                      {t('campaigns.preview')}
                     </Button>
                     <Button size="small" onClick={() => setDeliveriesFor(c)}>
-                      Deliveries
+                      {t('campaigns.deliveries')}
                     </Button>
                   </Stack>
                 </TableCell>
@@ -493,20 +507,22 @@ function CampaignsTab() {
         />
       )}
       <Dialog open={preview !== null} onClose={() => setPreview(null)} fullWidth maxWidth="md">
-        <DialogTitle>Preview — {preview?.subject}</DialogTitle>
+        <DialogTitle>{t('campaigns.previewTitle', { subject: preview?.subject ?? '' })}</DialogTitle>
         <DialogContent>
           {preview && (
             <Stack spacing={2}>
               <Alert severity="info">
-                Eligible recipients: <strong>{preview.audience.eligible}</strong> (excluded — no
-                email: {preview.audience.excluded_no_email}, inactive:{' '}
-                {preview.audience.excluded_inactive}, unsubscribed:{' '}
-                {preview.audience.excluded_unsubscribed}, suppressed:{' '}
-                {preview.audience.excluded_suppressed}
-                {preview.audience.excluded_segment > 0
-                  ? `, outside segment: ${preview.audience.excluded_segment}`
-                  : ''}
-                )
+                {t('campaigns.previewAudience', {
+                  eligible: preview.audience.eligible,
+                  noEmail: preview.audience.excluded_no_email,
+                  inactive: preview.audience.excluded_inactive,
+                  unsubscribed: preview.audience.excluded_unsubscribed,
+                  suppressed: preview.audience.excluded_suppressed,
+                  segment:
+                    preview.audience.excluded_segment > 0
+                      ? t('campaigns.previewAudienceSegment', { count: preview.audience.excluded_segment })
+                      : '',
+                })}
               </Alert>
               <Box
                 sx={{ border: '1px solid', borderColor: 'divider', p: 2, borderRadius: 1 }}
@@ -517,16 +533,16 @@ function CampaignsTab() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPreview(null)}>Close</Button>
+          <Button onClick={() => setPreview(null)}>{t('common:actions.close')}</Button>
         </DialogActions>
       </Dialog>
       <Dialog open={testSendFor !== null} onClose={() => setTestSendFor(null)}>
-        <DialogTitle>Send test email</DialogTitle>
+        <DialogTitle>{t('campaigns.testSendTitle')}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             type="email"
-            label="Recipient email"
+            label={t('campaigns.recipientEmail')}
             value={testEmail}
             onChange={(e) => setTestEmail(e.target.value)}
             fullWidth
@@ -534,13 +550,13 @@ function CampaignsTab() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTestSendFor(null)}>Close</Button>
+          <Button onClick={() => setTestSendFor(null)}>{t('common:actions.close')}</Button>
           <Button
             variant="contained"
             disabled={testSend.isPending || !testEmail}
             onClick={() => testSend.mutate()}
           >
-            Send test
+            {t('campaigns.sendTest')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -550,7 +566,7 @@ function CampaignsTab() {
         fullWidth
         maxWidth="md"
       >
-        <DialogTitle>Deliveries — {deliveriesFor?.name}</DialogTitle>
+        <DialogTitle>{t('campaigns.deliveriesTitle', { name: deliveriesFor?.name ?? '' })}</DialogTitle>
         <DialogContent>
           {isPhone ? (
             <Box>
@@ -561,8 +577,11 @@ function CampaignsTab() {
                 >
                   <MobileCardRow
                     title={d.recipient_masked}
-                    subtitle={`${d.attempts} attempts${d.last_error ? ` · ${d.last_error}` : ''}`}
-                    status={<Chip size="small" variant="outlined" label={d.status} />}
+                    subtitle={t('campaigns.deliverySubtitle', {
+                      count: d.attempts,
+                      error: d.last_error ? ` · ${d.last_error}` : '',
+                    })}
+                    status={<Chip size="small" variant="outlined" label={statusLabel(t, 'email_delivery', d.status)} />}
                   />
                 </Box>
               ))}
@@ -572,17 +591,17 @@ function CampaignsTab() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Recipient</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Attempts</TableCell>
-                  <TableCell>Last error</TableCell>
+                  <TableCell>{t('campaigns.colRecipient')}</TableCell>
+                  <TableCell>{t('campaigns.colStatus')}</TableCell>
+                  <TableCell>{t('campaigns.colAttempts')}</TableCell>
+                  <TableCell>{t('campaigns.colLastError')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {(deliveries.data?.items ?? []).map((d) => (
                   <TableRow key={d.id}>
                     <TableCell>{d.recipient_masked}</TableCell>
-                    <TableCell>{d.status}</TableCell>
+                    <TableCell>{statusLabel(t, 'email_delivery', d.status)}</TableCell>
                     <TableCell>{d.attempts}</TableCell>
                     <TableCell>{d.last_error ?? '—'}</TableCell>
                   </TableRow>
@@ -593,7 +612,7 @@ function CampaignsTab() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeliveriesFor(null)}>Close</Button>
+          <Button onClick={() => setDeliveriesFor(null)}>{t('common:actions.close')}</Button>
         </DialogActions>
       </Dialog>
     </Box>
@@ -609,6 +628,7 @@ const EMPTY_TEMPLATE: TemplateInput = {
 };
 
 function TemplatesTab() {
+  const { t } = useTranslation('communications');
   const isPhone = useIsPhone();
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
@@ -644,9 +664,9 @@ function TemplatesTab() {
           justifyContent: "space-between",
           mb: 2
         }}>
-        <Typography variant="h6">Email templates</Typography>
+        <Typography variant="h6">{t('templates.title')}</Typography>
         <Button variant="contained" onClick={() => setEditor({ id: null, input: EMPTY_TEMPLATE })}>
-          New template
+          {t('templates.new')}
         </Button>
       </Stack>
       {error && (
@@ -656,21 +676,25 @@ function TemplatesTab() {
       )}
       {isPhone ? (
         <Box>
-          {(templates.data ?? []).map((t: EmailTemplate) => (
+          {(templates.data ?? []).map((tpl: EmailTemplate) => (
             <Box
-              key={t.id}
+              key={tpl.id}
               sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
             >
               <MobileCardRow
-                title={t.name}
-                subtitle={t.code}
-                meta={t.variables.length ? `Variables: ${t.variables.join(', ')}` : 'No variables'}
+                title={tpl.name}
+                subtitle={tpl.code}
+                meta={
+                  tpl.variables.length
+                    ? t('templates.variablesLine', { vars: tpl.variables.join(', ') })
+                    : t('templates.noVariables')
+                }
                 status={
                   <Chip
                     size="small"
                     variant="outlined"
-                    label={t.is_active ? 'Active' : 'Inactive'}
-                    color={t.is_active ? 'success' : 'default'}
+                    label={tpl.is_active ? t('templates.active') : t('templates.inactive')}
+                    color={tpl.is_active ? 'success' : 'default'}
                   />
                 }
                 footer={
@@ -679,24 +703,24 @@ function TemplatesTab() {
                       size="small"
                       onClick={() =>
                         setEditor({
-                          id: t.id,
+                          id: tpl.id,
                           input: {
-                            code: t.code,
-                            name: t.name,
-                            subject: t.subject,
-                            body_html: t.body_html,
-                            body_text: t.body_text,
-                            variables: t.variables,
-                            is_active: t.is_active,
+                            code: tpl.code,
+                            name: tpl.name,
+                            subject: tpl.subject,
+                            body_html: tpl.body_html,
+                            body_text: tpl.body_text,
+                            variables: tpl.variables,
+                            is_active: tpl.is_active,
                           },
                         })
                       }
                     >
-                      Edit
+                      {t('common:actions.edit')}
                     </Button>
-                    {t.is_active && (
-                      <Button size="small" color="error" onClick={() => deactivate.mutate(t.id)}>
-                        Deactivate
+                    {tpl.is_active && (
+                      <Button size="small" color="error" onClick={() => deactivate.mutate(tpl.id)}>
+                        {t('templates.deactivate')}
                       </Button>
                     )}
                   </>
@@ -710,43 +734,43 @@ function TemplatesTab() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Code</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Variables</TableCell>
-              <TableCell>Active</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{t('templates.colCode')}</TableCell>
+              <TableCell>{t('templates.colName')}</TableCell>
+              <TableCell>{t('templates.colVariables')}</TableCell>
+              <TableCell>{t('templates.colActive')}</TableCell>
+              <TableCell align="right">{t('templates.colActions')}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {(templates.data ?? []).map((t: EmailTemplate) => (
-              <TableRow key={t.id} hover>
-                <TableCell>{t.code}</TableCell>
-                <TableCell>{t.name}</TableCell>
-                <TableCell>{t.variables.join(', ') || '—'}</TableCell>
-                <TableCell>{t.is_active ? 'Yes' : 'No'}</TableCell>
+            {(templates.data ?? []).map((tpl: EmailTemplate) => (
+              <TableRow key={tpl.id} hover>
+                <TableCell>{tpl.code}</TableCell>
+                <TableCell>{tpl.name}</TableCell>
+                <TableCell>{tpl.variables.join(', ') || '—'}</TableCell>
+                <TableCell>{tpl.is_active ? t('common:actions.yes') : t('common:actions.no')}</TableCell>
                 <TableCell align="right">
                   <Button
                     size="small"
                     onClick={() =>
                       setEditor({
-                        id: t.id,
+                        id: tpl.id,
                         input: {
-                          code: t.code,
-                          name: t.name,
-                          subject: t.subject,
-                          body_html: t.body_html,
-                          body_text: t.body_text,
-                          variables: t.variables,
-                          is_active: t.is_active,
+                          code: tpl.code,
+                          name: tpl.name,
+                          subject: tpl.subject,
+                          body_html: tpl.body_html,
+                          body_text: tpl.body_text,
+                          variables: tpl.variables,
+                          is_active: tpl.is_active,
                         },
                       })
                     }
                   >
-                    Edit
+                    {t('common:actions.edit')}
                   </Button>
-                  {t.is_active && (
-                    <Button size="small" color="error" onClick={() => deactivate.mutate(t.id)}>
-                      Deactivate
+                  {tpl.is_active && (
+                    <Button size="small" color="error" onClick={() => deactivate.mutate(tpl.id)}>
+                      {t('templates.deactivate')}
                     </Button>
                   )}
                 </TableCell>
@@ -758,33 +782,33 @@ function TemplatesTab() {
       )}
       {editor && (
         <Dialog open onClose={() => setEditor(null)} fullWidth maxWidth="md">
-          <DialogTitle>{editor.id === null ? 'New template' : 'Edit template'}</DialogTitle>
+          <DialogTitle>{editor.id === null ? t('templates.new') : t('templates.edit')}</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
               <TextField
-                label="Code"
+                label={t('templates.colCode')}
                 value={editor.input.code}
                 onChange={(e) =>
                   setEditor({ ...editor, input: { ...editor.input, code: e.target.value } })
                 }
-                helperText="lowercase_with_underscores"
+                helperText={t('templates.codeHelp')}
               />
               <TextField
-                label="Name"
+                label={t('templates.colName')}
                 value={editor.input.name}
                 onChange={(e) =>
                   setEditor({ ...editor, input: { ...editor.input, name: e.target.value } })
                 }
               />
               <TextField
-                label="Subject"
+                label={t('templates.subject')}
                 value={editor.input.subject}
                 onChange={(e) =>
                   setEditor({ ...editor, input: { ...editor.input, subject: e.target.value } })
                 }
               />
               <TextField
-                label="Allowed variables (comma-separated)"
+                label={t('templates.variables')}
                 value={(editor.input.variables ?? []).join(', ')}
                 onChange={(e) =>
                   setEditor({
@@ -798,10 +822,10 @@ function TemplatesTab() {
                     },
                   })
                 }
-                helperText="Reference them in the body as {{variable}}; values are always HTML-escaped"
+                helperText={t('templates.variablesHelp')}
               />
               <TextField
-                label="Body (HTML)"
+                label={t('campaigns.bodyHtml')}
                 value={editor.input.body_html}
                 onChange={(e) =>
                   setEditor({ ...editor, input: { ...editor.input, body_html: e.target.value } })
@@ -812,7 +836,7 @@ function TemplatesTab() {
             </Stack>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setEditor(null)}>Close</Button>
+            <Button onClick={() => setEditor(null)}>{t('common:actions.close')}</Button>
             <Button
               variant="contained"
               disabled={save.isPending}
@@ -821,7 +845,7 @@ function TemplatesTab() {
                 save.mutate({ id: editor.id, input: editor.input });
               }}
             >
-              Save
+              {t('common:actions.save')}
             </Button>
           </DialogActions>
         </Dialog>
@@ -831,6 +855,7 @@ function TemplatesTab() {
 }
 
 function SuppressionsTab() {
+  const { t, tOr } = useTranslation('communications');
   const isPhone = useIsPhone();
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
@@ -858,7 +883,7 @@ function SuppressionsTab() {
   return (
     <Box>
       <Typography variant="h6" sx={{ mb: 1 }}>
-        Suppression list
+        {t('suppressions.title')}
       </Typography>
       <Typography
         variant="body2"
@@ -866,7 +891,7 @@ function SuppressionsTab() {
           color: "text.secondary",
           mb: 2
         }}>
-        Addresses here never receive marketing email, regardless of subscriptions.
+        {t('suppressions.description')}
       </Typography>
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
@@ -877,12 +902,12 @@ function SuppressionsTab() {
         <TextField
           size="small"
           type="email"
-          label="Email to suppress"
+          label={t('suppressions.emailLabel')}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
         <Button variant="outlined" disabled={!email || add.isPending} onClick={() => add.mutate()}>
-          Suppress
+          {t('suppressions.suppress')}
         </Button>
       </Stack>
       {isPhone ? (
@@ -894,10 +919,15 @@ function SuppressionsTab() {
             >
               <MobileCardRow
                 title={s.email}
-                subtitle={`${s.reason}${s.source ? ` · ${s.source}` : ''}`}
+                subtitle={t('suppressions.rowSubtitle', {
+                  reason: tOr(`suppressions.reasons.${s.reason}`, formatStatusLabel(s.reason)),
+                  source: s.source
+                    ? ` · ${tOr(`suppressions.sources.${s.source}`, formatStatusLabel(s.source))}`
+                    : '',
+                })}
                 footer={
                   <Button size="small" color="error" onClick={() => remove.mutate(s.email)}>
-                    Remove
+                    {t('suppressions.remove')}
                   </Button>
                 }
               />
@@ -909,21 +939,25 @@ function SuppressionsTab() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Email</TableCell>
-              <TableCell>Reason</TableCell>
-              <TableCell>Source</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{t('suppressions.colEmail')}</TableCell>
+              <TableCell>{t('suppressions.colReason')}</TableCell>
+              <TableCell>{t('suppressions.colSource')}</TableCell>
+              <TableCell align="right">{t('suppressions.colActions')}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {(suppressions.data?.items ?? []).map((s) => (
               <TableRow key={s.id}>
                 <TableCell>{s.email}</TableCell>
-                <TableCell>{s.reason}</TableCell>
-                <TableCell>{s.source ?? '—'}</TableCell>
+                <TableCell>{tOr(`suppressions.reasons.${s.reason}`, formatStatusLabel(s.reason))}</TableCell>
+                <TableCell>
+                  {s.source
+                    ? tOr(`suppressions.sources.${s.source}`, formatStatusLabel(s.source))
+                    : '—'}
+                </TableCell>
                 <TableCell align="right">
                   <Button size="small" color="error" onClick={() => remove.mutate(s.email)}>
-                    Remove
+                    {t('suppressions.remove')}
                   </Button>
                 </TableCell>
               </TableRow>
@@ -937,19 +971,20 @@ function SuppressionsTab() {
 }
 
 export default function CommunicationsPage() {
+  const { t } = useTranslation('communications');
   const [tab, setTab] = useState(0);
   const tabs = useMemo(
     () => [
-      { label: 'Email Campaigns', node: <CampaignsTab /> },
-      { label: 'Templates', node: <TemplatesTab /> },
-      { label: 'Suppressions', node: <SuppressionsTab /> },
+      { label: t('tabs.campaigns'), node: <CampaignsTab /> },
+      { label: t('tabs.templates'), node: <TemplatesTab /> },
+      { label: t('tabs.suppressions'), node: <SuppressionsTab /> },
     ],
-    []
+    [t]
   );
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" sx={{ mb: 2 }}>
-        Communications
+        {t('pageTitle')}
       </Typography>
       {/* Scrollable: five tabs need ~415px and the narrowest supported
           viewport is 320px, where the last tab rendered outside the page. */}

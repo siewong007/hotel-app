@@ -114,7 +114,7 @@ describe('GuestPortalSupportService', () => {
 
   it('rejects a request with no guest session before making an API call', async () => {
     await expect(GuestPortalSupportService.listConversations()).rejects.toThrow(
-      'Not signed in to the guest portal',
+      'Please sign in to continue.',
     );
     expect(get).not.toHaveBeenCalled();
   });

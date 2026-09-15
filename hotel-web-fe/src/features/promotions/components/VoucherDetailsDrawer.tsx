@@ -20,6 +20,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { useTranslation } from '../../../i18n';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
 import { useAllRoomTypes } from '../../rooms/hooks';
 import { useAdminPromotion, useAdminVoucher } from '../hooks/usePromotionAdmin';
@@ -120,6 +121,7 @@ export function VoucherDetailsDrawer({
   onClose,
   onRevoke,
 }: VoucherDetailsDrawerProps) {
+  const { t, tOr } = useTranslation('promotions');
   const voucherQuery = useAdminVoucher(voucherId, open);
   const voucher = voucherQuery.data;
   const promotionQuery = useAdminPromotion(
@@ -158,12 +160,12 @@ export function VoucherDetailsDrawer({
   };
 
   const roomTypeNames = (() => {
-    if (!promotion?.room_type_ids?.length) return 'All room types';
+    if (!promotion?.room_type_ids?.length) return t('vouchers.rules.allRoomTypes');
     const byId = new Map(
       (roomTypesQuery.data ?? []).map((roomType) => [roomType.id, roomType.name]),
     );
     return promotion.room_type_ids
-      .map((id) => byId.get(id) ?? `Room type #${id}`)
+      .map((id) => byId.get(id) ?? t('vouchers.rules.roomTypeNumber', { id }))
       .join(', ');
   })();
 
@@ -204,11 +206,11 @@ export function VoucherDetailsDrawer({
         ) : (
           <Skeleton variant="text" width={110} />
         )}
-        <Tooltip title={copied ? 'Copied' : 'Copy code'}>
+        <Tooltip title={copied ? t('vouchers.copied') : t('vouchers.copyCode')}>
           <span>
             <IconButton
               size="small"
-              aria-label={copied ? 'Copied' : 'Copy voucher code'}
+              aria-label={copied ? t('vouchers.copied') : t('vouchers.copyVoucherCode')}
               onClick={copyCode}
               disabled={!voucher}
             >
@@ -224,7 +226,7 @@ export function VoucherDetailsDrawer({
         <Box sx={{ flex: 1 }} />
         <IconButton
           size="small"
-          aria-label="Close voucher details"
+          aria-label={t('vouchers.closeDetails')}
           onClick={onClose}
         >
           <CloseIcon fontSize="small" />
@@ -246,19 +248,19 @@ export function VoucherDetailsDrawer({
                 size="small"
                 onClick={() => void voucherQuery.refetch()}
               >
-                Retry
+                {t('common:actions.retry')}
               </Button>
             }
           >
             {getQueryErrorMessage(
               voucherQuery.error,
-              'Unable to load voucher',
+              t('vouchers.loadError'),
             )}
           </Alert>
         ) : voucher ? (
           <Stack spacing={2.5}>
             <Stack spacing={1.25}>
-              <InfoRow label="Offer">
+              <InfoRow label={t('vouchers.fieldOffer')}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {voucher.promotion_name}
                 </Typography>
@@ -269,17 +271,17 @@ export function VoucherDetailsDrawer({
                   {voucher.promotion_slug}
                 </Typography>
               </InfoRow>
-              <InfoRow label="Guest">
+              <InfoRow label={t('vouchers.fieldGuest')}>
                 <Typography variant="body2">
-                  {guestDisplayName(voucher)}
+                  {guestDisplayName(voucher, t)}
                 </Typography>
               </InfoRow>
-              <InfoRow label="Source">
+              <InfoRow label={t('vouchers.fieldSource')}>
                 <Typography variant="body2">
-                  {voucherSourceLabel(voucher.source)}
+                  {voucherSourceLabel(voucher.source, tOr)}
                 </Typography>
               </InfoRow>
-              <InfoRow label="Issued">
+              <InfoRow label={t('vouchers.fieldIssued')}>
                 <Typography variant="body2">
                   {formatPromotionDate(voucher.claimed_at ?? voucher.created_at) ??
                     '—'}
@@ -289,8 +291,7 @@ export function VoucherDetailsDrawer({
 
             {voucher.is_cancellable === false ? (
               <Alert severity="warning" variant="outlined">
-                Non-cancellable — a booking that uses this voucher cannot be
-                cancelled by the guest.
+                {t('vouchers.nonCancellable')}
               </Alert>
             ) : null}
 
@@ -299,33 +300,33 @@ export function VoucherDetailsDrawer({
                 variant="subtitle2"
                 sx={{ fontWeight: 700, mb: 1.5 }}
               >
-                Lifecycle
+                {t('vouchers.lifecycle')}
               </Typography>
               <Stack spacing={1.5}>
                 <LifecycleItem
-                  label="Issued"
+                  label={t('vouchers.fieldIssued')}
                   value={formatPromotionDate(
                     voucher.claimed_at ?? voucher.created_at,
                   )}
                 />
                 {voucher.redeemed_at ? (
                   <LifecycleItem
-                    label="Redeemed"
+                    label={t('vouchers.fieldRedeemed')}
                     value={formatPromotionDate(voucher.redeemed_at)}
                   />
                 ) : null}
                 {voucher.revoked_at ? (
                   <LifecycleItem
-                    label="Revoked"
+                    label={t('vouchers.fieldRevoked')}
                     value={formatPromotionDate(voucher.revoked_at)}
                     hint={voucher.revocation_reason ?? undefined}
                     tone="error.main"
                   />
                 ) : null}
                 <LifecycleItem
-                  label="Expires"
+                  label={t('vouchers.colExpires')}
                   value={formatPromotionDate(voucher.expires_at)}
-                  hint={relativeExpiryLabel(voucher.expires_at)}
+                  hint={relativeExpiryLabel(voucher.expires_at, t)}
                   tone={expired ? 'error.main' : 'text.primary'}
                 />
               </Stack>
@@ -338,7 +339,7 @@ export function VoucherDetailsDrawer({
                 variant="subtitle2"
                 sx={{ fontWeight: 700, mb: 1.5 }}
               >
-                Offer rules
+                {t('vouchers.rules.title')}
               </Typography>
               {promotionQuery.isLoading ? (
                 <Stack spacing={1}>
@@ -348,39 +349,38 @@ export function VoucherDetailsDrawer({
                 </Stack>
               ) : promotion ? (
                 <Stack spacing={1.25}>
-                  <InfoRow label="Discount">
+                  <InfoRow label={t('vouchers.rules.discount')}>
                     <Typography
                       variant="body2"
                       sx={{ fontWeight: 700, color: 'primary.main' }}
                     >
-                      {formatPromotionDiscount(promotion)}
+                      {formatPromotionDiscount(promotion, t)}
                     </Typography>
                   </InfoRow>
-                  <InfoRow label="Claim window">
+                  <InfoRow label={t('vouchers.rules.claimWindow')}>
                     <Typography variant="body2">
-                      {formatPromotionDate(promotion.claim_starts_at) ?? 'Any time'}
+                      {formatPromotionDate(promotion.claim_starts_at) ?? t('vouchers.rules.anyTime')}
                       {' → '}
-                      {formatPromotionDate(promotion.claim_ends_at) ?? 'Open-ended'}
+                      {formatPromotionDate(promotion.claim_ends_at) ?? t('vouchers.rules.openEnded')}
                     </Typography>
                   </InfoRow>
-                  <InfoRow label="Stay dates">
+                  <InfoRow label={t('vouchers.rules.stayDates')}>
                     <Typography variant="body2">
-                      {formatPromotionDate(promotion.stay_starts_on) ?? 'Any'}
+                      {formatPromotionDate(promotion.stay_starts_on) ?? t('vouchers.rules.any')}
                       {' → '}
-                      {formatPromotionDate(promotion.stay_ends_on) ?? 'Any'}
+                      {formatPromotionDate(promotion.stay_ends_on) ?? t('vouchers.rules.any')}
                     </Typography>
                   </InfoRow>
-                  <InfoRow label="Stay length">
+                  <InfoRow label={t('vouchers.rules.stayLength')}>
                     <Typography variant="body2">
-                      {promotion.min_nights ?? 1}+ night
-                      {(promotion.min_nights ?? 1) === 1 ? '' : 's'}
+                      {t('vouchers.rules.stayLengthValue', { count: promotion.min_nights ?? 1 })}
                       {promotion.max_nights
-                        ? `, up to ${promotion.max_nights}`
+                        ? t('vouchers.rules.upTo', { max: promotion.max_nights })
                         : ''}
                     </Typography>
                   </InfoRow>
                   {promotion.min_subtotal ? (
-                    <InfoRow label="Min subtotal">
+                    <InfoRow label={t('vouchers.rules.minSubtotal')}>
                       <Typography variant="body2">
                         {formatCurrencyAmount(
                           promotion.min_subtotal,
@@ -389,16 +389,15 @@ export function VoucherDetailsDrawer({
                       </Typography>
                     </InfoRow>
                   ) : null}
-                  <InfoRow label="Room types">
+                  <InfoRow label={t('vouchers.rules.roomTypes')}>
                     <Typography variant="body2">{roomTypeNames}</Typography>
                   </InfoRow>
-                  <InfoRow label="Per guest">
+                  <InfoRow label={t('vouchers.rules.perGuest')}>
                     <Typography variant="body2">
-                      {promotion.per_guest_limit} voucher
-                      {promotion.per_guest_limit === 1 ? '' : 's'} per guest
+                      {t('vouchers.rules.perGuestValue', { count: promotion.per_guest_limit })}
                     </Typography>
                   </InfoRow>
-                  <InfoRow label="Visibility">
+                  <InfoRow label={t('vouchers.rules.visibility')}>
                     <Chip
                       size="small"
                       variant="outlined"
@@ -409,21 +408,20 @@ export function VoucherDetailsDrawer({
                           <LockOutlinedIcon />
                         )
                       }
-                      label={promotion.is_public ? 'Public' : 'Private'}
+                      label={promotion.is_public ? t('campaigns.public') : t('campaigns.private')}
                     />
                   </InfoRow>
                   <Box sx={{ pt: 0.5 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {promotion.claimed_count}
                       {promotion.claim_limit
-                        ? ` of ${promotion.claim_limit} claimed`
-                        : ' claimed'}
+                        ? t('campaigns.claimedOf', { claimed: promotion.claimed_count, limit: promotion.claim_limit })
+                        : t('campaigns.claimedOnly', { claimed: promotion.claimed_count })}
                     </Typography>
                     {claimProgress !== null ? (
                       <LinearProgress
                         variant="determinate"
                         value={claimProgress}
-                        aria-label={`${Math.round(claimProgress)}% of claim limit used`}
+                        aria-label={t('campaigns.claimProgress', { percent: Math.round(claimProgress) })}
                         sx={{ mt: 0.75, height: 5, borderRadius: 99 }}
                       />
                     ) : (
@@ -431,14 +429,14 @@ export function VoucherDetailsDrawer({
                         variant="caption"
                         sx={{ color: 'text.secondary' }}
                       >
-                        No total limit
+                        {t('campaigns.noLimit')}
                       </Typography>
                     )}
                   </Box>
                 </Stack>
               ) : (
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Offer details unavailable.
+                  {t('vouchers.rules.unavailable')}
                 </Typography>
               )}
             </Box>
@@ -449,11 +447,10 @@ export function VoucherDetailsDrawer({
                 {confirmingRevoke ? (
                   <Stack spacing={1.5}>
                     <Alert severity="warning" variant="outlined">
-                      Revoking is permanent — the guest will no longer be able
-                      to use this voucher.
+                      {t('vouchers.revokeWarning')}
                     </Alert>
                     <TextField
-                      label="Reason (optional)"
+                      label={t('vouchers.revokeReason')}
                       size="small"
                       value={reason}
                       onChange={(event) => setReason(event.target.value)}
@@ -473,13 +470,13 @@ export function VoucherDetailsDrawer({
                           )
                         }
                       >
-                        {isRevoking ? 'Revoking…' : 'Confirm revoke'}
+                        {isRevoking ? t('vouchers.revoking') : t('vouchers.confirmRevoke')}
                       </Button>
                       <Button
                         onClick={() => setConfirmingRevoke(false)}
                         disabled={isRevoking}
                       >
-                        Keep voucher
+                        {t('vouchers.keepVoucher')}
                       </Button>
                     </Stack>
                   </Stack>
@@ -490,7 +487,7 @@ export function VoucherDetailsDrawer({
                     startIcon={<BlockIcon />}
                     onClick={() => setConfirmingRevoke(true)}
                   >
-                    Revoke voucher
+                    {t('vouchers.revokeVoucher')}
                   </Button>
                 )}
               </>

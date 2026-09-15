@@ -61,11 +61,15 @@ export interface AuditUser {
 }
 
 // Helper function to get action label
-export function getActionLabel(action: string): { label: string; color: string } {
-  return AUDIT_ACTION_LABELS[action] || { label: formatStatusLabel(action), color: 'var(--hotel-neutral)' };
+export function getActionLabel(action: string): { labelKey: string | null; label: string; color: string } {
+  return AUDIT_ACTION_LABELS[action]
+    ? { ...AUDIT_ACTION_LABELS[action], label: formatStatusLabel(action) }
+    : { labelKey: null, label: formatStatusLabel(action), color: 'var(--hotel-neutral)' };
 }
 
 // Helper function to get resource label
-export function getResourceLabel(resourceType: string): { label: string; color: string } {
-  return AUDIT_RESOURCE_LABELS[resourceType] || { label: formatStatusLabel(resourceType), color: 'var(--hotel-neutral)' };
+export function getResourceLabel(resourceType: string): { labelKey: string | null; label: string; color: string } {
+  return AUDIT_RESOURCE_LABELS[resourceType]
+    ? { ...AUDIT_RESOURCE_LABELS[resourceType], label: formatStatusLabel(resourceType) }
+    : { labelKey: null, label: formatStatusLabel(resourceType), color: 'var(--hotel-neutral)' };
 }

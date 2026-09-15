@@ -13,6 +13,7 @@ import {
   useTickBudget,
 } from '../../../components/charts';
 import { formatHotelDate } from '../../../utils/date';
+import { useTranslation } from '../../../i18n';
 import type { RevenueDailyPoint } from '../types';
 
 interface RevenueTrendChartProps {
@@ -23,30 +24,32 @@ interface RevenueTrendChartProps {
  *  on top, occupancy % (area line) below. Separating the units avoids the
  *  old dual-axis comparison that implied the series share a scale. */
 const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ daily }) => {
+  const { t } = useTranslation('revenue');
   const isEmpty = daily.length === 0;
+  const roomNightsKey = t('chart.roomNights');
 
   const nightsData = useMemo(
     () =>
       daily.map((p) => ({
         date: p.date,
-        'Room nights': p.room_nights_sold,
+        [roomNightsKey]: p.room_nights_sold,
         revenue: Number.parseFloat(p.room_revenue) || 0,
         adr: Number.parseFloat(p.adr) || 0,
       })),
-    [daily],
+    [daily, roomNightsKey],
   );
 
   const occupancySeries = useMemo(
     () => [
       {
-        id: 'Occupancy',
+        id: t('chart.occupancy'),
         data: daily.map((p) => ({
           x: p.date,
           y: Number.parseFloat(p.occupancy_rate) || 0,
         })),
       },
     ],
-    [daily],
+    [daily, t],
   );
 
   const tickBudget = useTickBudget();
@@ -57,23 +60,23 @@ const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ daily }) => {
 
   return (
     <Card>
-      <CardHeader title="Occupancy & room nights" subheader="By stay date" />
+      <CardHeader title={t('chart.title')} subheader={t('chart.subtitle')} />
       <CardContent sx={{ display: 'grid', gap: 1.5 }}>
-        <ChartStateGate isEmpty={isEmpty} emptyMessage="No stay dates in this range">
+        <ChartStateGate isEmpty={isEmpty} emptyMessage={t('chart.empty')}>
           <HotelBarChart
             height={170}
             data={nightsData}
-            keys={['Room nights']}
+            keys={[roomNightsKey]}
             indexBy="date"
-            ariaLabel="Room nights sold per stay date"
+            ariaLabel={t('chart.roomNightsAria')}
             axisBottom={{ format: fmtShortDate, tickValues: dayTicks }}
             axisLeft={{ format: fmtInt }}
             enableLabel={false}
             tooltip={({ indexValue, data: d }) => (
               <div>
                 <strong>{formatHotelDate(String(indexValue), String(indexValue))}</strong>
-                <div>Room nights: {fmtInt(Number(d['Room nights']))}</div>
-                <div>Room revenue: {fmtMoney(Number(d.revenue))}</div>
+                <div>{t('chart.tooltipRoomNights', { value: fmtInt(Number(d[roomNightsKey])) })}</div>
+                <div>{t('chart.tooltipRoomRevenue', { value: fmtMoney(Number(d.revenue)) })}</div>
                 <div>ADR: {fmtMoney(Number(d.adr))}</div>
               </div>
             )}
@@ -82,7 +85,7 @@ const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ daily }) => {
           <HotelLineChart
             height={180}
             data={occupancySeries}
-            ariaLabel="Occupancy rate per stay date"
+            ariaLabel={t('chart.occupancyAria')}
             yScale={{ type: 'linear', min: 0, max: 100, stacked: false }}
             axisBottom={{ format: fmtShortDate, tickValues: dayTicks }}
             axisLeft={{ format: (v) => fmtPct(Number(v), 0) }}
@@ -91,7 +94,7 @@ const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ daily }) => {
             sliceTooltip={({ slice }) => (
               <div>
                 <strong>{formatHotelDate(String(slice.points[0]?.data.x), String(slice.points[0]?.data.x))}</strong>
-                <div>Occupancy: {fmtPct(Number(slice.points[0]?.data.y))}</div>
+                <div>{t('chart.tooltipOccupancy', { value: fmtPct(Number(slice.points[0]?.data.y)) })}</div>
               </div>
             )}
             margin={{ top: 8, right: 16, bottom: 28, left: 40 }}

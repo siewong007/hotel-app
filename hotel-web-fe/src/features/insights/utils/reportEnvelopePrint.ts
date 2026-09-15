@@ -1,10 +1,15 @@
 import type { KpiFormat, ReportEnvelope } from '../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { formatCurrency } from '../../../utils/currency';
+import { formatHotelDate } from '../../../utils/date';
+import { formatNumber, getActiveLocale, t, translateOr } from '../../../i18n';
 import {
   createReportPrintStyles,
   createReportTypography,
 } from './reportTypography';
+
+const fieldLabel = (key: string, fallback: string): string =>
+  translateOr(getActiveLocale(), `insights:fields.${key}`, fallback);
 
 const escapeHtml = (value: unknown): string =>
   String(value ?? '')
@@ -20,9 +25,11 @@ const formatValue = (value: unknown, format: KpiFormat): string => {
     case 'currency':
       return Number.isFinite(num) ? formatCurrency(num) : String(value);
     case 'percent':
-      return Number.isFinite(num) ? `${num.toFixed(1)}%` : String(value);
+      return Number.isFinite(num)
+        ? `${formatNumber(num, { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%`
+        : String(value);
     case 'number':
-      return Number.isFinite(num) ? num.toLocaleString() : String(value);
+      return Number.isFinite(num) ? formatNumber(num) : String(value);
     default:
       return String(value);
   }
@@ -40,7 +47,7 @@ export const envelopeToPrintHtml = (envelope: ReportEnvelope): string => {
       : `<table class="kpi-grid"><tbody><tr>${envelope.kpis
           .map(
             (kpi) =>
-              `<td><div class="MuiTypography-caption kpi-label">${escapeHtml(kpi.label)}</div>` +
+              `<td><div class="MuiTypography-caption kpi-label">${escapeHtml(fieldLabel(kpi.key, kpi.label))}</div>` +
               `<div class="kpi-value">${escapeHtml(formatValue(kpi.value, kpi.format))}</div></td>`
           )
           .join('')}</tr></tbody></table>`;
@@ -51,7 +58,7 @@ export const envelopeToPrintHtml = (envelope: ReportEnvelope): string => {
         section.columns.length === 0
           ? ''
           : `<thead><tr>${section.columns
-              .map((col) => `<th>${escapeHtml(col.label)}</th>`)
+              .map((col) => `<th>${escapeHtml(fieldLabel(col.key, col.label))}</th>`)
               .join('')}</tr></thead>`;
       const body = section.rows
         .map(
@@ -63,21 +70,26 @@ export const envelopeToPrintHtml = (envelope: ReportEnvelope): string => {
         .join('');
       const empty =
         section.rows.length === 0
-          ? `<tr><td colspan="${Math.max(section.columns.length, 1)}" class="empty">No rows for this period</td></tr>`
+          ? `<tr><td colspan="${Math.max(section.columns.length, 1)}" class="empty">${escapeHtml(t('insights:report.emptySection'))}</td></tr>`
           : '';
-      return `<h6>${escapeHtml(section.title)}</h6><table>${head}<tbody>${body}${empty}</tbody></table>`;
+      return `<h6>${escapeHtml(fieldLabel(section.key, section.title))}</h6><table>${head}<tbody>${body}${empty}</tbody></table>`;
     })
     .join('');
 
   const range =
     meta.range_start && meta.range_end
-      ? `<div class="MuiTypography-caption">${escapeHtml(meta.range_start)} → ${escapeHtml(meta.range_end)}</div>`
+      ? `<div class="MuiTypography-caption">${escapeHtml(formatHotelDate(meta.range_start))} → ${escapeHtml(formatHotelDate(meta.range_end))}</div>`
       : '';
+  const title = translateOr(
+    getActiveLocale(),
+    `insights:reports.${meta.report_id}.title`,
+    meta.title,
+  );
 
   return `<!DOCTYPE html>
 <html>
   <head>
-    <title>Report - ${escapeHtml(meta.title)}</title>
+    <title>${escapeHtml(t('insights:report.printTitle', { title }))}</title>
     <style>
       ${printStyles}
       .kpi-grid td { border: none; padding: 4px 16px 4px 0; }
@@ -88,7 +100,7 @@ export const envelopeToPrintHtml = (envelope: ReportEnvelope): string => {
   </head>
   <body>
     <div class="header">
-      <h5>${escapeHtml(meta.title)}</h5>
+      <h5>${escapeHtml(title)}</h5>
       ${range}
     </div>
     ${kpiBlock}

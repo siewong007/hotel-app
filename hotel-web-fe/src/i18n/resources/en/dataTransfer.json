@@ -1,7 +1,14 @@
 {
   "page": {
     "noPermission": "You do not have permission to access data transfer.",
-    "permissionChip": "data_transfer:view"
+    "permissionChip": "data_transfer:view",
+    "title": "Data Transfer",
+    "subtitle": "Download a backup of this system's data, or restore one on this server. Imports are staged, previewed, and confirmed before any data is written.",
+    "tabs": {
+      "export": "Export",
+      "import": "Import",
+      "history": "History"
+    }
   },
   "export": {
     "standard": {
@@ -30,7 +37,23 @@
     "preview": "Preview counts",
     "download": "Download",
     "previewScope": "{{scope}} export contents",
-    "neverIncluded": "Never included — {{count}} protected tables"
+    "neverIncluded": "Never included — {{count}} protected tables",
+    "errors": {
+      "preview": "Failed to preview export data.",
+      "export": "Failed to export data."
+    },
+    "downloaded": "Backup downloaded — {{filename}} ({{bytes}}).",
+    "colEntity": "Entity",
+    "colRows": "Rows",
+    "previewSummary": "{{records}} records · {{entities}} entities",
+    "sensitiveAckAria": "Acknowledge sensitive export warning",
+    "exclusions": {
+      "credentials_and_auth_state": "Credentials & auth state",
+      "session_or_token_material": "Sessions & tokens",
+      "sensitive_ekyc_pii": "eKYC identity data",
+      "ephemeral_queue_state": "In-flight queue state",
+      "internal_system_table": "Internal system tables"
+    }
   },
   "stepUp": {
     "title": "Confirm your identity",
@@ -48,7 +71,101 @@
     "missingPermissions": "Your account cannot run this import — it requires: {{permissions}}",
     "restoreRequiresPermission": "Restore requires the data_transfer:restore permission and re-authentication.",
     "updateRequiresPermission": "Requires data_transfer:override",
-    "restoreStepUp": "Restore requires re-authentication — verify your identity to continue."
+    "restoreStepUp": "Restore requires re-authentication — verify your identity to continue.",
+    "conflicts": {
+      "skip": "Skip — keep the existing row",
+      "update": "Update — overwrite the existing row",
+      "fail": "Fail — abort the import on the first duplicate"
+    },
+    "jobFinished_other": "Import completed — {{count}} row(s) applied.",
+    "jobFinished_one": "Import completed — {{count}} row(s) applied.",
+    "jobFinishedSkipped_other": "Import finished — {{count}} row(s) skipped.",
+    "jobFinishedSkipped_one": "Import finished — {{count}} row(s) skipped.",
+    "errors": {
+      "preview": "Failed to preview backup contents.",
+      "upload": "Failed to upload backup file.",
+      "start": "Failed to start the import.",
+      "tooLarge": "\"{{name}}\" is {{size}} — backup files are limited to {{limit}}."
+    },
+    "colEntity": "Entity",
+    "selectTitle": "Select a backup file to import",
+    "selectDrop1": "Drop or choose a",
+    "selectDrop2": "backup produced by this app (up to {{size}}). Its contents are previewed and confirmed before anything is written.",
+    "selectFile": "Select JSON file",
+    "chooseFileAria": "Choose backup file",
+    "processingAria": "Uploading and analyzing backup",
+    "analyzing": "Analyzing backup contents…",
+    "uploading": "Uploading backup file…",
+    "metaFormat": "format v{{version}}",
+    "metaExported": "exported {{date}}",
+    "metaFrom": "from {{env}}",
+    "metaApp": "app {{version}}",
+    "metaUnavailable": "Backup metadata unavailable",
+    "removeFile": "Remove file",
+    "cannotImport": "This file cannot be imported",
+    "rowsWillBeSkipped_other": "{{count}} row(s) will be skipped",
+    "problemRows_other": "{{count}} row(s) — {{reason}}",
+    "unrecognizedTitle": "Unrecognized entities are ignored",
+    "unrecognizedBody": "{{entities}} — present in the file but not part of the transferable set; they are never applied.",
+    "previewSummary": "{{rows}} rows in {{entities}} entities",
+    "cols": {
+      "rows": "Rows",
+      "new": "New",
+      "existing": "Existing",
+      "skipped": "Skipped",
+      "inserted": "Inserted",
+      "updated": "Updated"
+    },
+    "entitiesAria": "Entities in the backup file",
+    "resultsAria": "Import results by entity",
+    "modeTitle": "Import mode",
+    "modeAria": "Import mode",
+    "modeMerge": "Merge — add to existing data",
+    "modeRestore": "Restore — replace existing data",
+    "conflictTitle": "When a row already exists:",
+    "conflictAria": "Conflict policy",
+    "restoreWarningTitle": "Restore deletes existing data first",
+    "restoreWarningBody": "Every row in the backup's entities — and in tables that depend on them — is deleted before the file's rows are inserted, including rows not present in the backup.",
+    "chooseDifferent": "Choose a different file",
+    "reviewImport": "Review & import",
+    "runningTitle": "Import running…",
+    "progressAria": "Import progress",
+    "applyingEntity": "Applying {{entity}} — {{applied}} of {{total}} rows",
+    "rowsApplied": "{{applied}} of {{total}} rows applied",
+    "progressRefreshFailed": "Progress refresh failed — the import itself continues on the server and polling keeps retrying.",
+    "failedTitle": "Import failed — nothing was applied",
+    "failedGeneric": "The import failed.",
+    "failedTxn": "The import runs in a single transaction, so the database was left unchanged.",
+    "viewHistory": "View history",
+    "startOver": "Start over",
+    "completeTitle": "Import complete",
+    "insertedCount_other": "{{count}} inserted",
+    "updatedCount_other": "{{count}} updated",
+    "skippedCount_other": "{{count}} skipped",
+    "skippedRefsTitle": "Rows skipped because their references are missing",
+    "notApplied": "These entities in the file were not applied: {{entities}}.",
+    "confirmRestore": "Confirm restore",
+    "confirmImport": "Confirm import",
+    "confirmAbout": "You're about to {{mode}}",
+    "confirmRows_other": "{{count}} rows",
+    "confirmAcross": "across",
+    "confirmEntities_other": "{{count}} entities",
+    "confirmLogged": "This action is logged to the transfer history.",
+    "modes": {
+      "merge": "merge",
+      "restore": "restore"
+    },
+    "confirmDeleteTitle": "This deletes existing data first",
+    "confirmDeleteBody1": "Restore clears the backup's entities",
+    "confirmDeleteEm": "and every table that depends on them",
+    "confirmDeleteBody2": "— including rows not present in the file — before inserting. Export a fresh backup first so you can roll back if needed.",
+    "confirmMergeBody": "Merge inserts only new rows. Existing rows are handled per the conflict policy:",
+    "ackAria": "Acknowledge import warning",
+    "ackRestore": "I understand restore deletes existing data, and I have a current backup to roll back with.",
+    "ackMerge": "I understand this modifies live data and that the action will be recorded.",
+    "restoreImport": "Restore & import",
+    "startImport": "Start import",
+    "importAnother": "Import another file"
   },
   "history": {
     "serverBacked": "Every export, import, and re-authentication on this server is recorded in the audit log.",
@@ -59,6 +176,31 @@
       "standard": "Standard export",
       "full": "Full export",
       "backup": "Full system backup"
-    }
+    },
+    "title": "Transfer History",
+    "loadingAria": "Loading transfer history",
+    "empty": "No transfers recorded yet.",
+    "colAction": "Action",
+    "colScope": "Scope",
+    "colRecords": "Records",
+    "colBy": "Performed by",
+    "colDate": "Date & time",
+    "colStatus": "Status",
+    "recordsCount_one": "{{count}} record",
+    "recordsCount_other": "{{count}} records",
+    "entitiesCount_one": "{{count}} entity",
+    "entitiesCount_other": "{{count}} entities",
+    "jobRef": "job {{id}}",
+    "unknownUser": "system",
+    "statuses": {
+      "success": "Success",
+      "partial": "Partial",
+      "failed": "Failed",
+      "started": "Started"
+    },
+    "actionExport": "Export",
+    "actionReAuth": "Re-authentication",
+    "actionImport": "Import",
+    "actionImportMode": "Import ({{mode}})"
   }
 }

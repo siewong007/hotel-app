@@ -67,8 +67,8 @@ const DataTransferPage: React.FC = () => {
           reAuth: t('history.reAuth'),
           reAuthDenied: t('history.reAuthDenied'),
           importStarted: t('history.importStarted'),
-          entities: (count) => `${count} entities`,
-          unknownUser: 'system',
+          entities: (count) => t('history.entitiesCount', { count }),
+          unknownUser: t('history.unknownUser'),
         }),
       ),
     [historyQuery.data, t],
@@ -95,7 +95,7 @@ const DataTransferPage: React.FC = () => {
         sx={{ mb: 2 }}
         title={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            Data Transfer
+            {t('page.title')}
             <Chip
               label={t('page.permissionChip')}
               size="small"
@@ -106,8 +106,7 @@ const DataTransferPage: React.FC = () => {
         }
         subtitle={
           <Box component="span" sx={{ maxWidth: 680, display: 'inline-block' }}>
-            Download a backup of this system's data, or restore one on this server. Imports are staged, previewed,
-            and confirmed before any data is written.
+            {t('page.subtitle')}
           </Box>
         }
       />
@@ -140,16 +139,16 @@ const DataTransferPage: React.FC = () => {
         >
           {canExport && (
             <ToggleButton value="export">
-              <DownloadIcon sx={{ fontSize: 18, mr: 0.75 }} /> Export
+              <DownloadIcon sx={{ fontSize: 18, mr: 0.75 }} /> {t('page.tabs.export')}
             </ToggleButton>
           )}
           {canImport && (
             <ToggleButton value="import">
-              <UploadIcon sx={{ fontSize: 18, mr: 0.75 }} /> Import
+              <UploadIcon sx={{ fontSize: 18, mr: 0.75 }} /> {t('page.tabs.import')}
             </ToggleButton>
           )}
           <ToggleButton value="history">
-            <HistoryIcon sx={{ fontSize: 18, mr: 0.75 }} /> History
+            <HistoryIcon sx={{ fontSize: 18, mr: 0.75 }} /> {t('page.tabs.history')}
           </ToggleButton>
         </ToggleButtonGroup>
       )}

@@ -21,18 +21,22 @@ import { AGEING_TONE, Delta } from './charts';
 import { ReportsFormatProvider, useReportsFormat } from './formatContext';
 import { useReportsModel, Kpi, KpiKind, Unit, CompareMode, RangeDays, ReportsQuery } from './reportsModel';
 import { OutstandingDrawer, OccupancyDrawer, RevenueDrawer, FlowDrawer, DrawerState } from './drawers';
+import { useTranslation, type UseTranslationResult } from '../../../../i18n';
+import { formatStatusLabel } from '../../../../utils/formatters';
 import './reports.css';
 
-const RANGE_OPTIONS: { v: RangeDays; l: string }[] = [
-  { v: 7, l: '7 days' }, { v: 30, l: '30 days' }, { v: 90, l: '90 days' },
-];
+const RANGE_OPTIONS: RangeDays[] = [7, 30, 90];
 
-const compareCaption = (compare: CompareMode, rangeDays: RangeDays): string =>
+const compareCaption = (
+  t: UseTranslationResult['t'],
+  compare: CompareMode,
+  rangeDays: RangeDays,
+): string =>
   compare === 'month'
-    ? 'vs same period last month'
+    ? t('reports.compare.month')
     : compare === 'year'
-      ? 'vs same period last year'
-      : `vs previous ${rangeDays} days`;
+      ? t('reports.compare.year')
+      : t('reports.compare.prev', { count: rangeDays });
 
 // ---------- small presentational atoms ----------
 function Seg<T extends string | number>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { v: T; l: string }[] }) {
@@ -65,14 +69,17 @@ const FSelect: React.FC<{
   </label>
 );
 
-const Locked: React.FC<{ children: React.ReactNode; label?: string }> = ({ children, label }) => (
-  <div className="locked">
-    <div className="locked-blur">{children}</div>
-    <div className="locked-veil">
-      <div className="locked-chip"><Icon name="lock" size={13} /> {label || 'Restricted'}</div>
+const Locked: React.FC<{ children: React.ReactNode; label?: string }> = ({ children, label }) => {
+  const { t } = useTranslation('dashboard');
+  return (
+    <div className="locked">
+      <div className="locked-blur">{children}</div>
+      <div className="locked-veil">
+        <div className="locked-chip"><Icon name="lock" size={13} /> {label || t('reports.restricted')}</div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const Legend: React.FC<{ items: { label: string; color: string }[] }> = ({ items }) => (
   <div className="legend">
@@ -146,6 +153,7 @@ interface KpiCardProps {
   accent: string; showDeltas: boolean; compareCaption: string; onClick: () => void; locked?: boolean;
 }
 const KpiCard: React.FC<KpiCardProps> = ({ icon, label, kpi, kind, unit, accent, showDeltas, compareCaption, onClick, locked }) => {
+  const { t } = useTranslation('dashboard');
   const { fmtMoney, fmtInt, fmtPct } = useReportsFormat();
   const display = unit === '%' ? fmtPct(kpi.value) : unit === 'RM' ? fmtMoney(kpi.value) : fmtInt(kpi.value);
   const inner = (
@@ -163,11 +171,11 @@ const KpiCard: React.FC<KpiCardProps> = ({ icon, label, kpi, kind, unit, accent,
         <span className="kpi-cmp">{compareCaption}</span>
       </div>
       <div className="kpi-spark">
-        <HotelSparkline values={kpi.spark} color={accent} height={34} ariaLabel={`${label} trend`} />
+        <HotelSparkline values={kpi.spark} color={accent} height={34} ariaLabel={t('reports.kpiTrendAria', { label })} />
       </div>
     </button>
   );
-  return locked ? <Locked label="Finance only">{inner}</Locked> : inner;
+  return locked ? <Locked label={t('reports.financeOnly')}>{inner}</Locked> : inner;
 };
 
 const MiniList: React.FC<{ rows: { name: string; sub: string; side: string; sideTone?: 'due' | 'ok'; sideMono?: boolean }[] }> = ({ rows }) => (
@@ -186,6 +194,7 @@ const MiniList: React.FC<{ rows: { name: string; sub: string; side: string; side
 
 // ---------- main ----------
 const ReportsAnalyticsInner: React.FC = () => {
+  const { t, tOr } = useTranslation('dashboard');
   const { hasPermission, hasRole } = useAuth();
   const { fmtMoney, fmtMoneyK, fmtInt, fmtPct } = useReportsFormat();
   const { palette, status } = useChartTheme();
@@ -213,17 +222,17 @@ const ReportsAnalyticsInner: React.FC = () => {
   const sourceTotal = model.sources.reduce((a, s) => a + s.value, 0);
   const sourceBookings = (label: string) =>
     model.sources.find((s) => s.label === label)?.bookings ?? 0;
-  const cmpCaption = compareCaption(query.compare, query.rangeDays);
+  const cmpCaption = compareCaption(t, query.compare, query.rangeDays);
   const k = model.kpis;
 
   const headerActions = (
     <div className="ph-actions">
       <span className="role-pill">
         <Icon name="lock" size={13} />
-        {canViewFinancials ? 'Full access' : 'Scoped access'}
+        {canViewFinancials ? t('reports.accessFull') : t('reports.accessScoped')}
       </span>
-      <button className="btn"><Icon name="download" size={14} /> Export</button>
-      <button className="btn icon" title="Print" onClick={() => window.print()}><Icon name="print" size={15} /></button>
+      <button className="btn"><Icon name="download" size={14} /> {t('common:actions.export')}</button>
+      <button className="btn icon" title={t('common:actions.print')} onClick={() => window.print()}><Icon name="print" size={15} /></button>
     </div>
   );
 
@@ -231,9 +240,9 @@ const ReportsAnalyticsInner: React.FC = () => {
     <div className="salim-reports" data-density="comfortable">
       <div className="ph">
         <div className="ph-left">
-          <div className="crumbs">{hotelName} <span className="sep">›</span> Reports <span className="sep">›</span> Analytics</div>
-          <h1>Reports &amp; Analytics</h1>
-          <div className="sub">Combined operational &amp; financial overview · Main Property</div>
+          <div className="crumbs">{hotelName} <span className="sep">›</span> {t('reports.crumbReports')} <span className="sep">›</span> {t('reports.crumbAnalytics')}</div>
+          <h1>{t('reports.title')}</h1>
+          <div className="sub">{t('reports.subtitle', { property: t('reports.mainProperty') })}</div>
         </div>
         {headerActions}
       </div>
@@ -241,19 +250,20 @@ const ReportsAnalyticsInner: React.FC = () => {
       {/* FILTERS — all wired: range + compare always work; room-type/source
           selects only offer values that exist in the loaded data. */}
       <div className="filters">
-        <Seg value={query.rangeDays} onChange={(rangeDays) => setQuery((q) => ({ ...q, rangeDays }))} options={RANGE_OPTIONS} />
+        <Seg value={query.rangeDays} onChange={(rangeDays) => setQuery((q) => ({ ...q, rangeDays }))}
+          options={RANGE_OPTIONS.map((v) => ({ v, l: t('reports.rangeDays', { count: v }) }))} />
         {!isPhone && (
           <>
-            <FSelect icon="bed" label="Room type" value={String(query.roomTypeId ?? 'all')}
+            <FSelect icon="bed" label={t('reports.filters.roomType')} value={String(query.roomTypeId ?? 'all')}
               onChange={(v) => setQuery((q) => ({ ...q, roomTypeId: v === 'all' ? undefined : Number(v) }))}
               options={[
-                { value: 'all', label: 'All' },
+                { value: 'all', label: t('common:field.all') },
                 ...model.roomTypes.map((r) => ({ value: String(r.id), label: r.type })),
               ]} />
-            <FSelect icon="globe" label="Source" value={String(query.channelId ?? 'all')}
+            <FSelect icon="globe" label={t('reports.filters.source')} value={String(query.channelId ?? 'all')}
               onChange={(v) => setQuery((q) => ({ ...q, channelId: v === 'all' ? undefined : Number(v) }))}
               options={[
-                { value: 'all', label: 'All' },
+                { value: 'all', label: t('common:field.all') },
                 ...model.sources.filter((s) => s.channelId != null)
                   .map((s) => ({ value: String(s.channelId), label: s.label })),
               ]} />
@@ -261,9 +271,11 @@ const ReportsAnalyticsInner: React.FC = () => {
           </>
         )}
         <div className="cmp">
-          <span className="cmp-l">Compare</span>
+          <span className="cmp-l">{t('reports.filters.compare')}</span>
           <Seg value={query.compare} onChange={(compare) => setQuery((q) => ({ ...q, compare }))} options={[
-            { v: 'prev' as CompareMode, l: 'Prev period' }, { v: 'month' as CompareMode, l: 'Last month' }, { v: 'year' as CompareMode, l: 'Last year' },
+            { v: 'prev' as CompareMode, l: t('reports.filters.comparePrev') },
+            { v: 'month' as CompareMode, l: t('reports.filters.compareMonth') },
+            { v: 'year' as CompareMode, l: t('reports.filters.compareYear') },
           ]} />
         </div>
       </div>
@@ -276,52 +288,52 @@ const ReportsAnalyticsInner: React.FC = () => {
           <section className="live">
             <div className="live-h">
               <span className="live-dot" data-pulse="true" />
-              <span className="live-title">Today · Live</span>
+              <span className="live-title">{t('reports.live.title')}</span>
               <span className="live-date">{model.todayLabel}</span>
-              <span className="live-upd"><Icon name="refresh" size={12} /> Updated {model.live.updated} · auto-refresh</span>
+              <span className="live-upd"><Icon name="refresh" size={12} /> {t('reports.live.updated', { time: model.live.updated })}</span>
             </div>
             <div className="live-tiles">
-              <LiveTile icon="login" n={model.live.arrivals} label="Arrivals" tone="blue"
+              <LiveTile icon="login" n={model.live.arrivals} label={t('reports.live.arrivals')} tone="blue"
                 onClick={() => open({ type: 'flow', mode: 'arrivals' })} />
-              <LiveTile icon="logout" n={model.live.departures} label="Departures" tone="indigo"
+              <LiveTile icon="logout" n={model.live.departures} label={t('reports.live.departures')} tone="indigo"
                 onClick={() => open({ type: 'flow', mode: 'departures' })} />
-              <LiveTile icon="users" n={model.live.inHouse} label="In-house guests" tone="emerald" />
-              <LiveTile icon="gauge" n={fmtPct(model.live.occNow, 0).replace('%', '')} suffix="%" label="Occupancy now" tone="amber"
+              <LiveTile icon="users" n={model.live.inHouse} label={t('reports.live.inHouse')} tone="emerald" />
+              <LiveTile icon="gauge" n={fmtPct(model.live.occNow, 0).replace('%', '')} suffix="%" label={t('reports.live.occupancyNow')} tone="amber"
                 onClick={() => open({ type: 'occupancy' })} />
-              <LiveTile icon="broom" n={model.live.toClean} label="Rooms to clean" tone="rose" />
-              <LiveTile icon="door" n={model.live.unassigned} label="Unassigned" tone="neutral" />
+              <LiveTile icon="broom" n={model.live.toClean} label={t('reports.live.toClean')} tone="rose" />
+              <LiveTile icon="door" n={model.live.unassigned} label={t('reports.live.unassigned')} tone="neutral" />
             </div>
           </section>
 
           {/* KPI CARDS */}
           <div className="kpis">
-            <KpiCard icon="percent" label="Occupancy rate" kpi={k.occupancy} kind="occupancy" unit="%"
+            <KpiCard icon="percent" label={t('reports.kpi.occupancyRate')} kpi={k.occupancy} kind="occupancy" unit="%"
               accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'occupancy' })} />
             <KpiCard icon="gauge" label="ADR" kpi={k.adr} kind="adr" unit="RM"
               accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'revenue', metric: 'adr' })} locked={!canViewFinancials} />
             <KpiCard icon="gauge" label="RevPAR" kpi={k.revpar} kind="revpar" unit="RM"
               accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'revenue', metric: 'revpar' })} locked={!canViewFinancials} />
-            <KpiCard icon="coins" label="Room revenue" kpi={k.roomRev} kind="roomRev" unit="RM"
+            <KpiCard icon="coins" label={t('reports.kpi.roomRevenue')} kpi={k.roomRev} kind="roomRev" unit="RM"
               accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'revenue', metric: 'roomRev' })} locked={!canViewFinancials} />
-            <KpiCard icon="coins" label="Total revenue" kpi={k.totalRev} kind="totalRev" unit="RM"
+            <KpiCard icon="coins" label={t('reports.kpi.totalRevenue')} kpi={k.totalRev} kind="totalRev" unit="RM"
               accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'revenue', metric: 'totalRev' })} locked={!canViewFinancials} />
-            <KpiCard icon="wallet" label="Outstanding" kpi={k.outstanding} kind="outstanding" unit="RM"
+            <KpiCard icon="wallet" label={t('reports.kpi.outstanding')} kpi={k.outstanding} kind="outstanding" unit="RM"
               accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'outstanding' })} locked={!canViewFinancials} />
           </div>
 
           {/* CHARTS — revenue trend + source mix */}
           <div className="chart-row two">
             {canViewFinancials ? (
-              <Panel phoneCollapsible title="Daily revenue trend" icon="chart"
-                sub={`Room ${fmtMoneyK(model.roomRev)} · Other ${fmtMoneyK(model.otherRev)} · last ${model.periodDays} days`}
-                right={<Legend items={[{ label: 'Room revenue', color: palette[0] }, { label: 'Other revenue', color: palette[1] }]} />}>
+              <Panel phoneCollapsible title={t('reports.charts.dailyRevenue')} icon="chart"
+                sub={t('reports.charts.dailyRevenueSub', { room: fmtMoneyK(model.roomRev), other: fmtMoneyK(model.otherRev), count: model.periodDays })}
+                right={<Legend items={[{ label: t('reports.charts.roomRevenue'), color: palette[0] }, { label: t('reports.charts.otherRevenue'), color: palette[1] }]} />}>
                 <ChartStateGate loading={loading} isEmpty={model.daily.length === 0}>
                   <HotelLineChart
                     height={250}
-                    ariaLabel="Daily revenue trend by stay date"
+                    ariaLabel={t('reports.charts.dailyRevenueAria')}
                     data={[
-                      { id: 'Room revenue', data: model.daily.map((d) => ({ x: d.date, y: d.room })) },
-                      { id: 'Other revenue', data: model.daily.map((d) => ({ x: d.date, y: d.other })) },
+                      { id: t('reports.charts.roomRevenue'), data: model.daily.map((d) => ({ x: d.date, y: d.room })) },
+                      { id: t('reports.charts.otherRevenue'), data: model.daily.map((d) => ({ x: d.date, y: d.other })) },
                     ]}
                     enableArea
                     areaOpacity={0.14}
@@ -335,20 +347,20 @@ const ReportsAnalyticsInner: React.FC = () => {
                             {p.seriesId}: {fmtMoney(Number(p.data.y))}
                           </div>
                         ))}
-                        <div>Occupancy: {fmtPct(model.daily[slice.points[0]?.indexInSeries ?? 0]?.occ ?? 0)}</div>
+                        <div>{t('reports.charts.tooltipOccupancy', { value: fmtPct(model.daily[slice.points[0]?.indexInSeries ?? 0]?.occ ?? 0) })}</div>
                       </div>
                     )}
                   />
                 </ChartStateGate>
               </Panel>
             ) : (
-              <Panel phoneCollapsible title="Daily revenue trend" icon="chart" sub="Revenue analytics">
-                <Locked label="Finance only"><div style={{ height: 250 }} /></Locked>
+              <Panel phoneCollapsible title={t('reports.charts.dailyRevenue')} icon="chart" sub={t('reports.charts.dailyRevenueLocked')}>
+                <Locked label={t('reports.financeOnly')}><div style={{ height: 250 }} /></Locked>
               </Panel>
             )}
 
             {canViewFinancials ? (
-              <Panel phoneCollapsible collapseOnPhone title="Booking source mix" icon="globe" sub="By net revenue · booking creation dates">
+              <Panel phoneCollapsible collapseOnPhone title={t('reports.charts.sourceMix')} icon="globe" sub={t('reports.charts.sourceMixSub')}>
                 <ChartStateGate loading={loading} isEmpty={model.sources.length === 0}>
                   <div className="donut-wrap">
                     <div className="donut-chart">
@@ -359,13 +371,13 @@ const ReportsAnalyticsInner: React.FC = () => {
                           <div>
                             <strong>{String(datum.id)}</strong>
                             <div>{fmtMoney(Number(datum.value))}</div>
-                            <div>{fmtInt(sourceBookings(String(datum.id)))} bookings</div>
+                            <div>{t('reports.charts.tooltipBookings', { count: sourceBookings(String(datum.id)) })}</div>
                           </div>
                         )}
                       />
                       <div className="donut-center">
                         <div className="dc-v">{fmtMoneyK(sourceTotal)}</div>
-                        <div className="dc-l">Total</div>
+                        <div className="dc-l">{t('reports.charts.total')}</div>
                       </div>
                     </div>
                     <div className="donut-leg">
@@ -381,22 +393,22 @@ const ReportsAnalyticsInner: React.FC = () => {
                 </ChartStateGate>
               </Panel>
             ) : (
-              <Panel phoneCollapsible collapseOnPhone title="Booking source mix" icon="globe">
-                <Locked label="Finance only"><div style={{ height: 200 }} /></Locked>
+              <Panel phoneCollapsible collapseOnPhone title={t('reports.charts.sourceMix')} icon="globe">
+                <Locked label={t('reports.financeOnly')}><div style={{ height: 200 }} /></Locked>
               </Panel>
             )}
           </div>
 
           {/* CHARTS — occupancy trend + room type */}
           <div className="chart-row two">
-            <Panel phoneCollapsible collapseOnPhone title="Occupancy trend" icon="percent"
-              sub={`Avg ${fmtPct(k.occupancy.value)} · ${model.periodRooms} rooms · last ${model.periodDays} days`}
-              right={<Legend items={[{ label: 'Daily occupancy', color: accent }]} />}>
+            <Panel phoneCollapsible collapseOnPhone title={t('reports.charts.occupancyTrend')} icon="percent"
+              sub={t('reports.charts.occupancyTrendSub', { avg: fmtPct(k.occupancy.value), rooms: model.periodRooms, count: model.periodDays })}
+              right={<Legend items={[{ label: t('reports.charts.dailyOccupancy'), color: accent }]} />}>
               <ChartStateGate loading={loading} isEmpty={model.daily.length === 0}>
                 <HotelLineChart
                   height={230}
-                  ariaLabel="Daily occupancy rate by stay date"
-                  data={[{ id: 'Occupancy', data: model.daily.map((d) => ({ x: d.date, y: d.occ })) }]}
+                  ariaLabel={t('reports.charts.occupancyTrendAria')}
+                  data={[{ id: t('reports.charts.occupancy'), data: model.daily.map((d) => ({ x: d.date, y: d.occ })) }]}
                   colors={[accent]}
                   enableArea
                   areaOpacity={0.16}
@@ -406,8 +418,8 @@ const ReportsAnalyticsInner: React.FC = () => {
                   sliceTooltip={({ slice }) => (
                     <div>
                       <strong>{fmtShortDate(String(slice.points[0]?.data.x))}</strong>
-                      <div>Occupancy: {fmtPct(Number(slice.points[0]?.data.y))}</div>
-                      <div>{model.daily[slice.points[0]?.indexInSeries ?? 0]?.occRooms ?? 0} rooms sold</div>
+                      <div>{t('reports.charts.tooltipOccupancy', { value: fmtPct(Number(slice.points[0]?.data.y)) })}</div>
+                      <div>{t('reports.charts.tooltipRoomsSold', { count: model.daily[slice.points[0]?.indexInSeries ?? 0]?.occRooms ?? 0 })}</div>
                     </div>
                   )}
                 />
@@ -415,12 +427,12 @@ const ReportsAnalyticsInner: React.FC = () => {
             </Panel>
 
             {canViewFinancials ? (
-              <Panel phoneCollapsible collapseOnPhone title="Room type performance" icon="bed" sub="By room revenue">
+              <Panel phoneCollapsible collapseOnPhone title={t('reports.charts.roomTypePerf')} icon="bed" sub={t('reports.charts.roomTypePerfSub')}>
                 <ChartStateGate loading={loading} isEmpty={model.roomTypes.length === 0}>
                   <HotelBarChart
                     height={Math.max(140, model.roomTypes.length * 46)}
                     layout="horizontal"
-                    ariaLabel="Room revenue by room type"
+                    ariaLabel={t('reports.charts.roomTypePerfAria')}
                     data={model.roomTypes.map((r) => ({ type: r.type, rev: r.rev, occ: r.occ, adr: r.adr, rooms: r.rooms }))}
                     keys={['rev']}
                     indexBy="type"
@@ -433,17 +445,17 @@ const ReportsAnalyticsInner: React.FC = () => {
                     tooltip={({ indexValue, data: d }) => (
                       <div>
                         <strong>{String(indexValue)}</strong>
-                        <div>{fmtMoney(Number(d.rev))} room revenue</div>
-                        <div>{fmtPct(Number(d.occ), 0)} occupancy · {fmtMoney(Number(d.adr))} ADR</div>
-                        <div>{fmtInt(Number(d.rooms))} rooms</div>
+                        <div>{t('reports.charts.tooltipRoomRevenue', { value: fmtMoney(Number(d.rev)) })}</div>
+                        <div>{t('reports.charts.tooltipOccAdr', { occ: fmtPct(Number(d.occ), 0), adr: fmtMoney(Number(d.adr)) })}</div>
+                        <div>{t('reports.occupancy.tooltipRooms', { count: Number(d.rooms) })}</div>
                       </div>
                     )}
                   />
                 </ChartStateGate>
               </Panel>
             ) : (
-              <Panel phoneCollapsible collapseOnPhone title="Room type performance" icon="bed">
-                <Locked label="Finance only"><div style={{ height: 200 }} /></Locked>
+              <Panel phoneCollapsible collapseOnPhone title={t('reports.charts.roomTypePerf')} icon="bed">
+                <Locked label={t('reports.financeOnly')}><div style={{ height: 200 }} /></Locked>
               </Panel>
             )}
           </div>
@@ -451,19 +463,19 @@ const ReportsAnalyticsInner: React.FC = () => {
           {/* CHARTS — ageing + arrivals + departures */}
           <div className="chart-row thirds">
             {canViewFinancials ? (
-              <Panel phoneCollapsible collapseOnPhone title="Outstanding ageing" icon="wallet" clickable onClick={() => open({ type: 'outstanding' })}
-                sub="Click to drill down" right={<Icon name="arrow-up-right" size={14} style={{ color: 'var(--ink-4)' }} />}>
+              <Panel phoneCollapsible collapseOnPhone title={t('reports.charts.ageing')} icon="wallet" clickable onClick={() => open({ type: 'outstanding' })}
+                sub={t('reports.charts.ageingSub')} right={<Icon name="arrow-up-right" size={14} style={{ color: 'var(--ink-4)' }} />}>
                 <ChartStateGate loading={loading} isEmpty={model.ageing.every((a) => a.value === 0)}
-                  emptyMessage="No open invoices">
+                  emptyMessage={t('reports.charts.ageingEmpty')}>
                   <HotelBarChart
                     height={Math.max(140, model.ageing.length * 40)}
                     layout="horizontal"
-                    ariaLabel="Outstanding invoice ageing"
-                    data={model.ageing.map((a) => ({ bucket: a.bucket, value: a.value, key: a.key, count: a.count }))}
+                    ariaLabel={t('reports.charts.ageingAria')}
+                    data={model.ageing.map((a) => ({ bucket: tOr(`reports.ageBuckets.${a.key}`, a.bucket), value: a.value, key: a.key, count: a.count }))}
                     keys={['value']}
                     indexBy="bucket"
                     colors={({ indexValue }) => {
-                      const tone = AGEING_TONE[model.ageing.find((a) => a.bucket === indexValue)?.key ?? ''];
+                      const tone = AGEING_TONE[model.ageing.find((a) => tOr(`reports.ageBuckets.${a.key}`, a.bucket) === indexValue)?.key ?? ''];
                       return tone ? status[tone] : palette[0];
                     }}
                     axisLeft={{ tickSize: 0, tickPadding: 6 }}
@@ -474,35 +486,35 @@ const ReportsAnalyticsInner: React.FC = () => {
                     tooltip={({ indexValue, data: d }) => (
                       <div>
                         <strong>{String(indexValue)}</strong>
-                        <div>{fmtMoney(Number(d.value))} · {fmtInt(Number(d.count))} invoices</div>
+                        <div>{fmtMoney(Number(d.value))} · {t('reports.outstanding.invoiceCount', { count: Number(d.count) })}</div>
                       </div>
                     )}
                   />
                 </ChartStateGate>
               </Panel>
             ) : (
-              <Panel phoneCollapsible collapseOnPhone title="Outstanding ageing" icon="wallet">
-                <Locked label="Finance only"><div style={{ height: 160 }} /></Locked>
+              <Panel phoneCollapsible collapseOnPhone title={t('reports.charts.ageing')} icon="wallet">
+                <Locked label={t('reports.financeOnly')}><div style={{ height: 160 }} /></Locked>
               </Panel>
             )}
 
-            <Panel title="Arrivals today" icon="login" sub={model.live.arrivals + ' expected'}
-              right={<button className="link-btn" onClick={() => open({ type: 'flow', mode: 'arrivals' })}>View all <Icon name="chev-right" size={12} /></button>}>
-              <MiniList rows={model.arrivals.slice(0, 4).map((r) => ({ name: r.name, sub: r.type + ' · ' + r.source, side: r.eta, sideMono: true }))} />
+            <Panel title={t('reports.flow.arrivals')} icon="login" sub={t('reports.flow.expectedSub', { count: model.live.arrivals })}
+              right={<button className="link-btn" onClick={() => open({ type: 'flow', mode: 'arrivals' })}>{t('reports.viewAll')} <Icon name="chev-right" size={12} /></button>}>
+              <MiniList rows={model.arrivals.slice(0, 4).map((r) => ({ name: r.name, sub: r.type + ' · ' + tOr(`bookings:channels.${r.source}`, formatStatusLabel(r.source, r.source)), side: r.eta, sideMono: true }))} />
             </Panel>
 
-            <Panel title="Departures today" icon="logout" sub={model.live.departures + ' expected'}
-              right={<button className="link-btn" onClick={() => open({ type: 'flow', mode: 'departures' })}>View all <Icon name="chev-right" size={12} /></button>}>
+            <Panel title={t('reports.flow.departures')} icon="logout" sub={t('reports.flow.expectedSub', { count: model.live.departures })}
+              right={<button className="link-btn" onClick={() => open({ type: 'flow', mode: 'departures' })}>{t('reports.viewAll')} <Icon name="chev-right" size={12} /></button>}>
               <MiniList rows={model.departures.slice(0, 4).map((r) => ({
-                name: r.name, sub: 'Room ' + r.room + ' · ' + r.out,
-                side: r.bal > 0 ? fmtMoney(r.bal) : 'Settled', sideTone: r.bal > 0 ? 'due' : 'ok',
+                name: r.name, sub: t('reports.roomCheckout', { room: r.room, out: r.out }),
+                side: r.bal > 0 ? fmtMoney(r.bal) : t('reports.settled'), sideTone: r.bal > 0 ? 'due' : 'ok',
               }))} />
             </Panel>
           </div>
 
           <div className="foot-note">
             <Icon name="info" size={13} />
-            Operational tiles (arrivals, departures, in-house, housekeeping) reflect live booking and room data. Revenue, occupancy-trend, channel-mix, per-type and pipeline figures come from revenue analytics — stay dates for trends, booking-creation dates for channel share. Outstanding ageing reads open invoices as of today.
+            {t('reports.footNote')}
           </div>
         </>
       )}

@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import type { Permission } from '../../../../../types';
 import { PERMISSION_CATEGORIES, getCategoryColor } from '../constants';
+import { useTranslation } from '../../../../../i18n';
 
 interface PermissionSummarySectionProps {
   permissions: Permission[];
@@ -31,6 +32,7 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
   permissions,
   allPermissions,
 }) => {
+  const { t } = useTranslation('admin');
   const [expandedCategories, setExpandedCategories] = React.useState<Set<string>>(new Set());
 
   // Group assigned permissions by category
@@ -63,7 +65,7 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
     const result: CategoryGroup[] = Object.entries(groups)
       .map(([name, perms]) => ({
         name,
-        displayName: PERMISSION_CATEGORIES[name]?.displayName || name.charAt(0).toUpperCase() + name.slice(1),
+        displayName: PERMISSION_CATEGORIES[name] ? t(PERMISSION_CATEGORIES[name].labelKey) : name.charAt(0).toUpperCase() + name.slice(1),
         color: getCategoryColor(name),
         permissions: perms.sort((a, b) => a.name.localeCompare(b.name)),
         totalInCategory: totalPerCategory[name] || perms.length,
@@ -71,7 +73,7 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
     return result;
-  }, [permissions, allPermissions]);
+  }, [permissions, allPermissions, t]);
 
   const toggleCategory = (categoryName: string) => {
     setExpandedCategories((prev) => {
@@ -91,7 +93,7 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
         <Typography variant="body2" sx={{
           color: "text.secondary"
         }}>
-          No permissions assigned yet
+          {t('rbac.noPermissionsAssigned')}
         </Typography>
       </Box>
     );
@@ -105,7 +107,7 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
           color: "text.secondary",
           mb: 2
         }}>
-        Assigned permissions ({permissions.length} total)
+        {t('rbac.assignedPermissions', { count: permissions.length })}
       </Typography>
       <Stack spacing={1}>
         {groupedPermissions.map((group) => {

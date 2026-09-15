@@ -59,7 +59,10 @@
     "goHome": "返回首页",
     "goBack": "返回",
     "discardChanges": "放弃更改",
-    "void": "作废"
+    "void": "作废",
+    "discard": "放弃",
+    "saving": "正在保存…",
+    "saveChanges": "保存更改"
   },
   "state": {
     "loading": "加载中…",
@@ -144,14 +147,17 @@
     "title": "筛选",
     "apply": "应用筛选",
     "byStatus": "按状态筛选",
-    "allStatuses": "全部状态"
+    "allStatuses": "全部状态",
+    "all": "全部"
   },
   "table": {
     "empty": "暂无记录"
   },
   "aria": {
     "loading": "加载中",
-    "loadingPage": "正在加载首页"
+    "loadingPage": "正在加载首页",
+    "showPassword": "显示密码",
+    "hidePassword": "隐藏密码"
   },
   "confirm": {
     "areYouSure": "确定要继续吗？",
@@ -163,6 +169,42 @@
   "units": {
     "hours": "小时",
     "days": "天",
-    "minutes": "分钟"
+    "minutes": "分钟",
+    "perNight": "/晚"
+  },
+  "charts": {
+    "loading": "正在加载图表",
+    "emptyPeriod": "该时段暂无数据",
+    "loadFailed": "图表数据加载失败"
+  },
+  "desktop": {
+    "upgradeTitle": "需要升级数据库",
+    "upgradeBody": "您保存的数据由 PostgreSQL {{fromVersion}} 创建，但此版本的应用附带 PostgreSQL {{toVersion}}。应用无法直接打开现有数据，在解决此问题之前将无法启动。",
+    "restorePrompt": "是否从 {{date}} 创建的备份恢复？该日期之后的更改将会丢失。您现有的数据目录会被保留（重命名另存），不会被删除。",
+    "noBackup": "没有可用的自动备份，应用无法安全升级。如需恢复，请安装与 PostgreSQL {{fromVersion}} 匹配的桌面版本来读取现有数据，或使用 pg_upgrade 手动迁移数据目录。您现有的数据未被改动。",
+    "upgrading": "正在升级数据库。这可能需要几分钟，请勿关闭应用。",
+    "openDataFolder": "打开数据文件夹",
+    "retryNoUpgrade": "不升级，重试",
+    "restoreBackup": "从备份恢复",
+    "starting": "正在启动桌面服务",
+    "unavailable": "桌面服务不可用",
+    "waitingAddress": "正在等待本地 API 地址",
+    "dataFolder": "数据文件夹：{{path}}",
+    "restartServices": "重启服务",
+    "versionOlder": "旧版本",
+    "versionCurrent": "当前版本",
+    "errors": {
+      "statusRead": "无法读取桌面服务状态",
+      "backendStopped": "后端服务已停止",
+      "backendStoppedCode": "后端服务已停止，退出码 {{code}}",
+      "subscribeFailed": "无法订阅桌面服务事件",
+      "restartFailed": "无法重启后端服务",
+      "upgradeFailed": "数据库升级失败",
+      "openFolderFailed": "无法打开数据文件夹"
+    }
+  },
+  "form": {
+    "required": "必填",
+    "optional": "可选"
   }
 }

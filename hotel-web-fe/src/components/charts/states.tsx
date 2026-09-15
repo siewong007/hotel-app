@@ -1,6 +1,7 @@
 /** Chart loading / empty / error states — one visual language for every chart. */
 import React from 'react';
 import { Alert, Box, Skeleton, Typography } from '@mui/material';
+import { useTranslation } from '../../i18n';
 
 const centerSx = {
   height: '100%',
@@ -12,44 +13,53 @@ const centerSx = {
   gap: 0.5,
 } as const;
 
-export const ChartLoading: React.FC = () => (
-  <Skeleton
-    variant="rounded"
-    width="100%"
-    height="100%"
-    sx={{ minHeight: 160 }}
-    aria-label="Loading chart"
-  />
-);
+export const ChartLoading: React.FC = () => {
+  const { t } = useTranslation('common');
+  return (
+    <Skeleton
+      variant="rounded"
+      width="100%"
+      height="100%"
+      sx={{ minHeight: 160 }}
+      aria-label={t('charts.loading')}
+    />
+  );
+};
 
-export const ChartEmpty: React.FC<{ message?: string }> = ({ message = 'No data for this period' }) => (
-  <Box sx={centerSx} role="status">
-    <Typography variant="body2" color="text.secondary">
-      {message}
-    </Typography>
-  </Box>
-);
+export const ChartEmpty: React.FC<{ message?: string }> = ({ message }) => {
+  const { t } = useTranslation('common');
+  return (
+    <Box sx={centerSx} role="status">
+      <Typography variant="body2" color="text.secondary">
+        {message ?? t('charts.emptyPeriod')}
+      </Typography>
+    </Box>
+  );
+};
 
 export const ChartError: React.FC<{ message?: string; onRetry?: () => void }> = ({
-  message = 'Chart data failed to load',
+  message,
   onRetry,
-}) => (
-  <Box sx={{ ...centerSx, px: 2 }}>
-    <Alert
-      severity="error"
-      variant="outlined"
-      action={
-        onRetry ? (
-          <button type="button" onClick={onRetry} style={{ cursor: 'pointer' }}>
-            Retry
-          </button>
-        ) : undefined
-      }
-    >
-      {message}
-    </Alert>
-  </Box>
-);
+}) => {
+  const { t } = useTranslation('common');
+  return (
+    <Box sx={{ ...centerSx, px: 2 }}>
+      <Alert
+        severity="error"
+        variant="outlined"
+        action={
+          onRetry ? (
+            <button type="button" onClick={onRetry} style={{ cursor: 'pointer' }}>
+              {t('state.retry')}
+            </button>
+          ) : undefined
+        }
+      >
+        {message ?? t('charts.loadFailed')}
+      </Alert>
+    </Box>
+  );
+};
 
 /** Picks the state to render, or `children` when data is present. */
 export const ChartStateGate: React.FC<{

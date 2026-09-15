@@ -312,6 +312,8 @@ pub struct GuestContact {
     pub actor_user_id: Option<i64>,
     pub nick_name: String,
     pub email: Option<String>,
+    /// `guests.language_preference` — first hop of the mail-locale chain.
+    pub language_preference: Option<String>,
 }
 
 #[derive(Debug, Clone)]

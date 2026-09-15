@@ -63,7 +63,7 @@ export function PromotionCard({
             color: "primary.main",
             mb: 1
           }}>
-          {formatPromotionDiscount(promotion)}
+          {formatPromotionDiscount(promotion, t)}
         </Typography>
         {promotion.description ? (
           <Typography

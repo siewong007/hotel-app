@@ -1,0 +1,893 @@
+import type { HelpArticle } from '../types';
+
+/**
+ * 中文帮助中心文章（简体中文，镜像 articles.en.ts 的 slug 与区块结构；
+ * content.test.ts 负责校验结构一致性）。
+ *
+ * 以下每个流程都已在管理端口中核实：页面名称与导航注册表一致、按钮标签与
+ * 渲染 UI 一致、权限标识与 seed.sql 一致。界面变更时，请同步更新对应文章并
+ * 更新 `lastReviewed`。
+ */
+export const ARTICLES_ZH: HelpArticle[] = [
+  // ---------------------------------------------------------- 入门
+  {
+    slug: 'sign-in-and-security',
+    title: '登录并保护您的账户',
+    summary: '登录、添加通行密钥或双重验证，并在共用工作站上安全退出。',
+    category: 'getting-started',
+    keywords: ['登录', '密码', '通行密钥', '2fa', '双重验证', '退出', '共用电脑'],
+    routePath: '/profile',
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['getting-around-admin-portal', 'page-missing-or-access-denied'],
+    blocks: [
+      { type: 'paragraph', text: '员工账户由管理员创建。获得凭据后，从登录页登录——门户会恢复您最初尝试打开的页面。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开登录页', body: '输入用户名和密码。如果会话已过期，系统会先带您回到此页，然后再跳转到您想去的页面。' },
+          { title: '按提示添加通行密钥', body: '首次登录时，系统可能会要求您注册通行密钥（指纹、人脸或设备 PIN）。通行密钥是最快、最安全的再次登录方式——您可以暂时忽略提示，稍后在个人资料中设置。' },
+          { title: '注册双重验证', body: '如果您的角色有此要求，系统会引导您完成 2FA 注册。请准备好您的验证器应用。' },
+          { title: '班次结束时退出登录', body: '打开账户菜单（右上角）并选择“退出登录”。在共用的前台工作站上，这不是可选项——下一位使用者会继承您未退出的会话。' },
+        ],
+      },
+      { type: 'callout', tone: 'warning', title: '共用工作站', body: '切勿在前台留下无人看管的已登录会话。退出登录会清除内存中的访问令牌。' },
+      { type: 'callout', tone: 'tip', body: '如果页面显示“访问被拒绝”，通常只是您的角色不包含该页面——在怀疑系统故障之前，请先查看“为什么看不到某个页面？”。' },
+    ],
+  },
+  {
+    slug: 'getting-around-admin-portal',
+    title: '熟悉管理门户',
+    summary: '导航分组、命令面板、通知、语言与主题——每个班次都会用到的五个控件。',
+    category: 'getting-started',
+    keywords: ['导航', '菜单', '命令面板', '搜索', '主题', '语言', '深色模式', '马来语'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['sign-in-and-security', 'cant-find-a-booking'],
+    blocks: [
+      { type: 'paragraph', text: '顶栏集中了您需要的一切。第一行是酒店名称、搜索栏、“新建预订”快捷按钮、语言、通知和账户菜单。第二行是模块导航，分为“主要”、“运营”、“管理”和“配置”四组。' },
+      {
+        type: 'list',
+        items: [
+          '“主要”和“运营”模块（时间线、客人、预订、房间、在线库存、报表、客房服务、支持）以一键标签的形式呈现。',
+          '“管理”和“配置”折叠为下拉菜单，让顶栏适配任意屏幕宽度。',
+          '在手机或窄窗口中，所有分组都会移入通过菜单按钮打开的侧边抽屉。',
+        ],
+      },
+      { type: 'heading', text: '用 ⌘K 找到任何东西' },
+      { type: 'paragraph', text: '按 ⌘K（Windows 上为 Ctrl+K）或点击搜索栏打开命令面板。它可以搜索预订、客人、账条、房间、页面——以及帮助文章。方向键浏览结果，回车打开所选，Esc 关闭。输入 / 可运行“新建预订”等快捷操作。' },
+      { type: 'heading', text: '语言与主题' },
+      { type: 'paragraph', text: '地球图标可在英语、马来语和中文之间即时切换——无需刷新。明亮、深色和夜间主题在“酒店设置”中配置；选择会按工作站记住。' },
+      { type: 'callout', tone: 'tip', body: '命令面板会记住您最近去过的六个目的地，重复跳转只需按两下键盘。' },
+    ],
+  },
+  {
+    slug: 'page-missing-or-access-denied',
+    title: '为什么看不到某个页面？',
+    summary: '页面根据您的角色和权限显示——菜单项缺失或“访问被拒绝”页面几乎都是权限决定，而非故障。',
+    category: 'getting-started',
+    keywords: ['访问被拒绝', '403', '权限', '菜单缺失', '角色', '看不到', '页面缺失'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['roles-and-permissions', 'sign-in-and-security'],
+    blocks: [
+      { type: 'paragraph', text: '管理门户中的每个模块都受路由访问策略保护。您的导航只显示角色和权限允许的目的地——在同一屏幕上，两位员工可能看到完全不同的菜单。' },
+      {
+        type: 'list',
+        items: [
+          '菜单项缺失 → 路由策略排除了您的角色，或您缺少相应权限。',
+          '打开链接后看到“访问被拒绝”（403）→ 您可以访问门户，但不能访问该模块。',
+          '昨天能用今天不行 → 您的角色或路由策略发生了变化。请查看审计日志或询问管理员。',
+        ],
+      },
+      {
+        type: 'steps',
+        steps: [
+          { title: '确认模块存在', body: '询问同事是否能看到该页面。如果没人能看到，可能是配置问题而非权限问题。' },
+          { title: '询问管理员', body: '权限在“访问控制 → 用户”（分配角色）或“角色”（编辑角色允许的操作）中授予。只有管理员可以更改。' },
+        ],
+      },
+      { type: 'callout', tone: 'info', body: '*:manage 权限隐含该资源的所有其他操作——例如 bookings:manage 涵盖创建、读取、更新和删除。' },
+    ],
+  },
+
+  // ------------------------------------------------------------------ 预订
+  {
+    slug: 'create-a-booking',
+    title: '创建预订',
+    summary: '通过“新建预订”按钮创建预订——在一个屏幕内选择日期、房间、房价和支付方式。',
+    category: 'bookings',
+    keywords: ['预订', '新建预订', '上门客', '电话预订', '手动预订'],
+    routePath: '/bookings',
+    requiredPermissions: ['bookings:create'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['check-in-a-guest', 'find-a-reservation', 'void-reactivate-release'],
+    blocks: [
+      { type: 'paragraph', text: '上门、电话和回头客预订都通过同一个“新建预订”界面创建。它把住宿日期、选房、客人资料和房价/支付合并为单一流程。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开“新建预订”', body: '使用顶栏中的白色“新建预订”按钮，或打开“预订”页面后在其中开始。' },
+          { title: '选择住宿日期和模式', body: '选择入住和退房日期。预订模式选择器会按预订类型调整流程。' },
+          { title: '选择房间', body: '先选房型，再选具体房间。系统只提供整个期间都空闲的房间。' },
+          { title: '填写客人资料', body: '搜索现有客人或录入新客人——姓名、联系方式和国籍字段会影响税费和身份核验。' },
+          { title: '设置房价和支付', body: '核对每晚价格和总价，选择支付方式和押金方式，然后确认。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '客人国籍中的“本地/外籍”决定旅游税是否适用——它在客人区域选择，而不是在支付时。' },
+      { type: 'callout', tone: 'important', title: '未付款的线上保留', body: '停留在 pending_payment 状态的预订属于保留房。它们会在“酒店设置”中配置的时长（未付款保留释放小时数）后自动释放，也可以提前手动释放。' },
+    ],
+  },
+  {
+    slug: 'find-a-reservation',
+    title: '查找预订',
+    summary: '通过编号、客人姓名或房间查找任意预订——使用“预订”列表或 ⌘K 面板。',
+    category: 'bookings',
+    keywords: ['搜索预订', '查找预订', '预订丢失', '预订编号', 'bk-', '查询'],
+    routePath: '/bookings',
+    requiredPermissions: ['bookings:read'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['cant-find-a-booking', 'check-in-a-guest', 'create-a-booking'],
+    blocks: [
+      { type: 'paragraph', text: '取决于您掌握的信息，有两条快速路径：想浏览和筛选时用“预订”列表；知道预订编号或客人时用 ⌘K 面板。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开 ⌘K 面板', body: '按 ⌘K 或点击搜索栏。选择“预订”范围标签以限定结果。' },
+          { title: '按编号或客人搜索', body: '输入预订编号（例如 BK-…）或客人姓名。选择结果会打开已过滤到该预订的“预订”页面。' },
+          { title: '或者筛选“预订”列表', body: '在“预订”页面使用筛选栏——状态、日期和房号可以在不离开页面的情况下缩小范围。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '把预订编号粘贴到面板是最快的查找方式——结果会直接深链到过滤后的列表。' },
+      { type: 'callout', tone: 'info', title: '如果仍然找不到', body: '已作废的预订和已释放的未付款保留不会出现在日常视图中。完整排查清单见“找不到预订？”。' },
+    ],
+  },
+  {
+    slug: 'check-in-a-guest',
+    title: '为客人办理入住',
+    summary: '在入住当天标记到店——已确认和待确认的预订都符合条件；提前入住会被提示而非阻止。',
+    category: 'bookings',
+    keywords: ['到店', '入住', '前台', '提前入住', '客人到达'],
+    routePath: '/bookings',
+    requiredPermissions: ['bookings:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['check-out-a-guest', 'find-a-reservation', 'housekeeping-maintenance'],
+    blocks: [
+      { type: 'paragraph', text: '当预订状态为已确认或待确认且到达入住日期后，即可办理入住。“入住”操作位于预订本身。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开预订', body: '通过 ⌘K 或“预订”列表找到它并打开详情。' },
+          { title: '选择“入住”', body: '该操作只在预订符合条件时出现——状态为已确认或待确认，且今天不早于入住日期。' },
+          { title: '查看入住提示', body: '通常由公司结算的客人可能会在继续前触发提示——阅读后确认。' },
+          { title: '确认', body: '预订状态变为 checked_in，房间在“房间”和“时间线”上显示为已入住。' },
+        ],
+      },
+      { type: 'callout', tone: 'info', title: '提前入住', body: '早于配置的入住时间（酒店设置 → 入住时间，默认 15:00）到达会弹出提前入住提示，而不是硬性阻止。' },
+      { type: 'callout', tone: 'warning', body: '在到达日期之前不会出现“入住”按钮——这是有意设计。如果客人提前一天到达，请先修改预订日期。' },
+    ],
+  },
+  {
+    slug: 'check-out-a-guest',
+    title: '为客人办理退房',
+    summary: '从预订或房间看板结束住宿——只有已入住的预订才能退房。',
+    category: 'bookings',
+    keywords: ['离店', '退房', '离开', '结账', '逾期退房'],
+    routePath: '/room-management',
+    requiredPermissions: ['bookings:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['check-in-a-guest', 'refund-a-deposit', 'housekeeping-maintenance'],
+    blocks: [
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开预订或房间看板', body: '退房可从预订操作中进行；房间看板会显示“逾期退房”，确保无一遗漏。' },
+          { title: '选择“退房”', body: '该操作只在预订状态为 checked_in 时出现。' },
+          { title: '结清住宿', body: '超过退房日期且仍有余额未付的预订——包括超过付款期限的公司挂账住宿——会被列出，以便您在离店前或离店时收款或安排付款。' },
+          { title: '把房间交给客房服务', body: '退房后，房间回到客房服务/维修流程，清洁后才能迎接下一位客人。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '如果收过押金，请在退房时退还——见“退还押金”。' },
+      { type: 'callout', tone: 'warning', body: '预订必须处于 checked_in 状态才能退房。如果状态看起来不对，请查看预订时间线了解发生了什么。' },
+    ],
+  },
+  {
+    slug: 'void-reactivate-release',
+    title: '作废、恢复或释放预订',
+    summary: '作废即取消预订，恢复可还原已作废的预订，释放可腾出未付款线上保留——三个操作，三套规则。',
+    category: 'bookings',
+    keywords: ['取消', '作废', '恢复', '释放', '未付款保留', '未付款', '爽约'],
+    routePath: '/bookings',
+    requiredPermissions: ['bookings:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['create-a-booking', 'refund-a-deposit', 'find-a-reservation'],
+    blocks: [
+      { type: 'paragraph', text: '每个操作针对不同情形，且只在预订符合条件时出现——如果按钮缺失，原因就在预订状态上。' },
+      {
+        type: 'list',
+        items: [
+          '作废——取消预订。任何未作废的预订都可使用，用于处理取消。',
+          '恢复——把已作废的预订还原。只在已作废的预订上提供。',
+          '释放——腾出由未付款线上预订占用的房间。只在状态为 pending_payment 且未收任何款项时提供。',
+        ],
+      },
+      { type: 'heading', text: '未付款保留会自动释放' },
+      { type: 'paragraph', text: '后台任务会在“酒店设置”配置的时长（未付款保留释放小时数——默认 24，0 为禁用）后自动释放未付款保留。手动释放用于更快腾出房间。' },
+      { type: 'callout', tone: 'important', title: '已收款？', body: '一旦存在任何付款，释放就被有意禁用——后端同样强制此规则。请作废预订并向客人退款。' },
+      { type: 'callout', tone: 'tip', body: '这些状态变化都会写入预订时间线和审计日志——您始终可以查看谁在何时做了什么。' },
+    ],
+  },
+  {
+    slug: 'read-the-timeline',
+    title: '读懂预订时间线',
+    summary: '按房间和日期查看谁将到达、在住或离店——一眼掌握入住率的最快方式。',
+    category: 'bookings',
+    keywords: ['时间线', '日历', '入住率视图', '房间调度', '到店离店'],
+    routePath: '/timeline',
+    requiredPermissions: ['bookings:read'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['daily-room-operations', 'check-in-a-guest', 'reports-and-metrics'],
+    blocks: [
+      { type: 'paragraph', text: '时间线把预订铺在房间和日期的网格上，让到店、在住和离店像地图一样呈现，而不是列表。它是规划换房和发现空档的正确界面。' },
+      {
+        type: 'list',
+        items: [
+          '几秒内扫完一周的入住情况——接待上门客之前很有用。',
+          '围绕同一房间的紧挨预订规划换房。',
+          '不用逐个打开预订就能找到可提前入住的空房。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '与房间看板搭配使用：时间线回答“谁在何时住哪间”，房间看板回答“每个房间现在是什么状态”。' },
+    ],
+  },
+
+  // -------------------------------------------------------------------- 客人
+  {
+    slug: 'manage-guest-profiles',
+    title: '管理客人资料',
+    summary: '搜索、编辑和维护客人档案——包括资料完整度和门户账户转移。',
+    category: 'guests',
+    keywords: ['客人', '资料', '编辑客人', '客人历史', '证件号码', '门户账户'],
+    routePath: '/guest-relations/guests',
+    requiredPermissions: ['guests:read', 'guests:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['create-a-booking', 'notifications-guest-support', 'import-export-data'],
+    blocks: [
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开“客人”', body: '客人管理列出所有客人档案。搜索可按姓名或联系方式缩小范围。' },
+          { title: '打开一份资料', body: '一览联系方式、身份字段、预订历史和资料完整度。' },
+          { title: '更新有变化的字段', body: '保持电话和邮箱为最新——它们驱动收据、营销活动和预入住流程。' },
+          { title: '谨慎处理门户账户', body: '“转移客人门户账户”会把门户登录移到另一份资料——只有在确定两个账户属于同一人时才使用。' },
+        ],
+      },
+      { type: 'callout', tone: 'warning', title: '删除客人', body: '“删除客人”会移除该资料。存在预订时请优先编辑而非删除——历史记录对账目和报表很重要。' },
+      { type: 'callout', tone: 'tip', body: '资料完整度会标出缺失字段（如电话），这些字段会阻塞通知等流程——当客人“联系不上”时，先从这里查起。' },
+    ],
+  },
+
+  // ----------------------------------------------------------- 房间与库存
+  {
+    slug: 'room-types-and-rooms',
+    title: '设置房型和房间',
+    summary: '房型定义房间是什么、价格多少；房间是客人实际入住的物理单元——两者都在“房间配置”中管理。',
+    category: 'rooms-inventory',
+    keywords: ['房型', '添加房间', '新房间', '床型', '容纳人数', '定价', '删除房间'],
+    routePath: '/room-config',
+    requiredPermissions: ['rooms:create', 'rooms:update'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['daily-room-operations', 'online-inventory-grid', 'promotions-vouchers'],
+    blocks: [
+      { type: 'paragraph', text: '房间配置是物业模型的所在。房型承载共享定义——名称、床型、容纳人数、定价和状态——每个房间都是某房型下的编号单元。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开“房间配置”', body: '在“配置”菜单下找到它。' },
+          { title: '创建或编辑房型', body: '依次完成各区块——基本信息（名称、描述）、床型、容纳人数（最大入住）、定价（每晚价格）和状态。' },
+          { title: '为房型添加房间', body: '每个房间有一个编号并归属某房型。房间继承房型的定价和容纳人数。' },
+          { title: '删除前先检查', body: '“删除房间”移除一个单元；“删除房型”移除整个定义——只在没有任何依赖时可用。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '定价在这里维护', body: '客人看到的房价来自房型的“定价”区块。线上渠道的覆盖价在“在线库存”中单独处理。' },
+      { type: 'callout', tone: 'tip', body: '“最大入住人数”同时驱动预订校验和客房服务规划——请如实填写。' },
+    ],
+  },
+  {
+    slug: 'daily-room-operations',
+    title: '日常房间运营',
+    summary: '房间看板：实时房态、入住与退房、换房、维修封房和逾期未退房。',
+    category: 'rooms-inventory',
+    keywords: ['房态', '已入住', '维修', '封房', '换房', '逾期退房', '脏房'],
+    routePath: '/room-management',
+    requiredPermissions: ['rooms:read', 'rooms:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['check-out-a-guest', 'housekeeping-maintenance', 'read-the-timeline'],
+    blocks: [
+      { type: 'paragraph', text: '“房间”是物业实体的运营看板——哪些房间已入住、哪些空闲、哪些被封、哪些退房已逾期。' },
+      {
+        type: 'list',
+        items: [
+          '“入住/退房”列一览当天的进出动态。',
+          '“逾期退房”列出本该离店的客人——每个班次优先处理。',
+          '“维修/封房”把房间标记为不可售，直到解封。',
+          '“选择新房间”可为客人换房而不作废预订。',
+        ],
+      },
+      {
+        type: 'steps',
+        steps: [
+          { title: '从房间看板开始', body: '打开“房间”查看物业全貌。' },
+          { title: '先处理逾期退房', body: '跟进或为每个逾期住宿办理退房，让房间得以清洁并重新销售。' },
+          { title: '如实封房', body: '维修中的房间必须标记为“维修/封房”——否则在线库存会继续售卖它。' },
+          { title: '用“选择新房间”换房', body: '需要换房时选择新房间——预订会跟随客人。' },
+        ],
+      },
+      { type: 'callout', tone: 'warning', body: '被封的房间仍需要维修工单来跟踪——见“客房服务与维修工单”。' },
+    ],
+  },
+  {
+    slug: 'online-inventory-grid',
+    title: '控制在线库存',
+    summary: '在“在线库存”网格上按房型按日期覆盖可售量和价格——支持批量编辑。',
+    category: 'rooms-inventory',
+    keywords: ['在线库存', '可售量', '线上售卖', '价格覆盖', '关闭日期', '停售'],
+    routePath: '/online-inventory',
+    requiredPermissions: ['rooms:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['room-types-and-rooms', 'daily-room-operations', 'reports-and-metrics'],
+    blocks: [
+      { type: 'paragraph', text: '“在线库存”是一个按日期×房型的网格，控制客人在线上能订到什么。每个单元格可以持有覆盖值——基础值来自房型。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开“在线库存”', body: '网格中房型为行、未来日期为列。' },
+          { title: '编辑单个单元格', body: '点击单元格打开编辑浮层，设置当天的值。' },
+          { title: '或批量编辑一段区间', body: '选中多个单元格，然后用“批量编辑”面板把同一修改应用到整个选择。' },
+          { title: '保存前先检查', body: '修改会汇集到“检查变更”中——在那里确认，并用“仅覆盖项”过滤器审计哪些与基础配置不同。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '已修改和被覆盖的单元格会有标记，您始终能区分基础配置与一次性决定。' },
+      { type: 'callout', tone: 'important', body: '要停止某天的线上销售，请覆盖该单元格——除非房间真的停用，否则不要物理封房。' },
+    ],
+  },
+  {
+    slug: 'housekeeping-maintenance',
+    title: '客房服务与维修工单',
+    summary: '跟踪房间状态和维修工作——创建工单、指派人员，并把房间恢复为可售。',
+    category: 'rooms-inventory',
+    keywords: ['客房服务', '清洁', '维修工单', '维修', '脏房', '指派给'],
+    routePath: '/housekeeping',
+    requiredPermissions: ['housekeeping:read', 'housekeeping:create'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['daily-room-operations', 'check-out-a-guest', 'room-types-and-rooms'],
+    blocks: [
+      { type: 'paragraph', text: '“客房服务”按房间协调清洁与维修工作。维修问题以工单形式跟踪，包含房间、类别、优先级、负责人和状态。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开“客房服务”', body: '按楼层、优先级或状态筛选看板，聚焦本班次。' },
+          { title: '创建维修工单', body: '“新建维修工单”记录房间、类别、优先级、标题和负责人。' },
+          { title: '处理队列', body: '随工作进展更新工单状态；被封房间在解决前保持不可售。' },
+          { title: '恢复房间可售', body: '解决并清洁后，在房间看板上清除“维修/封房”状态。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '先按优先级筛选——房间在售卖时，漏水的空调比踢脚线划痕更紧急。' },
+    ],
+  },
+
+  // ----------------------------------------------------------- 支付与账目
+  {
+    slug: 'refund-a-deposit',
+    title: '退还押金',
+    summary: '从预订中退还客人押金——退款是退房的常规操作；撤销退款则被有意限制。',
+    category: 'payments-ledgers',
+    keywords: ['退款', '押金', '退钱', '退还押金', '撤销退款'],
+    routePath: '/bookings',
+    requiredPermissions: ['payments:refund'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['check-out-a-guest', 'review-payment-approvals', 'payment-problems'],
+    blocks: [
+      { type: 'paragraph', text: '押金退款是退房时的前台常规操作。退款操作位于预订的支付操作中，需要 payments:refund 权限，前台和经理都持有该权限。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开预订', body: '找到该住宿并打开其支付详情。' },
+          { title: '选择押金退款操作', body: '确认退还给客人的金额。' },
+          { title: '记录退款方式', body: '除非有特殊原因，按收取押金时的方式退款——账目和审计轨迹都以该记录为准。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '撤销退款受限', body: '撤销押金退款会重新开放该押金供再次退款，且需要 payments:manage——前台无法自行循环退款/撤销。确认前请再次核对。' },
+      { type: 'callout', tone: 'tip', body: '如果看不到退款按钮，说明您缺少 payments:refund——请找经理，而不是用手动调整绕过。' },
+    ],
+  },
+  {
+    slug: 'review-payment-approvals',
+    title: '审核付款审批',
+    summary: '付款凭证在审核队列中等待——对照预订核对收据，然后批准或拒绝。',
+    category: 'payments-ledgers',
+    keywords: ['付款审批', '收据', '付款凭证', '批准付款', '拒绝付款', '银行转账'],
+    routePath: '/payment-approvals',
+    requiredPermissions: ['payments:approve'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['refund-a-deposit', 'company-ledgers', 'payment-problems'],
+    blocks: [
+      { type: 'paragraph', text: '“付款审批”列出已提交的付款凭证及其预订、客人、金额、方式和收据。每个条目在您处理后从“已提交”变为“已审核”。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开“付款审批”', body: '在“管理”菜单下找到它。' },
+          { title: '检查凭证', body: '打开条目并下载收据——对照预订核对金额和参考号。' },
+          { title: '批准或拒绝', body: '凭证相符时批准；不符时附理由拒绝。该决定会记录到您的账户名下。' },
+        ],
+      },
+      { type: 'callout', tone: 'warning', body: '拒绝线上付款会触发发给客人的付款挽回邮件流程——只在凭证确实有误时拒绝。' },
+      { type: 'callout', tone: 'tip', body: '按提交时间从旧到新处理队列：客人的入住可能正等着您的审核。' },
+    ],
+  },
+  {
+    slug: 'company-ledgers',
+    title: '处理公司账',
+    summary: '公司账户把挂账住宿累积到账上——核对余额、付款期限和逾期账户。',
+    category: 'payments-ledgers',
+    keywords: ['账目', '公司', '企业', '发票', '挂账', '付款期限', '城市账'],
+    routePath: '/company-ledger',
+    requiredPermissions: ['ledgers:read'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['review-payment-approvals', 'reports-and-metrics', 'manage-guest-profiles'],
+    blocks: [
+      { type: 'paragraph', text: '“公司账”跟踪挂到公司账户而非退房时支付的住宿。每本账显示公司、其预订和滚动余额。' },
+      {
+        type: 'list',
+        items: [
+          '公司挂账预订的客人在入住时可能触发提示——账单记到公司而非客人。',
+          '付款期限定义公司结账的时限；超期且仍有余额的账户会被自动列出。',
+          '“预订”列表可以只筛选公司挂账住宿。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '公司超期未结属于经理层面的沟通——系统负责标记，人来负责解决。' },
+    ],
+  },
+  {
+    slug: 'complimentary-nights-credits',
+    title: '免费房晚与客人额度',
+    summary: '把住宿标记为免费、转换为额度，并按客人和房型管理免费房晚余额。',
+    category: 'payments-ledgers',
+    keywords: ['免费', '免费房晚', '额度', '免费房额度', '赠送额度', '招待住宿'],
+    routePath: '/complimentary',
+    requiredPermissions: ['bookings:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['create-a-booking', 'company-ledgers', 'loyalty-program'],
+    blocks: [
+      { type: 'paragraph', text: '免费管理涵盖免费住宿：把预订标记为免费、把免费住宿转换为客人额度、以及用额度订房——全部按客人和房型跟踪。' },
+      {
+        type: 'list',
+        items: [
+          '从预订操作中把预订标记为免费。',
+          '把免费住宿转换为额度——余额记在客人名下，按房型限定。',
+          '用额度订房，消耗客人的免费房晚余额。',
+          '汇总视图显示未使用的免费和额度总量。',
+        ],
+      },
+      { type: 'callout', tone: 'important', body: '取消免费状态或删除额度会改变客人应得的权益——即使权限允许，也请把两者都当作经理级决定。' },
+    ],
+  },
+
+  // ---------------------------------------------------------- 价格与促销
+  {
+    slug: 'promotions-vouchers',
+    title: '管理促销与优惠券',
+    summary: '创建客人在公开“优惠”页看到的促销活动，以及可为预订打折的优惠券。',
+    category: 'rates-promotions',
+    keywords: ['促销', '优惠券', '折扣', '优惠码', '优惠', '活动'],
+    routePath: '/campaigns',
+    requiredPermissions: ['promotions:manage', 'vouchers:manage'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['email-campaigns-templates', 'online-inventory-grid', 'room-types-and-rooms'],
+    blocks: [
+      { type: 'paragraph', text: '“促销与优惠券”管理物业的优惠侧：客人能在“优惠”页看到的公开促销，以及可用于预订的优惠券。' },
+      {
+        type: 'list',
+        items: [
+          '促销定义优惠本身——名称、时间和内容。',
+          '优惠券是绑定到这些促销的可兑换代码。',
+          '营销邮件可以在“通信”中直接引用促销。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '促销卖的是“在线库存”所定价的东西——让公开优惠、券规则和实际房价保持一致口径。' },
+    ],
+  },
+  {
+    slug: 'loyalty-program',
+    title: '了解会员忠诚度计划',
+    summary: '忠诚度模块跟踪回头客及其奖励——在“管理”下的“忠诚度”区块查看。',
+    category: 'rates-promotions',
+    keywords: ['忠诚度', '奖励', '积分', '回头客', '会员'],
+    routePath: '/loyalty',
+    requiredPermissions: ['loyalty:read'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['complimentary-nights-credits', 'manage-guest-profiles', 'promotions-vouchers'],
+    blocks: [
+      { type: 'paragraph', text: '“忠诚度”区块展示回头客计划侧的信息：会员状态和奖励情况。持有 loyalty:manage 的员工负责管理；loyalty:read 即可查看。' },
+      { type: 'callout', tone: 'tip', body: '忠诚度、免费房晚和客人额度是三个不同的杠杆——使用任何一个之前先查看客人资料，避免重复补偿。' },
+    ],
+  },
+
+  // ------------------------------------------------------ 报表与夜审
+  {
+    slug: 'reports-and-metrics',
+    title: '读懂报表与指标',
+    summary: '日常运营、入住率（含 ADR 与 RevPAR）和收入报表——每个数字的含义。',
+    category: 'reports-night-audit',
+    keywords: ['报表', '入住率', 'adr', 'revpar', '收入', '到店', '离店', '分析', '指标'],
+    routePath: '/reports',
+    requiredPermissions: ['reports:read'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['run-night-audit', 'audit-log', 'online-inventory-grid'],
+    blocks: [
+      { type: 'paragraph', text: '“报表”把原始运营数据汇总为摘要。三类报表覆盖大部分需求：“日常运营”看当日进出，“入住率”看物业满房程度，“收入”看钱。' },
+      {
+        type: 'list',
+        items: [
+          '日常运营——今日到店、今日离店、在住客人和入住率。',
+          '入住率——已售房间与总房间之比，外加 ADR（平均房价）和 RevPAR（每间可售房收入）。',
+          '收入——按房型和按预订渠道拆分的总收入。',
+        ],
+      },
+      { type: 'heading', text: '最常被问到的两个指标' },
+      {
+        type: 'list',
+        items: [
+          'ADR——每间已售房的平均成交价：客房收入 ÷ 已售房数。它回答“我们卖得够不够高”。',
+          'RevPAR——收入摊到每间可售房（无论售出与否）：客房收入 ÷ 总房数。它回答“我们是否在以好价格填满房间”。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '只看入住率会掩盖打折，只看 ADR 会掩盖空房——两个指标要一起读。' },
+    ],
+  },
+  {
+    slug: 'run-night-audit',
+    title: '运行夜审',
+    summary: '结束营业日：确认夜审，它会锁定当天预订禁止编辑并快照房间状态。',
+    category: 'reports-night-audit',
+    keywords: ['夜审', '日结', '关账', '锁定预订', '营业日期'],
+    routePath: '/night-audit',
+    requiredPermissions: ['night_audit:execute'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['reports-and-metrics', 'audit-log', 'hotel-settings'],
+    blocks: [
+      { type: 'paragraph', text: '夜审结束酒店的营业日。确认夜审会记录执行人和时间、锁定当天预订禁止再编辑，并可快照房间状态供报表使用。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开“夜审”', body: '在“管理”菜单下找到它，并核对审计日期。' },
+          { title: '查看本次运行的内容', body: '确认框会列出选项——包括锁定预订和记录房间状态快照。' },
+          { title: '确认夜审', body: '运行会以您的账户和时间戳记录；审计日志会同步反映。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '锁定是真实生效的', body: '夜审之后，当天的预订会抵抗进一步编辑——请在当天真正结束时运行，或使用“酒店设置”中的自动运行选项。' },
+      { type: 'callout', tone: 'tip', body: '营业日期遵循“酒店设置”中的酒店时区——夜审关闭的是那一天，而不是 UTC 零点。' },
+    ],
+  },
+  {
+    slug: 'audit-log',
+    title: '使用审计日志',
+    summary: '谁改了什么的只读记录——发现与昨天不一样时第一站该看的地方。',
+    category: 'reports-night-audit',
+    keywords: ['审计日志', '历史', '谁修改', '活动', '轨迹'],
+    routePath: '/audit-log',
+    requiredPermissions: ['audit:read'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['page-missing-or-access-denied', 'run-night-audit', 'roles-and-permissions'],
+    blocks: [
+      { type: 'paragraph', text: '审计日志记录全系统的变更操作——预订修改、设置编辑、角色调整、夜审运行。它在设计上就是只读的。' },
+      {
+        type: 'list',
+        items: [
+          '调查被改动的预订或设置 → 先来这里，再到处打听。',
+          '权限审查 → 日志显示谁在何时授予了什么。',
+          '每条记录都标明操作者和时间戳，跟进能找到具体的人而不是谜。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '与预订时间线搭配使用：日志记录动作，时间线讲述住宿的故事。' },
+    ],
+  },
+
+  // ------------------------------------------------------------- 通信
+  {
+    slug: 'email-campaigns-templates',
+    title: '发送营销邮件与管理模板',
+    summary: '构建可复用的邮件模板，然后向选定客人发送活动——正式发送前先测发。',
+    category: 'communications',
+    keywords: ['邮件', '活动', '模板', '公告', '营销', '测发', '变量'],
+    routePath: '/communications',
+    requiredPermissions: ['communications:compose', 'communications:send'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['email-not-sending', 'promotions-vouchers', 'notifications-guest-support'],
+    blocks: [
+      { type: 'paragraph', text: '“通信”分两半：“邮件模板”（带变量的可复用内容）和“活动”（真正发给收件人的邮件，例如关联促销的公告）。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '创建或选择模板', body: '模板承载主题和正文，变量用于填入客人相关的值。' },
+          { title: '发送测试邮件', body: '“发送测试邮件”先验证格式和送达，发到您自己的地址，客人还看不到。' },
+          { title: '创建活动', body: '选择类型（例如“公告”）、收件人、主题和正文——可选地关联一个促销。' },
+          { title: '观察发送', body: '活动依次经过草稿 → 已排程 → 发送中 → 已完成；“已发送/失败”计数和“最近错误”列会暴露问题。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '务必先发测试邮件——一个失效的变量在批量发送时会很难堪。' },
+    ],
+  },
+  {
+    slug: 'notifications-guest-support',
+    title: '通知与客人支持收件箱',
+    summary: '通知铃铛是给您的；“支持”收件箱是给客人的——在那里回复他们的消息。',
+    category: 'communications',
+    keywords: ['通知', '铃铛', '支持收件箱', '客人消息', '会话', '回复', '指派'],
+    routePath: '/support',
+    requiredPermissions: ['support:read', 'support:write'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['email-not-sending', 'manage-guest-profiles', 'getting-around-admin-portal'],
+    blocks: [
+      { type: 'paragraph', text: '存在两个不同的“支持”入口。顶栏的铃铛是您的员工通知流；“运营”下的“支持”是接收客人门户消息的收件箱——那些需要员工回复。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开“支持”', body: '会话列表显示未关闭的客人会话。' },
+          { title: '阅读并回复', body: '打开会话查看客人消息并内联回复。' },
+          { title: '需要时指派', body: '会话可以指派给具体处理人——主动认领或移交，而不是多人并行回复。' },
+          { title: '更新状态', body: '关闭或更新会话状态，让队列保持真实。' },
+        ],
+      },
+      { type: 'callout', tone: 'info', title: '不是员工 IT 支持', body: '这个收件箱面向向酒店求助的客人。关于管理门户本身的帮助，请使用帮助中心的“获取更多帮助”指引。' },
+      { type: 'callout', tone: 'tip', body: '支持收件箱可以在“酒店设置”中全物业关闭——如果整个模块消失了，那个开关是第一嫌疑人。' },
+    ],
+  },
+  {
+    slug: 'email-not-sending',
+    title: '邮件发不出去',
+    summary: '排查营销与通知邮件的发送失败——多数原因都能在“最近错误”列或失败的测发中看到。',
+    category: 'communications',
+    keywords: ['邮件失败', 'smtp', '发不出', '邮件错误', '活动失败', '最近错误'],
+    routePath: '/communications',
+    requiredPermissions: ['communications:read'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['email-campaigns-templates', 'notifications-guest-support', 'escalation'],
+    blocks: [
+      { type: 'paragraph', text: '邮件由后台工作进程发送，需要在服务器上配置 SMTP 凭据。邮件停发时，证据几乎都在“通信”页面本身。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '发送测试邮件', body: '测发失败证明问题出在基础设施而非活动内容。' },
+          { title: '看“最近错误”列', body: '活动发送会按收件人记录失败原因——认证、连接和地址错误各自对应不同的修法。' },
+          { title: '查看“已发送/失败”计数', body: '部分失败指向收件人地址；全部失败指向 SMTP 配置。' },
+          { title: '上报 SMTP 问题', body: '服务器邮件设置属于环境配置而非门户内的界面——交给管理部署的人。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', body: '如果根本没有 SMTP 设置，邮件工作进程就是关闭的——您的屏幕没有故障，是这项能力从未被配置。' },
+    ],
+  },
+
+  // -------------------------------------------------------------- 员工与权限
+  {
+    slug: 'add-manage-staff',
+    title: '添加与管理员工账户',
+    summary: '为同事创建登录、分配角色，并在“访问控制”中编辑或移除账户。',
+    category: 'staff-access',
+    keywords: ['添加用户', '新员工', '员工账户', '创建用户', '删除用户', '员工登录'],
+    routePath: '/rbac',
+    requiredPermissions: ['users:create', 'users:update'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['roles-and-permissions', 'sign-in-and-security', 'page-missing-or-access-denied'],
+    blocks: [
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开“访问控制”', body: '在“配置”菜单下找到它，然后打开“用户”标签页。' },
+          { title: '选择“添加用户”', body: '“创建新用户”对话框收集新员工的账户信息。' },
+          { title: '分配角色', body: '角色决定这个人能看什么、能做什么——前台和经理看到的是不同的门户。可在同一流程中分配，也可事后在用户行上调整。' },
+          { title: '之后编辑或移除', body: '“编辑用户”更新信息；员工离职时“删除用户”会移除整个账户。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '先配角色再首次登录', body: '没有角色的用户几乎什么都看不到——如果同事反馈门户是空的，先检查角色分配。' },
+      { type: 'callout', tone: 'tip', body: '优先调整角色而不是创建一次性账户；无论哪种方式，审计日志都会记录每次变更。' },
+    ],
+  },
+  {
+    slug: 'roles-and-permissions',
+    title: '角色与权限',
+    summary: '角色打包权限；权限控制页面和操作。*:manage 权限隐含其领域内的其他权限。',
+    category: 'staff-access',
+    keywords: ['角色', '权限', 'rbac', '访问控制', 'manage 权限', '前台 经理'],
+    routePath: '/rbac',
+    requiredPermissions: ['roles:read', 'roles:manage'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['add-manage-staff', 'page-missing-or-access-denied', 'audit-log'],
+    blocks: [
+      { type: 'paragraph', text: '“访问控制”有三个标签页：“用户”（账户）、“角色”（如前台、经理这样的命名权限包）和“权限”（按领域分组的单项能力）。' },
+      {
+        type: 'list',
+        items: [
+          '权限形如 资源:操作——例如 bookings:create 或 payments:refund。',
+          '资源:manage 权限隐含该资源的所有操作。',
+          '路由策略把页面映射到权限，这就是不同用户菜单不同的原因。',
+          '系统角色自带合理的授权；特殊配置可以创建自定义角色。',
+        ],
+      },
+      { type: 'callout', tone: 'warning', body: '修改系统角色会影响所有持有该角色的人——当只有一个人需要不同的权限时，请新建角色。' },
+      { type: 'callout', tone: 'tip', body: '权限在“权限”标签页按类别分组——展开一个类别即可看到角色究竟能做什么。' },
+    ],
+  },
+  {
+    slug: 'ekyc-reviews',
+    title: '审核 eKYC 提交',
+    summary: '身份核验工作在 eKYC 管理队列中进行——被指派的审核员按风险级别处理提交。',
+    category: 'staff-access',
+    keywords: ['ekyc', '身份', '核验', 'kyc', '审核员', '合规'],
+    routePath: '/ekyc-admin',
+    requiredPermissions: ['ekyc:review'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['roles-and-permissions', 'audit-log', 'manage-guest-profiles'],
+    blocks: [
+      { type: 'paragraph', text: '“eKYC 管理”是电子身份核验的审核队列。专门角色——eKYC 审核员、高级审核员和合规管理员——处理提交，高风险个案升级到高级审核。' },
+      {
+        type: 'list',
+        items: [
+          '审核员处理指派给自己的申请；高级审核员负责升级和高风险批准。',
+          '敏感操作（查看证件、查看供应商数据）有独立权限并会被记录。',
+          '如果看不到该模块，说明您没有任何 eKYC 角色——这是设计而非故障。',
+        ],
+      },
+      { type: 'callout', tone: 'info', body: 'eKYC 权限被有意细分——只申请您的审核级别所需的操作。' },
+    ],
+  },
+
+  // ------------------------------------------------------------- 设置与数据
+  {
+    slug: 'hotel-settings',
+    title: '配置酒店设置',
+    summary: '物业资料、入住/退房时间、时区、税费、押金、报表字体和功能开关——其他界面继承的默认值。',
+    category: 'settings-data',
+    keywords: ['设置', '酒店名称', '时区', '入住时间', '税', '押金', '旅游税', '服务税', '配置'],
+    routePath: '/settings',
+    requiredPermissions: ['settings:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['run-night-audit', 'room-types-and-rooms', 'notifications-guest-support'],
+    blocks: [
+      { type: 'paragraph', text: '“酒店设置”保存其他界面继承的物业级默认值：名称与联系方式、入住/退房时间、时区、押金金额、服务税和旅游税率、付款期限、报表排版以及功能开关。' },
+      {
+        type: 'list',
+        items: [
+          '入住与退房时间驱动提前入住提示和客房服务目标。',
+          '时区定义营业日期——报表、夜审和“今天”都跟随它。',
+          '押金金额、服务税和旅游税计入预订总额；外籍客人需付旅游税。',
+          '支持和客人取消开关可整体启停对应功能。',
+          '报表字体设置决定打印输出的版式。',
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '未付款保留窗口也在这里', body: '“未付款保留释放小时数”控制 pending_payment 预订占用房间的时长（默认 24；0 为禁用）。' },
+      { type: 'callout', tone: 'warning', body: '设置保存后立即生效——错误的税率或时区会影响每一笔新预订。' },
+    ],
+  },
+  {
+    slug: 'import-export-data',
+    title: '导入与导出数据',
+    summary: '“数据转移”负责备份的进出——三个导出档位、先预览，以及在任何特权或破坏性操作前重新验证身份。',
+    category: 'settings-data',
+    keywords: ['导入', '导出', '备份', '恢复', '数据转移', '迁移', '数据库'],
+    routePath: '/data-transfer',
+    requiredPermissions: ['data_transfer:view'],
+    lastReviewed: '2026-09-15',
+    relatedSlugs: ['hotel-settings', 'audit-log', 'escalation'],
+    blocks: [
+      { type: 'paragraph', text: '“数据转移”负责酒店数据的迁入迁出——用于备份、恢复和迁移。您能做什么取决于数据转移权限：查看页面、导出和导入各自需要独立授权，涉及机密或破坏性的操作还会要求您重新输入密码（如已启用，还需验证器验证码）。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '打开“数据转移”', body: '需要 data_transfer:view。“导出”标签页有三个档位：标准（仅运营数据）、完整，以及完整系统备份（所有可转移数据，含关系元数据）。' },
+          { title: '导出', body: '标准档需要 data_transfer:export。完整和完整系统备份包含机密的客人、支付和账目数据——需要 data_transfer:export_sensitive 并重新验证身份。' },
+          { title: '检查导入预览', body: '上传备份文件（data_transfer:import）。预览显示文件内容、在包含敏感数据时警告，并指明您仍缺少的权限。' },
+          { title: '确认导入', body: '“合并”只新增、不动现有行；“更新”式冲突处理需要 data_transfer:override。完整恢复会先删除现有数据，需要 data_transfer:restore 并重新验证身份。只在您信任的文件上继续。' },
+          { title: '查看“转移历史”', body: '过去的导入、导出和提权尝试都连同操作者一起列出——与审计日志记录的是同一批行。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '设计上即具破坏性', body: '“先删除所有现有数据”是字面意思——完整恢复会替换整个数据库。请与管理员确认文件和时机。' },
+      { type: 'callout', tone: 'tip', title: '机密绝不外传', body: '密码、会话、令牌和身份核验证据永远不在任何导出档位中——任何权限级别都无法解锁它们。' },
+    ],
+  },
+
+  // ------------------------------------------------------------- 故障排查
+  {
+    slug: 'cant-find-a-booking',
+    title: '找不到预订？',
+    summary: '按清单排查：搜索词、筛选器，以及让预订从日常视图消失的两种状态（已作废、已释放）。',
+    category: 'troubleshooting',
+    keywords: ['预订丢失', '预订缺失', '找不到', '无结果', '消失了'],
+    routePath: '/bookings',
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['find-a-reservation', 'void-reactivate-release', 'page-missing-or-access-denied'],
+    blocks: [
+      {
+        type: 'checklist',
+        items: [
+          '在 ⌘K 中试预订编号——BK- 编号和客人姓名都能搜。',
+          '清除“预订”列表上的筛选——遗留的状态或房间筛选是常见元凶。',
+          '检查日期：住宿可能在您查看的范围之外。',
+          '询问预订是否已被作废——已作废的住宿会从日常视图消失。',
+          '检查是否为已释放的未付款保留——始终未付款的线上预订会自动释放回库存。',
+          '确认您能看到“预订”模块本身——模块缺失是权限问题，不是搜索问题。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '预订时间线和审计日志在作废后依然保留——只要预订存在过，它的记录就还在。' },
+    ],
+  },
+  {
+    slug: 'payment-problems',
+    title: '支付问题',
+    summary: '线上付款失败、审批卡住和退款报错——把症状对应到正确的队列。',
+    category: 'troubleshooting',
+    keywords: ['付款失败', '支付错误', '被拒', '挽回付款', '审批卡住', '退款错误'],
+    routePath: '/payment-approvals',
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['refund-a-deposit', 'review-payment-approvals', 'email-not-sending'],
+    blocks: [
+      {
+        type: 'list',
+        items: [
+          '客人线上付款失败 → 付款挽回邮件可以让客人通过安全链接重试——在断定钱丢了之前先查看预订状态。',
+          '付款凭证在等待 → 它会留在“付款审批”中直到有人审核；客人看到的是“已提交”而非“已确认”。',
+          '退款按钮缺失 → 您需要 payments:refund；撤销退款需要 payments:manage。',
+          '预订卡在 pending_payment → 它是未付款保留；会自动释放或可手动释放。',
+        ],
+      },
+      { type: 'callout', tone: 'warning', body: '绝不要通过编辑预订来“修好”卡住的付款——走审批队列或上报；账目和审计轨迹需要真实的理由。' },
+    ],
+  },
+  {
+    slug: 'session-and-stale-data',
+    title: '会话与过期数据问题',
+    summary: '当界面看起来过时或会话行为异常时——刷新顺序、空闲过期和营业日期陷阱。',
+    category: 'troubleshooting',
+    keywords: ['数据过期', '刷新', '会话过期', '被退出', '日期不对', '时区'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['sign-in-and-security', 'hotel-settings', 'page-missing-or-access-denied'],
+    blocks: [
+      {
+        type: 'checklist',
+        items: [
+          '刷新页面——长时间空闲后会话令牌会自动续期；界面过时只需重新加载。',
+          '会话状态不一致时退出并重新登录。',
+          '日期看起来不对 → 营业日期遵循“酒店设置”中的酒店时区，而不是您笔记本的时钟。',
+          '设置改了但没生效 → 有些变更只对新活动生效，不追溯。',
+          '另一台设备上看起来不同 → 主题和语言按工作站记忆，权限按账户生效。',
+        ],
+      },
+      { type: 'callout', tone: 'info', body: '反复被退出不是故障——访问令牌有意设计为短时效，并会在后台静默续期。' },
+    ],
+  },
+  {
+    slug: 'escalation',
+    title: '获取更多帮助',
+    summary: '当帮助中心解决不了时该怎么办——找谁问、带上什么。',
+    category: 'troubleshooting',
+    keywords: ['联系', '上报', '经理', '管理员', '更多帮助', '支持'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['page-missing-or-access-denied', 'payment-problems', 'audit-log'],
+    blocks: [
+      { type: 'paragraph', text: '帮助中心覆盖门户的使用方法。账户访问、权限变更以及任何疑似缺陷的问题，请沿物业自身的链路逐级上报。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '询问您的管理员或经理', body: '权限、角色和设置变更归他们管——带上页面名称和您预期看到的内容。' },
+          { title: '带上证据', body: '审计日志记录、预订编号、活动的“最近错误”文本——一条具体记录胜过对症状的描述。' },
+          { title: '客人侧的问题', body: '如果是客人在反映问题，先到“支持”收件箱查找现有会话，而不是另起一条并行线索。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '截图有帮助，但准确的错误文本和发生时间更有用——两者都在应用自己的记录里。' },
+    ],
+  },
+];

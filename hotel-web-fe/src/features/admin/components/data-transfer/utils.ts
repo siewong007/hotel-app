@@ -1,18 +1,20 @@
 // Display helpers for the data-transfer workflow components.
 import { formatStatusLabel } from '../../../../utils/formatters';
+import { formatNumber, dateFormatter } from '../../../../i18n/format';
+import type { UseTranslationResult } from '../../../../i18n/useTranslation';
 import type { TransferHistoryEntry as ServerHistoryEntry } from '../../../../types';
 import type { TransferHistoryEntry } from './types';
 
-export const formatNum = (n: number): string => n.toLocaleString('en-US');
+export const formatNum = (n: number): string => formatNumber(n) ?? '';
 
 export const formatWhen = (at: number): string =>
-  new Date(at).toLocaleString(undefined, {
+  dateFormatter({
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  });
+  }).format(new Date(at));
 
 export const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -27,38 +29,29 @@ export const shortEntityName = (name: string): string =>
 
 /** Human labels for the manifest's exclusion reason codes
  * (`services/data_transfer.rs::EXCLUDED_TABLES`). Unknown codes pass through
- * so a new backend reason still renders something truthful. */
-export const exclusionReasonLabel = (reason: string): string => {
-  switch (reason) {
-    case 'credentials_and_auth_state':
-      return 'Credentials & auth state';
-    case 'session_or_token_material':
-      return 'Sessions & tokens';
-    case 'sensitive_ekyc_pii':
-      return 'eKYC identity data';
-    case 'ephemeral_queue_state':
-      return 'In-flight queue state';
-    case 'internal_system_table':
-      return 'Internal system tables';
-    default:
-      return formatStatusLabel(reason, reason);
-  }
-};
+ * humanized so a new backend reason still renders something truthful. */
+export const exclusionReasonLabel = (
+  tOr: UseTranslationResult['tOr'],
+  reason: string,
+): string => tOr(`export.exclusions.${reason}`, formatStatusLabel(reason, reason));
 
 /** History row title — `actionLabel` (set for security rows and i18n) wins;
  * legacy `'import'`/`'overwrite'` modes stay readable. */
-export const describeHistoryAction = (entry: {
-  type: 'export' | 'import' | 'security';
-  mode?: string;
-  actionLabel?: string;
-}): string => {
+export const describeHistoryAction = (
+  entry: {
+    type: 'export' | 'import' | 'security';
+    mode?: string;
+    actionLabel?: string;
+  },
+  t: UseTranslationResult['t'],
+): string => {
   if (entry.actionLabel) return entry.actionLabel;
-  if (entry.type === 'export') return 'Export';
-  if (entry.type === 'security') return 'Re-authentication';
+  if (entry.type === 'export') return t('history.actionExport');
+  if (entry.type === 'security') return t('history.actionReAuth');
   if (entry.mode === 'restore' || entry.mode === 'overwrite') {
-    return `Import (${entry.mode})`;
+    return t('history.actionImportMode', { mode: entry.mode });
   }
-  return 'Import';
+  return t('history.actionImport');
 };
 
 // ----- Server history projection ------------------------------------------

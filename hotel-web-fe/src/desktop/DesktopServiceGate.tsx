@@ -16,6 +16,7 @@ import {
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import StorageIcon from '@mui/icons-material/Storage';
+import { useTranslation, intlTag } from '../i18n';
 import {
   DesktopAppStatus,
   getDesktopStatus,
@@ -31,7 +32,7 @@ function formatLocalDateTime(rfc3339: string): string {
   if (Number.isNaN(parsed.getTime())) {
     return rfc3339;
   }
-  return parsed.toLocaleString();
+  return new Intl.DateTimeFormat(intlTag(), { dateStyle: 'medium', timeStyle: 'short' }).format(parsed);
 }
 
 interface DesktopServiceGateProps {
@@ -39,6 +40,7 @@ interface DesktopServiceGateProps {
 }
 
 export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
+  const { t } = useTranslation('common');
   const [isDesktop] = useState(() => shouldUseDesktopRuntime());
   const [status, setStatus] = useState<DesktopAppStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
         }
       } catch (statusError) {
         if (!cancelled) {
-          setError(statusError instanceof Error ? statusError.message : 'Unable to read desktop service status');
+          setError(statusError instanceof Error ? statusError.message : t('desktop.errors.statusRead'));
         }
       }
     };
@@ -87,7 +89,9 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
 
       unlistenTerminated = await listen<number | null>('backend-terminated', (event) => {
         setStatus((previousStatus) => previousStatus ? { ...previousStatus, backend_running: false, backend_starting: false } : previousStatus);
-        setError(`Backend service stopped${event.payload === null ? '' : ` with code ${event.payload}`}`);
+        setError(event.payload === null
+          ? t('desktop.errors.backendStopped')
+          : t('desktop.errors.backendStoppedCode', { code: event.payload }));
         pollHandle = window.setInterval(refreshStatus, 1500);
       });
 
@@ -100,7 +104,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
     refreshStatus();
     pollHandle = window.setInterval(refreshStatus, 1500);
     setupEvents().catch((eventError) => {
-      setError(eventError instanceof Error ? eventError.message : 'Unable to subscribe to desktop service events');
+      setError(eventError instanceof Error ? eventError.message : t('desktop.errors.subscribeFailed'));
     });
 
     return () => {
@@ -110,7 +114,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
       unlistenTerminated?.();
       unlistenServicesError?.();
     };
-  }, [isDesktop]);
+  }, [isDesktop, t]);
 
   const restartBackend = async () => {
     setIsRestarting(true);
@@ -122,7 +126,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
       const nextStatus = await getDesktopStatus();
       setStatus(nextStatus);
     } catch (restartError) {
-      setError(restartError instanceof Error ? restartError.message : 'Unable to restart backend service');
+      setError(restartError instanceof Error ? restartError.message : t('desktop.errors.restartFailed'));
     } finally {
       setIsRestarting(false);
     }
@@ -139,7 +143,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
       setStatus(nextStatus);
       setError(null);
     } catch (err) {
-      setUpgradeError(err instanceof Error ? err.message : 'Database upgrade failed');
+      setUpgradeError(err instanceof Error ? err.message : t('desktop.errors.upgradeFailed'));
     } finally {
       setIsUpgrading(false);
     }
@@ -150,7 +154,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
       const { invoke } = await getTauriCoreApi();
       await invoke('open_data_folder');
     } catch (folderError) {
-      setError(folderError instanceof Error ? folderError.message : 'Unable to open data folder');
+      setError(folderError instanceof Error ? folderError.message : t('desktop.errors.openFolderFailed'));
     }
   };
 
@@ -163,33 +167,26 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
   const latestBackup = pg?.latest_backup ?? null;
 
   if (needsUpgrade) {
-    const fromVersion = pg?.data_dir_major ?? 'an older version';
-    const toVersion = pg?.bundled_major ?? 'the current version';
+    const fromVersion = pg?.data_dir_major ?? t('desktop.versionOlder');
+    const toVersion = pg?.bundled_major ?? t('desktop.versionCurrent');
 
     return (
       <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', alignItems: 'center', justifyContent: 'center', px: 3 }}>
         <Dialog open maxWidth="sm" fullWidth>
-          <DialogTitle>Database upgrade required</DialogTitle>
+          <DialogTitle>{t('desktop.upgradeTitle')}</DialogTitle>
           <DialogContent>
             <DialogContentText component="div">
               <Typography variant="body2" gutterBottom>
-                Your saved data was created with PostgreSQL {fromVersion}, but this
-                version of the app ships PostgreSQL {toVersion}. The app cannot open
-                the existing data directly and will not start until this is resolved.
+                {t('desktop.upgradeBody', { fromVersion, toVersion })}
               </Typography>
 
               {latestBackup ? (
                 <Typography variant="body2" sx={{ mt: 2 }}>
-                  Restore from backup taken {formatLocalDateTime(latestBackup.timestamp)}?
-                  Changes made after that date will be lost. Your existing data
-                  directory is kept (renamed aside), not deleted.
+                  {t('desktop.restorePrompt', { date: formatLocalDateTime(latestBackup.timestamp) })}
                 </Typography>
               ) : (
                 <Typography variant="body2" sx={{ mt: 2 }}>
-                  No automatic backup is available, so the app cannot upgrade safely.
-                  To recover, install a desktop build matching PostgreSQL {fromVersion}
-                  to read the existing data, or migrate the data directory manually
-                  with pg_upgrade. Your existing data has been left untouched.
+                  {t('desktop.noBackup', { fromVersion })}
                 </Typography>
               )}
 
@@ -202,7 +199,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
                       color: "text.secondary",
                       mt: 1
                     }}>
-                    Upgrading database. This may take a few minutes; do not close the app.
+                    {t('desktop.upgrading')}
                   </Typography>
                 </Box>
               )}
@@ -216,15 +213,15 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
           </DialogContent>
           <DialogActions>
             <Button startIcon={<FolderOpenIcon />} onClick={openDataFolder} disabled={isUpgrading}>
-              Open data folder
+              {t('desktop.openDataFolder')}
             </Button>
             {latestBackup && (
               <>
                 <Button onClick={restartBackend} disabled={isUpgrading}>
-                  Retry without upgrading
+                  {t('desktop.retryNoUpgrade')}
                 </Button>
                 <Button variant="contained" onClick={runUpgrade} disabled={isUpgrading}>
-                  Restore from backup
+                  {t('desktop.restoreBackup')}
                 </Button>
               </>
             )}
@@ -234,7 +231,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
     );
   }
 
-  const serviceLabel = status?.backend_starting || isRestarting ? 'Starting desktop services' : 'Desktop services are unavailable';
+  const serviceLabel = status?.backend_starting || isRestarting ? t('desktop.starting') : t('desktop.unavailable');
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', alignItems: 'center', justifyContent: 'center', px: 3 }}>
@@ -251,7 +248,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
-                {status?.backend_url || 'Waiting for the local API address'}
+                {status?.backend_url || t('desktop.waitingAddress')}
               </Typography>
             </Box>
           </Stack>
@@ -267,16 +264,16 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
                 color: "text.secondary",
                 wordBreak: 'break-all'
               }}>
-              Data folder: {status.data_directory}
+              {t('desktop.dataFolder', { path: status.data_directory })}
             </Typography>
           )}
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <Button startIcon={<RefreshIcon />} variant="contained" onClick={restartBackend} disabled={isRestarting}>
-              Restart services
+              {t('desktop.restartServices')}
             </Button>
             <Button startIcon={<FolderOpenIcon />} variant="outlined" onClick={openDataFolder}>
-              Open data folder
+              {t('desktop.openDataFolder')}
             </Button>
           </Stack>
         </Stack>

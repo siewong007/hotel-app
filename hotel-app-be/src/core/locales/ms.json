@@ -13,16 +13,26 @@
       "payment": "Pembayaran",
       "method": "Kaedah",
       "paymentsReceived": "Pembayaran diterima",
-      "balance": "Baki"
+      "balance": "Baki",
+      "checkIn": "Daftar masuk",
+      "checkOut": "Daftar keluar",
+      "invoice": "Invois",
+      "totalCharged": "Jumlah dicaj",
+      "reason": "Sebab",
+      "linkValidUntil": "Pautan sah sehingga"
     },
     "stay": {
       "range": "{{from}} hingga {{to}} · {{nights}} malam",
-      "text": "Tempahan: {{booking}}\nBilik: {{room}} ({{roomType}})\nPenginapan: {{from}} hingga {{to}} ({{nights}} malam)\nJumlah: {{total}}"
+      "text": "Tempahan: {{booking}}\nBilik: {{room}} ({{roomType}})\nPenginapan: {{from}} hingga {{to}} ({{nights}} malam)\nJumlah: {{total}}",
+      "rangeShort": "{{from}} hingga {{to}}"
     },
     "cta": {
       "viewBooking": "Lihat tempahan anda",
       "preCheckIn": "Mula daftar masuk dalam talian",
-      "verifyEmail": "Sahkan e-mel saya"
+      "verifyEmail": "Sahkan e-mel saya",
+      "portal": "Buka portal tetamu",
+      "uploadReceipt": "Muat naik resit",
+      "completePayment": "Lengkapkan pembayaran"
     },
     "bookingConfirmed": {
       "subject": "Tempahan {{hotel}} disahkan {{booking}}",
@@ -64,6 +74,85 @@
       "heading": "Sahkan e-mel anda",
       "bodyHtml": "Sila sahkan bahawa ini alamat e-mel anda supaya anda boleh log masuk ke akaun anda. Pautan di bawah sah selama 24 jam.",
       "bodyText": "Sila sahkan bahawa ini alamat e-mel anda supaya anda boleh log masuk ke akaun anda. Pautan di bawah sah selama 24 jam."
+    },
+    "chrome": {
+      "sentBy": "Mesej ini dihantar oleh {{hotel}}.",
+      "sealCaveat": "Meterai ini hanya petunjuk visual dan boleh disalin. Yang sebenarnya membuktikan e-mel ini daripada kami ialah semakan domain penghantar oleh penyedia anda, dan melayari {{host}} dengan menaipnya sendiri dan bukannya mengikut pautan.",
+      "unsubscribe": "Nyahlanggan",
+      "spamNote": "Jika mesej ini tidak berada dalam peti masuk Utama anda, semak folder Spam dan Promosi serta tandakan sebagai bukan spam supaya mesej seterusnya sampai."
+    },
+    "preArrival": {
+      "subject": "Penginapan anda di {{hotel}} bermula tidak lama lagi · {{booking}}",
+      "preheader": "Penginapan {{booking}} anda di {{hotel}} bermula pada {{checkIn}}.",
+      "heading": "Penginapan anda bermula tidak lama lagi",
+      "bodyHtml": "Kami tidak sabar untuk menyambut anda. Penginapan <strong>{{booking}}</strong> anda bermula pada <strong>{{checkIn}}</strong>.",
+      "checkInNote": "Anda boleh melengkapkan daftar masuk dalam talian melalui pautan di bawah untuk melangkau kaunter hadapan.",
+      "bodyText": "Salam sejahtera {{name}},\nPenginapan {{booking}} anda bermula pada {{checkIn}}. Bilik: {{room}}. Daftar keluar: {{checkOut}}.\nAnda boleh melengkapkan daftar masuk dalam talian melalui pautan dalam e-mel ini.",
+      "cta": "Lengkapkan pra-daftar masuk"
+    },
+    "birthday": {
+      "subject": "Selamat hari lahir daripada {{hotel}}!",
+      "preheader": "Hadiah hari lahir daripada {{hotel}} menanti anda dalam dompet.",
+      "heading": "Selamat hari lahir",
+      "bodyHtml": "Selamat hari lahir! Sebagai tanda penghargaan kerana menginap bersama kami, inilah hadiah anda.",
+      "walletNote": "Anda juga boleh menemukannya dalam dompet portal tetamu anda.",
+      "signoff": "Salam mesra,",
+      "bodyText": "Salam sejahtera {{name}},\nSelamat hari lahir! Hadiah anda ialah {{gift}}.\nKod baucar: {{code}} (sah sehingga {{expiry}}).\nSalam mesra,\n{{hotel}}",
+      "cta": "Buka dompet anda",
+      "giftLabel": "Hadiah",
+      "codeLabel": "Kod baucar",
+      "validUntil": "Sah sehingga",
+      "fallbackGift": "ganjaran hari lahir anda"
+    },
+    "roomAssigned": {
+      "subject": "{{hotel}} · bilik {{room}} ditetapkan · {{booking}}",
+      "preheader": "Bilik {{room}} ditetapkan untuk tempahan {{booking}} {{hotel}}.",
+      "heading": "Bilik anda telah ditetapkan",
+      "bodyHtml": "Pembayaran dalam talian anda telah disahkan dan bilik anda telah ditetapkan.",
+      "portalNote": "Anda juga boleh melihat butiran ini dalam portal tetamu anda.",
+      "bodyText": "Pembayaran dalam talian anda telah disahkan dan bilik anda telah ditetapkan.\nTempahan: {{booking}}\nBilik: {{room}} ({{roomType}})\nPenginapan: {{from}} hingga {{to}}"
+    },
+    "receipt": {
+      "subject": "Resit {{hotel}} anda · {{booking}}",
+      "preheader": "Resit untuk penginapan {{booking}} anda di {{hotel}}.",
+      "heading": "Resit anda",
+      "bodyHtml": "Terima kasih kerana menginap bersama kami. Berikut ialah resit anda.",
+      "portalNote": "Anda boleh menyemak tempahan anda pada bila-bila masa dalam portal tetamu.",
+      "bodyText": "Salam sejahtera {{name}},\nTerima kasih kerana menginap bersama kami. Berikut ialah resit anda.\nTempahan: {{booking}}\nInvois: {{invoice}}\nPenginapan: {{stay}}\nJumlah dicaj: {{total}}\nBayaran diterima: {{paid}}\nBaki: {{balance}}"
+    },
+    "receiptRequest": {
+      "subject": "Resit diminta · {{hotel}} {{booking}}",
+      "preheader": "Sila muat naik resit pindahan anda untuk tempahan {{booking}} {{hotel}}.",
+      "heading": "Resit diperlukan",
+      "bodyHtml": "Sila muat naik resit pindahan bank anda untuk tempahan <strong>{{booking}}</strong> dalam masa 24 jam.",
+      "bodyText": "Salam sejahtera {{name}},\nSila muat naik resit pindahan bank anda untuk tempahan {{booking}} dalam masa 24 jam.\n{{message}}",
+      "defaultMessage": "Sila muat naik resit yang jelas menunjukkan rujukan dan tarikh pindahan."
+    },
+    "paymentRejected": {
+      "subject": "Maklumat pembayaran · {{hotel}} {{booking}}",
+      "preheader": "Maklumat mengenai pembayaran anda untuk tempahan {{booking}} {{hotel}}.",
+      "heading": "Pembayaran tidak disahkan",
+      "bodyHtml": "Kami tidak dapat mengesahkan pembayaran terkini anda untuk tempahan <strong>{{booking}}</strong>.",
+      "bodyText": "Salam sejahtera {{name}},\nKami tidak dapat mengesahkan pembayaran terkini anda untuk tempahan {{booking}}.\nSebab: {{reason}}\n{{action}}\n\n{{seal}}",
+      "payAgainHtml": "Anda boleh membayar semula menggunakan butang di bawah. Pautan ini hanya berfungsi sekali dan kemudian luput, jadi sila jangan kongsikannya.",
+      "payAgainText": "Anda boleh membayar semula menggunakan pautan di bawah. Pautan ini hanya berfungsi sekali dan kemudian luput, jadi sila jangan kongsikannya.",
+      "contactHtml": "Sila hubungi hotel dan kami akan membantu anda melengkapkan tempahan ini.",
+      "contactText": "Sila hubungi hotel dan kami akan membantu anda melengkapkan tempahan ini."
+    },
+    "portalBooking": {
+      "pendingSubject": "Tempahan {{booking}} {{hotel}}",
+      "pendingHeading": "Tempahan diterima",
+      "pendingPreheader": "Tempahan {{booking}} {{hotel}} anda sedang menunggu pembayaran.",
+      "pendingIntroHtml": "Tempahan <strong>{{booking}}</strong> anda telah diterima dan sedang menunggu pembayaran.",
+      "pendingIntroText": "Tempahan {{booking}} anda telah diterima dan sedang menunggu pembayaran.",
+      "creditSettledHtml": "Tempahan <strong>{{booking}}</strong> anda telah disahkan dan dilindungi sepenuhnya oleh malam percuma.",
+      "creditSettledText": "Tempahan {{booking}} anda telah disahkan dan dilindungi sepenuhnya oleh malam percuma.",
+      "nothingToPay": "Tiada lagi yang perlu dibayar. Anda boleh melihat tempahan ini pada bila-bila masa dalam portal tetamu anda.",
+      "payToConfirm": "Sila lengkapkan pembayaran untuk mengesahkan penginapan ini.",
+      "payToConfirmOnline": "Sila lengkapkan pembayaran untuk mengesahkan penginapan ini. Anda boleh membayar dalam talian melalui portal tetamu atau membuat pindahan bank.",
+      "viewLater": "Untuk melihatnya kemudian, gunakan nombor tempahan <strong>{{booking}}</strong> dengan alamat e-mel ini.",
+      "viewLaterText": "Untuk melihatnya kemudian, gunakan nombor tempahan {{booking}} dengan alamat e-mel ini.",
+      "detailsText": "Tempahan: {{booking}}\nBilik: {{room}}\nDaftar masuk: {{checkIn}}\nDaftar keluar: {{checkOut}}\nJumlah: {{total}}"
     }
   }
 }

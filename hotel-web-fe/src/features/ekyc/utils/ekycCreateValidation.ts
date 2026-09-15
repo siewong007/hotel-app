@@ -1,5 +1,7 @@
-// Pure validation for the admin "Create eKYC" dialog. Returns the first
-// human-readable error, or null when the form is ready to submit.
+// Pure validation for the admin "Create eKYC" dialog. One check list, two
+// views (same pattern as `validateEmailKey`/`validateEmail`): the key form
+// resolves through `t()` under `ekyc:create.validation.*`; the string form
+// keeps returning English for tests and legacy callers.
 
 export interface EkycCreateFormState {
   guestId: number | null;
@@ -12,22 +14,59 @@ export interface EkycCreateFormState {
   hasSelfie: boolean;
 }
 
-export function validateEkycCreateForm(form: EkycCreateFormState): string | null {
-  if (!form.guestId) return 'Select the guest this verification is for.';
-  if (!form.fullName.trim()) return 'Full name is required.';
-  if (!form.dateOfBirth) return 'Date of birth is required.';
-  if (!form.idType.trim()) return 'ID type is required.';
-  if (!form.idNumber.trim()) return 'ID number is required.';
-  if (!form.idExpiryDate) return 'ID expiry date is required.';
-  if (!form.hasIdFront) return 'Upload the front of the ID document.';
-  if (!form.hasSelfie) return 'Upload a selfie photo.';
+export type EkycCreateValidationKey =
+  | 'guest'
+  | 'fullName'
+  | 'dateOfBirth'
+  | 'idType'
+  | 'idNumber'
+  | 'idExpiryDate'
+  | 'idFront'
+  | 'selfie'
+  | 'expiryFuture'
+  | null;
+
+export function validateEkycCreateFormKey(form: EkycCreateFormState): EkycCreateValidationKey {
+  if (!form.guestId) return 'guest';
+  if (!form.fullName.trim()) return 'fullName';
+  if (!form.dateOfBirth) return 'dateOfBirth';
+  if (!form.idType.trim()) return 'idType';
+  if (!form.idNumber.trim()) return 'idNumber';
+  if (!form.idExpiryDate) return 'idExpiryDate';
+  if (!form.hasIdFront) return 'idFront';
+  if (!form.hasSelfie) return 'selfie';
 
   // ID must not already be expired.
   const expiry = new Date(form.idExpiryDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (!Number.isNaN(expiry.getTime()) && expiry <= today) {
-    return 'ID expiry date must be in the future.';
+    return 'expiryFuture';
   }
   return null;
+}
+
+export function validateEkycCreateForm(form: EkycCreateFormState): string | null {
+  switch (validateEkycCreateFormKey(form)) {
+    case 'guest':
+      return 'Select the guest this verification is for.';
+    case 'fullName':
+      return 'Full name is required.';
+    case 'dateOfBirth':
+      return 'Date of birth is required.';
+    case 'idType':
+      return 'ID type is required.';
+    case 'idNumber':
+      return 'ID number is required.';
+    case 'idExpiryDate':
+      return 'ID expiry date is required.';
+    case 'idFront':
+      return 'Upload the front of the ID document.';
+    case 'selfie':
+      return 'Upload a selfie photo.';
+    case 'expiryFuture':
+      return 'ID expiry date must be in the future.';
+    default:
+      return null;
+  }
 }

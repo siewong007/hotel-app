@@ -1,7 +1,14 @@
 {
   "page": {
     "noPermission": "Anda tidak mempunyai kebenaran untuk mengakses pemindahan data.",
-    "permissionChip": "data_transfer:view"
+    "permissionChip": "data_transfer:view",
+    "title": "Pemindahan Data",
+    "subtitle": "Muat turun sandaran data sistem ini, atau pulihkan satu pada pelayan ini. Import diluluskan, dipratinjau dan disahkan sebelum sebarang data ditulis.",
+    "tabs": {
+      "export": "Eksport",
+      "import": "Import",
+      "history": "Sejarah"
+    }
   },
   "export": {
     "standard": {
@@ -30,7 +37,23 @@
     "preview": "Pratonton bilangan",
     "download": "Muat turun",
     "previewScope": "Kandungan eksport {{scope}}",
-    "neverIncluded": "Tidak pernah disertakan — {{count}} jadual dilindungi"
+    "neverIncluded": "Tidak pernah disertakan — {{count}} jadual dilindungi",
+    "errors": {
+      "preview": "Gagal mempratonton data eksport.",
+      "export": "Gagal mengeksport data."
+    },
+    "downloaded": "Sandaran dimuat turun — {{filename}} ({{bytes}}).",
+    "colEntity": "Entiti",
+    "colRows": "Baris",
+    "previewSummary": "{{records}} rekod · {{entities}} entiti",
+    "sensitiveAckAria": "Akui amaran eksport sensitif",
+    "exclusions": {
+      "credentials_and_auth_state": "Kelayakan & status pengesahan",
+      "session_or_token_material": "Sesi & token",
+      "sensitive_ekyc_pii": "Data identiti eKYC",
+      "ephemeral_queue_state": "Status baris gilir sedang berjalan",
+      "internal_system_table": "Jadual sistem dalaman"
+    }
   },
   "stepUp": {
     "title": "Sahkan identiti anda",
@@ -48,7 +71,101 @@
     "missingPermissions": "Akaun anda tidak boleh menjalankan import ini — ia memerlukan: {{permissions}}",
     "restoreRequiresPermission": "Pemulihan memerlukan kebenaran data_transfer:restore dan pengesahan semula.",
     "updateRequiresPermission": "Memerlukan data_transfer:override",
-    "restoreStepUp": "Pemulihan memerlukan pengesahan semula — sahkan identiti anda untuk meneruskan."
+    "restoreStepUp": "Pemulihan memerlukan pengesahan semula — sahkan identiti anda untuk meneruskan.",
+    "conflicts": {
+      "skip": "Langkau — kekalkan baris sedia ada",
+      "update": "Kemas kini — tulis ganti baris sedia ada",
+      "fail": "Gagal — batalkan import pada pendua pertama"
+    },
+    "jobFinished_other": "Import selesai — {{count}} baris diterapkan.",
+    "jobFinished_one": "Import selesai — {{count}} baris diterapkan.",
+    "jobFinishedSkipped_other": "Import selesai — {{count}} baris dilangkau.",
+    "jobFinishedSkipped_one": "Import selesai — {{count}} baris dilangkau.",
+    "errors": {
+      "preview": "Gagal mempratonton kandungan sandaran.",
+      "upload": "Gagal memuat naik fail sandaran.",
+      "start": "Gagal memulakan import.",
+      "tooLarge": "\"{{name}}\" bersaiz {{size}} — fail sandaran dihadkan kepada {{limit}}."
+    },
+    "colEntity": "Entiti",
+    "selectTitle": "Pilih fail sandaran untuk diimport",
+    "selectDrop1": "Seret atau pilih fail",
+    "selectDrop2": "sandaran yang dihasilkan aplikasi ini (sehingga {{size}}). Kandungannya dipratinjau dan disahkan sebelum sebarang penulisan.",
+    "selectFile": "Pilih fail JSON",
+    "chooseFileAria": "Pilih fail sandaran",
+    "processingAria": "Memuat naik dan menganalisis sandaran",
+    "analyzing": "Menganalisis kandungan sandaran…",
+    "uploading": "Memuat naik fail sandaran…",
+    "metaFormat": "format v{{version}}",
+    "metaExported": "dieksport {{date}}",
+    "metaFrom": "daripada {{env}}",
+    "metaApp": "aplikasi {{version}}",
+    "metaUnavailable": "Metadata sandaran tidak tersedia",
+    "removeFile": "Buang fail",
+    "cannotImport": "Fail ini tidak boleh diimport",
+    "rowsWillBeSkipped_other": "{{count}} baris akan dilangkau",
+    "problemRows_other": "{{count}} baris — {{reason}}",
+    "unrecognizedTitle": "Entiti tidak dikenali diabaikan",
+    "unrecognizedBody": "{{entities}} — terdapat dalam fail tetapi bukan sebahagian set boleh pindah; ia tidak pernah diterapkan.",
+    "previewSummary": "{{rows}} baris dalam {{entities}} entiti",
+    "cols": {
+      "rows": "Baris",
+      "new": "Baharu",
+      "existing": "Sedia ada",
+      "skipped": "Dilangkau",
+      "inserted": "Dimasukkan",
+      "updated": "Dikemas kini"
+    },
+    "entitiesAria": "Entiti dalam fail sandaran",
+    "resultsAria": "Hasil import mengikut entiti",
+    "modeTitle": "Mod import",
+    "modeAria": "Mod import",
+    "modeMerge": "Gabung — tambah pada data sedia ada",
+    "modeRestore": "Pulih — ganti data sedia ada",
+    "conflictTitle": "Apabila baris sudah wujud:",
+    "conflictAria": "Dasar konflik",
+    "restoreWarningTitle": "Pulih memadam data sedia ada dahulu",
+    "restoreWarningBody": "Setiap baris dalam entiti sandaran — dan jadual yang bergantung padanya — dipadam sebelum baris fail dimasukkan, termasuk baris yang tiada dalam sandaran.",
+    "chooseDifferent": "Pilih fail lain",
+    "reviewImport": "Semak & import",
+    "runningTitle": "Import sedang berjalan…",
+    "progressAria": "Kemajuan import",
+    "applyingEntity": "Menerapkan {{entity}} — {{applied}} daripada {{total}} baris",
+    "rowsApplied": "{{applied}} daripada {{total}} baris diterapkan",
+    "progressRefreshFailed": "Muat semula kemajuan gagal — import masih berterusan pada pelayan dan pengundian terus mencuba semula.",
+    "failedTitle": "Import gagal — tiada apa-apa diterapkan",
+    "failedGeneric": "Import gagal.",
+    "failedTxn": "Import berjalan dalam satu transaksi, jadi pangkalan data tidak berubah.",
+    "viewHistory": "Lihat sejarah",
+    "startOver": "Mula semula",
+    "completeTitle": "Import selesai",
+    "insertedCount_other": "{{count}} dimasukkan",
+    "updatedCount_other": "{{count}} dikemas kini",
+    "skippedCount_other": "{{count}} dilangkau",
+    "skippedRefsTitle": "Baris dilangkau kerana rujukannya tiada",
+    "notApplied": "Entiti ini dalam fail tidak diterapkan: {{entities}}.",
+    "confirmRestore": "Sahkan pemulihan",
+    "confirmImport": "Sahkan import",
+    "confirmAbout": "Anda akan {{mode}}",
+    "confirmRows_other": "{{count}} baris",
+    "confirmAcross": "merentasi",
+    "confirmEntities_other": "{{count}} entiti",
+    "confirmLogged": "Tindakan ini direkodkan dalam sejarah pemindahan.",
+    "modes": {
+      "merge": "menggabungkan",
+      "restore": "memulihkan"
+    },
+    "confirmDeleteTitle": "Ini memadam data sedia ada dahulu",
+    "confirmDeleteBody1": "Pulih mengosongkan entiti sandaran",
+    "confirmDeleteEm": "dan setiap jadual yang bergantung padanya",
+    "confirmDeleteBody2": "— termasuk baris yang tiada dalam fail — sebelum memasukkan. Eksport sandaran baharu dahulu supaya anda boleh kembali semula jika perlu.",
+    "confirmMergeBody": "Gabung hanya memasukkan baris baharu. Baris sedia ada dikendalikan mengikut dasar konflik:",
+    "ackAria": "Akui amaran import",
+    "ackRestore": "Saya faham pemulihan memadam data sedia ada, dan saya mempunyai sandaran semasa untuk kembali semula.",
+    "ackMerge": "Saya faham ini mengubah data langsung dan tindakan ini akan direkodkan.",
+    "restoreImport": "Pulih & import",
+    "startImport": "Mula import",
+    "importAnother": "Import fail lain"
   },
   "history": {
     "serverBacked": "Setiap eksport, import dan pengesahan semula pada pelayan ini direkodkan dalam log audit.",
@@ -59,6 +176,31 @@
       "standard": "Eksport standard",
       "full": "Eksport penuh",
       "backup": "Sandaran sistem penuh"
-    }
+    },
+    "title": "Sejarah Pemindahan",
+    "loadingAria": "Memuatkan sejarah pemindahan",
+    "empty": "Belum ada pemindahan direkodkan.",
+    "colAction": "Tindakan",
+    "colScope": "Skop",
+    "colRecords": "Rekod",
+    "colBy": "Dilakukan oleh",
+    "colDate": "Tarikh & masa",
+    "colStatus": "Status",
+    "recordsCount_one": "{{count}} rekod",
+    "recordsCount_other": "{{count}} rekod",
+    "entitiesCount_one": "{{count}} entiti",
+    "entitiesCount_other": "{{count}} entiti",
+    "jobRef": "tugas {{id}}",
+    "unknownUser": "sistem",
+    "statuses": {
+      "success": "Berjaya",
+      "partial": "Separa",
+      "failed": "Gagal",
+      "started": "Dimulakan"
+    },
+    "actionExport": "Eksport",
+    "actionReAuth": "Pengesahan semula",
+    "actionImport": "Import",
+    "actionImportMode": "Import ({{mode}})"
   }
 }

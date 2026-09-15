@@ -107,7 +107,17 @@
     "notesLabel": "备注（可选）",
     "notesPlaceholder": "添加特殊要求或备注...",
     "termsLabel": "条款与条件：",
-    "confirmRedemption": "确认兑换"
+    "confirmRedemption": "确认兑换",
+    "txTypes": {
+      "earn": "已获得",
+      "earned": "已获得",
+      "redeem": "已兑换",
+      "redeemed": "已兑换",
+      "adjusted": "已调整",
+      "reversed": "已冲销",
+      "gift": "已赠送",
+      "expired": "已过期"
+    }
   },
   "portal": {
     "title": "忠诚计划",
@@ -128,7 +138,8 @@
       "pendingHint": "等待审核",
       "byTier": "按等级划分的会员",
       "noMembers": "暂无会员注册。",
-      "loadMembersFailed": "加载会员失败"
+      "loadMembersFailed": "加载会员失败",
+      "tierShare": "{{tier}} 会员占比"
     },
     "members": {
       "detailTitle": "会员详情",
@@ -239,7 +250,12 @@
       "approvalRequired": "兑换需审批",
       "save": "保存规则",
       "saveFailed": "保存规则失败",
-      "loadFailed": "加载规则失败"
+      "loadFailed": "加载规则失败",
+      "metrics": {
+        "points": "积分",
+        "nights": "晚数",
+        "spend": "消费"
+      }
     }
   }
 }

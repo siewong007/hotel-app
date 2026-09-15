@@ -1,4 +1,5 @@
 import { api, toApiError } from './client';
+import { t } from '../i18n';
 import { RateCodesResponse, MarketCodesResponse } from '../types';
 
 export class RatesService {
@@ -8,7 +9,7 @@ export class RatesService {
         .get('rate-codes')
         .json<RateCodesResponse>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch rate codes');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
@@ -18,7 +19,7 @@ export class RatesService {
         .get('market-codes')
         .json<MarketCodesResponse>();
     } catch (error) {
-      throw toApiError(error, 'Failed to fetch market codes');
+      throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 }

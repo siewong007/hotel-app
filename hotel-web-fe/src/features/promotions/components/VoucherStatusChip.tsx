@@ -1,6 +1,6 @@
 import StatusChip from '../../../components/common/StatusChip';
 import type { StatusTone } from '../../../components/common/StatusChip';
-import { VOUCHER_DISPLAY_STATUS_LABELS } from '../constants';
+import { statusLabel, useTranslation } from '../../../i18n';
 import type { Voucher, VoucherDisplayStatus } from '../types';
 import { voucherDisplayStatus } from '../utils';
 
@@ -18,11 +18,12 @@ export function VoucherStatusChip({
   voucher: Pick<Voucher, 'status' | 'expires_at'>;
   size?: 'small' | 'medium';
 }) {
+  const { t } = useTranslation('promotions');
   const display = voucherDisplayStatus(voucher);
   return (
     <StatusChip
       status={display}
-      label={VOUCHER_DISPLAY_STATUS_LABELS[display] ?? display}
+      label={statusLabel(t, 'voucher', display)}
       tone={TONES[display] ?? 'neutral'}
       size={size}
     />

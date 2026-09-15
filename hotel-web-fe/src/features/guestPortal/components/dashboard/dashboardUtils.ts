@@ -2,6 +2,7 @@ import { parseLocalDate } from '../../../../utils/date';
 import { formatCurrency, getCurrentCurrency } from '../../../../utils/currency';
 import { t as translate, type TranslationVars } from '../../../../i18n';
 import type { GuestPortalMembershipActivity } from '../../../../types';
+import { dateFormatter } from '../../../../i18n/format';
 
 /** guestPortal-namespaced translate for the non-React helpers below. */
 const pt = (key: string, vars?: TranslationVars): string =>
@@ -35,11 +36,11 @@ export function parsePortalSection(search: string): PortalSection {
 export function formatPortalDate(value: string | null | undefined): string {
   if (!value) return '—';
   try {
-    return parseLocalDate(value).toLocaleDateString(undefined, {
+    return dateFormatter({
       day: 'numeric',
       month: 'short',
       year: 'numeric',
-    });
+    }).format(parseLocalDate(value));
   } catch {
     return value;
   }

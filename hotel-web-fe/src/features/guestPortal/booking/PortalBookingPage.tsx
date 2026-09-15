@@ -31,6 +31,7 @@ import { useAvailabilitySocket } from './useAvailabilitySocket';
 import { guestErrorMessage } from '../utils/feedback';
 import { apiUrl } from '../../../desktop/runtimeApi';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
+import { numberFormatter } from '../../../i18n/format';
 
 const EMPTY_GUEST_DETAILS: AnonymousGuestDetails = {
   first_name: '', email: '', phone: '', tourism_type: '',
@@ -51,7 +52,7 @@ const FALLBACK_ROOM_IMAGE = 'linear-gradient(135deg, var(--hotel-surface-raised)
 
 function money(amount: string | number, currency: string): string {
   const value = typeof amount === 'number' ? amount : Number(amount);
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number.isFinite(value) ? value : 0);
+  return numberFormatter({ style: 'currency', currency }).format(Number.isFinite(value) ? value : 0);
 }
 
 function newRequestId(): string {

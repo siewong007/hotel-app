@@ -148,12 +148,16 @@ pub async fn auto_checkin_for_guest_portal(
     let booking = booking_service::fetch_booking_by_id(pool, booking_id).await?;
     let (summary, record) = eligibility_for_booking(pool, &booking).await?;
     let record = record.ok_or_else(|| {
-        ApiError::BadRequest(
-            summary
+        ApiError::AutoCheckinBlocked {
+            block_code: summary
+                .auto_checkin_block_code
+                .clone()
+                .unwrap_or_else(|| "ekyc_not_approved".to_string()),
+            message: summary
                 .auto_checkin_block_reason
                 .clone()
                 .unwrap_or_else(|| "Approved eKYC is required for auto check-in".to_string()),
-        )
+        }
     })?;
 
     perform_auto_checkin_with_summary(pool, record.user_id, booking, summary, record, None, None)
@@ -169,12 +173,16 @@ async fn perform_auto_checkin(
 ) -> Result<AutoCheckinResponse, ApiError> {
     let (summary, record) = eligibility_for_booking(pool, &booking).await?;
     let record = record.ok_or_else(|| {
-        ApiError::BadRequest(
-            summary
+        ApiError::AutoCheckinBlocked {
+            block_code: summary
+                .auto_checkin_block_code
+                .clone()
+                .unwrap_or_else(|| "ekyc_not_approved".to_string()),
+            message: summary
                 .auto_checkin_block_reason
                 .clone()
                 .unwrap_or_else(|| "Approved eKYC is required for auto check-in".to_string()),
-        )
+        }
     })?;
 
     perform_auto_checkin_with_summary(
@@ -199,12 +207,16 @@ async fn perform_auto_checkin_with_summary(
     checkin_location: Option<String>,
 ) -> Result<AutoCheckinResponse, ApiError> {
     if !summary.can_auto_checkin {
-        return Err(ApiError::BadRequest(
-            summary
+        return Err(ApiError::AutoCheckinBlocked {
+            block_code: summary
+                .auto_checkin_block_code
+                .clone()
+                .unwrap_or_else(|| "not_eligible".to_string()),
+            message: summary
                 .auto_checkin_block_reason
                 .clone()
                 .unwrap_or_else(|| "Booking is not eligible for auto check-in".to_string()),
-        ));
+        });
     }
 
     let booking_id = booking.id;
@@ -281,8 +293,8 @@ async fn apply_booking_constraints(
         return Ok(());
     }
 
-    if let Some(reason) = booking_status_block_reason(booking_status) {
-        block(summary, reason);
+    if let Some((code, reason)) = booking_status_block_reason(booking_status) {
+        block(summary, code, reason);
         return Ok(());
     }
 
@@ -290,19 +302,24 @@ async fn apply_booking_constraints(
     if check_in_date > today {
         block(
             summary,
+            "opens_on_check_in_date",
             format!("Auto check-in opens on {}.", check_in_date),
         );
         return Ok(());
     }
     if check_out_date < today {
-        block(summary, "Booking stay dates have passed.".to_string());
+        block(
+            summary,
+            "stay_dates_passed",
+            "Booking stay dates have passed.".to_string(),
+        );
         return Ok(());
     }
 
     if let Some(room_status) = booking_repo::fetch_room_status(pool, room_id).await?
-        && let Some(reason) = room_status_block_reason(&room_status)
+        && let Some((code, reason)) = room_status_block_reason(&room_status)
     {
-        block(summary, reason);
+        block(summary, code, reason);
         return Ok(());
     }
 
@@ -317,6 +334,7 @@ async fn apply_booking_constraints(
     if !has_identity_document {
         block(
             summary,
+            "identity_document_required",
             "Add your IC or passport number to your details to check in online.".to_string(),
         );
     }
@@ -328,12 +346,16 @@ fn summary_from_record(record: &GuestEkycSummaryRecord) -> GuestEkycStatusSummar
     let status = normalize_ekyc_status(&record.status).to_string();
     let approved = status == "approved";
     let can_auto_checkin = approved && record.self_checkin_enabled;
-    let auto_checkin_block_reason = if can_auto_checkin {
-        None
+    let (auto_checkin_block_code, auto_checkin_block_reason) = if can_auto_checkin {
+        (None, None)
     } else if !approved {
-        Some(ekyc_status_block_reason(&status))
+        let (code, reason) = ekyc_status_block_reason(&status);
+        (Some(code.to_string()), Some(reason))
     } else {
-        Some("Self check-in is not enabled for this eKYC verification.".to_string())
+        (
+            Some("self_checkin_disabled".to_string()),
+            Some("Self check-in is not enabled for this eKYC verification.".to_string()),
+        )
     };
 
     GuestEkycStatusSummary {
@@ -344,50 +366,74 @@ fn summary_from_record(record: &GuestEkycSummaryRecord) -> GuestEkycStatusSummar
         verified_at: record.verified_at,
         can_auto_checkin,
         auto_checkin_block_reason,
+        auto_checkin_block_code,
     }
 }
 
-fn block(summary: &mut GuestEkycStatusSummary, reason: String) {
+fn block(summary: &mut GuestEkycStatusSummary, code: &str, reason: String) {
     summary.can_auto_checkin = false;
     summary.auto_checkin_block_reason = Some(reason);
+    summary.auto_checkin_block_code = Some(code.to_string());
 }
 
-fn ekyc_status_block_reason(status: &str) -> String {
+fn ekyc_status_block_reason(status: &str) -> (&'static str, String) {
     match status {
-        "pending" => "eKYC is pending approval.".to_string(),
-        "in_review" => "eKYC is still in review.".to_string(),
-        "rejected" => "eKYC was rejected.".to_string(),
-        "expired" => "eKYC has expired.".to_string(),
-        "void" => "eKYC has been voided.".to_string(),
-        _ => "Approved eKYC is required for auto check-in.".to_string(),
+        "pending" => ("ekyc_pending", "eKYC is pending approval.".to_string()),
+        "in_review" => ("ekyc_in_review", "eKYC is still in review.".to_string()),
+        "rejected" => ("ekyc_rejected", "eKYC was rejected.".to_string()),
+        "expired" => ("ekyc_expired", "eKYC has expired.".to_string()),
+        "void" => ("ekyc_voided", "eKYC has been voided.".to_string()),
+        _ => (
+            "ekyc_not_approved",
+            "Approved eKYC is required for auto check-in.".to_string(),
+        ),
     }
 }
 
-fn booking_status_block_reason(status: &str) -> Option<String> {
+fn booking_status_block_reason(status: &str) -> Option<(&'static str, String)> {
     match status {
         "confirmed" => None,
         // A `pending` booking has no approved/captured payment yet. It must be
         // confirmed (which happens when a payment is approved/captured) before
         // check-in is allowed.
-        "pending" | "pending_payment" => Some("Payment required before check-in.".to_string()),
-        "pending_confirmation" => {
-            Some("Payment confirmation is required before check-in.".to_string())
+        "pending" | "pending_payment" => Some((
+            "payment_required",
+            "Payment required before check-in.".to_string(),
+        )),
+        "pending_confirmation" => Some((
+            "payment_confirmation_required",
+            "Payment confirmation is required before check-in.".to_string(),
+        )),
+        "checked_in" | "auto_checked_in" => Some((
+            "already_checked_in",
+            "Booking is already checked in.".to_string(),
+        )),
+        "checked_out" | "completed" => Some((
+            "already_checked_out",
+            "Booking has already checked out.".to_string(),
+        )),
+        "voided" | "cancelled" | "canceled" => {
+            Some(("booking_not_active", "Booking is not active.".to_string()))
         }
-        "checked_in" | "auto_checked_in" => Some("Booking is already checked in.".to_string()),
-        "checked_out" | "completed" => Some("Booking has already checked out.".to_string()),
-        "voided" | "cancelled" | "canceled" => Some("Booking is not active.".to_string()),
-        other => Some(format!("Booking status is {}.", other.replace('_', " "))),
+        other => Some((
+            "booking_status_blocked",
+            format!("Booking status is {}.", other.replace('_', " ")),
+        )),
     }
 }
 
-fn room_status_block_reason(status: &str) -> Option<String> {
+fn room_status_block_reason(status: &str) -> Option<(&'static str, String)> {
     match status {
-        "dirty" | "cleaning" | "reserved_dirty" => {
-            Some("Cannot auto check-in - the room must be cleaned before check-in.".to_string())
-        }
-        "maintenance" | "out_of_order" => Some(format!(
-            "Cannot auto check-in - room is currently under {}.",
-            status.replace('_', " ")
+        "dirty" | "cleaning" | "reserved_dirty" => Some((
+            "room_not_ready",
+            "Cannot auto check-in - the room must be cleaned before check-in.".to_string(),
+        )),
+        "maintenance" | "out_of_order" => Some((
+            "room_unavailable",
+            format!(
+                "Cannot auto check-in - room is currently under {}.",
+                status.replace('_', " ")
+            ),
         )),
         _ => None,
     }

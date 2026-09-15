@@ -139,6 +139,9 @@ pub struct GuestEkycStatusSummary {
     pub verified_at: Option<DateTime<Utc>>,
     pub can_auto_checkin: bool,
     pub auto_checkin_block_reason: Option<String>,
+    /// Stable machine code for `auto_checkin_block_reason` so clients can map
+    /// it to a localized message instead of matching English text.
+    pub auto_checkin_block_code: Option<String>,
 }
 
 impl Default for GuestEkycStatusSummary {
@@ -157,6 +160,7 @@ impl GuestEkycStatusSummary {
             verified_at: None,
             can_auto_checkin: false,
             auto_checkin_block_reason: Some("eKYC has not been submitted.".to_string()),
+            auto_checkin_block_code: Some("ekyc_not_submitted".to_string()),
         }
     }
 }

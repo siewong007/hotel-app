@@ -82,7 +82,9 @@
     "emptyFiltered": "没有匹配筛选条件的客房",
     "emptyFilteredBody": "请尝试扩大搜索范围或清除筛选。",
     "clearAll": "清除所有筛选",
-    "laneAria": "{{status}}客房"
+    "laneAria": "{{status}}客房",
+    "refreshBoard": "刷新面板",
+    "syncStatuses": "同步状态"
   },
   "card": {
     "roomN": "客房 {{number}}",

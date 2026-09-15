@@ -22,12 +22,12 @@ const makeSettings = (overrides: Partial<HotelSettings> = {}) => ({
 
 describe('reportTypography', () => {
   it('offers the expected readability presets', () => {
-    expect(REPORT_TYPOGRAPHY_PRESETS.map(preset => preset.label)).toEqual([
-      'Very Small',
-      'Small',
-      'Medium',
-      'Large',
-      'Very Large',
+    expect(REPORT_TYPOGRAPHY_PRESETS.map(preset => preset.key)).toEqual([
+      'very_small',
+      'small',
+      'medium',
+      'large',
+      'very_large',
     ]);
     expect(getReportTypographyPreset('medium').sizes).toEqual({
       report_font_size: 14,

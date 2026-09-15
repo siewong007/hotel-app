@@ -21,6 +21,8 @@ import { formatCurrency } from '../../../utils/currency';
 import { printReportEnvelope } from '../utils/reportEnvelopePrint';
 import { TableScroll } from '../../../components/data-table/TableScroll';
 import { useIsPhone } from '../../../hooks/useIsPhone';
+import { formatNumber, useTranslation, type UseTranslationResult } from '../../../i18n';
+import { formatHotelDate } from '../../../utils/date';
 
 const formatValue = (value: unknown, format: KpiFormat): string => {
   if (value == null) return '—';
@@ -29,28 +31,39 @@ const formatValue = (value: unknown, format: KpiFormat): string => {
     case 'currency':
       return Number.isFinite(num) ? formatCurrency(num) : String(value);
     case 'percent':
-      return Number.isFinite(num) ? `${num.toFixed(1)}%` : String(value);
+      return Number.isFinite(num)
+        ? `${formatNumber(num, { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%`
+        : String(value);
     case 'number':
-      return Number.isFinite(num) ? num.toLocaleString() : String(value);
+      return Number.isFinite(num) ? formatNumber(num) : String(value);
     default:
       return String(value);
   }
 };
 
-const KpiCard = ({ kpi }: { kpi: ReportKpi }) => (
-  <Grid size={{ xs: 6, sm: 4, md: 3 }}>
-    <Card variant="outlined">
-      <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-        <Typography variant="caption" color="text.secondary">
-          {kpi.label}
-        </Typography>
-        <Typography variant="h6" component="div">
-          {formatValue(kpi.value, kpi.format)}
-        </Typography>
-      </CardContent>
-    </Card>
-  </Grid>
-);
+const fieldLabel = (
+  tOr: UseTranslationResult['tOr'],
+  key: string,
+  fallback: string,
+) => tOr(`insights:fields.${key}`, fallback);
+
+const KpiCard = ({ kpi }: { kpi: ReportKpi }) => {
+  const { tOr } = useTranslation('insights');
+  return (
+    <Grid size={{ xs: 6, sm: 4, md: 3 }}>
+      <Card variant="outlined">
+        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+          <Typography variant="caption" color="text.secondary">
+            {fieldLabel(tOr, kpi.key, kpi.label)}
+          </Typography>
+          <Typography variant="h6" component="div">
+            {formatValue(kpi.value, kpi.format)}
+          </Typography>
+        </CardContent>
+      </Card>
+    </Grid>
+  );
+};
 
 export interface ReportShellProps {
   envelope: ReportEnvelope | null;
@@ -66,6 +79,7 @@ export interface ReportShellProps {
  * states are consistent.
  */
 export function ReportShell({ envelope, loading, error, toolbar }: ReportShellProps) {
+  const { t, tOr } = useTranslation('insights');
   const isPhone = useIsPhone();
 
   return (
@@ -80,18 +94,24 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
       {envelope && !loading && (
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
-            <Typography variant="h6">{envelope.meta.title}</Typography>
+            <Typography variant="h6">
+              {tOr(`reports.${envelope.meta.report_id}.title`, envelope.meta.title)}
+            </Typography>
             {envelope.meta.range_start && envelope.meta.range_end && (
               <Typography variant="body2" color="text.secondary">
-                {envelope.meta.range_start} → {envelope.meta.range_end}
+                {formatHotelDate(envelope.meta.range_start)} → {formatHotelDate(envelope.meta.range_end)}
               </Typography>
             )}
-            <Chip size="small" variant="outlined" label={`${envelope.meta.date_basis} dates`} />
-            <Tooltip title="Print report">
+            <Chip
+              size="small"
+              variant="outlined"
+              label={tOr(`dateBasis.${envelope.meta.date_basis}`, `${envelope.meta.date_basis} dates`)}
+            />
+            <Tooltip title={t('report.print')}>
               <IconButton
                 size="small"
                 onClick={() => printReportEnvelope(envelope)}
-                aria-label="Print report"
+                aria-label={t('report.print')}
                 sx={{ ml: 'auto' }}
               >
                 <PrintIcon fontSize="small" />
@@ -110,7 +130,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
           {envelope.sections.map((section) => (
             <Box key={section.key} sx={{ mb: 3 }}>
               <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                {section.title}
+                {fieldLabel(tOr, section.key, section.title)}
               </Typography>
               <Card variant="outlined">
                 {isPhone ? (
@@ -120,7 +140,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
                         variant="body2"
                         sx={{ color: 'text.secondary', py: 3, textAlign: 'center' }}
                       >
-                        No rows for this period
+                        {t('report.emptySection')}
                       </Typography>
                     )}
                     {section.rows.map((row, i) => (
@@ -144,7 +164,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
                             sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mt: 0.25 }}
                           >
                             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              {col.label}
+                              {fieldLabel(tOr, col.key, col.label)}
                             </Typography>
                             <Typography variant="caption" sx={{ fontWeight: 600, textAlign: 'right' }}>
                               {formatValue(row[col.key], col.format)}
@@ -161,7 +181,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
                       <TableHead>
                         <TableRow>
                           {section.columns.map((col) => (
-                            <TableCell key={col.key}>{col.label}</TableCell>
+                            <TableCell key={col.key}>{fieldLabel(tOr, col.key, col.label)}</TableCell>
                           ))}
                         </TableRow>
                       </TableHead>
@@ -174,7 +194,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
                             align="center"
                             sx={{ color: 'text.secondary', py: 3 }}
                           >
-                            No rows for this period
+                            {t('report.emptySection')}
                           </TableCell>
                         </TableRow>
                       )}
@@ -196,7 +216,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
           ))}
 
           {envelope.kpis.length === 0 && envelope.sections.length === 0 && (
-            <Alert severity="info">This report produced no data for the selected range.</Alert>
+            <Alert severity="info">{t('report.noData')}</Alert>
           )}
         </Box>
       )}

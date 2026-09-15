@@ -38,7 +38,9 @@
     "paid_rate": "Rate paid",
     "partial": "Partial",
     "forfeited": "Forfeited",
-    "deposit_forfeited": "Deposit forfeited"
+    "deposit_forfeited": "Deposit forfeited",
+    "approved": "Approved",
+    "rejected": "Rejected"
   },
   "invoice": {
     "draft": "Draft",
@@ -56,7 +58,15 @@
     "partial": "Partial",
     "paid": "Paid",
     "overdue": "Overdue",
-    "void": "Void"
+    "void": "Void",
+    "draft": "Draft",
+    "ready_to_invoice": "Ready",
+    "invoiced": "Invoiced",
+    "partially_paid": "Partially Paid",
+    "voided": "Voided",
+    "outstanding": "Outstanding",
+    "uninvoiced": "Uninvoiced",
+    "settled": "Settled"
   },
   "room": {
     "available": "Available",
@@ -69,7 +79,8 @@
     "inspected": "Inspected",
     "maintenance": "Maintenance",
     "out_of_order": "Out of order",
-    "out_of_service": "Out of service"
+    "out_of_service": "Out of service",
+    "booked": "Booked"
   },
   "housekeeping": {
     "pending": "Pending",
@@ -259,5 +270,46 @@
     "info": "Info",
     "error": "Error",
     "unknown": "Unknown"
+  },
+  "job": {
+    "ok": "OK",
+    "error": "Error",
+    "failed": "Failed",
+    "running": "Running"
+  },
+  "job_run": {
+    "ok": "OK",
+    "error": "Error"
+  },
+  "audit": {
+    "login_success": "Login Success",
+    "login_failure": "Login Failed",
+    "logout": "Logout",
+    "booking_created": "Booking Created",
+    "booking_updated": "Booking Updated",
+    "booking_cancelled": "Booking Voided",
+    "booking_voided": "Booking Voided",
+    "booking_checkin": "Guest Checked In",
+    "booking_checkout": "Guest Checked Out",
+    "room_status_changed": "Room Status Changed",
+    "guest_created": "Guest Created",
+    "guest_updated": "Guest Updated",
+    "guest_deleted": "Guest Deleted",
+    "user_created": "User Created",
+    "role_assigned": "Role Assigned",
+    "role_removed": "Role Removed",
+    "settings_changed": "Settings Changed",
+    "password_changed": "Password Changed",
+    "ekyc_approved": "eKYC Approved",
+    "ekyc_rejected": "eKYC Rejected"
+  },
+  "audit_resource": {
+    "user": "User",
+    "guest": "Guest",
+    "booking": "Booking",
+    "room": "Room",
+    "user_role": "User Role",
+    "system_setting": "Settings",
+    "ekyc_verification": "eKYC"
   }
 }

@@ -57,7 +57,6 @@ import {
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
 } from '@mui/icons-material';
-import { format } from 'date-fns';
 import { formatCalendarDate } from '../utils/reviewQueue';
 import {
   EkycActionPayload,
@@ -83,6 +82,9 @@ import {
 import EkycCreateDialog from './EkycCreateDialog';
 import { errorMessage } from '../../../utils/errorMessage';
 import { formatStatusLabel } from '../../../utils/formatters';
+import { useTranslation, statusLabel } from '../../../i18n';
+import type { UseTranslationResult } from '../../../i18n/useTranslation';
+import { formatHotelDateTime } from '../../../utils/date';
 
 const STATUS_OPTIONS = [
   'submitted',
@@ -107,17 +109,7 @@ const DEFAULT_FILTERS: EkycListParams = {
   sort_order: 'desc',
 };
 
-const ACTION_LABELS: Record<string, string> = {
-  claim: 'Claim',
-  approve: 'Approve',
-  reject: 'Reject',
-  escalate: 'Escalate',
-  request_resubmission: 'Request Info',
-  hold: 'Hold',
-  release_hold: 'Release',
-  mark_potential_duplicate: 'Mark Duplicate',
-  mark_fraud: 'Mark Fraud',
-};
+const ACTION_KEY_PREFIX = 'actions.';
 
 const ACTION_REASONS_REQUIRED = new Set([
   'approve',
@@ -134,13 +126,25 @@ function getSavedFilters(): EkycListParams {
 }
 
 function formatDate(value?: string | null): string {
-  if (!value) return '-';
-  return format(new Date(value), 'MMM dd, yyyy HH:mm');
+  return formatHotelDateTime(value);
 }
 
+// Humanizes non-status enum codes (id types, reason codes, risk rules) whose
+// full value set lives in the backend; status values go through statusLabel.
 function labelize(value?: string | null): string {
   return formatStatusLabel(value, '-');
 }
+
+type T = UseTranslationResult['t'];
+type TOr = UseTranslationResult['tOr'];
+const actionLabel = (t: T, tOr: TOr, action: string): string =>
+  tOr(`${ACTION_KEY_PREFIX}${action}`, formatStatusLabel(action, action));
+const riskLabel = (t: T, tOr: TOr, risk?: string | null): string =>
+  tOr(`riskLevels.${risk ?? ''}`, formatStatusLabel(risk, '-'));
+const idTypeLabel = (t: T, tOr: TOr, idType?: string | null): string =>
+  tOr(`idTypes.${idType ?? ''}`, formatStatusLabel(idType, '-'));
+const ekycStatus = (t: T, value?: string | null): string =>
+  statusLabel(t, 'ekyc', value);
 
 // Distinct colour per eKYC status. MUI's Chip `color` prop only exposes a
 // handful of palette names, so we style the chip directly to keep each status
@@ -182,6 +186,7 @@ const SecureDocumentImage: React.FC<{
   kind: 'id-front' | 'id-back' | 'selfie' | 'proof-of-address';
   alt: string;
 }> = ({ applicationId, kind, alt }) => {
+  const { t } = useTranslation('ekyc');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'missing' | 'error'>('loading');
   const [rotation, setRotation] = useState(0);
@@ -232,23 +237,23 @@ const SecureDocumentImage: React.FC<{
           color: "text.secondary"
         }}>{alt}</Typography>
         <Stack direction="row" spacing={0.5}>
-          <Tooltip title="Zoom out">
+          <Tooltip title={t('doc.zoomOut')}>
             <span>
-              <IconButton size="small" aria-label="Zoom out" onClick={() => setZoom(value => Math.max(0.5, value - 0.25))} disabled={!imageUrl}>
+              <IconButton size="small" aria-label={t('doc.zoomOut')} onClick={() => setZoom(value => Math.max(0.5, value - 0.25))} disabled={!imageUrl}>
                 <ZoomOutIcon fontSize="small" />
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title="Zoom in">
+          <Tooltip title={t('doc.zoomIn')}>
             <span>
-              <IconButton size="small" aria-label="Zoom in" onClick={() => setZoom(value => Math.min(2, value + 0.25))} disabled={!imageUrl}>
+              <IconButton size="small" aria-label={t('doc.zoomIn')} onClick={() => setZoom(value => Math.min(2, value + 0.25))} disabled={!imageUrl}>
                 <ZoomInIcon fontSize="small" />
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title="Rotate">
+          <Tooltip title={t('doc.rotate')}>
             <span>
-              <IconButton size="small" aria-label="Rotate image" onClick={() => setRotation(value => (value + 90) % 360)} disabled={!imageUrl}>
+              <IconButton size="small" aria-label={t('doc.rotate')} onClick={() => setRotation(value => (value + 90) % 360)} disabled={!imageUrl}>
                 <RotateIcon fontSize="small" />
               </IconButton>
             </span>
@@ -267,7 +272,7 @@ const SecureDocumentImage: React.FC<{
               textAlign: 'center'
             }}>
             <ImageNotSupportedIcon fontSize="large" />
-            <Typography variant="caption">No document on file</Typography>
+            <Typography variant="caption">{t('doc.missing')}</Typography>
           </Stack>
         )}
         {loadState === 'error' && (
@@ -279,9 +284,9 @@ const SecureDocumentImage: React.FC<{
               px: 2,
               textAlign: 'center'
             }}>
-            <Typography variant="caption">Couldn’t load this document</Typography>
+            <Typography variant="caption">{t('doc.loadError')}</Typography>
             <Button size="small" variant="outlined" onClick={() => setReloadKey(value => value + 1)}>
-              Retry
+              {t('common:actions.retry')}
             </Button>
           </Stack>
         )}
@@ -326,6 +331,7 @@ const MetricTile: React.FC<{ label: string; value: React.ReactNode; accent?: 'de
 };
 
 const EkycManagementPage: React.FC = () => {
+  const { t, tOr } = useTranslation('ekyc');
   const isPhone = useIsPhone();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<EkycListParams>(() => getSavedFilters());
@@ -365,9 +371,9 @@ const EkycManagementPage: React.FC = () => {
   useEffect(() => {
     const queryError = listQuery.error || detailQuery.error || reasonCodesQuery.error;
     if (queryError) {
-      setError((queryError as Error).message || 'Unable to load eKYC data');
+      setError((queryError as Error).message || t('errors.loadData'));
     }
-  }, [listQuery.error, detailQuery.error, reasonCodesQuery.error]);
+  }, [listQuery.error, detailQuery.error, reasonCodesQuery.error, t]);
 
   const selectedSummary = useMemo(() => {
     return listData?.data.find(item => item.id === selectedId) ?? detail?.summary;
@@ -424,7 +430,7 @@ const EkycManagementPage: React.FC = () => {
       setSelectedId(updated.summary.id);
       closeAction();
     } catch (err) {
-      setError(errorMessage(err, 'Unable to complete eKYC action'));
+      setError(errorMessage(err, t('errors.action')));
     }
   };
 
@@ -438,7 +444,7 @@ const EkycManagementPage: React.FC = () => {
       });
       setRevealedValue(result.value ?? '');
     } catch (err) {
-      setError(errorMessage(err, 'Unable to reveal field'));
+      setError(errorMessage(err, t('errors.reveal')));
     }
   };
 
@@ -454,7 +460,7 @@ const EkycManagementPage: React.FC = () => {
       link.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(errorMessage(err, 'Unable to export eKYC records'));
+      setError(errorMessage(err, t('errors.export')));
     }
   };
 
@@ -467,25 +473,25 @@ const EkycManagementPage: React.FC = () => {
           justifyContent: "space-between"
         }}>
           <Box>
-            <Typography variant="h5">eKYC Admin</Typography>
+            <Typography variant="h5">{t('page.title')}</Typography>
             <Typography variant="body2" sx={{
               color: "text.secondary"
-            }}>Compliance review queue</Typography>
+            }}>{t('page.subtitle')}</Typography>
           </Box>
           <Stack direction="row" spacing={1}>
-            <Tooltip title="Refresh">
+            <Tooltip title={t('common:actions.refresh')}>
               <span>
-                <IconButton onClick={() => listQuery.refetch()} disabled={listQuery.isFetching} aria-label="Refresh applications">
+                <IconButton onClick={() => listQuery.refetch()} disabled={listQuery.isFetching} aria-label={t('page.refreshAria')}>
                   <RefreshIcon />
                 </IconButton>
               </span>
             </Tooltip>
             <Button variant="outlined" startIcon={<ExportIcon />} onClick={exportCsv}>
-              CSV
+              {t('page.exportCsv')}
             </Button>
             {canCreate && (
               <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>
-                Create eKYC
+                {t('page.create')}
               </Button>
             )}
           </Stack>
@@ -499,23 +505,23 @@ const EkycManagementPage: React.FC = () => {
 
         <Grid container spacing={1.5}>
           <Grid size={{ xs: 6, md: 2 }}>
-            <MetricTile label="Submitted" value={metrics?.total_submitted ?? <Skeleton width={42} />} />
+            <MetricTile label={t('metrics.submitted')} value={metrics?.total_submitted ?? <Skeleton width={42} />} />
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
-            <MetricTile label="Pending" value={metrics?.pending_review ?? <Skeleton width={42} />} accent="warning" />
+            <MetricTile label={t('metrics.pending')} value={metrics?.pending_review ?? <Skeleton width={42} />} accent="warning" />
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
-            <MetricTile label="Manual" value={metrics?.under_manual_review ?? <Skeleton width={42} />} />
+            <MetricTile label={t('metrics.manual')} value={metrics?.under_manual_review ?? <Skeleton width={42} />} />
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
-            <MetricTile label="Approved" value={metrics?.approved ?? <Skeleton width={42} />} accent="success" />
+            <MetricTile label={t('metrics.approved')} value={metrics?.approved ?? <Skeleton width={42} />} accent="success" />
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
-            <MetricTile label="High Risk" value={metrics?.escalated_high_risk ?? <Skeleton width={42} />} accent="error" />
+            <MetricTile label={t('metrics.highRisk')} value={metrics?.escalated_high_risk ?? <Skeleton width={42} />} accent="error" />
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <MetricTile
-              label="Avg Minutes"
+              label={t('metrics.avgMinutes')}
               value={metrics?.average_processing_minutes != null ? Math.round(metrics.average_processing_minutes) : <Skeleton width={42} />}
             />
           </Grid>
@@ -530,7 +536,7 @@ const EkycManagementPage: React.FC = () => {
               <TextField
                 fullWidth
                 size="small"
-                label="Search"
+                label={t('filters.search')}
                 value={filters.search ?? ''}
                 onChange={(event) => setFilter('search', event.target.value)}
                 slotProps={{
@@ -544,7 +550,7 @@ const EkycManagementPage: React.FC = () => {
                   onClick={() => setFiltersOpen(true)}
                   sx={{ whiteSpace: 'nowrap', minHeight: 40 }}
                 >
-                  Filters
+                  {t('filters.title')}
                 </Button>
               )}
               </Stack>
@@ -553,20 +559,20 @@ const EkycManagementPage: React.FC = () => {
             <>
             <Grid size={{ xs: 6, md: 2 }}>
               <FormControl fullWidth size="small">
-                <InputLabel>Status</InputLabel>
-                <Select label="Status" value={filters.status ?? 'all'} onChange={(event) => setFilter('status', event.target.value)}>
-                  <MenuItem value="all">All</MenuItem>
+                <InputLabel>{t('filters.status')}</InputLabel>
+                <Select label={t('filters.status')} value={filters.status ?? 'all'} onChange={(event) => setFilter('status', event.target.value)}>
+                  <MenuItem value="all">{t('common:filters.all')}</MenuItem>
                   {STATUS_OPTIONS.map(status => (
-                    <MenuItem key={status} value={status}>{labelize(status)}</MenuItem>
+                    <MenuItem key={status} value={status}>{ekycStatus(t, status)}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 6, md: 2 }}>
               <FormControl fullWidth size="small">
-                <InputLabel>Order by</InputLabel>
+                <InputLabel>{t('filters.orderBy')}</InputLabel>
                 <Select
-                  label="Order by"
+                  label={t('filters.orderBy')}
                   value={filters.sort_by ?? 'submitted_at'}
                   onChange={(event) => {
                     const sortBy = event.target.value;
@@ -581,19 +587,19 @@ const EkycManagementPage: React.FC = () => {
                     }));
                   }}
                 >
-                  <MenuItem value="submitted_at">Newest submission</MenuItem>
-                  <MenuItem value="next_arrival">Soonest arrival</MenuItem>
-                  <MenuItem value="risk_score">Highest risk</MenuItem>
+                  <MenuItem value="submitted_at">{t('filters.sortNewest')}</MenuItem>
+                  <MenuItem value="next_arrival">{t('filters.sortArrival')}</MenuItem>
+                  <MenuItem value="risk_score">{t('filters.sortRisk')}</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 6, md: 2 }}>
               <FormControl fullWidth size="small">
-                <InputLabel>Risk</InputLabel>
-                <Select label="Risk" value={filters.risk_level ?? 'all'} onChange={(event) => setFilter('risk_level', event.target.value)}>
-                  <MenuItem value="all">All</MenuItem>
+                <InputLabel>{t('filters.risk')}</InputLabel>
+                <Select label={t('filters.risk')} value={filters.risk_level ?? 'all'} onChange={(event) => setFilter('risk_level', event.target.value)}>
+                  <MenuItem value="all">{t('common:filters.all')}</MenuItem>
                   {RISK_OPTIONS.map(risk => (
-                    <MenuItem key={risk} value={risk}>{labelize(risk)}</MenuItem>
+                    <MenuItem key={risk} value={risk}>{riskLabel(t, tOr, risk)}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -602,7 +608,7 @@ const EkycManagementPage: React.FC = () => {
               <TextField
                 fullWidth
                 size="small"
-                label="Country"
+                label={t('filters.country')}
                 value={filters.country ?? ''}
                 onChange={(event) => setFilter('country', event.target.value)}
               />
@@ -611,13 +617,13 @@ const EkycManagementPage: React.FC = () => {
               <TextField
                 fullWidth
                 size="small"
-                label="Document"
+                label={t('filters.document')}
                 value={filters.document_type ?? ''}
                 onChange={(event) => setFilter('document_type', event.target.value)}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 1 }}>
-              <Button fullWidth onClick={resetFilters}>Reset</Button>
+              <Button fullWidth onClick={resetFilters}>{t('common:actions.reset')}</Button>
             </Grid>
             </>
             )}
@@ -628,18 +634,18 @@ const EkycManagementPage: React.FC = () => {
             onReset={resetFilters}
           >
             <FormControl fullWidth size="small">
-              <InputLabel>Status</InputLabel>
-              <Select label="Status" value={filters.status ?? 'all'} onChange={(event) => setFilter('status', event.target.value)}>
-                <MenuItem value="all">All</MenuItem>
+              <InputLabel>{t('filters.status')}</InputLabel>
+              <Select label={t('filters.status')} value={filters.status ?? 'all'} onChange={(event) => setFilter('status', event.target.value)}>
+                <MenuItem value="all">{t('common:filters.all')}</MenuItem>
                 {STATUS_OPTIONS.map(status => (
-                  <MenuItem key={status} value={status}>{labelize(status)}</MenuItem>
+                  <MenuItem key={status} value={status}>{ekycStatus(t, status)}</MenuItem>
                 ))}
               </Select>
             </FormControl>
             <FormControl fullWidth size="small">
-              <InputLabel>Order by</InputLabel>
+              <InputLabel>{t('filters.orderBy')}</InputLabel>
               <Select
-                label="Order by"
+                label={t('filters.orderBy')}
                 value={filters.sort_by ?? 'submitted_at'}
                 onChange={(event) => {
                   const sortBy = event.target.value;
@@ -651,31 +657,31 @@ const EkycManagementPage: React.FC = () => {
                   }));
                 }}
               >
-                <MenuItem value="submitted_at">Newest submission</MenuItem>
-                <MenuItem value="next_arrival">Soonest arrival</MenuItem>
-                <MenuItem value="risk_score">Highest risk</MenuItem>
+                <MenuItem value="submitted_at">{t('filters.sortNewest')}</MenuItem>
+                <MenuItem value="next_arrival">{t('filters.sortArrival')}</MenuItem>
+                <MenuItem value="risk_score">{t('filters.sortRisk')}</MenuItem>
               </Select>
             </FormControl>
             <FormControl fullWidth size="small">
-              <InputLabel>Risk</InputLabel>
-              <Select label="Risk" value={filters.risk_level ?? 'all'} onChange={(event) => setFilter('risk_level', event.target.value)}>
-                <MenuItem value="all">All</MenuItem>
+              <InputLabel>{t('filters.risk')}</InputLabel>
+              <Select label={t('filters.risk')} value={filters.risk_level ?? 'all'} onChange={(event) => setFilter('risk_level', event.target.value)}>
+                <MenuItem value="all">{t('common:filters.all')}</MenuItem>
                 {RISK_OPTIONS.map(risk => (
-                  <MenuItem key={risk} value={risk}>{labelize(risk)}</MenuItem>
+                  <MenuItem key={risk} value={risk}>{riskLabel(t, tOr, risk)}</MenuItem>
                 ))}
               </Select>
             </FormControl>
             <TextField
               fullWidth
               size="small"
-              label="Country"
+              label={t('filters.country')}
               value={filters.country ?? ''}
               onChange={(event) => setFilter('country', event.target.value)}
             />
             <TextField
               fullWidth
               size="small"
-              label="Document"
+              label={t('filters.document')}
               value={filters.document_type ?? ''}
               onChange={(event) => setFilter('document_type', event.target.value)}
             />
@@ -698,7 +704,7 @@ const EkycManagementPage: React.FC = () => {
                   align="center"
                   sx={{ color: "text.secondary", py: 4 }}
                 >
-                  No applications found
+                  {t('list.empty')}
                 </Typography>
               )}
               {listData?.data.map(application => (
@@ -709,15 +715,15 @@ const EkycManagementPage: React.FC = () => {
                   <MobileCardRow
                     selected={application.id === selectedId}
                     title={application.application_id}
-                    subtitle={`${application.full_name ?? '-'} · ${labelize(application.id_type)}`}
-                    meta={`${labelize(application.id_type)} ${application.id_number_masked ?? '-'} · submitted ${formatDate(application.submitted_at)} · arrives ${formatCalendarDate(application.next_arrival_date)}${application.assigned_reviewer_name ? ` · ${application.assigned_reviewer_name}` : ''}`}
+                    subtitle={`${application.full_name ?? '-'} · ${idTypeLabel(t, tOr, application.id_type)}`}
+                    meta={`${idTypeLabel(t, tOr, application.id_type)} ${application.id_number_masked ?? '-'} · ${t('list.submittedAt', { date: formatDate(application.submitted_at) })} · ${t('list.arrivesAt', { date: formatCalendarDate(application.next_arrival_date) })}${application.assigned_reviewer_name ? ` · ${application.assigned_reviewer_name}` : ''}`}
                     status={
                       <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
-                        <Chip size="small" sx={statusChipSx(application.status)} label={labelize(application.status)} />
-                        <Chip size="small" variant="outlined" color={riskColor(application.risk_level)} label={`${labelize(application.risk_level)} ${application.risk_score}`} />
-                        {application.overdue_sla ? <Chip size="small" color="error" label="Overdue" /> : null}
-                        {!application.overdue_sla && application.nearing_sla ? <Chip size="small" color="warning" label="Near SLA" /> : null}
-                        {application.arrival_imminent ? <Chip size="small" color="warning" label="Arriving soon" /> : null}
+                        <Chip size="small" sx={statusChipSx(application.status)} label={ekycStatus(t, application.status)} />
+                        <Chip size="small" variant="outlined" color={riskColor(application.risk_level)} label={`${riskLabel(t, tOr, application.risk_level)} ${application.risk_score}`} />
+                        {application.overdue_sla ? <Chip size="small" color="error" label={t('chips.overdue')} /> : null}
+                        {!application.overdue_sla && application.nearing_sla ? <Chip size="small" color="warning" label={t('chips.nearSla')} /> : null}
+                        {application.arrival_imminent ? <Chip size="small" color="warning" label={t('chips.arrivingSoon')} /> : null}
                       </Stack>
                     }
                     onClick={() => setSelectedId(application.id)}
@@ -730,15 +736,15 @@ const EkycManagementPage: React.FC = () => {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Application</TableCell>
-                  <TableCell>Customer</TableCell>
-                  <TableCell>Document</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Risk</TableCell>
-                  <TableCell>Reviewer</TableCell>
-                  <TableCell>Submitted</TableCell>
-                  <TableCell>Arrives</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  <TableCell>{t('list.colApplication')}</TableCell>
+                  <TableCell>{t('list.colCustomer')}</TableCell>
+                  <TableCell>{t('list.colDocument')}</TableCell>
+                  <TableCell>{t('list.colStatus')}</TableCell>
+                  <TableCell>{t('list.colRisk')}</TableCell>
+                  <TableCell>{t('list.colReviewer')}</TableCell>
+                  <TableCell>{t('list.colSubmitted')}</TableCell>
+                  <TableCell>{t('list.colArrives')}</TableCell>
+                  <TableCell align="right">{t('list.colActions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -756,7 +762,7 @@ const EkycManagementPage: React.FC = () => {
                           color: "text.secondary",
                           py: 4
                         }}>
-                        No applications found
+                        {t('list.empty')}
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -768,8 +774,8 @@ const EkycManagementPage: React.FC = () => {
                         <Typography variant="body2" sx={{
                           fontWeight: 600
                         }}>{application.application_id}</Typography>
-                        {application.overdue_sla && <Chip size="small" color="error" label="Overdue" />}
-                        {!application.overdue_sla && application.nearing_sla && <Chip size="small" color="warning" label="Near SLA" />}
+                        {application.overdue_sla && <Chip size="small" color="error" label={t('chips.overdue')} />}
+                        {!application.overdue_sla && application.nearing_sla && <Chip size="small" color="warning" label={t('chips.nearSla')} />}
                       </Stack>
                     </TableCell>
                     <TableCell>
@@ -779,19 +785,19 @@ const EkycManagementPage: React.FC = () => {
                       }}>{application.email_masked ?? '-'}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">{labelize(application.id_type)}</Typography>
+                      <Typography variant="body2">{idTypeLabel(t, tOr, application.id_type)}</Typography>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
                       }}>{application.id_number_masked ?? '-'}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip size="small" sx={statusChipSx(application.status)} label={labelize(application.status)} />
+                      <Chip size="small" sx={statusChipSx(application.status)} label={ekycStatus(t, application.status)} />
                     </TableCell>
                     <TableCell>
                       <Stack direction="row" spacing={1} sx={{
                         alignItems: "center"
                       }}>
-                        <Chip size="small" color={riskColor(application.risk_level)} label={labelize(application.risk_level)} />
+                        <Chip size="small" color={riskColor(application.risk_level)} label={riskLabel(t, tOr, application.risk_level)} />
                         <Typography variant="caption">{application.risk_score}</Typography>
                       </Stack>
                     </TableCell>
@@ -803,13 +809,13 @@ const EkycManagementPage: React.FC = () => {
                           {formatCalendarDate(application.next_arrival_date)}
                         </Typography>
                         {application.arrival_imminent && (
-                          <Chip size="small" color="warning" label="Arriving soon" />
+                          <Chip size="small" color="warning" label={t('chips.arrivingSoon')} />
                         )}
                       </Stack>
                     </TableCell>
                     <TableCell align="right">
-                      <Tooltip title="View">
-                        <IconButton size="small" aria-label="View application" onClick={() => setSelectedId(application.id)}>
+                      <Tooltip title={t('common:actions.view')}>
+                        <IconButton size="small" aria-label={t('list.viewAria')} onClick={() => setSelectedId(application.id)}>
                           <ViewIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -840,13 +846,13 @@ const EkycManagementPage: React.FC = () => {
               justifyContent: "space-between"
             }}>
             <Box>
-              <Typography variant="h6">{selectedSummary?.application_id ?? 'Application'}</Typography>
+              <Typography variant="h6">{selectedSummary?.application_id ?? t('detail.titleFallback')}</Typography>
               <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                {selectedSummary && <Chip size="small" sx={statusChipSx(selectedSummary.status)} label={labelize(selectedSummary.status)} />}
-                {selectedSummary && <Chip size="small" color={riskColor(selectedSummary.risk_level)} label={`${labelize(selectedSummary.risk_level)} ${selectedSummary.risk_score}`} />}
+                {selectedSummary && <Chip size="small" sx={statusChipSx(selectedSummary.status)} label={ekycStatus(t, selectedSummary.status)} />}
+                {selectedSummary && <Chip size="small" color={riskColor(selectedSummary.risk_level)} label={`${riskLabel(t, tOr, selectedSummary.risk_level)} ${selectedSummary.risk_score}`} />}
               </Stack>
             </Box>
-            <IconButton onClick={() => setSelectedId(undefined)} aria-label="Close details">
+            <IconButton onClick={() => setSelectedId(undefined)} aria-label={t('detail.closeAria')}>
               <CloseIcon />
             </IconButton>
           </Stack>
@@ -869,13 +875,13 @@ const EkycManagementPage: React.FC = () => {
         </DialogContent>
       </Dialog>
       <Dialog open={Boolean(actionMode)} onClose={closeAction} maxWidth="sm" fullWidth>
-        <DialogTitle>{actionMode ? ACTION_LABELS[actionMode] ?? labelize(actionMode) : 'Action'}</DialogTitle>
+        <DialogTitle>{actionMode ? actionLabel(t, tOr, actionMode) : t('detail.actionFallback')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {ACTION_REASONS_REQUIRED.has(actionMode ?? '') && (
               <FormControl fullWidth size="small">
-                <InputLabel>Reason Code</InputLabel>
-                <Select label="Reason Code" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)}>
+                <InputLabel>{t('detail.reasonCode')}</InputLabel>
+                <Select label={t('detail.reasonCode')} value={reasonCode} onChange={(event) => setReasonCode(event.target.value)}>
                   {reasonCodes.map(code => (
                     <MenuItem key={code.code} value={code.code}>{code.label}</MenuItem>
                   ))}
@@ -887,7 +893,7 @@ const EkycManagementPage: React.FC = () => {
                 fullWidth
                 multiline
                 minRows={3}
-                label="Reason"
+                label={t('detail.reason')}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
               />
@@ -897,7 +903,7 @@ const EkycManagementPage: React.FC = () => {
                 fullWidth
                 multiline
                 minRows={2}
-                label="Customer Message"
+                label={t('detail.customerMessage')}
                 value={customerMessage}
                 onChange={(event) => setCustomerMessage(event.target.value)}
               />
@@ -905,64 +911,64 @@ const EkycManagementPage: React.FC = () => {
             {actionMode === 'approve' && (
               <FormControlLabel
                 control={<Checkbox checked={selfCheckinEnabled} onChange={(event) => setSelfCheckinEnabled(event.target.checked)} />}
-                label="Enable self check-in"
+                label={t('detail.enableSelfCheckin')}
               />
             )}
             <TextField
               fullWidth
               multiline
               minRows={2}
-              label="Internal Note"
+              label={t('detail.internalNote')}
               value={note}
               onChange={(event) => setNote(event.target.value)}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeAction}>Cancel</Button>
+          <Button onClick={closeAction}>{t('common:actions.cancel')}</Button>
           <Button variant="contained" onClick={submitAction} disabled={processing}>
-            {processing ? <CircularProgress size={18} /> : 'Submit'}
+            {processing ? <CircularProgress size={18} /> : t('common:actions.submit')}
           </Button>
         </DialogActions>
       </Dialog>
       <Dialog open={revealOpen} onClose={() => setRevealOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Reveal Sensitive Field</DialogTitle>
+        <DialogTitle>{t('reveal.title')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <FormControl fullWidth size="small">
-              <InputLabel>Field</InputLabel>
-              <Select label="Field" value={revealField} onChange={(event) => {
+              <InputLabel>{t('reveal.field')}</InputLabel>
+              <Select label={t('reveal.field')} value={revealField} onChange={(event) => {
                 setRevealField(event.target.value);
                 setRevealedValue(null);
               }}>
-                <MenuItem value="id_number">ID Number</MenuItem>
-                <MenuItem value="full_name">Full Name</MenuItem>
-                <MenuItem value="date_of_birth">Date of Birth</MenuItem>
-                <MenuItem value="email">Email</MenuItem>
-                <MenuItem value="phone">Phone</MenuItem>
-                <MenuItem value="current_address">Address</MenuItem>
-                <MenuItem value="ip_address">IP Address</MenuItem>
+                <MenuItem value="id_number">{t('reveal.fields.id_number')}</MenuItem>
+                <MenuItem value="full_name">{t('reveal.fields.full_name')}</MenuItem>
+                <MenuItem value="date_of_birth">{t('reveal.fields.date_of_birth')}</MenuItem>
+                <MenuItem value="email">{t('reveal.fields.email')}</MenuItem>
+                <MenuItem value="phone">{t('reveal.fields.phone')}</MenuItem>
+                <MenuItem value="current_address">{t('reveal.fields.current_address')}</MenuItem>
+                <MenuItem value="ip_address">{t('reveal.fields.ip_address')}</MenuItem>
               </Select>
             </FormControl>
             <TextField
               fullWidth
               multiline
               minRows={2}
-              label="Reason"
+              label={t('reveal.reason')}
               value={revealReason}
               onChange={(event) => setRevealReason(event.target.value)}
             />
             {revealedValue !== null && (
-              <TextField fullWidth label="Value" value={revealedValue || '-'} slotProps={{
+              <TextField fullWidth label={t('reveal.value')} value={revealedValue || '-'} slotProps={{
                 input: { readOnly: true }
               }} />
             )}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRevealOpen(false)}>Close</Button>
+          <Button onClick={() => setRevealOpen(false)}>{t('common:actions.close')}</Button>
           <Button variant="contained" startIcon={<RevealIcon />} onClick={revealFieldValue} disabled={processing || revealReason.trim().length < 5}>
-            Reveal
+            {t('reveal.submit')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -991,43 +997,47 @@ const EkycManagementPage: React.FC = () => {
   );
 };
 
-const DetailHeader: React.FC<{ detail: EkycApplicationDetail; onReveal: () => void }> = ({ detail, onReveal }) => (
+const DetailHeader: React.FC<{ detail: EkycApplicationDetail; onReveal: () => void }> = ({ detail, onReveal }) => {
+  const { t, tOr } = useTranslation('ekyc');
+  return (
   <Grid container spacing={2}>
     <Grid size={{ xs: 12, md: 4 }}>
-      <InfoPanel title="Customer">
-        <InfoLine label="Name" value={detail.summary.full_name} />
-        <InfoLine label="Email" value={detail.summary.email_masked} />
-        <InfoLine label="Phone" value={detail.summary.phone_masked} />
-        <InfoLine label="DOB" value={detail.date_of_birth_masked} />
+      <InfoPanel title={t('detail.customer')}>
+        <InfoLine label={t('detail.name')} value={detail.summary.full_name} />
+        <InfoLine label={t('detail.email')} value={detail.summary.email_masked} />
+        <InfoLine label={t('detail.phone')} value={detail.summary.phone_masked} />
+        <InfoLine label={t('detail.dob')} value={detail.date_of_birth_masked} />
         <Button size="small" startIcon={<RevealIcon />} onClick={onReveal} sx={{ mt: 1 }}>
-          Reveal
+          {t('reveal.submit')}
         </Button>
       </InfoPanel>
     </Grid>
     <Grid size={{ xs: 12, md: 4 }}>
-      <InfoPanel title="Identity">
-        <InfoLine label="Type" value={labelize(detail.summary.id_type)} />
-        <InfoLine label="Number" value={detail.summary.id_number_masked} />
-        <InfoLine label="Country" value={detail.summary.country} />
-        <InfoLine label="Expiry" value={detail.id_expiry_date} />
+      <InfoPanel title={t('detail.identity')}>
+        <InfoLine label={t('detail.idType')} value={idTypeLabel(t, tOr, detail.summary.id_type)} />
+        <InfoLine label={t('detail.idNumber')} value={detail.summary.id_number_masked} />
+        <InfoLine label={t('detail.country')} value={detail.summary.country} />
+        <InfoLine label={t('detail.expiry')} value={detail.id_expiry_date} />
       </InfoPanel>
     </Grid>
     <Grid size={{ xs: 12, md: 4 }}>
-      <InfoPanel title="Submission">
-        <InfoLine label="IP" value={detail.ip_address_masked} />
-        <InfoLine label="Device" value={detail.device_fingerprint} />
-        <InfoLine label="Location" value={detail.geolocation} />
-        <InfoLine label="Provider" value={detail.summary.provider_name} />
+      <InfoPanel title={t('detail.submission')}>
+        <InfoLine label={t('detail.ip')} value={detail.ip_address_masked} />
+        <InfoLine label={t('detail.device')} value={detail.device_fingerprint} />
+        <InfoLine label={t('detail.location')} value={detail.geolocation} />
+        <InfoLine label={t('detail.provider')} value={detail.summary.provider_name} />
       </InfoPanel>
     </Grid>
   </Grid>
-);
+  );
+};
 
 const ActionBar: React.FC<{
   detail: EkycApplicationDetail;
   onAction: (action: string) => void;
   disabled: boolean;
 }> = ({ detail, onAction, disabled }) => {
+  const { t } = useTranslation('ekyc');
   const final = ['approved', 'rejected', 'expired', 'void'].includes(detail.summary.status);
   return (
     <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1, position: 'sticky', top: 0, zIndex: 1, bgcolor: 'background.paper' }}>
@@ -1035,27 +1045,27 @@ const ActionBar: React.FC<{
         flexWrap: "wrap"
       }}>
         <Button size="small" variant="outlined" startIcon={<ClaimIcon />} onClick={() => onAction('claim')} disabled={disabled || Boolean(detail.summary.assigned_reviewer_id) || final}>
-          Claim
+          {t('actions.claim')}
         </Button>
         <Button size="small" color="success" variant="contained" startIcon={<ApproveIcon />} onClick={() => onAction('approve')} disabled={disabled || final}>
-          Approve
+          {t('actions.approve')}
         </Button>
         <Button size="small" color="error" variant="outlined" startIcon={<RejectIcon />} onClick={() => onAction('reject')} disabled={disabled || final}>
-          Reject
+          {t('actions.reject')}
         </Button>
         <Button size="small" color="warning" variant="outlined" startIcon={<EscalateIcon />} onClick={() => onAction('escalate')} disabled={disabled || final}>
-          Escalate
+          {t('actions.escalate')}
         </Button>
         <Button size="small" variant="outlined" onClick={() => onAction('request_resubmission')} disabled={disabled || final}>
-          Request Info
+          {t('actions.request_resubmission')}
         </Button>
         {detail.summary.status === 'on_hold' ? (
           <Button size="small" variant="outlined" startIcon={<ReleaseIcon />} onClick={() => onAction('release_hold')} disabled={disabled}>
-            Release
+            {t('actions.release_hold')}
           </Button>
         ) : (
           <Button size="small" variant="outlined" startIcon={<HoldIcon />} onClick={() => onAction('hold')} disabled={disabled || final}>
-            Hold
+            {t('actions.hold')}
           </Button>
         )}
       </Stack>
@@ -1063,44 +1073,48 @@ const ActionBar: React.FC<{
   );
 };
 
-const DocumentSection: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) => (
-  <InfoPanel title="Documents">
+const DocumentSection: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) => {
+  const { t } = useTranslation('ekyc');
+  return (
+  <InfoPanel title={t('detail.documents')}>
     <Grid container spacing={1.5}>
       {detail.documents.id_front && (
         <Grid size={{ xs: 12, md: 4 }}>
-          <SecureDocumentImage applicationId={detail.summary.id} kind="id-front" alt="ID Front" />
+          <SecureDocumentImage applicationId={detail.summary.id} kind="id-front" alt={t('doc.altIdFront')} />
         </Grid>
       )}
       {detail.documents.id_back && (
         <Grid size={{ xs: 12, md: 4 }}>
-          <SecureDocumentImage applicationId={detail.summary.id} kind="id-back" alt="ID Back" />
+          <SecureDocumentImage applicationId={detail.summary.id} kind="id-back" alt={t('doc.altIdBack')} />
         </Grid>
       )}
       {detail.documents.selfie && (
         <Grid size={{ xs: 12, md: 4 }}>
-          <SecureDocumentImage applicationId={detail.summary.id} kind="selfie" alt="Selfie" />
+          <SecureDocumentImage applicationId={detail.summary.id} kind="selfie" alt={t('doc.altSelfie')} />
         </Grid>
       )}
       {detail.documents.proof_of_address && (
         <Grid size={{ xs: 12, md: 4 }}>
-          <SecureDocumentImage applicationId={detail.summary.id} kind="proof-of-address" alt="Proof" />
+          <SecureDocumentImage applicationId={detail.summary.id} kind="proof-of-address" alt={t('doc.altProof')} />
         </Grid>
       )}
     </Grid>
   </InfoPanel>
-);
+  );
+};
 
 const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) => {
+  const { t } = useTranslation('ekyc');
   const isPhone = useIsPhone();
   return (
   <Grid container spacing={2}>
     <Grid size={{ xs: 12, md: 5 }}>
-      <InfoPanel title="Signals">
-        <InfoLine label="Document" value={detail.document_authenticity_result} />
-        <InfoLine label="Face Match" value={detail.face_match_score != null ? `${detail.face_match_score}%` : '-'} />
-        <InfoLine label="Liveness" value={detail.liveness_score != null ? `${detail.liveness_score}%` : '-'} />
-        <InfoLine label="Duplicate" value={detail.duplicate_check_result} />
-        <InfoLine label="Watchlist" value={detail.watchlist_result} />
+      <InfoPanel title={t('signals.title')}>
+        <InfoLine label={t('signals.document')} value={detail.document_authenticity_result} />
+        <InfoLine label={t('signals.faceMatch')} value={detail.face_match_score != null ? `${detail.face_match_score}%` : '-'} />
+        <InfoLine label={t('signals.liveness')} value={detail.liveness_score != null ? `${detail.liveness_score}%` : '-'} />
+        <InfoLine label={t('signals.duplicate')} value={detail.duplicate_check_result} />
+        <InfoLine label={t('signals.watchlist')} value={detail.watchlist_result} />
         <Stack
           direction="row"
           spacing={0.5}
@@ -1116,11 +1130,11 @@ const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) 
       </InfoPanel>
     </Grid>
     <Grid size={{ xs: 12, md: 7 }}>
-      <InfoPanel title="Differences">
+      <InfoPanel title={t('signals.differences')}>
         {detail.differences.length === 0 ? (
           <Typography variant="body2" sx={{
             color: "text.secondary"
-          }}>No comparable OCR fields</Typography>
+          }}>{t('signals.noComparable')}</Typography>
         ) : isPhone ? (
           <Box>
             {detail.differences.map(row => (
@@ -1130,9 +1144,9 @@ const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) 
               >
                 <MobileCardRow
                   title={labelize(row.field)}
-                  subtitle={`Submitted: ${row.submitted_value ?? '-'}`}
-                  meta={`Extracted: ${row.extracted_value ?? '-'}`}
-                  status={<Chip size="small" color={row.matches ? 'success' : 'warning'} label={row.matches ? 'Match' : 'Diff'} />}
+                  subtitle={t('signals.submittedValue', { value: row.submitted_value ?? '-' })}
+                  meta={t('signals.extractedValue', { value: row.extracted_value ?? '-' })}
+                  status={<Chip size="small" color={row.matches ? 'success' : 'warning'} label={row.matches ? t('signals.match') : t('signals.diff')} />}
                 />
               </Box>
             ))}
@@ -1141,10 +1155,10 @@ const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) 
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Field</TableCell>
-                <TableCell>Submitted</TableCell>
-                <TableCell>Extracted</TableCell>
-                <TableCell>Match</TableCell>
+                <TableCell>{t('signals.colField')}</TableCell>
+                <TableCell>{t('signals.colSubmitted')}</TableCell>
+                <TableCell>{t('signals.colExtracted')}</TableCell>
+                <TableCell>{t('signals.colMatch')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1154,7 +1168,7 @@ const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) 
                   <TableCell>{row.submitted_value ?? '-'}</TableCell>
                   <TableCell>{row.extracted_value ?? '-'}</TableCell>
                   <TableCell>
-                    <Chip size="small" color={row.matches ? 'success' : 'warning'} label={row.matches ? 'Yes' : 'No'} />
+                    <Chip size="small" color={row.matches ? 'success' : 'warning'} label={row.matches ? t('common:actions.yes') : t('common:actions.no')} />
                   </TableCell>
                 </TableRow>
               ))}
@@ -1167,29 +1181,31 @@ const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) 
   );
 };
 
-const TimelineSection: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) => (
+const TimelineSection: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) => {
+  const { t, tOr } = useTranslation('ekyc');
+  return (
   <Grid container spacing={2}>
     <Grid size={{ xs: 12, md: 7 }}>
-      <InfoPanel title="Decision History">
+      <InfoPanel title={t('timeline.history')}>
         <List dense disablePadding>
           {detail.history.map(item => (
             <ListItem key={item.id} disableGutters divider>
               <ListItemText
-                primary={`${labelize(item.action)} ${item.from_status ? `${labelize(item.from_status)} -> ${labelize(item.to_status)}` : ''}`}
-                secondary={`${item.actor_name ?? 'System'} · ${formatDate(item.created_at)}${item.reason_code ? ` · ${labelize(item.reason_code)}` : ''}`}
+                primary={`${actionLabel(t, tOr, item.action)} ${item.from_status ? `${ekycStatus(t, item.from_status)} -> ${ekycStatus(t, item.to_status)}` : ''}`}
+                secondary={`${item.actor_name ?? t('timeline.system')} · ${formatDate(item.created_at)}${item.reason_code ? ` · ${labelize(item.reason_code)}` : ''}`}
               />
             </ListItem>
           ))}
           {detail.history.length === 0 && (
             <Typography variant="body2" sx={{
               color: "text.secondary"
-            }}>No history yet</Typography>
+            }}>{t('timeline.noHistory')}</Typography>
           )}
         </List>
       </InfoPanel>
     </Grid>
     <Grid size={{ xs: 12, md: 5 }}>
-      <InfoPanel title="Notes">
+      <InfoPanel title={t('timeline.notes')}>
         <Stack spacing={1}>
           {detail.notes.map(note => (
             <Box key={note.id}>
@@ -1205,13 +1221,14 @@ const TimelineSection: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }
           {detail.notes.length === 0 && (
             <Typography variant="body2" sx={{
               color: "text.secondary"
-            }}>No notes yet</Typography>
+            }}>{t('timeline.noNotes')}</Typography>
           )}
         </Stack>
       </InfoPanel>
     </Grid>
   </Grid>
-);
+  );
+};
 
 const InfoPanel: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <Paper variant="outlined" sx={{ p: 2, borderRadius: 1, height: '100%' }}>

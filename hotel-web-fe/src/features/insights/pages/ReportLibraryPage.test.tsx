@@ -51,8 +51,8 @@ describe('ReportLibraryPage', () => {
     render(<ReportLibraryPage />);
     expect(screen.getByText('Arrivals Report')).toBeTruthy();
     expect(screen.getByText('Revenue Ledger')).toBeTruthy();
-    expect(screen.getByText('operations')).toBeTruthy();
-    expect(screen.getByText('financial')).toBeTruthy();
+    expect(screen.getByText('Operations')).toBeTruthy();
+    expect(screen.getByText('Financial')).toBeTruthy();
   });
 
   it('shows a spinner while the catalog loads', () => {
