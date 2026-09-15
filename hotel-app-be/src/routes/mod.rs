@@ -29,7 +29,7 @@ pub mod ledgers;
 // search routes live in modules::search.
 // two_factor routes live in modules::two_factor.
 // users routes live in modules::users.
-pub mod webhooks;
+// webhooks routes live in modules::webhooks.
 
 use crate::core::config::{self, AllowedOrigins};
 use crate::core::db::DbPool;
@@ -423,7 +423,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(data_transfer::routes())
         .merge(crate::modules::passkey::routes::routes())
         .merge(crate::modules::two_factor::routes::routes())
-        .merge(webhooks::routes())
+        .merge(crate::modules::webhooks::routes::routes())
         .merge(crate::modules::realtime::routes::routes())
         .layer(axum::middleware::from_fn_with_state(
             data_change_hub.clone(),

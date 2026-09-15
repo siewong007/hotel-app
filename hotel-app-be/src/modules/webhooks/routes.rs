@@ -7,7 +7,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
-use crate::handlers;
+use super::handlers;
 use axum::{
     Json, Router,
     extract::{ConnectInfo, Extension, State},
@@ -27,7 +27,7 @@ async fn paypal_webhook(
     headers: HeaderMap,
     body: String,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let client_ip = super::extract_client_ip(&headers, peer_addr);
+    let client_ip = crate::routes::extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.webhook.check_with_retry(client_ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -35,5 +35,5 @@ async fn paypal_webhook(
             retry_after,
         ));
     }
-    handlers::webhooks::paypal_webhook(&pool, client_ip, &headers, &body).await
+    handlers::paypal_webhook(&pool, client_ip, &headers, &body).await
 }

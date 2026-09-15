@@ -28,7 +28,7 @@ pub mod ledgers;
 // search handlers live in modules::search.
 // two_factor handlers live in modules::two_factor.
 // users handlers live in modules::users.
-pub mod webhooks;
+// webhooks handlers live in modules::webhooks.
 
 // Re-export all handlers for convenience
 
