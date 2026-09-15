@@ -24,6 +24,7 @@ import {
   Close as CloseIcon,
   MeetingRoom as RoomIcon,
   MoreVert as MoreVertIcon,
+  OpenInNewOutlined as OpenFullIcon,
 } from '@mui/icons-material';
 import { BookingChannelChip, BillingChip, NightAuditChip } from './BookingMetaChips';
 import type { BookingWithDetails } from '../../../../types';
@@ -66,6 +67,10 @@ interface BookingDetailsPanelProps {
   onRelease: (booking: BookingWithDetails) => void;
   onVoid: (booking: BookingWithDetails) => void;
   onReactivate: (booking: BookingWithDetails) => void;
+  /** Drawer mode only — jumps to /bookings/$bookingId. Absent on the detail page. */
+  onOpenFullDetails?: (booking: BookingWithDetails) => void;
+  /** Drawer mode only — inline quick-edit section rendered between Charges and Actions. */
+  quickEdit?: React.ReactNode;
 }
 
 const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
@@ -81,6 +86,8 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
   onRelease,
   onVoid,
   onReactivate,
+  onOpenFullDetails,
+  quickEdit,
 }) => {
   const { format: formatCurrency } = useCurrency();
   const isPhone = useIsPhone();
@@ -164,11 +171,20 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               label={getBookingStatusText(booking.status)}
               sx={{ bgcolor: `color-mix(in srgb, ${statusDotColor(booking.status)} 12%, transparent)`, color: statusDotColor(booking.status), fontWeight: 900 }}
             />
-            <Tooltip title="Close details" arrow>
-              <IconButton size="small" onClick={onClose}>
-                <CloseIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+              {onOpenFullDetails && (
+                <Tooltip title="Open full page" arrow>
+                  <IconButton size="small" aria-label="Open full page" onClick={() => onOpenFullDetails(booking)}>
+                    <OpenFullIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip title="Close details" arrow>
+                <IconButton size="small" aria-label="Close details" onClick={onClose}>
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
           </Stack>
           <Stack
             direction="row"
@@ -277,6 +293,8 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               </Box>
             </Stack>
           </Box>
+
+          {quickEdit}
 
           <Box sx={{ p: 2.5 }}>
             <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Actions</Typography>

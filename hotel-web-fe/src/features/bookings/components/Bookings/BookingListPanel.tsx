@@ -46,7 +46,7 @@ interface BookingListPanelProps {
   loading: boolean;
   totalBookings: number;
   bookingView: BookingView;
-  /** Row click — the page navigates to /bookings/$bookingId. */
+  /** Row click — the page opens the booking drawer. */
   onOpenBooking: (booking: BookingWithDetails) => void;
   sortField: SortField;
   onToggleSort: () => void;

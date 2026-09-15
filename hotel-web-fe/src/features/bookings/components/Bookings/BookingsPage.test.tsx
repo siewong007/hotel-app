@@ -161,6 +161,12 @@ vi.mock('../../../../api/ledger.service', () => ({
 
 vi.mock('../../hooks/useBookingQueries', () => ({
   useBookingsPage: (...args: unknown[]) => mocks.useBookingsPage(...args),
+  useBooking: (id: unknown) => ({
+    data: (mocks.bookingsPageQuery.data?.data as BookingWithDetails[] | undefined)
+      ?.find((b) => String(b.id) === String(id)),
+    isPending: false,
+    error: null,
+  }),
   useBookingStats: (...args: unknown[]) => mocks.useBookingStats(...args),
   useBookingsWithDetails: (...args: unknown[]) => mocks.useBookingsWithDetails(...args),
   useActiveCompanies: (...args: unknown[]) => mocks.useActiveCompanies(...args),
@@ -581,10 +587,21 @@ describe('BookingsPage', () => {
   });
 
   describe('navigation', () => {
-    it('clicking a booking row navigates to the /bookings/$bookingId detail route', () => {
+    it('clicking a booking row opens the details drawer instead of navigating', () => {
       renderPage();
 
       fireEvent.click(screen.getByText('Alex Tan'));
+
+      expect(mocks.navigate).not.toHaveBeenCalledWith('/bookings/2');
+      // The drawer reuses BookingDetailsPanel — the Workflow action only exists there.
+      expect(screen.getByRole('button', { name: 'Workflow' })).toBeDefined();
+    });
+
+    it('the drawer\'s full-page button still reaches /bookings/$bookingId', () => {
+      renderPage();
+
+      fireEvent.click(screen.getByText('Alex Tan'));
+      fireEvent.click(screen.getByRole('button', { name: 'Open full page' }));
 
       expect(mocks.navigate).toHaveBeenCalledWith('/bookings/2');
     });
