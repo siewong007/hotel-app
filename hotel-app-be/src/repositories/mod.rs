@@ -7,7 +7,7 @@ pub mod analytics;
 pub mod audit;
 pub mod auth;
 pub mod booking;
-pub mod booking_channels;
+// booking_channels persistence live in modules::booking_channels.
 pub mod booking_list;
 pub mod bookings;
 pub mod bookings_queries;

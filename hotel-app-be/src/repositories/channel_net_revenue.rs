@@ -10,7 +10,7 @@ use crate::core::db::{DbPool, DbRow, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::{BookingChannel, ReportQuery};
-use crate::repositories::booking_channels;
+use crate::modules::booking_channels::repository as booking_channels;
 use crate::utils::report_labels::booking_channel_label;
 
 #[derive(Debug, Clone)]

@@ -1,3 +1,4 @@
+pub mod booking_channels;
 pub mod communications;
 pub mod consent;
 pub mod ekyc;

@@ -11,7 +11,7 @@ use axum::{
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use crate::handlers;
+use super::handlers;
 use crate::models::{BookingChannel, BookingChannelInput, BookingChannelUpdate};
 
 pub fn routes() -> Router<DbPool> {
@@ -45,7 +45,7 @@ async fn list_channels(
     headers: HeaderMap,
 ) -> Result<Json<Vec<BookingChannel>>, ApiError> {
     can_read_reports(&pool, &headers).await?;
-    handlers::booking_channels::list_handler(State(pool)).await
+    handlers::list_handler(State(pool)).await
 }
 
 async fn create_channel(
@@ -54,7 +54,7 @@ async fn create_channel(
     Json(input): Json<BookingChannelInput>,
 ) -> Result<Json<BookingChannel>, ApiError> {
     require_permission_helper(&pool, &headers, "settings:update").await?;
-    handlers::booking_channels::create_handler(State(pool), Json(input)).await
+    handlers::create_handler(State(pool), Json(input)).await
 }
 
 async fn update_channel(
@@ -64,7 +64,7 @@ async fn update_channel(
     Json(input): Json<BookingChannelUpdate>,
 ) -> Result<Json<BookingChannel>, ApiError> {
     require_permission_helper(&pool, &headers, "settings:update").await?;
-    handlers::booking_channels::update_handler(State(pool), path, Json(input)).await
+    handlers::update_handler(State(pool), path, Json(input)).await
 }
 
 async fn deactivate_channel(
@@ -73,5 +73,5 @@ async fn deactivate_channel(
     path: Path<i64>,
 ) -> Result<Json<BookingChannel>, ApiError> {
     require_permission_helper(&pool, &headers, "settings:update").await?;
-    handlers::booking_channels::deactivate_handler(State(pool), path).await
+    handlers::deactivate_handler(State(pool), path).await
 }

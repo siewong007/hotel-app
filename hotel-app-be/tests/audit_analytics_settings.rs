@@ -39,7 +39,7 @@ mod postgres_tests {
     use hotel_app_be::modules::search::repository::SearchRepository;
     use hotel_app_be::services::audit as audit_service;
     use hotel_app_be::services::audit::AuditLog;
-    use hotel_app_be::services::booking_channels as booking_channels_service;
+    use hotel_app_be::modules::booking_channels::service as booking_channels_service;
     use hotel_app_be::services::night_audit as night_audit_service;
     use rust_decimal::Decimal;
     use sqlx::{PgPool, postgres::PgPoolOptions};

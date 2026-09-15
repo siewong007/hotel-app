@@ -8,7 +8,7 @@ pub mod audit;
 pub mod auth;
 pub mod auto_checkin;
 pub mod booking;
-pub mod booking_channels;
+// booking_channels service logic live in modules::booking_channels.
 pub mod booking_emails;
 pub mod bookings;
 pub mod companies;
