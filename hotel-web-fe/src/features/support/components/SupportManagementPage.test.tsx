@@ -70,6 +70,7 @@ vi.mock('./SupportConversationDetail', () => ({
 }));
 
 import SupportManagementPage from './SupportManagementPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 const conversations = [
   { id: 42, guest_name: 'Aisha Rahman' },
@@ -210,5 +211,12 @@ describe('SupportManagementPage', () => {
     render(<SupportManagementPage />);
 
     expect(screen.getByText('The support queue is unavailable')).toBeDefined();
+  });
+
+  it('has no axe violations on the populated support queue', async () => {
+    const { container } = render(<SupportManagementPage />);
+
+    expect(screen.getByText(/read-only access to the guest support queue/i)).toBeDefined();
+    await expectNoAxeViolations(container);
   });
 });

@@ -602,6 +602,7 @@
     "viewGrid": "网格",
     "days_other": "{{count}} 天",
     "refreshAria": "刷新时间轴",
+    "daysAria": "显示天数",
     "legendComplimentary": "免费",
     "agendaArriving": "抵店",
     "agendaDeparting": "离店",

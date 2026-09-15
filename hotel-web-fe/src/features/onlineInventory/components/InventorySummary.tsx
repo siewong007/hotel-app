@@ -53,7 +53,7 @@ const SummaryItem = ({
           {label.toUpperCase()}
         </Typography>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
-          <Typography variant="h5" sx={{ fontWeight: 800 }}>{value}</Typography>
+          <Typography variant="h5" component="div" sx={{ fontWeight: 800 }}>{value}</Typography>
           <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>
             {t('summary.roomNights')}
           </Typography>

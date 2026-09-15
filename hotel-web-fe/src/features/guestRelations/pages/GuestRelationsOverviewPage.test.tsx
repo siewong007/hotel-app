@@ -31,6 +31,7 @@ vi.mock('../hooks/useGuestRelationsQueries', () => ({
 }));
 
 import GuestRelationsOverviewPage from './GuestRelationsOverviewPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 function buildOverview(overrides: Partial<GuestRelationsOverview> = {}): GuestRelationsOverview {
   return {
@@ -168,5 +169,12 @@ describe('GuestRelationsOverviewPage', () => {
     mocks.hasPermission.mockReturnValue(false);
     render(<GuestRelationsOverviewPage />);
     expect(screen.getByText(/do not have permission/)).toBeTruthy();
+  });
+
+  it('has no axe violations on the populated overview', async () => {
+    const { container } = render(<GuestRelationsOverviewPage />);
+
+    expect(screen.getByText('Guest Relations', { selector: 'h1' })).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

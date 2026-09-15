@@ -610,7 +610,7 @@ const ReceptionistDashboard: React.FC = () => {
                   alignItems: "center"
                 }}>
                 <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 600 }}>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 600 }}>
                     {availableRooms}
                   </Typography>
                   <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>Available Rooms</Typography>
@@ -631,7 +631,7 @@ const ReceptionistDashboard: React.FC = () => {
                   alignItems: "center"
                 }}>
                 <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 600 }}>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 600 }}>
                     {occupiedRooms}
                   </Typography>
                   <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>Occupied Rooms</Typography>
@@ -652,7 +652,7 @@ const ReceptionistDashboard: React.FC = () => {
                   alignItems: "center"
                 }}>
                 <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 600 }}>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 600 }}>
                     {reservedRooms}
                   </Typography>
                   <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>Reserved Rooms</Typography>
@@ -673,7 +673,7 @@ const ReceptionistDashboard: React.FC = () => {
                   alignItems: "center"
                 }}>
                 <Box>
-                  <Typography variant="h4" sx={{ fontWeight: 600 }}>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 600 }}>
                     {occupancyRate}%
                   </Typography>
                   <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>Occupancy Rate</Typography>
@@ -696,11 +696,11 @@ const ReceptionistDashboard: React.FC = () => {
                   mb: 1
                 }}>
                 <CheckInIcon sx={{ mr: 1, color: 'success.main', fontSize: 20 }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                <Typography variant="subtitle2" component="h2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                   Today's Check-ins
                 </Typography>
               </Box>
-              <Typography variant="h5" sx={{ fontWeight: 600, color: 'success.main', mb: 1 }}>
+              <Typography variant="h5" component="div" sx={{ fontWeight: 600, color: 'success.main', mb: 1 }}>
                 {todayActivity.check_ins}
               </Typography>
               {todayActivity.arrivals.length > 0 ? (
@@ -749,11 +749,11 @@ const ReceptionistDashboard: React.FC = () => {
                   mb: 1
                 }}>
                 <CheckOutIcon sx={{ mr: 1, color: 'info.main', fontSize: 20 }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                <Typography variant="subtitle2" component="h2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                   Today's Check-outs
                 </Typography>
               </Box>
-              <Typography variant="h5" sx={{ fontWeight: 600, color: 'info.main', mb: 1 }}>
+              <Typography variant="h5" component="div" sx={{ fontWeight: 600, color: 'info.main', mb: 1 }}>
                 {todayActivity.check_outs}
               </Typography>
               {todayActivity.departures.length > 0 ? (
@@ -802,7 +802,7 @@ const ReceptionistDashboard: React.FC = () => {
                   mb: 1
                 }}>
                 <WarningIcon sx={{ mr: 1, color: 'error.main', fontSize: 20 }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                <Typography variant="subtitle2" component="h2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                   Attention Required
                 </Typography>
               </Box>
@@ -816,7 +816,7 @@ const ReceptionistDashboard: React.FC = () => {
                     }}>
                     Maintenance Rooms
                   </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'warning.main' }}>
+                  <Typography variant="h6" component="div" sx={{ fontWeight: 600, color: 'warning.main' }}>
                     {maintenanceRooms}
                   </Typography>
                 </Box>
@@ -835,7 +835,7 @@ const ReceptionistDashboard: React.FC = () => {
               mb: 3
             }}>
             <HotelIcon sx={{ mr: 1, color: 'primary.main', fontSize: 28 }} />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
               Room Status Overview
             </Typography>
           </Box>
@@ -883,7 +883,7 @@ const ReceptionistDashboard: React.FC = () => {
                 <Tooltip
                   title={
                     <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                      <Typography variant="subtitle2" component="div" sx={{ fontWeight: 600 }}>
                         Room {room.room_number}
                       </Typography>
                       <Typography variant="caption">Type: {room.room_type}</Typography>
@@ -970,6 +970,7 @@ const ReceptionistDashboard: React.FC = () => {
                     </Box>
                     <Typography
                       variant="h6"
+                      component="div"
                       sx={{
                         fontWeight: 700,
                         mb: 0.5,
@@ -1105,14 +1106,14 @@ const ReceptionistDashboard: React.FC = () => {
           {checkinBooking && (
             <Box>
               <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'var(--hotel-surface-sunken)', borderRadius: 2 }}>
-                <Typography variant="subtitle2" gutterBottom sx={{
+                <Typography variant="subtitle2" component="div" gutterBottom sx={{
                   color: "text.secondary"
                 }}>
                   Booking #{checkinBooking.booking_number || checkinBooking.folio_number}
                 </Typography>
                 <Grid container spacing={2} sx={{ mt: 1 }}>
                   <Grid size={12}>
-                    <Typography variant="h6" sx={{
+                    <Typography variant="h6" component="div" sx={{
                       fontWeight: 600
                     }}>{checkinBooking.guest_name || 'Guest'}</Typography>
                   </Grid>
@@ -1155,7 +1156,7 @@ const ReceptionistDashboard: React.FC = () => {
                 </Grid>
               </Paper>
 
-              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Guest Information</Typography>
+              <Typography variant="subtitle2" component="h3" color="primary" sx={{ mb: 1 }}>Guest Information</Typography>
               <Grid container spacing={1.5} sx={{ mb: 2 }}>
                 <Grid size={6}>
                   <TextField fullWidth size="small" required label="IC / Passport Number" value={ciIcNumber}
@@ -1169,7 +1170,7 @@ const ReceptionistDashboard: React.FC = () => {
                 </Grid>
               </Grid>
 
-              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Payment</Typography>
+              <Typography variant="subtitle2" component="h3" color="primary" sx={{ mb: 1 }}>Payment</Typography>
               {ciIsOnlineReservation && (
                 <Alert severity="success" sx={{ mb: 1.5, py: 0 }}>
                   Payment was settled on {ciOnlinePlatformName}. The full amount
@@ -1208,7 +1209,7 @@ const ReceptionistDashboard: React.FC = () => {
                 <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>Payment will be collected later.</Alert>
               )}
 
-              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Deposit</Typography>
+              <Typography variant="subtitle2" component="h3" color="primary" sx={{ mb: 1 }}>Deposit</Typography>
               <ToggleButtonGroup value={ciDepositChoice} exclusive onChange={(_, val) => { if (val) setCiDepositChoice(val); }} fullWidth size="small" sx={{ mb: 1.5 }}>
                 <ToggleButton value="receive" color="success" sx={{ py: 1, fontWeight: 600 }}>
                   <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} /> Receive Deposit

@@ -185,11 +185,11 @@ vi.mock('./components/CompanyDetailHeader', () => ({
   default: (props: any) => {
     mocks.captured.companyDetailHeader = props;
     return (
-      <div aria-label="mock-company-detail-header">
+      <section aria-label="mock-company-detail-header">
         <span>{props.company.company_name}</span>
         <button onClick={() => props.onPrintStatement()}>Print company statement</button>
         <button onClick={() => props.onDelete()}>Delete company</button>
-      </div>
+      </section>
     );
   },
 }));
@@ -200,7 +200,7 @@ vi.mock('./components/ActiveGuestsRow', () => ({ default: () => null }));
 vi.mock('./components/LedgerSummaryStrip', () => ({
   default: (props: any) => {
     mocks.captured.ledgerSummaryStrip = props;
-    return <div aria-label="mock-ledger-summary-strip" />;
+    return <section aria-label="mock-ledger-summary-strip" />;
   },
 }));
 
@@ -234,7 +234,7 @@ vi.mock('./components/LedgerEntriesTab', () => ({
 vi.mock('./components/CompanyInfoTab', () => ({
   default: (props: any) => {
     mocks.captured.companyInfoTab = props;
-    return <div aria-label="mock-company-info-tab">{props.company.company_name} info</div>;
+    return <section aria-label="mock-company-info-tab">{props.company.company_name} info</section>;
   },
 }));
 
@@ -278,6 +278,7 @@ vi.mock('./components/CreditNoteDialog', () => ({
 }));
 
 import CustomerLedgerPage from './CustomerLedgerPage';
+import { expectNoAxeViolations } from '../../../../test/axe';
 import type { ReactElement, ReactNode } from 'react';
 import type { RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -1357,5 +1358,14 @@ describe('CustomerLedgerPage', () => {
     await waitFor(() => expect(mocks.captured.createLedgerDialog?.open).toBe(true));
     expect(mocks.captured.createLedgerDialog?.selectedCompany?.company_name).toBe('Acme Corp');
     await waitFor(() => expect(mocks.hotelApi.getAllRooms).toHaveBeenCalled());
+  });
+
+  it('has no axe violations on the populated ledger workspace', async () => {
+    const { container } = render(<CustomerLedgerPage />);
+
+    await waitFor(() =>
+      expect(mocks.captured.companyDetailHeader?.company?.company_name).toBe('Acme Corp'),
+    );
+    await expectNoAxeViolations(container);
   });
 });

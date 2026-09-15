@@ -90,7 +90,7 @@ const StatCard: React.FC<{ label: string; value: string; hint?: string }> = ({ l
     }}>
       {label}
     </Typography>
-    <Typography variant="h5" sx={{ fontWeight: 600 }}>
+    <Typography variant="h5" component="div" sx={{ fontWeight: 600 }}>
       {value}
     </Typography>
     {hint && (
@@ -133,7 +133,7 @@ const OverviewTab: React.FC = () => {
         />
       </Box>
       <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600, mb: 1 }}>
           Members by tier
         </Typography>
         {stats.byTier.length === 0 ? (
@@ -154,7 +154,7 @@ const OverviewTab: React.FC = () => {
                       {count} ({Math.round(pct)}%)
                     </Typography>
                   </Box>
-                  <LinearProgress variant="determinate" value={pct} sx={{ height: 8, borderRadius: 1 }} />
+                  <LinearProgress variant="determinate" value={pct} aria-label={`${tier} member share`} sx={{ height: 8, borderRadius: 1 }} />
                 </Box>
               );
             })}
@@ -215,12 +215,13 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
             </Box>
 
             <Box>
-              <Typography variant="subtitle2" gutterBottom>
+              <Typography variant="subtitle2" component="h3" gutterBottom>
                 Tier progress ({detail.tier_progress.metric})
               </Typography>
               <LinearProgress
                 variant="determinate"
                 value={Math.min(100, detail.tier_progress.progress_percent)}
+                aria-label={`Tier progress (${detail.tier_progress.metric})`}
                 sx={{ height: 10, borderRadius: 1, mb: 0.5 }}
               />
               <Typography variant="caption" sx={{
@@ -235,7 +236,7 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
             <Divider />
 
             <Box>
-              <Typography variant="subtitle2" gutterBottom>
+              <Typography variant="subtitle2" component="h3" gutterBottom>
                 Gift points
               </Typography>
               {giftError && (
@@ -273,7 +274,7 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
             <Divider />
 
             <Box>
-              <Typography variant="subtitle2" gutterBottom>
+              <Typography variant="subtitle2" component="h3" gutterBottom>
                 Recent activity
               </Typography>
               {isPhone ? (
@@ -1030,7 +1031,7 @@ const RulesTab: React.FC = () => {
   return (
     <Paper variant="outlined" sx={{ p: 3, maxWidth: 560 }}>
       <Stack spacing={2}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600 }}>
           Program rules
         </Typography>
         {error && <Alert severity="error">{error}</Alert>}
@@ -1117,7 +1118,7 @@ const LoyaltyPortal: React.FC = () => {
           alignItems: "center",
           mb: 2
         }}>
-        <Typography variant="h4" sx={{ fontWeight: 600 }}>
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
           Loyalty
         </Typography>
         <Tooltip title="Refresh">

@@ -49,6 +49,7 @@ vi.mock('../../../components/common/ConfirmProvider', () => ({
 }));
 
 import SettingsPage from './SettingsPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 const baseSettings = (): HotelSettings =>
   ({
@@ -211,4 +212,11 @@ describe('SettingsPage', () => {
       ),
     );
   }, 15_000);
+
+  it('has no axe violations on the populated settings form', async () => {
+    const { container } = render(<SettingsPage />);
+
+    expect(await screen.findByText('Hotel Settings')).toBeTruthy();
+    await expectNoAxeViolations(container);
+  });
 });

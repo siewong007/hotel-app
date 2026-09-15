@@ -299,7 +299,7 @@ export const GuestCheckInForm: React.FC = () => {
 
         {activeStep === 'payment' && (
           <Box>
-            <Typography variant="h6" gutterBottom>
+            <Typography variant="h6" component="h2" gutterBottom>
               {paymentHeading}
             </Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
@@ -334,7 +334,7 @@ export const GuestCheckInForm: React.FC = () => {
                     {receiptRequestMessage}
                   </Alert>
                 ) : null}
-                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                <Typography variant="subtitle2" component="div" sx={{ mb: 0.5 }}>
                   {t('checkin.form.payment.uploadTitle')}
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
@@ -453,7 +453,7 @@ export const GuestCheckInForm: React.FC = () => {
 
         {activeStep === 'done' && (
           <Box>
-            <Typography variant="h6" gutterBottom>
+            <Typography variant="h6" component="h2" gutterBottom>
               {t('checkin.form.done.title')}
             </Typography>
             {/*
@@ -476,7 +476,7 @@ export const GuestCheckInForm: React.FC = () => {
                 )}
                 {checkinResult ? (
                   <Alert severity="success" role="alert">
-                    <Typography variant="subtitle2">
+                    <Typography variant="subtitle2" component="div">
                       {t('checkin.form.done.checkedIn', { room: checkinResult.room_number })}
                     </Typography>
                     <Typography variant="body2">{checkinResult.message}</Typography>

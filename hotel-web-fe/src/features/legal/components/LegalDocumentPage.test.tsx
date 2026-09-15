@@ -24,6 +24,7 @@ vi.mock('../content', async (importOriginal) => {
 });
 
 import { LegalDocumentPage } from './LegalDocumentPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 import type { LegalDocument } from '../content';
 
 describe('LegalDocumentPage return control', () => {
@@ -296,5 +297,12 @@ describe('LegalDocumentPage reading experience', () => {
     expect(screen.getByText('Questions about this document?')).toBeTruthy();
     const email = screen.getByRole('link', { name: 'saliminnsibu@gmail.com' });
     expect(email.getAttribute('href')).toBe('mailto:saliminnsibu@gmail.com');
+  });
+
+  it('has no axe violations on a rendered legal document', async () => {
+    const { container } = render(<LegalDocumentPage documentId="terms_of_service" />);
+
+    expect(screen.getByText('Questions about this document?')).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

@@ -219,7 +219,7 @@ const OnlineInventoryPage = () => {
         ) : inv.roomTypes.length === 0 ? (
           <Paper variant="outlined" sx={{ p: 5, textAlign: 'center', borderRadius: 3 }}>
             <CloudDoneOutlinedIcon sx={{ fontSize: 44, color: 'text.secondary', mb: 1 }} />
-            <Typography variant="h6" sx={{ fontWeight: 750 }}>
+            <Typography variant="h6" component="h2" sx={{ fontWeight: 750 }}>
               {t('empty.title')}
             </Typography>
             <Typography sx={{ color: 'text.secondary' }}>

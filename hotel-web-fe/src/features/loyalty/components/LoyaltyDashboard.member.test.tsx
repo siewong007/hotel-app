@@ -35,6 +35,7 @@ vi.mock('../../../api', () => ({
 }));
 
 import LoyaltyDashboard from './LoyaltyDashboard';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 const membership = (points: number): UserLoyaltyMembership => ({
   id: 1,
@@ -148,5 +149,12 @@ describe('LoyaltyDashboard member view', () => {
 
     expect(await screen.findByText('reward out of stock')).toBeTruthy();
     expect(screen.queryByText(/Successfully redeemed/)).toBeNull();
+  });
+
+  it('has no axe violations on the member rewards catalog', async () => {
+    const { container } = render(<LoyaltyDashboard />);
+
+    expect(await screen.findByText(/Silver/i)).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

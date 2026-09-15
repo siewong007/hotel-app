@@ -499,6 +499,7 @@ const RoomReservationTimeline: React.FC = () => {
               <FormControl size="small" sx={{ minWidth: 96 }}>
                 <Select
                   value={daysToShow}
+                  aria-label={t('timeline.daysAria')}
                   onChange={(e) => setDaysToShow(Number(e.target.value))}
                   sx={{
                     fontFamily: "'Caveat', cursive",

@@ -53,6 +53,7 @@ vi.mock('../../guestPortal/components/dashboard/IdentitySection', () => ({
 }));
 
 import GuestCheckInForm from './GuestCheckInForm';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 const PAID_BOOKING = {
   booking: {
@@ -475,5 +476,23 @@ describe('GuestCheckInForm', () => {
     await waitFor(() => {
       expect(mocks.getBooking).not.toHaveBeenCalled();
     });
+  });
+
+  it('has no axe violations on the payment step', async () => {
+    mocks.getBooking.mockResolvedValue({
+      booking: {
+        id: 9,
+        booking_number: 'BK-20261012-test',
+        status: 'pending_payment',
+        check_in_date: '2026-10-12',
+        check_out_date: '2026-10-14',
+      },
+      guest: { id: 3, nick_name: 'Deeplink Retest' },
+    });
+
+    const { container } = render(<GuestCheckInForm />);
+
+    expect(await screen.findByRole('heading', { name: 'Complete your payment' })).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

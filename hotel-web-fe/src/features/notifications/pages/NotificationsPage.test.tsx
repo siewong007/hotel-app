@@ -25,6 +25,7 @@ vi.mock('../hooks/useDeliveryFeed', () => ({
 }));
 
 import NotificationsPage from './NotificationsPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 describe('NotificationsPage', () => {
   beforeEach(() => {
@@ -66,5 +67,18 @@ describe('NotificationsPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Marketing' }));
     expect(screen.getByText('Marketing: nothing here yet')).toBeTruthy();
+  });
+
+  it('has no axe violations on the populated notifications feed', async () => {
+    mocks.feed = {
+      ...mocks.feed,
+      items: [{ id: 31, subject: 'Receipt BK-9', status: 'sent' }],
+      total: 1,
+    };
+
+    const { container } = render(<NotificationsPage />);
+
+    expect(screen.getByText('Receipt BK-9')).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

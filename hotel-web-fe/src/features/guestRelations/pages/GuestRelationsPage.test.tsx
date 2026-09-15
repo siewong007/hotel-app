@@ -90,6 +90,7 @@ vi.mock('../components/GuestCreditsDialog', () => ({ default: () => null }));
 vi.mock('../components/GuestPortalAccountDialog', () => ({ default: () => null }));
 
 import GuestRelationsPage from './GuestRelationsPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 function buildGuest(overrides: Partial<Guest> = {}): Guest {
   return {
@@ -227,5 +228,12 @@ describe('GuestRelationsPage', () => {
     expect(screen.queryByRole('button', { name: 'View Aisha Rahman' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Open guest 360' }));
     expect(mocks.navigate).toHaveBeenCalledWith('/guest-relations/guests/7');
+  });
+
+  it('has no axe violations on the populated guest directory', async () => {
+    const { container } = render(<GuestRelationsPage />);
+
+    expect(screen.getByText('Aisha Rahman')).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

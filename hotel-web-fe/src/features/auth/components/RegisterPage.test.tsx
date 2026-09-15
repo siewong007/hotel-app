@@ -37,6 +37,7 @@ vi.mock('../../../auth/AuthContext', () => ({
 }));
 
 import RegisterPage from './RegisterPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 describe('RegisterPage consent notice', () => {
   beforeEach(() => {
@@ -84,6 +85,13 @@ describe('RegisterPage consent notice', () => {
     render(<RegisterPage />);
 
     expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
+  });
+
+  it('has no axe violations on the registration form', async () => {
+    const { container } = render(<RegisterPage />);
+
+    expect(screen.getByText(/By creating an account/)).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });
 

@@ -18,7 +18,9 @@ const LandingPage: FC = () => {
     window.location.replace(landingUrl);
   }, [isLoading, landingUrl]);
 
-  return isLoading ? <div aria-label={t('aria.loadingPage')} /> : null;
+  // role="status" makes the aria-label legal (a bare div can't be named) and
+  // announces the wait politely while the redirect resolves.
+  return isLoading ? <div role="status" aria-label={t('aria.loadingPage')} /> : null;
 };
 
 export default LandingPage;

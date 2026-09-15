@@ -569,7 +569,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <BusinessIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">{t('settings.hotelInfo')}</Typography>
+            <Typography variant="h6" component="h2">{t('settings.hotelInfo')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
@@ -640,7 +640,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <ScheduleIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">{t('settings.timesTitle')}</Typography>
+            <Typography variant="h6" component="h2">{t('settings.timesTitle')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
@@ -716,7 +716,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <MoneyIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">{t('settings.operationalTitle')}</Typography>
+            <Typography variant="h6" component="h2">{t('settings.operationalTitle')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
@@ -821,7 +821,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <MoneyIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">{t('settings.chargesTitle')}</Typography>
+            <Typography variant="h6" component="h2">{t('settings.chargesTitle')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
@@ -980,7 +980,7 @@ const SettingsPage: React.FC = () => {
           {sectionResetButton(SECTION_KEYS.guest)}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Typography variant="h6">{t('settings.guestCancelTitle')}</Typography>
+          <Typography variant="h6" component="h2">{t('settings.guestCancelTitle')}</Typography>
           <Divider sx={{ my: 2 }} />
           <FormControlLabel
             control={
@@ -1006,7 +1006,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <SupportIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">{t('settings.supportTitle')}</Typography>
+            <Typography variant="h6" component="h2">{t('settings.supportTitle')}</Typography>
           </Box>
           <Divider sx={{ mb: 2 }} />
 
@@ -1029,7 +1029,7 @@ const SettingsPage: React.FC = () => {
             {t('settings.supportHint')}
           </Typography>
 
-          <Typography variant="subtitle1" gutterBottom sx={{
+          <Typography variant="subtitle1" component="h3" gutterBottom sx={{
             fontWeight: "medium"
           }}>
             {t('settings.supportTopics')}
@@ -1169,7 +1169,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <SecurityIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">{t('settings.securityTitle')}</Typography>
+            <Typography variant="h6" component="h2">{t('settings.securityTitle')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
@@ -1229,11 +1229,11 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <PaletteIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">{t('settings.tabs.appearance')}</Typography>
+            <Typography variant="h6" component="h2">{t('settings.tabs.appearance')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
-          <Typography variant="subtitle1" gutterBottom sx={{
+          <Typography variant="subtitle1" component="h3" gutterBottom sx={{
             fontWeight: "medium"
           }}>
             {t('settings.themeMode')}

@@ -49,6 +49,7 @@ vi.mock('../components/OpenSupportDialog', () => ({ default: () => null }));
 
 import React from 'react';
 import GuestProfilePage from './GuestProfilePage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 function buildProfile(overrides: Partial<Guest> = {}): GuestProfile {
   return {
@@ -144,5 +145,12 @@ describe('GuestProfilePage', () => {
     expect(screen.getByText('Vvip')).toBeTruthy();
     expect(screen.getByText('Blacklisted')).toBeTruthy();
     expect(screen.getByText('Member')).toBeTruthy();
+  });
+
+  it('has no axe violations on the populated guest 360 page', async () => {
+    const { container } = render(<GuestProfilePage guestId="7" />);
+
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

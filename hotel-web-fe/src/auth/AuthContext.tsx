@@ -54,7 +54,7 @@ export interface LoginResult {
   twoFactorEnrollmentDeadline?: string;
 }
 
-interface AuthContextType extends AuthState {
+export interface AuthContextType extends AuthState {
   login: (
     username: string,
     password: string,
@@ -81,7 +81,10 @@ interface AuthContextType extends AuthState {
   checkPasskeys: () => Promise<boolean>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Exported for tests: src/test/renderPage.tsx provides a fixture value through
+// AuthContext.Provider so page tests exercise the real useAuth() hook instead
+// of mocking this module.
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

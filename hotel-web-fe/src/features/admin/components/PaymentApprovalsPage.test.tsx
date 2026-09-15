@@ -31,6 +31,7 @@ vi.mock('../hooks/usePaymentApprovalsQueries', () => ({
 }));
 
 import PaymentApprovalsPage from './PaymentApprovalsPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 function pendingPayment(paymentMethod: 'paypal' | 'bank_transfer') {
   return {
@@ -78,5 +79,14 @@ describe('PaymentApprovalsPage payment actions', () => {
 
     expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reject' })).toBeTruthy();
+  });
+
+  it('has no axe violations on the populated approvals list', async () => {
+    mocks.pendingItems = [pendingPayment('bank_transfer')];
+
+    const { container } = render(<PaymentApprovalsPage />);
+
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

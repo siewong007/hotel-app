@@ -433,7 +433,7 @@ const PortalBookingPage: React.FC = () => {
       <SearchStage search={search} isSearching={isSearching} onChange={setSearch} onSearch={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); void runSearch(); }} />
       <Collapse in={Boolean(error)} timeout={animationTimeout}><Box sx={{ mt: 2 }}>{error && <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1}>{error}</Alert>}</Box></Collapse>
       <Collapse in={!selectedOffer && offers.length > 0} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}><Typography variant="h5" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} disabled={isQuoting} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
+        <Box sx={{ mt: 3 }}><Typography variant="h5" component="h2" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} disabled={isQuoting} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
         <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} nicknameTaken={nicknameTaken} quote={quote} search={search} vouchers={vouchers} vouchersError={vouchersError} onRetryVouchers={() => void loadVouchers()} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
@@ -462,7 +462,7 @@ function SearchStage({ search, isSearching, onChange, onSearch }: { search: Gues
       sx={{
         justifyContent: "space-between",
         mb: 2
-      }}><Box><Typography id="booking-search-heading" variant="h5">{t('book.searchHeading')}</Typography><Typography
+      }}><Box><Typography id="booking-search-heading" variant="h5" component="h2">{t('book.searchHeading')}</Typography><Typography
       variant="body2"
       sx={{
         color: "text.secondary",
@@ -482,7 +482,7 @@ function OfferCard({ offer, disabled, onSelect }: { offer: GuestBookingOffer; di
   return (
     <Card component="article" variant="outlined" sx={{ height: '100%', overflow: 'hidden', transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}>{shouldShowImage ? <Box component="img" src={image!} alt={t('book.roomImageAlt', { name: offer.room_type_name })} onError={() => setImageFailed(true)} sx={{ display: 'block', width: '100%', height: 176, objectFit: 'cover', bgcolor: 'var(--hotel-surface-raised)' }} /> : <Box aria-hidden="true" sx={{ height: 176, background: FALLBACK_ROOM_IMAGE, display: 'grid', placeItems: 'center', color: 'var(--hotel-text-secondary)' }}><HotelIcon sx={{ fontSize: 48 }} /></Box>}<CardContent sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 176px)' }}><Stack direction="row" spacing={2} sx={{
       justifyContent: "space-between"
-    }}><Box><Typography variant="h5">{offer.room_type_name}</Typography><Typography variant="body2" sx={{
+    }}><Box><Typography variant="h5" component="h3">{offer.room_type_name}</Typography><Typography variant="body2" sx={{
       color: "text.secondary"
     }}>{offer.room_type_code}</Typography></Box><Chip color={offer.available_rooms <= 1 ? 'warning' : 'success'} label={roomsLabel} /></Stack>{offer.description && <Typography sx={{ mt: 2 }}>{offer.description}</Typography>}<Stack
       direction="row"
@@ -499,7 +499,7 @@ function OfferCard({ offer, disabled, onSelect }: { offer: GuestBookingOffer; di
         alignItems: "end"
       }}><Box><Typography variant="caption" sx={{
       color: "text.secondary"
-    }}>{t('book.stayTotal')}</Typography><Typography variant="h5">{money(offer.total_amount, offer.currency)}</Typography></Box><Button variant="contained" startIcon={<HotelIcon />} disabled={disabled} onClick={onSelect}>{t('book.select')}</Button></Stack></CardContent></Card>
+    }}>{t('book.stayTotal')}</Typography><Typography variant="h5" component="div">{money(offer.total_amount, offer.currency)}</Typography></Box><Button variant="contained" startIcon={<HotelIcon />} disabled={disabled} onClick={onSelect}>{t('book.select')}</Button></Stack></CardContent></Card>
   );
 }
 
@@ -522,7 +522,7 @@ function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guest
   const nightsLabel = t('common:count.nights', { count: countStayNights(search) });
   const childrenLabel = quote.children > 0 ? t('book.childrenSuffix', { count: quote.children }) : '';
   return (
-    <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5">{t('book.reviewStay')}</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography sx={{
+    <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5" component="h2">{t('book.reviewStay')}</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography sx={{
         color: "text.secondary"
       }}>{t('book.staySummary', { checkIn: quote.check_in_date, checkOut: quote.check_out_date, nights: nightsLabel, adults: quote.adults, children: childrenLabel })}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} nicknameTaken={nicknameTaken} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} disabled={isSubmitting} />{vouchersError ? <Alert severity="warning" role="alert" sx={{ mt: 3 }} action={<Button color="inherit" size="small" onClick={onRetryVouchers}>{t('common:actions.retry')}</Button>}>{vouchersError}</Alert> : null}<FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">{t('book.voucher')}</InputLabel><Select labelId="voucher-label" label={t('book.voucher')} value={voucherId} disabled={isSubmitting} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">{t('book.noVoucher')}</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? t('book.notEligible') : ''}{voucher.is_cancellable === false ? t('book.voucherNonCancellable') : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" role="alert" sx={{ mt: 2 }}>{t('book.voucherApplied', { name: quote.voucher_name })}</Alert>}{quote.voucher_is_cancellable === false && <Alert severity="warning" role="alert" sx={{ mt: 2 }}>{t('book.voucherLocksCancellation')}</Alert>}</>}<ConsentBlock prompts={BOOKING_CONSENTS} state={consent} /><TextField label={t('book.specialRequests')} value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
         htmlInput: { maxLength: 1000 }
@@ -542,7 +542,7 @@ function GuestDetailsForm({ details, onChange, nicknameTaken }: { details: Anony
   const set = (patch: Partial<AnonymousGuestDetails>) => onChange({ ...details, ...patch });
   return (
     <Box component="section" aria-labelledby="guest-details-heading" sx={{ mt: 3 }}>
-      <Typography id="guest-details-heading" variant="h6">{t('book.yourDetails')}</Typography>
+      <Typography id="guest-details-heading" variant="h6" component="h3">{t('book.yourDetails')}</Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5, mb: 2 }}>
         {t('book.detailsHint')}
       </Typography>
@@ -612,7 +612,7 @@ function ComplimentaryNights({ quote, onChange, disabled = false }: { quote: Gue
             justifyContent: "space-between",
             alignItems: "center"
           }}>
-          <Typography variant="subtitle1" sx={{
+          <Typography variant="subtitle1" component="div" sx={{
             fontWeight: 700
           }}>{t('book.useComplimentary')}</Typography>
           <Chip color="success" size="small" label={t('book.creditsAvailable', { count: available })} />
@@ -662,7 +662,7 @@ function PriceSummary({ quote, isSubmitting, onBack, onConfirm }: { quote: Guest
   const voucherAmount = (Number(quote.discount_amount) || 0) - complimentaryAmount;
   const settledByCredits = complimentaryAmount > 0 && Number(quote.total_amount) <= 0;
   return (
-    <Card variant="outlined" sx={{ position: { md: 'sticky' }, top: { md: 92 } }}><CardContent><Typography variant="h6">{t('book.priceSummary')}</Typography>{quote.nightly_rates.map((rate) => <Stack
+    <Card variant="outlined" sx={{ position: { md: 'sticky' }, top: { md: 92 } }}><CardContent><Typography variant="h6" component="h2">{t('book.priceSummary')}</Typography>{quote.nightly_rates.map((rate) => <Stack
       key={rate.date}
       direction="row"
       spacing={2}
@@ -707,19 +707,20 @@ function ConfirmationStage({ confirmation, token, paymentMode, isAnonymous, onSt
         mt: 2
       }}>{t('booking.bookingNumber')}</Typography><Typography
       variant="h3"
+      component="div"
       sx={{
         color: "primary.main",
         mt: 0.5,
         fontVariantNumeric: 'tabular-nums'
       }}>{confirmation.booking_number}</Typography><Typography sx={{ mt: 3, fontWeight: 700 }}>{confirmation.room_type_name}</Typography><Typography sx={{
       color: "text.secondary"
-    }}>{t('book.confirmation.stayDates', { checkIn: confirmation.check_in_date, checkOut: confirmation.check_out_date })}</Typography><Typography variant="h5" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode={paymentMode} bookingId={confirmation.booking_id} token={token ?? ''} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'var(--hotel-success-bg)', borderColor: 'var(--hotel-success-border)' }}><Stack
+    }}>{t('book.confirmation.stayDates', { checkIn: confirmation.check_in_date, checkOut: confirmation.check_out_date })}</Typography><Typography variant="h5" component="div" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode={paymentMode} bookingId={confirmation.booking_id} token={token ?? ''} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'var(--hotel-success-bg)', borderColor: 'var(--hotel-success-border)' }}><Stack
       direction="row"
       spacing={2}
       sx={{
         justifyContent: "space-between",
         alignItems: "flex-start"
-      }}><Box><Typography id="payment-receipt-heading" variant="h6">{t('book.confirmation.receiptTitle')}</Typography><Typography variant="body2" sx={{
+      }}><Box><Typography id="payment-receipt-heading" variant="h6" component="h2">{t('book.confirmation.receiptTitle')}</Typography><Typography variant="body2" sx={{
       color: "text.secondary"
     }}>{t('book.confirmation.receiptBody')}</Typography></Box><Chip color="success" label={t('dashboard.bookings.details.paid')} size="small" /></Stack><Divider sx={{ my: 2 }} /><SummaryLine label={t('dashboard.bookings.colBooking')} value={confirmation.booking_number} /><SummaryLine label={t('dashboard.bookings.details.receiptId')} value={`PAY-${completedPayment.payment_id}`} /><SummaryLine label={t('dashboard.bookings.details.stay')} value={`${confirmation.check_in_date} – ${confirmation.check_out_date}`} /><SummaryLine label={t('book.confirmation.amountPaid')} value={money(confirmation.total_amount, confirmation.currency)} strong /><Button variant="outlined" fullWidth sx={{ mt: 2 }} onClick={() => window.print()}>{t('dashboard.bookings.details.printReceipt')}</Button></Paper> : null}<Stack
       direction={{ xs: 'column', sm: 'row' }}

@@ -72,6 +72,7 @@ vi.mock('../../user/hooks/useProfileQueries', () => ({
 }));
 
 import CompleteProfilePage from './CompleteProfilePage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 function renderPage() {
   const queryClient = new QueryClient({
@@ -220,5 +221,12 @@ describe('CompleteProfilePage', () => {
     renderPage();
 
     expect(screen.getByTestId('navigate').getAttribute('data-to')).toBe('/guest-portal');
+  });
+
+  it('has no axe violations on the populated profile form', async () => {
+    const { container } = renderPage();
+
+    expect(await screen.findByLabelText(/First Name/)).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

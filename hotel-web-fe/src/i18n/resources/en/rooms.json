@@ -616,6 +616,7 @@
     "days_one": "{{count}} Day",
     "days_other": "{{count}} Days",
     "refreshAria": "Refresh timeline",
+    "daysAria": "Days to display",
     "legendComplimentary": "Complimentary",
     "agendaArriving": "Arriving",
     "agendaDeparting": "Departing",

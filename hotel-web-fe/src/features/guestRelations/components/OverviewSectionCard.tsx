@@ -4,6 +4,7 @@ import {
   Card,
   CardContent,
   List,
+  ListItem,
   ListItemButton,
   ListItemText,
   Typography,
@@ -82,7 +83,7 @@ const OverviewSectionCard: React.FC<OverviewSectionCardProps> = ({
           {icon}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }} noWrap>
+          <Typography variant="subtitle2" component="h2" sx={{ fontWeight: 700 }} noWrap>
             {title}
           </Typography>
           {subtitle && (
@@ -93,6 +94,7 @@ const OverviewSectionCard: React.FC<OverviewSectionCardProps> = ({
         </Box>
         <Typography
           variant="h5"
+          component="div"
           sx={{ fontWeight: 800, color: accent, fontVariantNumeric: 'tabular-nums' }}
         >
           {count}
@@ -102,21 +104,22 @@ const OverviewSectionCard: React.FC<OverviewSectionCardProps> = ({
       {rows.length > 0 ? (
         <List dense disablePadding sx={{ mx: -1 }}>
           {rows.map((row) => (
-            <ListItemButton
-              key={row.key}
-              component={Link}
-              to={row.to}
-              sx={{ borderRadius: 1.5, py: 0.5 }}
-            >
-              <ListItemText
-                primary={row.primary}
-                secondary={row.secondary}
-                slotProps={{
-                  primary: { noWrap: true, sx: { fontSize: '0.84rem', fontWeight: 600 } },
-                  secondary: { noWrap: true, sx: { fontSize: '0.72rem' } },
-                }}
-              />
-            </ListItemButton>
+            <ListItem key={row.key} disablePadding>
+              <ListItemButton
+                component={Link}
+                to={row.to}
+                sx={{ borderRadius: 1.5, py: 0.5 }}
+              >
+                <ListItemText
+                  primary={row.primary}
+                  secondary={row.secondary}
+                  slotProps={{
+                    primary: { noWrap: true, sx: { fontSize: '0.84rem', fontWeight: 600 } },
+                    secondary: { noWrap: true, sx: { fontSize: '0.72rem' } },
+                  }}
+                />
+              </ListItemButton>
+            </ListItem>
           ))}
         </List>
       ) : (

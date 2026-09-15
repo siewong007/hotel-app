@@ -18,6 +18,7 @@ vi.mock('../api', () => ({
 }));
 
 import UnsubscribePage from './UnsubscribePage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 const initialPreferences = {
   subscriptions: [
@@ -111,5 +112,14 @@ describe('UnsubscribePage', () => {
     ).toBeTruthy();
     expect(mocks.unsubscribeTopic).not.toHaveBeenCalled();
     expect(mocks.unsubscribeAll).not.toHaveBeenCalled();
+  });
+
+  it('has no axe violations on the populated preferences page', async () => {
+    mocks.view.mockResolvedValue(initialPreferences);
+
+    const { container } = renderPage('signed-token');
+
+    expect(await screen.findByText('Promotions and offers')).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

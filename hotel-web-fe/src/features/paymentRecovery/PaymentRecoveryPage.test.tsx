@@ -47,6 +47,7 @@ vi.mock('@paypal/react-paypal-js', () => ({
 }));
 
 import PaymentRecoveryPage from './PaymentRecoveryPage';
+import { expectNoAxeViolations } from '../../test/axe';
 
 function renderPage(token = 'a'.repeat(64)) {
   // Retries off: an error state must render immediately rather than after the
@@ -272,5 +273,12 @@ describe('PaymentRecoveryPage', () => {
 
     expect(await screen.findByText(/could not accept that file/i)).toBeDefined();
     expect(screen.queryByText(/Receipt received/i)).toBeNull();
+  });
+
+  it('has no axe violations on the populated recovery page', async () => {
+    const { container } = renderPage();
+
+    expect(await screen.findByText('BK-2043')).toBeDefined();
+    await expectNoAxeViolations(container);
   });
 });

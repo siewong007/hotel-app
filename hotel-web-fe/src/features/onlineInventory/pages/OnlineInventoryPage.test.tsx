@@ -11,6 +11,7 @@ import { dateRange, cellKey } from '../utils';
 import { formatLocalDate } from '../../../utils/date';
 import { ConfirmProvider } from '../../../components/common/ConfirmProvider';
 import OnlineInventoryPage from './OnlineInventoryPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 vi.mock('../api', () => ({
   getOnlineInventoryRange: vi.fn(),
@@ -115,6 +116,12 @@ describe('OnlineInventoryPage', () => {
         custom_price: null,
       },
     ]);
+  });
+  it('has no axe violations on the populated inventory grid', async () => {
+    const { container } = renderPage();
+
+    expect(await screen.findByRole('rowheader', { name: /Deluxe King/ })).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });
 

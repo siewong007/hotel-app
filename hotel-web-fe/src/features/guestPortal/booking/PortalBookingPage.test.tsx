@@ -76,6 +76,7 @@ vi.mock('./useAvailabilitySocket', () => ({
 }));
 
 import PortalBookingPage from './PortalBookingPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 const offer = {
   room_type_id: 7,
@@ -349,6 +350,13 @@ describe('PortalBookingPage voucher eligibility', () => {
     await screen.findByText('Choose a payment method');
     fireEvent.click(await screen.findByRole('radio', { name: 'Offline banking (bank transfer)' }));
     expect(await screen.findByRole('button', { name: "I've paid via bank transfer" })).toBeTruthy();
+  });
+  it('has no axe violations on the populated rate selection', async () => {
+    const { container } = render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    expect(await screen.findByRole('button', { name: 'Select' })).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });
 

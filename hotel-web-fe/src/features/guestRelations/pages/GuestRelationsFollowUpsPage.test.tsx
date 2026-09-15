@@ -46,6 +46,7 @@ vi.mock('../hooks/useGuestRelationsQueries', () => ({
 }));
 
 import GuestRelationsFollowUpsPage from './GuestRelationsFollowUpsPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 function buildItem(overrides: Partial<FollowUpQueueItem> = {}): FollowUpQueueItem {
   return {
@@ -202,5 +203,13 @@ describe('GuestRelationsFollowUpsPage', () => {
     mocks.hasPermission.mockReturnValue(false);
     render(<GuestRelationsFollowUpsPage />);
     expect(screen.getByText(/do not have permission/)).toBeTruthy();
+  });
+
+  it('has no axe violations on the populated follow-up queue', async () => {
+    const { container } = render(<GuestRelationsFollowUpsPage />);
+
+    expect(screen.getByRole('heading', { name: /follow-up/i })).toBeTruthy();
+    expect(screen.getByText('Aisha Rahman')).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

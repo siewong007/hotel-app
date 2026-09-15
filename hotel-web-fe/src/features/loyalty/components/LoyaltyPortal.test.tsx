@@ -63,6 +63,7 @@ vi.mock('../hooks/useLoyaltySocket', () => ({
 }));
 
 import LoyaltyPortal from './LoyaltyPortal';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 const member = (overrides: Record<string, unknown> = {}) => ({
   id: 11,
@@ -225,5 +226,12 @@ describe('LoyaltyPortal', () => {
     render(<LoyaltyPortal />);
     expect(await screen.findByRole('progressbar')).toBeTruthy();
     expect(screen.queryByText('Total members')).toBeNull();
+  });
+
+  it('has no axe violations on the populated members dashboard', async () => {
+    const { container } = render(<LoyaltyPortal />);
+
+    expect(await screen.findByText('Total members')).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

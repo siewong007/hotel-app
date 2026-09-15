@@ -340,7 +340,7 @@ const LoyaltyDashboard: React.FC = () => {
     return (
       <Box sx={{ m: 3 }}>
         <Alert severity="warning" sx={{ mb: 2 }}>
-          <Typography variant="h6" gutterBottom>
+          <Typography variant="h6" component="h1" gutterBottom>
             eKYC Verification Required
           </Typography>
           <Typography variant="body2" sx={{
@@ -406,7 +406,7 @@ const LoyaltyDashboard: React.FC = () => {
           </Alert>
         )}
         <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
+          <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
             Loyalty Rewards
           </Typography>
           <Typography variant="body1" sx={{
@@ -430,7 +430,7 @@ const LoyaltyDashboard: React.FC = () => {
                     <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>
                       Current Points Balance
                     </Typography>
-                    <Typography variant="h3" sx={{ fontWeight: 700 }}>
+                    <Typography variant="h3" component="div" sx={{ fontWeight: 700 }}>
                       0
                     </Typography>
                   </Box>
@@ -448,7 +448,7 @@ const LoyaltyDashboard: React.FC = () => {
         </Card>
         {/* Available Rewards */}
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
+          <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
             Available Rewards
           </Typography>
           <Typography
@@ -546,7 +546,7 @@ const LoyaltyDashboard: React.FC = () => {
 
                     <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                       <Box sx={{ mb: 2 }}>
-                        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                        <Typography variant="h6" component="h3" gutterBottom sx={{ fontWeight: 600 }}>
                           {reward.name}
                         </Typography>
                         <Typography
@@ -564,7 +564,7 @@ const LoyaltyDashboard: React.FC = () => {
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <StarsIcon sx={{ color: 'warning.main', fontSize: 20 }} />
-                            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                            <Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>
                               {formatNumber(reward.points_cost)}
                             </Typography>
                             <Typography variant="caption" sx={{
@@ -621,7 +621,7 @@ const LoyaltyDashboard: React.FC = () => {
         )}
         <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box>
-            <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
+            <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
               Rewards Management
             </Typography>
             <Typography variant="body1" sx={{
@@ -876,7 +876,7 @@ const LoyaltyDashboard: React.FC = () => {
       )}
       {/* Header */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
           Loyalty Rewards
         </Typography>
         <Typography variant="body1" sx={{
@@ -924,7 +924,7 @@ const LoyaltyDashboard: React.FC = () => {
                   {tierConfig.icon}
                 </Avatar>
                 <Box>
-                  <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  <Typography variant="h5" component="div" sx={{ fontWeight: 700 }}>
                     {tierConfig.name} Member
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
@@ -939,7 +939,7 @@ const LoyaltyDashboard: React.FC = () => {
 
             <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
+                <Typography variant="h3" component="div" sx={{ fontWeight: 700, mb: 1 }}>
                   {formatNumber(membership.points_balance)}
                 </Typography>
                 <Typography variant="body1" sx={{ opacity: 0.9 }}>
@@ -965,6 +965,7 @@ const LoyaltyDashboard: React.FC = () => {
                   <LinearProgress
                     variant="determinate"
                     value={tierProgress}
+                    aria-label={`Progress to ${membership.next_tier.tier_name}`}
                     sx={{
                       height: 10,
                       borderRadius: 5,
@@ -1114,7 +1115,7 @@ const LoyaltyDashboard: React.FC = () => {
 
                   <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                     <Box sx={{ mb: 2 }}>
-                      <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                      <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
                         {reward.name}
                       </Typography>
                       <Typography
@@ -1132,7 +1133,7 @@ const LoyaltyDashboard: React.FC = () => {
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <StarsIcon sx={{ color: 'warning.main', fontSize: 20 }} />
-                          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                          <Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>
                             {formatNumber(reward.points_cost)}
                           </Typography>
                           <Typography variant="caption" sx={{
@@ -1191,7 +1192,7 @@ const LoyaltyDashboard: React.FC = () => {
           <Grid size={{ xs: 12, md: 6 }}>
             <Card>
               <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <TrophyIcon color="primary" />
                   Current Tier Benefits
                 </Typography>
@@ -1215,7 +1216,7 @@ const LoyaltyDashboard: React.FC = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <Card sx={{ border: 2, borderColor: 'primary.main' }}>
                 <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <TrendingUpIcon color="primary" />
                     Unlock at {membership.next_tier.tier_name}
                   </Typography>
@@ -1223,6 +1224,7 @@ const LoyaltyDashboard: React.FC = () => {
                     <LinearProgress
                       variant="determinate"
                       value={tierProgress}
+                      aria-label={`Progress to ${membership.next_tier.tier_name}`}
                       sx={{ height: 8, borderRadius: 4, mb: 1 }}
                     />
                     <Typography variant="body2" sx={{
@@ -1243,7 +1245,7 @@ const LoyaltyDashboard: React.FC = () => {
           <Grid size={12}>
             <Card>
               <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
                   Tier Comparison
                 </Typography>
                 <Grid container spacing={2}>
@@ -1265,8 +1267,8 @@ const LoyaltyDashboard: React.FC = () => {
                         >
                           <CardContent>
                             <Box sx={{ textAlign: 'center' }}>
-                              <Typography variant="h2">{config.icon}</Typography>
-                              <Typography variant="h6" sx={{ fontWeight: 600, mt: 1 }}>
+                              <Typography variant="h2" component="div">{config.icon}</Typography>
+                              <Typography variant="h6" component="h3" sx={{ fontWeight: 600, mt: 1 }}>
                                 {config.name}
                               </Typography>
                               {isCurrent && (
@@ -1300,7 +1302,7 @@ const LoyaltyDashboard: React.FC = () => {
       <TabPanel value={activeTab} index={2}>
         <Card>
           <CardContent>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
+            <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
               Recent Transactions
             </Typography>
             <List>
@@ -1330,6 +1332,7 @@ const LoyaltyDashboard: React.FC = () => {
                             </Typography>
                             <Typography
                               variant="h6"
+                              component="div"
                               sx={{
                                 color: isEarn ? 'success.main' : 'error.main',
                                 fontWeight: 600,
@@ -1381,7 +1384,7 @@ const LoyaltyDashboard: React.FC = () => {
         <DialogContent>
           {selectedReward && (
             <Box>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" component="h3" gutterBottom>
                 {selectedReward.name}
               </Typography>
               <Typography
@@ -1397,7 +1400,7 @@ const LoyaltyDashboard: React.FC = () => {
                 <Typography variant="body2" gutterBottom>
                   Points to be deducted:
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                <Typography variant="h5" component="div" sx={{ fontWeight: 700, color: 'primary.main' }}>
                   {formatNumber(selectedReward.points_cost)} points
                 </Typography>
                 <Typography variant="caption" sx={{

@@ -198,7 +198,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               {getGuestInitials(booking.guest_name)}
             </Box>
             <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.1 }}>{booking.guest_name}</Typography>
+              <Typography variant="h6" component="h2" sx={{ fontWeight: 900, lineHeight: 1.1 }}>{booking.guest_name}</Typography>
               <Typography
                 variant="body2"
                 sx={{
@@ -233,7 +233,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
                 }}>{t('details.checkIn')}</Typography>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatShortDate(booking.check_in_date)}</Typography>
+                <Typography variant="subtitle1" component="div" sx={{ fontWeight: 900 }}>{formatShortDate(booking.check_in_date)}</Typography>
               </Box>
               <Box sx={{ textAlign: 'center', color: 'text.secondary' }}>
                 <Typography variant="body2" sx={{ fontWeight: 900 }}>{t('details.nightsAbbrev', { count: getNights(booking) })}</Typography>
@@ -243,7 +243,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 <Typography variant="caption" sx={{
                   color: "text.secondary"
                 }}>{t('details.checkOut')}</Typography>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatShortDate(booking.check_out_date)}</Typography>
+                <Typography variant="subtitle1" component="div" sx={{ fontWeight: 900 }}>{formatShortDate(booking.check_out_date)}</Typography>
               </Box>
             </Box>
             <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -251,7 +251,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 <RoomIcon fontSize="small" />
               </Box>
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{booking.room_type || t('details.roomFallback')}</Typography>
+                <Typography variant="subtitle2" component="div" sx={{ fontWeight: 900 }}>{booking.room_type || t('details.roomFallback')}</Typography>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
                 }}>{t('details.roomNumber', { number: booking.room_number || '-' })}</Typography>
@@ -284,8 +284,8 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               <Stack direction="row" sx={{
                 justifyContent: "space-between"
               }}>
-                <Typography variant="subtitle1">{t('details.total')}</Typography>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
+                <Typography variant="subtitle1" component="div">{t('details.total')}</Typography>
+                <Typography variant="subtitle1" component="div" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
               </Stack>
               <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: isPositiveMoney(getBookingBalance(booking)) ? 'var(--hotel-danger-bg)' : 'var(--hotel-selected)', color: isPositiveMoney(getBookingBalance(booking)) ? 'var(--hotel-danger)' : 'var(--hotel-success)', fontWeight: 900 }}>
                 {isPositiveMoney(getBookingBalance(booking))

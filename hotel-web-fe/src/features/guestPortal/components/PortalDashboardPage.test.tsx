@@ -61,6 +61,7 @@ vi.mock('./dashboard/IdentitySection', () => ({
 }));
 
 import { PortalDashboardPage } from './PortalDashboardPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 describe('PortalDashboardPage session bootstrap', () => {
   beforeEach(() => {
@@ -128,5 +129,12 @@ describe('PortalDashboardPage section dispatch', () => {
 
     expect(screen.queryByRole('button', { name: 'Sign Out' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
+  });
+
+  it('has no axe violations in the portal shell', async () => {
+    const { container } = render(<PortalDashboardPage />);
+
+    expect(screen.getByTestId('overview-section')).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

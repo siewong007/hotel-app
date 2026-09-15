@@ -122,7 +122,7 @@ export const GuestCheckInVerify: React.FC = () => {
         </Box>
 
         <Box sx={{ mb: 4 }}>
-          <Typography variant="h6" color="primary" gutterBottom>
+          <Typography variant="h6" component="h2" color="primary" gutterBottom>
             {t('checkin.verify.guestInfo')}
           </Typography>
           <Divider sx={{ mb: 2 }} />
@@ -165,7 +165,7 @@ export const GuestCheckInVerify: React.FC = () => {
         </Box>
 
         <Box sx={{ mb: 4 }}>
-          <Typography variant="h6" color="primary" gutterBottom>
+          <Typography variant="h6" component="h2" color="primary" gutterBottom>
             {t('checkin.verify.stayInfo')}
           </Typography>
           <Divider sx={{ mb: 2 }} />

@@ -112,6 +112,7 @@ vi.mock('../../../hooks/useCurrency', () => ({
 }));
 
 import BookingDetailPage from './BookingDetailPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 function createLocalStorageStub() {
   const store = new Map<string, string>();
@@ -452,5 +453,12 @@ describe('BookingDetailPage', () => {
       await waitFor(() => expect(mocks.getAllRoomTypes).toHaveBeenCalled());
       await waitFor(() => expect(mocks.getCompanies).toHaveBeenCalled());
     });
+  });
+
+  it('has no axe violations on the populated booking detail', async () => {
+    const { container } = renderPage('42');
+
+    expect((await screen.findAllByText('Jane Doe')).length).toBeGreaterThanOrEqual(1);
+    await expectNoAxeViolations(container);
   });
 });

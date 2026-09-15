@@ -44,6 +44,7 @@ vi.mock('../../../api', () => ({
 
 import LoyaltyDashboard from './LoyaltyDashboard';
 import type { UserLoyaltyMembership } from '../utils';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 const memberMembership = (): UserLoyaltyMembership => ({
   id: 1,
@@ -165,5 +166,13 @@ describe('LoyaltyDashboard admin view', () => {
 
     expect(await screen.findByText(/Rewards Catalog/i)).toBeTruthy();
     expect(screen.queryByText('Rewards Management')).toBeNull();
+  });
+
+  it('has no axe violations on the rewards management table', async () => {
+    const { container } = render(<LoyaltyDashboard />);
+
+    expect(await screen.findByText('Rewards Management')).toBeTruthy();
+    expect(await screen.findByText('Free Night Voucher')).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

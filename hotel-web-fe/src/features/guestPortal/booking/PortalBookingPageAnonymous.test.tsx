@@ -64,6 +64,7 @@ vi.mock('./api', () => ({
 vi.mock('./useAvailabilitySocket', () => ({ useAvailabilitySocket: vi.fn() }));
 
 import PortalBookingPage from './PortalBookingPage';
+import { expectNoAxeViolations } from '../../../test/axe';
 
 const offer = {
   room_type_id: 7,
@@ -384,5 +385,13 @@ describe('PortalBookingPage anonymous checkout', () => {
     expect(payload.guest.first_name).toBe('Ahmad');
     // The legal name belongs to check-in; the booking form must not send one.
     expect('last_name' in payload.guest).toBe(false);
+  });
+
+  it('has no axe violations on the populated rate selection', async () => {
+    const { container } = render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    expect(await screen.findByRole('button', { name: 'Select' })).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });
