@@ -1,11 +1,11 @@
 //! User administration handlers.
 //!
-//! HTTP translation only — the workflows live in [`crate::services::users`].
+//! HTTP translation only — the workflows live in [`super::service`].
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::services::users as svc;
+use super::service as svc;
 use axum::{
     extract::{Extension, Path, State},
     response::Json,

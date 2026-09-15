@@ -43,4 +43,4 @@ pub mod rooms;
 pub mod turnstile;
 pub mod two_factor;
 pub mod unpaid_hold_scheduler;
-pub mod users;
+// users service logic live in modules::users.

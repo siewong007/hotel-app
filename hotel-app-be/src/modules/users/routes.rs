@@ -1,14 +1,14 @@
 //! User administration routes.
 //!
 //! This module owns the whole `/users` URL surface. User records delegate to
-//! [`crate::handlers::users`]; the `/users/{id}/roles` sub-resource is role
-//! *membership* and still delegates to [`crate::handlers::rbac`], which owns
+//! [`super::handlers::users`]; the `/users/{id}/roles` sub-resource is role
+//! *membership* and still delegates to [`super::handlers::rbac`], which owns
 //! role assignment.
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_any_permission_helper;
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -58,7 +58,7 @@ async fn get_users(
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::UserResponse>>, ApiError> {
     require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
-    handlers::users::get_users_handler(State(pool)).await
+    handlers::get_users_handler(State(pool)).await
 }
 
 async fn get_directory(
@@ -67,7 +67,7 @@ async fn get_directory(
     query: axum::extract::Query<models::StaffDirectoryQuery>,
 ) -> Result<Json<models::StaffDirectoryResponse>, ApiError> {
     require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
-    handlers::users::get_directory_handler(State(pool), query).await
+    handlers::get_directory_handler(State(pool), query).await
 }
 
 async fn invite_user(
@@ -77,7 +77,7 @@ async fn invite_user(
 ) -> Result<Json<models::InviteUserResponse>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_CREATE_PERMISSIONS).await?;
-    handlers::users::invite_user_handler(State(pool), Extension(actor_user_id), Json(input)).await
+    handlers::invite_user_handler(State(pool), Extension(actor_user_id), Json(input)).await
 }
 
 async fn suspend_user(
@@ -87,7 +87,7 @@ async fn suspend_user(
 ) -> Result<Json<models::UserResponse>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
-    handlers::users::suspend_user_handler(State(pool), Extension(actor_user_id), path).await
+    handlers::suspend_user_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn reactivate_user(
@@ -97,7 +97,7 @@ async fn reactivate_user(
 ) -> Result<Json<models::UserResponse>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
-    handlers::users::reactivate_user_handler(State(pool), Extension(actor_user_id), path).await
+    handlers::reactivate_user_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn unlock_user(
@@ -107,7 +107,7 @@ async fn unlock_user(
 ) -> Result<Json<models::UserResponse>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
-    handlers::users::unlock_user_handler(State(pool), Extension(actor_user_id), path).await
+    handlers::unlock_user_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn resend_invite(
@@ -117,7 +117,7 @@ async fn resend_invite(
 ) -> Result<Json<models::InviteUserResponse>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_CREATE_PERMISSIONS).await?;
-    handlers::users::resend_invite_handler(State(pool), Extension(actor_user_id), path).await
+    handlers::resend_invite_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn get_user_sessions(
@@ -127,7 +127,7 @@ async fn get_user_sessions(
 ) -> Result<Json<Vec<crate::models::auth::UserSessionInfo>>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
-    handlers::users::user_sessions_handler(State(pool), Extension(actor_user_id), path).await
+    handlers::user_sessions_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn revoke_all_sessions(
@@ -137,7 +137,7 @@ async fn revoke_all_sessions(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
-    handlers::users::revoke_user_sessions_handler(State(pool), Extension(actor_user_id), path).await
+    handlers::revoke_user_sessions_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn revoke_user_session(
@@ -147,7 +147,7 @@ async fn revoke_user_session(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
-    handlers::users::revoke_user_session_handler(State(pool), Extension(actor_user_id), path).await
+    handlers::revoke_user_session_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn create_user(
@@ -157,7 +157,7 @@ async fn create_user(
 ) -> Result<Json<models::UserResponse>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_CREATE_PERMISSIONS).await?;
-    handlers::users::create_user_handler(State(pool), Extension(actor_user_id), Json(input)).await
+    handlers::create_user_handler(State(pool), Extension(actor_user_id), Json(input)).await
 }
 
 async fn update_user(
@@ -168,7 +168,7 @@ async fn update_user(
 ) -> Result<Json<models::UserResponse>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
-    handlers::users::update_user_handler(State(pool), Extension(actor_user_id), path, Json(input))
+    handlers::update_user_handler(State(pool), Extension(actor_user_id), path, Json(input))
         .await
 }
 
@@ -179,7 +179,7 @@ async fn delete_user(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_DELETE_PERMISSIONS).await?;
-    handlers::users::delete_user_handler(State(pool), Extension(actor_user_id), path).await
+    handlers::delete_user_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn get_user(
@@ -188,7 +188,7 @@ async fn get_user(
     path: Path<i64>,
 ) -> Result<Json<models::UserWithRolesAndPermissions>, ApiError> {
     require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
-    handlers::users::get_user_roles_permissions_handler(State(pool), path).await
+    handlers::get_user_roles_permissions_handler(State(pool), path).await
 }
 
 async fn assign_role(
@@ -198,7 +198,7 @@ async fn assign_role(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
-    handlers::rbac::assign_role_to_user_handler(State(pool), Extension(actor_user_id), Json(input))
+    crate::handlers::rbac::assign_role_to_user_handler(State(pool), Extension(actor_user_id), Json(input))
         .await
 }
 
@@ -209,7 +209,7 @@ async fn remove_role(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
-    handlers::rbac::remove_role_from_user_handler(State(pool), Extension(actor_user_id), path).await
+    crate::handlers::rbac::remove_role_from_user_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn replace_user_roles(
@@ -220,7 +220,7 @@ async fn replace_user_roles(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
-    handlers::rbac::replace_user_roles_handler(
+    crate::handlers::rbac::replace_user_roles_handler(
         State(pool),
         Extension(actor_user_id),
         path,

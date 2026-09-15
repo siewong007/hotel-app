@@ -28,7 +28,7 @@ pub mod rbac;
 pub mod rooms;
 // search routes live in modules::search.
 pub mod two_factor;
-pub mod users;
+// users routes live in modules::users.
 pub mod webhooks;
 
 use crate::core::config::{self, AllowedOrigins};
@@ -404,7 +404,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::revenue::routes::routes())
         .merge(crate::modules::segments::routes::routes())
         .merge(rbac::routes())
-        .merge(users::routes())
+        .merge(crate::modules::users::routes::routes())
         .merge(crate::modules::profile::routes::routes())
         .merge(analytics::routes())
         .merge(crate::modules::settings::routes::routes())

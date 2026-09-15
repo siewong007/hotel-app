@@ -10,7 +10,7 @@ use crate::models::{
     TwoFactorSetupRequest, TwoFactorStatusResponse, TwoFactorVerifyRequest, User,
 };
 use crate::repositories::audit::AuditRepository;
-use crate::repositories::user::UserRepository;
+use crate::modules::users::repository::UserRepository;
 use crate::services::audit::AuditLog;
 use serde_json::Value;
 use validator::Validate;

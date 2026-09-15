@@ -175,6 +175,6 @@ pub async fn accept_invite_handler(
     State(pool): State<DbPool>,
     Json(req): Json<crate::models::AcceptInviteInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    crate::services::users::accept_invite(&pool, req).await?;
+    crate::modules::users::service::accept_invite(&pool, req).await?;
     Ok(Json(serde_json::json!({"message": "Invite accepted"})))
 }

@@ -7,7 +7,7 @@ use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::models::{PasswordUpdateInput, UserProfile, UserProfileUpdate, UserSessionInfo};
 use crate::repositories::guest::GuestRepository;
-use crate::repositories::user::UserRepository;
+use crate::modules::users::repository::UserRepository;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity::{self, ProfileCompletion};
 use crate::utils::sanitization::Sanitizer;

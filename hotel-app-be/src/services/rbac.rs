@@ -4,7 +4,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
 use crate::repositories::rbac::RbacRepository;
-use crate::repositories::user::UserRepository;
+use crate::modules::users::repository::UserRepository;
 use crate::services::audit::AuditLog;
 use std::collections::HashSet;
 
@@ -477,7 +477,7 @@ fn validate_route_policy_input(input: &RouteAccessPolicyInput) -> Result<(), Api
 /// Super admins bypass both conditions — they are the ceiling of the
 /// hierarchy, not a participant in it.
 ///
-/// Shared with [`crate::services::users`], which applies it to user records.
+/// Shared with [`crate::modules::users::service`], which applies it to user records.
 pub(crate) async fn ensure_actor_can_manage_roles(
     pool: &DbPool,
     actor_user_id: i64,

@@ -15,7 +15,7 @@ use crate::models::{
 };
 use crate::repositories::auth::AuthRepository;
 use crate::repositories::rbac::RbacRepository;
-use crate::repositories::user::UserRepository;
+use super::repository::UserRepository;
 use crate::services::audit::AuditLog;
 use crate::modules::profile::service::{location_from_timezone, mask_ip_address};
 use crate::services::rbac::{ensure_actor_can_manage_roles, ensure_actor_can_manage_user};
@@ -527,7 +527,7 @@ pub async fn invite_user(
 
     let user = UserRepository::create_invited_with_roles(
         pool,
-        &crate::repositories::user::NewInvite {
+        &super::repository::NewInvite {
             username: &input.username,
             email: &input.email,
             full_name: input.full_name.as_deref(),

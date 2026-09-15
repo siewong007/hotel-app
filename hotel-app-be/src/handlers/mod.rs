@@ -27,7 +27,7 @@ pub mod rbac;
 pub mod rooms;
 // search handlers live in modules::search.
 pub mod two_factor;
-pub mod users;
+// users handlers live in modules::users.
 pub mod webhooks;
 
 // Re-export all handlers for convenience

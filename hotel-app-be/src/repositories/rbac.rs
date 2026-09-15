@@ -6,7 +6,7 @@ use crate::models::{
     Permission, Role, RolePermissionAssignment, RouteAccessPolicy, RouteAccessPolicyInput,
     UserRoleAssignment, UserWithRolesAndPermissions,
 };
-use crate::repositories::user::UserRepository;
+use crate::modules::users::repository::UserRepository;
 use sqlx::FromRow;
 use std::collections::HashSet;
 

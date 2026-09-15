@@ -18,7 +18,6 @@ pub mod payment_retry;
 pub mod rbac;
 pub mod room;
 pub mod row_mappers;
-pub mod user;
 
 // Re-export all models for convenience
 pub use analytics::*;
@@ -41,4 +40,4 @@ pub use crate::modules::rates::models::*;
 pub use rbac::*;
 pub use room::*;
 pub use crate::modules::search::models::*;
-pub use user::*;
+pub use crate::modules::users::models::*;
