@@ -145,6 +145,10 @@
     "timeline": {
       "label": "时间轴",
       "breadcrumb": "预订时间轴"
+    },
+    "guest-directory": {
+      "label": "客人",
+      "breadcrumb": "宾客目录"
     }
   },
   "userMenu": {
@@ -200,6 +204,7 @@
     "newTask": "新建任务",
     "reportIssue": "上报问题",
     "newGuest": "新增客人",
-    "collectPayment": "收取款项"
+    "collectPayment": "收取款项",
+    "backToList": "返回列表"
   }
 }
