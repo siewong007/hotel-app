@@ -31,6 +31,7 @@ import type {
 } from '../../../../types';
 import { Link } from '../../../../router';
 import { errorMessage } from '../../../../utils';
+import { useTranslation } from '../../../../i18n/useTranslation';
 import { formatStatusLabel } from '../../../../utils/formatters';
 import { formatHotelDate, formatHotelDateTime } from '../../../../utils/date';
 import { getQueryErrorMessage } from '../../../../api/queryConfig';
@@ -90,6 +91,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
   canRespondToReviews,
   onNewConversation,
 }) => {
+  const { t } = useTranslation('guests');
   const conversationsQuery = useGuestSupportConversations(guestId);
   const reviewsQuery = useGuestReviews(guestId, canViewReviews);
   const respondMutation = useRespondToReview();
@@ -116,7 +118,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
   const handleSubmitResponse = async (review: GuestReview) => {
     const trimmed = responseDraft.trim();
     if (!trimmed) {
-      setResponseError('A response is required');
+      setResponseError(t('supportFeedback.responseRequired'));
       return;
     }
     try {
@@ -126,11 +128,11 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
         reviewId: review.id,
         data: { response: trimmed },
       });
-      emitApiNotification({ message: 'Review response saved', severity: 'success' });
+      emitApiNotification({ message: t('supportFeedback.responseSaved'), severity: 'success' });
       setRespondingTo(null);
       setResponseDraft('');
     } catch (err) {
-      setResponseError(errorMessage(err, 'Failed to save review response'));
+      setResponseError(errorMessage(err, t('supportFeedback.responseSaveFailed')));
     }
   };
 
@@ -148,7 +150,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
       <TableCell>
         <SupportPriorityChip priority={conversation.priority} />
       </TableCell>
-      <TableCell>{conversation.assigned_to_name ?? 'Unassigned'}</TableCell>
+      <TableCell>{conversation.assigned_to_name ?? t('supportFeedback.unassigned')}</TableCell>
       <TableCell>
         <SupportSlaChip
           isAtRisk={conversation.is_sla_at_risk}
@@ -183,9 +185,9 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
             size="small"
             variant="outlined"
             color={review.is_published ? 'success' : 'default'}
-            label={review.is_published ? 'Published' : 'Unpublished'}
+            label={review.is_published ? t('supportFeedback.published') : t('supportFeedback.unpublished')}
           />
-          {label && <Chip size="small" variant="outlined" label={`Booking ${label}`} />}
+          {label && <Chip size="small" variant="outlined" label={t('supportFeedback.booking', { number: label })} />}
           <Box sx={{ flex: 1 }} />
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
             {formatHotelDate(review.created_at)}
@@ -214,7 +216,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
               </Alert>
             )}
             <TextField
-              label="Response to guest"
+              label={t('supportFeedback.responseLabel')}
               value={responseDraft}
               onChange={(event) => setResponseDraft(event.target.value)}
               size="small"
@@ -223,7 +225,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
               minRows={3}
               autoFocus
               slotProps={{ htmlInput: { maxLength: MAX_RESPONSE_CHARS } }}
-              helperText={`${responseDraft.length}/${MAX_RESPONSE_CHARS} — posted as the property's public reply`}
+              helperText={t('supportFeedback.responseHelper', { count: responseDraft.length, max: MAX_RESPONSE_CHARS })}
             />
             <Stack direction="row" spacing={1} sx={{ mt: 1, justifyContent: 'flex-end' }}>
               <Button
@@ -235,7 +237,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
                 }}
                 disabled={respondMutation.isPending}
               >
-                Cancel
+                {t('common:actions.cancel')}
               </Button>
               <Button
                 size="small"
@@ -245,10 +247,10 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
                 sx={{ textTransform: 'none' }}
               >
                 {respondMutation.isPending
-                  ? 'Saving…'
+                  ? t('common:state.saving')
                   : review.response
-                    ? 'Update response'
-                    : 'Post response'}
+                    ? t('supportFeedback.updateResponse')
+                    : t('supportFeedback.postResponse')}
               </Button>
             </Stack>
           </Box>
@@ -263,7 +265,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
                   variant="caption"
                   sx={{ fontWeight: 700, color: 'text.secondary', display: 'block' }}
                 >
-                  PROPERTY RESPONSE
+                  {t('supportFeedback.propertyResponse')}
                   {review.response_at ? ` · ${formatHotelDateTime(review.response_at)}` : ''}
                 </Typography>
                 <Typography
@@ -275,7 +277,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
               </Paper>
             ) : (
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                No response yet.
+                {t('supportFeedback.noResponse')}
               </Typography>
             )}
             {canRespondToReviews && (
@@ -285,7 +287,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
                   onClick={() => handleStartResponse(review)}
                   sx={{ textTransform: 'none' }}
                 >
-                  {review.response ? 'Edit response' : 'Respond'}
+                  {review.response ? t('supportFeedback.editResponse') : t('supportFeedback.respond')}
                 </Button>
               </Box>
             )}
@@ -307,7 +309,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <SupportIcon sx={{ fontSize: 16 }} />
               <span>
-                Support conversations{conversations.length > 0 ? ` (${conversations.length})` : ''}
+                {t('supportFeedback.title')}{conversations.length > 0 ? ` (${conversations.length})` : ''}
               </span>
             </Stack>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
@@ -324,7 +326,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
                   whiteSpace: 'nowrap',
                 }}
               >
-                Open in Support
+                {t('supportFeedback.openInSupport')}
                 <OpenIcon sx={{ fontSize: 13 }} />
               </MuiLink>
               {canWriteSupport && (
@@ -335,7 +337,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
                   onClick={onNewConversation}
                   sx={{ textTransform: 'none' }}
                 >
-                  New conversation
+                  {t('supportFeedback.newConversation')}
                 </Button>
               )}
             </Stack>
@@ -349,32 +351,32 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
             severity="error"
             action={
               <Button color="inherit" size="small" onClick={() => void conversationsQuery.refetch()}>
-                Retry
+                {t('common:actions.retry')}
               </Button>
             }
           >
             {getQueryErrorMessage(
               conversationsQuery.error,
-              'Failed to load support conversations',
-            ) ?? 'Failed to load support conversations'}
+              t('supportFeedback.loadFailed'),
+            ) ?? t('supportFeedback.loadFailed')}
           </Alert>
         ) : conversations.length === 0 ? (
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            No support conversations for this guest.
-            {canWriteSupport ? ' Use "New conversation" to file one on their behalf.' : ''}
+            {t('supportFeedback.empty')}
+            {canWriteSupport ? ` ${t('supportFeedback.emptyHint')}` : ''}
           </Typography>
         ) : (
           <TableContainer>
-            <Table size="small" aria-label="Guest support conversations">
+            <Table size="small" aria-label={t('supportFeedback.aria')}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>Conversation</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Priority</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Assignee</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>SLA</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Last activity</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('supportFeedback.colConversation')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('supportFeedback.colCategory')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('supportFeedback.colStatus')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('supportFeedback.colPriority')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('supportFeedback.colAssignee')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('supportFeedback.colSla')}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{t('supportFeedback.colLastActivity')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>{conversations.map(renderConversation)}</TableBody>
@@ -388,7 +390,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
           title={
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <ReviewIcon sx={{ fontSize: 16 }} />
-              <span>Feedback — reviews{reviews.length > 0 ? ` (${reviews.length})` : ''}</span>
+              <span>{t('supportFeedback.reviewsTitle')}{reviews.length > 0 ? ` (${reviews.length})` : ''}</span>
             </Stack>
           }
         >
@@ -402,16 +404,16 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
               severity="error"
               action={
                 <Button color="inherit" size="small" onClick={() => void reviewsQuery.refetch()}>
-                  Retry
+                  {t('common:actions.retry')}
                 </Button>
               }
             >
-              {getQueryErrorMessage(reviewsQuery.error, 'Failed to load reviews') ??
-                'Failed to load reviews'}
+              {getQueryErrorMessage(reviewsQuery.error, t('supportFeedback.reviewsLoadFailed')) ??
+                t('supportFeedback.reviewsLoadFailed')}
             </Alert>
           ) : reviews.length === 0 ? (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              No reviews from this guest yet.
+              {t('supportFeedback.reviewsEmpty')}
             </Typography>
           ) : (
             <Stack spacing={1.5}>{reviews.map(renderReview)}</Stack>
