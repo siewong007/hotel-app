@@ -113,3 +113,23 @@ Order = leaf/low-risk first; coupled financial domains last. Module name = route
 (checkboxes filled as domains land)
 
 - [ ] 1 search …
+
+## Final state (2026-09-15, branch refactor/be-domain-modules)
+
+All domains migrated. `src/modules/` holds 39 directories: 38 merged in
+`routes/mod.rs::create_router` + `consent` (internal, no routes). New modules
+this phase: search, housekeeping, maintenance, booking_channels, audit
+(routes+handlers only; audit svc/repo/models stay global), rates, companies,
+profile, users, rbac, passkey, two_factor, rooms, guests, analytics
+(+channel_net_revenue), night_audit (+scheduler), auth (+turnstile), payments
+(+paypal_client +receipt_scheduler), payment_retry, webhooks, guest_portal
+(+session_repository), bookings (+helpers/emails/auto_checkin/
+unpaid_hold_scheduler/list/queries/checkin_advisory/complimentary/credits/
+lifecycle), ledgers, data_transfer (+jobs +step_up), ekyc (absorbed flat
+repository + models), promotion_pricing → modules/promotions/pricing.rs.
+
+Remaining flat files are intentional shared globals: `routes/mod.rs`
+(composition + extract_client_ip/extract_client_timezone),
+`services/{audit,account_emails,google_identity,invoice_numbers}.rs`,
+`repositories/{audit,invoice_numbers}.rs`, `models/{audit,common,row_mappers}.rs`.
+`handlers/` was deleted — it was an empty shell with zero `crate::handlers` refs.

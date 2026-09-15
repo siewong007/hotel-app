@@ -6,46 +6,46 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 
 | Feature | Status | Frontend | Backend | Notes |
 |---|---|---|---|---|
-| Staff authentication (JWT + refresh) | Delivered | ✓ `features/auth` | ✓ `routes/auth.rs` | In-memory access token, HttpOnly refresh cookie, revocable refresh rows |
-| Two-factor (TOTP + recovery codes) | Delivered | ✓ | ✓ `routes/two_factor.rs` | Secrets encrypted at rest when `TOTP_ENCRYPTION_KEY` is set (`enc1:` prefix) |
-| Passkeys (WebAuthn) | Delivered | ✓ | ✓ `routes/passkey.rs` | Enrollment step-up; revoked on password change/reset |
+| Staff authentication (JWT + refresh) | Delivered | ✓ `features/auth` | ✓ `modules/auth` | In-memory access token, HttpOnly refresh cookie, revocable refresh rows |
+| Two-factor (TOTP + recovery codes) | Delivered | ✓ | ✓ `modules/two_factor` | Secrets encrypted at rest when `TOTP_ENCRYPTION_KEY` is set (`enc1:` prefix) |
+| Passkeys (WebAuthn) | Delivered | ✓ | ✓ `modules/passkey` | Enrollment step-up; revoked on password change/reset |
 | Google sign-in / One Tap | Delivered | ✓ | ✓ (`services/google_identity.rs`) | Staff and guest surfaces |
 | Email verification | Delivered | ✓ `/verify-email` | ✓ | `SKIP_EMAIL_VERIFICATION` bypass for desktop/dev |
-| RBAC roles & permissions | Delivered | ✓ `features/admin/components/rbac` | ✓ `routes/rbac.rs` | `<resource>:<action>`; `:manage` implies all; route-layer enforcement |
-| User & team management | Delivered | ✓ `features/admin`, `features/user` | ✓ `routes/users.rs`, `modules/teams` | |
-| Rooms & room types | Delivered | ✓ `features/rooms` (`/room-management`, `/room-config`, `/timeline`) | ✓ `routes/rooms.rs` | Status board, room events, room-type photos |
-| Housekeeping | Delivered | ✓ `features/housekeeping` | ✓ `routes/housekeeping.rs` | Shared room-status dialog with rooms |
-| Maintenance | Delivered | ✓ | ✓ `routes/maintenance.rs` | |
-| Bookings (create/check-in/checkout/void) | Delivered | ✓ `features/bookings` | ✓ `routes/bookings.rs` | Deposits, folio, transfers; allocation race-safe (`FOR UPDATE` / `SKIP LOCKED`) |
+| RBAC roles & permissions | Delivered | ✓ `features/admin/components/rbac` | ✓ `modules/rbac` | `<resource>:<action>`; `:manage` implies all; route-layer enforcement |
+| User & team management | Delivered | ✓ `features/admin`, `features/user` | ✓ `modules/users`, `modules/teams` | |
+| Rooms & room types | Delivered | ✓ `features/rooms` (`/room-management`, `/room-config`, `/timeline`) | ✓ `modules/rooms` | Status board, room events, room-type photos |
+| Housekeeping | Delivered | ✓ `features/housekeeping` | ✓ `modules/housekeeping` | Shared room-status dialog with rooms |
+| Maintenance | Delivered | ✓ | ✓ `modules/maintenance` | |
+| Bookings (create/check-in/checkout/void) | Delivered | ✓ `features/bookings` | ✓ `modules/bookings` | Deposits, folio, transfers; allocation race-safe (`FOR UPDATE` / `SKIP LOCKED`) |
 | Online inventory / availability grid | Delivered | ✓ `features/onlineInventory` (`/online-inventory`) | ✓ `online_inventory_allocations` | |
 | Revenue overview | Delivered | ✓ `features/revenue` (`/revenue`) | ✓ `modules/revenue` | ADR/RevPAR, occupancy, channel mix, receivables ageing, period comparison |
-| Rates, rate plans, rate codes | Delivered | ✓ `features/rates` (`/rates`) | ✓ `routes/rates.rs` | Plan CRUD, rate calendar, bulk bands; market/rate codes, channel net revenue |
-| Booking channels | Delivered | ✓ | ✓ `routes/booking_channels.rs` | `bookings.booking_channel_id` is canonical attribution |
-| Guests & companies | Delivered | ✓ `features/guests` | ✓ `routes/{guests,companies}.rs` | Corporate accounts + city-ledger links; `nick_name` booking display name + `guest_name_taken` conflict code |
+| Rates, rate plans, rate codes | Delivered | ✓ `features/rates` (`/rates`) | ✓ `modules/rates` | Plan CRUD, rate calendar, bulk bands; market/rate codes, channel net revenue |
+| Booking channels | Delivered | ✓ | ✓ `modules/booking_channels` | `bookings.booking_channel_id` is canonical attribution |
+| Guests & companies | Delivered | ✓ `features/guests` | ✓ `modules/{guests,companies}` | Corporate accounts + city-ledger links; `nick_name` booking display name + `guest_name_taken` conflict code |
 | Guest relations (CRM 360) | Delivered | ✓ `features/guestRelations` (`/guest-relations/*`) | ✓ `modules/guest_relations` | Overview dashboard, follow-up queue, interactions, preferences, reviews — see `architecture/guest-relations.md` |
 | Invoices & folio | Delivered | ✓ `features/invoices` | ✓ (`services/invoice_numbers.rs`) | Numbered invoices, checkout receipts |
-| Payments (PayPal + staff-recorded) | Delivered | ✓ | ✓ `routes/payments.rs` | Idempotency keys + fingerprints; conflict audit events |
+| Payments (PayPal + staff-recorded) | Delivered | ✓ | ✓ `modules/payments` | Idempotency keys + fingerprints; conflict audit events |
 | Payment approvals | Delivered | ✓ `/payment-approvals` | ✓ `/api/admin/payments/*` | Incl. `paypal-conflicts` endpoint (`payments:read`) |
-| PayPal webhooks | Delivered | — | ✓ `routes/webhooks.rs` (`/api/webhooks/paypal`) | Signature-verified, IP-limited, no bearer by design |
+| PayPal webhooks | Delivered | — | ✓ `modules/webhooks` (`/api/webhooks/paypal`) | Signature-verified, IP-limited, no bearer by design |
 | PayPal auto-refund/dispute apply | Partially Delivered | — | ✓ | Refund webhooks verified + audit-logged, not auto-applied (manual reconciliation, open product call) |
-| Customer / city ledgers | Delivered | ✓ `features/customer-ledger` + `features/admin/components/CustomerLedger` (`/company-ledger`) | ✓ `routes/ledgers.rs` | Company payment allocation across entries in one tx |
+| Customer / city ledgers | Delivered | ✓ `features/customer-ledger` + `features/admin/components/CustomerLedger` (`/company-ledger`) | ✓ `modules/ledgers` | Company payment allocation across entries in one tx |
 | Deposit refunds | Delivered | ✓ | ✓ | Bounded by held deposit; one-refund-per-booking + partial refunds; `deposit_forfeited` payment type (patch 1.2) |
-| Payment retry / recovery | Delivered | ✓ `features/paymentRecovery` (`/booking.recover-payment/$token`) | ✓ `routes/payment_retry.rs` | Public token page reached from payment-rejected email |
+| Payment retry / recovery | Delivered | ✓ `features/paymentRecovery` (`/booking.recover-payment/$token`) | ✓ `modules/payment_retry` | Public token page reached from payment-rejected email |
 | Campaigns (deals + vouchers) | Delivered | ✓ `features/promotions` (`/campaigns`; `/promotions` redirects) | ✓ `modules/promotions` | Derived lifecycle, channel + loyalty-tier targeting, `promotions:approve` publish gate, performance report |
 | Vouchers | Delivered | ✓ (via promotions) | ✓ `/api/admin/vouchers*`, guest endpoints | Issue/revoke, summary, portal claim/options |
 | Guest segments | Delivered | ✓ `features/segments` (`/segments`) | ✓ `modules/segments` | JSONB rules compiled to bound-parameter SQL; live evaluation, never materialized |
 | Loyalty | Delivered | ✓ `features/loyalty` (`/loyalty`, `/my-rewards`) | ✓ `modules/loyalty` | Member portal + admin; realtime hub. Includes **point redemption with an approval workflow**: `POST /api/loyalty/rewards/{id}/redeem`, `GET /api/admin/loyalty/redemptions`, `PUT …/{id}/{approve,reject}` |
-| Night audit | Delivered | ✓ `features/night-audit` + `features/admin/components/NightAuditPage` | ✓ `routes/night_audit.rs` | Scheduler loop in `main.rs` |
-| Insights / report catalog | Delivered | ✓ `features/insights` (`/insights`; `/reports` redirects) | ✓ `modules/insights`, `routes/analytics.rs` | `report_catalog.rs` registry; arrivals/departures rosters |
-| Audit log viewer | Delivered | ✓ `features/audit-log` + `features/admin/components/AuditLogPage` | ✓ `routes/audit.rs` | Partitioned append-only store |
+| Night audit | Delivered | ✓ `features/night-audit` + `features/admin/components/NightAuditPage` | ✓ `modules/night_audit` | Scheduler loop in `main.rs` |
+| Insights / report catalog | Delivered | ✓ `features/insights` (`/insights`; `/reports` redirects) | ✓ `modules/insights`, `modules/analytics` | `report_catalog.rs` registry; arrivals/departures rosters |
+| Audit log viewer | Delivered | ✓ `features/audit-log` + `features/admin/components/AuditLogPage` | ✓ `modules/audit` | Partitioned append-only store |
 | eKYC | Delivered | ✓ `features/ekyc` (`/ekyc`, `/ekyc-admin`) | ✓ `modules/ekyc` | Submission + staff review queue; sensitive-field reveal permissions |
-| Guest portal (booking, pre-check-in, docs) | Delivered | ✓ `guest/` entry + `features/guestPortal` | ✓ `routes/guest_portal.rs`, `modules/guest_booking` | Booking access tokens, consent gate, portal WS sockets, guest feedback submission |
+| Guest portal (booking, pre-check-in, docs) | Delivered | ✓ `guest/` entry + `features/guestPortal` | ✓ `modules/guest_portal`, `modules/guest_booking` | Booking access tokens, consent gate, portal WS sockets, guest feedback submission |
 | Guest self check-in wizard | Delivered | ✓ `/guest-checkin/*` | ✓ | Token-gated multi-step flow; `auto_checkin` + eKYC-gated auto check-in |
 | Communications (email campaigns) | Delivered | ✓ `features/communications` (`/communications`) | ✓ `modules/communications` | lettre SMTP worker; per-guest preferences; transactional sends; `segment_id` audience intersection |
 | SMS channel | Not delivered | — | — | Open item; no implementation |
 | Support tickets | Delivered | ✓ `features/support` (`/support`) | ✓ `modules/support` | Incl. guest-portal support widget + WS |
 | Notifications | Delivered | ✓ `features/notifications` (`/notifications` "Guest Deliveries") + topbar bell | ✓ `staff_notifications`, `email_deliveries` | Checkout receipt + pre-arrival reminder triggers |
-| Data transfer (backup/restore) | Delivered | ✓ `features/data-transfer` + `features/admin/components/DataTransferPage` | ✓ `routes/data_transfer.rs` | Versioned `hotel-backup` v1 JSON: streamed export (standard/full/backup scopes) + staged upload→preview→execute→poll import; dedicated `data_transfer:*` permissions + step-up re-auth; credentials/eKYC never exported — see `guides/data-transfer.md` |
+| Data transfer (backup/restore) | Delivered | ✓ `features/data-transfer` + `features/admin/components/DataTransferPage` | ✓ `modules/data_transfer` | Versioned `hotel-backup` v1 JSON: streamed export (standard/full/backup scopes) + staged upload→preview→execute→poll import; dedicated `data_transfer:*` permissions + step-up re-auth; credentials/eKYC never exported — see `guides/data-transfer.md` |
 | System settings | Delivered | ✓ `features/user` (`/settings`) | ✓ `modules/settings` | Timezone drives hotel business day |
 | System health & jobs | Delivered | ✓ `features/admin/system` (`/system-health`, `/jobs`) | ✓ `modules/system`, `core/job_runs.rs` | `/api/system/health`, job-failure feed, `job_runs` records |
 | Help centre | Delivered | ✓ `features/help` (`/help`, `/help/$slug`) | — (content bundles) | |
@@ -54,7 +54,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Complimentary stays | Delivered | ✓ `features/admin/components/ComplimentaryManagementPage` (`/complimentary`) | ✓ `guest_complimentary_credits` | Credit allocation + restoration on void |
 | Internationalization (EN + BM) | Delivered | ✓ `src/i18n` | ✓ `core/i18n.rs` + `core/locales/` | Intl-based, in-house (ADR 012); parity tests both sides |
 | Simplified Chinese locale | In progress | branch `feat/i18n-zh` (worktree) | — | Not merged; `docs/superpowers/plans/2026-09-14-i18n-zh.md` |
-| Search (global) | Delivered | ✓ | ✓ `routes/search.rs` | |
+| Search (global) | Delivered | ✓ | ✓ `modules/search` | |
 | Desktop app (Tauri + embedded PG) | Delivered | ✓ shared | ✓ `hotel-desktop/src-tauri` | Sidecar backend; bundled postgres **19beta2** while the server stack runs 19beta3 (see `ARCHITECTURE.md` → Desktop flow); updater plugin wired but **not armed** (`hotel-desktop/UPDATER.md`) |
 | Realtime (WebSocket) | Delivered | ✓ | ✓ `modules/realtime`, loyalty/support hubs | `/api/updates/socket` (staff), `/api/admin/loyalty/socket`, `/api/guest-portal/me/{loyalty,support}/socket`; reconnect + lag-drop logging |
 | Turnstile bot protection | Delivered | ✓ | ✓ `services/turnstile.rs` | Public guest forms |

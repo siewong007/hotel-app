@@ -55,14 +55,13 @@ and schema-drift suites additionally shell out to `psql` — on macOS add libpq 
 ```text
 src/
   core/           Auth, DB pool, errors, middleware, rate limiting, metrics, caches, SQL compat
-  routes/         Axum route registration and the RBAC gate, merged in routes/mod.rs
-  handlers/       Thin HTTP input/output translation
-  services/       Business workflows, transactions, audit decisions
-  repositories/   SQL persistence and row mapping
-  models/         Request/response DTOs and domain structs
-  modules/        Self-contained domain modules (communications, consent, ekyc,
-                  guest_booking, guest_relations, insights, loyalty, promotions,
-                  realtime, revenue, segments, settings, support, system, teams)
+  routes/         Router composition — every module router merged in routes/mod.rs
+  modules/        All domains: <domain>/{routes,handlers,service,repository,models}.rs
+                  (38 routed; `consent` is internal with no routes)
+  services/       Cross-domain services only: audit, account_emails,
+                  google_identity, invoice_numbers
+  repositories/   Cross-domain persistence only: audit, invoice_numbers
+  models/         Cross-domain DTOs only: audit, common, row_mappers
   utils/          Sanitization and small pure helpers
   bin/            hash_password, fix_password
 database/postgres/  V1 baseline, seed, and PostgreSQL 19 tuning scripts

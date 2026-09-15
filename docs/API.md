@@ -14,8 +14,8 @@ HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift
 The OpenAPI document is a method+path index (424 operations across 352
 paths). This page documents the cross-cutting contract every endpoint shares;
 for per-endpoint request/response shapes read the handler and model files —
-`src/handlers/<domain>.rs` and `src/models/<domain>.rs` are the source of
-truth.
+`src/modules/<domain>/handlers.rs` and `src/modules/<domain>/models.rs` are
+the source of truth.
 
 ## Base URL
 

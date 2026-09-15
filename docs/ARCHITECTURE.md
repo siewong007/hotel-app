@@ -86,23 +86,23 @@ and toolchain commands.
 `hotel-app-be/src/`:
 
 ```text
-routes/         HTTP registration, auth + rate-limit guards, route ordering
-handlers/       HTTP ↔ domain translation (thin)
-services/       Business workflows, transactions, validation orchestration
-repositories/   SQL persistence only (sqlx runtime queries)
-models/         Request/response DTOs and domain structs
-modules/        Domain-module layout (newer domains; same layers, one directory)
-core/           Auth, DB pool, errors, middleware, rate limiting, RBAC/settings caches
-utils/          Small pure helpers (sanitization, dates)
+modules/<domain>/  Domain modules — routes.rs, handlers.rs, service.rs,
+                   repository.rs, models.rs, plus domain-specific files
+                   (queries.rs, validation.rs, schedulers, clients) as needed
+routes/mod.rs     Router composition (.merge per module) + shared extractors
+services/         Cross-domain services only: audit, account_emails,
+                  google_identity, invoice_numbers
+repositories/     Cross-domain persistence only: audit, invoice_numbers
+models/           Cross-domain DTOs only: audit, common, row_mappers
+core/             Auth, DB pool, errors, middleware, rate limiting, RBAC/settings caches
+utils/            Small pure helpers (sanitization, dates)
 database/postgres/  Baseline, seed, and the checksum-verified patch catalog
 ```
 
-Fifteen domain directories live in `modules/<domain>/` — fourteen merged into
-the router (`communications`, `ekyc`, `guest_booking`, `guest_relations`,
-`insights`, `loyalty`, `promotions`, `realtime`, `revenue`, `segments`,
-`settings`, `support`, `system`, `teams`) plus `consent`, which is an internal
-service/repository module with no HTTP routes. New domains go there; the
-remaining domains use the flat-by-layer layout.
+Thirty-nine domain directories live in `modules/<domain>/` — thirty-eight are
+merged into the router; `consent` is the only internal module (service/repository
+with no HTTP routes). New domains go there; domain code no longer lives in
+flat-by-layer directories.
 
 Cross-cutting machinery:
 
@@ -211,21 +211,21 @@ See [FEATURES.md](FEATURES.md) for the status registry. Delivered domains:
 
 | Domain | Backend surface | Frontend surface |
 |---|---|---|
-| Auth, users, RBAC, teams | `routes/{auth,users,rbac,profile,passkey,two_factor}.rs`, `modules/teams` | `features/{auth,user}`, `features/admin/components/rbac` |
-| Rooms & housekeeping | `routes/{rooms,housekeeping,maintenance}.rs` | `features/{rooms,housekeeping}` |
-| Bookings & rates | `routes/{bookings,rates,booking_channels}.rs` + `modules/guest_booking` | `features/{bookings,rates,onlineInventory}` |
-| Guests, companies, relations | `routes/{guests,companies}.rs` + `modules/guest_relations` | `features/{guests,guestRelations}` |
-| Payments & ledgers | `routes/{payments,ledgers,payment_retry}.rs`, `routes/webhooks.rs` | `features/{customer-ledger,invoices,paymentRecovery}`, `features/admin/components/{CustomerLedger,PaymentApprovalsPage}` |
-| Night audit, analytics, insights | `routes/{night_audit,analytics,audit}.rs`, `modules/insights` | `features/{night-audit,insights,audit-log,dashboard}`, `features/admin/components/{AuditLogPage,NightAuditPage}` |
+| Auth, users, RBAC, teams | `modules/{auth,users,rbac,profile,passkey,two_factor,teams}` | `features/{auth,user}`, `features/admin/components/rbac` |
+| Rooms & housekeeping | `modules/{rooms,housekeeping,maintenance}` | `features/{rooms,housekeeping}` |
+| Bookings & rates | `modules/{bookings,rates,booking_channels,guest_booking}` | `features/{bookings,rates,onlineInventory}` |
+| Guests, companies, relations | `modules/{guests,companies,guest_relations}` | `features/{guests,guestRelations}` |
+| Payments & ledgers | `modules/{payments,ledgers,payment_retry,webhooks}` | `features/{customer-ledger,invoices,paymentRecovery}`, `features/admin/components/{CustomerLedger,PaymentApprovalsPage}` |
+| Night audit, analytics, insights | `modules/{night_audit,analytics,audit,insights}` | `features/{night-audit,insights,audit-log,dashboard}`, `features/admin/components/{AuditLogPage,NightAuditPage}` |
 | Revenue, promotions, segments | `modules/{revenue,promotions,segments}` | `features/{revenue,promotions,segments}`, `features/communications` |
 | Loyalty | `modules/loyalty` | `features/loyalty` |
 | eKYC | `modules/ekyc` | `features/ekyc` |
 | Communications & support | `modules/{communications,support}` | `features/{communications,support,notifications,help}` |
-| Settings, system, data transfer | `modules/{settings,system}`, `routes/data_transfer.rs` | `features/{user,data-transfer}`, `features/admin/system`, `features/admin/components/DataTransferPage` |
+| Settings, system, data transfer | `modules/{settings,system,data_transfer}` | `features/{user,data-transfer}`, `features/admin/system`, `features/admin/components/DataTransferPage` |
 | Realtime | `modules/realtime` (`/api/updates/socket`), hub sockets under loyalty/support | `hooks/useDataChangeSocket`, socket hooks per feature |
-| Guest portal | `routes/guest_portal.rs` + `modules/{guest_booking,consent}` | `guest/` entry + `features/guestPortal` |
+| Guest portal | `modules/{guest_portal,guest_booking,consent}` | `guest/` entry + `features/guestPortal` |
 | Legal & misc public pages | — (static content) | `features/legal`, `/offers`, `/unsubscribe/$token` |
-| Search | `routes/search.rs` | shared search |
+| Search | `modules/search` | shared search |
 
 ## Notable invariants
 
