@@ -23,20 +23,25 @@ import { initializeDesktopBackendUrl } from './desktop/runtimeApi';
 
 const MODULE_RETRY_PARAM = 'module-retry';
 
-function retryStaleDevelopmentModule(error: unknown): boolean {
-  if (!import.meta.env.DEV || typeof window === 'undefined') return false;
+function retryStaleModule(error: unknown): boolean {
+  if (typeof window === 'undefined') return false;
 
   const message = error instanceof Error ? error.message : String(error);
-  if (!/importing a module script failed|failed to fetch dynamically imported module/i.test(message)) {
+  if (!/importing a module script failed|failed to fetch dynamically imported module|error loading dynamically imported module/i.test(message)) {
     return false;
   }
 
   const url = new URL(window.location.href);
   if (url.searchParams.has(MODULE_RETRY_PARAM)) return false;
 
-  // Vite returns 504 "Outdated Optimize Dep" when Safari reuses an optimized
-  // dependency URL from before the dev server rebuilt its dependency cache.
-  // A one-time navigation with a fresh URL makes WebKit rebuild the module graph.
+  // Hashed chunks from a prior deployment 404 for any browser still holding
+  // the old index.html — a tab open across a deploy, a restored session, or
+  // the deploy-swap race — and without this reload the catch below strands
+  // the user on "Unable to start the application." until a manual refresh.
+  // In dev, Vite also returns 504 "Outdated Optimize Dep" when Safari reuses
+  // an optimized dependency URL from before the dev server rebuilt its
+  // dependency cache. A one-time navigation with a fresh URL picks up the
+  // current document and its module graph; the param caps it at one reload.
   url.searchParams.set(MODULE_RETRY_PARAM, Date.now().toString());
   window.location.replace(url);
   return true;
@@ -76,7 +81,7 @@ async function bootstrap() {
 bootstrap().catch((error) => {
   console.error('Failed to bootstrap application:', error);
 
-  if (retryStaleDevelopmentModule(error)) {
+  if (retryStaleModule(error)) {
     return;
   }
 
