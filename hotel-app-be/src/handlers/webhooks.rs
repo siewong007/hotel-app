@@ -9,8 +9,8 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::services::audit::AuditLog;
-use crate::services::payments::{PaypalWebhookEvent, PaypalWebhookKind};
-use crate::services::paypal_client::{self, PaypalWebhookHeaders};
+use crate::modules::payments::service::{PaypalWebhookEvent, PaypalWebhookKind};
+use crate::modules::payments::paypal_client::{self, PaypalWebhookHeaders};
 use axum::Json;
 use axum::http::HeaderMap;
 use serde_json::Value;
@@ -149,7 +149,7 @@ pub async fn paypal_webhook(
     };
 
     let outcome =
-        crate::services::payments::apply_paypal_webhook_event(pool, &webhook_event).await?;
+        crate::modules::payments::service::apply_paypal_webhook_event(pool, &webhook_event).await?;
     Ok(Json(
         serde_json::json!({ "received": true, "outcome": outcome.as_str() }),
     ))

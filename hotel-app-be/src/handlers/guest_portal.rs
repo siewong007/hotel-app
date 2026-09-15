@@ -225,7 +225,7 @@ pub async fn get_my_credits(
 /// Bank details and the PayPal client id. The route wrapper requires a booking
 /// access token or a guest portal session before this runs.
 pub async fn get_payment_config() -> Result<Json<crate::models::GuestPaymentConfig>, ApiError> {
-    Ok(Json(crate::services::payments::guest_payment_config()))
+    Ok(Json(crate::modules::payments::service::guest_payment_config()))
 }
 
 /// Per-guest rate limit for the authenticated payment-write routes. Keyed on
@@ -299,7 +299,7 @@ pub(crate) async fn receipt_upload_bytes(mut multipart: Multipart) -> Result<Vec
                 .await
                 .map_err(|_| ApiError::BadRequest("Unable to read receipt upload.".to_string()))?
             {
-                if bytes.len() + chunk.len() > crate::services::payments::MAX_PAYMENT_RECEIPT_BYTES
+                if bytes.len() + chunk.len() > crate::modules::payments::service::MAX_PAYMENT_RECEIPT_BYTES
                 {
                     return Err(ApiError::BadRequest(
                         "Receipt file size must be between 1 byte and 10MB".to_string(),
@@ -480,7 +480,7 @@ mod tests {
         // axum's 2MB multipart default trips first; on the real routes the
         // 10MB route layer and the per-field MAX_PAYMENT_RECEIPT_BYTES check
         // bound it identically.
-        let payload = vec![b'x'; crate::services::payments::MAX_PAYMENT_RECEIPT_BYTES + 1];
+        let payload = vec![b'x'; crate::modules::payments::service::MAX_PAYMENT_RECEIPT_BYTES + 1];
         let err = receipt_upload_bytes(receipt_multipart(&payload).await)
             .await
             .unwrap_err();

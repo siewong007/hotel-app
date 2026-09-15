@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use crate::core::db::DbPool;
-use crate::services::payments;
+use super::service;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -32,13 +32,13 @@ pub fn spawn(pool: DbPool) {
 }
 
 async fn tick(pool: &DbPool) -> Result<serde_json::Value, crate::core::error::ApiError> {
-    let rejected = payments::reject_expired_receipt_requests(pool).await?;
+    let rejected = service::reject_expired_receipt_requests(pool).await?;
     if rejected > 0 {
         log::info!(
             "Automatically rejected {rejected} payment claim(s) with overdue receipt requests"
         );
     }
-    let expired_paypal = payments::reject_expired_paypal_attempts(pool).await?;
+    let expired_paypal = service::reject_expired_paypal_attempts(pool).await?;
     if expired_paypal > 0 {
         log::info!("Automatically released {expired_paypal} stale PayPal payment attempt(s)");
     }

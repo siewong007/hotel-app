@@ -36,7 +36,7 @@ use hotel_app_be::repositories::invoice_numbers as invoice_repo;
 use hotel_app_be::services::invoice_numbers::{
     backfill_missing_booking_invoices, next_invoice_number,
 };
-use hotel_app_be::services::payments;
+use hotel_app_be::modules::payments::service as payments;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 
 // The tests in this file share a single Postgres database and some of them

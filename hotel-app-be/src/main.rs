@@ -243,7 +243,7 @@ async fn main() {
     modules::night_audit::scheduler::spawn(pool.clone());
 
     // Automatically expire receipt requests that remain unanswered for 24 hours.
-    services::payment_receipt_scheduler::spawn(pool.clone());
+    modules::payments::receipt_scheduler::spawn(pool.clone());
 
     // Releases stale unpaid ONLINE holds after `unpaid_hold_release_hours`
     // (ships at 24; 0 switches it off). Front-desk holds are never touched.

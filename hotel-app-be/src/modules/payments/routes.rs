@@ -5,7 +5,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -93,7 +93,7 @@ async fn calculate_payment(
     path: Path<i64>,
 ) -> Result<Json<models::PaymentSummary>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
-    handlers::payments::calculate_payment_summary_handler(State(pool), path).await
+    handlers::calculate_payment_summary_handler(State(pool), path).await
 }
 
 async fn create_payment(
@@ -102,7 +102,7 @@ async fn create_payment(
     Json(input): Json<models::PaymentRequest>,
 ) -> Result<Json<models::Payment>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_CREATE).await?;
-    handlers::payments::create_payment_handler(State(pool), Extension(user_id), Json(input)).await
+    handlers::create_payment_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn get_payment(
@@ -111,7 +111,7 @@ async fn get_payment(
     path: Path<i64>,
 ) -> Result<Json<Option<models::Payment>>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
-    handlers::payments::get_payment_handler(State(pool), path).await
+    handlers::get_payment_handler(State(pool), path).await
 }
 
 async fn record_payment(
@@ -120,7 +120,7 @@ async fn record_payment(
     Json(input): Json<models::RecordPaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_CREATE).await?;
-    handlers::payments::record_payment_handler(State(pool), Extension(user_id), Json(input)).await
+    handlers::record_payment_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn get_all_payments(
@@ -129,7 +129,7 @@ async fn get_all_payments(
     path: Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
-    handlers::payments::get_all_payments_handler(State(pool), path).await
+    handlers::get_all_payments_handler(State(pool), path).await
 }
 
 async fn get_payment_workflow_summary(
@@ -138,7 +138,7 @@ async fn get_payment_workflow_summary(
     path: Path<i64>,
 ) -> Result<Json<models::PaymentWorkflowSummary>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
-    handlers::payments::get_payment_workflow_summary_handler(State(pool), path).await
+    handlers::get_payment_workflow_summary_handler(State(pool), path).await
 }
 
 async fn refund_deposit(
@@ -148,7 +148,7 @@ async fn refund_deposit(
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_REFUND).await?;
-    handlers::payments::refund_deposit_handler(State(pool), Extension(user_id), path, Json(body))
+    handlers::refund_deposit_handler(State(pool), Extension(user_id), path, Json(body))
         .await
 }
 
@@ -162,7 +162,7 @@ async fn forfeit_deposit(
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_REFUND).await?;
-    handlers::payments::forfeit_deposit_handler(State(pool), Extension(user_id), path, Json(body))
+    handlers::forfeit_deposit_handler(State(pool), Extension(user_id), path, Json(body))
         .await
 }
 
@@ -172,7 +172,7 @@ async fn revert_deposit_refund(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_MANAGE).await?;
-    handlers::payments::revert_deposit_refund_handler(State(pool), Extension(user_id), path).await
+    handlers::revert_deposit_refund_handler(State(pool), Extension(user_id), path).await
 }
 
 // Cancelling a deposit is desk work on payments:delete (collateral, not
@@ -184,7 +184,7 @@ async fn revert_deposit_void(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
-    handlers::payments::revert_deposit_void_handler(State(pool), Extension(user_id), path).await
+    handlers::revert_deposit_void_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn get_invoice_preview(
@@ -193,7 +193,7 @@ async fn get_invoice_preview(
     path: Path<i64>,
 ) -> Result<Json<models::InvoicePreview>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
-    handlers::payments::get_invoice_preview_handler(State(pool), Extension(user_id), path).await
+    handlers::get_invoice_preview_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn generate_invoice(
@@ -202,7 +202,7 @@ async fn generate_invoice(
     path: Path<i64>,
 ) -> Result<Json<models::Invoice>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_CREATE).await?;
-    handlers::payments::generate_invoice_handler(State(pool), Extension(user_id), path).await
+    handlers::generate_invoice_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn get_user_invoices(
@@ -210,7 +210,7 @@ async fn get_user_invoices(
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Invoice>>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
-    handlers::payments::get_user_invoices_handler(State(pool), Extension(user_id)).await
+    handlers::get_user_invoices_handler(State(pool), Extension(user_id)).await
 }
 
 async fn update_payment(
@@ -220,7 +220,7 @@ async fn update_payment(
     Json(input): Json<models::UpdatePaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_UPDATE).await?;
-    handlers::payments::update_payment_handler(State(pool), Extension(user_id), path, Json(input))
+    handlers::update_payment_handler(State(pool), Extension(user_id), path, Json(input))
         .await
 }
 
@@ -230,7 +230,7 @@ async fn delete_payment(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
-    handlers::payments::delete_payment_handler(State(pool), Extension(user_id), path).await
+    handlers::delete_payment_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn list_pending_payments(
@@ -239,7 +239,7 @@ async fn list_pending_payments(
     query: Query<models::PendingPaymentsQuery>,
 ) -> Result<Json<models::PendingPaymentPage>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
-    handlers::payments::list_pending_payments_handler(State(pool), query).await
+    handlers::list_pending_payments_handler(State(pool), query).await
 }
 
 async fn list_payment_approval_history(
@@ -248,7 +248,7 @@ async fn list_payment_approval_history(
     query: Query<models::PendingPaymentsQuery>,
 ) -> Result<Json<models::PendingPaymentPage>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
-    handlers::payments::list_payment_approval_history_handler(State(pool), query).await
+    handlers::list_payment_approval_history_handler(State(pool), query).await
 }
 
 async fn list_paypal_conflicts(
@@ -256,7 +256,7 @@ async fn list_paypal_conflicts(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
-    handlers::payments::list_paypal_conflict_events_handler(State(pool)).await
+    handlers::list_paypal_conflict_events_handler(State(pool)).await
 }
 
 async fn download_payment_receipt(
@@ -265,7 +265,7 @@ async fn download_payment_receipt(
     path: Path<i64>,
 ) -> Result<axum::response::Response, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
-    handlers::payments::download_payment_receipt_handler(State(pool), path).await
+    handlers::download_payment_receipt_handler(State(pool), path).await
 }
 
 async fn approve_payment(
@@ -274,7 +274,7 @@ async fn approve_payment(
     path: Path<i64>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_APPROVE).await?;
-    handlers::payments::approve_payment_handler(State(pool), Extension(user_id), path).await
+    handlers::approve_payment_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn reject_payment(
@@ -284,7 +284,7 @@ async fn reject_payment(
     Json(body): Json<models::RejectPaymentRequest>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_APPROVE).await?;
-    handlers::payments::reject_payment_handler(State(pool), Extension(user_id), path, Json(body))
+    handlers::reject_payment_handler(State(pool), Extension(user_id), path, Json(body))
         .await
 }
 
@@ -295,7 +295,7 @@ async fn request_payment_receipt(
     Json(body): Json<models::RequestPaymentReceiptRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_APPROVE).await?;
-    handlers::payments::request_payment_receipt_handler(
+    handlers::request_payment_receipt_handler(
         State(pool),
         Extension(user_id),
         path,

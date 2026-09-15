@@ -9,7 +9,6 @@ pub mod data_transfer;
 pub mod ekyc;
 pub mod guest_portal;
 pub mod ledger;
-pub mod payment;
 pub mod payment_retry;
 pub mod row_mappers;
 
@@ -29,7 +28,7 @@ pub use crate::modules::housekeeping::models::*;
 pub use ledger::*;
 pub use crate::modules::maintenance::models::*;
 pub use crate::modules::night_audit::models::*;
-pub use payment::*;
+pub use crate::modules::payments::models::*;
 pub use crate::modules::rates::models::*;
 pub use crate::modules::rbac::models::*;
 pub use crate::modules::rooms::models::*;

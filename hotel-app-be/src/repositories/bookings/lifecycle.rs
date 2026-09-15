@@ -843,7 +843,7 @@ async fn ensure_checkout_balance_resolved(
     // `completed_booking_payment_total` which counts every completed payment
     // and exists for the "has any money been collected" release checks.
     let summary =
-        crate::repositories::payment::PaymentRepository::workflow_summary_row(pool, booking_id)
+        crate::modules::payments::repository::PaymentRepository::workflow_summary_row(pool, booking_id)
             .await?;
     let total_paid = summary
         .as_ref()
@@ -1273,7 +1273,7 @@ pub async fn create_booking_handler(
     // If a deposit row was inserted above, recompute payment_status so the
     // stored column reflects the new running total (e.g. partial vs unpaid).
     if matches!(input.amount_paid, Some(a) if a > 0.0) {
-        crate::handlers::payments::recompute_payment_status(&pool, booking.id).await?;
+        crate::modules::payments::handlers::recompute_payment_status(&pool, booking.id).await?;
     }
 
     // Log booking creation (outside transaction - non-critical)
@@ -1787,7 +1787,7 @@ pub async fn update_booking_handler(
                 // update rolls back instead of leaving a voided booking with
                 // still-active payments.
                 void_booking_payments_tx(&mut tx, booking_id).await?;
-                crate::services::payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
+                crate::modules::payments::service::recompute_payment_status_tx(&mut tx, booking_id).await?;
             }
             "checked_out" | "completed" => {
                 // Auto-post company room charges to customer_ledgers on checkout.
@@ -2073,13 +2073,13 @@ pub async fn update_booking_handler(
 
                 // Generate an invoice number for this checked-out booking. Best-effort:
                 // failure here must not block the checkout itself.
-                match crate::services::payments::ensure_invoice_for_booking(
+                match crate::modules::payments::service::ensure_invoice_for_booking(
                     &pool, booking_id, user_id,
                 )
                 .await
                 {
                     Ok(invoice_number) => {
-                        if let Err(e) = crate::services::payments::queue_checkout_receipt_email(
+                        if let Err(e) = crate::modules::payments::service::queue_checkout_receipt_email(
                             &pool,
                             booking_id,
                             &invoice_number,
@@ -2154,7 +2154,7 @@ pub async fn update_booking_handler(
     // total_amount may have changed (rate override, dates, daily_rates rebuild,
     // tourism tax, extra bed) — re-derive payment_status against the unchanged
     // sum of completed payments so the chip reflects reality.
-    let _ = crate::handlers::payments::recompute_payment_status(&pool, booking_id).await;
+    let _ = crate::modules::payments::handlers::recompute_payment_status(&pool, booking_id).await;
 
     Ok(Json(booking))
 }
@@ -2439,7 +2439,7 @@ pub async fn void_booking_payments_tx(
 
     // Voiding may have removed completed deposit rows — resync the mirror so
     // the booking columns can't overstate what the ledger still holds.
-    crate::repositories::payment::PaymentRepository::sync_booking_deposit_mirror_tx(tx, booking_id)
+    crate::modules::payments::repository::PaymentRepository::sync_booking_deposit_mirror_tx(tx, booking_id)
         .await?;
 
     Ok(())
@@ -2867,7 +2867,7 @@ pub async fn reconcile_booking_deposit_tx(
                 .await
                 .map_err(|e| ApiError::Database(e.to_string()))?;
             }
-            crate::repositories::payment::PaymentRepository::sync_booking_deposit_mirror_tx(
+            crate::modules::payments::repository::PaymentRepository::sync_booking_deposit_mirror_tx(
                 tx, booking_id,
             )
             .await?;
@@ -3108,7 +3108,7 @@ pub async fn record_checkin_payment_tx(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if pay_type == "deposit" {
-        crate::repositories::payment::PaymentRepository::sync_booking_deposit_mirror_tx(
+        crate::modules::payments::repository::PaymentRepository::sync_booking_deposit_mirror_tx(
             tx, booking_id,
         )
         .await?;

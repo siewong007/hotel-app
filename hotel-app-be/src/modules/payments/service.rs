@@ -12,7 +12,7 @@ use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
 use crate::repositories::guest_portal::GuestPortalRepository;
-use crate::repositories::payment::{PaymentRepository, PendingPaymentValues};
+use super::repository::{PaymentRepository, PendingPaymentValues};
 use crate::services::audit::AuditLog;
 use crate::services::payment_retry;
 use crate::utils::sanitization::Sanitizer;
@@ -1215,7 +1215,7 @@ fn booking_currency(booking: &Booking) -> &str {
 pub fn guest_payment_config() -> GuestPaymentConfig {
     let cfg = crate::core::config::get();
     GuestPaymentConfig {
-        paypal_enabled: crate::services::paypal_client::is_enabled(),
+        paypal_enabled: super::paypal_client::is_enabled(),
         paypal_client_id: cfg.paypal.public_client_id(),
         bank_details: GuestBankDetails {
             bank_name: Some(cfg.bank_details.bank_name.clone()),
@@ -1475,7 +1475,7 @@ async fn create_paypal_order_inner(
     // `custom_id`. If PayPal cannot create the external order, immediately move
     // that local record to a terminal state so it cannot block the guest from
     // trying again.
-    let order_id = match crate::services::paypal_client::create_order(
+    let order_id = match super::paypal_client::create_order(
         booking.total_amount,
         currency,
         &custom_id,
@@ -1560,7 +1560,7 @@ pub async fn capture_paypal_payment(
         ));
     }
 
-    let outcome = crate::services::paypal_client::capture_order(order_id).await?;
+    let outcome = super::paypal_client::capture_order(order_id).await?;
     if outcome.status != "COMPLETED" {
         release_failed_paypal_payment(
             pool,
@@ -1678,7 +1678,7 @@ async fn release_failed_paypal_payment(
 /// formatting differences (`"100"` vs `"100.00"`) do not trip the check.
 /// Returns `Err(reason)` describing the mismatch.
 fn verify_captured_amount(
-    outcome: &crate::services::paypal_client::PaypalCaptureOutcome,
+    outcome: &super::paypal_client::PaypalCaptureOutcome,
     expected_amount: Decimal,
     expected_currency: &str,
 ) -> Result<(), String> {
@@ -1710,7 +1710,7 @@ fn verify_captured_amount(
 /// amount is authoritative for PayPal captures: it is what the order was
 /// created for, immune to booking edits made while the order was outstanding.
 fn verify_captured_against_stored(
-    outcome: &crate::services::paypal_client::PaypalCaptureOutcome,
+    outcome: &super::paypal_client::PaypalCaptureOutcome,
     stored_amount: &str,
     expected_currency: &str,
 ) -> Result<(), String> {
@@ -1891,7 +1891,7 @@ async fn apply_webhook_capture_completed(
         return Ok(PaypalWebhookApplyOutcome::ConflictFlagged);
     };
     let booking = GuestPortalRepository::find_booking_by_id(pool, event.booking_id).await?;
-    let echoed = crate::services::paypal_client::PaypalCaptureOutcome {
+    let echoed = super::paypal_client::PaypalCaptureOutcome {
         status: "COMPLETED".to_string(),
         // verify_captured_amount ignores custom_id; the ids were already
         // derived from it upstream.
@@ -2915,7 +2915,7 @@ mod idempotency_key_tests {
 #[cfg(test)]
 mod paypal_capture_verification_tests {
     use super::verify_captured_against_stored;
-    use crate::services::paypal_client::PaypalCaptureOutcome;
+    use crate::modules::payments::paypal_client::PaypalCaptureOutcome;
 
     fn outcome(amount: &str, currency: &str) -> PaypalCaptureOutcome {
         PaypalCaptureOutcome {

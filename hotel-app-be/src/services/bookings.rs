@@ -12,7 +12,7 @@ use crate::models::{Booking, CheckInRequest};
 use crate::repositories::bookings as booking_repo;
 use crate::services::audit::AuditLog;
 use crate::services::booking as booking_service;
-use crate::services::payments;
+use crate::modules::payments::service as payments;
 use crate::utils::sanitization::Sanitizer;
 use rust_decimal::Decimal;
 

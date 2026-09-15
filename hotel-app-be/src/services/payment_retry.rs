@@ -133,7 +133,7 @@ fn unavailable() -> ApiError {
 /// anything outside `BOOKING_STATUSES_AWAITING_PAYMENT`, so inviting a payment
 /// for a wider set would show the guest a button that always fails -- which is
 /// exactly what an earlier version of this did for `confirmed` bookings.
-use crate::services::payments::BOOKING_STATUSES_AWAITING_PAYMENT as RECOVERABLE_BOOKING_STATUSES;
+use crate::modules::payments::service::BOOKING_STATUSES_AWAITING_PAYMENT as RECOVERABLE_BOOKING_STATUSES;
 
 /// Payment states that mean the booking is already settled.
 ///
@@ -258,7 +258,7 @@ pub async fn describe_recovery(
     // which the server then refuses -- a control that exists only to fail.
     let receipt_uploadable = match capability.replacement_payment_id {
         Some(payment_id) => {
-            crate::repositories::payment::PaymentRepository::get_payment_for_review(
+            crate::modules::payments::repository::PaymentRepository::get_payment_for_review(
                 pool, payment_id,
             )
             .await?
@@ -273,7 +273,7 @@ pub async fn describe_recovery(
     // a hotel with no PayPal credentials would give the guest a button that
     // fails at the gateway.
     let mut methods = vec!["bank_transfer".to_string()];
-    if crate::services::paypal_client::is_enabled() {
+    if crate::modules::payments::paypal_client::is_enabled() {
         methods.push("paypal".to_string());
     }
 
@@ -316,7 +316,7 @@ pub async fn recover_with_bank_transfer(
     let booking = crate::services::booking::fetch_booking_by_id(pool, capability.booking_id)
         .await
         .map_err(|_| unavailable())?;
-    crate::services::payments::create_bank_transfer_claim_for_capability(
+    crate::modules::payments::service::create_bank_transfer_claim_for_capability(
         pool,
         &booking,
         capability.id,
@@ -339,7 +339,7 @@ pub async fn recover_with_paypal(
         // Resume rather than authorise again: the guest may simply have
         // reloaded between approving in PayPal's window and coming back.
         let order_id =
-            crate::repositories::payment::PaymentRepository::find_gateway_order_id(pool, existing)
+            crate::modules::payments::repository::PaymentRepository::find_gateway_order_id(pool, existing)
                 .await?
                 .ok_or_else(|| {
                     ApiError::Conflict(
@@ -355,7 +355,7 @@ pub async fn recover_with_paypal(
     let booking = crate::services::booking::fetch_booking_by_id(pool, capability.booking_id)
         .await
         .map_err(|_| unavailable())?;
-    crate::services::payments::create_paypal_order_for_capability(pool, &booking, capability.id)
+    crate::modules::payments::service::create_paypal_order_for_capability(pool, &booking, capability.id)
         .await
 }
 
@@ -383,7 +383,7 @@ pub async fn capture_recovered_paypal(
     let booking = crate::services::booking::fetch_booking_by_id(pool, capability.booking_id)
         .await
         .map_err(|_| unavailable())?;
-    crate::services::payments::capture_paypal_payment(pool, &booking, order_id, payment_id).await
+    crate::modules::payments::service::capture_paypal_payment(pool, &booking, order_id, payment_id).await
 }
 
 /// Attach payment evidence to the claim this capability raised.
@@ -405,7 +405,7 @@ pub async fn upload_recovered_receipt(
             "This payment link does not authorise that payment.".to_string(),
         ));
     }
-    crate::services::payments::save_payment_receipt(pool, payment_id, bytes).await
+    crate::modules::payments::service::save_payment_receipt(pool, payment_id, bytes).await
 }
 
 #[cfg(test)]

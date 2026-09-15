@@ -925,7 +925,7 @@ pub async fn session_bank_transfer(
         context,
     )
     .await?;
-    crate::services::payments::create_bank_transfer_claim(pool, &booking).await
+    crate::modules::payments::service::create_bank_transfer_claim(pool, &booking).await
 }
 
 pub async fn session_upload_payment_receipt(
@@ -935,7 +935,7 @@ pub async fn session_upload_payment_receipt(
     bytes: &[u8],
 ) -> Result<(), ApiError> {
     let payment =
-        crate::repositories::payment::PaymentRepository::get_payment_for_review(pool, payment_id)
+        crate::modules::payments::repository::PaymentRepository::get_payment_for_review(pool, payment_id)
             .await?
             .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
     if payment.guest_id != Some(guest_id) {
@@ -943,7 +943,7 @@ pub async fn session_upload_payment_receipt(
             "This payment does not belong to you.".to_string(),
         ));
     }
-    crate::services::payments::save_payment_receipt(pool, payment_id, bytes).await
+    crate::modules::payments::service::save_payment_receipt(pool, payment_id, bytes).await
 }
 
 pub async fn session_create_paypal_order(
@@ -961,7 +961,7 @@ pub async fn session_create_paypal_order(
         context,
     )
     .await?;
-    crate::services::payments::create_paypal_order(pool, &booking).await
+    crate::modules::payments::service::create_paypal_order(pool, &booking).await
 }
 
 pub async fn session_capture_paypal(
@@ -972,7 +972,7 @@ pub async fn session_capture_paypal(
     payment_id: i64,
 ) -> Result<crate::models::PaymentActionResponse, ApiError> {
     let booking = resolve_owned_booking(pool, guest_id, booking_id).await?;
-    crate::services::payments::capture_paypal_payment(pool, &booking, order_id, payment_id).await
+    crate::modules::payments::service::capture_paypal_payment(pool, &booking, order_id, payment_id).await
 }
 
 pub async fn token_bank_transfer(
@@ -989,7 +989,7 @@ pub async fn token_bank_transfer(
         context,
     )
     .await?;
-    crate::services::payments::create_bank_transfer_claim(pool, &booking).await
+    crate::modules::payments::service::create_bank_transfer_claim(pool, &booking).await
 }
 
 pub async fn token_upload_payment_receipt(
@@ -1000,7 +1000,7 @@ pub async fn token_upload_payment_receipt(
 ) -> Result<(), ApiError> {
     let booking = require_valid_token(pool, token).await?;
     let payment =
-        crate::repositories::payment::PaymentRepository::get_payment_for_review(pool, payment_id)
+        crate::modules::payments::repository::PaymentRepository::get_payment_for_review(pool, payment_id)
             .await?
             .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
     if payment.booking_id != booking.id {
@@ -1008,7 +1008,7 @@ pub async fn token_upload_payment_receipt(
             "This payment does not belong to this booking.".to_string(),
         ));
     }
-    crate::services::payments::save_payment_receipt(pool, payment_id, bytes).await
+    crate::modules::payments::service::save_payment_receipt(pool, payment_id, bytes).await
 }
 
 pub async fn token_create_paypal_order(
@@ -1025,7 +1025,7 @@ pub async fn token_create_paypal_order(
         context,
     )
     .await?;
-    crate::services::payments::create_paypal_order(pool, &booking).await
+    crate::modules::payments::service::create_paypal_order(pool, &booking).await
 }
 
 pub async fn token_capture_paypal(
@@ -1035,7 +1035,7 @@ pub async fn token_capture_paypal(
     payment_id: i64,
 ) -> Result<crate::models::PaymentActionResponse, ApiError> {
     let booking = require_valid_token(pool, token).await?;
-    crate::services::payments::capture_paypal_payment(pool, &booking, order_id, payment_id).await
+    crate::modules::payments::service::capture_paypal_payment(pool, &booking, order_id, payment_id).await
 }
 
 #[cfg(test)]

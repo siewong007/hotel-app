@@ -172,13 +172,13 @@ async fn checkout_receipt_queues_once_per_invoice_and_skips_company_or_emailless
 
     // Happy path: personal folio with an emailed guest.
     seed_fixture(&pool, None, Some("receipt-guest@hotel.local")).await;
-    hotel_app_be::services::payments::queue_checkout_receipt_email(&pool, BOOKING_ID, "INV-RCPT-1")
+    hotel_app_be::modules::payments::service::queue_checkout_receipt_email(&pool, BOOKING_ID, "INV-RCPT-1")
         .await
         .expect("first queue should succeed");
     assert_eq!(delivery_count(&pool).await, 1);
 
     // Retry with the same invoice number must not double-send.
-    hotel_app_be::services::payments::queue_checkout_receipt_email(&pool, BOOKING_ID, "INV-RCPT-1")
+    hotel_app_be::modules::payments::service::queue_checkout_receipt_email(&pool, BOOKING_ID, "INV-RCPT-1")
         .await
         .expect("idempotent re-queue should succeed");
     assert_eq!(delivery_count(&pool).await, 1);
@@ -200,7 +200,7 @@ async fn checkout_receipt_queues_once_per_invoice_and_skips_company_or_emailless
         Some("receipt-guest@hotel.local"),
     )
     .await;
-    hotel_app_be::services::payments::queue_checkout_receipt_email(&pool, BOOKING_ID, "INV-RCPT-2")
+    hotel_app_be::modules::payments::service::queue_checkout_receipt_email(&pool, BOOKING_ID, "INV-RCPT-2")
         .await
         .expect("company-billed skip should not error");
     assert_eq!(delivery_count_named(&pool, "INV-RCPT-2").await, 0);
@@ -208,7 +208,7 @@ async fn checkout_receipt_queues_once_per_invoice_and_skips_company_or_emailless
     // Guest without an email on file: nothing to send to.
     cleanup(&pool).await;
     seed_fixture(&pool, None, None).await;
-    hotel_app_be::services::payments::queue_checkout_receipt_email(&pool, BOOKING_ID, "INV-RCPT-3")
+    hotel_app_be::modules::payments::service::queue_checkout_receipt_email(&pool, BOOKING_ID, "INV-RCPT-3")
         .await
         .expect("emailless skip should not error");
     assert_eq!(delivery_count_named(&pool, "INV-RCPT-3").await, 0);

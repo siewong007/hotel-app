@@ -12,14 +12,14 @@ use axum::{
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::services::payments;
+use super::service;
 
 /// Recompute and persist `bookings.payment_status` for a single booking.
 ///
 /// Kept as a public compatibility wrapper because booking handlers call this
 /// helper during their own refactor path.
 pub async fn recompute_payment_status(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
-    payments::recompute_payment_status(pool, booking_id).await
+    service::recompute_payment_status(pool, booking_id).await
 }
 
 /// Create a payment for a booking
@@ -29,7 +29,7 @@ pub async fn create_payment_handler(
     Json(request): Json<PaymentRequest>,
 ) -> Result<Json<Payment>, ApiError> {
     Ok(Json(
-        payments::create_payment(&pool, user_id, request).await?,
+        service::create_payment(&pool, user_id, request).await?,
     ))
 }
 
@@ -40,7 +40,7 @@ pub async fn record_payment_handler(
     Json(request): Json<RecordPaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        payments::record_payment(&pool, user_id, request).await?,
+        service::record_payment(&pool, user_id, request).await?,
     ))
 }
 
@@ -49,7 +49,7 @@ pub async fn get_all_payments_handler(
     State(pool): State<DbPool>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    Ok(Json(payments::get_all_payments(&pool, booking_id).await?))
+    Ok(Json(service::get_all_payments(&pool, booking_id).await?))
 }
 
 /// Get booking-level payment workflow totals and next action.
@@ -58,7 +58,7 @@ pub async fn get_payment_workflow_summary_handler(
     Path(booking_id): Path<i64>,
 ) -> Result<Json<PaymentWorkflowSummary>, ApiError> {
     Ok(Json(
-        payments::get_payment_workflow_summary(&pool, booking_id).await?,
+        service::get_payment_workflow_summary(&pool, booking_id).await?,
     ))
 }
 
@@ -70,7 +70,7 @@ pub async fn refund_deposit_handler(
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        payments::refund_deposit(&pool, user_id, booking_id, body).await?,
+        service::refund_deposit(&pool, user_id, booking_id, body).await?,
     ))
 }
 
@@ -81,7 +81,7 @@ pub async fn revert_deposit_refund_handler(
     Path(booking_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        payments::revert_deposit_refund(&pool, user_id, booking_id).await?,
+        service::revert_deposit_refund(&pool, user_id, booking_id).await?,
     ))
 }
 
@@ -92,7 +92,7 @@ pub async fn revert_deposit_void_handler(
     Path(booking_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        payments::revert_deposit_void(&pool, user_id, booking_id).await?,
+        service::revert_deposit_void(&pool, user_id, booking_id).await?,
     ))
 }
 
@@ -104,7 +104,7 @@ pub async fn forfeit_deposit_handler(
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        payments::forfeit_deposit(&pool, user_id, booking_id, body).await?,
+        service::forfeit_deposit(&pool, user_id, booking_id, body).await?,
     ))
 }
 
@@ -113,7 +113,7 @@ pub async fn get_payment_handler(
     State(pool): State<DbPool>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<Option<Payment>>, ApiError> {
-    Ok(Json(payments::get_payment(&pool, booking_id).await?))
+    Ok(Json(service::get_payment(&pool, booking_id).await?))
 }
 
 /// Calculate payment summary for a booking (before actual payment)
@@ -122,7 +122,7 @@ pub async fn calculate_payment_summary_handler(
     Path(booking_id): Path<i64>,
 ) -> Result<Json<PaymentSummary>, ApiError> {
     Ok(Json(
-        payments::calculate_payment_summary(&pool, booking_id).await?,
+        service::calculate_payment_summary(&pool, booking_id).await?,
     ))
 }
 
@@ -133,7 +133,7 @@ pub async fn generate_invoice_handler(
     Path(booking_id): Path<i64>,
 ) -> Result<Json<Invoice>, ApiError> {
     Ok(Json(
-        payments::generate_invoice(&pool, user_id, booking_id).await?,
+        service::generate_invoice(&pool, user_id, booking_id).await?,
     ))
 }
 
@@ -144,7 +144,7 @@ pub async fn get_invoice_preview_handler(
     Path(booking_id): Path<i64>,
 ) -> Result<Json<InvoicePreview>, ApiError> {
     Ok(Json(
-        payments::get_invoice_preview(&pool, user_id, booking_id).await?,
+        service::get_invoice_preview(&pool, user_id, booking_id).await?,
     ))
 }
 
@@ -153,7 +153,7 @@ pub async fn get_user_invoices_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
 ) -> Result<Json<Vec<Invoice>>, ApiError> {
-    Ok(Json(payments::get_user_invoices(&pool, user_id).await?))
+    Ok(Json(service::get_user_invoices(&pool, user_id).await?))
 }
 
 /// Update a payment record
@@ -164,7 +164,7 @@ pub async fn update_payment_handler(
     Json(request): Json<UpdatePaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        payments::update_payment(&pool, user_id, payment_id, request).await?,
+        service::update_payment(&pool, user_id, payment_id, request).await?,
     ))
 }
 
@@ -175,7 +175,7 @@ pub async fn delete_payment_handler(
     Path(payment_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        payments::delete_payment(&pool, user_id, payment_id).await?,
+        service::delete_payment(&pool, user_id, payment_id).await?,
     ))
 }
 
@@ -186,7 +186,7 @@ pub async fn list_pending_payments_handler(
 ) -> Result<Json<PendingPaymentPage>, ApiError> {
     let (limit, offset) = query.limit_offset();
     Ok(Json(
-        payments::list_pending_payments(&pool, limit, offset).await?,
+        service::list_pending_payments(&pool, limit, offset).await?,
     ))
 }
 
@@ -196,7 +196,7 @@ pub async fn list_payment_approval_history_handler(
 ) -> Result<Json<PendingPaymentPage>, ApiError> {
     let (limit, offset) = query.limit_offset();
     Ok(Json(
-        payments::list_payment_approval_history(&pool, limit, offset).await?,
+        service::list_payment_approval_history(&pool, limit, offset).await?,
     ))
 }
 
@@ -231,7 +231,7 @@ pub async fn download_payment_receipt_handler(
     State(pool): State<DbPool>,
     Path(payment_id): Path<i64>,
 ) -> Result<Response, ApiError> {
-    let (bytes, content_type) = payments::load_payment_receipt(&pool, payment_id).await?;
+    let (bytes, content_type) = service::load_payment_receipt(&pool, payment_id).await?;
     let content_type = HeaderValue::from_str(&content_type).map_err(|_| {
         ApiError::Internal("Stored receipt has an invalid content type.".to_string())
     })?;
@@ -252,7 +252,7 @@ pub async fn approve_payment_handler(
     Path(payment_id): Path<i64>,
 ) -> Result<Json<PaymentActionResponse>, ApiError> {
     Ok(Json(
-        payments::approve_payment(&pool, user_id, payment_id).await?,
+        service::approve_payment(&pool, user_id, payment_id).await?,
     ))
 }
 
@@ -263,7 +263,7 @@ pub async fn request_payment_receipt_handler(
     Path(payment_id): Path<i64>,
     Json(request): Json<RequestPaymentReceiptRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    payments::request_payment_receipt(&pool, user_id, payment_id, request.message.as_deref())
+    service::request_payment_receipt(&pool, user_id, payment_id, request.message.as_deref())
         .await?;
     Ok(Json(serde_json::json!({ "requested": true })))
 }
@@ -276,6 +276,6 @@ pub async fn reject_payment_handler(
     Json(request): Json<RejectPaymentRequest>,
 ) -> Result<Json<PaymentActionResponse>, ApiError> {
     Ok(Json(
-        payments::reject_payment(&pool, user_id, payment_id, &request.reason).await?,
+        service::reject_payment(&pool, user_id, payment_id, &request.reason).await?,
     ))
 }
