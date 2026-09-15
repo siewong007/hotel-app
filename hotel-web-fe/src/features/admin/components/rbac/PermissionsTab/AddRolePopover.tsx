@@ -12,6 +12,7 @@ import {
 import { Add as AddIcon } from '@mui/icons-material';
 import type { Role } from '../../../../../types';
 import { getRoleColor } from '../constants';
+import { useTranslation } from '../../../../../i18n';
 
 interface AddRolePopoverProps {
   anchorEl: HTMLElement | null;
@@ -28,6 +29,7 @@ const AddRolePopover: React.FC<AddRolePopoverProps> = ({
   onAddRole,
   loading = false,
 }) => {
+  const { t } = useTranslation('admin');
   const [addingRoleId, setAddingRoleId] = useState<number | null>(null);
 
   const handleAddRole = async (role: Role) => {
@@ -65,7 +67,7 @@ const AddRolePopover: React.FC<AddRolePopoverProps> = ({
         <Typography variant="subtitle2" sx={{
           color: "text.secondary"
         }}>
-          Add role to permission
+          {t('rbac.addRoleToPermission')}
         </Typography>
       </Box>
       <Divider />
@@ -74,7 +76,7 @@ const AddRolePopover: React.FC<AddRolePopoverProps> = ({
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            All roles have this permission
+            {t('rbac.allRolesHave')}
           </Typography>
         </Box>
       ) : (

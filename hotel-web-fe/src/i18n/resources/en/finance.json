@@ -93,7 +93,8 @@
       "bank_transfer": "Bank Transfer",
       "duitnow": "DuitNow",
       "online_banking": "Online Banking",
-      "cheque": "Cheque"
+      "cheque": "Cheque",
+      "paypal": "PayPal"
     },
     "meter": {
       "totalBilled": "Total Billed",

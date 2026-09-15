@@ -11,6 +11,8 @@ import { Add as AddIcon } from '@mui/icons-material';
 import type { Permission, Role } from '../../../../../types';
 import RoleChip from './RoleChip';
 import AddRolePopover from './AddRolePopover';
+import { verbLabel } from '../constants';
+import { useTranslation } from '../../../../../i18n';
 
 interface PermissionRowProps {
   permission: Permission;
@@ -29,6 +31,7 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
   onRemoveRole,
   disabled = false,
 }) => {
+  const { t } = useTranslation('admin');
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [removingRoleId, setRemovingRoleId] = useState<number | null>(null);
 
@@ -50,15 +53,15 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
     await onAddRole(permission, role);
   };
 
-  // Format permission name for display
-  const formatPermissionName = (name: string) => {
-    // e.g., "rooms:read" -> "Read", "bookings:manage" -> "Manage"
-    const parts = name.split(':');
-    if (parts.length === 2) {
-      return parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
-    }
-    return name;
-  };
+  // Localized fallback when a permission carries no description — the action
+  // verb translates, the resource code stays verbatim (it is a DB identifier).
+  const actionPart = permission.name.includes(':')
+    ? permission.name.split(':')[1]
+    : permission.name;
+  const fallbackDescription = t('rbac.permissionFallback', {
+    action: verbLabel(t, actionPart),
+    resource: permission.resource,
+  });
 
   return (
     <Box
@@ -90,7 +93,7 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
         <Typography variant="caption" sx={{
           color: "text.secondary"
         }}>
-          {permission.description || `${formatPermissionName(permission.name)} access for ${permission.resource}`}
+          {permission.description || fallbackDescription}
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}>
@@ -117,12 +120,12 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
                 color: "text.disabled",
                 fontStyle: 'italic'
               }}>
-              No roles assigned
+              {t('rbac.noRolesAssigned')}
             </Typography>
           )}
         </Stack>
 
-        <Tooltip title="Add role">
+        <Tooltip title={t('rbac.addRole')}>
           <span>
             <IconButton
               size="small"

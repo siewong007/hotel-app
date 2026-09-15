@@ -92,7 +92,8 @@
       "bank_transfer": "银行转账",
       "duitnow": "DuitNow",
       "online_banking": "网上银行",
-      "cheque": "支票"
+      "cheque": "支票",
+      "paypal": "PayPal"
     },
     "meter": {
       "totalBilled": "账单总额",

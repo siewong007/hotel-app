@@ -37,7 +37,7 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
   disabled = false,
 }) => {
   const { groupLabel } = useRouteLabels();
-  const { tOr } = useTranslation('nav');
+  const { t } = useTranslation('admin');
 
   // Group policies by the registry's navGroup so this matrix mirrors the
   // sidebar — the DB's nav_group column still holds the legacy
@@ -63,11 +63,11 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
       (policy) => policy.is_navigation && !byId.get(policy.route_id)?.navGroup
     );
     if (orphans.length > 0) {
-      sections.push({ group: 'other', label: tOr('groups.other', 'Other'), items: orphans });
+      sections.push({ group: 'other', label: t('nav:groups.other'), items: orphans });
     }
 
     return { sections, byId };
-  }, [routePolicies, groupLabel, tOr]);
+  }, [routePolicies, groupLabel, t]);
 
   return (
     <Box>
@@ -77,7 +77,7 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
           color: "text.secondary",
           mb: 2
         }}>
-        Which tabs can this role access?
+        {t('rbac.navAccessQuestion')}
       </Typography>
       {navByGroup.sections.map((section) => (
         <Box key={section.group} sx={{ mb: 2 }}>
@@ -115,7 +115,7 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
                   key={item.route_id}
                   title={
                     requiredPerms.length > 0
-                      ? `Also grants: ${requiredPerms.join(', ')}`
+                      ? t('rbac.alsoGrants', { permissions: requiredPerms.join(', ') })
                       : item.path
                   }
                   placement="right"

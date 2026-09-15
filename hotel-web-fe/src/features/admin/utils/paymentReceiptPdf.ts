@@ -1,3 +1,5 @@
+import { t } from '../../../i18n';
+
 const PDF_CONTENT_TYPE = 'application/pdf';
 const PDF_MARGIN_MM = 12;
 
@@ -5,7 +7,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('Unable to convert the receipt image to a PDF.'));
+    image.onerror = () => reject(new Error(t('admin:paymentApprovals.errors.pdfConvert')));
     image.src = url;
   });
 }
@@ -20,7 +22,7 @@ export async function receiptAsPdf(receipt: Blob): Promise<Blob> {
   }
 
   if (!receipt.type.toLowerCase().startsWith('image/')) {
-    throw new Error('This receipt is not a PDF or supported image file.');
+    throw new Error(t('admin:paymentApprovals.errors.notPdfOrImage'));
   }
 
   const imageUrl = URL.createObjectURL(receipt);

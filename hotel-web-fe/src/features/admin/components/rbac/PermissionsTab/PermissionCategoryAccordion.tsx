@@ -26,6 +26,7 @@ import {
 import type { Permission, Role } from '../../../../../types';
 import type { PermissionCategory } from '../types';
 import PermissionRow from './PermissionRow';
+import { useTranslation } from '../../../../../i18n';
 
 // Icon mapping
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -62,6 +63,7 @@ const PermissionCategoryAccordion: React.FC<PermissionCategoryAccordionProps> = 
   defaultExpanded = false,
   disabled = false,
 }) => {
+  const { t } = useTranslation('admin');
   const IconComponent = ICON_MAP[category.icon] || VpnKeyIcon;
 
   // Calculate coverage: how many roles have at least one permission in this category
@@ -130,7 +132,7 @@ const PermissionCategoryAccordion: React.FC<PermissionCategoryAccordionProps> = 
         </Box>
 
         <Chip
-          label={`${category.permissions.length} permission${category.permissions.length !== 1 ? 's' : ''}`}
+          label={t('rbac.permCount', { count: category.permissions.length })}
           size="small"
           sx={{
             backgroundColor: `color-mix(in srgb, ${category.color} 10%, transparent)`,

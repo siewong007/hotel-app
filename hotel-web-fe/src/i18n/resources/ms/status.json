@@ -200,6 +200,10 @@
     "completed": "Selesai",
     "failed": "Gagal"
   },
+  "job_run": {
+    "ok": "OK",
+    "error": "Ralat"
+  },
   "booking_history": {
     "checked_out": "Daftar keluar",
     "completed": "Selesai",

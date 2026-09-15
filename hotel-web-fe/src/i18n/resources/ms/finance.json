@@ -92,7 +92,8 @@
       "bank_transfer": "Pindahan Bank",
       "duitnow": "DuitNow",
       "online_banking": "Perbankan Dalam Talian",
-      "cheque": "Cek"
+      "cheque": "Cek",
+      "paypal": "PayPal"
     },
     "meter": {
       "totalBilled": "Jumlah Dibilkan",

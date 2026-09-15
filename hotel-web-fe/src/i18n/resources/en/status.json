@@ -200,6 +200,10 @@
     "completed": "Completed",
     "failed": "Failed"
   },
+  "job_run": {
+    "ok": "OK",
+    "error": "Error"
+  },
   "booking_history": {
     "checked_out": "Checked out",
     "completed": "Completed",

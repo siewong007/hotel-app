@@ -14,14 +14,17 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 
 import { useSystemHealth } from './hooks';
 import { JobsTable } from './JobsTable';
+import { formatNumber, useTranslation, type TranslationVars } from '../../../i18n';
 
-function formatUptime(seconds: number): string {
+type TFn = (key: string, vars?: TranslationVars) => string;
+
+function formatUptime(t: TFn, seconds: number): string {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
+  if (days > 0) return t('system.health.uptimeDays', { days, hours });
+  if (hours > 0) return t('system.health.uptimeHours', { hours, minutes });
+  return t('system.health.uptimeMinutes', { minutes });
 }
 
 const Stat: React.FC<{ label: string; value: React.ReactNode; hint?: string }> = ({
@@ -47,6 +50,7 @@ const Stat: React.FC<{ label: string; value: React.ReactNode; hint?: string }> =
 );
 
 const SystemHealthPage: React.FC = () => {
+  const { t } = useTranslation('admin');
   const health = useSystemHealth();
 
   return (
@@ -54,18 +58,18 @@ const SystemHealthPage: React.FC = () => {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <Box sx={{ flex: 1 }}>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            System Health
+            {t('system.health.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Process metrics reset on restart — counters describe this process only.
+            {t('system.health.subtitle')}
           </Typography>
         </Box>
-        <Tooltip title="Refresh now">
+        <Tooltip title={t('system.refreshNow')}>
           <span>
             <IconButton
               onClick={() => health.refetch()}
               disabled={health.isFetching}
-              aria-label="Refresh system health"
+              aria-label={t('system.health.refreshAria')}
             >
               {health.isFetching ? <CircularProgress size={18} /> : <RefreshIcon />}
             </IconButton>
@@ -75,7 +79,7 @@ const SystemHealthPage: React.FC = () => {
 
       {health.isError && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          System health could not be loaded — the backend may be unreachable.
+          {t('system.health.loadError')}
         </Alert>
       )}
 
@@ -89,42 +93,42 @@ const SystemHealthPage: React.FC = () => {
             <Grid container spacing={1.5} sx={{ mb: 3 }}>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                 <Stat
-                  label="Database"
-                  value={health.data.database === 'ok' ? 'Connected' : health.data.database}
+                  label={t('system.health.database')}
+                  value={health.data.database === 'ok' ? t('system.health.connected') : health.data.database}
                 />
               </Grid>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-                <Stat label="Uptime" value={formatUptime(health.data.uptime_seconds)} />
+                <Stat label={t('system.health.uptime')} value={formatUptime(t, health.data.uptime_seconds)} />
               </Grid>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                 <Stat
-                  label="Requests"
-                  value={health.data.metrics.requests_total.toLocaleString()}
-                  hint={`${health.data.metrics.requests_slow} slow`}
-                />
-              </Grid>
-              <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-                <Stat
-                  label="Errors"
-                  value={`${health.data.metrics.responses_4xx} / ${health.data.metrics.responses_5xx}`}
-                  hint="4xx / 5xx"
+                  label={t('system.health.requests')}
+                  value={formatNumber(health.data.metrics.requests_total)}
+                  hint={t('system.health.requestsSlow', { count: health.data.metrics.requests_slow })}
                 />
               </Grid>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                 <Stat
-                  label="Denied"
-                  value={`${health.data.metrics.auth_denied} / ${health.data.metrics.permission_denied}`}
-                  hint="auth / permission"
+                  label={t('system.health.errors')}
+                  value={`${formatNumber(health.data.metrics.responses_4xx)} / ${formatNumber(health.data.metrics.responses_5xx)}`}
+                  hint={t('system.health.errorsHint')}
                 />
               </Grid>
               <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                 <Stat
-                  label="Audit failures"
-                  value={health.data.metrics.audit_write_failures}
+                  label={t('system.health.denied')}
+                  value={`${formatNumber(health.data.metrics.auth_denied)} / ${formatNumber(health.data.metrics.permission_denied)}`}
+                  hint={t('system.health.deniedHint')}
+                />
+              </Grid>
+              <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+                <Stat
+                  label={t('system.health.auditFailures')}
+                  value={formatNumber(health.data.metrics.audit_write_failures)}
                   hint={
                     health.data.metrics.audit_write_failures > 0
-                      ? 'Audit trail has holes'
-                      : 'None recorded'
+                      ? t('system.health.auditHoles')
+                      : t('system.health.noneRecorded')
                   }
                 />
               </Grid>
@@ -133,27 +137,28 @@ const SystemHealthPage: React.FC = () => {
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-                  Email queue
+                  {t('system.health.emailQueue')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {health.data.email_queue.queued} queued · {health.data.email_queue.sending}{' '}
-                  sending · {health.data.email_queue.failed} failed ·{' '}
-                  {health.data.email_queue.sent_24h} sent in the last 24h
+                  {t('system.health.emailQueueSummary', {
+                    queued: formatNumber(health.data.email_queue.queued),
+                    sending: formatNumber(health.data.email_queue.sending),
+                    failed: formatNumber(health.data.email_queue.failed),
+                    sent: formatNumber(health.data.email_queue.sent_24h),
+                  })}
                 </Typography>
               </CardContent>
             </Card>
 
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-              Background jobs
+              {t('system.health.backgroundJobs')}
             </Typography>
             {!health.data.job_runs_enabled ? (
               <Alert severity="info">
-                Job monitoring is not installed on this database yet — the <code>job_runs</code>{' '}
-                table arrives with its migration patch. Loops still run; they are simply not
-                recorded.
+                {t('system.jobs.notInstalledDetail', { table: 'job_runs' })}
               </Alert>
             ) : health.data.jobs.length === 0 ? (
-              <Alert severity="info">No job runs recorded yet.</Alert>
+              <Alert severity="info">{t('system.jobs.noRuns')}</Alert>
             ) : (
               <Card variant="outlined">
                 <JobsTable jobs={health.data.jobs} />

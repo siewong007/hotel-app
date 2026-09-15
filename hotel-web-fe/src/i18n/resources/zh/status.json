@@ -200,6 +200,10 @@
     "completed": "已完成",
     "failed": "失败"
   },
+  "job_run": {
+    "ok": "正常",
+    "error": "错误"
+  },
   "booking_history": {
     "checked_out": "已退房",
     "completed": "已完成",
