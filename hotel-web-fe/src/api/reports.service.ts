@@ -1,5 +1,6 @@
 import { api } from './client';
 import { withRetry } from '../utils/retry';
+import { syncBookingChannelsSetting } from '../utils/hotelSettings';
 
 export class ReportsService {
   static async generateReport(params: {
@@ -39,7 +40,11 @@ export class ReportsService {
   }
 
   static async listBookingChannels(): Promise<BookingChannel[]> {
-    return await api.get('booking-channels').json<BookingChannel[]>();
+    const channels = await api.get('booking-channels').json<BookingChannel[]>();
+    // The table is the source of truth — keep the local display mirror (used
+    // by channel chips in bookings/night-audit views) in step with it.
+    syncBookingChannelsSetting(channels);
+    return channels;
   }
 
   static async createBookingChannel(input: BookingChannelInput): Promise<BookingChannel> {
@@ -60,6 +65,9 @@ export interface BookingChannel {
   default_commission_value: number | string;
   default_commission_scope: 'per_booking' | 'per_night';
   is_active: boolean;
+  abbreviation?: string | null;
+  code?: string | null;
+  integration_mode?: string;
   created_at: string;
   updated_at: string;
 }
@@ -71,6 +79,9 @@ export interface BookingChannelInput {
   default_commission_value?: number;
   default_commission_scope?: string;
   is_active?: boolean;
+  abbreviation?: string | null;
+  code?: string | null;
+  integration_mode?: string;
 }
 
 export interface BookingChannelUpdate {
@@ -80,4 +91,7 @@ export interface BookingChannelUpdate {
   default_commission_value?: number;
   default_commission_scope?: string;
   is_active?: boolean;
+  abbreviation?: string | null;
+  code?: string | null;
+  integration_mode?: string;
 }

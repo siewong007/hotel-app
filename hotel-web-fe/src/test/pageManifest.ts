@@ -419,6 +419,19 @@ export const PAGE_MANIFEST: PageManifestEntry[] = [
     axeTests: ['features/rates/pages/RatesPage.test.tsx'],
   },
   {
+    id: 'channels',
+    routePaths: ['/channels', '/channels/$channelId'],
+    routeFiles: ['channels.tsx', 'channels.$channelId.tsx'],
+    kind: 'page',
+    visibility: 'auth',
+    component: 'features/channels/pages/ChannelsPage.tsx',
+    smokeTests: [
+      'features/channels/pages/ChannelsPage.test.tsx',
+      'features/channels/pages/ChannelDetailPage.test.tsx',
+    ],
+    axeTests: ['features/channels/pages/ChannelsPage.test.tsx'],
+  },
+  {
     id: 'campaigns',
     routePaths: ['/campaigns'],
     routeFiles: ['campaigns.tsx'],

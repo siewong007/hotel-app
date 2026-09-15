@@ -6,12 +6,10 @@ import {
   REPORT_DISPLAY_FONT_SIZE_MIN,
   REPORT_FONT_SIZE_MIN,
   getHotelSettings,
-  normalizeBookingChannels,
   normalizeReportFontFamily,
   normalizeReportFontSize,
   normalizeStringList,
   saveHotelSettings,
-  type BookingChannel,
   type HotelSettings,
 } from '../../../utils/hotelSettings';
 
@@ -56,7 +54,6 @@ const DB_SETTING_KEYS = [
   'support_reopen_window_days',
   'rate_codes',
   'market_codes',
-  'booking_channels',
   'payment_methods',
 ] as const;
 
@@ -99,20 +96,6 @@ const parseStringListSetting = (value: string | undefined, fallback: string[]) =
     return values.length > 0 ? Array.from(new Set(values)) : fallback;
   }
   return fallback;
-};
-
-const parseBookingChannelsSetting = (value: string | undefined, fallback: BookingChannel[]) => {
-  if (!value) return fallback;
-  try {
-    return normalizeBookingChannels(JSON.parse(value));
-  } catch {
-    return normalizeBookingChannels(
-      value
-        .split(',')
-        .map(item => item.trim())
-        .filter(Boolean)
-    );
-  }
 };
 
 const settingsRowsToMap = (rows: PublicSetting[]) =>
@@ -236,7 +219,10 @@ const mergeSystemSettings = (
     ),
     rate_codes: parseStringListSetting(values.get('rate_codes'), localSettings.rate_codes),
     market_codes: parseStringListSetting(values.get('market_codes'), localSettings.market_codes),
-    booking_channels: parseBookingChannelsSetting(values.get('booking_channels'), localSettings.booking_channels),
+    // booking_channels is deliberately NOT merged: the booking_channels table
+    // is the source of truth, and the cached list is mirrored from it via
+    // `syncBookingChannelsSetting`. The seeded JSON row stays server-side but
+    // is deprecated and must not overwrite the mirror.
     payment_methods: parseStringListSetting(values.get('payment_methods'), localSettings.payment_methods),
   };
 };

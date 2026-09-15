@@ -4,6 +4,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
+import CableIcon from '@mui/icons-material/Cable';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import EventNoteIcon from '@mui/icons-material/EventNote';
@@ -115,6 +116,7 @@ const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/
 const RevenueOverviewPage = lazyRoute(() => import('../features/revenue/pages/RevenueOverviewPage'));
 const RatesPage = lazyRoute(() => import('../features/rates/pages/RatesPage'));
 const SegmentsPage = lazyRoute(() => import('../features/segments/pages/SegmentsPage'));
+const ChannelsPage = lazyRoute(() => import('../features/channels/pages/ChannelsPage'));
 const LegalTermsPage = lazyRoute(() => import('../features/legal/pages/TermsPage'));
 const LegalPrivacyPage = lazyRoute(() => import('../features/legal/pages/PrivacyPage'));
 const LegalPaymentTermsPage = lazyRoute(() => import('../features/legal/pages/PaymentTermsPage'));
@@ -299,6 +301,18 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: GroupWorkIcon,
     breadcrumbLabel: 'Segments',
     navLabel: 'Segments',
+    navGroup: 'revenue',
+    accessControlled: true,
+  },
+  {
+    id: 'channels',
+    path: '/channels',
+    component: ChannelsPage,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: CableIcon,
+    breadcrumbLabel: 'Channels',
+    navLabel: 'Channels',
     navGroup: 'revenue',
     accessControlled: true,
   },

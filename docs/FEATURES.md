@@ -20,7 +20,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Online inventory / availability grid | Delivered | ✓ `features/onlineInventory` (`/online-inventory`) | ✓ `online_inventory_allocations` | |
 | Revenue overview | Delivered | ✓ `features/revenue` (`/revenue`) | ✓ `modules/revenue` | ADR/RevPAR, occupancy, channel mix, receivables ageing, period comparison |
 | Rates, rate plans, rate codes | Delivered | ✓ `features/rates` (`/rates`) | ✓ `modules/rates` | Plan CRUD, rate calendar, bulk bands; market/rate codes, channel net revenue |
-| Booking channels | Delivered | ✓ | ✓ `modules/booking_channels` | `bookings.booking_channel_id` is canonical attribution |
+| Booking channels | Delivered | ✓ `features/channels` (`/channels`) | ✓ `modules/booking_channels` | `bookings.booking_channel_id` is canonical attribution; channel pricing rules (markup/discount/fixed/net-rate) + dated commission rules + preview/matrix; commission & net revenue snapshotted on booking write |
 | Guests & companies | Delivered | ✓ `features/guests` | ✓ `modules/{guests,companies}` | Corporate accounts + city-ledger links; `nick_name` booking display name + `guest_name_taken` conflict code |
 | Guest relations (CRM 360) | Delivered | ✓ `features/guestRelations` (`/guest-relations/*`) | ✓ `modules/guest_relations` | Overview dashboard, follow-up queue, interactions, preferences, reviews — see `architecture/guest-relations.md` |
 | Invoices & folio | Delivered | ✓ `features/invoices` | ✓ (`services/invoice_numbers.rs`) | Numbered invoices, checkout receipts |

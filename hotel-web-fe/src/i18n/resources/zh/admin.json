@@ -180,7 +180,9 @@
     "paymentMethods": "支付方式",
     "paymentMethodsHint": "配置上门客可用的支付方式",
     "addPaymentMethod": "添加新支付方式（如电子钱包）",
-    "systemConfigNote": "这些选项将显示在预订渠道下拉列表（在线入住）和支付方式下拉列表（上门客）中。"
+    "systemConfigNote": "这些选项将显示在预订渠道下拉列表（在线入住）和支付方式下拉列表（上门客）中。",
+    "bookingChannelsManagedHint": "预订渠道在“渠道管理”中维护；此列表为只读。",
+    "manageBookingChannels": "管理渠道"
   },
   "paymentApprovals": {
     "title": "付款审批",

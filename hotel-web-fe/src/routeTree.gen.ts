@@ -17,6 +17,7 @@ import { Route as AdminPortalRouteImport } from './routes/admin-portal'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as BookingsRouteImport } from './routes/bookings'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
+import { Route as ChannelsRouteImport } from './routes/channels'
 import { Route as CommunicationsRouteImport } from './routes/communications'
 import { Route as CompanyLedgerRouteImport } from './routes/company-ledger'
 import { Route as CompleteProfileRouteImport } from './routes/complete-profile'
@@ -55,6 +56,7 @@ import { Route as SystemHealthRouteImport } from './routes/system-health'
 import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as BookingsBookingIdRouteImport } from './routes/bookings.$bookingId'
+import { Route as ChannelsChannelIdRouteImport } from './routes/channels.$channelId'
 import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/index'
 import { Route as GuestCheckinConfirmRouteImport } from './routes/guest-checkin/confirm'
 import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
@@ -111,6 +113,11 @@ const BookingsRoute = BookingsRouteImport.update({
 const CampaignsRoute = CampaignsRouteImport.update({
   id: '/campaigns',
   path: '/campaigns',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChannelsRoute = ChannelsRouteImport.update({
+  id: '/channels',
+  path: '/channels',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommunicationsRoute = CommunicationsRouteImport.update({
@@ -303,6 +310,11 @@ const BookingsBookingIdRoute = BookingsBookingIdRouteImport.update({
   path: '/$bookingId',
   getParentRoute: () => BookingsRoute,
 } as any)
+const ChannelsChannelIdRoute = ChannelsChannelIdRouteImport.update({
+  id: '/$channelId',
+  path: '/$channelId',
+  getParentRoute: () => ChannelsRoute,
+} as any)
 const GuestCheckinIndexRoute = GuestCheckinIndexRouteImport.update({
   id: '/guest-checkin/',
   path: '/guest-checkin/',
@@ -402,6 +414,7 @@ export interface FileRoutesByFullPath {
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRouteWithChildren
   '/campaigns': typeof CampaignsRoute
+  '/channels': typeof ChannelsRouteWithChildren
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -440,6 +453,7 @@ export interface FileRoutesByFullPath {
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/bookings/$bookingId': typeof BookingsBookingIdRoute
+  '/channels/$channelId': typeof ChannelsChannelIdRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
@@ -467,6 +481,7 @@ export interface FileRoutesByTo {
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRouteWithChildren
   '/campaigns': typeof CampaignsRoute
+  '/channels': typeof ChannelsRouteWithChildren
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -505,6 +520,7 @@ export interface FileRoutesByTo {
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/bookings/$bookingId': typeof BookingsBookingIdRoute
+  '/channels/$channelId': typeof ChannelsChannelIdRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
@@ -533,6 +549,7 @@ export interface FileRoutesById {
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRouteWithChildren
   '/campaigns': typeof CampaignsRoute
+  '/channels': typeof ChannelsRouteWithChildren
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -571,6 +588,7 @@ export interface FileRoutesById {
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/bookings/$bookingId': typeof BookingsBookingIdRoute
+  '/channels/$channelId': typeof ChannelsChannelIdRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
@@ -600,6 +618,7 @@ export interface FileRouteTypes {
     | '/audit-log'
     | '/bookings'
     | '/campaigns'
+    | '/channels'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -638,6 +657,7 @@ export interface FileRouteTypes {
     | '/timeline'
     | '/verify-email'
     | '/bookings/$bookingId'
+    | '/channels/$channelId'
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
@@ -665,6 +685,7 @@ export interface FileRouteTypes {
     | '/audit-log'
     | '/bookings'
     | '/campaigns'
+    | '/channels'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -703,6 +724,7 @@ export interface FileRouteTypes {
     | '/timeline'
     | '/verify-email'
     | '/bookings/$bookingId'
+    | '/channels/$channelId'
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
@@ -730,6 +752,7 @@ export interface FileRouteTypes {
     | '/audit-log'
     | '/bookings'
     | '/campaigns'
+    | '/channels'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -768,6 +791,7 @@ export interface FileRouteTypes {
     | '/timeline'
     | '/verify-email'
     | '/bookings/$bookingId'
+    | '/channels/$channelId'
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
@@ -796,6 +820,7 @@ export interface RootRouteChildren {
   AuditLogRoute: typeof AuditLogRoute
   BookingsRoute: typeof BookingsRouteWithChildren
   CampaignsRoute: typeof CampaignsRoute
+  ChannelsRoute: typeof ChannelsRouteWithChildren
   CommunicationsRoute: typeof CommunicationsRoute
   CompanyLedgerRoute: typeof CompanyLedgerRoute
   CompleteProfileRoute: typeof CompleteProfileRoute
@@ -907,6 +932,13 @@ declare module '@tanstack/react-router' {
       path: '/campaigns'
       fullPath: '/campaigns'
       preLoaderRoute: typeof CampaignsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/channels': {
+      id: '/channels'
+      path: '/channels'
+      fullPath: '/channels'
+      preLoaderRoute: typeof ChannelsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/communications': {
@@ -1175,6 +1207,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookingsBookingIdRouteImport
       parentRoute: typeof BookingsRoute
     }
+    '/channels/$channelId': {
+      id: '/channels/$channelId'
+      path: '/$channelId'
+      fullPath: '/channels/$channelId'
+      preLoaderRoute: typeof ChannelsChannelIdRouteImport
+      parentRoute: typeof ChannelsRoute
+    }
     '/guest-checkin/': {
       id: '/guest-checkin/'
       path: '/guest-checkin'
@@ -1309,6 +1348,18 @@ const BookingsRouteWithChildren = BookingsRoute._addFileChildren(
   BookingsRouteChildren,
 )
 
+interface ChannelsRouteChildren {
+  ChannelsChannelIdRoute: typeof ChannelsChannelIdRoute
+}
+
+const ChannelsRouteChildren: ChannelsRouteChildren = {
+  ChannelsChannelIdRoute: ChannelsChannelIdRoute,
+}
+
+const ChannelsRouteWithChildren = ChannelsRoute._addFileChildren(
+  ChannelsRouteChildren,
+)
+
 interface HelpRouteChildren {
   HelpSlugRoute: typeof HelpSlugRoute
 }
@@ -1328,6 +1379,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuditLogRoute: AuditLogRoute,
   BookingsRoute: BookingsRouteWithChildren,
   CampaignsRoute: CampaignsRoute,
+  ChannelsRoute: ChannelsRouteWithChildren,
   CommunicationsRoute: CommunicationsRoute,
   CompanyLedgerRoute: CompanyLedgerRoute,
   CompleteProfileRoute: CompleteProfileRoute,

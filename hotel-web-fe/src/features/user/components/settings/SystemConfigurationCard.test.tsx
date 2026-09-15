@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SystemConfigurationCard from './SystemConfigurationCard';
 
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => vi.fn(),
+}));
+
 const mocks = vi.hoisted(() => ({
   rateCodes: ['BAR', 'COR'],
   marketCodes: ['OTA'] as string[],
@@ -23,10 +27,6 @@ function renderCard({ isAdmin = true }: { isAdmin?: boolean } = {}) {
         mocks.marketCodes = typeof v === 'function' ? (v as (prev: string[]) => string[])(mocks.marketCodes) : v;
       }}
       bookingChannels={mocks.bookingChannels}
-      onBookingChannelsChange={(v) => {
-        mocks.bookingChannels =
-          typeof v === 'function' ? (v as (prev: typeof mocks.bookingChannels) => typeof mocks.bookingChannels)(mocks.bookingChannels) : v;
-      }}
       paymentMethods={mocks.paymentMethods}
       onPaymentMethodsChange={(v) => {
         mocks.paymentMethods = typeof v === 'function' ? (v as (prev: string[]) => string[])(mocks.paymentMethods) : v;
@@ -86,21 +86,13 @@ describe('SystemConfigurationCard', () => {
     expect(mocks.rateCodes).toEqual(['COR']);
   });
 
-  it('adds a booking channel from name and abbreviation fields', () => {
+  it('shows booking channels read-only with a manage link to /channels', () => {
     renderCard();
 
-    fireEvent.change(screen.getByPlaceholderText(/Channel name/), {
-      target: { value: 'Agoda' },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/Abbr\./), {
-      target: { value: 'AGD' },
-    });
-    // Add buttons render in order: rate codes, market codes, channels, payments.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Add' })[2]);
-
-    expect(
-      mocks.bookingChannels.map((channel) => `${channel.name} (${channel.abbreviation})`),
-    ).toEqual(['Booking.com (B.C)', 'Agoda (AGD)']);
+    // The JSON list is deprecated — no name/abbreviation inputs, no chip delete.
+    expect(screen.queryByPlaceholderText(/Channel name/)).toBeNull();
+    expect(screen.getByText('Booking.com (B.C)').querySelector('.MuiChip-deleteIcon')).toBeNull();
+    expect(screen.getByRole('button', { name: /channels/i })).toBeTruthy();
   });
 
   it('adds a trimmed payment method', () => {

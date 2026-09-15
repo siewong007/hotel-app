@@ -130,6 +130,10 @@
       "label": "客群细分",
       "breadcrumb": "客人细分"
     },
+    "channels": {
+      "label": "渠道",
+      "breadcrumb": "预订渠道"
+    },
     "settings": {
       "label": "酒店设置",
       "breadcrumb": "酒店设置"

@@ -1,0 +1,222 @@
+{
+  "title": "Channels",
+  "subtitle": "Distribution channels, selling prices, and commission",
+  "tabs": {
+    "channels": "Channels",
+    "matrix": "Pricing matrix"
+  },
+  "actions": {
+    "newChannel": "New channel"
+  },
+  "types": {
+    "direct": "Direct",
+    "ota": "OTA",
+    "corporate": "Corporate",
+    "walk_in": "Walk-in",
+    "phone": "Phone",
+    "website": "Website",
+    "channel_manager": "Channel manager",
+    "other": "Other"
+  },
+  "integration": {
+    "manual": "Manual",
+    "channel_manager": "Channel manager",
+    "api": "API"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "commissionTypes": {
+    "none": "None",
+    "percentage": "Percentage",
+    "fixed_amount": "Fixed amount"
+  },
+  "commissionScopes": {
+    "per_booking": "Per booking",
+    "per_night": "Per night"
+  },
+  "ruleTypes": {
+    "markup_percent": "Markup %",
+    "markup_fixed": "Markup (fixed)",
+    "discount_percent": "Discount %",
+    "fixed_price": "Fixed price",
+    "net_rate": "Net rate"
+  },
+  "ruleTypeHelp": {
+    "markup_percent": "Selling price = source rate plus this percentage.",
+    "markup_fixed": "Selling price = source rate plus this amount, per night.",
+    "discount_percent": "Selling price = source rate minus this percentage.",
+    "fixed_price": "Selling price is always this amount per night in the window.",
+    "net_rate": "Hotel receives this net amount per night; the channel sets its own selling price."
+  },
+  "list": {
+    "loadError": "Could not load channels.",
+    "emptyTitle": "No channels yet",
+    "emptyBody": "Create a booking channel to start pricing per distribution source.",
+    "noCommission": "No commission",
+    "open": "Open channel",
+    "edit": "Edit",
+    "deactivate": "Deactivate",
+    "deactivateTitle": "Deactivate channel?",
+    "deactivateMessage": "{{name}} will stop resolving prices and commission for new bookings. Existing bookings keep their recorded values.",
+    "deactivateConfirm": "Deactivate",
+    "columns": {
+      "name": "Channel",
+      "type": "Type",
+      "code": "Code",
+      "commission": "Default commission",
+      "integration": "Integration",
+      "status": "Status",
+      "actions": "Actions"
+    }
+  },
+  "matrix": {
+    "dateLabel": "Date",
+    "hint": "Resolved selling price per channel for the selected date.",
+    "loadError": "Could not load the pricing matrix.",
+    "empty": "No cells to show for this date.",
+    "roomType": "Room type",
+    "netTag": "net",
+    "cellTooltip": "{{rule}} — est. net {{net}}"
+  },
+  "detail": {
+    "title": "Channel",
+    "back": "All channels",
+    "inactiveNotice": "This channel is inactive — its rules no longer resolve for new bookings.",
+    "tabs": {
+      "rules": "Pricing rules",
+      "commission": "Commission",
+      "mappings": "Mappings",
+      "preview": "Preview"
+    }
+  },
+  "dialog": {
+    "newTitle": "New channel",
+    "editTitle": "Edit channel"
+  },
+  "fields": {
+    "name": "Name",
+    "channelType": "Channel type",
+    "abbreviation": "Abbreviation",
+    "abbreviationHelp": "Short label shown in booking filters and reports.",
+    "code": "Code",
+    "codeHelp": "Stable identifier used by integrations.",
+    "integrationMode": "Integration mode",
+    "integrationModeHelp": "How bookings from this channel reach the hotel.",
+    "commissionType": "Default commission type",
+    "commissionPercent": "Commission %",
+    "commissionAmount": "Commission amount",
+    "commissionScope": "Commission scope",
+    "active": "Active"
+  },
+  "rules": {
+    "new": "New rule",
+    "loadError": "Could not load pricing rules.",
+    "emptyTitle": "No pricing rules",
+    "emptyBody": "Without a rule this channel sells at the internal rate.",
+    "deleteTitle": "Delete pricing rule?",
+    "deleteMessage": "The rule stops applying immediately; bookings already written keep their snapshot.",
+    "disable": "Disable",
+    "enable": "Enable",
+    "scopeAllRooms": "All room types",
+    "scopeAnyPlan": "Any rate plan",
+    "openEnded": "open-ended",
+    "columns": {
+      "type": "Rule",
+      "value": "Value",
+      "roomType": "Room type",
+      "ratePlan": "Rate plan",
+      "window": "Effective window",
+      "bounds": "Min / max",
+      "priority": "Priority",
+      "status": "Status",
+      "actions": "Actions"
+    }
+  },
+  "rulesDialog": {
+    "newTitle": "New pricing rule",
+    "editTitle": "Edit pricing rule",
+    "ruleType": "Rule type",
+    "valuePercent": "Value (%)",
+    "valueAmount": "Value",
+    "roomType": "Room type",
+    "roomTypeHelp": "Scope the rule to one room type, or leave it channel-wide.",
+    "ratePlan": "Rate plan",
+    "ratePlanHelp": "Scope the rule to one rate plan, or apply it to any plan.",
+    "effectiveFrom": "Effective from",
+    "effectiveTo": "Effective to",
+    "windowError": "The window end must be on or after the start.",
+    "minPrice": "Min price (optional)",
+    "maxPrice": "Max price (optional)",
+    "boundsHelp": "Clamp the resolved nightly price to these bounds.",
+    "priority": "Priority",
+    "priorityHelp": "Higher priority wins when several rules match a night.",
+    "reason": "Reason (optional)",
+    "largeChangeWarning": "Heads up: {{value}}% is a large shift from the source rate."
+  },
+  "commission": {
+    "new": "New override",
+    "loadError": "Could not load commission rules.",
+    "emptyTitle": "No dated commission rules",
+    "emptyBody": "The channel default applies unless a dated rule overrides it.",
+    "deleteTitle": "Delete commission rule?",
+    "deleteMessage": "The channel default applies for stays that used this rule.",
+    "defaultChip": "Default: {{type}} {{value}}",
+    "columns": {
+      "type": "Type",
+      "value": "Value",
+      "scope": "Scope",
+      "window": "Effective window",
+      "priority": "Priority",
+      "status": "Status",
+      "actions": "Actions"
+    }
+  },
+  "commissionDialog": {
+    "newTitle": "New commission rule",
+    "editTitle": "Edit commission rule",
+    "type": "Commission type"
+  },
+  "mappings": {
+    "notice": "Mappings hold the channel's external identifiers for a future channel-manager integration — nothing syncs yet.",
+    "roomTypes": "Room type mappings",
+    "ratePlans": "Rate plan mappings",
+    "add": "Add mapping",
+    "empty": "No mappings yet.",
+    "deleteTitle": "Delete mapping?",
+    "deleteMessage": "The external identifier link is removed.",
+    "roomDialogTitle": "Map room type",
+    "planDialogTitle": "Map rate plan",
+    "columns": {
+      "roomType": "Room type",
+      "ratePlan": "Rate plan",
+      "externalId": "External ID",
+      "externalName": "External name",
+      "enabled": "Enabled",
+      "actions": "Actions"
+    }
+  },
+  "preview": {
+    "roomType": "Room type",
+    "ratePlan": "Rate plan",
+    "checkIn": "Check-in",
+    "checkOut": "Check-out",
+    "run": "Preview",
+    "windowError": "Check-out must be after check-in.",
+    "error": "Could not resolve a preview for that stay.",
+    "sellingSubtotal": "Selling subtotal",
+    "channelManaged": "Channel-managed",
+    "estimatedCommission": "Estimated commission",
+    "estimatedNet": "Estimated net revenue",
+    "disclaimer": "Estimates only — commission and net revenue are frozen on the booking when it is written.",
+    "columns": {
+      "date": "Night",
+      "sourceRate": "Source rate",
+      "sellingPrice": "Selling price",
+      "rule": "Rule"
+    },
+    "hint": "Sell {{selling}} · est. commission {{commission}} · est. net {{net}}",
+    "hintManaged": "Channel-managed sell · est. net {{net}}"
+  }
+}

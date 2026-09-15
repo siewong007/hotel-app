@@ -1,0 +1,222 @@
+{
+  "title": "渠道",
+  "subtitle": "分销渠道、销售价格与佣金",
+  "tabs": {
+    "channels": "渠道",
+    "matrix": "价格矩阵"
+  },
+  "actions": {
+    "newChannel": "新建渠道"
+  },
+  "types": {
+    "direct": "直订",
+    "ota": "OTA",
+    "corporate": "企业",
+    "walk_in": "上门客",
+    "phone": "电话",
+    "website": "网站",
+    "channel_manager": "渠道管理器",
+    "other": "其他"
+  },
+  "integration": {
+    "manual": "手动",
+    "channel_manager": "渠道管理器",
+    "api": "API"
+  },
+  "status": {
+    "active": "启用",
+    "inactive": "停用"
+  },
+  "commissionTypes": {
+    "none": "无",
+    "percentage": "百分比",
+    "fixed_amount": "固定金额"
+  },
+  "commissionScopes": {
+    "per_booking": "每笔预订",
+    "per_night": "每晚"
+  },
+  "ruleTypes": {
+    "markup_percent": "加价 %",
+    "markup_fixed": "加价（固定）",
+    "discount_percent": "折扣 %",
+    "fixed_price": "固定价格",
+    "net_rate": "净房价"
+  },
+  "ruleTypeHelp": {
+    "markup_percent": "售价 = 源房价加此百分比。",
+    "markup_fixed": "售价 = 源房价每晚加此金额。",
+    "discount_percent": "售价 = 源房价减此百分比。",
+    "fixed_price": "有效期内每晚售价固定为此金额。",
+    "net_rate": "酒店每晚收取此净额；售价由渠道自行决定。"
+  },
+  "list": {
+    "loadError": "无法加载渠道。",
+    "emptyTitle": "尚无渠道",
+    "emptyBody": "创建预订渠道后即可按分销来源定价。",
+    "noCommission": "无佣金",
+    "open": "打开渠道",
+    "edit": "编辑",
+    "deactivate": "停用",
+    "deactivateTitle": "停用渠道？",
+    "deactivateMessage": "{{name}} 将不再为新预订解析价格和佣金。现有预订保留已记录的数值。",
+    "deactivateConfirm": "停用",
+    "columns": {
+      "name": "渠道",
+      "type": "类型",
+      "code": "代码",
+      "commission": "默认佣金",
+      "integration": "集成",
+      "status": "状态",
+      "actions": "操作"
+    }
+  },
+  "matrix": {
+    "dateLabel": "日期",
+    "hint": "所选日期各渠道的解析售价。",
+    "loadError": "无法加载价格矩阵。",
+    "empty": "此日期没有可显示的单元格。",
+    "roomType": "房型",
+    "netTag": "净价",
+    "cellTooltip": "{{rule}} — 预计净收入 {{net}}"
+  },
+  "detail": {
+    "title": "渠道",
+    "back": "全部渠道",
+    "inactiveNotice": "此渠道已停用 — 其规则不再适用于新预订。",
+    "tabs": {
+      "rules": "定价规则",
+      "commission": "佣金",
+      "mappings": "映射",
+      "preview": "预览"
+    }
+  },
+  "dialog": {
+    "newTitle": "新建渠道",
+    "editTitle": "编辑渠道"
+  },
+  "fields": {
+    "name": "名称",
+    "channelType": "渠道类型",
+    "abbreviation": "缩写",
+    "abbreviationHelp": "在预订筛选和报表中显示的短标签。",
+    "code": "代码",
+    "codeHelp": "集成使用的稳定标识符。",
+    "integrationMode": "集成模式",
+    "integrationModeHelp": "此渠道的预订如何到达酒店。",
+    "commissionType": "默认佣金类型",
+    "commissionPercent": "佣金 %",
+    "commissionAmount": "佣金金额",
+    "commissionScope": "佣金范围",
+    "active": "启用"
+  },
+  "rules": {
+    "new": "新建规则",
+    "loadError": "无法加载定价规则。",
+    "emptyTitle": "暂无定价规则",
+    "emptyBody": "没有规则时，此渠道按内部房价销售。",
+    "deleteTitle": "删除定价规则？",
+    "deleteMessage": "规则立即停止生效；已写入的预订保留其快照。",
+    "disable": "停用",
+    "enable": "启用",
+    "scopeAllRooms": "所有房型",
+    "scopeAnyPlan": "任意房价计划",
+    "openEnded": "无结束日期",
+    "columns": {
+      "type": "规则",
+      "value": "值",
+      "roomType": "房型",
+      "ratePlan": "房价计划",
+      "window": "有效期",
+      "bounds": "最低 / 最高",
+      "priority": "优先级",
+      "status": "状态",
+      "actions": "操作"
+    }
+  },
+  "rulesDialog": {
+    "newTitle": "新建定价规则",
+    "editTitle": "编辑定价规则",
+    "ruleType": "规则类型",
+    "valuePercent": "数值（%）",
+    "valueAmount": "数值",
+    "roomType": "房型",
+    "roomTypeHelp": "将规则限定于某一房型，或保持渠道范围。",
+    "ratePlan": "房价计划",
+    "ratePlanHelp": "将规则限定于某一房价计划，或适用于所有计划。",
+    "effectiveFrom": "生效日期",
+    "effectiveTo": "结束日期",
+    "windowError": "结束日期不得早于开始日期。",
+    "minPrice": "最低价（可选）",
+    "maxPrice": "最高价（可选）",
+    "boundsHelp": "将解析后的每晚价格限制在此范围内。",
+    "priority": "优先级",
+    "priorityHelp": "多条规则匹配同一晚时，优先级高者生效。",
+    "reason": "原因（可选）",
+    "largeChangeWarning": "注意：{{value}}% 与源房价偏差较大。"
+  },
+  "commission": {
+    "new": "新建覆盖",
+    "loadError": "无法加载佣金规则。",
+    "emptyTitle": "暂无按日期生效的佣金规则",
+    "emptyBody": "除非按日期规则覆盖，否则使用渠道默认佣金。",
+    "deleteTitle": "删除佣金规则？",
+    "deleteMessage": "使用此规则的住宿将回退为渠道默认佣金。",
+    "defaultChip": "默认：{{type}} {{value}}",
+    "columns": {
+      "type": "类型",
+      "value": "值",
+      "scope": "范围",
+      "window": "有效期",
+      "priority": "优先级",
+      "status": "状态",
+      "actions": "操作"
+    }
+  },
+  "commissionDialog": {
+    "newTitle": "新建佣金规则",
+    "editTitle": "编辑佣金规则",
+    "type": "佣金类型"
+  },
+  "mappings": {
+    "notice": "映射保存渠道的外部标识符，供未来的渠道管理器集成使用 — 目前不会同步。",
+    "roomTypes": "房型映射",
+    "ratePlans": "房价计划映射",
+    "add": "添加映射",
+    "empty": "暂无映射。",
+    "deleteTitle": "删除映射？",
+    "deleteMessage": "外部标识符关联将被移除。",
+    "roomDialogTitle": "映射房型",
+    "planDialogTitle": "映射房价计划",
+    "columns": {
+      "roomType": "房型",
+      "ratePlan": "房价计划",
+      "externalId": "外部 ID",
+      "externalName": "外部名称",
+      "enabled": "启用",
+      "actions": "操作"
+    }
+  },
+  "preview": {
+    "roomType": "房型",
+    "ratePlan": "房价计划",
+    "checkIn": "入住",
+    "checkOut": "退房",
+    "run": "预览",
+    "windowError": "退房日期须晚于入住日期。",
+    "error": "无法解析该住宿的预览。",
+    "sellingSubtotal": "售价小计",
+    "channelManaged": "由渠道管理",
+    "estimatedCommission": "预计佣金",
+    "estimatedNet": "预计净收入",
+    "disclaimer": "仅为估算 — 预订写入时佣金与净收入将被快照固定。",
+    "columns": {
+      "date": "晚",
+      "sourceRate": "源房价",
+      "sellingPrice": "售价",
+      "rule": "规则"
+    },
+    "hint": "售价 {{selling}} · 预计佣金 {{commission}} · 预计净收入 {{net}}",
+    "hintManaged": "售价由渠道管理 · 预计净收入 {{net}}"
+  }
+}

@@ -180,7 +180,9 @@
     "paymentMethods": "Kaedah Pembayaran",
     "paymentMethodsHint": "Konfigurasikan kaedah pembayaran yang tersedia untuk tetamu walk-in",
     "addPaymentMethod": "Tambah kaedah pembayaran baharu (cth., E-Wallet)",
-    "systemConfigNote": "Pilihan ini akan muncul dalam dropdown saluran tempahan (daftar masuk dalam talian) dan dropdown kaedah pembayaran (tetamu walk-in)."
+    "systemConfigNote": "Pilihan ini akan muncul dalam dropdown saluran tempahan (daftar masuk dalam talian) dan dropdown kaedah pembayaran (tetamu walk-in).",
+    "bookingChannelsManagedHint": "Saluran tempahan diuruskan dalam Pengurusan Saluran; senarai ini baca sahaja.",
+    "manageBookingChannels": "Urus saluran"
   },
   "paymentApprovals": {
     "title": "Kelulusan Bayaran",

@@ -180,7 +180,9 @@
     "paymentMethods": "Payment Methods",
     "paymentMethodsHint": "Configure available payment methods for walk-in guests",
     "addPaymentMethod": "Add new payment method (e.g., E-Wallet)",
-    "systemConfigNote": "These options will appear in the booking channels dropdown (online check-in) and payment methods dropdown (walk-in guests)."
+    "systemConfigNote": "These options will appear in the booking channels dropdown (online check-in) and payment methods dropdown (walk-in guests).",
+    "bookingChannelsManagedHint": "Booking channels are managed in Channel Management; this list is read-only.",
+    "manageBookingChannels": "Manage channels"
   },
   "paymentApprovals": {
     "title": "Payment Approvals",

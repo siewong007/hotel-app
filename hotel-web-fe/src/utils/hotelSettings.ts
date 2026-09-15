@@ -321,3 +321,23 @@ export const updateHotelSetting = <K extends keyof HotelSettings>(
   settings[key] = value;
   saveHotelSettings(settings);
 };
+
+/**
+ * Mirror the `booking_channels` table into the cached settings list. The table
+ * is the source of truth — the `system_settings` JSON row is deprecated and
+ * only survives as a display fallback for channel name/abbreviation chips
+ * (see `features/bookings/utils/bookingChannel.ts`). Any screen that lists
+ * channels calls this so the chips reflect table-managed channels.
+ */
+export const syncBookingChannelsSetting = (
+  channels: ReadonlyArray<{ name: string; abbreviation?: string | null }>,
+): void => {
+  const settings = getHotelSettings();
+  settings.booking_channels = channels
+    .map((channel) => ({
+      name: channel.name,
+      abbreviation: channel.abbreviation ?? '',
+    }))
+    .filter((channel) => channel.name.trim().length > 0);
+  saveHotelSettings(settings);
+};

@@ -134,6 +134,10 @@
       "label": "Segments",
       "breadcrumb": "Guest Segments"
     },
+    "channels": {
+      "label": "Channels",
+      "breadcrumb": "Channels"
+    },
     "settings": {
       "label": "Hotel Settings",
       "breadcrumb": "Hotel Settings"

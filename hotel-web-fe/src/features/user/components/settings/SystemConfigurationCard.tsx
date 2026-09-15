@@ -17,6 +17,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 
 import type { BookingChannel } from "../../../../utils/hotelSettings";
 import { useTranslation } from "../../../../i18n";
+import { useNavigate } from "@tanstack/react-router";
 
 interface SystemConfigurationCardProps {
   isAdmin: boolean;
@@ -25,7 +26,6 @@ interface SystemConfigurationCardProps {
   marketCodes: string[];
   onMarketCodesChange: React.Dispatch<React.SetStateAction<string[]>>;
   bookingChannels: BookingChannel[];
-  onBookingChannelsChange: React.Dispatch<React.SetStateAction<BookingChannel[]>>;
   paymentMethods: string[];
   onPaymentMethodsChange: React.Dispatch<React.SetStateAction<string[]>>;
 }
@@ -44,9 +44,10 @@ const addCode = (
 
 /**
  * "System Configuration" card of SettingsPage (rate codes, market codes,
- * online booking channels, payment methods). The four code lists are owned by
- * the page — they feed the save payload — while the add-form input state is
- * local to this card.
+ * online booking channels, payment methods). The code lists are owned by the
+ * page — they feed the save payload. Booking channels are managed on the
+ * Channels page (the `booking_channels` table is the source of truth); the
+ * legacy JSON list is only shown here read-only.
  */
 export function SystemConfigurationCard({
   isAdmin,
@@ -55,25 +56,14 @@ export function SystemConfigurationCard({
   marketCodes,
   onMarketCodesChange,
   bookingChannels,
-  onBookingChannelsChange,
   paymentMethods,
   onPaymentMethodsChange,
 }: SystemConfigurationCardProps) {
   const { t } = useTranslation('admin');
+  const navigate = useNavigate();
   const [newRateCode, setNewRateCode] = useState("");
   const [newMarketCode, setNewMarketCode] = useState("");
-  const [newChannelName, setNewChannelName] = useState("");
-  const [newChannelAbbreviation, setNewChannelAbbreviation] = useState("");
   const [newPaymentMethod, setNewPaymentMethod] = useState("");
-
-  const addBookingChannel = () => {
-    const name = newChannelName.trim();
-    const abbreviation = newChannelAbbreviation.trim();
-    if (!name) return;
-    onBookingChannelsChange([...bookingChannels, { name, abbreviation }]);
-    setNewChannelName("");
-    setNewChannelAbbreviation("");
-  };
 
   return (
     <Card sx={{ mb: 3 }}>
@@ -215,7 +205,8 @@ export function SystemConfigurationCard({
             </Box>
           </Grid>
 
-          {/* Booking Channels */}
+          {/* Booking Channels — read-only mirror of the booking_channels
+              table; managed on the Channels page. */}
           <Grid size={12}>
             <Typography variant="subtitle1" gutterBottom sx={{
               fontWeight: "medium"
@@ -225,7 +216,7 @@ export function SystemConfigurationCard({
             <Typography variant="body2" gutterBottom sx={{
               color: "text.secondary"
             }}>
-              {t('settings.bookingChannelsHint')}
+              {t('settings.bookingChannelsManagedHint')}
             </Typography>
 
             <Stack
@@ -244,52 +235,17 @@ export function SystemConfigurationCard({
                       ? `${channel.name} (${channel.abbreviation})`
                       : channel.name
                   }
-                  onDelete={() => {
-                    onBookingChannelsChange(
-                      bookingChannels.filter((_, i) => i !== index),
-                    );
-                  }}
                   sx={{ mb: 1 }}
                 />
               ))}
             </Stack>
 
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <TextField
-                size="small"
-                placeholder={t('settings.channelNamePlaceholder')}
-                value={newChannelName}
-                onChange={(e) => setNewChannelName(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addBookingChannel();
-                  }
-                }}
-                sx={{ flex: 2 }}
-              />
-              <TextField
-                size="small"
-                placeholder={t('settings.channelAbbrPlaceholder')}
-                value={newChannelAbbreviation}
-                onChange={(e) => setNewChannelAbbreviation(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addBookingChannel();
-                  }
-                }}
-                sx={{ flex: 1 }}
-              />
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={addBookingChannel}
-                disabled={!newChannelName.trim()}
-              >
-                {t('common:actions.add')}
-              </Button>
-            </Box>
+            <Button
+              variant="outlined"
+              onClick={() => navigate({ to: "/channels" })}
+            >
+              {t('settings.manageBookingChannels')}
+            </Button>
           </Grid>
 
           {/* Payment Methods */}

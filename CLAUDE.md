@@ -18,7 +18,7 @@ Line anchors rot; Grep first. This volume path has a trailing space — quote pa
 | Editing `.claude/`, or after any failure | [.claude/refs/maintenance.md](.claude/refs/maintenance.md) (+ append `lessons.md`) |
 | UI work / i18n / backup & restore | [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md), [docs/guides/internationalization.md](docs/guides/internationalization.md), [docs/guides/data-transfer.md](docs/guides/data-transfer.md) |
 | Deploy, prod access, incidents | [docs/guides/deployment.md](docs/guides/deployment.md), [docs/guides/vps-access.md](docs/guides/vps-access.md), [docs/security/](docs/security/) |
-| Architecture & decisions (12 ADRs) | [docs/architecture/architecture-flow.md](docs/architecture/architecture-flow.md), [docs/architecture/ADRS.md](docs/architecture/ADRS.md) |
+| Architecture & decisions (13 ADRs) | [docs/architecture/architecture-flow.md](docs/architecture/architecture-flow.md), [docs/architecture/ADRS.md](docs/architecture/ADRS.md) |
 | Desktop build / packaging | [docs/guides/PACKAGING.md](docs/guides/PACKAGING.md), [hotel-desktop/BUILD_SPEED.md](hotel-desktop/BUILD_SPEED.md), [hotel-desktop/UPDATER.md](hotel-desktop/UPDATER.md) |
 | What exists / what's next | [docs/FEATURES.md](docs/FEATURES.md), [docs/ongoing-dev.md](docs/ongoing-dev.md) |
 

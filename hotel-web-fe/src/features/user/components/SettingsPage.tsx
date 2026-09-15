@@ -59,6 +59,7 @@ import {
   useResetSystemSettingsMutation,
   useSaveHotelSettingsMutation,
 } from "../hooks/useSettingsQueries";
+import { ReportsService } from "../../../api/reports.service";
 import { useConfirm } from "../../../components/common/ConfirmProvider";
 import { useTranslation } from "../../../i18n";
 // Common timezones for hotels — display names live in admin:settings.tz.*
@@ -170,8 +171,14 @@ const SECTION_KEYS = {
     "totp_issuer_name",
     "passkey_relying_party_name",
   ],
-  system: ["rate_codes", "market_codes", "booking_channels", "payment_methods"],
+  system: ["rate_codes", "market_codes", "payment_methods"],
 } as const;
+
+// booking_channels is excluded from the dirty-check JSON: it is
+// table-managed, not a saved setting, and arrives via a separate query that
+// would dirty the form spuriously.
+const comparableSettings = (settings: HotelSettings) =>
+  JSON.stringify({ ...settings, booking_channels: [] });
 
 const SettingsPage: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -262,8 +269,27 @@ const SettingsPage: React.FC = () => {
   // System Configuration
   const [rateCodes, setRateCodes] = useState<string[]>([]);
   const [marketCodes, setMarketCodes] = useState<string[]>([]);
-  const [bookingChannels, setBookingChannels] = useState<BookingChannel[]>([]);
+  const [legacyBookingChannels, setLegacyBookingChannels] = useState<BookingChannel[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
+  const [tableBookingChannels, setTableBookingChannels] = useState<BookingChannel[] | null>(null);
+
+  // The booking_channels table is the source of truth; the legacy JSON list
+  // only fills in when the viewer lacks channel permissions.
+  useEffect(() => {
+    ReportsService.listBookingChannels()
+      .then((channels) =>
+        setTableBookingChannels(
+          channels
+            .filter((channel) => channel.is_active)
+            .map((channel) => ({
+              name: channel.name,
+              abbreviation: channel.abbreviation ?? "",
+            })),
+        ),
+      )
+      .catch(() => setTableBookingChannels(null));
+  }, []);
+  const bookingChannels: BookingChannel[] = tableBookingChannels ?? legacyBookingChannels;
 
   const applySettingsToForm = (settings: HotelSettings) => {
     setHotelName(settings.hotel_name);
@@ -312,7 +338,7 @@ const SettingsPage: React.FC = () => {
     setSupportReopenWindowDays(settings.support_reopen_window_days);
     setRateCodes(settings.rate_codes);
     setMarketCodes(settings.market_codes);
-    setBookingChannels(settings.booking_channels);
+    setLegacyBookingChannels(settings.booking_channels);
     setPaymentMethods(settings.payment_methods);
   };
 
@@ -418,13 +444,15 @@ const SettingsPage: React.FC = () => {
     maxLoginAttempts, totpIssuerName, passkeyRelyingPartyName,
     supportEnabled, guestBookingCancellationEnabled, supportCategories,
     supportFirstResponseMinutes, supportResolutionMinutes,
-    supportReopenWindowDays, rateCodes, marketCodes, bookingChannels,
-    paymentMethods,
+    supportReopenWindowDays, rateCodes, marketCodes,
+    bookingChannels, paymentMethods,
   ]);
 
   // Baseline of the last loaded/saved form — the dirty check compares the
   // form's JSON against this. Capturing must wait one commit past the apply
   // effect so the setters have flushed into state, hence the arm flag.
+  // booking_channels is excluded: it is table-managed, not a saved setting,
+  // and arrives via a separate query that would dirty the form spuriously.
   const pendingBaseline = useRef(false);
   const baselineArmed = useRef(false);
   const [baselineJson, setBaselineJson] = useState<string | null>(null);
@@ -432,13 +460,14 @@ const SettingsPage: React.FC = () => {
     if (pendingBaseline.current && baselineArmed.current) {
       pendingBaseline.current = false;
       baselineArmed.current = false;
-      setBaselineJson(JSON.stringify(buildSettings()));
+      setBaselineJson(comparableSettings(buildSettings()));
     } else if (pendingBaseline.current) {
       baselineArmed.current = true;
     }
   }, [buildSettings]);
   const isDirty =
-    baselineJson !== null && JSON.stringify(buildSettings()) !== baselineJson;
+    baselineJson !== null &&
+    comparableSettings(buildSettings()) !== baselineJson;
 
   const saveSettings = async () => {
     setError("");
@@ -1285,7 +1314,6 @@ const SettingsPage: React.FC = () => {
         marketCodes={marketCodes}
         onMarketCodesChange={setMarketCodes}
         bookingChannels={bookingChannels}
-        onBookingChannelsChange={setBookingChannels}
         paymentMethods={paymentMethods}
         onPaymentMethodsChange={setPaymentMethods}
       />

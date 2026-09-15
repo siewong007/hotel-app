@@ -1833,6 +1833,119 @@ mod postgres_creation_tests {
 
         cleanup(&pool, room_id, guest_id, actor_id).await;
     }
+
+    /// A channel-attributed booking freezes its economics at write time:
+    /// commission amount, net revenue, and the pricing snapshot persist on the
+    /// row so later rule edits cannot rewrite history.
+    #[tokio::test]
+    async fn postgres_creation_snapshots_channel_economics() {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 960_004;
+        let guest_id = 960_204;
+        let room_id = 960_304;
+
+        cleanup(&pool, room_id, guest_id, actor_id).await;
+        seed_data(&pool, room_id, guest_id, actor_id).await;
+
+        let channel_id: i64 = sqlx::query_scalar(
+            "INSERT INTO booking_channels (name, channel_type, default_commission_type, default_commission_value, default_commission_scope, is_active) \
+             VALUES ('Snapshot Test OTA', 'ota', 'percentage', 15.00, 'per_booking', true) RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        let input = BookingInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
+            guest_id,
+            room_id,
+            check_in_date: "2027-07-01".to_string(),
+            check_out_date: "2027-07-05".to_string(),
+            post_type: None,
+            rate_code: None,
+            booking_remarks: None,
+            is_tourist: None,
+            tourism_tax_amount: None,
+            extra_bed_count: None,
+            extra_bed_charge: None,
+            late_checkout_penalty: None,
+            payment_method: None,
+            payment_status: None,
+            amount_paid: None,
+            source: Some("online".to_string()),
+            booking_channel_id: Some(channel_id),
+            ota_reference: None,
+            booking_number: None,
+            deposit_paid: None,
+            deposit_amount: None,
+            deposit_payment_method: None,
+            room_rate_override: None,
+            special_requests: None,
+            daily_rates: None,
+            cleaning_preference: None,
+            company_id: None,
+            company_name: None,
+        };
+
+        let booking = create_booking_handler(State(pool.clone()), Extension(actor_id), Json(input))
+            .await
+            .expect("channel-attributed booking should be created")
+            .0;
+
+        // Room revenue is 4 nights × base 100 = 400; 15% per-booking
+        // commission snapshots to 60 and net revenue to 340.
+        assert_eq!(booking.booking_channel_id, Some(channel_id));
+        assert_eq!(
+            booking.commission_amount.map(|v| v.round_dp(2)),
+            Some(rust_decimal::Decimal::new(6000, 2)),
+            "commission snapshot should be 15% of room revenue"
+        );
+        assert_eq!(
+            booking.net_revenue.map(|v| v.round_dp(2)),
+            Some(rust_decimal::Decimal::new(34000, 2)),
+            "net revenue snapshot should be room revenue minus commission"
+        );
+        assert!(
+            booking.channel_pricing_snapshot.is_some(),
+            "channel pricing snapshot should be written at booking time"
+        );
+
+        // Editing the channel default afterwards must not move the stored row.
+        sqlx::query("UPDATE booking_channels SET default_commission_value = 90.00 WHERE id = $1")
+            .bind(channel_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let stored: (Option<rust_decimal::Decimal>, Option<rust_decimal::Decimal>) =
+            sqlx::query_as(
+                "SELECT commission_amount, net_revenue FROM bookings WHERE room_id = $1",
+            )
+            .bind(room_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            stored.0.map(|v| v.round_dp(2)),
+            Some(rust_decimal::Decimal::new(6000, 2)),
+            "stored commission must survive later channel edits"
+        );
+        assert_eq!(
+            stored.1.map(|v| v.round_dp(2)),
+            Some(rust_decimal::Decimal::new(34000, 2))
+        );
+
+        sqlx::query("DELETE FROM booking_channels WHERE id = $1")
+            .bind(channel_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        cleanup(&pool, room_id, guest_id, actor_id).await;
+    }
 }
 
 // ---------------------------------------------------------------------------
