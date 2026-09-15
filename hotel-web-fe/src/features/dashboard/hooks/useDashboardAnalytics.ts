@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
+import { intlTag, useTranslation } from '../../../i18n';
 import { useInsightsOverview } from '../../insights/hooks';
 import type { InsightsOverview } from '../../insights/types';
 
@@ -75,7 +76,7 @@ function buildRevenueData(
     date.setDate(now.getDate() - i);
     days.push({
       key: toDateKey(date),
-      name: date.toLocaleDateString(undefined, { weekday: 'short' }),
+      name: date.toLocaleDateString(intlTag(), { weekday: 'short' }),
       revenue: 0,
     });
   }
@@ -122,6 +123,7 @@ export function buildDashboardAnalyticsData(
 }
 
 export function useDashboardAnalytics(enabled = true) {
+  const { t } = useTranslation('dashboard');
   const overview = useInsightsOverview(enabled);
 
   const refetch = useCallback(() => overview.refetch(), [overview]);
@@ -130,7 +132,7 @@ export function useDashboardAnalytics(enabled = true) {
     data: buildDashboardAnalyticsData(overview.data),
     loading: overview.isPending,
     fetching: overview.isFetching,
-    error: getQueryErrorMessage(overview.error, 'Failed to load analytics data'),
+    error: getQueryErrorMessage(overview.error, t('reports.errors.loadFailed')),
     refetch,
   };
 }

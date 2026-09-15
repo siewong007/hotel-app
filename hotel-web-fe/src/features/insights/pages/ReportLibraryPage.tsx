@@ -15,14 +15,33 @@ import { useReportCatalog, useReportEnvelope } from '../hooks';
 import type { ReportCatalogEntry, ReportQueryParams } from '../types';
 import { formatLocalDate } from '../../../utils/date';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
+import { useTranslation, type UseTranslationResult } from '../../../i18n';
 
-const CATEGORY_ORDER = ['operations', 'financial', 'analytics', 'accounting'];
+const CATEGORY_ORDER = ['operations', 'financial', 'analytics', 'accounting'] as const;
+
+type ReportCategory = (typeof CATEGORY_ORDER)[number];
+
+const categoryLabel = (t: UseTranslationResult['t'], category: string): string => {
+  switch (category as ReportCategory) {
+    case 'operations':
+      return t('library.categories.operations');
+    case 'financial':
+      return t('library.categories.financial');
+    case 'analytics':
+      return t('library.categories.analytics');
+    case 'accounting':
+      return t('library.categories.accounting');
+    default:
+      return category;
+  }
+};
 
 /**
  * Insights report library — the catalog drives the card grid and the filter
  * bar's parameter controls; every report renders through ReportShell.
  */
 export default function ReportLibraryPage() {
+  const { t } = useTranslation('dashboard');
   const catalog = useReportCatalog();
   const today = formatLocalDate();
   const [selected, setSelected] = useState<ReportCatalogEntry | null>(null);
@@ -52,7 +71,7 @@ export default function ReportLibraryPage() {
     );
   }
   if (catalog.error) {
-    return <Alert severity="error">{getQueryErrorMessage(catalog.error, 'Failed to load reports')}</Alert>;
+    return <Alert severity="error">{getQueryErrorMessage(catalog.error, t('library.errors.loadCatalog'))}</Alert>;
   }
 
   return (
@@ -61,7 +80,7 @@ export default function ReportLibraryPage() {
         grouped.map((group) => (
           <Box key={group.category} sx={{ mb: 3 }}>
             <Typography variant="subtitle1" sx={{ mb: 1, textTransform: 'capitalize' }}>
-              {group.category}
+              {categoryLabel(t, group.category)}
             </Typography>
             <Grid container spacing={2}>
               {group.reports.map((entry) => (
@@ -86,12 +105,12 @@ export default function ReportLibraryPage() {
         <ReportShell
           envelope={report.data ?? null}
           loading={report.isFetching}
-          error={getQueryErrorMessage(report.error, 'Failed to run report') || null}
+          error={getQueryErrorMessage(report.error, t('library.errors.runReport')) || null}
           toolbar={
             <Box>
               <Typography variant="body2" sx={{ cursor: 'pointer', mb: 1.5 }}
                 onClick={() => { setSelected(null); setRunParams(null); }}>
-                ← All reports
+                {t('library.backToLibrary')}
               </Typography>
               <ReportFilterBar
                 report={selected}

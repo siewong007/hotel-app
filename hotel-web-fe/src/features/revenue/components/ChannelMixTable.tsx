@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 
 import { formatCurrency } from '../../../utils/currency';
+import { useTranslation } from '../../../i18n';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import type { RevenueChannelMix } from '../types';
@@ -24,18 +25,19 @@ interface ChannelMixTableProps {
 
 /** Booking-creation-date attribution: which channels produced the revenue. */
 const ChannelMixTable: React.FC<ChannelMixTableProps> = ({ channels }) => {
+  const { t } = useTranslation('revenue');
   const isPhone = useIsPhone();
 
   return (
     <Card>
       <CardHeader
-        title="Channel contribution"
-        subheader="Net revenue by booking creation date"
+        title={t('channelMix.title')}
+        subheader={t('channelMix.subtitle')}
       />
       <CardContent sx={isPhone ? { px: 0, '&:last-child': { pb: 1 } } : undefined}>
         {channels.length === 0 ? (
           <Typography color="text.secondary" sx={isPhone ? { px: 2 } : undefined}>
-            No attributed bookings were created in this range.
+            {t('channelMix.empty')}
           </Typography>
         ) : isPhone ? (
           <Box>
@@ -47,7 +49,10 @@ const ChannelMixTable: React.FC<ChannelMixTableProps> = ({ channels }) => {
                 <MobileCardRow
                   title={channel.channel_name}
                   subtitle={channel.channel_type}
-                  meta={`${channel.bookings} bookings · ${formatCurrency(Number.parseFloat(channel.net_revenue) || 0)}`}
+                  meta={t('channelMix.meta', {
+                    count: channel.bookings,
+                    amount: formatCurrency(Number.parseFloat(channel.net_revenue) || 0),
+                  })}
                   status={
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>
                       {(Number.parseFloat(channel.share_pct) || 0).toFixed(1)}%
@@ -62,11 +67,11 @@ const ChannelMixTable: React.FC<ChannelMixTableProps> = ({ channels }) => {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Channel</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell align="right">Bookings</TableCell>
-                  <TableCell align="right">Net revenue</TableCell>
-                  <TableCell align="right">Share</TableCell>
+                  <TableCell>{t('channelMix.colChannel')}</TableCell>
+                  <TableCell>{t('channelMix.colType')}</TableCell>
+                  <TableCell align="right">{t('channelMix.colBookings')}</TableCell>
+                  <TableCell align="right">{t('channelMix.colNetRevenue')}</TableCell>
+                  <TableCell align="right">{t('channelMix.colShare')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>

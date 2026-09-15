@@ -4,6 +4,7 @@ import { Alert, Box, Button, Skeleton, Typography } from '@mui/material';
 import EmptyState from '../../../components/common/EmptyState';
 import PageHeader from '../../../components/common/PageHeader';
 import { addLocalDays, formatLocalDate } from '../../../utils/date';
+import { useTranslation } from '../../../i18n';
 import ChannelMixTable from '../components/ChannelMixTable';
 import RevenueFilters from '../components/RevenueFilters';
 import RevenueKpiGrid from '../components/RevenueKpiGrid';
@@ -17,6 +18,7 @@ const defaultRange = () => ({
 });
 
 const RevenueOverviewPage: React.FC = () => {
+  const { t } = useTranslation('revenue');
   const [filters, setFilters] = useState<RevenueOverviewParams>(defaultRange);
   const overview = useRevenueOverview(filters);
   const data = overview.data;
@@ -28,11 +30,16 @@ const RevenueOverviewPage: React.FC = () => {
   return (
     <Box>
       <PageHeader
-        title="Revenue Overview"
+        title={t('overview.pageTitle')}
         subtitle={
           data
-            ? `Stay dates ${data.range.from} – ${data.range.to} · compared with ${data.previous_period.from} – ${data.previous_period.to}`
-            : 'Stay-date performance with previous-period comparison'
+            ? t('overview.subtitle', {
+                from: data.range.from,
+                to: data.range.to,
+                prevFrom: data.previous_period.from,
+                prevTo: data.previous_period.to,
+              })
+            : t('overview.subtitleFallback')
         }
       />
       <RevenueFilters value={filters} onChange={setFilters} />
@@ -49,18 +56,18 @@ const RevenueOverviewPage: React.FC = () => {
           severity="error"
           action={
             <Button color="inherit" size="small" onClick={() => overview.refetch()}>
-              Retry
+              {t('common:actions.retry')}
             </Button>
           }
         >
-          Revenue metrics could not be loaded. Check your connection and try again.
+          {t('overview.loadError')}
         </Alert>
       )}
 
       {data && isEmpty && (
         <EmptyState
-          title="No stays in this range"
-          description="No bookings occupy these stay dates. Widen the range or clear the filters."
+          title={t('overview.emptyTitle')}
+          description={t('overview.emptyDescription')}
         />
       )}
 
@@ -82,8 +89,7 @@ const RevenueOverviewPage: React.FC = () => {
             <ChannelMixTable channels={data.channels} />
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-            KPIs count stay dates; channel contribution counts booking creation dates. Voided and
-            no-show stays are excluded from sold metrics.
+            {t('overview.footnote')}
           </Typography>
         </>
       )}

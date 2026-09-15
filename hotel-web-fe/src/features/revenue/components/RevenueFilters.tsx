@@ -3,6 +3,7 @@ import { Box, FormControl, InputLabel, MenuItem, Select } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
+import { useTranslation } from '../../../i18n';
 import { ReportsService } from '../../../api/reports.service';
 import { RoomsService } from '../../../api/rooms.service';
 import type { RevenueOverviewParams } from '../types';
@@ -17,6 +18,7 @@ interface RevenueFiltersProps {
  * both the stay-date KPIs and the booking-date attribution sections.
  */
 const RevenueFilters: React.FC<RevenueFiltersProps> = ({ value, onChange }) => {
+  const { t } = useTranslation('revenue');
   const roomTypes = useQuery({
     queryKey: ['room-types'],
     queryFn: () => RoomsService.getRoomTypes(),
@@ -38,7 +40,7 @@ const RevenueFilters: React.FC<RevenueFiltersProps> = ({ value, onChange }) => {
       }}
     >
       <ModernDatePicker
-        label="From (stay date)"
+        label={t('filters.fromStayDate')}
         value={value.from ?? ''}
         onChange={(from) => onChange({ ...value, from: from || undefined })}
         margin="none"
@@ -46,7 +48,7 @@ const RevenueFilters: React.FC<RevenueFiltersProps> = ({ value, onChange }) => {
         maxDate={value.to}
       />
       <ModernDatePicker
-        label="To (last night)"
+        label={t('filters.toLastNight')}
         value={value.to ?? ''}
         onChange={(to) => onChange({ ...value, to: to || undefined })}
         margin="none"
@@ -54,10 +56,10 @@ const RevenueFilters: React.FC<RevenueFiltersProps> = ({ value, onChange }) => {
         minDate={value.from}
       />
       <FormControl size="small" fullWidth>
-        <InputLabel id="revenue-room-type-label">Room type</InputLabel>
+        <InputLabel id="revenue-room-type-label">{t('filters.roomType')}</InputLabel>
         <Select
           labelId="revenue-room-type-label"
-          label="Room type"
+          label={t('filters.roomType')}
           value={value.room_type_id === undefined ? '' : String(value.room_type_id)}
           onChange={(event) =>
             onChange({
@@ -67,7 +69,7 @@ const RevenueFilters: React.FC<RevenueFiltersProps> = ({ value, onChange }) => {
             })
           }
         >
-          <MenuItem value="">All room types</MenuItem>
+          <MenuItem value="">{t('filters.allRoomTypes')}</MenuItem>
           {(roomTypes.data ?? []).map((roomType) => (
             <MenuItem key={roomType.id} value={String(roomType.id)}>
               {roomType.name}
@@ -76,10 +78,10 @@ const RevenueFilters: React.FC<RevenueFiltersProps> = ({ value, onChange }) => {
         </Select>
       </FormControl>
       <FormControl size="small" fullWidth>
-        <InputLabel id="revenue-channel-label">Channel</InputLabel>
+        <InputLabel id="revenue-channel-label">{t('filters.channel')}</InputLabel>
         <Select
           labelId="revenue-channel-label"
-          label="Channel"
+          label={t('filters.channel')}
           value={value.channel_id === undefined ? '' : String(value.channel_id)}
           onChange={(event) =>
             onChange({
@@ -89,7 +91,7 @@ const RevenueFilters: React.FC<RevenueFiltersProps> = ({ value, onChange }) => {
             })
           }
         >
-          <MenuItem value="">All channels</MenuItem>
+          <MenuItem value="">{t('filters.allChannels')}</MenuItem>
           {(channels.data ?? []).map((channel) => (
             <MenuItem key={channel.id} value={String(channel.id)}>
               {channel.name}

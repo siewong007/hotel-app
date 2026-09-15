@@ -1,3 +1,63 @@
 {
-  "title": "Hasil"
+  "title": "Hasil",
+  "overview": {
+    "pageTitle": "Gambaran Hasil",
+    "subtitle": "Tarikh penginapan {{from}} – {{to}} · berbanding {{prevFrom}} – {{prevTo}}",
+    "subtitleFallback": "Prestasi tarikh penginapan dengan perbandingan tempoh sebelumnya",
+    "loadError": "Metrik hasil tidak dapat dimuatkan. Semak sambungan anda dan cuba lagi.",
+    "emptyTitle": "Tiada penginapan dalam julat ini",
+    "emptyDescription": "Tiada tempahan menduduki tarikh penginapan ini. Luaskan julat atau kosongkan penapis.",
+    "footnote": "KPI mengira tarikh penginapan; sumbangan saluran mengira tarikh tempahan dibuat. Penginapan yang dibatalkan dan tidak hadir dikecualikan daripada metrik jualan."
+  },
+  "filters": {
+    "fromStayDate": "Dari (tarikh penginapan)",
+    "toLastNight": "Hingga (malam terakhir)",
+    "roomType": "Jenis bilik",
+    "allRoomTypes": "Semua jenis bilik",
+    "channel": "Saluran",
+    "allChannels": "Semua saluran"
+  },
+  "kpis": {
+    "roomRevenue": "Hasil Bilik",
+    "occupancy": "Penghunian",
+    "adr": "ADR",
+    "revpar": "RevPAR",
+    "avgStay": "Purata Penginapan",
+    "nightsValue": "{{value}} malam",
+    "bookingsCreated": "Tempahan Dicipta",
+    "directShare": "Pecahan Langsung",
+    "roomNightsSold_other": "{{count}} malam bilik dijual",
+    "perSoldRoomNight": "setiap malam bilik dijual",
+    "perSellableRoom": "setiap bilik boleh jual",
+    "perBooking": "setiap tempahan dalam julat",
+    "ofNetRevenue": "daripada hasil bersih",
+    "voidNoShow": "batal {{voidRate}}% · tidak hadir {{noShowRate}}%",
+    "vsPrior": "berbanding sebelumnya",
+    "noBaseline": "Tiada garis dasar tempoh sebelumnya",
+    "noPrior": "· tiada sebelumnya"
+  },
+  "trend": {
+    "title": "Penghunian & malam bilik",
+    "subtitle": "Mengikut tarikh penginapan",
+    "empty": "Tiada tarikh penginapan dalam julat ini",
+    "roomNights": "Malam bilik",
+    "occupancy": "Penghunian",
+    "ariaRoomNights": "Malam bilik dijual mengikut tarikh penginapan",
+    "ariaOccupancy": "Kadar penghunian mengikut tarikh penginapan",
+    "ttRoomNights": "Malam bilik: {{value}}",
+    "ttRoomRevenue": "Hasil bilik: {{value}}",
+    "ttAdr": "ADR: {{value}}",
+    "ttOccupancy": "Penghunian: {{value}}"
+  },
+  "channelMix": {
+    "title": "Sumbangan saluran",
+    "subtitle": "Hasil bersih mengikut tarikh tempahan dibuat",
+    "empty": "Tiada tempahan berpunca dicipta dalam julat ini.",
+    "colChannel": "Saluran",
+    "colType": "Jenis",
+    "colBookings": "Tempahan",
+    "colNetRevenue": "Hasil bersih",
+    "colShare": "Pecahan",
+    "meta_other": "{{count}} tempahan · {{amount}}"
+  }
 }

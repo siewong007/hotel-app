@@ -1,3 +1,65 @@
 {
-  "title": "Revenue"
+  "title": "Revenue",
+  "overview": {
+    "pageTitle": "Revenue Overview",
+    "subtitle": "Stay dates {{from}} – {{to}} · compared with {{prevFrom}} – {{prevTo}}",
+    "subtitleFallback": "Stay-date performance with previous-period comparison",
+    "loadError": "Revenue metrics could not be loaded. Check your connection and try again.",
+    "emptyTitle": "No stays in this range",
+    "emptyDescription": "No bookings occupy these stay dates. Widen the range or clear the filters.",
+    "footnote": "KPIs count stay dates; channel contribution counts booking creation dates. Voided and no-show stays are excluded from sold metrics."
+  },
+  "filters": {
+    "fromStayDate": "From (stay date)",
+    "toLastNight": "To (last night)",
+    "roomType": "Room type",
+    "allRoomTypes": "All room types",
+    "channel": "Channel",
+    "allChannels": "All channels"
+  },
+  "kpis": {
+    "roomRevenue": "Room Revenue",
+    "occupancy": "Occupancy",
+    "adr": "ADR",
+    "revpar": "RevPAR",
+    "avgStay": "Avg Stay",
+    "nightsValue": "{{value}} nights",
+    "bookingsCreated": "Bookings Created",
+    "directShare": "Direct Share",
+    "roomNightsSold_one": "{{count}} room night sold",
+    "roomNightsSold_other": "{{count}} room nights sold",
+    "perSoldRoomNight": "per sold room night",
+    "perSellableRoom": "per sellable room",
+    "perBooking": "per booking in range",
+    "ofNetRevenue": "of net revenue",
+    "voidNoShow": "voided {{voidRate}}% · no-show {{noShowRate}}%",
+    "vsPrior": "vs prior",
+    "noBaseline": "No previous-period baseline",
+    "noPrior": "· no prior"
+  },
+  "trend": {
+    "title": "Occupancy & room nights",
+    "subtitle": "By stay date",
+    "empty": "No stay dates in this range",
+    "roomNights": "Room nights",
+    "occupancy": "Occupancy",
+    "ariaRoomNights": "Room nights sold per stay date",
+    "ariaOccupancy": "Occupancy rate per stay date",
+    "ttRoomNights": "Room nights: {{value}}",
+    "ttRoomRevenue": "Room revenue: {{value}}",
+    "ttAdr": "ADR: {{value}}",
+    "ttOccupancy": "Occupancy: {{value}}"
+  },
+  "channelMix": {
+    "title": "Channel contribution",
+    "subtitle": "Net revenue by booking creation date",
+    "empty": "No attributed bookings were created in this range.",
+    "colChannel": "Channel",
+    "colType": "Type",
+    "colBookings": "Bookings",
+    "colNetRevenue": "Net revenue",
+    "colShare": "Share",
+    "meta_one": "{{count}} booking · {{amount}}",
+    "meta_other": "{{count}} bookings · {{amount}}"
+  }
 }

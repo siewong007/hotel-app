@@ -7,6 +7,9 @@ import { useInsightsOverview } from '../../../insights/hooks';
 import { RevenueApi } from '../../../revenue/api';
 import { useRevenueOverview } from '../../../revenue/hooks/useRevenueOverview';
 import type { DebtorRow, Receivables, RevenueKpis } from '../../../revenue/types';
+import { intlTag, useTranslation, type UseTranslationResult } from '../../../../i18n';
+
+type T = UseTranslationResult['t'];
 
 /* Reports & Analytics data model.
  *
@@ -118,6 +121,7 @@ function shiftRange(from: string, to: string, compare: CompareMode): { from: str
 }
 
 function buildModel(
+  t: T,
   query: ReportsQuery,
   overview: ReturnType<typeof useRevenueOverview>['data'],
   baseline: RevenueKpis | undefined,
@@ -133,7 +137,7 @@ function buildModel(
     const date = parseLocalDate(d.date);
     return {
       date: d.date,
-      label: `${date.getDate()} ${date.toLocaleString('en', { month: 'short' })}`,
+      label: `${date.getDate()} ${date.toLocaleString(intlTag(), { month: 'short' })}`,
       occ: num(d.occupancy_rate),
       occRooms: d.room_nights_sold,
       adr: num(d.adr),
@@ -198,7 +202,7 @@ function buildModel(
   };
 
   const live: LiveOps = {
-    updated: new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    updated: new Date().toLocaleTimeString(intlTag(), { hour: '2-digit', minute: '2-digit', hour12: false }),
     arrivals: insights?.bookings.today_check_ins ?? 0,
     departures: insights?.bookings.today_check_outs ?? 0,
     inHouse: insights?.rooms.occupied ?? 0,
@@ -234,26 +238,26 @@ function buildModel(
     ref: d.invoice_number,
     bal: num(d.balance),
     age: d.bucket,
-    stay: d.room ? `Room ${d.room}` : undefined,
-    terms: d.due_date ? `Due ${d.due_date}` : undefined,
+    stay: d.room ? t('bookings:details.roomNumber', { number: d.room }) : undefined,
+    terms: d.due_date ? t('reports.drawers.dueDate', { date: d.due_date }) : undefined,
   });
 
   const roomStatus: RoomStatusSlice[] = [
-    { label: 'Occupied', count: live.inHouse, color: 'var(--amber)' },
-    { label: 'Vacant · ready', count: live.ready, color: 'var(--emerald)' },
-    { label: 'Vacant · clean', count: live.toClean, color: 'var(--rose)' },
-    { label: 'Arriving today', count: live.arrivals, color: 'var(--blue)' },
+    { label: t('reports.roomStatus.occupied'), count: live.inHouse, color: 'var(--amber)' },
+    { label: t('reports.roomStatus.vacantReady'), count: live.ready, color: 'var(--emerald)' },
+    { label: t('reports.roomStatus.vacantClean'), count: live.toClean, color: 'var(--rose)' },
+    { label: t('reports.roomStatus.arrivingToday'), count: live.arrivals, color: 'var(--blue)' },
   ];
 
   const p = overview?.pipeline;
   const revenueStates: RevenueState[] = [
-    { label: 'Booked', desc: 'Confirmed future bookings', value: num(p?.booked), color: 'var(--hotel-info)' },
-    { label: 'Earned', desc: 'Completed room nights', value: num(p?.earned), color: 'var(--hotel-primary)' },
-    { label: 'Collected', desc: 'Payments received', value: num(p?.collected), color: 'var(--hotel-chart-3)' },
-    { label: 'Outstanding', desc: 'Unpaid invoices', value: num(p?.outstanding), color: 'var(--hotel-warning)' },
+    { label: t('reports.revenueStates.booked.label'), desc: t('reports.revenueStates.booked.desc'), value: num(p?.booked), color: 'var(--hotel-info)' },
+    { label: t('reports.revenueStates.earned.label'), desc: t('reports.revenueStates.earned.desc'), value: num(p?.earned), color: 'var(--hotel-primary)' },
+    { label: t('reports.revenueStates.collected.label'), desc: t('reports.revenueStates.collected.desc'), value: num(p?.collected), color: 'var(--hotel-chart-3)' },
+    { label: t('reports.revenueStates.outstanding.label'), desc: t('reports.revenueStates.outstanding.desc'), value: num(p?.outstanding), color: 'var(--hotel-warning)' },
   ];
 
-  const todayLabel = new Date().toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const todayLabel = new Date().toLocaleDateString(intlTag(), { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
   return {
     periodRooms,
@@ -303,6 +307,7 @@ export interface UseReportsModelResult {
 }
 
 export function useReportsModel(query: ReportsQuery, revenueEnabled: boolean): UseReportsModelResult {
+  const { t } = useTranslation('dashboard');
   const to = formatLocalDate(new Date());
   const from = formatLocalDate(addLocalDays(new Date(), -(query.rangeDays - 1)));
   const overviewParams = useMemo(
@@ -347,8 +352,8 @@ export function useReportsModel(query: ReportsQuery, revenueEnabled: boolean): U
   );
 
   const model = useMemo(
-    () => buildModel(query, overview.data, baseline, insights.data, receivables.data),
-    [query, overview.data, baseline, insights.data, receivables.data],
+    () => buildModel(t, query, overview.data, baseline, insights.data, receivables.data),
+    [t, query, overview.data, baseline, insights.data, receivables.data],
   );
 
   const revenuePending =
@@ -360,8 +365,8 @@ export function useReportsModel(query: ReportsQuery, revenueEnabled: boolean): U
     loading: revenuePending,
     liveLoading: insights.isPending,
     error:
-      getQueryErrorMessage(insights.error, '') ||
-      (revenueEnabled ? getQueryErrorMessage(overview.error, '') : '') ||
+      getQueryErrorMessage(insights.error, t('reports.errors.loadFailed')) ||
+      (revenueEnabled ? getQueryErrorMessage(overview.error, t('reports.errors.loadFailed')) : '') ||
       null,
     refetch: () => {
       insights.refetch();

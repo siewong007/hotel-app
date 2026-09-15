@@ -16,8 +16,9 @@ import {
   Typography,
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
-import type { KpiFormat, ReportEnvelope, ReportKpi } from '../types';
+import type { KpiFormat, ReportDateBasis, ReportEnvelope, ReportKpi } from '../types';
 import { formatCurrency } from '../../../utils/currency';
+import { formatNumber, useTranslation, type UseTranslationResult } from '../../../i18n';
 import { printReportEnvelope } from '../utils/reportEnvelopePrint';
 import { TableScroll } from '../../../components/data-table/TableScroll';
 import { useIsPhone } from '../../../hooks/useIsPhone';
@@ -31,9 +32,20 @@ const formatValue = (value: unknown, format: KpiFormat): string => {
     case 'percent':
       return Number.isFinite(num) ? `${num.toFixed(1)}%` : String(value);
     case 'number':
-      return Number.isFinite(num) ? num.toLocaleString() : String(value);
+      return Number.isFinite(num) ? formatNumber(num) : String(value);
     default:
       return String(value);
+  }
+};
+
+const dateBasisLabel = (t: UseTranslationResult['t'], basis: ReportDateBasis): string => {
+  switch (basis) {
+    case 'stay':
+      return t('library.dateBasis.stay');
+    case 'booking':
+      return t('library.dateBasis.booking');
+    case 'accounting':
+      return t('library.dateBasis.accounting');
   }
 };
 
@@ -66,6 +78,7 @@ export interface ReportShellProps {
  * states are consistent.
  */
 export function ReportShell({ envelope, loading, error, toolbar }: ReportShellProps) {
+  const { t } = useTranslation('dashboard');
   const isPhone = useIsPhone();
 
   return (
@@ -86,12 +99,12 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
                 {envelope.meta.range_start} → {envelope.meta.range_end}
               </Typography>
             )}
-            <Chip size="small" variant="outlined" label={`${envelope.meta.date_basis} dates`} />
-            <Tooltip title="Print report">
+            <Chip size="small" variant="outlined" label={dateBasisLabel(t, envelope.meta.date_basis)} />
+            <Tooltip title={t('library.printReport')}>
               <IconButton
                 size="small"
                 onClick={() => printReportEnvelope(envelope)}
-                aria-label="Print report"
+                aria-label={t('library.printReport')}
                 sx={{ ml: 'auto' }}
               >
                 <PrintIcon fontSize="small" />
@@ -120,7 +133,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
                         variant="body2"
                         sx={{ color: 'text.secondary', py: 3, textAlign: 'center' }}
                       >
-                        No rows for this period
+                        {t('library.noRows')}
                       </Typography>
                     )}
                     {section.rows.map((row, i) => (
@@ -174,7 +187,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
                             align="center"
                             sx={{ color: 'text.secondary', py: 3 }}
                           >
-                            No rows for this period
+                            {t('library.noRows')}
                           </TableCell>
                         </TableRow>
                       )}
@@ -196,7 +209,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
           ))}
 
           {envelope.kpis.length === 0 && envelope.sections.length === 0 && (
-            <Alert severity="info">This report produced no data for the selected range.</Alert>
+            <Alert severity="info">{t('library.emptyReport')}</Alert>
           )}
         </Box>
       )}

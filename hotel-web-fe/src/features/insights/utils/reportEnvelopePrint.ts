@@ -1,6 +1,7 @@
 import type { KpiFormat, ReportEnvelope } from '../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { formatCurrency } from '../../../utils/currency';
+import { formatNumber, t } from '../../../i18n';
 import {
   createReportPrintStyles,
   createReportTypography,
@@ -22,7 +23,7 @@ const formatValue = (value: unknown, format: KpiFormat): string => {
     case 'percent':
       return Number.isFinite(num) ? `${num.toFixed(1)}%` : String(value);
     case 'number':
-      return Number.isFinite(num) ? num.toLocaleString() : String(value);
+      return Number.isFinite(num) ? formatNumber(num) : String(value);
     default:
       return String(value);
   }
@@ -63,7 +64,7 @@ export const envelopeToPrintHtml = (envelope: ReportEnvelope): string => {
         .join('');
       const empty =
         section.rows.length === 0
-          ? `<tr><td colspan="${Math.max(section.columns.length, 1)}" class="empty">No rows for this period</td></tr>`
+          ? `<tr><td colspan="${Math.max(section.columns.length, 1)}" class="empty">${escapeHtml(t('dashboard:library.noRows'))}</td></tr>`
           : '';
       return `<h6>${escapeHtml(section.title)}</h6><table>${head}<tbody>${body}${empty}</tbody></table>`;
     })
@@ -77,7 +78,7 @@ export const envelopeToPrintHtml = (envelope: ReportEnvelope): string => {
   return `<!DOCTYPE html>
 <html>
   <head>
-    <title>Report - ${escapeHtml(meta.title)}</title>
+    <title>${escapeHtml(t('dashboard:library.printTitle', { title: meta.title }))}</title>
     <style>
       ${printStyles}
       .kpi-grid td { border: none; padding: 4px 16px 4px 0; }

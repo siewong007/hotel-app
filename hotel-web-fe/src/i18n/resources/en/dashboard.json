@@ -1,3 +1,239 @@
 {
-  "title": "Dashboard"
+  "title": "Dashboard",
+  "frontDesk": {
+    "title": "Front Desk",
+    "subtitle": "Real-time overview of hotel operations and room status",
+    "restricted": "This dashboard is only accessible to receptionists and managers.",
+    "refreshAria": "Refresh dashboard",
+    "stats": {
+      "availableRooms": "Available Rooms",
+      "occupiedRooms": "Occupied Rooms",
+      "reservedRooms": "Reserved Rooms",
+      "occupancyRate": "Occupancy Rate"
+    },
+    "todayCheckIns": "Today's Check-ins",
+    "todayCheckOuts": "Today's Check-outs",
+    "noCheckIns": "No check-ins scheduled",
+    "noCheckOuts": "No check-outs scheduled",
+    "viewAllArrivals_one": "View all {{count}} arrival",
+    "viewAllArrivals_other": "View all {{count}} arrivals",
+    "viewAllDepartures_one": "View all {{count}} departure",
+    "viewAllDepartures_other": "View all {{count}} departures",
+    "attentionRequired": "Attention Required",
+    "maintenanceRooms": "Maintenance Rooms",
+    "roomStatusOverview": "Room Status Overview",
+    "legendCleaningAuto": "Cleaning (Auto)",
+    "roomTile": {
+      "out": "Out: {{date}}",
+      "next": "Next: {{date}}",
+      "start": "Start: {{date}}",
+      "end": "End: {{date}}"
+    },
+    "roomTooltip": {
+      "type": "Type: {{type}}",
+      "guest": "Guest: {{name}}",
+      "notes": "Notes:",
+      "clickForDetails": "Click for room details"
+    },
+    "guestFallback": "Guest",
+    "errors": {
+      "loadDashboard": "Failed to load dashboard data",
+      "loadCheckIn": "Failed to load check-in data"
+    }
+  },
+  "reports": {
+    "title": "Reports & Analytics",
+    "subtitle": "Combined operational & financial overview · {{property}}",
+    "mainProperty": "Main Property",
+    "crumbReports": "Reports",
+    "crumbAnalytics": "Analytics",
+    "restricted": "Restricted",
+    "financeOnly": "Finance only",
+    "access": {
+      "full": "Full access",
+      "scoped": "Scoped access"
+    },
+    "range": {
+      "days7": "7 days",
+      "days30": "30 days",
+      "days90": "90 days"
+    },
+    "compare": {
+      "label": "Compare",
+      "prev": "Prev period",
+      "month": "Last month",
+      "year": "Last year",
+      "vsPrevDays": "vs previous {{days}} days",
+      "vsLastMonth": "vs same period last month",
+      "vsLastYear": "vs same period last year"
+    },
+    "live": {
+      "title": "Today · Live",
+      "updated": "Updated {{time}} · auto-refresh",
+      "arrivals": "Arrivals",
+      "departures": "Departures",
+      "inHouse": "In-house guests",
+      "occupancyNow": "Occupancy now",
+      "roomsToClean": "Rooms to clean",
+      "unassigned": "Unassigned"
+    },
+    "kpi": {
+      "occupancyRate": "Occupancy rate",
+      "adr": "ADR",
+      "revpar": "RevPAR",
+      "roomRevenue": "Room revenue",
+      "totalRevenue": "Total revenue",
+      "outstanding": "Outstanding",
+      "trendAria": "{{label}} trend"
+    },
+    "panels": {
+      "dailyRevenue": "Daily revenue trend",
+      "dailyRevenueSub": "Room {{room}} · Other {{other}} · last {{days}} days",
+      "revenueAnalytics": "Revenue analytics",
+      "sourceMix": "Booking source mix",
+      "sourceMixSub": "By net revenue · booking creation dates",
+      "occupancyTrend": "Occupancy trend",
+      "occupancyTrendSub": "Avg {{avg}} · {{rooms}} rooms · last {{days}} days",
+      "roomTypePerformance": "Room type performance",
+      "roomTypePerformanceSub": "By room revenue",
+      "outstandingAgeing": "Outstanding ageing",
+      "drillDown": "Click to drill down",
+      "arrivalsToday": "Arrivals today",
+      "departuresToday": "Departures today",
+      "expected": "{{count}} expected",
+      "noOpenInvoices": "No open invoices"
+    },
+    "series": {
+      "roomRevenue": "Room revenue",
+      "otherRevenue": "Other revenue",
+      "occupancy": "Occupancy",
+      "dailyOccupancy": "Daily occupancy"
+    },
+    "aria": {
+      "dailyRevenueTrend": "Daily revenue trend by stay date",
+      "occupancyTrend": "Daily occupancy rate by stay date",
+      "roomRevenueByType": "Room revenue by room type",
+      "outstandingAgeing": "Outstanding invoice ageing",
+      "ageingBuckets": "Outstanding invoice ageing buckets",
+      "occupancyByType": "Occupancy rate by room type"
+    },
+    "tooltip": {
+      "occupancy": "Occupancy: {{value}}",
+      "bookings_one": "{{count}} booking",
+      "bookings_other": "{{count}} bookings",
+      "roomsSold_one": "{{count}} room sold",
+      "roomsSold_other": "{{count}} rooms sold",
+      "rooms_one": "{{count}} room",
+      "rooms_other": "{{count}} rooms",
+      "invoices_one": "{{count}} invoice",
+      "invoices_other": "{{count}} invoices",
+      "roomRevenue": "{{amount}} room revenue",
+      "occAdr": "{{pct}} occupancy · {{adr}} ADR",
+      "ofTotal": "{{pct}}% of total"
+    },
+    "delta": {
+      "noPrior": "· no prior"
+    },
+    "roomStatus": {
+      "occupied": "Occupied",
+      "vacantReady": "Vacant · ready",
+      "vacantClean": "Vacant · clean",
+      "arrivingToday": "Arriving today"
+    },
+    "revenueStates": {
+      "booked": { "label": "Booked", "desc": "Confirmed future bookings" },
+      "earned": { "label": "Earned", "desc": "Completed room nights" },
+      "collected": { "label": "Collected", "desc": "Payments received" },
+      "outstanding": { "label": "Outstanding", "desc": "Unpaid invoices" }
+    },
+    "drawers": {
+      "outstandingTitle": "Outstanding balance",
+      "outstandingSub": "Unpaid guest & company balances · as of {{date}}",
+      "outstandingSource": "Authoritative source: invoice total − valid payments",
+      "totalOutstanding": "Total outstanding",
+      "ageingBuckets": "Ageing buckets",
+      "guestBalances": "Guest balances",
+      "companyBalances": "Company balances",
+      "colGuest": "Guest",
+      "colCompany": "Company",
+      "colAgeing": "Ageing",
+      "colBalance": "Balance",
+      "colRoom": "Room",
+      "colType": "Type",
+      "colAdr": "ADR",
+      "colOcc": "Occ",
+      "colRevenue": "Revenue",
+      "colEta": "ETA",
+      "colNights": "Nights",
+      "occupancyTitle": "Occupancy detail",
+      "occupancySub": "Room status snapshot · drill into the room timeline",
+      "occupiedLine": "{{pct}} occupied · {{occupied}} of {{total}} rooms",
+      "openRoomTimeline": "Open room timeline",
+      "occupancyByType": "Occupancy by room type",
+      "pctOccupied": "{{pct}} occupied",
+      "checkoutAt": "checkout {{time}}",
+      "revenueTitles": {
+        "roomRev": "Room revenue",
+        "totalRev": "Total revenue",
+        "adr": "Average daily rate",
+        "revpar": "RevPAR",
+        "fallback": "Revenue"
+      },
+      "revenueSub": "Revenue states are distinct economic events — never summed together",
+      "revenueStatesNote": "A future booking is booked; a completed night is earned; a payment received is collected; an unpaid invoice is outstanding. The dashboard reports earned revenue by stay date.",
+      "earnedDefinition": "Earned = posted room-charge ledger entries",
+      "viewBookings": "View bookings",
+      "byRoomType": "By room type",
+      "expectedCheckIns_one": "{{date}} · {{count}} expected check-in",
+      "expectedCheckIns_other": "{{date}} · {{count}} expected check-ins",
+      "expectedCheckOuts_one": "{{date}} · {{count}} expected check-out",
+      "expectedCheckOuts_other": "{{date}} · {{count}} expected check-outs",
+      "liveListNote": "Live operational list · refreshes automatically",
+      "openFrontDesk": "Open front desk",
+      "dueDate": "Due {{date}}"
+    },
+    "footnote": "Operational tiles (arrivals, departures, in-house, housekeeping) reflect live booking and room data. Revenue, occupancy-trend, channel-mix, per-type and pipeline figures come from revenue analytics — stay dates for trends, booking-creation dates for channel share. Outstanding ageing reads open invoices as of today.",
+    "filters": {
+      "roomType": "Room type",
+      "source": "Source"
+    },
+    "errors": {
+      "loadFailed": "Failed to load analytics data"
+    }
+  },
+  "library": {
+    "filters": {
+      "shift": "Shift",
+      "allShifts": "All shifts",
+      "drawer": "Drawer",
+      "company": "Company",
+      "roomType": "Room type"
+    },
+    "shifts": {
+      "morning": "Morning",
+      "evening": "Evening",
+      "night": "Night"
+    },
+    "runReport": "Run report",
+    "noRows": "No rows for this period",
+    "emptyReport": "This report produced no data for the selected range.",
+    "backToLibrary": "← All reports",
+    "dateBasis": {
+      "stay": "stay dates",
+      "booking": "booking dates",
+      "accounting": "accounting dates"
+    },
+    "categories": {
+      "operations": "Operations",
+      "financial": "Financial",
+      "analytics": "Analytics",
+      "accounting": "Accounting"
+    },
+    "printTitle": "Report - {{title}}",
+    "printReport": "Print report",
+    "errors": {
+      "loadCatalog": "Failed to load reports",
+      "runReport": "Failed to run report"
+    }
+  }
 }

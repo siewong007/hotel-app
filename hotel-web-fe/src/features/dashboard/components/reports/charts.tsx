@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from './Icon';
+import { useTranslation } from '../../../../i18n';
 
 // The reports subsystem's short var names (`--emerald`, `--ink`…) alias onto
 // the global --hotel-* design tokens in reports.css.
@@ -55,8 +56,9 @@ export const Money: React.FC<{ value: number; dp?: number; prefix: string; tone?
 export const Delta: React.FC<{ cur: number; prev: number | null; pp?: boolean; invert?: boolean; suffix?: string }> = ({
   cur, prev, pp = false, invert = false, suffix = '',
 }) => {
+  const { t } = useTranslation('dashboard');
   if (prev == null) {
-    return <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>· no prior</span>;
+    return <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{t('reports.delta.noPrior')}</span>;
   }
   const diff = cur - prev;
   const up = diff >= 0;

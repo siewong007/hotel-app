@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   Grid,
   Card,
@@ -60,6 +60,7 @@ import CollapsibleSection from '../../../components/common/CollapsibleSection';
 import StatusChip from '../../../components/common/StatusChip';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { useTranslation } from '../../../i18n/useTranslation';
+import { intlTag, statusLabel } from '../../../i18n';
 
 interface RoomStatus {
   // Room.id is a UUID string in the API; the old `number` only typechecked
@@ -125,7 +126,7 @@ const PHONE_ROOM_SECTIONS: ReadonlyArray<{
 ];
 
 const ReceptionistDashboard: React.FC = () => {
-  const { t } = useTranslation('bookings');
+  const { t } = useTranslation('dashboard');
   const isPhone = useIsPhone();
   const { hasRole } = useAuth();
   const isReceptionist = hasRole('receptionist') || hasRole('manager') || hasRole('admin');
@@ -158,7 +159,7 @@ const ReceptionistDashboard: React.FC = () => {
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const PAYMENT_METHODS = getHotelSettings().payment_methods;
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -339,10 +340,10 @@ const ReceptionistDashboard: React.FC = () => {
       setLoading(false);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      setError(errorMessage(err, 'Failed to load dashboard data'));
+      setError(errorMessage(err, t('frontDesk.errors.loadDashboard')));
       setLoading(false);
     }
-  };
+  }, [t]);
 
   const handleCheckInFromRoom = async (bookingId: string) => {
     try {
@@ -374,7 +375,7 @@ const ReceptionistDashboard: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load check-in data:', err);
-      setError(errorMessage(err, 'Failed to load check-in data'));
+      setError(errorMessage(err, t('frontDesk.errors.loadCheckIn')));
       setLoading(false);
     }
   };
@@ -382,11 +383,11 @@ const ReceptionistDashboard: React.FC = () => {
   const handleConfirmCheckIn = async () => {
     if (!checkinBooking) return;
     if (!ciIcNumber.trim()) {
-      setError('IC / passport number is required to complete check-in.');
+      setError(t('bookings:checkIn.icRequiredError'));
       return;
     }
     if (ciDepositChoice === 'receive' && Number(ciDepositAmount) <= 0) {
-      setError('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.');
+      setError(t('bookings:checkIn.depositRequiredError'));
       return;
     }
     try {
@@ -429,7 +430,7 @@ const ReceptionistDashboard: React.FC = () => {
       setCheckinBooking(null);
       loadDashboardData();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to check in guest'));
+      setError(errorMessage(err, t('bookings:checkIn.failed')));
     } finally {
       setProcessingCheckIn(false);
     }
@@ -462,7 +463,7 @@ const ReceptionistDashboard: React.FC = () => {
       hasLoadedRef.current = true;
       loadDashboardData();
     }
-  }, [isReceptionist]);
+  }, [isReceptionist, loadDashboardData]);
 
   const getRoomStatusColor = (room: RoomStatus) => {
     // Occupied (checked-in guest) → Amber
@@ -527,15 +528,12 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
-  const getStatusLabel = (status: RoomStatus['status']) => {
-    if (status === 'reserved_dirty') return 'Reserved / Dirty';
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  };
+  const getStatusLabel = (status: RoomStatus['status']) => statusLabel(t, 'room', status);
 
   if (!isReceptionist) {
     return (
       <Alert severity="warning">
-        This dashboard is only accessible to receptionists and managers.
+        {t('frontDesk.restricted')}
       </Alert>
     );
   }
@@ -573,7 +571,7 @@ const ReceptionistDashboard: React.FC = () => {
   // auto-records a payment for the outstanding balance when `source === 'online'`.
   const ciIsOnlineReservation = (checkinBooking?.source || '').trim().toLowerCase() === 'online';
   const ciOnlinePlatformName =
-    (checkinBooking ? getBookingChannelInfo(checkinBooking)?.name : null) || t('checkIn.onlinePlatformFallback');
+    (checkinBooking ? getBookingChannelInfo(checkinBooking)?.name : null) || t('bookings:checkIn.onlinePlatformFallback');
 
   return (
     <Box>
@@ -581,15 +579,15 @@ const ReceptionistDashboard: React.FC = () => {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'text.primary' }}>
-            Front Desk
+            {t('frontDesk.title')}
           </Typography>
           <Typography variant="body1" sx={{
             color: "text.secondary"
           }}>
-            Real-time overview of hotel operations and room status
+            {t('frontDesk.subtitle')}
           </Typography>
         </Box>
-        <IconButton onClick={loadDashboardData} color="primary" size="large" aria-label="Refresh dashboard">
+        <IconButton onClick={loadDashboardData} color="primary" size="large" aria-label={t('frontDesk.refreshAria')}>
           <RefreshIcon />
         </IconButton>
       </Box>
@@ -608,7 +606,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <Typography variant="h4" sx={{ fontWeight: 600 }}>
                     {availableRooms}
                   </Typography>
-                  <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>Available Rooms</Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>{t('frontDesk.stats.availableRooms')}</Typography>
                 </Box>
                 <AvailableIcon sx={{ fontSize: 32, opacity: 0.5 }} />
               </Box>
@@ -629,7 +627,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <Typography variant="h4" sx={{ fontWeight: 600 }}>
                     {occupiedRooms}
                   </Typography>
-                  <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>Occupied Rooms</Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>{t('frontDesk.stats.occupiedRooms')}</Typography>
                 </Box>
                 <OccupiedIcon sx={{ fontSize: 32, opacity: 0.5 }} />
               </Box>
@@ -650,7 +648,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <Typography variant="h4" sx={{ fontWeight: 600 }}>
                     {reservedRooms}
                   </Typography>
-                  <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>Reserved Rooms</Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>{t('frontDesk.stats.reservedRooms')}</Typography>
                 </Box>
                 <CalendarIcon sx={{ fontSize: 32, opacity: 0.5 }} />
               </Box>
@@ -671,7 +669,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <Typography variant="h4" sx={{ fontWeight: 600 }}>
                     {occupancyRate}%
                   </Typography>
-                  <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>Occupancy Rate</Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', opacity: 0.9 }}>{t('frontDesk.stats.occupancyRate')}</Typography>
                 </Box>
                 <HotelIcon sx={{ fontSize: 32, opacity: 0.5 }} />
               </Box>
@@ -692,7 +690,7 @@ const ReceptionistDashboard: React.FC = () => {
                 }}>
                 <CheckInIcon sx={{ mr: 1, color: 'success.main', fontSize: 20 }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                  Today's Check-ins
+                  {t('frontDesk.todayCheckIns')}
                 </Typography>
               </Box>
               <Typography variant="h5" sx={{ fontWeight: 600, color: 'success.main', mb: 1 }}>
@@ -703,7 +701,7 @@ const ReceptionistDashboard: React.FC = () => {
                   {(isPhone ? todayActivity.arrivals.slice(0, 5) : todayActivity.arrivals).map((arrival, index, list) => (
                     <Box key={index} sx={{ py: 1, borderBottom: index < list.length - 1 ? '1px solid var(--hotel-border-subtle)' : 'none' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Room {arrival.room_number}
+                        {t('bookings:details.roomNumber', { number: arrival.room_number })}
                       </Typography>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
@@ -719,7 +717,7 @@ const ReceptionistDashboard: React.FC = () => {
                       to="/bookings?view=arriving"
                       sx={{ display: 'block', mt: 1, color: 'primary.main', fontWeight: 600 }}
                     >
-                      View all {todayActivity.arrivals.length} arrivals
+                      {t('frontDesk.viewAllArrivals', { count: todayActivity.arrivals.length })}
                     </Typography>
                   )}
                 </Box>
@@ -727,7 +725,7 @@ const ReceptionistDashboard: React.FC = () => {
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
                 }}>
-                  No check-ins scheduled
+                  {t('frontDesk.noCheckIns')}
                 </Typography>
               )}
             </CardContent>
@@ -745,7 +743,7 @@ const ReceptionistDashboard: React.FC = () => {
                 }}>
                 <CheckOutIcon sx={{ mr: 1, color: 'info.main', fontSize: 20 }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                  Today's Check-outs
+                  {t('frontDesk.todayCheckOuts')}
                 </Typography>
               </Box>
               <Typography variant="h5" sx={{ fontWeight: 600, color: 'info.main', mb: 1 }}>
@@ -756,7 +754,7 @@ const ReceptionistDashboard: React.FC = () => {
                   {(isPhone ? todayActivity.departures.slice(0, 5) : todayActivity.departures).map((departure, index, list) => (
                     <Box key={index} sx={{ py: 1, borderBottom: index < list.length - 1 ? '1px solid var(--hotel-border-subtle)' : 'none' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Room {departure.room_number}
+                        {t('bookings:details.roomNumber', { number: departure.room_number })}
                       </Typography>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
@@ -772,7 +770,7 @@ const ReceptionistDashboard: React.FC = () => {
                       to="/bookings?view=departing"
                       sx={{ display: 'block', mt: 1, color: 'primary.main', fontWeight: 600 }}
                     >
-                      View all {todayActivity.departures.length} departures
+                      {t('frontDesk.viewAllDepartures', { count: todayActivity.departures.length })}
                     </Typography>
                   )}
                 </Box>
@@ -780,7 +778,7 @@ const ReceptionistDashboard: React.FC = () => {
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
                 }}>
-                  No check-outs scheduled
+                  {t('frontDesk.noCheckOuts')}
                 </Typography>
               )}
             </CardContent>
@@ -798,7 +796,7 @@ const ReceptionistDashboard: React.FC = () => {
                 }}>
                 <WarningIcon sx={{ mr: 1, color: 'error.main', fontSize: 20 }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                  Attention Required
+                  {t('frontDesk.attentionRequired')}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -809,7 +807,7 @@ const ReceptionistDashboard: React.FC = () => {
                       color: "text.secondary",
                       fontSize: '0.75rem'
                     }}>
-                    Maintenance Rooms
+                    {t('frontDesk.maintenanceRooms')}
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600, color: 'warning.main' }}>
                     {maintenanceRooms}
@@ -831,17 +829,17 @@ const ReceptionistDashboard: React.FC = () => {
             }}>
             <HotelIcon sx={{ mr: 1, color: 'primary.main', fontSize: 28 }} />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Room Status Overview
+              {t('frontDesk.roomStatusOverview')}
             </Typography>
           </Box>
 
           {/* Legend */}
           <Box sx={{ mb: { xs: 2, sm: 3 }, display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2 } }}>
-            <Chip icon={<AvailableIcon />} label="Available" size="small" sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', border: '1px solid var(--hotel-success-border)' }} />
-            <Chip icon={<OccupiedIcon />} label="Occupied" size="small" sx={{ bgcolor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', border: '1px solid var(--hotel-warning-border)' }} />
-            <Chip icon={<CalendarIcon />} label="Reserved" size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)' }} />
-            <Chip icon={<CleaningIcon />} label="Cleaning (Auto)" size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)' }} />
-            <Chip icon={<MaintenanceIcon />} label="Maintenance" size="small" sx={{ bgcolor: 'var(--hotel-neutral-bg)', color: 'var(--hotel-neutral)', border: '1px solid var(--hotel-neutral-border)' }} />
+            <Chip icon={<AvailableIcon />} label={t('status:room.available')} size="small" sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', border: '1px solid var(--hotel-success-border)' }} />
+            <Chip icon={<OccupiedIcon />} label={t('status:room.occupied')} size="small" sx={{ bgcolor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', border: '1px solid var(--hotel-warning-border)' }} />
+            <Chip icon={<CalendarIcon />} label={t('status:room.reserved')} size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)' }} />
+            <Chip icon={<CleaningIcon />} label={t('frontDesk.legendCleaningAuto')} size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)' }} />
+            <Chip icon={<MaintenanceIcon />} label={t('status:room.maintenance')} size="small" sx={{ bgcolor: 'var(--hotel-neutral-bg)', color: 'var(--hotel-neutral)', border: '1px solid var(--hotel-neutral-border)' }} />
           </Box>
 
           {/* Rooms: status-grouped sections on phone, tile grid on desktop */}
@@ -861,7 +859,7 @@ const ReceptionistDashboard: React.FC = () => {
                     {sectionRooms.map((room) => (
                       <MobileCardRow
                         key={room.id}
-                        title={`Room ${room.room_number}`}
+                        title={t('bookings:details.roomNumber', { number: room.room_number })}
                         subtitle={room.current_guest}
                         status={<StatusChip status={room.status} label={getStatusLabel(room.status)} />}
                         onClick={() => handleRoomClick(room)}
@@ -879,13 +877,13 @@ const ReceptionistDashboard: React.FC = () => {
                   title={
                     <Box>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                        Room {room.room_number}
+                        {t('bookings:details.roomNumber', { number: room.room_number })}
                       </Typography>
-                      <Typography variant="caption">Type: {room.room_type}</Typography>
+                      <Typography variant="caption">{t('frontDesk.roomTooltip.type', { type: room.room_type })}</Typography>
                       {room.current_guest && (
                         <>
                           <Divider sx={{ my: 0.5, bgcolor: 'var(--hotel-border)' }} />
-                          <Typography variant="caption">Guest: {room.current_guest}</Typography>
+                          <Typography variant="caption">{t('frontDesk.roomTooltip.guest', { name: room.current_guest })}</Typography>
                         </>
                       )}
                       {/* Show status notes if available */}
@@ -893,7 +891,7 @@ const ReceptionistDashboard: React.FC = () => {
                         <>
                           <Divider sx={{ my: 0.5, bgcolor: 'var(--hotel-border)' }} />
                           <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mt: 0.5 }}>
-                            Notes:
+                            {t('frontDesk.roomTooltip.notes')}
                           </Typography>
                           <Typography
                             variant="caption"
@@ -911,7 +909,7 @@ const ReceptionistDashboard: React.FC = () => {
                         <>
                           <Divider sx={{ my: 0.5, bgcolor: 'var(--hotel-border)' }} />
                           <Typography variant="caption" sx={{ fontStyle: 'italic', opacity: 0.8 }}>
-                            Click for room details
+                            {t('frontDesk.roomTooltip.clickForDetails')}
                           </Typography>
                         </>
                       )}
@@ -1002,7 +1000,7 @@ const ReceptionistDashboard: React.FC = () => {
                     {room.check_out_date && room.status === 'occupied' && (
                       <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
-                          Out: {new Date(room.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {t('frontDesk.roomTile.out', { date: new Date(room.check_out_date).toLocaleDateString(intlTag(), { month: 'short', day: 'numeric' }) })}
                         </Typography>
                       </Box>
                     )}
@@ -1011,7 +1009,7 @@ const ReceptionistDashboard: React.FC = () => {
                     {!room.current_guest && room.next_check_in && (
                       <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
-                          Next: {new Date(room.next_check_in).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {t('frontDesk.roomTile.next', { date: new Date(room.next_check_in).toLocaleDateString(intlTag(), { month: 'short', day: 'numeric' }) })}
                         </Typography>
                       </Box>
                     )}
@@ -1021,12 +1019,12 @@ const ReceptionistDashboard: React.FC = () => {
                       <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         {room.maintenance_start_date && (
                           <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
-                            Start: {new Date(room.maintenance_start_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {t('frontDesk.roomTile.start', { date: new Date(room.maintenance_start_date).toLocaleString(intlTag(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) })}
                           </Typography>
                         )}
                         {room.maintenance_end_date && (
                           <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
-                            End: {new Date(room.maintenance_end_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {t('frontDesk.roomTile.end', { date: new Date(room.maintenance_end_date).toLocaleString(intlTag(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) })}
                           </Typography>
                         )}
                       </Box>
@@ -1037,12 +1035,12 @@ const ReceptionistDashboard: React.FC = () => {
                       <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         {room.cleaning_start_date && (
                           <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
-                            Start: {new Date(room.cleaning_start_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {t('frontDesk.roomTile.start', { date: new Date(room.cleaning_start_date).toLocaleString(intlTag(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) })}
                           </Typography>
                         )}
                         {room.cleaning_end_date && (
                           <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
-                            End: {new Date(room.cleaning_end_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {t('frontDesk.roomTile.end', { date: new Date(room.cleaning_end_date).toLocaleString(intlTag(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) })}
                           </Typography>
                         )}
                       </Box>
@@ -1053,12 +1051,12 @@ const ReceptionistDashboard: React.FC = () => {
                       <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         {room.reserved_start_date && (
                           <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
-                            Start: {new Date(room.reserved_start_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {t('frontDesk.roomTile.start', { date: new Date(room.reserved_start_date).toLocaleString(intlTag(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) })}
                           </Typography>
                         )}
                         {room.reserved_end_date && (
                           <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
-                            End: {new Date(room.reserved_end_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {t('frontDesk.roomTile.end', { date: new Date(room.reserved_end_date).toLocaleString(intlTag(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) })}
                           </Typography>
                         )}
                       </Box>
@@ -1092,7 +1090,7 @@ const ReceptionistDashboard: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <LoginIcon sx={{ fontSize: 28 }} />
             <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Check-In - Room {checkinBooking?.room_number || checkinBooking?.room_id}
+              {t('bookings:checkIn.title', { room: checkinBooking?.room_number || checkinBooking?.room_id })}
             </Typography>
           </Box>
         </DialogTitle>
@@ -1103,38 +1101,38 @@ const ReceptionistDashboard: React.FC = () => {
                 <Typography variant="subtitle2" gutterBottom sx={{
                   color: "text.secondary"
                 }}>
-                  Booking #{checkinBooking.booking_number || checkinBooking.folio_number}
+                  {t('bookings:checkIn.bookingNumber', { number: checkinBooking.booking_number || checkinBooking.folio_number })}
                 </Typography>
                 <Grid container spacing={2} sx={{ mt: 1 }}>
                   <Grid size={12}>
                     <Typography variant="h6" sx={{
                       fontWeight: 600
-                    }}>{checkinBooking.guest_name || 'Guest'}</Typography>
+                    }}>{checkinBooking.guest_name || t('frontDesk.guestFallback')}</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Check-in</Typography>
+                    }}>{t('bookings:checkIn.summary.checkIn')}</Typography>
                     <Typography variant="body2" sx={{
                       fontWeight: 500
                     }}>
-                      {new Date(checkinBooking.check_in_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      {new Date(checkinBooking.check_in_date).toLocaleDateString(intlTag(), { weekday: 'short', month: 'short', day: 'numeric' })}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Check-out</Typography>
+                    }}>{t('bookings:checkIn.summary.checkOut')}</Typography>
                     <Typography variant="body2" sx={{
                       fontWeight: 500
                     }}>
-                      {new Date(checkinBooking.check_out_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      {new Date(checkinBooking.check_out_date).toLocaleDateString(intlTag(), { weekday: 'short', month: 'short', day: 'numeric' })}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Room Type</Typography>
+                    }}>{t('bookings:checkIn.summary.roomType')}</Typography>
                     <Typography variant="body2" sx={{
                       fontWeight: 500
                     }}>{checkinBooking.room_type || 'N/A'}</Typography>
@@ -1142,7 +1140,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <Grid size={6}>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Total Amount</Typography>
+                    }}>{t('bookings:checkIn.summary.totalAmount')}</Typography>
                     <Typography variant="body2" sx={{
                       fontWeight: 500
                     }}>{formatCurrency(Number(checkinBooking.total_amount || 0))}</Typography>
@@ -1150,49 +1148,49 @@ const ReceptionistDashboard: React.FC = () => {
                 </Grid>
               </Paper>
 
-              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Guest Information</Typography>
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>{t('bookings:checkIn.guestInformation')}</Typography>
               <Grid container spacing={1.5} sx={{ mb: 2 }}>
                 <Grid size={6}>
-                  <TextField fullWidth size="small" required label="IC / Passport Number" value={ciIcNumber}
+                  <TextField fullWidth size="small" required label={t('bookings:checkIn.icPassport')} value={ciIcNumber}
                     onChange={(e) => setCiIcNumber(e.target.value)}
                     error={!ciIcNumber.trim()}
-                    helperText={!ciIcNumber.trim() ? 'Required to complete check-in' : ' '} />
+                    helperText={!ciIcNumber.trim() ? t('bookings:checkIn.icRequired') : ' '} />
                 </Grid>
                 <Grid size={6}>
-                  <TextField fullWidth size="small" type="tel" label="Phone Number" value={ciPhone}
-                    onChange={(e) => setCiPhone(e.target.value)} helperText="Optional" />
+                  <TextField fullWidth size="small" type="tel" label={t('bookings:checkIn.phone')} value={ciPhone}
+                    onChange={(e) => setCiPhone(e.target.value)} helperText={t('bookings:checkIn.phoneOptional')} />
                 </Grid>
               </Grid>
 
-              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Payment</Typography>
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>{t('bookings:checkIn.paymentSection')}</Typography>
               {ciIsOnlineReservation && (
                 <Alert severity="success" sx={{ mb: 1.5, py: 0 }}>
-                  Payment was settled on {ciOnlinePlatformName}. The full amount
-                  {' '}({formatCurrency(Number(checkinBooking.total_amount || 0))}) is recorded
-                  automatically on check-in — keep this on “Settled Online”. Switch to “Make Payment Now”
-                  only if you are collecting at the desk instead.
+                  {t('bookings:checkIn.settledOnlineNotice', {
+                    platform: ciOnlinePlatformName,
+                    amount: formatCurrency(Number(checkinBooking.total_amount || 0)),
+                  })}
                 </Alert>
               )}
               <ToggleButtonGroup value={ciPaymentChoice} exclusive onChange={(_, val) => { if (val) setCiPaymentChoice(val); }} fullWidth size="small" sx={{ mb: 1.5 }}>
                 <ToggleButton value="pay_now" color="success" sx={{ py: 1, fontWeight: 600 }}>
-                  <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} /> Make Payment Now
+                  <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} /> {t('bookings:checkIn.makePaymentNow')}
                 </ToggleButton>
                 <ToggleButton value="pay_later" color="warning" sx={{ py: 1, fontWeight: 600 }}>
-                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} /> {ciIsOnlineReservation ? 'Settled Online' : 'Pay Later'}
+                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} /> {ciIsOnlineReservation ? t('bookings:checkIn.settledOnline') : t('bookings:checkIn.payLater')}
                 </ToggleButton>
               </ToggleButtonGroup>
               {ciPaymentChoice === 'pay_now' && (
                 <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
                   <Grid size={6}>
                     <FormControl fullWidth size="small">
-                      <InputLabel>Payment Method</InputLabel>
-                      <Select value={ciPaymentMethod} onChange={(e) => setCiPaymentMethod(e.target.value as string)} label="Payment Method">
+                      <InputLabel>{t('bookings:checkIn.paymentMethod')}</InputLabel>
+                      <Select value={ciPaymentMethod} onChange={(e) => setCiPaymentMethod(e.target.value as string)} label={t('bookings:checkIn.paymentMethod')}>
                         {PAYMENT_METHODS.map((m: string) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
                       </Select>
                     </FormControl>
                   </Grid>
                   <Grid size={6}>
-                    <TextField fullWidth size="small" label="Amount Paid" type="number" value={ciAmountPaid} onChange={(e) => setCiAmountPaid(parseFloat(e.target.value) || 0)}
+                    <TextField fullWidth size="small" label={t('bookings:checkIn.amountPaid')} type="number" value={ciAmountPaid} onChange={(e) => setCiAmountPaid(parseFloat(e.target.value) || 0)}
                       slotProps={{
                         input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }
                       }} />
@@ -1200,30 +1198,30 @@ const ReceptionistDashboard: React.FC = () => {
                 </Grid>
               )}
               {ciPaymentChoice === 'pay_later' && !ciIsOnlineReservation && (
-                <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>Payment will be collected later.</Alert>
+                <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>{t('bookings:checkIn.payLaterNotice')}</Alert>
               )}
 
-              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Deposit</Typography>
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>{t('bookings:checkIn.depositSection')}</Typography>
               <ToggleButtonGroup value={ciDepositChoice} exclusive onChange={(_, val) => { if (val) setCiDepositChoice(val); }} fullWidth size="small" sx={{ mb: 1.5 }}>
                 <ToggleButton value="receive" color="success" sx={{ py: 1, fontWeight: 600 }}>
-                  <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} /> Receive Deposit
+                  <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} /> {t('bookings:checkIn.receiveDeposit')}
                 </ToggleButton>
                 <ToggleButton value="waive" color="error" sx={{ py: 1, fontWeight: 600 }}>
-                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} /> Waive Deposit
+                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} /> {t('bookings:checkIn.waiveDeposit')}
                 </ToggleButton>
               </ToggleButtonGroup>
               {ciDepositChoice === 'receive' && (
                 <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
                   <Grid size={6}>
                     <FormControl fullWidth size="small">
-                      <InputLabel>Deposit Method</InputLabel>
-                      <Select value={ciDepositMethod} onChange={(e) => setCiDepositMethod(e.target.value as string)} label="Deposit Method">
+                      <InputLabel>{t('bookings:checkIn.depositMethod')}</InputLabel>
+                      <Select value={ciDepositMethod} onChange={(e) => setCiDepositMethod(e.target.value as string)} label={t('bookings:checkIn.depositMethod')}>
                         {PAYMENT_METHODS.map((m: string) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
                       </Select>
                     </FormControl>
                   </Grid>
                   <Grid size={6}>
-                    <TextField fullWidth size="small" label="Deposit Amount" type="number" value={ciDepositAmount} onChange={(e) => setCiDepositAmount(parseFloat(e.target.value) || 0)}
+                    <TextField fullWidth size="small" label={t('bookings:checkIn.depositAmount')} type="number" value={ciDepositAmount} onChange={(e) => setCiDepositAmount(parseFloat(e.target.value) || 0)}
                       slotProps={{
                         input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }
                       }} />
@@ -1231,17 +1229,17 @@ const ReceptionistDashboard: React.FC = () => {
                 </Grid>
               )}
               {ciDepositChoice === 'waive' && (
-                <TextField fullWidth size="small" label="Reason for Waiving Deposit" value={ciWaiveReason} onChange={(e) => setCiWaiveReason(e.target.value)}
-                  multiline rows={2} placeholder="e.g., Returning guest, Company account..." helperText="Optional: provide a reason" sx={{ mb: 1.5 }} />
+                <TextField fullWidth size="small" label={t('bookings:checkIn.waiveReasonLabel')} value={ciWaiveReason} onChange={(e) => setCiWaiveReason(e.target.value)}
+                  multiline rows={2} placeholder={t('bookings:checkIn.waiveReasonPlaceholder')} helperText={t('bookings:checkIn.waiveReasonHelper')} sx={{ mb: 1.5 }} />
               )}
             </Box>
           )}
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-sunken)', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={() => { setCheckinModalOpen(false); setCheckinBooking(null); }} disabled={processingCheckIn}>Cancel</Button>
+          <Button onClick={() => { setCheckinModalOpen(false); setCheckinBooking(null); }} disabled={processingCheckIn}>{t('common:actions.cancel')}</Button>
           <Button variant="contained" color="success" onClick={handleConfirmCheckIn} disabled={processingCheckIn || !ciIcNumber.trim()}
             startIcon={processingCheckIn ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}>
-            {processingCheckIn ? 'Processing...' : 'Check-In Now'}
+            {processingCheckIn ? t('bookings:checkIn.processing') : t('bookings:checkIn.checkInNow')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -6,6 +6,7 @@ import { HotelBarChart, useChartTheme } from '../../../../components/charts';
 import { useReportsFormat } from './formatContext';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
 import { BottomSheet } from '../../../../components/common/BottomSheet';
+import { useTranslation } from '../../../../i18n';
 import type { ReportsModel } from './reportsModel';
 
 interface DrawerShellProps {
@@ -73,30 +74,31 @@ export type DrawerState =
   | null;
 
 export const OutstandingDrawer: React.FC<{ open: boolean; onClose: () => void; model: ReportsModel }> = ({ open, onClose, model }) => {
+  const { t } = useTranslation('dashboard');
   const { fmtMoney, symbol } = useReportsFormat();
   const { palette, status } = useChartTheme();
   const [tab, setTab] = useState<'guests' | 'company'>('guests');
   const total = model.ageing.reduce((a, b) => a + b.value, 0);
   const rows = tab === 'guests' ? model.guestBalances : model.companyBalances;
   return (
-    <Drawer open={open} onClose={onClose} icon="wallet" title="Outstanding balance"
-      sub={`Unpaid guest & company balances · as of ${model.todayLabel}`}
+    <Drawer open={open} onClose={onClose} icon="wallet" title={t('reports.drawers.outstandingTitle')}
+      sub={t('reports.drawers.outstandingSub', { date: model.todayLabel })}
       foot={<>
-        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>Authoritative source: invoice total − valid payments</span>
+        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{t('reports.drawers.outstandingSource')}</span>
         <span className="spacer" />
-        <button className="btn sm"><Icon name="download" size={13} /> Export</button>
+        <button className="btn sm"><Icon name="download" size={13} /> {t('common:actions.export')}</button>
       </>}>
       <div className="dw-big">
-        <div className="dw-big-l">Total outstanding</div>
+        <div className="dw-big-l">{t('reports.drawers.totalOutstanding')}</div>
         <div className="dw-big-v"><Money value={total} tone="due" prefix={symbol} /></div>
       </div>
 
-      <div className="dw-sech">Ageing buckets</div>
+      <div className="dw-sech">{t('reports.drawers.ageingBuckets')}</div>
       <div className="dw-sec">
         <HotelBarChart
           height={Math.max(160, model.ageing.length * 44)}
           layout="horizontal"
-          ariaLabel="Outstanding invoice ageing buckets"
+          ariaLabel={t('reports.aria.ageingBuckets')}
           data={model.ageing.map((a) => ({ bucket: a.bucket, value: a.value, key: a.key, count: a.count }))}
           keys={['value']}
           indexBy="bucket"
@@ -112,8 +114,8 @@ export const OutstandingDrawer: React.FC<{ open: boolean; onClose: () => void; m
           tooltip={({ indexValue, data: d }) => (
             <div>
               <strong>{String(indexValue)}</strong>
-              <div>{fmtMoney(Number(d.value))} · {Number(d.count)} invoices</div>
-              <div>{total > 0 ? ((Number(d.value) / total) * 100).toFixed(0) : 0}% of total</div>
+              <div>{fmtMoney(Number(d.value))} · {t('reports.tooltip.invoices', { count: Number(d.count) })}</div>
+              <div>{t('reports.tooltip.ofTotal', { pct: total > 0 ? ((Number(d.value) / total) * 100).toFixed(0) : 0 })}</div>
             </div>
           )}
         />
@@ -121,15 +123,15 @@ export const OutstandingDrawer: React.FC<{ open: boolean; onClose: () => void; m
 
       <div className="dw-tabs">
         <button className={'dw-tab' + (tab === 'guests' ? ' is-on' : '')} onClick={() => setTab('guests')}>
-          <Icon name="user" size={14} /> Guest balances <span className="ct">{model.guestBalances.length}</span>
+          <Icon name="user" size={14} /> {t('reports.drawers.guestBalances')} <span className="ct">{model.guestBalances.length}</span>
         </button>
         <button className={'dw-tab' + (tab === 'company' ? ' is-on' : '')} onClick={() => setTab('company')}>
-          <Icon name="building" size={14} /> Company balances <span className="ct">{model.companyBalances.length}</span>
+          <Icon name="building" size={14} /> {t('reports.drawers.companyBalances')} <span className="ct">{model.companyBalances.length}</span>
         </button>
       </div>
 
       <table className="dw-table">
-        <thead><tr><th>{tab === 'guests' ? 'Guest' : 'Company'}</th><th>Ageing</th><th className="num">Balance</th></tr></thead>
+        <thead><tr><th>{tab === 'guests' ? t('reports.drawers.colGuest') : t('reports.drawers.colCompany')}</th><th>{t('reports.drawers.colAgeing')}</th><th className="num">{t('reports.drawers.colBalance')}</th></tr></thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>
@@ -148,16 +150,17 @@ export const OutstandingDrawer: React.FC<{ open: boolean; onClose: () => void; m
 };
 
 export const OccupancyDrawer: React.FC<{ open: boolean; onClose: () => void; model: ReportsModel }> = ({ open, onClose, model }) => {
+  const { t } = useTranslation('dashboard');
   const { fmtPct } = useReportsFormat();
   const { primary, status } = useChartTheme();
   const occupied = model.live.inHouse;
   return (
-    <Drawer open={open} onClose={onClose} icon="bed" title="Occupancy detail"
-      sub="Room status snapshot · drill into the room timeline"
+    <Drawer open={open} onClose={onClose} icon="bed" title={t('reports.drawers.occupancyTitle')}
+      sub={t('reports.drawers.occupancySub')}
       foot={<>
-        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{fmtPct(model.live.occNow)} occupied · {occupied} of {model.periodRooms} rooms</span>
+        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{t('reports.drawers.occupiedLine', { pct: fmtPct(model.live.occNow), occupied, total: model.periodRooms })}</span>
         <span className="spacer" />
-        <button className="btn sm primary"><Icon name="calendar" size={13} /> Open room timeline</button>
+        <button className="btn sm primary"><Icon name="calendar" size={13} /> {t('reports.drawers.openRoomTimeline')}</button>
       </>}>
       <div className="dw-statgrid">
         {model.roomStatus.map((s, i) => (
@@ -168,12 +171,12 @@ export const OccupancyDrawer: React.FC<{ open: boolean; onClose: () => void; mod
         ))}
       </div>
 
-      <div className="dw-sech">Occupancy by room type</div>
+      <div className="dw-sech">{t('reports.drawers.occupancyByType')}</div>
       <div className="dw-sec">
         <HotelBarChart
           height={Math.max(140, model.roomTypes.length * 44)}
           layout="horizontal"
-          ariaLabel="Occupancy rate by room type"
+          ariaLabel={t('reports.aria.occupancyByType')}
           data={model.roomTypes.map((r) => ({ type: r.type, occ: r.occ, rooms: r.rooms }))}
           keys={['occ']}
           indexBy="type"
@@ -189,20 +192,20 @@ export const OccupancyDrawer: React.FC<{ open: boolean; onClose: () => void; mod
           tooltip={({ indexValue, data: d }) => (
             <div>
               <strong>{String(indexValue)}</strong>
-              <div>{fmtPct(Number(d.occ))} occupied</div>
-              <div>{Number(d.rooms)} rooms</div>
+              <div>{t('reports.drawers.pctOccupied', { pct: fmtPct(Number(d.occ)) })}</div>
+              <div>{t('reports.tooltip.rooms', { count: Number(d.rooms) })}</div>
             </div>
           )}
         />
       </div>
 
-      <div className="dw-sech">Departures today <span className="dw-sech-ct">{model.departures.length}</span></div>
+      <div className="dw-sech">{t('reports.panels.departuresToday')} <span className="dw-sech-ct">{model.departures.length}</span></div>
       <table className="dw-table">
-        <thead><tr><th>Guest</th><th>Room</th><th className="num">Balance</th></tr></thead>
+        <thead><tr><th>{t('reports.drawers.colGuest')}</th><th>{t('reports.drawers.colRoom')}</th><th className="num">{t('reports.drawers.colBalance')}</th></tr></thead>
         <tbody>
           {model.departures.map((d, i) => (
             <tr key={i}>
-              <td><div className="dt-name">{d.name}</div><div className="dt-sub">{d.type} · checkout {d.out}</div></td>
+              <td><div className="dt-name">{d.name}</div><div className="dt-sub">{d.type} · {t('reports.drawers.checkoutAt', { time: d.out })}</div></td>
               <td><span className="mono" style={{ fontWeight: 700 }}>{d.room}</span></td>
               <td className="num"><DepartureBalance bal={d.bal} /></td>
             </tr>
@@ -214,28 +217,30 @@ export const OccupancyDrawer: React.FC<{ open: boolean; onClose: () => void; mod
 };
 
 const DepartureBalance: React.FC<{ bal: number }> = ({ bal }) => {
+  const { t } = useTranslation('dashboard');
   const { symbol } = useReportsFormat();
-  return bal > 0 ? <Money value={bal} tone="due" prefix={symbol} /> : <Pill tone="green" sm dot={false}>Settled</Pill>;
+  return bal > 0 ? <Money value={bal} tone="due" prefix={symbol} /> : <Pill tone="green" sm dot={false}>{t('status:ledger.settled')}</Pill>;
 };
 
 export const RevenueDrawer: React.FC<{ open: boolean; onClose: () => void; metric?: string; model: ReportsModel }> = ({ open, onClose, metric, model }) => {
+  const { t } = useTranslation('dashboard');
   const { fmtPct, symbol } = useReportsFormat();
   const titleMap: Record<string, [string, IconName]> = {
-    roomRev: ['Room revenue', 'coins'], totalRev: ['Total revenue', 'coins'],
-    adr: ['Average daily rate', 'gauge'], revpar: ['RevPAR', 'gauge'],
+    roomRev: [t('reports.drawers.revenueTitles.roomRev'), 'coins'], totalRev: [t('reports.drawers.revenueTitles.totalRev'), 'coins'],
+    adr: [t('reports.drawers.revenueTitles.adr'), 'gauge'], revpar: [t('reports.drawers.revenueTitles.revpar'), 'gauge'],
   };
-  const [t, ic] = titleMap[metric || ''] || ['Revenue', 'coins'];
+  const [title, ic] = titleMap[metric || ''] || [t('reports.drawers.revenueTitles.fallback'), 'coins'];
   return (
-    <Drawer open={open} onClose={onClose} icon={ic} title={t}
-      sub="Revenue states are distinct economic events — never summed together"
+    <Drawer open={open} onClose={onClose} icon={ic} title={title}
+      sub={t('reports.drawers.revenueSub')}
       foot={<>
-        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>Earned = posted room-charge ledger entries</span>
+        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{t('reports.drawers.earnedDefinition')}</span>
         <span className="spacer" />
-        <button className="btn sm"><Icon name="list" size={13} /> View bookings</button>
+        <button className="btn sm"><Icon name="list" size={13} /> {t('reports.drawers.viewBookings')}</button>
       </>}>
       <div className="dw-info">
         <Icon name="info" size={16} />
-        <div>A future booking is <b>booked</b>; a completed night is <b>earned</b>; a payment received is <b>collected</b>; an unpaid invoice is <b>outstanding</b>. The dashboard reports <b>earned</b> revenue by stay date.</div>
+        <div>{t('reports.drawers.revenueStatesNote')}</div>
       </div>
       <div className="dw-rev">
         {model.revenueStates.map((s, i) => (
@@ -247,13 +252,13 @@ export const RevenueDrawer: React.FC<{ open: boolean; onClose: () => void; metri
         ))}
       </div>
 
-      <div className="dw-sech">By room type</div>
+      <div className="dw-sech">{t('reports.drawers.byRoomType')}</div>
       <table className="dw-table">
-        <thead><tr><th>Type</th><th className="num">ADR</th><th className="num">Occ</th><th className="num">Revenue</th></tr></thead>
+        <thead><tr><th>{t('reports.drawers.colType')}</th><th className="num">{t('reports.drawers.colAdr')}</th><th className="num">{t('reports.drawers.colOcc')}</th><th className="num">{t('reports.drawers.colRevenue')}</th></tr></thead>
         <tbody>
           {model.roomTypes.map((r, i) => (
             <tr key={i}>
-              <td><div className="dt-name">{r.type}</div><div className="dt-sub">{r.rooms} rooms</div></td>
+              <td><div className="dt-name">{r.type}</div><div className="dt-sub">{t('reports.tooltip.rooms', { count: r.rooms })}</div></td>
               <td className="num"><Money value={r.adr} prefix={symbol} /></td>
               <td className="num mono" style={{ fontWeight: 700 }}>{fmtPct(r.occ, 0)}</td>
               <td className="num"><Money value={r.rev} prefix={symbol} /></td>
@@ -266,20 +271,23 @@ export const RevenueDrawer: React.FC<{ open: boolean; onClose: () => void; metri
 };
 
 export const FlowDrawer: React.FC<{ open: boolean; onClose: () => void; mode?: 'arrivals' | 'departures'; model: ReportsModel }> = ({ open, onClose, mode, model }) => {
+  const { t } = useTranslation('dashboard');
   const { symbol } = useReportsFormat();
   const isArr = mode === 'arrivals';
   const rows = isArr ? model.arrivals : model.departures;
   return (
     <Drawer open={open} onClose={onClose} icon={isArr ? 'login' : 'logout'}
-      title={isArr ? 'Arrivals today' : 'Departures today'}
-      sub={`${model.todayLabel} · ${rows.length}${isArr ? ' expected check-ins' : ' expected check-outs'}`}
+      title={isArr ? t('reports.panels.arrivalsToday') : t('reports.panels.departuresToday')}
+      sub={isArr
+        ? t('reports.drawers.expectedCheckIns', { date: model.todayLabel, count: rows.length })
+        : t('reports.drawers.expectedCheckOuts', { date: model.todayLabel, count: rows.length })}
       foot={<>
-        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>Live operational list · refreshes automatically</span>
+        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{t('reports.drawers.liveListNote')}</span>
         <span className="spacer" />
-        <button className="btn sm primary"><Icon name="arrow-right" size={13} /> Open front desk</button>
+        <button className="btn sm primary"><Icon name="arrow-right" size={13} /> {t('reports.drawers.openFrontDesk')}</button>
       </>}>
       <table className="dw-table">
-        <thead><tr><th>Guest</th><th>{isArr ? 'ETA' : 'Room'}</th><th className="num">{isArr ? 'Nights' : 'Balance'}</th></tr></thead>
+        <thead><tr><th>{t('reports.drawers.colGuest')}</th><th>{isArr ? t('reports.drawers.colEta') : t('reports.drawers.colRoom')}</th><th className="num">{isArr ? t('reports.drawers.colNights') : t('reports.drawers.colBalance')}</th></tr></thead>
         <tbody>
           {rows.map((r, i) => {
             const arr = r as ReportsModel['arrivals'][number];
@@ -288,12 +296,12 @@ export const FlowDrawer: React.FC<{ open: boolean; onClose: () => void; mode?: '
               <tr key={i}>
                 <td>
                   <div className="dt-name">{r.name}{isArr && arr.vip && <span className="vip">VIP</span>}</div>
-                  <div className="dt-sub">{r.type} · {isArr ? arr.source : 'checkout ' + dep.out}</div>
+                  <div className="dt-sub">{r.type} · {isArr ? arr.source : t('reports.drawers.checkoutAt', { time: dep.out })}</div>
                 </td>
                 <td>{isArr ? <span className="mono">{arr.eta}</span> : <span className="mono" style={{ fontWeight: 700 }}>{dep.room}</span>}</td>
                 <td className="num">
                   {isArr ? <span className="mono" style={{ fontWeight: 700 }}>{arr.nights}</span>
-                    : (dep.bal > 0 ? <Money value={dep.bal} tone="due" prefix={symbol} /> : <Pill tone="green" sm dot={false}>Settled</Pill>)}
+                    : (dep.bal > 0 ? <Money value={dep.bal} tone="due" prefix={symbol} /> : <Pill tone="green" sm dot={false}>{t('status:ledger.settled')}</Pill>)}
                 </td>
               </tr>
             );

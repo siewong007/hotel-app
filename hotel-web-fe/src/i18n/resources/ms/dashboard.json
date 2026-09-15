@@ -1,3 +1,231 @@
 {
-  "title": "Papan Pemuka"
+  "title": "Papan Pemuka",
+  "frontDesk": {
+    "title": "Kaunter Hadapan",
+    "subtitle": "Gambaran masa nyata operasi hotel dan status bilik",
+    "restricted": "Papan pemuka ini hanya boleh diakses oleh penyambut tetamu dan pengurus.",
+    "refreshAria": "Muat semula papan pemuka",
+    "stats": {
+      "availableRooms": "Bilik Tersedia",
+      "occupiedRooms": "Bilik Diduduki",
+      "reservedRooms": "Bilik Ditempah",
+      "occupancyRate": "Kadar Penghunian"
+    },
+    "todayCheckIns": "Daftar Masuk Hari Ini",
+    "todayCheckOuts": "Daftar Keluar Hari Ini",
+    "noCheckIns": "Tiada daftar masuk dijadualkan",
+    "noCheckOuts": "Tiada daftar keluar dijadualkan",
+    "viewAllArrivals_other": "Lihat semua {{count}} ketibaan",
+    "viewAllDepartures_other": "Lihat semua {{count}} perlepasan",
+    "attentionRequired": "Perlu Perhatian",
+    "maintenanceRooms": "Bilik Penyelenggaraan",
+    "roomStatusOverview": "Gambaran Status Bilik",
+    "legendCleaningAuto": "Pembersihan (Auto)",
+    "roomTile": {
+      "out": "Keluar: {{date}}",
+      "next": "Seterusnya: {{date}}",
+      "start": "Mula: {{date}}",
+      "end": "Tamat: {{date}}"
+    },
+    "roomTooltip": {
+      "type": "Jenis: {{type}}",
+      "guest": "Tetamu: {{name}}",
+      "notes": "Nota:",
+      "clickForDetails": "Klik untuk butiran bilik"
+    },
+    "guestFallback": "Tetamu",
+    "errors": {
+      "loadDashboard": "Gagal memuatkan data papan pemuka",
+      "loadCheckIn": "Gagal memuatkan data daftar masuk"
+    }
+  },
+  "reports": {
+    "title": "Laporan & Analitik",
+    "subtitle": "Gambaran gabungan operasi & kewangan · {{property}}",
+    "mainProperty": "Hartanah Utama",
+    "crumbReports": "Laporan",
+    "crumbAnalytics": "Analitik",
+    "restricted": "Terhad",
+    "financeOnly": "Kewangan sahaja",
+    "access": {
+      "full": "Akses penuh",
+      "scoped": "Akses terhad"
+    },
+    "range": {
+      "days7": "7 hari",
+      "days30": "30 hari",
+      "days90": "90 hari"
+    },
+    "compare": {
+      "label": "Banding",
+      "prev": "Tempoh sebelum",
+      "month": "Bulan lepas",
+      "year": "Tahun lepas",
+      "vsPrevDays": "berbanding {{days}} hari sebelumnya",
+      "vsLastMonth": "berbanding tempoh sama bulan lepas",
+      "vsLastYear": "berbanding tempoh sama tahun lepas"
+    },
+    "live": {
+      "title": "Hari ini · Langsung",
+      "updated": "Dikemas kini {{time}} · muat semula auto",
+      "arrivals": "Ketibaan",
+      "departures": "Berlepas",
+      "inHouse": "Tetamu dalam penginapan",
+      "occupancyNow": "Penghunian kini",
+      "roomsToClean": "Bilik untuk dibersihkan",
+      "unassigned": "Belum ditugaskan"
+    },
+    "kpi": {
+      "occupancyRate": "Kadar penghunian",
+      "adr": "ADR",
+      "revpar": "RevPAR",
+      "roomRevenue": "Hasil bilik",
+      "totalRevenue": "Jumlah hasil",
+      "outstanding": "Tertunggak",
+      "trendAria": "Aliran {{label}}"
+    },
+    "panels": {
+      "dailyRevenue": "Aliran hasil harian",
+      "dailyRevenueSub": "Bilik {{room}} · Lain-lain {{other}} · {{days}} hari terakhir",
+      "revenueAnalytics": "Analitik hasil",
+      "sourceMix": "Campuran sumber tempahan",
+      "sourceMixSub": "Mengikut hasil bersih · tarikh tempahan dibuat",
+      "occupancyTrend": "Aliran penghunian",
+      "occupancyTrendSub": "Purata {{avg}} · {{rooms}} bilik · {{days}} hari terakhir",
+      "roomTypePerformance": "Prestasi jenis bilik",
+      "roomTypePerformanceSub": "Mengikut hasil bilik",
+      "outstandingAgeing": "Penuaan tertunggak",
+      "drillDown": "Klik untuk lihat perincian",
+      "arrivalsToday": "Ketibaan hari ini",
+      "departuresToday": "Berlepas hari ini",
+      "expected": "{{count}} dijangka",
+      "noOpenInvoices": "Tiada invois belum selesai"
+    },
+    "series": {
+      "roomRevenue": "Hasil bilik",
+      "otherRevenue": "Hasil lain",
+      "occupancy": "Penghunian",
+      "dailyOccupancy": "Penghunian harian"
+    },
+    "aria": {
+      "dailyRevenueTrend": "Aliran hasil harian mengikut tarikh penginapan",
+      "occupancyTrend": "Kadar penghunian harian mengikut tarikh penginapan",
+      "roomRevenueByType": "Hasil bilik mengikut jenis bilik",
+      "outstandingAgeing": "Penuaan invois tertunggak",
+      "ageingBuckets": "Kumpulan penuaan invois tertunggak",
+      "occupancyByType": "Kadar penghunian mengikut jenis bilik"
+    },
+    "tooltip": {
+      "occupancy": "Penghunian: {{value}}",
+      "bookings_other": "{{count}} tempahan",
+      "roomsSold_other": "{{count}} bilik dijual",
+      "rooms_other": "{{count}} bilik",
+      "invoices_other": "{{count}} invois",
+      "roomRevenue": "{{amount}} hasil bilik",
+      "occAdr": "Penghunian {{pct}} · ADR {{adr}}",
+      "ofTotal": "{{pct}}% daripada jumlah"
+    },
+    "delta": {
+      "noPrior": "· tiada sebelumnya"
+    },
+    "roomStatus": {
+      "occupied": "Diduduki",
+      "vacantReady": "Kosong · sedia",
+      "vacantClean": "Kosong · bersih",
+      "arrivingToday": "Tiba hari ini"
+    },
+    "revenueStates": {
+      "booked": { "label": "Ditempah", "desc": "Tempahan masa depan yang disahkan" },
+      "earned": { "label": "Diperoleh", "desc": "Malam bilik yang selesai" },
+      "collected": { "label": "Dikutip", "desc": "Bayaran diterima" },
+      "outstanding": { "label": "Tertunggak", "desc": "Invois belum bayar" }
+    },
+    "drawers": {
+      "outstandingTitle": "Baki tertunggak",
+      "outstandingSub": "Baki tetamu & syarikat belum bayar · sehingga {{date}}",
+      "outstandingSource": "Sumber rasmi: jumlah invois − bayaran sah",
+      "totalOutstanding": "Jumlah tertunggak",
+      "ageingBuckets": "Kumpulan penuaan",
+      "guestBalances": "Baki tetamu",
+      "companyBalances": "Baki syarikat",
+      "colGuest": "Tetamu",
+      "colCompany": "Syarikat",
+      "colAgeing": "Penuaan",
+      "colBalance": "Baki",
+      "colRoom": "Bilik",
+      "colType": "Jenis",
+      "colAdr": "ADR",
+      "colOcc": "Pengh.",
+      "colRevenue": "Hasil",
+      "colEta": "ETA",
+      "colNights": "Malam",
+      "occupancyTitle": "Perincian penghunian",
+      "occupancySub": "Snapshot status bilik · lihat garis masa bilik",
+      "occupiedLine": "{{pct}} diduduki · {{occupied}} daripada {{total}} bilik",
+      "openRoomTimeline": "Buka garis masa bilik",
+      "occupancyByType": "Penghunian mengikut jenis bilik",
+      "pctOccupied": "{{pct}} diduduki",
+      "checkoutAt": "daftar keluar {{time}}",
+      "revenueTitles": {
+        "roomRev": "Hasil bilik",
+        "totalRev": "Jumlah hasil",
+        "adr": "Kadar harian purata",
+        "revpar": "RevPAR",
+        "fallback": "Hasil"
+      },
+      "revenueSub": "Keadaan hasil adalah peristiwa ekonomi berbeza — tidak dijumlahkan bersama",
+      "revenueStatesNote": "Tempahan masa depan ialah ditempah; malam yang selesai ialah diperoleh; bayaran yang diterima ialah dikutip; invois belum bayar ialah tertunggak. Papan pemuka melaporkan hasil diperoleh mengikut tarikh penginapan.",
+      "earnedDefinition": "Diperoleh = catatan lejar caj bilik yang diposkan",
+      "viewBookings": "Lihat tempahan",
+      "byRoomType": "Mengikut jenis bilik",
+      "expectedCheckIns_other": "{{date}} · {{count}} daftar masuk dijangka",
+      "expectedCheckOuts_other": "{{date}} · {{count}} daftar keluar dijangka",
+      "liveListNote": "Senarai operasi langsung · dimuat semula secara automatik",
+      "openFrontDesk": "Buka kaunter hadapan",
+      "dueDate": "Matang {{date}}"
+    },
+    "footnote": "Jubin operasi (ketibaan, perlepasan, dalam penginapan, housekeeping) mencerminkan data tempahan dan bilik langsung. Hasil, aliran penghunian, campuran saluran, angka setiap jenis dan pipeline datang daripada analitik hasil — tarikh penginapan untuk aliran, tarikh tempahan dibuat untuk pecahan saluran. Penuaan tertunggak membaca invois belum selesai sehingga hari ini.",
+    "filters": {
+      "roomType": "Jenis bilik",
+      "source": "Sumber"
+    },
+    "errors": {
+      "loadFailed": "Gagal memuatkan data analitik"
+    }
+  },
+  "library": {
+    "filters": {
+      "shift": "Syif",
+      "allShifts": "Semua syif",
+      "drawer": "Laci",
+      "company": "Syarikat",
+      "roomType": "Jenis bilik"
+    },
+    "shifts": {
+      "morning": "Pagi",
+      "evening": "Petang",
+      "night": "Malam"
+    },
+    "runReport": "Jalankan laporan",
+    "noRows": "Tiada baris untuk tempoh ini",
+    "emptyReport": "Laporan ini tidak menghasilkan data untuk julat yang dipilih.",
+    "backToLibrary": "← Semua laporan",
+    "dateBasis": {
+      "stay": "tarikh penginapan",
+      "booking": "tarikh tempahan",
+      "accounting": "tarikh perakaunan"
+    },
+    "categories": {
+      "operations": "Operasi",
+      "financial": "Kewangan",
+      "analytics": "Analitik",
+      "accounting": "Perakaunan"
+    },
+    "printTitle": "Laporan - {{title}}",
+    "printReport": "Cetak laporan",
+    "errors": {
+      "loadCatalog": "Gagal memuatkan laporan",
+      "runReport": "Gagal menjalankan laporan"
+    }
+  }
 }
