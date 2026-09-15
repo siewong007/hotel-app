@@ -1,6 +1,6 @@
 //! Booking service compatibility layer.
 
-pub use crate::repositories::bookings::*;
+pub use super::*;
 
 use chrono::{DateTime, Utc};
 
@@ -9,9 +9,9 @@ use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::models::{Booking, CheckInRequest};
-use crate::repositories::bookings as booking_repo;
+use crate::modules::bookings as booking_repo;
 use crate::services::audit::AuditLog;
-use crate::services::booking as booking_service;
+use super::helpers as booking_service;
 use crate::modules::payments::service as payments;
 use crate::utils::sanitization::Sanitizer;
 use rust_decimal::Decimal;

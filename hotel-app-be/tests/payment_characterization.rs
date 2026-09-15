@@ -30,7 +30,7 @@
 use hotel_app_be::constants::PaymentMethod;
 use hotel_app_be::core::error::ApiError;
 use hotel_app_be::models::{PaymentRequest, RecordPaymentRequest, UpdatePaymentRequest};
-use hotel_app_be::repositories::booking::BookingRepository;
+use hotel_app_be::modules::bookings::repository::BookingRepository;
 use hotel_app_be::modules::payments::repository::PaymentRepository;
 use hotel_app_be::modules::payments::service as payments;
 use rust_decimal::Decimal;
@@ -4267,7 +4267,7 @@ async fn booking_deposit_assertion_records_payment_and_guards_waive() {
     macro_rules! reconcile {
         ($input:expr) => {{
             let mut tx = pool.begin().await.unwrap();
-            let result = hotel_app_be::repositories::bookings::reconcile_booking_deposit_tx(
+            let result = hotel_app_be::modules::bookings::reconcile_booking_deposit_tx(
                 &mut tx, booking_id, &$input, actor_id,
             )
             .await;

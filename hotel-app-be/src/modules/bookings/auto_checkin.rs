@@ -7,10 +7,10 @@ use crate::core::error::ApiError;
 use crate::models::{
     AutoCheckinResponse, Booking, BookingWithDetails, CheckInRequest, Guest, GuestEkycStatusSummary,
 };
-use crate::repositories::bookings as booking_repo;
+use crate::modules::bookings as booking_repo;
 use crate::repositories::ekyc::{EkycRepository, GuestEkycSummaryRecord};
-use crate::services::booking as booking_service;
-use crate::services::bookings::{
+use super::helpers as booking_service;
+use super::service::{
     CheckinSourceContext, SelfCheckinEventInsert, checkin_booking_flow,
 };
 

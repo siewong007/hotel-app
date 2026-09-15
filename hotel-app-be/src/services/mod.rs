@@ -6,11 +6,11 @@ pub mod account_emails;
 // analytics service logic live in modules::analytics.
 pub mod audit;
 // auth service logic live in modules::auth.
-pub mod auto_checkin;
-pub mod booking;
+// auto_checkin service logic live in modules::bookings.
+// booking service logic live in modules::bookings.
 // booking_channels service logic live in modules::booking_channels.
-pub mod booking_emails;
-pub mod bookings;
+// booking_emails service logic live in modules::bookings.
+// bookings service logic live in modules::bookings.
 // companies service logic live in modules::companies.
 pub mod data_transfer;
 // Import staging/jobs for data transfer — kept in a sibling file so
@@ -42,5 +42,5 @@ pub mod promotion_pricing;
 // search service logic live in modules::search.
 // turnstile service logic live in modules::auth.
 // two_factor service logic live in modules::two_factor.
-pub mod unpaid_hold_scheduler;
+// unpaid_hold_scheduler service logic live in modules::bookings.
 // users service logic live in modules::users.

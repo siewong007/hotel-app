@@ -84,7 +84,7 @@ mod postgres_tests {
     use hotel_app_be::modules::rooms::queries as rq;
     use hotel_app_be::modules::housekeeping::service as housekeeping;
     use hotel_app_be::modules::maintenance::service as maintenance;
-    use hotel_app_be::services::{bookings};
+    use hotel_app_be::modules::bookings::service as bookings;
     use hotel_app_be::modules::rooms::service as rooms;
     use sqlx::{PgPool, postgres::PgPoolOptions};
 

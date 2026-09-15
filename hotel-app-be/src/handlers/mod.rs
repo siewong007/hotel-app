@@ -7,7 +7,7 @@
 // audit handlers live in modules::audit.
 // auth handlers live in modules::auth.
 // booking_channels handlers live in modules::booking_channels.
-pub mod bookings;
+// bookings handlers live in modules::bookings.
 // companies handlers live in modules::companies.
 pub mod data_transfer;
 // eKYC handlers live in modules::ekyc.

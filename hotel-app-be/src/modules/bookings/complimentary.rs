@@ -328,7 +328,7 @@ pub async fn get_complimentary_bookings_handler(
         .iter()
         .map(crate::models::row_mappers::row_to_booking_with_details)
         .collect();
-    crate::services::auto_checkin::attach_booking_ekyc_summaries(&pool, &mut bookings).await?;
+    super::auto_checkin::attach_booking_ekyc_summaries(&pool, &mut bookings).await?;
 
     Ok(Json(bookings))
 }

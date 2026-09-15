@@ -24,7 +24,7 @@ pub async fn book_with_credits_handler(
     let user_id = require_auth(&headers).await?;
 
     let has_access =
-        crate::services::bookings::can_book_with_credits_for_guest(&pool, user_id, input.guest_id)
+        super::service::can_book_with_credits_for_guest(&pool, user_id, input.guest_id)
             .await?;
 
     if !has_access {

@@ -389,10 +389,10 @@ pub async fn record_payment(
     let mut confirmed_by_this_payment = false;
     if payment_type == "booking" && settles_balance_in_full {
         let confirmed =
-            crate::repositories::bookings::confirm_booking_tx(&mut tx, request.booking_id).await?;
+            crate::modules::bookings::confirm_booking_tx(&mut tx, request.booking_id).await?;
         if confirmed {
             confirmed_by_this_payment = true;
-            crate::repositories::bookings::record_booking_history_tx(
+            crate::modules::bookings::record_booking_history_tx(
                 &mut tx,
                 request.booking_id,
                 Some("pending"),
@@ -421,7 +421,7 @@ pub async fn record_payment(
     // paid by card/DuitNow/online banking, where the room-assignment mail
     // queued just above already opens with "Your online payment is confirmed".
     if confirmed_by_this_payment && !room_assignment_notified {
-        crate::services::booking_emails::try_queue_payment_confirmation_email(
+        crate::modules::bookings::emails::try_queue_payment_confirmation_email(
             pool, booking_id, payment_id,
         )
         .await;
@@ -1326,10 +1326,10 @@ async fn create_bank_transfer_claim_inner(
     .await?;
 
     let moved_to_confirmation =
-        crate::repositories::bookings::move_booking_to_pending_confirmation_tx(&mut tx, booking.id)
+        crate::modules::bookings::move_booking_to_pending_confirmation_tx(&mut tx, booking.id)
             .await?;
     if moved_to_confirmation {
-        crate::repositories::bookings::record_booking_history_tx(
+        crate::modules::bookings::record_booking_history_tx(
             &mut tx,
             booking.id,
             Some(&booking.status),
@@ -2097,7 +2097,7 @@ pub async fn approve_payment(
     // card/DuitNow paths keep their own room-assignment mail
     // (`queue_paid_online_booking_room_assignment`), which this staff-review
     // path never reaches.
-    crate::services::booking_emails::try_queue_payment_confirmation_email(
+    crate::modules::bookings::emails::try_queue_payment_confirmation_email(
         pool,
         review.booking_id,
         payment_id,
@@ -2337,9 +2337,9 @@ async fn complete_and_confirm(
         ));
     }
 
-    let confirmed = crate::repositories::bookings::confirm_booking_tx(&mut tx, booking_id).await?;
+    let confirmed = crate::modules::bookings::confirm_booking_tx(&mut tx, booking_id).await?;
     if confirmed {
-        crate::repositories::bookings::record_booking_history_tx(
+        crate::modules::bookings::record_booking_history_tx(
             &mut tx,
             booking_id,
             Some("pending_payment"),
@@ -2627,13 +2627,13 @@ async fn reject_payment_by(
         ));
     }
 
-    let reset_to_payment = crate::repositories::bookings::move_booking_to_pending_payment_tx(
+    let reset_to_payment = crate::modules::bookings::move_booking_to_pending_payment_tx(
         &mut tx,
         review.booking_id,
     )
     .await?;
     if reset_to_payment {
-        crate::repositories::bookings::record_booking_history_tx(
+        crate::modules::bookings::record_booking_history_tx(
             &mut tx,
             review.booking_id,
             Some("pending_confirmation"),

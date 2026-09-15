@@ -3,7 +3,6 @@
 //! Each module contains models for a specific domain of the application.
 
 pub mod audit;
-pub mod booking;
 pub mod common;
 pub mod data_transfer;
 pub mod ekyc;
@@ -14,7 +13,7 @@ pub mod row_mappers;
 pub use crate::modules::analytics::models::*;
 pub use audit::*;
 pub use crate::modules::auth::models::*;
-pub use booking::*;
+pub use crate::modules::bookings::models::*;
 pub use crate::modules::booking_channels::models::*;
 pub use common::*;
 pub use crate::modules::companies::models::*;

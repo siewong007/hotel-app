@@ -5,7 +5,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::services::bookings as booking_service;
+use super::service as booking_service;
 use axum::{
     extract::{Extension, Path, Query, State},
     http::HeaderMap,
@@ -131,7 +131,7 @@ pub async fn auto_checkin_eligibility_handler(
     Path(booking_id): Path<i64>,
 ) -> Result<Json<GuestEkycStatusSummary>, ApiError> {
     Ok(Json(
-        crate::services::auto_checkin::auto_checkin_eligibility(&pool, booking_id).await?,
+        super::auto_checkin::auto_checkin_eligibility(&pool, booking_id).await?,
     ))
 }
 
@@ -141,7 +141,7 @@ pub async fn auto_checkin_handler(
     Path(booking_id): Path<i64>,
 ) -> Result<Json<AutoCheckinResponse>, ApiError> {
     Ok(Json(
-        crate::services::auto_checkin::auto_checkin_for_staff(&pool, user_id, booking_id).await?,
+        super::auto_checkin::auto_checkin_for_staff(&pool, user_id, booking_id).await?,
     ))
 }
 

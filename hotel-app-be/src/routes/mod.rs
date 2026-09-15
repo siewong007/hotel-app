@@ -7,7 +7,7 @@
 // audit routes live in modules::audit.
 // auth routes live in modules::auth.
 // booking_channels routes live in modules::booking_channels.
-pub mod bookings;
+// bookings routes live in modules::bookings.
 // companies routes live in modules::companies.
 pub mod data_transfer;
 // eKYC routes now live in modules::ekyc::routes
@@ -394,7 +394,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::guests::routes::routes())
         .merge(crate::modules::housekeeping::routes::routes())
         .merge(crate::modules::maintenance::routes::routes())
-        .merge(bookings::routes())
+        .merge(crate::modules::bookings::routes::routes())
         .merge(crate::modules::rates::routes::routes())
         .merge(crate::modules::payments::routes::routes())
         .merge(ledgers::routes())

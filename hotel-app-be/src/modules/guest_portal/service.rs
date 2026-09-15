@@ -26,7 +26,7 @@ use crate::modules::auth::repository::{AuthRepository, ClaimGuestAccountValues};
 use super::repository::GuestPortalRepository;
 use super::session_repository::GuestPortalSessionRepository;
 use crate::services::audit::AuditLog;
-use crate::services::auto_checkin;
+use crate::modules::bookings::auto_checkin as auto_checkin;
 use crate::utils::sanitization::Sanitizer;
 use validator::Validate;
 
@@ -798,7 +798,7 @@ pub async fn cancel_my_booking(
         .ok_or_else(|| {
             ApiError::Forbidden("No active guest account is linked to this booking.".to_string())
         })?;
-    crate::services::bookings::cancel_pending_booking_by_guest(pool, user_id, booking_id, reason)
+    crate::modules::bookings::service::cancel_pending_booking_by_guest(pool, user_id, booking_id, reason)
         .await
 }
 

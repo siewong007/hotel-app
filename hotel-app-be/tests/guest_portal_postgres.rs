@@ -16,7 +16,7 @@ mod postgres_tests {
     use hotel_app_be::repositories::ekyc::EkycRepository;
     use hotel_app_be::modules::guest_portal::repository::GuestPortalRepository;
     use hotel_app_be::modules::guest_portal::session_repository::GuestPortalSessionRepository;
-    use hotel_app_be::services::auto_checkin;
+    use hotel_app_be::modules::bookings::auto_checkin as auto_checkin;
     use hotel_app_be::modules::guest_portal::service as guest_portal_service;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
     use std::sync::LazyLock;

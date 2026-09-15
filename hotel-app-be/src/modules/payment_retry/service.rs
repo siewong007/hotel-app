@@ -238,7 +238,7 @@ pub async fn describe_recovery(
     presented: &str,
 ) -> Result<super::handlers::PaymentRecoveryView, ApiError> {
     let capability = resolve_capability(pool, presented).await?;
-    let booking = crate::services::booking::fetch_booking_by_id(pool, capability.booking_id)
+    let booking = crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
         .await
         .map_err(|_| unavailable())?;
 
@@ -313,7 +313,7 @@ pub async fn recover_with_bank_transfer(
         });
     }
 
-    let booking = crate::services::booking::fetch_booking_by_id(pool, capability.booking_id)
+    let booking = crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
         .await
         .map_err(|_| unavailable())?;
     crate::modules::payments::service::create_bank_transfer_claim_for_capability(
@@ -352,7 +352,7 @@ pub async fn recover_with_paypal(
         });
     }
 
-    let booking = crate::services::booking::fetch_booking_by_id(pool, capability.booking_id)
+    let booking = crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
         .await
         .map_err(|_| unavailable())?;
     crate::modules::payments::service::create_paypal_order_for_capability(pool, &booking, capability.id)
@@ -380,7 +380,7 @@ pub async fn capture_recovered_paypal(
         ));
     }
 
-    let booking = crate::services::booking::fetch_booking_by_id(pool, capability.booking_id)
+    let booking = crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
         .await
         .map_err(|_| unavailable())?;
     crate::modules::payments::service::capture_paypal_payment(pool, &booking, order_id, payment_id).await

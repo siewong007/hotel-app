@@ -3,7 +3,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{Booking, BookingPaginationParams, BookingWithDetails, row_mappers};
-use crate::repositories::booking_list;
+use super::list as booking_list;
 use crate::utils::pagination::Pagination;
 use sqlx::Row;
 

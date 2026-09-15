@@ -6,10 +6,10 @@ use crate::core::db::{DbPool, DbTransaction, decimal_to_db, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::*;
-use crate::repositories::booking::BookingRepository;
-use crate::repositories::bookings_queries::*;
+use super::repository::BookingRepository;
+use super::queries::*;
 use crate::services::audit::AuditLog;
-use crate::services::booking as booking_svc;
+use super::helpers as booking_svc;
 use crate::utils::date::{parse_date_flexible, parse_datetime_flexible};
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
@@ -714,7 +714,7 @@ pub async fn get_bookings_handler(
         pagination,
     )
     .await?;
-    crate::services::auto_checkin::attach_booking_ekyc_summaries(&pool, &mut bookings).await?;
+    super::auto_checkin::attach_booking_ekyc_summaries(&pool, &mut bookings).await?;
 
     Ok(Json(PaginatedResponse {
         data: bookings,
@@ -1303,7 +1303,7 @@ pub async fn create_booking_handler(
     // booking-confirmed trigger for the front-desk path. Best-effort and
     // post-commit: a mail failure must not fail the booking creation.
     if booking.status == "confirmed" {
-        crate::services::booking_emails::try_queue_booking_confirmation_email(&pool, booking.id)
+        super::emails::try_queue_booking_confirmation_email(&pool, booking.id)
             .await;
     }
 
@@ -1346,7 +1346,7 @@ pub async fn get_booking_handler(
         ));
     }
 
-    crate::services::auto_checkin::attach_booking_ekyc_summaries(
+    super::auto_checkin::attach_booking_ekyc_summaries(
         &pool,
         std::slice::from_mut(&mut booking),
     )
@@ -2126,7 +2126,7 @@ pub async fn update_booking_handler(
                 // payment-confirmation mail instead, so this arm is not reached
                 // from there. Keyed on the booking id, so a booking that leaves
                 // and re-enters `confirmed` still mails the guest only once.
-                crate::services::booking_emails::try_queue_booking_confirmation_email(
+                super::emails::try_queue_booking_confirmation_email(
                     &pool, booking_id,
                 )
                 .await;

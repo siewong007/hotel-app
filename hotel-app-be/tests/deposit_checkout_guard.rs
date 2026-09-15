@@ -36,7 +36,7 @@ use axum::extract::{Extension, Path, State};
 use hotel_app_be::core::error::ApiError;
 use hotel_app_be::models::{Booking, BookingUpdateInput};
 use hotel_app_be::modules::payments::repository::PaymentRepository;
-use hotel_app_be::services::bookings;
+use hotel_app_be::modules::bookings::service as bookings;
 use rust_decimal::Decimal;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::str::FromStr;

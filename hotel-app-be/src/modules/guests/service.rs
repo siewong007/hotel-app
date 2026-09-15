@@ -7,7 +7,7 @@ use crate::core::error::ApiError;
 use crate::models::*;
 use super::repository::GuestRepository;
 use crate::services::audit::AuditLog;
-use crate::services::auto_checkin;
+use crate::modules::bookings::auto_checkin as auto_checkin;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 use regex::Regex;

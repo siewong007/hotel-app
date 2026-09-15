@@ -29,7 +29,7 @@ use crate::repositories::ekyc::{
     EkycReviewAction, NewEkycVerification,
 };
 use crate::services::audit::AuditLog;
-use crate::services::auto_checkin;
+use crate::modules::bookings::auto_checkin as auto_checkin;
 use crate::utils::sanitization::Sanitizer;
 
 /// Which surface a verification was submitted through.

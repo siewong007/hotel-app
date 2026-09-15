@@ -14,7 +14,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::services::booking::fetch_booking_by_id;
+use super::helpers::fetch_booking_by_id;
 use sqlx::Row;
 
 /// Sentinel booking id that excludes nothing (no real booking has id -1), so the

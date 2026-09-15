@@ -6,11 +6,11 @@
 // analytics persistence live in modules::analytics.
 pub mod audit;
 // auth persistence live in modules::auth.
-pub mod booking;
+// booking persistence live in modules::bookings.
 // booking_channels persistence live in modules::booking_channels.
-pub mod booking_list;
-pub mod bookings;
-pub mod bookings_queries;
+// booking_list persistence live in modules::bookings.
+// bookings persistence live in modules::bookings.
+// bookings_queries persistence live in modules::bookings.
 // channel_net_revenue persistence live in modules::analytics.
 // company persistence live in modules::companies.
 pub mod data_transfer;
