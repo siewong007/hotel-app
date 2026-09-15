@@ -1,37 +1,14 @@
-import { Box, Skeleton, Typography } from '@mui/material';
-import { HotelSpinner } from '../components';
+import { Box, Skeleton } from '@mui/material';
+import { LogoLoader } from '../components';
 import { useTranslation } from '../i18n';
-import { getHotelSettings } from '../utils/hotelSettings';
 
 // Full-viewport boot screen shown while auth resolves, before any shell exists.
 // Deliberately NOT a page-shaped skeleton — a fake dashboard reads as a wrong
 // page flashing by on every refresh (the access token is in-memory only, so
-// every reload pays for the refresh round trip here).
-export const BootSplash = () => {
-  const { t } = useTranslation('common');
-  const hotelName = getHotelSettings().hotel_name.trim();
-  return (
-    <Box
-      role="status"
-      aria-label={t('aria.loading')}
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        bgcolor: 'background.default',
-      }}
-    >
-      {hotelName && (
-        <Typography variant="h6" sx={{ mb: 1, fontWeight: 600, letterSpacing: '0.02em' }}>
-          {hotelName}
-        </Typography>
-      )}
-      <HotelSpinner size={48} />
-    </Box>
-  );
-};
+// every reload pays for the refresh round trip here). The brand mark carries
+// the wait; the static #boot-splash in index.html/guest.html fades into this
+// identical centered mark, so the pre-React → React handoff is invisible.
+export const BootSplash = () => <LogoLoader variant="fullScreen" />;
 
 export const LoadingFallback = () => {
   const { t } = useTranslation('common');
@@ -62,8 +39,4 @@ export const LoadingFallback = () => {
   );
 };
 
-export const MinimalLoadingFallback = () => (
-  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100px' }}>
-    <HotelSpinner size={40} />
-  </Box>
-);
+export const MinimalLoadingFallback = () => <LogoLoader variant="page" minHeight={100} />;
