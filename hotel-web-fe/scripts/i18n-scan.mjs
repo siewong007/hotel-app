@@ -74,7 +74,6 @@ const ALLOWED_LITERALS = new Set([
   'Cash',             // default payment/refund-method *value* persisted on
                       // booking/payment records; methods come from hotel
                       // settings, not the bundle
-  'Queen',            // default bed_type value stored on room types
   'DLX',              // room-type code example shown as an input placeholder
   'VpnKey',           // MUI icon identifier fallback (useRBACData) — never rendered
 ]);
@@ -90,7 +89,12 @@ const ALLOWED_PATTERNS = [
                                                  //   /guest-portal?section=stays
   /^https?:\/\/\S*$/,                              // absolute URL: 'http://localhost' SSR base
   /^(?:wss?|https?|mailto|tel|data|blob):$/,       // bare URL scheme: 'ws:', 'wss:'
-  /^[a-z]{2,3}(-[A-Za-z]{2,8})+$/,                 // BCP-47 tag: 'zh-CN' (Google Sign-In)
+  /^[a-z]{2,3}-([A-Z]{2}|[A-Z][a-z]{3,8}|\d{3})$/, // BCP-47 tag: 'zh-CN', 'ms-MY',
+                                                 //   'zh-Hans' (Google Sign-In). The
+                                                 //   subtag must be an UPPERCASE region,
+                                                 //   Titlecase script, or numeric code —
+                                                 //   deliberately not lowercase so
+                                                 //   'in-house'/'pre-order' still flag
   /^extends\s+\w/,                                 // TS `extends Omit<…>` clause misparsed
                                                  //   as JSX text by the text-node regex
   /^#/,                                            // CSS colour: '#fff'
@@ -166,6 +170,11 @@ const FILE_ALLOWLIST = [
     // Tag appended to booking remarks persisted verbatim on the booking.
     pathRe: /features\/rooms\/components\/UnifiedBooking\/UnifiedBookingModal\.tsx$/,
     literals: new Set(['[Hourly Stay]']),
+  },
+  {
+    // Default bed_type value stored on the room-type record.
+    pathRe: /features\/rooms\/components\/RoomConfigurationPage\.tsx$/,
+    literals: new Set(['Queen']),
   },
 ];
 
