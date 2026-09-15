@@ -950,7 +950,7 @@ impl GuestBookingRepository {
                     .map_err(ApiError::from)?;
                 Ok(guest_id)
             }
-            Err(error) if crate::repositories::auth::is_guest_name_unique_violation(&error) => {
+            Err(error) if crate::modules::auth::repository::is_guest_name_unique_violation(&error) => {
                 sqlx::query("ROLLBACK TO SAVEPOINT anon_guest_name")
                     .execute(&mut **tx)
                     .await

@@ -22,7 +22,7 @@ use crate::modules::communications::service as communications_service;
 use crate::modules::consent::models::{ConsentDocument, ConsentSource};
 use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
 use crate::modules::consent::validation as consent_validation;
-use crate::repositories::auth::{AuthRepository, ClaimGuestAccountValues};
+use crate::modules::auth::repository::{AuthRepository, ClaimGuestAccountValues};
 use crate::repositories::guest_portal::GuestPortalRepository;
 use crate::repositories::guest_portal_session::GuestPortalSessionRepository;
 use crate::services::audit::AuditLog;

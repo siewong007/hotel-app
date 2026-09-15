@@ -2,12 +2,12 @@
 //!
 //! 2FA routes are in `routes::two_factor`, passkey routes in `routes::passkey`.
 
-use super::extract_client_ip;
+use crate::routes::extract_client_ip;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::core::rate_limiter::RateLimiters;
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -19,7 +19,7 @@ use axum::{
 use axum_extra::extract::cookie::CookieJar;
 use std::net::SocketAddr;
 
-use crate::handlers::auth::REFRESH_COOKIE;
+use super::handlers::REFRESH_COOKIE;
 
 /// Extracts the refresh token from the `HttpOnly` cookie and wraps it in a
 /// `RefreshTokenRequest`. Returns `Unauthorized` when the cookie is absent so a
@@ -66,7 +66,7 @@ async fn login_lookup(
             retry_after,
         ));
     }
-    handlers::auth::lookup_login_identifier_handler(State(pool), Json(req)).await
+    handlers::lookup_login_identifier_handler(State(pool), Json(req)).await
 }
 
 // Basic auth handlers
@@ -76,7 +76,7 @@ async fn access_snapshot(
     headers: HeaderMap,
 ) -> Result<Json<models::AccessSnapshot>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::auth::access_snapshot_handler(State(pool), user_id).await
+    handlers::access_snapshot_handler(State(pool), user_id).await
 }
 
 async fn login(
@@ -102,18 +102,18 @@ async fn login(
     // bot never reaches the hashing path. Tokens are single-use, so the client
     // must mint a fresh one per attempt — including the second `/auth/login`
     // call that carries the 2FA code.
-    crate::services::turnstile::verify_request(&headers, ip, "login").await?;
+    super::turnstile::verify_request(&headers, ip, "login").await?;
     let user_agent = headers
         .get(axum::http::header::USER_AGENT)
         .and_then(|value| value.to_str().ok())
         .map(|value| value.chars().take(512).collect());
-    handlers::auth::login_handler(
+    handlers::login_handler(
         State(pool),
         jar,
         Json(req),
         Some(ip.to_string()),
         user_agent,
-        super::extract_client_timezone(&headers),
+        crate::routes::extract_client_timezone(&headers),
     )
     .await
 }
@@ -141,13 +141,13 @@ async fn google_login(
         .get(axum::http::header::USER_AGENT)
         .and_then(|value| value.to_str().ok())
         .map(|value| value.chars().take(512).collect());
-    handlers::auth::google_login_handler(
+    handlers::google_login_handler(
         State(pool),
         jar,
         Json(req),
         Some(ip.to_string()),
         user_agent,
-        super::extract_client_timezone(&headers),
+        crate::routes::extract_client_timezone(&headers),
     )
     .await
 }
@@ -171,7 +171,7 @@ async fn refresh(
         ));
     }
     let req = refresh_request_from_cookie(&jar)?;
-    handlers::auth::refresh_token_handler(State(pool), jar, req).await
+    handlers::refresh_token_handler(State(pool), jar, req).await
 }
 
 async fn logout(
@@ -179,7 +179,7 @@ async fn logout(
     jar: CookieJar,
 ) -> Result<(CookieJar, Json<serde_json::Value>), ApiError> {
     let req = refresh_request_from_cookie(&jar)?;
-    handlers::auth::logout_handler(State(pool), jar, req).await
+    handlers::logout_handler(State(pool), jar, req).await
 }
 
 async fn register(
@@ -200,8 +200,8 @@ async fn register(
             retry_after,
         ));
     }
-    crate::services::turnstile::verify_request(&headers, ip, "register").await?;
-    handlers::auth::register_handler(State(pool), headers, peer_addr, Json(req)).await
+    super::turnstile::verify_request(&headers, ip, "register").await?;
+    handlers::register_handler(State(pool), headers, peer_addr, Json(req)).await
 }
 
 async fn verify_email(
@@ -219,7 +219,7 @@ async fn verify_email(
             retry_after,
         ));
     }
-    handlers::auth::verify_email_handler(State(pool), Json(req)).await
+    handlers::verify_email_handler(State(pool), Json(req)).await
 }
 
 async fn resend_verification(
@@ -240,7 +240,7 @@ async fn resend_verification(
             retry_after,
         ));
     }
-    handlers::auth::resend_verification_handler(State(pool), Json(req)).await
+    handlers::resend_verification_handler(State(pool), Json(req)).await
 }
 
 /// Public staff-invite acceptance. Rate-limited like other credential minting:
@@ -261,5 +261,5 @@ async fn accept_invite(
             retry_after,
         ));
     }
-    handlers::auth::accept_invite_handler(State(pool), Json(req)).await
+    handlers::accept_invite_handler(State(pool), Json(req)).await
 }

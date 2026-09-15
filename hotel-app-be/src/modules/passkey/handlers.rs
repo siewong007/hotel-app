@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::handlers::auth::build_refresh_cookie;
+use crate::modules::auth::handlers::build_refresh_cookie;
 use crate::models::*;
 use super::service as svc;
 use axum::{

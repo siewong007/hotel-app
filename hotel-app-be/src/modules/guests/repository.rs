@@ -9,7 +9,7 @@ use crate::models::{
     GuestSensitiveProfile, GuestSummary, GuestTourismTaxSignal, GuestUpdateState,
     GuestUpdateValues, LinkGuestInput, LinkedGuestCreditRow,
 };
-use crate::repositories::auth::is_guest_name_unique_violation;
+use crate::modules::auth::repository::is_guest_name_unique_violation;
 use crate::utils::pagination::Pagination;
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::Row;

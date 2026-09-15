@@ -72,7 +72,7 @@ pub async fn register_start(
 
     // A passkey satisfies 2FA on its own, so registering one is a step-up
     // operation — a live session alone must not be enough to mint one.
-    crate::services::auth::ensure_step_up(
+    crate::modules::auth::service::ensure_step_up(
         pool,
         user.id,
         req.password.as_deref(),
@@ -272,7 +272,7 @@ pub async fn login_finish(
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     // Account lockout applies to every login door, not just the password one.
-    crate::services::auth::ensure_not_locked(pool, user.id, &req.username, ip_address, user_agent)
+    crate::modules::auth::service::ensure_not_locked(pool, user.id, &req.username, ip_address, user_agent)
         .await?;
 
     let expected_challenge = decode_standard_b64(&req.challenge, "challenge")?;
@@ -359,7 +359,7 @@ pub async fn login_finish(
 
     // The session-minting sequence is shared with the password and Google
     // doors so all three stay in step; see `services::auth`.
-    crate::services::auth::issue_authenticated_response(
+    crate::modules::auth::service::issue_authenticated_response(
         pool,
         &user,
         ip_address,

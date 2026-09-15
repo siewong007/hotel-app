@@ -124,7 +124,7 @@ async fn get_user_sessions(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
-) -> Result<Json<Vec<crate::models::auth::UserSessionInfo>>, ApiError> {
+) -> Result<Json<Vec<crate::modules::auth::models::UserSessionInfo>>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
     handlers::user_sessions_handler(State(pool), Extension(actor_user_id), path).await

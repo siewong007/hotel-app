@@ -16,7 +16,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::extract_user_id;
 use crate::models::{AuditEvent, StepUpRequest, StepUpResponse};
-use crate::repositories::auth::AuthRepository;
+use crate::modules::auth::repository::AuthRepository;
 use crate::services::audit::AuditLog;
 
 /// Audit actions — pinned so the transfer-history query picks them up.

@@ -112,7 +112,7 @@ pub async fn user_sessions_handler(
     State(pool): State<DbPool>,
     Extension(admin_user_id): Extension<i64>,
     Path(user_id): Path<i64>,
-) -> Result<Json<Vec<crate::models::auth::UserSessionInfo>>, ApiError> {
+) -> Result<Json<Vec<crate::modules::auth::models::UserSessionInfo>>, ApiError> {
     Ok(Json(
         svc::user_sessions(&pool, admin_user_id, user_id).await?,
     ))

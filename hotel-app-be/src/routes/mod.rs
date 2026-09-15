@@ -5,7 +5,7 @@
 
 // analytics routes live in modules::analytics.
 // audit routes live in modules::audit.
-pub mod auth;
+// auth routes live in modules::auth.
 // booking_channels routes live in modules::booking_channels.
 pub mod bookings;
 // companies routes live in modules::companies.
@@ -358,7 +358,7 @@ pub fn create_router(pool: DbPool) -> Router {
                     // the development branch above allows any header, so this is
                     // the kind of gap that ships green and 403s in production.
                     axum::http::HeaderName::from_static(
-                        crate::services::turnstile::TURNSTILE_HEADER,
+                        crate::modules::auth::turnstile::TURNSTILE_HEADER,
                     ),
                     axum::http::HeaderName::from_static(CLIENT_TIMEZONE_HEADER),
                 ])
@@ -387,7 +387,7 @@ pub fn create_router(pool: DbPool) -> Router {
     // `/uploads`) stay at the root because Docker/desktop healthchecks and
     // static asset URLs depend on them.
     let api_routes = Router::new()
-        .merge(auth::routes())
+        .merge(crate::modules::auth::routes::routes())
         .merge(payment_retry::routes())
         .merge(crate::modules::booking_channels::routes::routes())
         .merge(crate::modules::rooms::routes::routes())

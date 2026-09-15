@@ -5,7 +5,7 @@
 pub mod account_emails;
 // analytics service logic live in modules::analytics.
 pub mod audit;
-pub mod auth;
+// auth service logic live in modules::auth.
 pub mod auto_checkin;
 pub mod booking;
 // booking_channels service logic live in modules::booking_channels.
@@ -40,7 +40,7 @@ pub mod promotion_pricing;
 // rbac service logic live in modules::rbac.
 // rooms service logic live in modules::rooms.
 // search service logic live in modules::search.
-pub mod turnstile;
+// turnstile service logic live in modules::auth.
 // two_factor service logic live in modules::two_factor.
 pub mod unpaid_hold_scheduler;
 // users service logic live in modules::users.

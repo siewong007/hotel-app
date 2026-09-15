@@ -8,12 +8,12 @@ use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
-use crate::models::auth::UserSessionInfo;
+use crate::modules::auth::models::UserSessionInfo;
 use crate::models::{
     InviteUserInput, InviteUserResponse, StaffDirectoryQuery, StaffDirectoryResponse, User,
     UserCreateInput, UserResponse, UserUpdateInput, UserWithRolesAndPermissions,
 };
-use crate::repositories::auth::AuthRepository;
+use crate::modules::auth::repository::AuthRepository;
 use crate::modules::rbac::repository::RbacRepository;
 use super::repository::UserRepository;
 use crate::services::audit::AuditLog;

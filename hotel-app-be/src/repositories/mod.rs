@@ -5,7 +5,7 @@
 
 // analytics persistence live in modules::analytics.
 pub mod audit;
-pub mod auth;
+// auth persistence live in modules::auth.
 pub mod booking;
 // booking_channels persistence live in modules::booking_channels.
 pub mod booking_list;

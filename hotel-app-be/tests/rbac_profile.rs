@@ -20,7 +20,7 @@ use hotel_app_be::models::{
     RegenerateBackupCodesRequest, RoleInput, RolePermissionIdsInput, TwoFactorDisableRequest,
     TwoFactorEnableRequest, TwoFactorSetupRequest, TwoFactorVerifyRequest, UserRoleIdsInput,
 };
-use hotel_app_be::services::auth as auth_service;
+use hotel_app_be::modules::auth::service as auth_service;
 use hotel_app_be::modules::profile::service as profile_service;
 use hotel_app_be::modules::rbac::service as rbac_service;
 use hotel_app_be::modules::two_factor::service as two_factor_service;

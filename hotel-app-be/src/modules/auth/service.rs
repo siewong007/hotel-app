@@ -15,7 +15,7 @@ use crate::modules::consent::models::{ConsentDocument, ConsentSource};
 use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
 use crate::modules::consent::validation as consent_validation;
 use crate::modules::settings::repository::SettingsRepository;
-use crate::repositories::auth::AuthRepository;
+use super::repository::AuthRepository;
 use crate::modules::guests::repository::GuestRepository;
 use crate::modules::passkey::repository::PasskeyRepository;
 use crate::modules::rbac::repository::RbacRepository;
@@ -378,7 +378,7 @@ pub async fn login_with_google(
     } else {
         consent_validation::validate_locales(consents)?;
         consent_validation::require_consents(consents, consent_validation::REGISTRATION_REQUIRED)?;
-        Some(crate::repositories::auth::NewGoogleAccountConsent {
+        Some(super::repository::NewGoogleAccountConsent {
             consents,
             context: &consent_context,
             language_preference: &language_preference,

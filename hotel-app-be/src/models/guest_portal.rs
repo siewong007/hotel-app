@@ -116,15 +116,15 @@ impl From<Guest> for GuestPortalGuestView {
 pub struct GuestPortalProfileUpdate {
     #[validate(
         length(max = 50, message = "First name must be at most 50 characters"),
-        custom(function = "crate::models::auth::validate_trimmed_guest_name")
+        custom(function = "crate::modules::auth::models::validate_trimmed_guest_name")
     )]
     pub first_name: String,
     #[validate(
         length(max = 50, message = "Last name must be at most 50 characters"),
-        custom(function = "crate::models::auth::validate_trimmed_guest_name")
+        custom(function = "crate::modules::auth::models::validate_trimmed_guest_name")
     )]
     pub last_name: String,
-    #[validate(custom(function = "crate::models::auth::validate_guest_phone"))]
+    #[validate(custom(function = "crate::modules::auth::models::validate_guest_phone"))]
     pub phone: String,
     #[validate(custom(function = "validate_optional_guest_phone"))]
     pub alt_phone: Option<String>,
@@ -150,7 +150,7 @@ fn validate_optional_guest_phone(value: &str) -> Result<(), validator::Validatio
     if value.trim().is_empty() {
         return Ok(());
     }
-    crate::models::auth::validate_guest_phone(value)
+    crate::modules::auth::models::validate_guest_phone(value)
 }
 
 impl GuestPortalProfileUpdate {
