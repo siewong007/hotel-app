@@ -49,9 +49,9 @@ mod postgres_tests {
         BookingUpdateInput, CompanyCreateRequest, CompanyUpdateRequest,
         CustomerLedgerCreateRequest, CustomerLedgerPaymentRequest, LedgerListQuery,
     };
-    use hotel_app_be::modules::ledgers::service as ledgers;
     use hotel_app_be::modules::bookings::service as bookings;
     use hotel_app_be::modules::companies::service as companies;
+    use hotel_app_be::modules::ledgers::service as ledgers;
     use rust_decimal::Decimal;
     use sqlx::{PgPool, postgres::PgPoolOptions};
 
@@ -134,6 +134,10 @@ mod postgres_tests {
     /// fields it actually changes via `..empty_booking_update()`.
     fn empty_booking_update() -> BookingUpdateInput {
         BookingUpdateInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             room_id: None,
             check_in_date: None,
             check_out_date: None,
@@ -527,6 +531,10 @@ mod postgres_tests {
             Extension(actor_id),
             Path(booking_id),
             Json(BookingUpdateInput {
+                rate_plan_id: None,
+                commission_type_override: None,
+                commission_value_override: None,
+                commission_scope_override: None,
                 status: Some("checked_out".to_string()),
                 ..empty_booking_update()
             }),
@@ -578,6 +586,10 @@ mod postgres_tests {
             Extension(actor_id),
             Path(booking_id),
             Json(BookingUpdateInput {
+                rate_plan_id: None,
+                commission_type_override: None,
+                commission_value_override: None,
+                commission_scope_override: None,
                 room_rate_override: Some(150.0),
                 ..empty_booking_update()
             }),
@@ -818,6 +830,10 @@ mod postgres_tests {
             Extension(actor_id),
             Path(booking_id),
             Json(BookingUpdateInput {
+                rate_plan_id: None,
+                commission_type_override: None,
+                commission_value_override: None,
+                commission_scope_override: None,
                 status: Some("checked_out".to_string()),
                 ..empty_booking_update()
             }),
@@ -907,6 +923,10 @@ mod postgres_tests {
             Extension(actor_id),
             Path(paid_booking_id),
             Json(BookingUpdateInput {
+                rate_plan_id: None,
+                commission_type_override: None,
+                commission_value_override: None,
+                commission_scope_override: None,
                 status: Some("checked_out".to_string()),
                 ..empty_booking_update()
             }),

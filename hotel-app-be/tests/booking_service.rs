@@ -1601,6 +1601,10 @@ mod postgres_creation_tests {
         seed_data(&pool, room_id, guest_id, actor_id).await;
 
         let input = BookingInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             guest_id,
             room_id,
             check_in_date: "2027-03-01".to_string(),
@@ -1674,6 +1678,10 @@ mod postgres_creation_tests {
             .unwrap();
 
         let input = BookingInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             guest_id,
             room_id,
             check_in_date: "2027-04-01".to_string(),
@@ -1747,6 +1755,10 @@ mod postgres_creation_tests {
                           check_out: &str,
                           booking_number: &str,
                           deposit_method: Option<&str>| BookingInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             guest_id,
             room_id,
             check_in_date: check_in.to_string(),

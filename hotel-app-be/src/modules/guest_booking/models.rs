@@ -125,6 +125,10 @@ pub struct NightlyRate {
     pub date: NaiveDate,
     pub rate_plan_code: String,
     pub amount: Decimal,
+    /// Channel pricing rule that produced this rate — internal linkage only,
+    /// never serialized to guests.
+    #[serde(skip_serializing)]
+    pub rule_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -345,4 +349,8 @@ pub struct BookingInsert {
     /// Foreign guests are billed tourism tax on top of `total_amount`.
     pub is_tourist: bool,
     pub tourism_tax_amount: Decimal,
+    /// Channel economics frozen at write time (None when unattributed).
+    pub commission_amount: Option<Decimal>,
+    pub net_revenue: Option<Decimal>,
+    pub channel_pricing_snapshot: Option<serde_json::Value>,
 }

@@ -4255,6 +4255,10 @@ async fn booking_deposit_assertion_records_payment_and_guards_waive() {
 
     let update_with = |deposit_paid: Option<bool>, deposit_amount: Option<f64>| {
         hotel_app_be::models::BookingUpdateInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             deposit_paid,
             deposit_amount,
             payment_method: Some("cash".to_string()),

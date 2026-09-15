@@ -80,8 +80,8 @@ use axum::Json;
 use axum::extract::{Extension, Path, State};
 use chrono::NaiveDate;
 use hotel_app_be::models::BookingUpdateInput;
-use hotel_app_be::modules::payments::repository::PaymentRepository;
 use hotel_app_be::modules::bookings::service as bookings;
+use hotel_app_be::modules::payments::repository::PaymentRepository;
 use hotel_app_be::modules::payments::service as payments;
 use rust_decimal::Decimal;
 use sqlx::{PgPool, postgres::PgPoolOptions};
@@ -132,6 +132,10 @@ async fn setup_pg_pool() -> Option<(PgPool, tokio::sync::OwnedMutexGuard<()>)> {
 /// the same name in `tests/ledger_service.rs`.
 fn empty_booking_update() -> BookingUpdateInput {
     BookingUpdateInput {
+        rate_plan_id: None,
+        commission_type_override: None,
+        commission_value_override: None,
+        commission_scope_override: None,
         room_id: None,
         check_in_date: None,
         check_out_date: None,
@@ -744,6 +748,10 @@ async fn checkout_guard_should_require_full_billable_total_not_just_room_total_a
         Extension(ids.actor_id),
         Path(ids.booking_id),
         Json(BookingUpdateInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             status: Some("checked_out".to_string()),
             ..empty_booking_update()
         }),

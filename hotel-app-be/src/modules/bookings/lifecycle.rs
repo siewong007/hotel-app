@@ -1,15 +1,15 @@
 //! Booking lifecycle handlers (CRUD, check-in/out, status
 //! transitions) plus their shared private helpers.
 
+use super::helpers as booking_svc;
+use super::queries::*;
+use super::repository::BookingRepository;
 use crate::core::auth::AuthService;
 use crate::core::db::{DbPool, DbTransaction, decimal_to_db, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::*;
-use super::repository::BookingRepository;
-use super::queries::*;
 use crate::services::audit::AuditLog;
-use super::helpers as booking_svc;
 use crate::utils::date::{parse_date_flexible, parse_datetime_flexible};
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
@@ -31,6 +31,58 @@ fn sanitize_ota_reference(value: Option<&str>) -> Option<String> {
             Some(trimmed.chars().take(100).collect())
         }
     })
+}
+
+/// Normalize and validate an explicit per-booking commission override —
+/// the columns are free text in the schema, so values are checked here.
+fn commission_override_config(
+    commission_type: Option<&str>,
+    commission_value: Option<f64>,
+    scope: Option<&str>,
+) -> Result<crate::modules::booking_channels::pricing::CommissionConfig, ApiError> {
+    let commission_type = commission_type
+        .unwrap_or("none")
+        .trim()
+        .to_ascii_lowercase()
+        .replace('-', "_");
+    if !matches!(
+        commission_type.as_str(),
+        "none" | "percentage" | "fixed_amount"
+    ) {
+        return Err(ApiError::BadRequest(format!(
+            "Invalid commission_type_override '{commission_type}'"
+        )));
+    }
+    let value = commission_value
+        .and_then(Decimal::from_f64_retain)
+        .unwrap_or(Decimal::ZERO);
+    if value < Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "commission_value_override must be non-negative".to_string(),
+        ));
+    }
+    if commission_type == "percentage" && value > Decimal::new(100, 0) {
+        return Err(ApiError::BadRequest(
+            "commission_value_override percentage must be between 0 and 100".to_string(),
+        ));
+    }
+    let scope = scope
+        .unwrap_or("per_booking")
+        .trim()
+        .to_ascii_lowercase()
+        .replace('-', "_");
+    if !matches!(scope.as_str(), "per_booking" | "per_night") {
+        return Err(ApiError::BadRequest(format!(
+            "Invalid commission_scope_override '{scope}'"
+        )));
+    }
+    Ok(
+        crate::modules::booking_channels::pricing::CommissionConfig {
+            commission_type,
+            value,
+            scope,
+        },
+    )
 }
 
 pub async fn record_booking_history(
@@ -842,9 +894,10 @@ async fn ensure_checkout_balance_resolved(
     // `total_paid` excludes deposits (collateral, not charge payment), unlike
     // `completed_booking_payment_total` which counts every completed payment
     // and exists for the "has any money been collected" release checks.
-    let summary =
-        crate::modules::payments::repository::PaymentRepository::workflow_summary_row(pool, booking_id)
-            .await?;
+    let summary = crate::modules::payments::repository::PaymentRepository::workflow_summary_row(
+        pool, booking_id,
+    )
+    .await?;
     let total_paid = summary
         .as_ref()
         .map(|summary| summary.total_paid)
@@ -1028,7 +1081,8 @@ pub async fn create_booking_handler(
         SELECT r.id, r.room_number, rt.name as room_type,
                COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
                true as available,
-               rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at
+               rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at,
+               r.room_type_id
         FROM rooms r
         INNER JOIN room_types rt ON r.room_type_id = rt.id
         WHERE r.id = $1 AND r.is_active = true
@@ -1055,6 +1109,7 @@ pub async fn create_booking_handler(
         notes: None,
         is_smoking: None,
     };
+    let room_type_id: i64 = row.get(10);
 
     let today: NaiveDate = hotel_today(&mut *tx).await?;
 
@@ -1101,7 +1156,7 @@ pub async fn create_booking_handler(
     let nights = (check_out - check_in).num_days() as i32;
     let is_hourly = nights == 0; // Same-day check-in/check-out = hourly booking
     let billable_nights = if is_hourly { 1 } else { nights }; // Charge 1 night for hourly
-    let room_rate = input
+    let mut room_rate = input
         .room_rate_override
         .map(|r| Decimal::from_f64_retain(r).unwrap_or(room.price_per_night))
         .unwrap_or(room.price_per_night);
@@ -1109,7 +1164,7 @@ pub async fn create_booking_handler(
     // Store total_amount as the configured price × nights without adding additional tax
     // For hourly bookings (same-day), charge 1 night at the standard rate
     // If daily_rates provided, sum them for subtotal; otherwise use room_rate * nights
-    let subtotal = if let Some(ref daily_rates) = input.daily_rates {
+    let mut subtotal = if let Some(ref daily_rates) = input.daily_rates {
         if let Some(obj) = daily_rates.as_object() {
             let sum: f64 = obj.values().filter_map(|v| v.as_f64()).sum();
             Decimal::from_f64_retain(sum).unwrap_or(room_rate * Decimal::from(billable_nights))
@@ -1120,8 +1175,104 @@ pub async fn create_booking_handler(
         room_rate * Decimal::from(billable_nights)
     };
     let tax_amount = Decimal::ZERO; // Tax is calculated on frontend using hotel settings rate
+    let mut daily_rates_json = input.daily_rates.clone();
+
+    // Channel pricing: when a booking channel is attached, resolve the nightly
+    // selling price and snapshot commission + estimated net revenue. Explicit
+    // staff-entered prices (daily_rates or room_rate_override) always win —
+    // OTA bookings frequently record the channel's actual charged amount —
+    // but the commission snapshot is still taken from the booked amount.
+    let mut commission_amount: Option<Decimal> = None;
+    let mut net_revenue: Option<Decimal> = None;
+    let mut channel_pricing_snapshot: Option<serde_json::Value> = None;
+    if let Some(channel_id) = input.booking_channel_id {
+        let channel = crate::modules::booking_channels::repository::find_by_id(&pool, channel_id)
+            .await
+            .map_err(|_| ApiError::BadRequest("Unknown booking channel".to_string()))?;
+
+        // Explicit commission terms on the booking win over dated rules and
+        // channel defaults (e.g. terms copied from an OTA statement).
+        let commission = if input.commission_type_override.is_some()
+            || input.commission_value_override.is_some()
+        {
+            commission_override_config(
+                input.commission_type_override.as_deref(),
+                input.commission_value_override,
+                input.commission_scope_override.as_deref(),
+            )?
+        } else {
+            crate::modules::booking_channels::service::commission_config_for(
+                &pool, &channel, check_in,
+            )
+            .await?
+        };
+
+        let staff_priced = input.daily_rates.is_some() || input.room_rate_override.is_some();
+        // Per-night source rates: rate-plan band → weekday/weekend → base.
+        let mut sources: Vec<(NaiveDate, Decimal)> = Vec::new();
+        let mut date = check_in;
+        while date < check_out {
+            sources.push((
+                date,
+                crate::modules::booking_channels::service::source_rate_for(
+                    &pool,
+                    room_type_id,
+                    date,
+                    input.rate_plan_id,
+                )
+                .await?,
+            ));
+            date += Duration::days(1);
+        }
+        if is_hourly {
+            sources.push((check_in, room_rate));
+        }
+
+        let nights = crate::modules::booking_channels::service::resolve_channel_nights(
+            &pool,
+            channel_id,
+            room_type_id,
+            input.rate_plan_id,
+            &sources,
+        )
+        .await?;
+
+        let quote = crate::modules::booking_channels::pricing::resolve_stay(
+            nights,
+            commission,
+            Decimal::ZERO,
+            staff_priced.then_some(subtotal),
+        );
+
+        // No explicit staff prices → the resolved channel prices become the
+        // booked nightly rates (skipped under net-rate rules: the channel owns
+        // its sell price, staff still records what the guest was charged).
+        if !staff_priced
+            && let Some(selling) = quote.selling_subtotal
+            && !sources.is_empty()
+        {
+            let mut rates_map = serde_json::Map::new();
+            for night in &quote.nights {
+                if let Some(price) = night.selling_price {
+                    rates_map.insert(
+                        night.date.format("%Y-%m-%d").to_string(),
+                        serde_json::Value::from(price.to_string().parse::<f64>().unwrap_or(0.0)),
+                    );
+                }
+            }
+            if rates_map.len() == quote.nights.len() {
+                subtotal = selling;
+                room_rate = (selling / Decimal::from(billable_nights.max(1))).round_dp(2);
+                daily_rates_json = Some(serde_json::Value::Object(rates_map));
+            }
+        }
+
+        commission_amount = quote.commission_amount;
+        net_revenue = quote.net_revenue;
+        channel_pricing_snapshot = Some(quote.snapshot(channel_id));
+    }
+
     let total_amount = subtotal; // Configured price is the final price
-    let daily_rates_json = input.daily_rates.clone();
 
     // Use provided booking_number for online bookings, or auto-generate for walk-ins
     let booking_number = match &input.booking_number {
@@ -1171,11 +1322,14 @@ pub async fn create_booking_handler(
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
                 deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests,
                 is_tourist, tourism_tax_amount, extra_bed_count, extra_bed_charge, post_type, daily_rates, cleaning_preference,
-                company_id, company_name, booking_channel_id, ota_reference
+                company_id, company_name, booking_channel_id, ota_reference,
+                rate_plan_id, commission_type_override, commission_value_override,
+                commission_scope_override, commission_amount, net_revenue,
+                channel_pricing_snapshot
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, $13, 1, $14, $15, $16, CASE WHEN $15 THEN CURRENT_TIMESTAMP ELSE NULL END, $17, $17, $18,
-                $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
-            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, booking_channel_id, ota_reference, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference
+                $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)
+            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, booking_channel_id, ota_reference, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference, rate_plan_id, commission_amount, net_revenue, channel_pricing_snapshot
             "#
         )
         .bind(&booking_number)
@@ -1207,6 +1361,17 @@ pub async fn create_booking_handler(
         .bind(input.company_name.as_deref())
         .bind(input.booking_channel_id)
         .bind(ota_reference.as_deref())
+        .bind(input.rate_plan_id)
+        .bind(input.commission_type_override.as_deref())
+        .bind(
+            input
+                .commission_value_override
+                .and_then(Decimal::from_f64_retain),
+        )
+        .bind(input.commission_scope_override.as_deref())
+        .bind(commission_amount)
+        .bind(net_revenue)
+        .bind(&channel_pricing_snapshot)
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -1303,8 +1468,7 @@ pub async fn create_booking_handler(
     // booking-confirmed trigger for the front-desk path. Best-effort and
     // post-commit: a mail failure must not fail the booking creation.
     if booking.status == "confirmed" {
-        super::emails::try_queue_booking_confirmation_email(&pool, booking.id)
-            .await;
+        super::emails::try_queue_booking_confirmation_email(&pool, booking.id).await;
     }
 
     Ok(Json(booking))
@@ -1346,11 +1510,8 @@ pub async fn get_booking_handler(
         ));
     }
 
-    super::auto_checkin::attach_booking_ekyc_summaries(
-        &pool,
-        std::slice::from_mut(&mut booking),
-    )
-    .await?;
+    super::auto_checkin::attach_booking_ekyc_summaries(&pool, std::slice::from_mut(&mut booking))
+        .await?;
 
     Ok(Json(booking))
 }
@@ -1565,43 +1726,183 @@ pub async fn update_booking_handler(
         daily_rates_json = Some(serde_json::Value::Object(new_dr));
     }
 
-    let (new_room_rate, new_subtotal, new_total_amount) = if let Some(ref dr) = daily_rates_json {
-        // Daily rates available (caller-supplied or rebuilt) - sum them for subtotal
-        if let Some(obj) = dr.as_object() {
-            let sum: f64 = obj
-                .values()
-                .filter_map(|v| {
-                    v.as_f64()
-                        .or_else(|| v.as_str().and_then(|s| s.parse::<f64>().ok()))
-                })
-                .sum();
-            let subtotal = Decimal::from_f64_retain(sum).unwrap_or(Decimal::ZERO);
-            let room_rate = if let Some(rate_override) = input.room_rate_override {
-                Decimal::from_f64_retain(rate_override).unwrap_or(existing_booking.room_rate)
+    let (mut new_room_rate, mut new_subtotal, mut new_total_amount) =
+        if let Some(ref dr) = daily_rates_json {
+            // Daily rates available (caller-supplied or rebuilt) - sum them for subtotal
+            if let Some(obj) = dr.as_object() {
+                let sum: f64 = obj
+                    .values()
+                    .filter_map(|v| {
+                        v.as_f64()
+                            .or_else(|| v.as_str().and_then(|s| s.parse::<f64>().ok()))
+                    })
+                    .sum();
+                let subtotal = Decimal::from_f64_retain(sum).unwrap_or(Decimal::ZERO);
+                let room_rate = if let Some(rate_override) = input.room_rate_override {
+                    Decimal::from_f64_retain(rate_override).unwrap_or(existing_booking.room_rate)
+                } else {
+                    existing_booking.room_rate
+                };
+                (Some(room_rate), Some(subtotal), Some(subtotal))
             } else {
-                existing_booking.room_rate
-            };
-            (Some(room_rate), Some(subtotal), Some(subtotal))
+                (None, None, None)
+            }
+        } else if let Some(rate_override) = input.room_rate_override {
+            let nights = std::cmp::max((check_out - check_in).num_days() as i32, 1);
+            let room_rate =
+                Decimal::from_f64_retain(rate_override).unwrap_or(existing_booking.room_rate);
+            let subtotal = room_rate * Decimal::from(nights);
+            let total_amount = subtotal; // Tax is calculated on frontend using hotel settings rate
+            (Some(room_rate), Some(subtotal), Some(total_amount))
+        } else if input.check_out_date.is_some() || input.check_in_date.is_some() {
+            // Dates changed without explicit rate override - recalculate using existing room rate
+            let nights = std::cmp::max((check_out - check_in).num_days() as i32, 1);
+            let room_rate = existing_booking.room_rate;
+            let subtotal = room_rate * Decimal::from(nights);
+            let total_amount = subtotal;
+            (None, Some(subtotal), Some(total_amount))
         } else {
             (None, None, None)
+        };
+
+    // Channel re-resolution: when the amendment changes what was charged or
+    // how it was sourced (dates, room, channel, rate plan, explicit prices,
+    // commission terms), a fresh snapshot is recorded so booking_history plus
+    // the new snapshot together reproduce the economics at each point in time.
+    // Updates that don't touch pricing leave the original snapshot intact.
+    let pricing_changed = input.booking_channel_id.is_some()
+        || input.rate_plan_id.is_some()
+        || dates_changed
+        || room_changed
+        || input.daily_rates.is_some()
+        || input.room_rate_override.is_some()
+        || input.commission_type_override.is_some()
+        || input.commission_value_override.is_some()
+        || input.commission_scope_override.is_some();
+    let mut new_commission_amount: Option<Decimal> = None;
+    let mut new_net_revenue: Option<Decimal> = None;
+    let mut new_channel_snapshot: Option<serde_json::Value> = None;
+    let effective_channel_id = input
+        .booking_channel_id
+        .or(existing_booking.booking_channel_id);
+    if pricing_changed && let Some(channel_id) = effective_channel_id {
+        let channel = crate::modules::booking_channels::repository::find_by_id(&pool, channel_id)
+            .await
+            .map_err(|_| ApiError::BadRequest("Unknown booking channel".to_string()))?;
+        let effective_rate_plan = input.rate_plan_id.or(existing_booking.rate_plan_id);
+        let new_room_type_id: i64 =
+            sqlx::query_scalar("SELECT room_type_id FROM rooms WHERE id = $1")
+                .bind(new_room_id)
+                .fetch_one(&pool)
+                .await
+                .map_err(ApiError::from)?;
+
+        // Effective commission terms: explicit booking override > dated rule >
+        // channel default. Overrides supplied on this update replace the
+        // stored ones; otherwise the stored override keeps winning.
+        let commission = if input.commission_type_override.is_some()
+            || input.commission_value_override.is_some()
+        {
+            commission_override_config(
+                input.commission_type_override.as_deref(),
+                input.commission_value_override,
+                input.commission_scope_override.as_deref(),
+            )?
+        } else {
+            let (stored_type, stored_value, stored_scope): (
+                Option<String>,
+                Option<Decimal>,
+                Option<String>,
+            ) = sqlx::query_as(
+                "SELECT commission_type_override, commission_value_override, \
+                 commission_scope_override FROM bookings WHERE id = $1",
+            )
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(ApiError::from)?;
+            if stored_type.is_some() || stored_value.is_some() {
+                crate::modules::booking_channels::pricing::CommissionConfig {
+                    commission_type: stored_type.unwrap_or_else(|| "none".to_string()),
+                    value: stored_value.unwrap_or(Decimal::ZERO),
+                    scope: stored_scope.unwrap_or_else(|| "per_booking".to_string()),
+                }
+            } else {
+                crate::modules::booking_channels::service::commission_config_for(
+                    &pool, &channel, check_in,
+                )
+                .await?
+            }
+        };
+
+        let mut sources: Vec<(NaiveDate, Decimal)> = Vec::new();
+        let mut date = check_in;
+        while date < check_out {
+            sources.push((
+                date,
+                crate::modules::booking_channels::service::source_rate_for(
+                    &pool,
+                    new_room_type_id,
+                    date,
+                    effective_rate_plan,
+                )
+                .await?,
+            ));
+            date += Duration::days(1);
         }
-    } else if let Some(rate_override) = input.room_rate_override {
-        let nights = std::cmp::max((check_out - check_in).num_days() as i32, 1);
-        let room_rate =
-            Decimal::from_f64_retain(rate_override).unwrap_or(existing_booking.room_rate);
-        let subtotal = room_rate * Decimal::from(nights);
-        let total_amount = subtotal; // Tax is calculated on frontend using hotel settings rate
-        (Some(room_rate), Some(subtotal), Some(total_amount))
-    } else if input.check_out_date.is_some() || input.check_in_date.is_some() {
-        // Dates changed without explicit rate override - recalculate using existing room rate
-        let nights = std::cmp::max((check_out - check_in).num_days() as i32, 1);
-        let room_rate = existing_booking.room_rate;
-        let subtotal = room_rate * Decimal::from(nights);
-        let total_amount = subtotal;
-        (None, Some(subtotal), Some(total_amount))
-    } else {
-        (None, None, None)
-    };
+        if check_in == check_out {
+            sources.push((
+                check_in,
+                new_room_rate.unwrap_or(existing_booking.room_rate),
+            ));
+        }
+
+        let nights = crate::modules::booking_channels::service::resolve_channel_nights(
+            &pool,
+            channel_id,
+            new_room_type_id,
+            effective_rate_plan,
+            &sources,
+        )
+        .await?;
+
+        // This update's explicit prices are authoritative; without them a
+        // fully rule-priced stay rewrites daily_rates to the channel prices.
+        let staff_priced = input.daily_rates.is_some() || input.room_rate_override.is_some();
+        let effective_subtotal = new_subtotal.unwrap_or(existing_booking.subtotal);
+        let quote = crate::modules::booking_channels::pricing::resolve_stay(
+            nights,
+            commission,
+            Decimal::ZERO,
+            Some(effective_subtotal),
+        );
+
+        if !staff_priced
+            && let Some(selling) = quote.selling_subtotal
+            && !sources.is_empty()
+        {
+            let mut rates_map = serde_json::Map::new();
+            for night in &quote.nights {
+                if let Some(price) = night.selling_price {
+                    rates_map.insert(
+                        night.date.format("%Y-%m-%d").to_string(),
+                        serde_json::Value::from(price.to_string().parse::<f64>().unwrap_or(0.0)),
+                    );
+                }
+            }
+            if rates_map.len() == quote.nights.len() {
+                let billable = std::cmp::max((check_out - check_in).num_days() as i32, 1);
+                new_room_rate = Some((selling / Decimal::from(billable)).round_dp(2));
+                new_subtotal = Some(selling);
+                new_total_amount = Some(selling);
+                daily_rates_json = Some(serde_json::Value::Object(rates_map));
+            }
+        }
+
+        new_commission_amount = quote.commission_amount;
+        new_net_revenue = quote.net_revenue;
+        new_channel_snapshot = Some(quote.snapshot(channel_id));
+    }
 
     let (canonical_is_tourist, canonical_tourism_tax_amount) =
         canonical_tourism_tax_for_guest(&pool, existing_booking.guest_id, check_in, check_out)
@@ -1709,9 +2010,16 @@ pub async fn update_booking_handler(
                 actual_check_out = COALESCE($28, CASE WHEN $2 = 'checked_out' AND actual_check_out IS NULL THEN CURRENT_TIMESTAMP ELSE actual_check_out END),
                 booking_channel_id = COALESCE($29, booking_channel_id),
                 ota_reference = COALESCE($30, ota_reference),
+                rate_plan_id = COALESCE($31, rate_plan_id),
+                commission_type_override = COALESCE($32, commission_type_override),
+                commission_value_override = COALESCE($33, commission_value_override),
+                commission_scope_override = COALESCE($34, commission_scope_override),
+                commission_amount = COALESCE($35, commission_amount),
+                net_revenue = COALESCE($36, net_revenue),
+                channel_pricing_snapshot = COALESCE($37, channel_pricing_snapshot),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $7
-            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, booking_channel_id, ota_reference, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference"#
+            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, booking_channel_id, ota_reference, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference, rate_plan_id, commission_amount, net_revenue, channel_pricing_snapshot"#
         )
         .bind(new_room_id)
         .bind(&new_status)
@@ -1748,6 +2056,17 @@ pub async fn update_booking_handler(
             .map(|dt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc)))
         .bind(input.booking_channel_id)
         .bind(ota_reference.as_deref())
+        .bind(input.rate_plan_id)
+        .bind(input.commission_type_override.as_deref())
+        .bind(
+            input
+                .commission_value_override
+                .and_then(Decimal::from_f64_retain),
+        )
+        .bind(input.commission_scope_override.as_deref())
+        .bind(new_commission_amount)
+        .bind(new_net_revenue)
+        .bind(&new_channel_snapshot)
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -1787,7 +2106,8 @@ pub async fn update_booking_handler(
                 // update rolls back instead of leaving a voided booking with
                 // still-active payments.
                 void_booking_payments_tx(&mut tx, booking_id).await?;
-                crate::modules::payments::service::recompute_payment_status_tx(&mut tx, booking_id).await?;
+                crate::modules::payments::service::recompute_payment_status_tx(&mut tx, booking_id)
+                    .await?;
             }
             "checked_out" | "completed" => {
                 // Auto-post company room charges to customer_ledgers on checkout.
@@ -2079,12 +2399,13 @@ pub async fn update_booking_handler(
                 .await
                 {
                     Ok(invoice_number) => {
-                        if let Err(e) = crate::modules::payments::service::queue_checkout_receipt_email(
-                            &pool,
-                            booking_id,
-                            &invoice_number,
-                        )
-                        .await
+                        if let Err(e) =
+                            crate::modules::payments::service::queue_checkout_receipt_email(
+                                &pool,
+                                booking_id,
+                                &invoice_number,
+                            )
+                            .await
                         {
                             log::warn!(
                                 "Failed to queue checkout receipt for booking {booking_id}: {e}"
@@ -2126,10 +2447,7 @@ pub async fn update_booking_handler(
                 // payment-confirmation mail instead, so this arm is not reached
                 // from there. Keyed on the booking id, so a booking that leaves
                 // and re-enters `confirmed` still mails the guest only once.
-                super::emails::try_queue_booking_confirmation_email(
-                    &pool, booking_id,
-                )
-                .await;
+                super::emails::try_queue_booking_confirmation_email(&pool, booking_id).await;
             }
             _ => {}
         }
@@ -2139,9 +2457,10 @@ pub async fn update_booking_handler(
         if matches!(
             updated_status,
             "checked_in" | "auto_checked_in" | "checked_out" | "late_checkout" | "completed"
-        ) && let Err(e) =
-            crate::modules::night_audit::service::backfill_booking_posted_nights(&pool, booking_id, user_id)
-                .await
+        ) && let Err(e) = crate::modules::night_audit::service::backfill_booking_posted_nights(
+            &pool, booking_id, user_id,
+        )
+        .await
         {
             log::warn!(
                 "Failed to backfill posted nights for booking {}: {}",
@@ -2439,8 +2758,10 @@ pub async fn void_booking_payments_tx(
 
     // Voiding may have removed completed deposit rows — resync the mirror so
     // the booking columns can't overstate what the ledger still holds.
-    crate::modules::payments::repository::PaymentRepository::sync_booking_deposit_mirror_tx(tx, booking_id)
-        .await?;
+    crate::modules::payments::repository::PaymentRepository::sync_booking_deposit_mirror_tx(
+        tx, booking_id,
+    )
+    .await?;
 
     Ok(())
 }

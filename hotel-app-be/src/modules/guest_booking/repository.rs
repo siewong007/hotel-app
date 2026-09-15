@@ -635,12 +635,13 @@ impl GuestBookingRepository {
                     room_rate, subtotal, tax_amount, discount_amount, total_amount,
                     currency, status, payment_status, source, booking_channel_id,
                     special_requests, cleaning_preference, daily_rates, created_by,
-                    is_complimentary, complimentary_reason, is_tourist, tourism_tax_amount
+                    is_complimentary, complimentary_reason, is_tourist, tourism_tax_amount,
+                    commission_amount, net_revenue, channel_pricing_snapshot
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8,
                     $9, $10, 0, $11, $12, $13, $14, $15,
                     'website', $16, $17, $18, $19, $20,
-                    $21, $22, $23, $24
+                    $21, $22, $23, $24, $25, $26, $27
                 ) RETURNING id
             "#,
         )
@@ -668,6 +669,9 @@ impl GuestBookingRepository {
         .bind(input.complimentary_reason.as_deref())
         .bind(input.is_tourist)
         .bind(decimal_to_db(input.tourism_tax_amount))
+        .bind(input.commission_amount.map(decimal_to_db))
+        .bind(input.net_revenue.map(decimal_to_db))
+        .bind(&input.channel_pricing_snapshot)
         .fetch_one(&mut **tx)
         .await
         .map_err(ApiError::from)
@@ -984,9 +988,7 @@ impl GuestBookingRepository {
                 WHERE id = $3
             "#,
         )
-        .bind(crate::modules::guest_portal::service::persist_booking_access_token(
-            token,
-        ))
+        .bind(crate::modules::guest_portal::service::persist_booking_access_token(token))
         .bind(expires_at)
         .bind(booking_id)
         .execute(&mut **tx)

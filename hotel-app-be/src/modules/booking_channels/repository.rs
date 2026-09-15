@@ -64,7 +64,11 @@ fn normalize_name(name: &str) -> Result<String, ApiError> {
     Ok(cleaned.to_string())
 }
 
-fn normalize_optional_text(value: Option<String>, max_len: usize, field: &str) -> Result<Option<String>, ApiError> {
+fn normalize_optional_text(
+    value: Option<String>,
+    max_len: usize,
+    field: &str,
+) -> Result<Option<String>, ApiError> {
     match value {
         Some(raw) => {
             let cleaned = raw.trim();
@@ -281,11 +285,14 @@ pub async fn create(
     let integration_mode =
         validate_integration_mode(normalize_token(input.integration_mode, "manual"))?;
 
+    // booking_channels has no created_by/updated_by columns — who-changed-what
+    // lives in audit_logs (the service logs every mutation).
+    let _ = user_id;
     let query = format!(
         "INSERT INTO booking_channels
             (name, channel_type, default_commission_type, default_commission_value,
-             default_commission_scope, is_active, abbreviation, code, integration_mode, created_by, updated_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+             default_commission_scope, is_active, abbreviation, code, integration_mode)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING {CHANNEL_COLUMNS}"
     );
 
@@ -299,7 +306,6 @@ pub async fn create(
         .bind(abbreviation)
         .bind(code)
         .bind(integration_mode)
-        .bind(user_id)
         .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -335,8 +341,8 @@ pub async fn update(
     let (commission_type, commission_value, commission_scope) =
         validate_commission(commission_type, commission_value, commission_scope)?;
     let is_active = input.is_active.unwrap_or(current.is_active);
-    let abbreviation = normalize_optional_text(input.abbreviation, 8, "abbreviation")?
-        .or(current.abbreviation);
+    let abbreviation =
+        normalize_optional_text(input.abbreviation, 8, "abbreviation")?.or(current.abbreviation);
     let code = normalize_optional_text(input.code, 40, "code")?.or(current.code);
     let integration_mode = validate_integration_mode(normalize_token(
         input.integration_mode,
@@ -354,12 +360,12 @@ pub async fn update(
             abbreviation = $7,
             code = $8,
             integration_mode = $9,
-            updated_by = $10,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $11
+        WHERE id = $10
         RETURNING {CHANNEL_COLUMNS}"
     );
 
+    let _ = user_id;
     let row = sqlx::query(sqlx::AssertSqlSafe(query))
         .bind(name)
         .bind(channel_type)
@@ -370,7 +376,6 @@ pub async fn update(
         .bind(abbreviation)
         .bind(code)
         .bind(integration_mode)
-        .bind(user_id)
         .bind(id)
         .fetch_one(pool)
         .await
@@ -379,11 +384,7 @@ pub async fn update(
     Ok(row_to_channel(&row))
 }
 
-pub async fn deactivate(
-    pool: &DbPool,
-    id: i64,
-    user_id: i64,
-) -> Result<BookingChannel, ApiError> {
+pub async fn deactivate(pool: &DbPool, id: i64, user_id: i64) -> Result<BookingChannel, ApiError> {
     update(
         pool,
         id,
@@ -604,6 +605,22 @@ pub async fn list_commission_rules(
     Ok(rows.iter().map(row_to_commission_rule).collect())
 }
 
+/// Every active commission rule across channels — reporting resolves the
+/// matching row per booking's check-in date in memory.
+pub async fn all_active_commission_rules(
+    pool: &DbPool,
+) -> Result<Vec<ChannelCommissionRule>, ApiError> {
+    let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SELECT {COMMISSION_RULE_COLUMNS} FROM channel_commission_rules
+         WHERE is_active = true
+         ORDER BY channel_id, priority DESC, id DESC"
+    )))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+    Ok(rows.iter().map(row_to_commission_rule).collect())
+}
+
 /// All active commission rules for a channel — the service layer picks the
 /// one covering the relevant date.
 pub async fn active_commission_rules(
@@ -754,14 +771,8 @@ pub async fn get_mappings(pool: &DbPool, channel_id: i64) -> Result<ChannelMappi
                 channel_id: row.try_get("channel_id").unwrap_or_default(),
                 rate_plan_id: row.try_get("rate_plan_id").unwrap_or_default(),
                 rate_plan_name: row.try_get("rate_plan_name").ok().flatten(),
-                external_rate_plan_id: row
-                    .try_get("external_rate_plan_id")
-                    .ok()
-                    .flatten(),
-                external_rate_plan_name: row
-                    .try_get("external_rate_plan_name")
-                    .ok()
-                    .flatten(),
+                external_rate_plan_id: row.try_get("external_rate_plan_id").ok().flatten(),
+                external_rate_plan_name: row.try_get("external_rate_plan_name").ok().flatten(),
                 is_enabled: row_mappers::get_bool(row, "is_enabled"),
                 sync_status: row.try_get("sync_status").ok().flatten(),
                 last_synced_at: row.try_get("last_synced_at").ok().flatten(),
@@ -855,10 +866,7 @@ pub async fn upsert_rate_plan_mapping(
         rate_plan_id: row.try_get("rate_plan_id").unwrap_or_default(),
         rate_plan_name: None,
         external_rate_plan_id: row.try_get("external_rate_plan_id").ok().flatten(),
-        external_rate_plan_name: row
-            .try_get("external_rate_plan_name")
-            .ok()
-            .flatten(),
+        external_rate_plan_name: row.try_get("external_rate_plan_name").ok().flatten(),
         is_enabled: row_mappers::get_bool(&row, "is_enabled"),
         sync_status: row.try_get("sync_status").ok().flatten(),
         last_synced_at: row.try_get("last_synced_at").ok().flatten(),

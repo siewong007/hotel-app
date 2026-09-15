@@ -31,17 +31,17 @@ mod postgres_tests {
         AuditEvent, AuditLogQuery, BookingChannelInput, BookingChannelUpdate, ReportQuery,
         RunNightAuditRequest,
     };
-    use hotel_app_be::modules::settings::models::SystemSettingUpdate;
-    use hotel_app_be::modules::settings::repository::SettingsRepository;
-    use hotel_app_be::modules::settings::service as settings_service;
     use hotel_app_be::modules::analytics::repository as analytics_repo;
-    use hotel_app_be::repositories::audit::AuditRepository;
-    use hotel_app_be::modules::search::repository::SearchRepository;
-    use hotel_app_be::services::audit as audit_service;
-    use hotel_app_be::services::audit::AuditLog;
     use hotel_app_be::modules::booking_channels::service as booking_channels_service;
     use hotel_app_be::modules::night_audit::repository as night_audit_repo;
     use hotel_app_be::modules::night_audit::service as night_audit_service;
+    use hotel_app_be::modules::search::repository::SearchRepository;
+    use hotel_app_be::modules::settings::models::SystemSettingUpdate;
+    use hotel_app_be::modules::settings::repository::SettingsRepository;
+    use hotel_app_be::modules::settings::service as settings_service;
+    use hotel_app_be::repositories::audit::AuditRepository;
+    use hotel_app_be::services::audit as audit_service;
+    use hotel_app_be::services::audit::AuditLog;
     use rust_decimal::Decimal;
     use sqlx::{PgPool, postgres::PgPoolOptions};
 
@@ -1282,8 +1282,10 @@ mod postgres_tests {
             };
 
             let paid = entries_for(paid_booking_number);
-            let paid_debits: Vec<&(String, Decimal, Decimal)> =
-                paid.iter().filter(|(_, debit, _)| *debit > Decimal::ZERO).collect();
+            let paid_debits: Vec<&(String, Decimal, Decimal)> = paid
+                .iter()
+                .filter(|(_, debit, _)| *debit > Decimal::ZERO)
+                .collect();
             assert_eq!(
                 paid_debits.len(),
                 1,
@@ -1293,7 +1295,10 @@ mod postgres_tests {
                 paid_debits[0].0, "Deposit (Cash)",
                 "[{view}] the deposit line must name itself a deposit, not just the tender"
             );
-            assert_eq!(paid_debits[0].1, paid_deposit, "[{view}] wrong deposit amount");
+            assert_eq!(
+                paid_debits[0].1, paid_deposit,
+                "[{view}] wrong deposit amount"
+            );
 
             let mirror = entries_for(mirror_booking_number);
             let mirror_debits: Vec<&(String, Decimal, Decimal)> = mirror
@@ -1666,6 +1671,12 @@ mod postgres_tests {
             return;
         };
         let name = "AUD990 Test Channel";
+        // Any real user id satisfies the audit-log FK; fall back to 0 (the
+        // audit write is non-fatal if it cannot be attributed).
+        let user_id: i64 = sqlx::query_scalar("SELECT id FROM users ORDER BY id LIMIT 1")
+            .fetch_one(&pool)
+            .await
+            .unwrap_or(0);
 
         async fn cleanup(pool: &PgPool, name: &str) {
             sqlx::query("DELETE FROM booking_channels WHERE name = $1")
@@ -1679,6 +1690,7 @@ mod postgres_tests {
 
         let created = booking_channels_service::create(
             &pool,
+            user_id,
             BookingChannelInput {
                 name: name.to_string(),
                 channel_type: Some("ota".to_string()),
@@ -1686,6 +1698,9 @@ mod postgres_tests {
                 default_commission_value: Some(Decimal::new(1_000, 2)), // 10.00%
                 default_commission_scope: Some("per_booking".to_string()),
                 is_active: Some(true),
+                abbreviation: Some("OTA".to_string()),
+                code: Some("ota-x".to_string()),
+                integration_mode: Some("manual".to_string()),
             },
         )
         .await
@@ -1698,6 +1713,7 @@ mod postgres_tests {
         let updated = booking_channels_service::update(
             &pool,
             created.id,
+            user_id,
             BookingChannelUpdate {
                 name: None,
                 channel_type: None,
@@ -1705,6 +1721,9 @@ mod postgres_tests {
                 default_commission_value: Some(Decimal::new(1_500, 2)), // 15.00%
                 default_commission_scope: None,
                 is_active: None,
+                abbreviation: None,
+                code: None,
+                integration_mode: None,
             },
         )
         .await
@@ -1715,7 +1734,7 @@ mod postgres_tests {
             "fields left unspecified in the update must be preserved from the current row"
         );
 
-        let deactivated = booking_channels_service::deactivate(&pool, created.id)
+        let deactivated = booking_channels_service::deactivate(&pool, created.id, user_id)
             .await
             .expect("deactivating the booking channel must succeed");
         assert!(!deactivated.is_active);

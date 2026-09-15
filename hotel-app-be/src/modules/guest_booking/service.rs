@@ -30,12 +30,12 @@ use crate::modules::communications::validation::html_escape;
 use crate::modules::consent::models::{ConsentDocument, ConsentSource};
 use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
 use crate::modules::consent::validation as consent_validation;
-use crate::services::audit::AuditLog;
-use crate::services::google_identity::ProfileCompletion;
 use crate::modules::profile::service::completion_for_guest;
 use crate::modules::promotions::pricing::{
     PromotionDiscount, PromotionPricing, calculate_promotion_pricing,
 };
+use crate::services::audit::AuditLog;
+use crate::services::google_identity::ProfileCompletion;
 use crate::utils::sanitization::Sanitizer;
 
 const PORTAL_SOURCE: &str = "website";
@@ -135,22 +135,53 @@ async fn nightly_rates(
         stay.check_out_date,
     )
     .await?;
+    // The portal sells on the direct channel — its pricing rules apply here.
+    // With no rules configured the resolver returns the source rate verbatim,
+    // so the portal's prices are identical to before this feature existed.
+    let channel_rules = match Repository::direct_booking_channel(pool).await? {
+        Some(channel_id) if stay.check_out_date > stay.check_in_date => {
+            crate::modules::booking_channels::repository::active_pricing_rules(
+                pool,
+                &[channel_id],
+                stay.check_in_date,
+                stay.check_out_date - Duration::days(1),
+            )
+            .await?
+        }
+        _ => Vec::new(),
+    };
     let mut rates = Vec::new();
     let mut date = stay.check_in_date;
     while date < stay.check_out_date {
         // Public pricing is the room's sold rate only: an explicit
-        // online-inventory custom price wins, otherwise base/weekday/weekend.
-        // Rate plans are a staff-side tool and never auto-apply online;
-        // complimentary nights are credit redemptions handled downstream.
-        let (rate_plan_code, amount) = if let Some(custom_price) = custom_prices.get(&date) {
-            ("ONLINE_CUSTOM".to_string(), *custom_price)
+        // online-inventory custom price wins over every channel rule,
+        // otherwise base/weekday/weekend → channel rule. Rate plans are a
+        // staff-side tool and never auto-apply online; complimentary nights
+        // are credit redemptions handled downstream.
+        let (rate_plan_code, amount, rule_id) = if let Some(custom_price) = custom_prices.get(&date)
+        {
+            ("ONLINE_CUSTOM".to_string(), *custom_price, None)
         } else {
-            ("BASE".to_string(), base_rate_for_date(room_type, date))
+            let priced = crate::modules::booking_channels::pricing::price_night(
+                date,
+                base_rate_for_date(room_type, date),
+                &channel_rules,
+                room_type.id,
+                None,
+            );
+            match priced.selling_price {
+                Some(sell) => (priced.rule_label, sell, priced.rule_id),
+                // A net-rate rule on the direct channel is meaningless — the
+                // PMS owns this channel's sell price — so the night falls back
+                // to the source rate instead of leaving the portal unpriced.
+                None => ("BASE".to_string(), priced.source_rate, None),
+            }
         };
         rates.push(NightlyRate {
             date,
             rate_plan_code,
             amount,
+            rule_id,
         });
         date += Duration::days(1);
     }
@@ -423,7 +454,8 @@ async fn quote_for_inventory(
     let total_amount = room_total + tax_amount;
     // The window the unpaid-hold sweep actually enforces, surfaced so the
     // review step can tell the guest how long an unpaid booking keeps its room.
-    let hold_release_hours = crate::modules::bookings::service::unpaid_hold_window_hours(pool).await;
+    let hold_release_hours =
+        crate::modules::bookings::service::unpaid_hold_window_hours(pool).await;
     Ok(GuestBookingQuote {
         room_type_id: room_type.id,
         room_type_code: room_type.code,
@@ -645,6 +677,53 @@ pub async fn quote_with_eligible_vouchers(
 /// Inclusive span limit for the range read — a 31-date window is the most the
 /// grid ever asks for.
 pub const MAX_ONLINE_INVENTORY_SPAN_DAYS: i64 = 30;
+
+/// Snapshot the channel's distribution economics for a portal quote:
+/// commission on the room revenue actually charged (post-credit, post-voucher,
+/// before tourism tax) and the hotel's estimated net revenue. The snapshot is
+/// frozen at booking write time — later channel edits never rewrite it.
+async fn channel_economics(
+    pool: &DbPool,
+    channel_id: Option<i64>,
+    quote: &GuestBookingQuote,
+) -> Result<(Option<Decimal>, Option<Decimal>, Option<serde_json::Value>), ApiError> {
+    let Some(channel_id) = channel_id else {
+        return Ok((None, None, None));
+    };
+    let channel =
+        crate::modules::booking_channels::repository::find_by_id(pool, channel_id).await?;
+    let commission = crate::modules::booking_channels::service::commission_config_for(
+        pool,
+        &channel,
+        quote.check_in_date,
+    )
+    .await?;
+    let room_total = (quote.subtotal - quote.discount_amount).round_dp(2);
+    let nights = (quote.check_out_date - quote.check_in_date)
+        .num_days()
+        .max(1);
+    let commission_amount = crate::modules::booking_channels::pricing::commission_amount(
+        &commission,
+        room_total,
+        nights,
+    );
+    let net_revenue = (room_total - commission_amount).round_dp(2);
+    let snapshot = serde_json::json!({
+        "channel_id": channel_id,
+        "rule_ids": quote
+            .nightly_rates
+            .iter()
+            .filter_map(|rate| rate.rule_id)
+            .collect::<Vec<_>>(),
+        "selling_subtotal": quote.subtotal.to_string(),
+        "commission_type": commission.commission_type,
+        "commission_value": commission.value.to_string(),
+        "commission_scope": commission.scope,
+        "commission_amount": commission_amount.to_string(),
+        "net_revenue": net_revenue.to_string(),
+    });
+    Ok((Some(commission_amount), Some(net_revenue), Some(snapshot)))
+}
 
 fn parse_online_inventory_range(from: &str, to: &str) -> Result<(NaiveDate, NaiveDate), ApiError> {
     let from = NaiveDate::parse_from_str(from.trim(), "%Y-%m-%d")
@@ -1041,6 +1120,8 @@ pub async fn create(
     } else {
         "pending_payment"
     };
+    let (commission_amount, net_revenue, channel_pricing_snapshot) =
+        channel_economics(pool, booking_channel_id, &quote).await?;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     Repository::ensure_online_room_available_tx(
@@ -1080,6 +1161,9 @@ pub async fn create(
         settled_by_credits,
         is_tourist: quote.tax_amount > Decimal::ZERO,
         tourism_tax_amount: quote.tax_amount,
+        commission_amount,
+        net_revenue,
+        channel_pricing_snapshot,
     };
     let booking_id = match Repository::insert_booking_tx(&mut tx, &insert).await {
         Ok(booking_id) => booking_id,
@@ -1196,11 +1280,8 @@ pub async fn create(
             settled_by_credits,
             anonymous: false,
             access_token: None,
-            locale: crate::core::i18n::mail_locale(
-                pool,
-                contact.language_preference.as_deref(),
-            )
-            .await,
+            locale: crate::core::i18n::mail_locale(pool, contact.language_preference.as_deref())
+                .await,
         });
         CommunicationsRepository::insert_delivery_tx(
             &mut tx,
@@ -1335,6 +1416,8 @@ pub async fn create_anonymous(
     let access_token = crate::modules::guest_portal::service::generate_session_token();
     let access_token_expires_at =
         anonymous_access_token_expiry(chrono::Utc::now(), quote.check_in_date);
+    let (commission_amount, net_revenue, channel_pricing_snapshot) =
+        channel_economics(pool, booking_channel_id, &quote).await?;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     Repository::ensure_online_room_available_tx(
@@ -1380,6 +1463,9 @@ pub async fn create_anonymous(
         settled_by_credits: false,
         is_tourist: is_foreign_tourist(&guest.tourism_type),
         tourism_tax_amount: quote.tax_amount,
+        commission_amount,
+        net_revenue,
+        channel_pricing_snapshot,
     };
     let booking_id = Repository::insert_booking_tx(&mut tx, &insert).await?;
     Repository::issue_access_token_tx(&mut tx, booking_id, &access_token, access_token_expires_at)
@@ -1659,7 +1745,9 @@ fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) 
                     "email.portalBooking.pendingSubject",
                     &[("hotel", &hotel), ("booking", booking_number)],
                 ),
-                locale.message("email.portalBooking.pendingHeading").to_string(),
+                locale
+                    .message("email.portalBooking.pendingHeading")
+                    .to_string(),
                 locale.format(
                     "email.portalBooking.pendingPreheader",
                     &[("hotel", &hotel), ("booking", booking_number)],
@@ -1713,7 +1801,6 @@ fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) 
     });
     (subject, rendered.html, rendered.text)
 }
-
 
 #[cfg(test)]
 mod tourism_tax_tests {
@@ -1882,6 +1969,7 @@ mod tests {
             date: date(day),
             rate_plan_code: "BASE".to_string(),
             amount: Decimal::from(amount),
+            rule_id: None,
         }
     }
 
