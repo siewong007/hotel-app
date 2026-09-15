@@ -21,7 +21,7 @@ pub mod night_audit;
 pub mod passkey;
 pub mod payment_retry;
 pub mod payments;
-pub mod profile;
+// profile handlers live in modules::profile.
 // rates handlers live in modules::rates.
 pub mod rbac;
 pub mod rooms;

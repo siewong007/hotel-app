@@ -32,7 +32,7 @@ use crate::modules::consent::service::{self as consent_service, ConsentContext, 
 use crate::modules::consent::validation as consent_validation;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity::ProfileCompletion;
-use crate::services::profile::completion_for_guest;
+use crate::modules::profile::service::completion_for_guest;
 use crate::services::promotion_pricing::{
     PromotionDiscount, PromotionPricing, calculate_promotion_pricing,
 };

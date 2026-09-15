@@ -2,12 +2,12 @@
 //!
 //! Routes for user profile management, 2FA, and passkeys.
 
-use super::extract_client_ip;
+use crate::routes::extract_client_ip;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{extract_claims, require_auth};
 use crate::core::rate_limiter::RateLimiters;
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -47,7 +47,7 @@ async fn get_profile(
     headers: HeaderMap,
 ) -> Result<Json<models::UserProfile>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::profile::get_user_profile_handler(State(pool), Extension(user_id)).await
+    handlers::get_user_profile_handler(State(pool), Extension(user_id)).await
 }
 
 async fn update_profile(
@@ -56,7 +56,7 @@ async fn update_profile(
     Json(input): Json<models::UserProfileUpdate>,
 ) -> Result<Json<models::UserProfile>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::profile::update_user_profile_handler(State(pool), Extension(user_id), Json(input))
+    handlers::update_user_profile_handler(State(pool), Extension(user_id), Json(input))
         .await
 }
 
@@ -66,7 +66,7 @@ async fn complete_profile(
     Json(input): Json<models::CompleteGuestProfileRequest>,
 ) -> Result<Json<models::UserProfile>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::profile::complete_profile_handler(State(pool), Extension(user_id), Json(input)).await
+    handlers::complete_profile_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn update_password(
@@ -88,7 +88,7 @@ async fn update_password(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::profile::update_password_handler(State(pool), Extension(user_id), Json(input)).await
+    handlers::update_password_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn list_sessions(
@@ -100,7 +100,7 @@ async fn list_sessions(
         .sub
         .parse::<i64>()
         .map_err(|_| ApiError::Unauthorized("Invalid user ID in token".to_string()))?;
-    handlers::profile::list_sessions_handler(State(pool), Extension(user_id), claims.sid).await
+    handlers::list_sessions_handler(State(pool), Extension(user_id), claims.sid).await
 }
 
 async fn revoke_session(
@@ -109,7 +109,7 @@ async fn revoke_session(
     Path(session_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::profile::revoke_session_handler(State(pool), Extension(user_id), session_id).await
+    handlers::revoke_session_handler(State(pool), Extension(user_id), session_id).await
 }
 
 // Passkey handlers
@@ -119,7 +119,7 @@ async fn list_passkeys(
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::PasskeyInfo>>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::passkey::list_passkeys_handler(State(pool), Extension(user_id)).await
+    crate::handlers::passkey::list_passkeys_handler(State(pool), Extension(user_id)).await
 }
 
 async fn delete_passkey(
@@ -128,7 +128,7 @@ async fn delete_passkey(
     path: Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::passkey::delete_passkey_handler(State(pool), Extension(user_id), path).await
+    crate::handlers::passkey::delete_passkey_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn update_passkey(
@@ -138,7 +138,7 @@ async fn update_passkey(
     Json(input): Json<models::PasskeyUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::passkey::update_passkey_handler(State(pool), Extension(user_id), path, Json(input))
+    crate::handlers::passkey::update_passkey_handler(State(pool), Extension(user_id), path, Json(input))
         .await
 }
 
@@ -163,7 +163,7 @@ async fn setup_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::setup_2fa_handler(State(pool), user_id, Json(input)).await
+    crate::handlers::two_factor::setup_2fa_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn enable_2fa(
@@ -185,7 +185,7 @@ async fn enable_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::enable_2fa_handler(State(pool), user_id, Json(input)).await
+    crate::handlers::two_factor::enable_2fa_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn disable_2fa(
@@ -207,7 +207,7 @@ async fn disable_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::disable_2fa_handler(State(pool), user_id, Json(input)).await
+    crate::handlers::two_factor::disable_2fa_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn get_2fa_status(
@@ -215,7 +215,7 @@ async fn get_2fa_status(
     headers: HeaderMap,
 ) -> Result<Json<models::TwoFactorStatusResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::get_2fa_status_handler(State(pool), user_id).await
+    crate::handlers::two_factor::get_2fa_status_handler(State(pool), user_id).await
 }
 
 async fn verify_2fa(
@@ -237,5 +237,5 @@ async fn verify_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::verify_2fa_code_handler(State(pool), user_id, Json(input)).await
+    crate::handlers::two_factor::verify_2fa_code_handler(State(pool), user_id, Json(input)).await
 }

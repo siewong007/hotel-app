@@ -21,7 +21,7 @@ use hotel_app_be::models::{
     TwoFactorEnableRequest, TwoFactorSetupRequest, TwoFactorVerifyRequest, UserRoleIdsInput,
 };
 use hotel_app_be::services::auth as auth_service;
-use hotel_app_be::services::profile as profile_service;
+use hotel_app_be::modules::profile::service as profile_service;
 use hotel_app_be::services::rbac as rbac_service;
 use hotel_app_be::services::two_factor as two_factor_service;
 use sqlx::{PgPool, postgres::PgPoolOptions};

@@ -5,7 +5,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::services::profile as profile_service;
+use super::service as profile_service;
 use axum::{
     extract::{Extension, State},
     response::Json,

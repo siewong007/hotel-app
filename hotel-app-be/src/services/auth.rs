@@ -569,7 +569,7 @@ pub(crate) async fn issue_authenticated_response(
 
     let _ = AuthRepository::update_last_login(pool, user.id).await;
 
-    let profile_completion = crate::services::profile::completion_for_user(pool, user.id).await?;
+    let profile_completion = crate::modules::profile::service::completion_for_user(pool, user.id).await?;
 
     Ok((
         AuthResponse {

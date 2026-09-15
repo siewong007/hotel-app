@@ -22,7 +22,7 @@ pub mod night_audit;
 pub mod passkey;
 pub mod payment_retry;
 pub mod payments;
-pub mod profile;
+// profile routes live in modules::profile.
 // rates routes live in modules::rates.
 pub mod rbac;
 pub mod rooms;
@@ -405,7 +405,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::segments::routes::routes())
         .merge(rbac::routes())
         .merge(users::routes())
-        .merge(profile::routes())
+        .merge(crate::modules::profile::routes::routes())
         .merge(analytics::routes())
         .merge(crate::modules::settings::routes::routes())
         .merge(crate::modules::system::routes::routes())

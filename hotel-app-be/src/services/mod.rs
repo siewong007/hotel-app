@@ -34,7 +34,7 @@ pub mod payment_receipt_scheduler;
 pub mod payment_retry;
 pub mod payments;
 pub mod paypal_client;
-pub mod profile;
+// profile service logic live in modules::profile.
 pub mod promotion_pricing;
 // rates service logic live in modules::rates.
 pub mod rbac;

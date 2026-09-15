@@ -17,7 +17,7 @@ use crate::repositories::auth::AuthRepository;
 use crate::repositories::rbac::RbacRepository;
 use crate::repositories::user::UserRepository;
 use crate::services::audit::AuditLog;
-use crate::services::profile::{location_from_timezone, mask_ip_address};
+use crate::modules::profile::service::{location_from_timezone, mask_ip_address};
 use crate::services::rbac::{ensure_actor_can_manage_roles, ensure_actor_can_manage_user};
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
