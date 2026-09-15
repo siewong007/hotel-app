@@ -23,7 +23,6 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmailKey, validatePhoneKey } from '../../../utils/validation';
-import { LoadingSpinner } from '../../../components';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { returnFromAuthPage, safeGuestRedirect } from '../guestRedirect';
 import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
@@ -461,7 +460,7 @@ const RegisterPage: React.FC = () => {
               sx={{ mt: 3, mb: 2, py: 1.5 }}
               disabled={loading || awaitingTurnstile || redirectCountdown !== null}
             >
-              {loading ? <LoadingSpinner size={24} /> : t('register.submit')}
+              {loading ? <CircularProgress size={20} color="inherit" /> : t('register.submit')}
             </Button>
 
             {turnstile.enabled && (

@@ -12,7 +12,7 @@ import { useTranslation } from '../../../i18n';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
 import PageHeader from '../../../components/common/PageHeader';
 import EmptyState from '../../../components/common/EmptyState';
-import LoadingSpinner from '../../../components/common/LoadingSpinner';
+import { LogoLoader } from '../../../components';
 import BookingDetailsPanel from '../components/Bookings/BookingDetailsPanel';
 import BookingQuickEditSection from '../components/Bookings/BookingQuickEditSection';
 import { useBookingActions } from '../hooks/useBookingActions';
@@ -83,9 +83,7 @@ const BookingDetailPage: React.FC<BookingDetailPageProps> = ({ bookingId }) => {
       )}
 
       {bookingQuery.isPending ? (
-        <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}>
-          <LoadingSpinner size={36} />
-        </Box>
+        <LogoLoader variant="page" />
       ) : bookingQuery.error || !booking ? (
         <EmptyState
           title={t('details.notFoundTitle')}

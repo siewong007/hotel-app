@@ -9,6 +9,7 @@ import {
   Button,
   Typography,
   Alert,
+  CircularProgress,
   Collapse,
   Grid,
 } from '@mui/material';
@@ -18,7 +19,7 @@ import { AuthService } from '../../../api/auth.service';
 import { validatePhoneKey } from '../../../utils/validation';
 import { useProfileQuery } from '../../user/hooks/useProfileQueries';
 import { queryKeys } from '../../../api/queryKeys';
-import { LoadingSpinner } from '../../../components';
+import { LogoLoader } from '../../../components';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
 import { safeGuestRedirect } from '../guestRedirect';
@@ -67,11 +68,7 @@ const CompleteProfilePage: React.FC = () => {
   }, [profile, prefilled]);
 
   if (isLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <LoadingSpinner size={40} />
-      </Box>
-    );
+    return <LogoLoader variant="fullScreen" />;
   }
 
   if (!isAuthenticated) {
@@ -240,7 +237,7 @@ const CompleteProfilePage: React.FC = () => {
               }}
               disabled={submitting}
             >
-              {submitting ? <LoadingSpinner size={24} /> : t('completeProfile.continue')}
+              {submitting ? <CircularProgress size={20} color="inherit" /> : t('completeProfile.continue')}
             </Button>
           </form>
         </Paper>
