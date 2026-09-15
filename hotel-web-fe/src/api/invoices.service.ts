@@ -57,25 +57,39 @@ export class InvoicesService {
     }
   }
 
-  static async refundDeposit(bookingId: string | number, paymentMethod: string = 'cash', amount?: number): Promise<any> {
+  static async refundDeposit(
+    bookingId: string | number,
+    paymentMethod: string = 'cash',
+    amount?: number,
+    extras?: { transaction_reference?: string; note?: string },
+  ): Promise<any> {
     try {
       // Ensure amount is a valid number
       const numericAmount = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
-      return await api.post(`payments/refund-deposit/${bookingId}`, {
-        json: { payment_method: paymentMethod, amount: numericAmount }
-      }).json<any>();
+      const json: Record<string, unknown> = { payment_method: paymentMethod, amount: numericAmount };
+      // Optional staff-supplied metadata — the backend stores the reference
+      // on the refund row's transaction_id and appends the note to the
+      // refund row notes. Only sent when non-empty after trim.
+      const transactionReference = extras?.transaction_reference?.trim();
+      if (transactionReference) json.transaction_reference = transactionReference;
+      const note = extras?.note?.trim();
+      if (note) json.note = note;
+      return await api.post(`payments/refund-deposit/${bookingId}`, { json }).json<any>();
     } catch (error) {
       throw toApiError(error, 'Failed to refund deposit');
     }
   }
 
-  static async forfeitDeposit(bookingId: string | number, amount: number, reason: string): Promise<any> {
+  static async forfeitDeposit(bookingId: string | number, amount: number, reason: string, notes?: string): Promise<any> {
     try {
       // Ensure amount is a valid number
       const numericAmount = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
-      return await api.post(`payments/forfeit-deposit/${bookingId}`, {
-        json: { amount: numericAmount, reason }
-      }).json<any>();
+      const json: Record<string, unknown> = { amount: numericAmount, reason };
+      // Optional staff notes — appended to the forfeit row's
+      // 'Deposit forfeited: {reason}' text. Only sent when non-empty.
+      const trimmedNotes = notes?.trim();
+      if (trimmedNotes) json.notes = trimmedNotes;
+      return await api.post(`payments/forfeit-deposit/${bookingId}`, { json }).json<any>();
     } catch (error) {
       throw toApiError(error, 'Failed to forfeit deposit');
     }

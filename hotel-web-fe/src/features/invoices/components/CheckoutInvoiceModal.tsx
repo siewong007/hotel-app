@@ -41,17 +41,20 @@ import { InvoicesService } from '../../../api/invoices.service';
 import { LedgerService } from '../../../api/ledger.service';
 import { queryKeys } from '../../../api/queryKeys';
 import { useCheckoutInvoiceData } from '../hooks/useCheckoutInvoiceData';
+import { useDepositResolution } from '../hooks/useDepositResolution';
 import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../utils/chargesCalculation';
 import { isDepositLikePayment, settledPaymentsTotal } from '../utils/payments';
 import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
-import DepositSection from './DepositSection';
+import DepositSection, { DEPOSIT_STATUS_CHIP } from './DepositSection';
+import type { DepositForfeitInput, DepositRefundInput } from './DepositSection';
 import { formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
-import { divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
+import { divideMoney, isGreaterMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../utils/money';
 import { formatStatusLabel } from '../../../utils/formatters';
 import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/idempotency';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import CollapsibleSection, { type CollapsibleSectionProps } from '../../../components/common/CollapsibleSection';
+import StatusChip from '../../../components/common/StatusChip';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { useAuth } from '../../../auth/AuthContext';
 
@@ -145,7 +148,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const isLedgerView = Boolean(ledger);
 
   const { hasPermission } = useAuth();
-  const canCancelDeposit = !readOnly && !isLedgerView && hasPermission('payments:delete');
 
   const invalidateInvoiceState = () => {
     if (!booking) return;
@@ -176,27 +178,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [deletingPaymentId, setDeletingPaymentId] = useState<number | null>(null);
 
-  // Deposit refund state
-  const [refundingDeposit, setRefundingDeposit] = useState(false);
-  const [revertingRefund, setRevertingRefund] = useState(false);
-  const [refundPaymentMethod, setRefundPaymentMethod] = useState('cash');
-
-  // Deposit waive state
+  // Deposit waive state — the local flag bridges the gap between a
+  // successful waive-path cancel and the booking-mirror refetch (the hook
+  // derives `mirrorDue` off the booking prop, which lags one invalidation).
   const [depositWaived, setDepositWaived] = useState(false);
   const [depositWaiveReason, setDepositWaiveReason] = useState('');
-  const [waivingDeposit, setWaivingDeposit] = useState(false);
-
-  // Deposit forfeit state — forfeiting keeps the money as income instead of
-  // returning it, and resolves the deposit for the checkout gate.
-  const [depositForfeited, setDepositForfeited] = useState(false);
-  const [forfeitReason, setForfeitReason] = useState('');
-  const [forfeitAmount, setForfeitAmount] = useState<number>(0);
-  const [forfeitingDeposit, setForfeitingDeposit] = useState(false);
-
-  // Deposit cancel/restore state — cancelling voids the deposit payment rows
-  // (deposit recorded but not collected); restore reverts that cancellation.
-  const [cancellingDeposit, setCancellingDeposit] = useState(false);
-  const [restoringDeposit, setRestoringDeposit] = useState(false);
 
   // Editable daily rates UI state
   const [editingRates, setEditingRates] = useState(false);
@@ -223,8 +209,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setPaymentNotes('');
       setDepositWaived(false);
       setDepositWaiveReason('');
-      setDepositForfeited(false);
-      setForfeitReason('');
     }
   }, [open, booking]);
 
@@ -264,50 +248,43 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     (payment) => payment.payment_status === 'completed' && isDepositLikePayment(payment),
   );
   const refundedPayments = payments.filter((payment) => payment.payment_status === 'refunded');
-  // Voided deposit rows are restorable — they arrive in the all-payments
-  // payload but are filtered out of every displayed group.
-  const voidedDepositRows = payments.filter(
-    (payment) =>
-      (payment.payment_type || '').toLowerCase() === 'deposit' &&
-      payment.payment_status === 'void',
-  );
 
-  // Deposit money still owed back to the guest: collected deposit rows minus
-  // what has already been refunded or forfeited — the same refundable ceiling
-  // the backend enforces (services/payments.rs::forfeit_deposit).
-  const recordedDeposit = sumMoney(depositPayments
-    .filter((p) => (p.payment_type || '').toLowerCase() === 'deposit')
-    .map((p) => p.total_amount));
-  const refundedDepositTotal = sumMoney(payments
-    .filter((p) => (p.payment_type || '').toLowerCase() === 'refund' && p.payment_status === 'refunded')
-    .map((p) => p.total_amount));
-  const forfeitedDepositTotal = sumMoney(depositPayments
-    .filter((p) => (p.payment_type || '').toLowerCase() === 'deposit_forfeited')
-    .map((p) => p.total_amount));
-  const refundableDeposit = subtractMoney(
-    subtractMoney(recordedDeposit, refundedDepositTotal),
-    forfeitedDepositTotal,
-  );
+  // Deposit resolution — derivation (collected/refunded/forfeited/remaining,
+  // status enum) and the mutations all live in the hook; the modal keeps the
+  // confirm-dialog orchestration and the waive flag above. The booking
+  // mirror's own waive detection keeps the legacy `payment_note` convention
+  // ('Deposit waived: …' was written that way before resolution statuses).
+  const {
+    deposit: depositResolution,
+    completedDepositCount,
+    refunding: refundingDeposit,
+    forfeiting: forfeitingDeposit,
+    cancelling: cancellingDeposit,
+    reverting: revertingRefund,
+    restoring: restoringDeposit,
+    refund: refundDeposit,
+    forfeit: forfeitDeposit,
+    cancelUncollected,
+    revertRefund,
+    restoreDeposit,
+  } = useDepositResolution({
+    booking,
+    payments,
+    depositWaived: depositWaived || Boolean(booking?.payment_note?.includes('waived')),
+    reloadPayments,
+    setError,
+    invalidateInvoiceState,
+  });
 
-  // The forfeit amount defaults to the still-refundable deposit balance;
-  // staff can lower it for a partial forfeit. Re-defaults on every open —
-  // `refundableDeposit` alone wouldn't refire when a reopen sees unchanged
-  // rows, leaving a typed-but-unsubmitted amount behind.
-  useEffect(() => {
-    if (open) setForfeitAmount(refundableDeposit);
-  }, [open, refundableDeposit]);
-
-  // `depositForfeited` reflects the ledger, not just the local click — the
-  // same way `depositRefunded` is re-derived from rows on every
-  // `reloadPayments`. An out-of-band void of a forfeit row (the un-forfeit
-  // escape hatch, `payments:manage`) re-opens the held deposit, so the flag
-  // recomputes from the rows whenever they change (and on every open): true
-  // iff forfeit rows exist and leave nothing refundable.
-  useEffect(() => {
-    setDepositForfeited(
-      isPositiveMoney(forfeitedDepositTotal) && !isPositiveMoney(refundableDeposit),
-    );
-  }, [open, booking, forfeitedDepositTotal, refundableDeposit]);
+  // Resolution permission gates — `cancel` mirrors the hook's auto-route on
+  // the same completed-row count: rows → per-row void (`payments:delete`);
+  // no rows → the booking-mirror waive (`bookings:update`).
+  const canRefundOrForfeitDeposit = hasPermission('payments:refund');
+  const canCancelDeposit = completedDepositCount > 0
+    ? hasPermission('payments:delete')
+    : hasPermission('bookings:update');
+  const canRevertDepositRefund = hasPermission('payments:manage');
+  const canRestoreDeposit = hasPermission('payments:delete');
 
   const handleRecordPayment = async () => {
     if (!booking || !isPositiveMoney(paymentAmount)) return;
@@ -465,15 +442,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       await InvoicesService.deletePayment(paymentId);
       setPayments(prev => prev.filter(p => p.id !== paymentId));
       invalidateInvoiceState();
-      // Reset depositRefunded if a refund payment was deleted
+      // Reset depositRefunded if a refund payment was deleted — voided
+      // refund rows no longer count, so detection is the row status alone.
       if (deletedPayment?.payment_status === 'refunded') {
         setDepositRefunded(false);
       }
-      // Voiding a forfeit row is the un-forfeit escape hatch: it re-opens the
-      // deposit as refundable, so the checkout gate must re-arm.
-      if ((deletedPayment?.payment_type || '').toLowerCase() === 'deposit_forfeited') {
-        setDepositForfeited(false);
-      }
+      // Deleting a deposit_forfeited row (the un-forfeit escape hatch)
+      // re-opens the deposit as refundable — no flag to clear here since
+      // the resolution re-derives `pending` from the rows on the next render.
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : 'Failed to delete payment');
     } finally {
@@ -481,92 +457,42 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     }
   };
 
-  const handleRefundDeposit = async () => {
-    if (!booking) return;
-    try {
-      setRefundingDeposit(true);
-      // Legacy bookings carry the deposit only in booking columns with no
-      // deposit payment row, so the refund ceiling sees nothing held. Assert
-      // the collected amount through the booking update first — the server
-      // mints the missing deposit payment under the booking lock — then the
-      // refund draws on it. Skipped when recorded rows already cover it.
-      const reconciledDeposit = isLessMoney(
-        subtractMoney(recordedDeposit, refundedDepositTotal),
-        charges.depositRefund,
-      );
-      if (reconciledDeposit) {
-        await BookingsService.updateBooking(booking.id, {
-          deposit_paid: true,
-          deposit_amount: charges.depositRefund,
-        });
-      }
-      const refundPayment = await InvoicesService.refundDeposit(booking.id, refundPaymentMethod, charges.depositRefund);
-      if (reconciledDeposit) {
-        // Re-fetch so the folio also lists the deposit row just minted.
-        await reloadPayments();
-      } else {
-        setPayments(prev => [...prev, refundPayment]);
-      }
-      setDepositRefunded(true);
-      invalidateInvoiceState();
-    } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to refund deposit');
-    } finally {
-      setRefundingDeposit(false);
-    }
+  // The destructive confirms stay in the modal per the hook contract — the
+  // section fires its callbacks directly (forfeit's review step is its own
+  // confirmation inside the panel).
+  const handleRefundDeposit = (input: DepositRefundInput) => {
+    void refundDeposit(input);
   };
 
-  const handleWaiveDeposit = async () => {
-    if (!booking || !depositWaiveReason.trim()) return;
-    try {
-      setWaivingDeposit(true);
-      const reason = depositWaiveReason.trim();
-      await BookingsService.updateBooking(booking.id, {
-        deposit_paid: false,
-        deposit_amount: 0,
-        payment_note: booking.payment_note
-          ? `${booking.payment_note} | Deposit waived: ${reason}`
-          : `Deposit waived: ${reason}`,
-      });
+  const handleForfeitDeposit = (input: DepositForfeitInput) => {
+    void forfeitDeposit(input);
+  };
+
+  // Cancelling marks the deposit "not collected": with completed deposit
+  // rows the hook voids each (kept server-side as 'void', restorable via
+  // Restore); with none it waives the booking mirror. The section collects
+  // the required reason first.
+  const handleCancelDeposit = async (reason: string) => {
+    const hadCompletedDepositRows = completedDepositCount > 0;
+    const accepted = await confirm({
+      title: 'Cancel deposit',
+      message: hadCompletedDepositRows
+        ? 'Marks the deposit as not collected. The payment record is kept as void and the cancellation can be reverted.'
+        : 'Marks the deposit as not collected — no money was received. The booking deposit flag is cleared.',
+      confirmText: 'Cancel deposit',
+      severity: 'warning',
+    });
+    if (!accepted) return;
+    const cancelled = await cancelUncollected(reason);
+    if (cancelled && !hadCompletedDepositRows) {
+      // Waive path: flag it locally until the booking refetch lands — the
+      // mirror still asserts the deposit while the invalidation is in flight.
       setDepositWaived(true);
-      invalidateInvoiceState();
-    } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to waive deposit');
-    } finally {
-      setWaivingDeposit(false);
-    }
-  };
-
-  const handleForfeitDeposit = async () => {
-    const reason = forfeitReason.trim();
-    const amount = toMoneyNumber(forfeitAmount);
-    if (!booking || !reason || !isPositiveMoney(amount)) return;
-    // Client-side cap: the button's disabled state isn't a real guard for
-    // keyboard/programmatic paths — refuse over-ceiling forfeits locally
-    // instead of relying on the backend 400.
-    if (isGreaterMoney(amount, refundableDeposit)) {
-      setError(`Forfeit amount cannot exceed the refundable deposit of ${formatCurrency(refundableDeposit)}`);
-      return;
-    }
-    try {
-      setForfeitingDeposit(true);
-      await InvoicesService.forfeitDeposit(booking.id, amount, reason);
-      // Only a full forfeit resolves the deposit — a partial forfeit leaves
-      // the remainder held, which must keep the checkout gate locked until it
-      // is refunded or forfeited too.
-      setDepositForfeited(!isPositiveMoney(subtractMoney(refundableDeposit, amount)));
-      setForfeitReason('');
-      await reloadPayments();
-      invalidateInvoiceState();
-    } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to forfeit deposit');
-    } finally {
-      setForfeitingDeposit(false);
+      setDepositWaiveReason(reason);
     }
   };
 
   const handleRevertDepositRefund = async () => {
-    if (!booking) return;
     const accepted = await confirm({
       title: 'Revert deposit refund',
       message: 'This removes the refund record so the deposit can be refunded again.',
@@ -574,61 +500,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       severity: 'warning',
     });
     if (!accepted) return;
-    try {
-      setRevertingRefund(true);
-      await InvoicesService.revertDepositRefund(booking.id);
-      // Drop the refund payment row(s) locally and reset the refunded flag.
-      setPayments(prev => prev.filter(p => p.payment_status !== 'refunded' && p.payment_type !== 'refund'));
-      setDepositRefunded(false);
-      invalidateInvoiceState();
-    } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to revert deposit refund');
-    } finally {
-      setRevertingRefund(false);
-    }
+    await revertRefund();
   };
 
-  // Cancelling marks the deposit "not collected": the deposit payment rows
-  // are kept as void (money trail + audit stay intact) and the booking
-  // mirror drops — the cancellation is reversible via Restore.
-  const handleCancelDeposit = async () => {
-    const depositRows = depositPayments.filter(
-      (p) => (p.payment_type || '').toLowerCase() === 'deposit',
-    );
-    if (depositRows.length === 0) return;
-    const accepted = await confirm({
-      title: 'Cancel deposit',
-      message: 'Marks the deposit as not collected. The payment record is kept as void and the cancellation can be reverted.',
-      confirmText: 'Cancel deposit',
-      severity: 'warning',
-    });
-    if (!accepted) return;
-    try {
-      setCancellingDeposit(true);
-      for (const row of depositRows) {
-        await InvoicesService.deletePayment(row.id);
-      }
-      await reloadPayments();
-      invalidateInvoiceState();
-    } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to cancel deposit');
-    } finally {
-      setCancellingDeposit(false);
-    }
-  };
-
-  const handleRestoreDeposit = async () => {
-    if (!booking) return;
-    try {
-      setRestoringDeposit(true);
-      await InvoicesService.revertDepositVoid(booking.id);
-      await reloadPayments();
-      invalidateInvoiceState();
-    } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to restore deposit');
-    } finally {
-      setRestoringDeposit(false);
-    }
+  const handleRestoreDeposit = () => {
+    void restoreDeposit();
   };
 
   const handleConfirmCheckout = async () => {
@@ -902,8 +778,74 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
   const formatBookingStatus = (status?: string) => formatStatusLabel(status, 'Unknown');
 
+  // Bill balance strip — explicit wording instead of the bare "Fully Paid"/
+  // "Balance Due" labels: a held deposit is collateral owed to the guest,
+  // so the bill's own state must read unambiguously next to it.
+  const billBalanceLabel = !hasBalanceDue
+    ? 'Paid'
+    : isPositiveMoney(paymentRowsTotal)
+      ? 'Partially paid'
+      : 'Outstanding';
+
+  // Checkout readiness — one strip states every unmet condition, replacing
+  // the old scattered deposit alerts (and the confirm step's duplicate).
+  // The same derived values drive the action buttons' disabled state; the
+  // backend checkout gate stays authoritative.
+  const depositHeld = isPositiveMoney(depositResolution.remaining)
+    ? depositResolution.remaining
+    : depositResolution.mirrorDue;
+  const blockers: string[] = [];
+  if (depositResolution.status === 'pending') {
+    blockers.push(`Resolve the ${formatCurrency(depositHeld)} security deposit`);
+  }
+  if (requiresFullPaymentBeforeCheckout) {
+    blockers.push(`Settle the outstanding bill balance of ${formatCurrency(balanceDue)}`);
+  }
+  // Resolved-state wording shared by the readiness strip and the confirm
+  // step's deposit row. 'none' returns '' (no deposit line at all).
+  const depositResolutionWording = (() => {
+    switch (depositResolution.status) {
+      case 'refunded':
+        return `refunded ${formatCurrency(depositResolution.refunded)}${
+          depositResolution.refundMethod ? ` via ${depositResolution.refundMethod}` : ''
+        }`;
+      case 'forfeited':
+        return `forfeited ${formatCurrency(depositResolution.forfeited)}`;
+      case 'partially_forfeited':
+        return `partially forfeited ${formatCurrency(depositResolution.forfeited)}${
+          isPositiveMoney(depositResolution.refunded)
+            ? ` · remainder refunded ${formatCurrency(depositResolution.refunded)}`
+            : ''
+        }`;
+      case 'cancelled':
+      case 'waived':
+        return 'cancelled — not collected';
+      case 'pending':
+        return `pending — ${formatCurrency(depositHeld)} still held`;
+      default:
+        return '';
+    }
+  })();
+  // A positive balance is only compatible with readiness under company
+  // billing, where the bill posts to the company ledger instead.
+  const billWording = hasBalanceDue ? 'Bill to the company ledger' : 'Bill paid';
+  const readinessMessage = blockers.length
+    ? `Checkout is not ready — ${blockers.join(' · ')}`
+    : `Ready for checkout — ${billWording}${
+        depositResolutionWording ? ` · Deposit ${depositResolutionWording}` : ''
+      }`;
+  // Suppressed in readOnly — a read-only receipt isn't a checkout, so it
+  // shouldn't carry "Checkout is not ready"/"Ready for checkout" framing.
+  const readinessStrip = readOnly ? null : (
+    <Alert severity={blockers.length ? 'warning' : 'success'} sx={{ mb: 2 }}>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+        {readinessMessage}
+      </Typography>
+    </Alert>
+  );
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={isPhone}>
       <DialogTitle>
         <Box
           sx={{
@@ -1326,52 +1268,36 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Box>
             </Box>
             </PhoneCollapsibleSection>
-            {/* Deposit status card — refund/forfeit/waive/cancel workflow. */}
+            {/* Deposit status card — guided refund/forfeit/cancel workflow. */}
             <PhoneCollapsibleSection isPhone={isPhone} title="Deposit adjustments" collapseOnPhone>
               <DepositSection
-                depositRefund={charges.depositRefund}
-                refundableDeposit={refundableDeposit}
-                hasRecordedDeposit={isPositiveMoney(recordedDeposit)}
-                depositRefunded={depositRefunded}
-                depositForfeited={depositForfeited}
-                depositWaived={depositWaived}
-                depositWaiveReason={depositWaiveReason}
-                forfeitReason={forfeitReason}
-                forfeitAmount={forfeitAmount}
-                refundPaymentMethod={refundPaymentMethod}
-                refundingDeposit={refundingDeposit}
-                revertingRefund={revertingRefund}
-                waivingDeposit={waivingDeposit}
-                forfeitingDeposit={forfeitingDeposit}
-                cancellingDeposit={cancellingDeposit}
-                restoringDeposit={restoringDeposit}
+                resolution={depositResolution}
+                busy={{
+                  refunding: refundingDeposit,
+                  forfeiting: forfeitingDeposit,
+                  cancelling: cancellingDeposit,
+                  reverting: revertingRefund,
+                  restoring: restoringDeposit,
+                }}
+                can={{
+                  refund: canRefundOrForfeitDeposit,
+                  forfeit: canRefundOrForfeitDeposit,
+                  cancel: canCancelDeposit,
+                  revertRefund: canRevertDepositRefund,
+                  restore: canRestoreDeposit,
+                }}
                 readOnly={readOnly}
-                canCancelDeposit={canCancelDeposit}
-                voidedDepositCount={voidedDepositRows.length}
-                noDepositLabel={booking?.company_id ? 'City Ledger - N/A' : booking?.payment_note?.includes('waived') ? 'Waived' : 'No Deposit Collected'}
-                noDepositWaived={Boolean(booking?.payment_note?.includes('waived'))}
-                currencySymbol={currencySymbol}
-                formatCurrency={formatCurrency}
-                onRefundMethodChange={setRefundPaymentMethod}
-                onWaiveReasonChange={setDepositWaiveReason}
-                onForfeitReasonChange={setForfeitReason}
-                onForfeitAmountChange={setForfeitAmount}
+                noDepositLabel={booking?.company_id ? 'City Ledger - N/A' : undefined}
+                hotelSettings={hotelSettings}
                 onRefund={handleRefundDeposit}
-                onRevertRefund={handleRevertDepositRefund}
-                onWaive={handleWaiveDeposit}
                 onForfeit={handleForfeitDeposit}
-                onCancelDeposit={handleCancelDeposit}
-                onRestoreDeposit={handleRestoreDeposit}
+                onCancel={handleCancelDeposit}
+                onRevertRefund={handleRevertDepositRefund}
+                onRestore={handleRestoreDeposit}
               />
             </PhoneCollapsibleSection>
-            {/* Payment Required Alert */}
-            {requiresFullPaymentBeforeCheckout && (
-              <Alert severity="warning" sx={{ mb: 2 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Payment Required — Please settle the full balance before proceeding to checkout.
-                </Typography>
-              </Alert>
-            )}
+            {/* The old "Payment Required" alert folded into the readiness
+                strip at the end of the preview — it lists every blocker. */}
             {/* Payments Section */}
             <PhoneCollapsibleSection
               isPhone={isPhone}
@@ -1808,7 +1734,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Box>
               )}
 
-              {payments.length === 0 && (
+              {/* `payments` retains void rows (restorable deposits count them),
+                  so the empty state keys off the displayed groups instead. */}
+              {completedPayments.length + refundedPayments.length === 0 && (
                 <Box sx={{ p: 2, textAlign: 'center' }}>
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
@@ -1896,50 +1824,18 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Box>
               </Collapse>
 
-              {/* Balance Due */}
+              {/* Bill balance — explicit state wording; a held deposit owed
+                  back to the guest is not "overpayment". */}
               <Box sx={{ p: 1.5, bgcolor: hasBalanceDue ? '#fff3e0' : '#e8f5e9', borderTop: '2px solid #ddd' }}>
-                <Grid container>
-                  <Grid size={8}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: hasBalanceDue ? '#e65100' : '#2e7d32' }}>
-                      {hasBalanceDue ? 'Balance Due' : isLessMoney(balanceDue, 0) ? 'Overpayment' : 'Fully Paid'}
-                    </Typography>
-                  </Grid>
-                  <Grid sx={{ textAlign: 'right' }} size={4}>
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: hasBalanceDue ? '#e65100' : '#2e7d32' }}>
-                      {formatCurrency(Math.abs(balanceDue))}
-                    </Typography>
-                  </Grid>
-                </Grid>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: hasBalanceDue ? '#e65100' : '#2e7d32' }}>
+                  Bill balance: {formatCurrency(Math.abs(balanceDue))} — {billBalanceLabel}
+                </Typography>
               </Box>
             </Box>
             </PhoneCollapsibleSection>
-            {/* Notes */}
-            {isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived && !depositForfeited && !readOnly && (
-              <Alert severity="warning" sx={{ mb: 2 }}>
-                <Typography variant="body2" sx={{
-                  fontWeight: 600
-                }}>
-                  Deposit refund required
-                </Typography>
-                <Typography variant="caption">
-                  Please refund, forfeit, or waive the room card deposit of {formatCurrency(charges.depositRefund)} above before printing or proceeding to checkout.
-                </Typography>
-              </Alert>
-            )}
-            {depositRefunded && (
-              <Alert severity="success" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  Room card deposit of {formatCurrency(charges.depositRefund)} has been refunded.
-                </Typography>
-              </Alert>
-            )}
-            {depositForfeited && !depositRefunded && (
-              <Alert severity="warning" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  Room card deposit of {formatCurrency(charges.depositRefund)} has been forfeited to the hotel.
-                </Typography>
-              </Alert>
-            )}
+            {/* Checkout readiness — the single strip that replaced the old
+                scattered deposit/payment alerts. */}
+            {readinessStrip}
           </Box>)
         ) : (
           // STEP 3: Confirmation Summary (After Review)
@@ -2193,43 +2089,29 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   </Typography>
                 </Grid>
 
-                {/* Deposit Refund Status */}
-                {depositWaived ? (
+                {/* Deposit status — the same resolution wording the preview
+                    step's readiness strip uses. */}
+                {depositResolution.status !== 'none' && (
                   <>
                     <Grid size={8}>
-                      <Typography variant="body2" sx={{ color: 'warning.main' }}>
-                        Deposit
+                      <Typography variant="body2">
+                        Security deposit
                       </Typography>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
                       }}>
-                        {depositWaiveReason}
+                        {depositResolution.status === 'waived' && depositWaiveReason
+                          ? depositWaiveReason
+                          : `Deposit ${depositResolutionWording}`}
                       </Typography>
                     </Grid>
                     <Grid sx={{ textAlign: 'right' }} size={4}>
-                      <Chip label="Waived" size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem' }} />
-                    </Grid>
-                  </>
-                ) : depositForfeited ? (
-                  <>
-                    <Grid size={8}>
-                      <Typography variant="body2" sx={{ color: 'warning.main' }}>
-                        Deposit
-                      </Typography>
-                    </Grid>
-                    <Grid sx={{ textAlign: 'right' }} size={4}>
-                      <Chip label="Forfeited" size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem' }} />
-                    </Grid>
-                  </>
-                ) : isPositiveMoney(charges.depositRefund) && (
-                  <>
-                    <Grid size={8}>
-                      <Typography variant="body2" sx={{ color: 'success.main' }}>
-                        Deposit
-                      </Typography>
-                    </Grid>
-                    <Grid sx={{ textAlign: 'right' }} size={4}>
-                      <Chip label="Refunded" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
+                      <StatusChip
+                        status={depositResolution.status}
+                        label={DEPOSIT_STATUS_CHIP[depositResolution.status].label}
+                        tone={DEPOSIT_STATUS_CHIP[depositResolution.status].tone}
+                        sx={{ height: 20, fontSize: '0.7rem' }}
+                      />
                     </Grid>
                   </>
                 )}
@@ -2255,26 +2137,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Grid>
               </Grid>
             </Paper>
-            {/* Additional Info */}
-            {depositWaived ? (
-              <Alert severity="warning">
-                <Typography variant="body2">
-                  Room card deposit has been waived. Reason: {depositWaiveReason}
-                </Typography>
-              </Alert>
-            ) : depositForfeited ? (
-              <Alert severity="warning">
-                <Typography variant="body2">
-                  Room card deposit of {formatCurrency(charges.depositRefund)} has been forfeited to the hotel.
-                </Typography>
-              </Alert>
-            ) : isPositiveMoney(charges.depositRefund) && (
-              <Alert severity="success">
-                <Typography variant="body2">
-                  Room card deposit of {formatCurrency(charges.depositRefund)} has been refunded to the guest.
-                </Typography>
-              </Alert>
-            )}
+            {/* Readiness — the same strip the preview step shows, in place
+                of the old duplicate deposit wording. */}
+            {readinessStrip}
           </Box>)
         )}
       </DialogContent>
@@ -2301,7 +2166,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="outlined"
               onClick={handlePrint}
               startIcon={<PrintIcon />}
-              disabled={(isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived && !depositForfeited) || requiresFullPaymentBeforeCheckout}
+              disabled={blockers.length > 0}
             >
               Print Preview
             </Button>
@@ -2309,7 +2174,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="contained"
               onClick={handleProceedToConfirm}
               startIcon={<CheckIcon />}
-              disabled={(isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived && !depositForfeited) || requiresFullPaymentBeforeCheckout}
+              disabled={blockers.length > 0}
             >
               Proceed to Checkout
             </Button>
@@ -2345,9 +2210,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         charges={charges}
         editableDailyRates={editableDailyRates}
         depositRefunded={depositRefunded}
-        depositWaived={depositWaived}
+        depositWaived={depositWaived || depositResolution.status === 'waived'}
         depositWaiveReason={depositWaiveReason}
-        depositForfeited={depositForfeited}
+        depositForfeited={
+          depositResolution.status === 'forfeited'
+          || depositResolution.status === 'partially_forfeited'
+        }
         balanceDue={balanceDue}
         isHourlyBooking={isHourlyBooking}
         calculateNights={calculateNights}

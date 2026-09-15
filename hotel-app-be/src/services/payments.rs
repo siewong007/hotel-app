@@ -15,6 +15,7 @@ use crate::repositories::guest_portal::GuestPortalRepository;
 use crate::repositories::payment::{PaymentRepository, PendingPaymentValues};
 use crate::services::audit::AuditLog;
 use crate::services::payment_retry;
+use crate::utils::sanitization::Sanitizer;
 use rust_decimal::Decimal;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -561,17 +562,44 @@ pub async fn refund_deposit(
         ));
     }
 
+    // Optional provenance: the reference lands on payments.transaction_id
+    // (e.g. a receipt-book number) and the note is appended to the refund
+    // marker. Both are free text — sanitize like every other notes field.
+    let transaction_reference = body
+        .get("transaction_reference")
+        .and_then(|v| v.as_str())
+        .map(|value| Sanitizer::sanitize_text(value).trim().to_string())
+        .filter(|value| !value.is_empty());
+    let note = body
+        .get("note")
+        .and_then(|v| v.as_str())
+        .map(|value| Sanitizer::sanitize_notes(value).trim().to_string())
+        .filter(|value| !value.is_empty());
+
     let row = PaymentRepository::refund_deposit(
         pool,
         user_id,
         booking_id,
         &payment_method,
         deposit_amount,
+        transaction_reference.as_deref(),
+        note.as_deref(),
     )
     .await?;
 
     recompute_payment_status(pool, booking_id).await?;
 
+    let mut audit_details = serde_json::json!({
+        "booking_id": booking_id,
+        "amount": deposit_amount_f64,
+        "payment_method": payment_method,
+    });
+    if let Some(reference) = &transaction_reference {
+        audit_details["transaction_reference"] = serde_json::json!(reference);
+    }
+    if let Some(note) = &note {
+        audit_details["note"] = serde_json::json!(note);
+    }
     let _ = AuditLog::log_event(
         pool,
         AuditEvent {
@@ -579,11 +607,7 @@ pub async fn refund_deposit(
             action: "payment_refunded",
             resource_type: "payment",
             resource_id: Some(row.id),
-            details: Some(serde_json::json!({
-                "booking_id": booking_id,
-                "amount": deposit_amount_f64,
-                "payment_method": payment_method,
-            })),
+            details: Some(audit_details),
             ..Default::default()
         },
     )
@@ -596,6 +620,7 @@ pub async fn refund_deposit(
         "payment_method": row.payment_method,
         "payment_type": row.payment_type,
         "payment_status": row.payment_status,
+        "transaction_reference": row.transaction_reference,
         "notes": row.notes,
         "created_at": row.created_at,
     }))
@@ -632,11 +657,34 @@ pub async fn forfeit_deposit(
         ));
     }
 
-    let row = PaymentRepository::forfeit_deposit(pool, user_id, booking_id, forfeit_amount, &reason)
-        .await?;
+    // Optional staff detail appended to the row's notes after the reason —
+    // same free-text handling as every other notes field.
+    let notes = body
+        .get("notes")
+        .and_then(|v| v.as_str())
+        .map(|value| Sanitizer::sanitize_notes(value).trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let row = PaymentRepository::forfeit_deposit(
+        pool,
+        user_id,
+        booking_id,
+        forfeit_amount,
+        &reason,
+        notes.as_deref(),
+    )
+    .await?;
 
     recompute_payment_status(pool, booking_id).await?;
 
+    let mut audit_details = serde_json::json!({
+        "booking_id": booking_id,
+        "amount": forfeit_amount_f64,
+        "reason": reason,
+    });
+    if let Some(notes) = &notes {
+        audit_details["notes"] = serde_json::json!(notes);
+    }
     let _ = AuditLog::log_event(
         pool,
         AuditEvent {
@@ -644,11 +692,7 @@ pub async fn forfeit_deposit(
             action: "payment_deposit_forfeited",
             resource_type: "payment",
             resource_id: Some(row.id),
-            details: Some(serde_json::json!({
-                "booking_id": booking_id,
-                "amount": forfeit_amount_f64,
-                "reason": reason,
-            })),
+            details: Some(audit_details),
             ..Default::default()
         },
     )
