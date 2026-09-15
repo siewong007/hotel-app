@@ -2056,7 +2056,7 @@ pub async fn update_booking_handler(
                 }
 
                 if let Err(e) =
-                    crate::services::housekeeping::ensure_checkout_cleaning_task_for_room(
+                    crate::modules::housekeeping::service::ensure_checkout_cleaning_task_for_room(
                         &pool,
                         new_room_id,
                         user_id,

@@ -22,7 +22,7 @@ pub mod data_transfer_step_up;
 pub mod google_identity;
 pub mod guest_portal;
 pub mod guests;
-pub mod housekeeping;
+// housekeeping service logic live in modules::housekeeping.
 pub mod invoice_numbers;
 pub mod ledgers;
 // Loyalty service logic lives in modules::loyalty::service.

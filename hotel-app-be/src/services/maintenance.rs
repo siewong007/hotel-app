@@ -7,7 +7,7 @@ use crate::models::{
     CreateMaintenanceTicketRequest, ListMaintenanceTicketsQuery, MaintenanceTicket,
     MaintenanceTicketListResponse, MaintenanceTicketPatch, UpdateMaintenanceTicketRequest,
 };
-use crate::repositories::housekeeping as housekeeping_repo;
+use crate::modules::housekeeping::repository as housekeeping_repo;
 use crate::repositories::maintenance::{self, NewMaintenanceTicket};
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;

@@ -12,13 +12,13 @@ use crate::models::{
     HousekeepingBoardResponse, HousekeepingTask, HousekeepingTaskListResponse,
     ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
 };
-use crate::services::housekeeping;
+use super::service;
 
 pub async fn list_tasks_handler(
     State(pool): State<DbPool>,
     Query(params): Query<ListHousekeepingTasksQuery>,
 ) -> Result<Json<HousekeepingTaskListResponse>, ApiError> {
-    Ok(Json(housekeeping::list_tasks(&pool, params).await?))
+    Ok(Json(service::list_tasks(&pool, params).await?))
 }
 
 pub async fn create_task_handler(
@@ -27,7 +27,7 @@ pub async fn create_task_handler(
     Json(input): Json<CreateHousekeepingTaskRequest>,
 ) -> Result<Json<HousekeepingTask>, ApiError> {
     Ok(Json(
-        housekeeping::create_task(&pool, user_id, input).await?,
+        service::create_task(&pool, user_id, input).await?,
     ))
 }
 
@@ -38,7 +38,7 @@ pub async fn update_task_handler(
     Json(input): Json<UpdateHousekeepingTaskRequest>,
 ) -> Result<Json<HousekeepingTask>, ApiError> {
     Ok(Json(
-        housekeeping::update_task(&pool, user_id, task_id, input).await?,
+        service::update_task(&pool, user_id, task_id, input).await?,
     ))
 }
 
@@ -47,12 +47,12 @@ pub async fn assignable_staff_handler(
     Query(params): Query<AssignableStaffQuery>,
 ) -> Result<Json<Vec<AssignableStaffMember>>, ApiError> {
     Ok(Json(
-        housekeeping::assignable_staff(&pool, params.scope.as_deref()).await?,
+        service::assignable_staff(&pool, params.scope.as_deref()).await?,
     ))
 }
 
 pub async fn board_handler(
     State(pool): State<DbPool>,
 ) -> Result<Json<HousekeepingBoardResponse>, ApiError> {
-    Ok(Json(housekeeping::board(&pool).await?))
+    Ok(Json(service::board(&pool).await?))
 }

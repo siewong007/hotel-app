@@ -18,7 +18,7 @@ pub mod ekyc;
 pub mod guest;
 pub mod guest_portal;
 pub mod guest_portal_session;
-pub mod housekeeping;
+// housekeeping persistence live in modules::housekeeping.
 pub mod invoice_numbers;
 pub mod ledger;
 // Loyalty persistence lives in modules::loyalty::repository.

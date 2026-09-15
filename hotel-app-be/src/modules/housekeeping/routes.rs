@@ -11,7 +11,7 @@ use axum::{
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_any_permission_helper, require_permission_helper};
-use crate::handlers::housekeeping;
+use super::handlers;
 use crate::models::{
     AssignableStaffMember, AssignableStaffQuery, CreateHousekeepingTaskRequest,
     HousekeepingBoardResponse, HousekeepingTask, HousekeepingTaskListResponse,
@@ -27,7 +27,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/housekeeping/assignable-staff", get(assignable_staff))
         // Task completion can flip a room to available — let availability
         // subscribers see the inventory change like any /rooms mutation.
-        .route_layer(middleware::from_fn(super::rooms::publish_inventory_changes))
+        .route_layer(middleware::from_fn(crate::routes::rooms::publish_inventory_changes))
 }
 
 async fn list_tasks(
@@ -36,7 +36,7 @@ async fn list_tasks(
     query: Query<ListHousekeepingTasksQuery>,
 ) -> Result<Json<HousekeepingTaskListResponse>, ApiError> {
     require_permission_helper(&pool, &headers, "housekeeping:read").await?;
-    housekeeping::list_tasks_handler(State(pool), query).await
+    handlers::list_tasks_handler(State(pool), query).await
 }
 
 async fn create_task(
@@ -45,7 +45,7 @@ async fn create_task(
     Json(input): Json<CreateHousekeepingTaskRequest>,
 ) -> Result<Json<HousekeepingTask>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "housekeeping:create").await?;
-    housekeeping::create_task_handler(State(pool), Extension(user_id), Json(input)).await
+    handlers::create_task_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn update_task(
@@ -55,7 +55,7 @@ async fn update_task(
     Json(input): Json<UpdateHousekeepingTaskRequest>,
 ) -> Result<Json<HousekeepingTask>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "housekeeping:update").await?;
-    housekeeping::update_task_handler(State(pool), Extension(user_id), Path(task_id), Json(input))
+    handlers::update_task_handler(State(pool), Extension(user_id), Path(task_id), Json(input))
         .await
 }
 
@@ -64,7 +64,7 @@ async fn board(
     headers: HeaderMap,
 ) -> Result<Json<HousekeepingBoardResponse>, ApiError> {
     require_permission_helper(&pool, &headers, "housekeeping:read").await?;
-    housekeeping::board_handler(State(pool)).await
+    handlers::board_handler(State(pool)).await
 }
 
 /// Gated on the write permissions the assignment actions require, so read-only
@@ -86,5 +86,5 @@ async fn assignable_staff(
         ],
     )
     .await?;
-    housekeeping::assignable_staff_handler(State(pool), query).await
+    handlers::assignable_staff_handler(State(pool), query).await
 }

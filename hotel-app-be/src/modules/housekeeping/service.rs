@@ -10,7 +10,7 @@ use crate::models::{
     HousekeepingTask, HousekeepingTaskListResponse, HousekeepingTaskPatch,
     ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
 };
-use crate::repositories::housekeeping::{self, NewHousekeepingTask};
+use super::repository::{self, NewHousekeepingTask};
 use crate::services::{audit::AuditLog, rooms};
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
@@ -130,9 +130,9 @@ pub async fn list_tasks(
     }
 
     let pagination = normalize_pagination(params.page, params.page_size, 50, 200);
-    let (total, items) = housekeeping::list_tasks(
+    let (total, items) = repository::list_tasks(
         pool,
-        housekeeping::HousekeepingTaskFilters {
+        repository::HousekeepingTaskFilters {
             status: params.status.as_deref(),
             task_type: params.task_type.as_deref(),
             room_id: params.room_id,
@@ -158,7 +158,7 @@ pub async fn create_task(
     user_id: i64,
     input: CreateHousekeepingTaskRequest,
 ) -> Result<HousekeepingTask, ApiError> {
-    if !housekeeping::room_exists(pool, input.room_id).await? {
+    if !repository::room_exists(pool, input.room_id).await? {
         return Err(ApiError::BadRequest("Room does not exist".to_string()));
     }
 
@@ -169,7 +169,7 @@ pub async fn create_task(
     let notes = sanitize_optional_notes(input.notes);
     let inspection_notes = sanitize_optional_notes(input.inspection_notes);
 
-    let task = housekeeping::insert_task(
+    let task = repository::insert_task(
         pool,
         NewHousekeepingTask {
             room_id: input.room_id,
@@ -211,7 +211,7 @@ pub async fn update_task(
     task_id: i64,
     input: UpdateHousekeepingTaskRequest,
 ) -> Result<HousekeepingTask, ApiError> {
-    let existing = housekeeping::find_task(pool, task_id)
+    let existing = repository::find_task(pool, task_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Housekeeping task not found".to_string()))?;
     let patch = patch_from_update(input)?;
@@ -229,7 +229,7 @@ pub async fn update_task(
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        housekeeping::patch_task_tx(&mut tx, task_id, &patch).await?;
+        repository::patch_task_tx(&mut tx, task_id, &patch).await?;
         let room_status = rooms::complete_housekeeping_cleaning_tx(
             &mut tx,
             existing.room_id,
@@ -258,12 +258,12 @@ pub async fn update_task(
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        return housekeeping::find_task(pool, task_id)
+        return repository::find_task(pool, task_id)
             .await?
             .ok_or_else(|| ApiError::NotFound("Housekeeping task not found".to_string()));
     }
 
-    let task = housekeeping::patch_task(pool, task_id, &patch).await?;
+    let task = repository::patch_task(pool, task_id, &patch).await?;
     let _ = AuditLog::log_event(
         pool,
         AuditEvent {
@@ -306,12 +306,12 @@ pub async fn assignable_staff(
             ))
         })?;
 
-    housekeeping::list_assignable_staff(pool, permissions).await
+    repository::list_assignable_staff(pool, permissions).await
 }
 
 pub async fn board(pool: &DbPool) -> Result<HousekeepingBoardResponse, ApiError> {
-    let mut rooms = housekeeping::list_board_rooms(pool).await?;
-    let open_tasks = housekeeping::list_open_tasks(pool).await?;
+    let mut rooms = repository::list_board_rooms(pool).await?;
+    let open_tasks = repository::list_open_tasks(pool).await?;
     let mut open_by_room: HashMap<i64, HousekeepingTask> = HashMap::new();
 
     for task in open_tasks {
@@ -330,11 +330,11 @@ pub async fn ensure_checkout_cleaning_task(
     room_id: i64,
     created_by: i64,
 ) -> Result<(), ApiError> {
-    if housekeeping::has_open_task_tx(tx, room_id, "checkout_clean").await? {
+    if repository::has_open_task_tx(tx, room_id, "checkout_clean").await? {
         return Ok(());
     }
 
-    housekeeping::insert_checkout_task_tx(tx, room_id, created_by).await
+    repository::insert_checkout_task_tx(tx, room_id, created_by).await
 }
 
 pub async fn ensure_checkout_cleaning_task_for_room(

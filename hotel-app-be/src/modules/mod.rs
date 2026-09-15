@@ -3,6 +3,7 @@ pub mod consent;
 pub mod ekyc;
 pub mod guest_booking;
 pub mod guest_relations;
+pub mod housekeeping;
 pub mod insights;
 pub mod loyalty;
 pub mod promotions;
