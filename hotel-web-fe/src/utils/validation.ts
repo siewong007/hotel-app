@@ -1,10 +1,12 @@
 /**
- * Stable translation keys for each failure below. Guest-facing pages resolve
- * them through `t()` (the `validation.*` group in the auth bundle); the
- * `validateEmail`/`validatePhone` helpers keep returning English text for the
- * staff-facing callers that predate the i18n pass. One check list, two views —
- * a rule change here cannot drift between them.
+ * Stable translation keys for each failure below. `validateEmailKey` /
+ * `validatePhoneKey` return the `validation.*` keys (auth bundle) for callers
+ * that render their own copy; `validateEmail` / `validatePhone` resolve the
+ * same keys through `t()` so every caller gets the active locale. One check
+ * list, two views — a rule change here cannot drift between them.
  */
+
+import { t } from '../i18n';
 export type EmailValidationKey =
   | 'validation.emailRequired'
   | 'validation.emailInvalid'
@@ -32,9 +34,9 @@ export const validateEmailKey = (email: string): EmailValidationKey => {
 export const validateEmail = (email: string): string => {
   switch (validateEmailKey(email)) {
     case 'validation.emailRequired':
-      return 'Email is required';
+      return t('auth:validation.emailRequired');
     case 'validation.emailInvalid':
-      return 'Please enter a valid email address';
+      return t('auth:validation.emailInvalid');
     default:
       return '';
   }
@@ -63,11 +65,11 @@ export const validatePhoneKey = (phone: string): PhoneValidationKey => {
 export const validatePhone = (phone: string): string => {
   switch (validatePhoneKey(phone)) {
     case 'validation.phoneRequired':
-      return 'Phone number is required';
+      return t('auth:validation.phoneRequired');
     case 'validation.phoneTooShort':
-      return 'Phone number must be at least 10 digits';
+      return t('auth:validation.phoneTooShort');
     case 'validation.phoneTooLong':
-      return 'Phone number cannot exceed 15 digits';
+      return t('auth:validation.phoneTooLong');
     default:
       return '';
   }

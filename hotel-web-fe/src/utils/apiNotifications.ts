@@ -1,4 +1,4 @@
-import { getActiveLocale, translateOr, type LocaleCode } from '../i18n';
+import { getActiveLocale, translateFor, translateOr, type LocaleCode } from '../i18n';
 
 export type ApiNotificationSeverity = 'success' | 'info' | 'warning' | 'error';
 export type ApiNotificationPriority = 'info' | 'warning' | 'critical';
@@ -69,33 +69,19 @@ function normalizeSeverity(value: unknown): ApiNotificationSeverity | undefined 
 /**
  * The generic line for a failed body that carries no usable text at all —
  * unrouted 404s, extractor rejections, anything that bypassed the coded
- * ApiError path. The English fallbacks are the strings this mapper returned
- * verbatim before the errors namespace existed, so a dropped bundle key can
- * never regress the message.
+ * ApiError path. Keys live in the errors bundle for every shipped locale.
  */
 function getStatusGenericMessage(statusCode: number, locale: LocaleCode): string {
   if (statusCode >= 500) {
-    return translateOr(
-      locale,
-      'errors:status.serverError',
-      'A server error occurred. Please try again later.'
-    );
+    return translateFor(locale, 'errors:status.serverError');
   }
   if (statusCode === 404) {
-    return translateOr(
-      locale,
-      'errors:status.notFound',
-      'The requested item could not be found.'
-    );
+    return translateFor(locale, 'errors:status.notFound');
   }
   if (statusCode === 429) {
-    return translateOr(
-      locale,
-      'errors:status.rateLimited',
-      'Too many requests. Please try again shortly.'
-    );
+    return translateFor(locale, 'errors:status.rateLimited');
   }
-  return translateOr(locale, 'errors:status.requestFailed', 'Request failed.');
+  return translateFor(locale, 'errors:status.requestFailed');
 }
 
 export function getApiNotificationMessage(payload: unknown, statusCode: number): string {

@@ -4,6 +4,8 @@
  * receive assignment, priority, escalation, or internal-note data.
  */
 
+// Category display names come from `support.categories.<value>` in the
+// guestPortal i18n bundle (see CATEGORY_KEYS in PortalSupportTab).
 export const PORTAL_SUPPORT_CATEGORIES = [
   { value: 'booking' },
   { value: 'stay' },

@@ -433,7 +433,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 setCustomRoomRate('');
               }}
               options={availableRooms}
-              getOptionLabel={(option) => `Room ${option.room_number} - ${option.room_type}`}
+              getOptionLabel={(option) => t('ledger.roomOption', { number: option.room_number, type: option.room_type })}
               isOptionEqualToValue={(option, value) => option.id === value.id}
               renderOption={(props, option) => {
                 const { key, ...otherProps } = props;

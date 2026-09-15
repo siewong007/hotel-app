@@ -176,7 +176,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
   const accountOpen = Boolean(accountAnchor);
 
   const displayName =
-    user?.full_name?.trim() || user?.username || tOr('account.guest', 'Guest');
+    user?.full_name?.trim() || user?.username || t('account.guest');
   const avatarInitials = displayName
     .split(/\s+/)
     .map((word) => word[0])
@@ -242,7 +242,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
             '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
           }}
         >
-          Skip to content
+          {t('shell.skipToContent')}
         </Box>
         <AppBar
           component="header"
@@ -259,7 +259,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
               <Box
                 component={Link}
                 to={DASHBOARD_LINK}
-                aria-label={`${hotelName} guest portal home`}
+                aria-label={t('shell.homeAria', { hotel: hotelName })}
                 sx={{ display: 'inline-flex', alignItems: 'center', minWidth: 0, flexShrink: 0, textDecoration: 'none' }}
               >
                 <Box component="img" src="/salim-inn/salim-inn-logo.svg" alt={hotelName} sx={{ display: 'block', width: { xs: 122, sm: 146 }, height: 'auto' }} />
@@ -298,7 +298,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                   endIcon={<KeyboardArrowDownOutlinedIcon fontSize="small" />}
                   sx={navButtonSx(isRewardsActive)}
                 >
-                  {tOr('nav.rewards', 'Rewards')}
+                  {t('nav.rewards')}
                 </Button>
                 <Menu
                   id="guest-rewards-menu"
@@ -307,7 +307,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                   onClose={() => setRewardsAnchor(null)}
                   anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
                   transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-                  slotProps={{ list: { 'aria-label': tOr('nav.rewards', 'Rewards') } }}
+                  slotProps={{ list: { 'aria-label': t('nav.rewards') } }}
                 >
                   {rewardsSections.map(link => (
                     <MenuItem
@@ -332,7 +332,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                     <GuestPortalNotificationBell token={portalToken} />
                     <Button
                       color="inherit"
-                      aria-label={tOr('account.title', 'Account')}
+                      aria-label={t('account.title')}
                       aria-haspopup="menu"
                       aria-expanded={accountOpen}
                       aria-controls={accountOpen ? 'guest-account-menu' : undefined}
@@ -375,7 +375,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                       anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                       transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                       slotProps={{
-                        list: { 'aria-label': tOr('account.title', 'Account') },
+                        list: { 'aria-label': t('account.title') },
                         paper: { sx: { mt: 1, minWidth: 240 } },
                       }}
                     >
@@ -414,12 +414,12 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                       <Divider component="li" />
                       <MenuItem component="a" href={HOTEL_INDEX_LINK} onClick={() => setAccountAnchor(null)} sx={{ gap: 1.25, minHeight: 44 }}>
                         <ListItemIcon sx={{ minWidth: 0, color: 'var(--hotel-primary)' }}><OpenInNewOutlinedIcon /></ListItemIcon>
-                        {tOr('actions.exploreHotel', 'Explore hotel')}
+                        {t('actions.exploreHotel')}
                       </MenuItem>
                       <Divider component="li" />
                       <MenuItem onClick={handleSignOut} sx={{ gap: 1.25, minHeight: 44, color: 'var(--hotel-danger)' }}>
                         <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}><LogoutOutlinedIcon /></ListItemIcon>
-                        {tOr('account.signOut', 'Sign out')}
+                        {t('account.signOut')}
                       </MenuItem>
                     </Menu>
                   </>
@@ -438,7 +438,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                       '&:focus-visible': { outline: `3px solid ${GUEST_BRAND.accent}`, outlineOffset: 3 },
                     }}
                   >
-                    {tOr('actions.signIn', 'Sign in')}
+                    {t('actions.signIn')}
                   </Button>
                 )}
               </Box>
@@ -468,7 +468,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                   '&:focus-visible': { outline: '3px solid var(--hotel-focus-ring)', outlineOffset: 3 },
                 }}
               >
-                {tOr('actions.bookStay', 'Book a stay')}
+                {t('actions.bookStay')}
               </Button>
             </Toolbar>
           </Container>
@@ -487,13 +487,13 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
               component={Link}
               to={BOOKING_LINK}
               value={BOOKING_LINK}
-              label={tOr('actions.book', 'Book')}
+              label={t('actions.book')}
               icon={<CalendarMonthOutlinedIcon />}
               aria-current={activeSection === 'booking' ? 'page' : undefined}
             />
             <BottomNavigationAction
               value={MORE_VALUE}
-              label={tOr('actions.more', 'More')}
+              label={t('actions.more')}
               icon={<MoreHorizOutlinedIcon />}
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
@@ -529,7 +529,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
           </Box>
           <List sx={{ pb: 1 }}>
             <Typography variant="overline" component="li" sx={{ ...groupLabelSx, display: 'block', listStyle: 'none' }}>
-              {tOr('groups.rewards', 'Rewards')}
+              {t('groups.rewards')}
             </Typography>
             {rewardsSections.map(link => (
               <ListItemButton
@@ -548,7 +548,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
             ))}
             <Divider component="li" sx={{ my: 1 }} />
             <Typography variant="overline" component="li" sx={{ ...groupLabelSx, display: 'block', listStyle: 'none' }}>
-              {tOr('groups.account', 'Account')}
+              {t('groups.account')}
             </Typography>
             {accountSections.map(link => (
               <ListItemButton
@@ -568,13 +568,13 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
             <Divider component="li" sx={{ my: 1 }} />
             <ListItemButton component="a" href={HOTEL_INDEX_LINK} sx={sheetRowSx}>
               <ListItemIcon sx={sheetIconSx}><OpenInNewOutlinedIcon /></ListItemIcon>
-              <ListItemText primary={tOr('actions.exploreHotel', 'Explore hotel')} slotProps={{
+              <ListItemText primary={t('actions.exploreHotel')} slotProps={{
                 primary: { sx: { fontWeight: 600 } }
               }} />
             </ListItemButton>
             <ListItemButton onClick={handleSignOut} sx={{ ...sheetRowSx, color: 'var(--hotel-danger)' }}>
               <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}><LogoutOutlinedIcon /></ListItemIcon>
-              <ListItemText primary={tOr('account.signOut', 'Sign out')} slotProps={{
+              <ListItemText primary={t('account.signOut')} slotProps={{
                 primary: { sx: { fontWeight: 600 } }
               }} />
             </ListItemButton>

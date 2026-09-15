@@ -93,14 +93,14 @@ const RoleCard: React.FC<RoleCardProps> = ({ role, onEdit, onDelete }) => {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap'
                 }}>
-                {role.description || 'No description'}
+                {role.description || t('rbac.noDescriptionShort')}
               </Typography>
 
               {/* Stats */}
               <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
                 <Chip
                   icon={<NavigationIcon sx={{ fontSize: 16 }} />}
-                  label={`${role.navigationCount} tabs`}
+                  label={t('rbac.tabsCount', { count: role.navigationCount })}
                   size="small"
                   sx={{
                     backgroundColor: 'var(--hotel-info-bg)',
@@ -111,7 +111,7 @@ const RoleCard: React.FC<RoleCardProps> = ({ role, onEdit, onDelete }) => {
                 />
                 <Chip
                   icon={<PermissionIcon sx={{ fontSize: 16 }} />}
-                  label={`${role.permissionCount} permissions`}
+                  label={t('rbac.permCount', { count: role.permissionCount })}
                   size="small"
                   sx={{
                     backgroundColor: 'var(--hotel-neutral-bg)',

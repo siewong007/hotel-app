@@ -85,13 +85,13 @@ const CompanyDetailHeader: React.FC<CompanyDetailHeaderProps> = ({
             <Box component="span" sx={{ color: 'text.disabled' }}>/</Box>
             <Chip
               size="small"
-              label={`Net ${company.payment_terms_days || 30}d`}
+              label={t('ledger.netTermsShort', { days: company.payment_terms_days || 30 })}
               sx={{ height: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3 }}
             />
             {company.credit_limit != null && (
               <Chip
                 size="small"
-                label={`Limit ${formatCurrency(toMoneyNumber(company.credit_limit))}`}
+                label={t('ledger.creditLimitShort', { amount: formatCurrency(toMoneyNumber(company.credit_limit)) })}
                 sx={{ height: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3 }}
               />
             )}

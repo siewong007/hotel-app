@@ -17,7 +17,7 @@ import { useTranslation } from '../../../../i18n';
  */
 export function AppearancePreferenceCard() {
   const themePreference = useGuestThemePreference();
-  const { tOr } = useTranslation('guestPortal');
+  const { t } = useTranslation('guestPortal');
   if (!themePreference) return null;
   const { preference, onPreferenceChange } = themePreference;
 
@@ -25,17 +25,17 @@ export function AppearancePreferenceCard() {
     <Card variant="outlined" sx={{ borderColor: 'var(--hotel-border)', borderRadius: 3, mb: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
         <Typography variant="h6" sx={{ color: 'var(--hotel-text)', fontWeight: 700 }}>
-          {tOr('preferences.appearance', 'Appearance')}
+          {t('preferences.appearance')}
         </Typography>
         <Typography
           variant="body2"
           sx={{ color: 'text.secondary', mt: 0.5, mb: 2 }}
         >
-          {tOr('preferences.appearanceHint', 'Choose how the portal looks on this device.')}
+          {t('preferences.appearanceHint')}
         </Typography>
         <RadioGroup
           row
-          aria-label={tOr('preferences.appearance', 'Appearance')}
+          aria-label={t('preferences.appearance')}
           value={preference}
           onChange={(event) =>
             onPreferenceChange(event.target.value as GuestThemePreference)
@@ -44,17 +44,17 @@ export function AppearancePreferenceCard() {
           <FormControlLabel
             value="system"
             control={<Radio />}
-            label={tOr('preferences.themeSystem', 'System — follow browser')}
+            label={t('preferences.themeSystem')}
           />
           <FormControlLabel
             value="light"
             control={<Radio />}
-            label={tOr('preferences.themeLight', 'Light')}
+            label={t('preferences.themeLight')}
           />
           <FormControlLabel
             value="dark"
             control={<Radio />}
-            label={tOr('preferences.themeDark', 'Dark')}
+            label={t('preferences.themeDark')}
           />
         </RadioGroup>
       </CardContent>

@@ -13,6 +13,7 @@ import {
 } from '../utils/apiNotifications';
 import { queryClient } from './queryClient';
 import { domainForApiPath, invalidateDomain } from './queryInvalidation';
+import { t } from '../i18n';
 
 // API Error class for better error handling
 export class APIError extends Error {
@@ -137,7 +138,7 @@ function kyHookError(input: unknown): Error {
       return nested;
     }
   }
-  return new Error(typeof input === 'string' ? input : 'API request failed');
+  return new Error(typeof input === 'string' ? input : t('errors:request.apiRequestFailed'));
 }
 
 function kyHookOptions(input: unknown, positionalOptions?: unknown): Parameters<typeof ky>[1] {

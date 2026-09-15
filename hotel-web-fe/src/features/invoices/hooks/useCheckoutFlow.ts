@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import type { BookingWithDetails, CustomerLedger } from '../../../types';
 import { BookingsService, RoomsService } from '../../../api';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useTranslation } from '../../../i18n';
 
 export interface LateCheckoutData {
   penalty: number;
@@ -70,6 +71,7 @@ export function useCheckoutFlow(options: UseCheckoutFlowOptions = {}): CheckoutF
     notify,
   } = options;
 
+  const { t } = useTranslation('finance');
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutBooking, setCheckoutBooking] = useState<BookingWithDetails | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -129,7 +131,10 @@ export function useCheckoutFlow(options: UseCheckoutFlowOptions = {}): CheckoutF
         if (notify) {
           const message = successMessage
             ? successMessage(checkoutBooking, lateCheckoutData)
-            : `${checkoutBooking.guest_name || 'Guest'} checked out from Room ${checkoutBooking.room_number}`;
+            : t('ledger.toast.guestCheckedOut', {
+                guest: checkoutBooking.guest_name || t('guests:form.guestFallback'),
+                room: checkoutBooking.room_number,
+              });
           notify(message, 'success');
         }
 
@@ -137,10 +142,10 @@ export function useCheckoutFlow(options: UseCheckoutFlowOptions = {}): CheckoutF
         closeCheckout();
         await onAfterCheckout?.();
       } catch (error) {
-        throw new Error(errorMessage(error, 'Failed to process checkout'));
+        throw new Error(errorMessage(error, t('checkout.errors.processCheckout')));
       }
     },
-    [checkoutBooking, updateBooking, setRoomDirty, applyLateCheckout, successMessage, notify, onAfterCheckout, closeCheckout],
+    [checkoutBooking, updateBooking, setRoomDirty, applyLateCheckout, successMessage, notify, onAfterCheckout, closeCheckout, t],
   );
 
   return {

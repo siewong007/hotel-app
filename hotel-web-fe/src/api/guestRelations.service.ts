@@ -67,7 +67,7 @@ export class GuestRelationsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to fetch guest interactions');
+      throw await toGuestRelationsApiError(error, t('errors:request.fetchGuestInteractions'));
     }
   }
 
@@ -82,7 +82,7 @@ export class GuestRelationsService {
         .post(`guests/${guestId}/interactions`, { json: data })
         .json<GuestInteraction>();
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to create guest interaction');
+      throw await toGuestRelationsApiError(error, t('errors:request.createGuestInteraction'));
     }
   }
 
@@ -96,7 +96,7 @@ export class GuestRelationsService {
         .patch(`guests/${guestId}/interactions/${interactionId}`, { json: data })
         .json<GuestInteraction>();
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to update guest interaction');
+      throw await toGuestRelationsApiError(error, t('errors:request.updateGuestInteraction'));
     }
   }
 
@@ -109,7 +109,7 @@ export class GuestRelationsService {
         .delete(`guests/${guestId}/interactions/${interactionId}`)
         .json<{ success: boolean; message: string }>();
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to delete guest interaction');
+      throw await toGuestRelationsApiError(error, t('errors:request.deleteGuestInteraction'));
     }
   }
 
@@ -124,7 +124,7 @@ export class GuestRelationsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to fetch guest preferences');
+      throw await toGuestRelationsApiError(error, t('errors:request.fetchGuestPreferences'));
     }
   }
 
@@ -138,7 +138,7 @@ export class GuestRelationsService {
         .put(`guests/${guestId}/preferences`, { json: data })
         .json<GuestPreference[]>();
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to update guest preferences');
+      throw await toGuestRelationsApiError(error, t('errors:request.updateGuestPreferences'));
     }
   }
 
@@ -153,7 +153,7 @@ export class GuestRelationsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to fetch guest reviews');
+      throw await toGuestRelationsApiError(error, t('errors:request.fetchGuestReviews'));
     }
   }
 
@@ -167,7 +167,7 @@ export class GuestRelationsService {
         .post(`guests/${guestId}/reviews/${reviewId}/response`, { json: data })
         .json<GuestReview>();
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to respond to guest review');
+      throw await toGuestRelationsApiError(error, t('errors:request.respondToGuestReview'));
     }
   }
 
@@ -183,7 +183,7 @@ export class GuestRelationsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to fetch guest loyalty summary');
+      throw await toGuestRelationsApiError(error, t('errors:request.fetchGuestLoyaltySummary'));
     }
   }
 
@@ -194,7 +194,7 @@ export class GuestRelationsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to fetch guest vouchers');
+      throw await toGuestRelationsApiError(error, t('errors:request.fetchGuestVouchers'));
     }
   }
 
@@ -205,7 +205,7 @@ export class GuestRelationsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to fetch guest communications summary');
+      throw await toGuestRelationsApiError(error, t('errors:request.fetchGuestCommunicationsSummary'));
     }
   }
 
@@ -218,7 +218,7 @@ export class GuestRelationsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to fetch guest support conversations');
+      throw await toGuestRelationsApiError(error, t('errors:request.fetchGuestSupportConversations'));
     }
   }
 
@@ -235,7 +235,7 @@ export class GuestRelationsService {
         .post('support/conversations', { json: data })
         .json<GuestSupportConversationDetail>();
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to create support conversation');
+      throw await toGuestRelationsApiError(error, t('errors:request.createSupportConversation'));
     }
   }
 
@@ -255,7 +255,7 @@ export class GuestRelationsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to fetch guest relations overview');
+      throw await toGuestRelationsApiError(error, t('errors:request.fetchGuestRelationsOverview'));
     }
   }
 
@@ -277,7 +277,7 @@ export class GuestRelationsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      throw await toGuestRelationsApiError(error, 'Failed to fetch follow-up queue');
+      throw await toGuestRelationsApiError(error, t('errors:request.fetchFollowUpQueue'));
     }
   }
 }
