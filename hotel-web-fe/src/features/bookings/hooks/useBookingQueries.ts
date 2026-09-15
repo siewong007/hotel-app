@@ -16,6 +16,7 @@ import type {
 
 type BookingsPageParams = Parameters<typeof BookingsService.getBookingsPage>[0];
 type BookingsWithDetailsFilters = Parameters<typeof BookingsService.getBookingsWithDetails>[0];
+type BookingListFilters = Parameters<typeof BookingsService.getAllBookings>[0];
 
 export function useBookingsPage(params?: BookingsPageParams, enabled = true) {
   return useQuery({
@@ -37,7 +38,7 @@ export function useBookingsWithDetails(filters?: BookingsWithDetailsFilters, ena
 }
 
 export function useAllBookings(
-  filters?: { room_number?: string; company_billed?: boolean; status?: string },
+  filters?: BookingListFilters,
   enabled = true,
   refetchInterval?: number,
 ) {

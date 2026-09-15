@@ -22,6 +22,10 @@ const toGuestApiError = async (error: unknown, fallback: string): Promise<APIErr
   return toApiError(error, fallback);
 };
 
+// Matches the bookings service: two page fetches in flight against a
+// five-connection backend pool.
+const GUEST_PAGE_CONCURRENCY = 2;
+
 export class GuestsService {
   static async getAllGuests(params?: { search?: string }): Promise<Guest[]> {
     try {
@@ -44,14 +48,24 @@ export class GuestsService {
       // all, which silently funnels users into re-creating an existing guest and
       // hitting the backend's duplicate-name guard.
       const totalPages = getPaginationState({ page: 1, pageSize, totalItems: total }).totalPages;
-      const settledPages = await Promise.allSettled(
-        Array.from({ length: totalPages - 1 }, (_, i) =>
-          withRetry(
-            () => api.get('guests', { searchParams: { ...baseParams, page: i + 2 } }).json<any>(),
-            { maxAttempts: 3, initialDelay: 1000 }
-          )
+      // Bounded concurrency, but still allSettled: the backend pool is five
+      // connections and firing every page at once let one screen occupy it.
+      // batchWithRetry is deliberately NOT used here — it wraps Promise.all, so
+      // one failed page would reject the whole call and throw away the partial
+      // list this function exists to preserve. Chunks run in order, and
+      // allSettled preserves order within a chunk, so the index-based page
+      // accounting below still lines up.
+      const pageRequests = Array.from({ length: totalPages - 1 }, (_, i) =>
+        () => withRetry(
+          () => api.get('guests', { searchParams: { ...baseParams, page: i + 2 } }).json<any>(),
+          { maxAttempts: 3, initialDelay: 1000 }
         )
       );
+      const settledPages: PromiseSettledResult<any>[] = [];
+      for (let offset = 0; offset < pageRequests.length; offset += GUEST_PAGE_CONCURRENCY) {
+        const chunk = pageRequests.slice(offset, offset + GUEST_PAGE_CONCURRENCY);
+        settledPages.push(...(await Promise.allSettled(chunk.map((run) => run()))));
+      }
 
       const guests: Guest[] = [...firstData];
       let failedPages = 0;
