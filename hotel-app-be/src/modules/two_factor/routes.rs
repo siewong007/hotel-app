@@ -1,11 +1,11 @@
 //! Two-factor authentication routes
 
-use super::extract_client_ip;
+use crate::routes::extract_client_ip;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::core::rate_limiter::RateLimiters;
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -48,7 +48,7 @@ async fn setup_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::setup_2fa_handler(State(pool), user_id, Json(req)).await
+    handlers::setup_2fa_handler(State(pool), user_id, Json(req)).await
 }
 
 async fn enable_2fa(
@@ -70,7 +70,7 @@ async fn enable_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::enable_2fa_handler(State(pool), user_id, Json(req)).await
+    handlers::enable_2fa_handler(State(pool), user_id, Json(req)).await
 }
 
 async fn disable_2fa(
@@ -92,7 +92,7 @@ async fn disable_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::disable_2fa_handler(State(pool), user_id, Json(req)).await
+    handlers::disable_2fa_handler(State(pool), user_id, Json(req)).await
 }
 
 async fn get_2fa_status(
@@ -100,7 +100,7 @@ async fn get_2fa_status(
     headers: HeaderMap,
 ) -> Result<Json<models::TwoFactorStatusResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::get_2fa_status_handler(State(pool), user_id).await
+    handlers::get_2fa_status_handler(State(pool), user_id).await
 }
 
 async fn verify_2fa(
@@ -122,7 +122,7 @@ async fn verify_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::verify_2fa_code_handler(State(pool), user_id, Json(req)).await
+    handlers::verify_2fa_code_handler(State(pool), user_id, Json(req)).await
 }
 
 async fn regenerate_backup_codes(
@@ -144,5 +144,5 @@ async fn regenerate_backup_codes(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::two_factor::regenerate_backup_codes_handler(State(pool), user_id, Json(req)).await
+    handlers::regenerate_backup_codes_handler(State(pool), user_id, Json(req)).await
 }

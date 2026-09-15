@@ -23,4 +23,5 @@ pub mod settings;
 pub mod support;
 pub mod system;
 pub mod teams;
+pub mod two_factor;
 pub mod users;

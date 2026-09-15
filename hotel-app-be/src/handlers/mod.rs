@@ -26,7 +26,7 @@ pub mod payments;
 // rbac handlers live in modules::rbac.
 pub mod rooms;
 // search handlers live in modules::search.
-pub mod two_factor;
+// two_factor handlers live in modules::two_factor.
 // users handlers live in modules::users.
 pub mod webhooks;
 

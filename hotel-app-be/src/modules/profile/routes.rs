@@ -163,7 +163,7 @@ async fn setup_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    crate::handlers::two_factor::setup_2fa_handler(State(pool), user_id, Json(input)).await
+    crate::modules::two_factor::handlers::setup_2fa_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn enable_2fa(
@@ -185,7 +185,7 @@ async fn enable_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    crate::handlers::two_factor::enable_2fa_handler(State(pool), user_id, Json(input)).await
+    crate::modules::two_factor::handlers::enable_2fa_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn disable_2fa(
@@ -207,7 +207,7 @@ async fn disable_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    crate::handlers::two_factor::disable_2fa_handler(State(pool), user_id, Json(input)).await
+    crate::modules::two_factor::handlers::disable_2fa_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn get_2fa_status(
@@ -215,7 +215,7 @@ async fn get_2fa_status(
     headers: HeaderMap,
 ) -> Result<Json<models::TwoFactorStatusResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    crate::handlers::two_factor::get_2fa_status_handler(State(pool), user_id).await
+    crate::modules::two_factor::handlers::get_2fa_status_handler(State(pool), user_id).await
 }
 
 async fn verify_2fa(
@@ -237,5 +237,5 @@ async fn verify_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    crate::handlers::two_factor::verify_2fa_code_handler(State(pool), user_id, Json(input)).await
+    crate::modules::two_factor::handlers::verify_2fa_code_handler(State(pool), user_id, Json(input)).await
 }

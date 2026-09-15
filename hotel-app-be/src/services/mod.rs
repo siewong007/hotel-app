@@ -41,6 +41,6 @@ pub mod promotion_pricing;
 pub mod rooms;
 // search service logic live in modules::search.
 pub mod turnstile;
-pub mod two_factor;
+// two_factor service logic live in modules::two_factor.
 pub mod unpaid_hold_scheduler;
 // users service logic live in modules::users.

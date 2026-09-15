@@ -27,7 +27,7 @@ pub mod payments;
 // rbac routes live in modules::rbac.
 pub mod rooms;
 // search routes live in modules::search.
-pub mod two_factor;
+// two_factor routes live in modules::two_factor.
 // users routes live in modules::users.
 pub mod webhooks;
 
@@ -422,7 +422,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(night_audit::routes())
         .merge(data_transfer::routes())
         .merge(crate::modules::passkey::routes::routes())
-        .merge(two_factor::routes())
+        .merge(crate::modules::two_factor::routes::routes())
         .merge(webhooks::routes())
         .merge(crate::modules::realtime::routes::routes())
         .layer(axum::middleware::from_fn_with_state(

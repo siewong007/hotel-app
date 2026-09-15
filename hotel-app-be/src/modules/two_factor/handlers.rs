@@ -5,7 +5,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::services::two_factor as two_factor_service;
+use super::service as two_factor_service;
 use axum::{extract::State, response::Json};
 
 pub async fn setup_2fa_handler(
