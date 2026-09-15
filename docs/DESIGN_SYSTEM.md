@@ -63,6 +63,46 @@ in chart props.
 `--hotel-scrim` (dialog backdrop), `--hotel-scrollbar-{track,thumb,thumb-hover}`,
 `--hotel-shadow-{sm,md,lg}`.
 
+## Loading
+
+Loading uses the Salim Inn monogram — `BrandMark`
+(`src/components/common/BrandMark.tsx`, inline SVG, zero network requests) inside
+`LogoLoader` (`src/components/common/LogoLoader.tsx`). No spinning rings; skeletons
+stay for content-shaped waits.
+
+| Variant | Use | Notes |
+|---|---|---|
+| `fullScreen` | app boot, auth resolution, desktop service start | mark + hotel name; shows immediately |
+| `page` | a route or panel whose content is not loaded and a skeleton is the wrong shape | ~200ms entrance delay; `minHeight` sizes the region (default 240px) |
+| `inline` | inside a card/section/row alongside other content | 24px mark; `label` adds a status line |
+| `overlay` | blocking wait over a positioned ancestor | scrim + centered mark |
+
+- `label` is a visible status line *and* the accessible name; without it a
+  visually-hidden "Loading" is announced once via `role="status"`. No
+  repeated live-region announcements, no fake percentages.
+- Non-`fullScreen` variants wait ~200ms (`delayMs`) before fading in, so fast
+  requests never flash.
+- `prefers-reduced-motion` renders a static mark — entrance only, no
+  breath/sheen (component-level; the global CSS rule is the backstop).
+- Motion: one-shot stroke draw-on → slow opacity breath → periodic champagne
+  sheen across the tile. Pure CSS on transform/opacity/stroke-dashoffset —
+  no JS loops, no animation dependency.
+
+Hierarchy — pick the smallest surface that fits:
+
+```text
+#boot-splash (static HTML, pre-React; themed by guest-branding.js)
+  → LogoLoader fullScreen   (boot/auth)
+  → LogoLoader page         (routes, panels, dialog bodies)
+  → LogoLoader inline       (sections, rows)
+  → CircularProgress ≤24px  (buttons, input adornments only — never standalone)
+  → LinearProgress          (only when real progress is known)
+```
+
+Skeletons (`LoadingFallback`, `Skeleton`) still own content-shaped lazy-route
+fallbacks. Never put LogoLoader inside a button, and never replace a skeleton
+with a spinner when the skeleton communicates the page structure better.
+
 ## Rules
 
 - **`alpha()` cannot parse `var(...)`** — it throws. Use `color-mix(in srgb, var(--hotel-x) N%, transparent)` for tints, or the dedicated `*-bg`/`*-border` tokens.

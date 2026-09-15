@@ -66,9 +66,13 @@ similar screens:
   StatCards at the top of dashboard/report screens.
 - **TabPanel** — multi-section admin pages (e.g. night audit sections).
 - **ModernDatePicker** — every date input: booking dates, eKYC forms, report ranges.
-- **HotelSpinner** — full-page route loading state (Suspense fallback). Use it for
-  whole-screen loading, not inline waits.
-- **LoadingSpinner** — inline/in-card loading (auth flows, loyalty widgets).
+- **BrandMark** — the Salim Inn monogram (deep-green tile, gold roofline, ivory S)
+  as inline SVG. Use for brand slots: sidebar tile, boot/service screens.
+- **LogoLoader** — the branded loading element; pick the variant by surface:
+  `fullScreen` (boot/auth), `page` (routes and panels where a skeleton is the
+  wrong shape), `inline` (cards/sections/rows), `overlay` (blocking waits).
+  Skeletons still own content-shaped lazy-route fallbacks; small
+  `CircularProgress` stays inside buttons and input adornments only.
 
 ## Screen conventions
 
@@ -77,6 +81,7 @@ similar screens:
   are modals over the list, not separate routes.
 - Wizards (guest check-in, eKYC): one step per screen, progress indication,
   primary action full-width at the bottom on mobile.
-- Every data screen needs loading (HotelSpinner), empty, and error states.
+- Every data screen needs loading (`LogoLoader variant="page"`, or skeletons when
+  the layout is known), empty, and error states.
 - Use realistic but fictional hotel data in mocks (rooms "101"–"412", names like
   "A. Tan", never real guest data, IDs, or payment details).
