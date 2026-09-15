@@ -18,7 +18,7 @@
     "deleteConfirm": "Padam “{{name}}”? Kempen yang menggunakannya mengekalkan khalayak mereka — nyahaktifkan jika tidak pasti.",
     "previewTitle": "Pratonton — {{name}}",
     "previewFailed": "Pratonton gagal dimuatkan.",
-    "activeGuestsMatch": "tetamu aktif sepadan",
+    "activeGuestsMatch": "{{count}} tetamu aktif sepadan",
     "guestNumber": "Tetamu #{{id}}",
     "cols": {
       "name": "Nama",
@@ -35,7 +35,7 @@
     "activeLabel": "Aktif — hanya segmen aktif boleh menyasarkan kempen",
     "rulesExplainer": "Tetamu sepadan apabila MANA-MANA kumpulan sepadan; syarat dalam kumpulan mestilah SEMUANYA sepadan.",
     "previewMembers": "Pratonton ahli",
-    "activeGuestsMatch": "tetamu aktif sepadan",
+    "activeGuestsMatch": "{{count}} tetamu aktif sepadan",
     "saveFailed": "Simpan gagal",
     "previewFailed": "Pratonton gagal"
   },

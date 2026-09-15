@@ -331,7 +331,7 @@ const SegmentsPage = () => {
           ) : (
             <Stack spacing={2} sx={{ minWidth: 320 }}>
               <Typography variant="body2">
-                <strong>{preview.data?.count ?? 0}</strong> {t('page.activeGuestsMatch')}
+                {t('page.activeGuestsMatch', { count: preview.data?.count ?? 0 })}
               </Typography>
               {(preview.data?.sample.length ?? 0) > 0 && (
                 <List dense>

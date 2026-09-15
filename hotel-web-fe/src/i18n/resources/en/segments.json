@@ -18,7 +18,7 @@
     "deleteConfirm": "Delete “{{name}}”? Campaigns using it keep their audience — deactivate instead if unsure.",
     "previewTitle": "Preview — {{name}}",
     "previewFailed": "Preview failed to load.",
-    "activeGuestsMatch": "active guests match",
+    "activeGuestsMatch": "{{count}} active guests match",
     "guestNumber": "Guest #{{id}}",
     "cols": {
       "name": "Name",
@@ -35,7 +35,7 @@
     "activeLabel": "Active — only active segments can target campaigns",
     "rulesExplainer": "Guests match when ANY group matches; conditions inside a group must ALL match.",
     "previewMembers": "Preview members",
-    "activeGuestsMatch": "active guests match",
+    "activeGuestsMatch": "{{count}} active guests match",
     "saveFailed": "Save failed",
     "previewFailed": "Preview failed"
   },

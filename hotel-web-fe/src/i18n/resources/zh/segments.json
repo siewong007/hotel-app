@@ -18,7 +18,7 @@
     "deleteConfirm": "删除“{{name}}”？使用该客群的营销活动将保留其受众——如不确定请改为停用。",
     "previewTitle": "预览——{{name}}",
     "previewFailed": "预览加载失败。",
-    "activeGuestsMatch": "位活跃客人匹配",
+    "activeGuestsMatch": "{{count}} 位活跃客人匹配",
     "guestNumber": "客人 #{{id}}",
     "cols": {
       "name": "名称",
@@ -35,7 +35,7 @@
     "activeLabel": "启用——只有启用的客群才能用于营销活动",
     "rulesExplainer": "任一条件组匹配即可命中客人；组内的所有条件必须全部匹配。",
     "previewMembers": "预览成员",
-    "activeGuestsMatch": "位活跃客人匹配",
+    "activeGuestsMatch": "{{count}} 位活跃客人匹配",
     "saveFailed": "保存失败",
     "previewFailed": "预览失败"
   },

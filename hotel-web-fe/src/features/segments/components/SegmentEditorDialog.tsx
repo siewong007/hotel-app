@@ -125,7 +125,7 @@ export function SegmentEditorDialog({ open, segment, onClose }: SegmentEditorDia
             </Button>
             {previewCount !== null && (
               <Typography variant="body2">
-                <strong>{previewCount}</strong> {t('editor.activeGuestsMatch')}
+                {t('editor.activeGuestsMatch', { count: previewCount })}
               </Typography>
             )}
           </Stack>
