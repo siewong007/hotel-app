@@ -14,7 +14,7 @@ pub mod audit;
 // channel_net_revenue persistence live in modules::analytics.
 // company persistence live in modules::companies.
 // data_transfer persistence live in modules::data_transfer.
-pub mod ekyc;
+// ekyc persistence live in modules::ekyc.
 // guest persistence live in modules::guests.
 // guest_portal persistence live in modules::guest_portal.
 // guest_portal_session persistence live in modules::guest_portal.

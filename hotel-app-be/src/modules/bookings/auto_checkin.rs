@@ -8,7 +8,7 @@ use crate::models::{
     AutoCheckinResponse, Booking, BookingWithDetails, CheckInRequest, Guest, GuestEkycStatusSummary,
 };
 use crate::modules::bookings as booking_repo;
-use crate::repositories::ekyc::{EkycRepository, GuestEkycSummaryRecord};
+use crate::modules::ekyc::repository::{EkycRepository, GuestEkycSummaryRecord};
 use super::helpers as booking_service;
 use super::service::{
     CheckinSourceContext, SelfCheckinEventInsert, checkin_booking_flow,

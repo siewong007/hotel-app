@@ -11,7 +11,7 @@
 //! several upcoming bookings still occupies exactly one place in the queue.
 
 use hotel_app_be::models::EkycListQuery;
-use hotel_app_be::repositories::ekyc::EkycRepository;
+use hotel_app_be::modules::ekyc::repository::EkycRepository;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 

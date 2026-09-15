@@ -24,7 +24,7 @@ use crate::modules::ekyc::models::{
     EkycSensitiveRevealResponse, EkycStatusResponse, EkycSubmissionRequest, EkycVerification,
     SelfCheckinRequest,
 };
-use crate::repositories::ekyc::{
+use crate::modules::ekyc::repository::{
     AdminApproval, EkycActionUpdate, EkycHistoryInsert, EkycNoteInsert, EkycRepository,
     EkycReviewAction, NewEkycVerification,
 };

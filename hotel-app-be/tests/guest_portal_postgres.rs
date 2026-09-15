@@ -13,7 +13,7 @@ mod postgres_tests {
     use hotel_app_be::modules::consent::service::ConsentContext;
     use hotel_app_be::modules::guest_booking::repository::GuestBookingRepository;
     use hotel_app_be::modules::guest_booking::validation::ValidatedAnonymousGuest;
-    use hotel_app_be::repositories::ekyc::EkycRepository;
+    use hotel_app_be::modules::ekyc::repository::EkycRepository;
     use hotel_app_be::modules::guest_portal::repository::GuestPortalRepository;
     use hotel_app_be::modules::guest_portal::session_repository::GuestPortalSessionRepository;
     use hotel_app_be::modules::bookings::auto_checkin as auto_checkin;
