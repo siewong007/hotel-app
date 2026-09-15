@@ -26,10 +26,15 @@ export interface SupportConversationAccess {
 /**
  * Keep conversation action eligibility in one pure, testable place. The UI is
  * only a convenience layer; the backend still validates every transition.
+ *
+ * `t` is optional so tests can exercise the pure permission matrix without a
+ * translator; callers that render `blockedReplyMessage` should always pass it
+ * (`useTranslation('support')`) so the explanation is localized.
  */
 export function getSupportConversationAccess(
   conversation: SupportConversation,
   permissions: SupportConversationPermissions,
+  t?: (key: string) => string,
 ): SupportConversationAccess {
   const isActive = conversation.status === 'waiting_for_staff'
     || conversation.status === 'waiting_for_guest';
@@ -57,14 +62,19 @@ export function getSupportConversationAccess(
   if (!canReply) {
     if (!isActive) {
       blockedReplyMessage = conversation.status === 'closed'
-        ? 'This conversation must be reopened before another reply or internal note can be added.'
-        : 'This conversation is resolved. Reopen it before sending another reply or internal note.';
+        ? t?.('access.blockedClosed')
+          ?? 'This conversation must be reopened before another reply or internal note can be added.'
+        : t?.('access.blockedResolved')
+          ?? 'This conversation is resolved. Reopen it before sending another reply or internal note.';
     } else if (isUnassigned && permissions.canWrite && !permissions.canAssign) {
-      blockedReplyMessage = 'A support coordinator must claim this conversation before you can reply.';
+      blockedReplyMessage = t?.('access.blockedNeedsClaim')
+        ?? 'A support coordinator must claim this conversation before you can reply.';
     } else if (conversation.assigned_to_user_id && !isAssignedToCurrentUser && !permissions.canManage) {
-      blockedReplyMessage = 'This conversation is assigned to another support staff member.';
+      blockedReplyMessage = t?.('access.blockedOtherAssignee')
+        ?? 'This conversation is assigned to another support staff member.';
     } else {
-      blockedReplyMessage = 'You do not have permission to reply to this conversation.';
+      blockedReplyMessage = t?.('access.blockedNoPermission')
+        ?? 'You do not have permission to reply to this conversation.';
     }
   }
 
