@@ -607,7 +607,7 @@ const RoomManagementPage: React.FC = () => {
     if (notesBooking) {
       bookingActions.push({
         id: 'booking-notes',
-        label: 'Edit booking notes',
+        label: t('menu.editBookingNotes'),
         icon: <NotesIcon />,
         onClick: () => handleEditBookingNotes(notesBooking),
       });
