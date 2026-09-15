@@ -92,7 +92,7 @@ the whole app on **one domain**: the API prefixes (`/api`, `/uploads`,
 `/health`, `/ws` — the same list as `PROXY_PREFIXES` in
 `hotel-web-fe/vite.config.ts`) are proxied to the backend, everything else to
 the frontend SPA. Same-origin serving is required for the
-`SameSite=Strict` refresh cookie to work — do **not** split the API onto a
+`SameSite=Lax` refresh cookie to work — do **not** split the API onto a
 separate subdomain.
 
 Prerequisites: a DNS A/AAAA record for your domain, and ports 80+443 reachable from the internet.
@@ -166,7 +166,7 @@ cp -r dist/* /var/www/hotel-frontend/   # or your web server's document root
 
 Leave `VITE_API_URL` unset so the browser uses the current public origin at
 runtime. Serve the SPA and reverse-proxy backend paths from the same HTTPS host;
-this also keeps the `SameSite=Strict` refresh cookie available. The SPA needs a
+this also keeps the `SameSite=Lax` refresh cookie available. The SPA needs a
 fallback (`try_files $uri $uri/ /index.html`), while API and WebSocket paths need
 upgrade headers and longer timeouts (night audit can run long), as in this
 representative config:
@@ -579,17 +579,16 @@ curl http://localhost:3030/ws/status   # no auth required
 Backend logs are written to:
 - Stderr (captured by Tauri sidecar in desktop mode)
 - File under `HOTEL_LOG_DIR` or default `./logs/` directory
-- Rotated daily with date-based filenames: `backend-YYYY-MM-DD.log`
+- A single append-only `backend.log`; rotation is the host's job — see
+  [Log Rotation](#log-rotation) below (`logrotate` + `copytruncate`)
 
-### Metrics (Optional)
+### Metrics
 
-Scrape the backend with Prometheus (enable in `docker-compose.yml`) and chart it in Grafana, alongside the health endpoints above:
-
-```yaml
-scrape_configs:
-  - job_name: hotel-backend
-    static_configs: [{ targets: ['localhost:3030'] }]
-```
+The backend does not expose a Prometheus `/metrics` endpoint. In-process
+counters (auth/permission denials, audit write failures, slow statements,
+request totals) are surfaced through `GET /api/system/health`
+(`settings:manage` permission) — monitor that endpoint, or parse the
+structured logs, for alerting.
 
 ---
 
@@ -615,8 +614,13 @@ cp -r /path/to/pgsql/data /backups/pgsql_data_$(date +%Y%m%d)   # PostgreSQL (de
 writes a `saliminn-backup.timer` (18:10 UTC ≈ 02:10 Malaysia time,
 `Persistent=true`) that runs `/opt/saliminn/database-backup.sh`. Each run
 produces a verified `pg_dump --format=custom` at
-`/opt/saliminn/backups/nightly-<timestamp>.dump` and retains the newest 7
-dumps across both `nightly-*` and predeploy names. Check its status with
+`/opt/saliminn/backups/nightly-<timestamp>.dump` plus an
+`uploads-<timestamp>.tar.gz` of the `uploads/` and `private_uploads/` trees
+(eKYC images, receipts, room-type photos — data `pg_dump` cannot cover).
+Retention is per-class: the newest 14 `nightly-*.dump`, newest 5
+`predeploy-*.dump`, and newest 7 `uploads-*.tar.gz` files are kept
+(`SALIMINN_NIGHTLY_RETENTION` / `SALIMINN_PREDEPLOY_RETENTION` /
+`SALIMINN_UPLOADS_RETENTION` in `database-backup.sh`). Check its status with
 `systemctl list-timers saliminn-backup.timer`; runs log to journald
 (`journalctl -u saliminn-backup.service`).
 

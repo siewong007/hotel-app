@@ -116,6 +116,9 @@ services:
       # port and would force-upgrade the plain-HTTP Vite dev server on :3000.
       # Override with the production value if DOMAIN is a real public hostname.
       HSTS_VALUE: ${HSTS_VALUE:-max-age=0}
+      # Set to "on" to answer every non-/health request with 503 (maintenance
+      # window); evaluated when Caddy adapts the config, i.e. on (re)load.
+      MAINTENANCE_MODE: ${MAINTENANCE_MODE:-off}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       # Cert/ACME state must persist — losing it re-hits Let's Encrypt rate limits.

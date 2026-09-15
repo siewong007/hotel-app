@@ -9,8 +9,13 @@ updates:
     schedule:
       interval: weekly
     ignore:
+      # Majors still need a manual review pass — queries are runtime-checked,
+      # so a breaking sqlx bump can compile clean and fail in production.
+      # Minor/patch updates (incl. security fixes) keep flowing.
       - dependency-name: "sqlx"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "sqlx-*"
+        update-types: ["version-update:semver-major"]
   # The desktop shell ships tauri + an embedded PostgreSQL to end users; it
   # needs its own advisory coverage, not just the backend's.
   - package-ecosystem: cargo

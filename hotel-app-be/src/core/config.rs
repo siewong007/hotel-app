@@ -318,6 +318,16 @@ impl AppConfig {
                     .to_string(),
             );
         }
+        // PAYPAL_API_BASE defaults to the sandbox host. Enabling a credentialed
+        // gateway in production without overriding it would silently charge
+        // nothing and record live bookings against a fake gateway — refuse.
+        if self.paypal.is_configured() && self.paypal.api_base.contains("sandbox.paypal.com") {
+            return Err(
+                "PAYPAL_API_BASE points at the PayPal sandbox in production; set \
+                 https://api-m.paypal.com or disable PAYPAL_ENABLED"
+                    .to_string(),
+            );
+        }
         Ok(())
     }
 }
@@ -624,6 +634,29 @@ mod tests {
         let hex_key = "ab".repeat(32);
         let hexed = production_config(Some(&hex_key));
         assert!(hexed.validate_security().is_ok());
+    }
+
+    #[test]
+    fn production_rejects_sandbox_paypal_base() {
+        let mut config = production_config(Some("a-32-plus-character-ascii-secret!!"));
+        config.paypal.enabled = true;
+        config.paypal.client_id = Some("id".to_string());
+        config.paypal.client_secret = Some("secret".to_string());
+        config.paypal.api_base = "https://api-m.sandbox.paypal.com".to_string();
+        let err = config.validate_security().unwrap_err();
+        assert!(err.contains("PAYPAL_API_BASE"));
+
+        config.paypal.api_base = "https://api-m.paypal.com".to_string();
+        assert!(config.validate_security().is_ok());
+
+        // Uncredentialed or disabled integrations never reach the gateway, so
+        // the sandbox default stays harmless there.
+        config.paypal.api_base = "https://api-m.sandbox.paypal.com".to_string();
+        config.paypal.client_secret = None;
+        assert!(config.validate_security().is_ok());
+        config.paypal.client_secret = Some("secret".to_string());
+        config.paypal.enabled = false;
+        assert!(config.validate_security().is_ok());
     }
 
     #[test]

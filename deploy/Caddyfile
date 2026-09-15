@@ -35,6 +35,14 @@
 		?X-Frame-Options "DENY"
 	}
 
+	# Maintenance mode: MAINTENANCE_MODE=on (container env) short-circuits every
+	# request except /health — which stays up so deploy smoke checks and uptime
+	# probes keep working while the SPA/API are intentionally down.
+	@maintenance expression "{$MAINTENANCE_MODE:off}" == "on" && !path("/health")
+	handle @maintenance {
+		respond "Scheduled maintenance — please try again shortly." 503
+	}
+
 	# KEEP IN SYNC with PROXY_PREFIXES in hotel-web-fe/vite.config.ts
 	@backend path /api/* /uploads/* /health /ws /ws/*
 	handle @backend {

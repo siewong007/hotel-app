@@ -22,11 +22,18 @@
 # what a systemd OnFailure unit or external monitor keys off. On success it
 # removes the marker.
 #
+# Optional outbound alert: create /opt/saliminn/backup-alert.env (operator-owned,
+# not part of the release bundle) containing SALIMINN_ALERT_WEBHOOK=<url>. On
+# every *new or changed* failure state the script POSTs {"text": ...} there —
+# Slack/Discord/ntfy/webhook.site all accept that shape. Alerting on transition
+# only, so the 15-minute timer does not re-notify on one persistent failure; a
+# recovery message fires when a previously failed check returns healthy.
+#
 # Safe to run by hand:
 #   /opt/saliminn/check-backup-health.sh && echo healthy || echo UNHEALTHY
 #
 # Env overrides (for tests): CHECK_BACKUP_STATUS_FILE, CHECK_BACKUP_STALE_SECONDS,
-# CHECK_BACKUP_FAIL_MARKER, CHECK_BACKUP_NOW.
+# CHECK_BACKUP_FAIL_MARKER, CHECK_BACKUP_NOW, CHECK_BACKUP_ALERT_ENV.
 set -Eeuo pipefail
 
 STATUS_FILE="${CHECK_BACKUP_STATUS_FILE:-/opt/saliminn/backups/backup-status.json}"
@@ -34,11 +41,31 @@ STALE_SECONDS="${CHECK_BACKUP_STALE_SECONDS:-129600}"   # 36h — one missed nig
 FAIL_MARKER="${CHECK_BACKUP_FAIL_MARKER:-$(dirname "$STATUS_FILE")/backup-health.FAILED}"
 NOW="${CHECK_BACKUP_NOW:-}"
 
+ALERT_ENV_FILE="${CHECK_BACKUP_ALERT_ENV:-$(dirname "$STATUS_FILE")/../backup-alert.env}"
+if [ -r "$ALERT_ENV_FILE" ]; then
+    # shellcheck disable=SC1090
+    . "$ALERT_ENV_FILE"
+fi
+ALERT_WEBHOOK="${SALIMINN_ALERT_WEBHOOK:-}"
+
 emit() { printf '[saliminn-backup-health] %s\n' "$*"; }
 
+alert() {
+    [ -n "$ALERT_WEBHOOK" ] || return 0
+    command -v curl >/dev/null 2>&1 || return 0
+    local text="${1//\"/\\\"}"
+    curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
+        -d "{\"text\":\"saliminn backup-health: $text\"}" "$ALERT_WEBHOOK" >/dev/null 2>&1 \
+        || emit "WARNING: alert webhook POST failed"
+}
+
 unhealthy() {
-    emit "CRITICAL: $*"
-    printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" > "$FAIL_MARKER" 2>/dev/null || true
+    local reason="$*"
+    local prev=""
+    emit "CRITICAL: $reason"
+    prev=$(cut -d' ' -f2- "$FAIL_MARKER" 2>/dev/null || true)
+    printf '%s %s\n' "$(date -u +%FT%TZ)" "$reason" > "$FAIL_MARKER" 2>/dev/null || true
+    [ "$reason" = "$prev" ] || alert "UNHEALTHY: $reason"
     exit 1
 }
 
@@ -78,5 +105,8 @@ if [ "$age" -gt "$STALE_SECONDS" ]; then
     unhealthy "stale backup — last success $last_success is ${age}s old (threshold ${STALE_SECONDS}s)"
 fi
 
+if [ -f "$FAIL_MARKER" ]; then
+    alert "RECOVERED: backup healthy — last success $last_success"
+fi
 rm -f -- "$FAIL_MARKER" 2>/dev/null || true
 emit "healthy — last success $last_success (${age}s ago), $(field filename)"
