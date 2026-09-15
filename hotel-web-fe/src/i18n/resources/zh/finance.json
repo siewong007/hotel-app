@@ -15,6 +15,7 @@
     "checkoutShort": "退房",
     "activeGuests_other": "{{count}} 位在住客人",
     "roomWithNumber": "{{number}} 房",
+    "receiptWithNumber": "收据 {{number}}",
     "roomOption": "{{number}} 房 - {{type}}",
     "floorWithNumber": "{{number}} 楼",
     "metaDue": "待付 {{amount}}",
@@ -286,6 +287,7 @@
     "entries": {
       "pay": "付款",
       "actionsFor": "{{ref}} 的操作",
+      "refFallback": "条目 {{id}}",
       "viewInvoice": "查看发票",
       "editEntry": "编辑条目",
       "printReceipt": "打印收据",

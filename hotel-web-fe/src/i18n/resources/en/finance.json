@@ -16,6 +16,7 @@
     "activeGuests_one": "{{count}} active guest",
     "activeGuests_other": "{{count}} active guests",
     "roomWithNumber": "Room {{number}}",
+    "receiptWithNumber": "Receipt {{number}}",
     "roomOption": "Room {{number}} - {{type}}",
     "floorWithNumber": "Floor {{number}}",
     "metaDue": "Due {{amount}}",
@@ -293,6 +294,7 @@
     "entries": {
       "pay": "Pay",
       "actionsFor": "Actions for {{ref}}",
+      "refFallback": "entry {{id}}",
       "viewInvoice": "View invoice",
       "editEntry": "Edit entry",
       "printReceipt": "Print receipt",

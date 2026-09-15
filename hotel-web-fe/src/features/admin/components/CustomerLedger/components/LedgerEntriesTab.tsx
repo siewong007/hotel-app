@@ -131,7 +131,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
       )}
       <ActionsMenu
         title={entry.description}
-        triggerLabel={t('ledger.entries.actionsFor', { ref: entry.folio_number || `entry ${entry.id}` })}
+        triggerLabel={t('ledger.entries.actionsFor', { ref: entry.folio_number || t('ledger.entries.refFallback', { id: entry.id }) })}
         actions={[
           {
             id: 'view-invoice',
@@ -376,9 +376,9 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                         }}
                       >
                         {entry.folio_number || `#${entry.id}`}
-                        {entry.room_number ? ` / Room ${entry.room_number}` : ''}
+                        {entry.room_number ? ` / ${t('ledger.roomWithNumber', { number: entry.room_number })}` : ''}
                         {entry.expense_type ? ` / ${entry.expense_type}` : ''}
-                        {receiptNumber ? ` / Receipt ${receiptNumber}` : ''}
+                        {receiptNumber ? ` / ${t('ledger.receiptWithNumber', { number: receiptNumber })}` : ''}
                       </Typography>
                     </TableCell>
                     <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>
