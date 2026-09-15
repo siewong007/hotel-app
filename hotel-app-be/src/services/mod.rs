@@ -31,7 +31,7 @@ pub mod ledgers;
 // night_audit_scheduler service logic live in modules::night_audit.
 // passkey service logic live in modules::passkey.
 // payment_receipt_scheduler service logic live in modules::payments.
-pub mod payment_retry;
+// payment_retry service logic live in modules::payment_retry.
 // payments service logic live in modules::payments.
 // paypal_client service logic live in modules::payments.
 // profile service logic live in modules::profile.

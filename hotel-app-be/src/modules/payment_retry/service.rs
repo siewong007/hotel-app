@@ -15,8 +15,8 @@ use sha2::{Digest, Sha256};
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::payment_retry::PaymentRetryCapability;
-use crate::repositories::payment_retry::PaymentRetryRepository;
+use super::models::PaymentRetryCapability;
+use super::repository::PaymentRetryRepository;
 
 /// How long a freshly issued recovery link stays usable.
 pub const RETRY_CAPABILITY_TTL_MINUTES: i64 = 60;
@@ -236,7 +236,7 @@ async fn hold_deadline_for(pool: &DbPool, created_at: DateTime<Utc>) -> Option<D
 pub async fn describe_recovery(
     pool: &DbPool,
     presented: &str,
-) -> Result<crate::handlers::payment_retry::PaymentRecoveryView, ApiError> {
+) -> Result<super::handlers::PaymentRecoveryView, ApiError> {
     let capability = resolve_capability(pool, presented).await?;
     let booking = crate::services::booking::fetch_booking_by_id(pool, capability.booking_id)
         .await
@@ -277,7 +277,7 @@ pub async fn describe_recovery(
         methods.push("paypal".to_string());
     }
 
-    Ok(crate::handlers::payment_retry::PaymentRecoveryView {
+    Ok(super::handlers::PaymentRecoveryView {
         booking_number: booking.booking_number.clone(),
         amount_due: booking.total_amount.to_string(),
         currency: booking

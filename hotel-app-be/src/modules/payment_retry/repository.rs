@@ -11,7 +11,7 @@ use sqlx::Row;
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::core::sql_compat::current_timestamp;
-use crate::models::payment_retry::PaymentRetryCapability;
+use super::models::PaymentRetryCapability;
 use crate::param;
 
 const CAPABILITY_COLUMNS: &str =

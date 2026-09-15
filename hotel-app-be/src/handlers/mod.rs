@@ -19,7 +19,7 @@ pub mod ledgers;
 // maintenance handlers live in modules::maintenance.
 // night_audit handlers live in modules::night_audit.
 // passkey handlers live in modules::passkey.
-pub mod payment_retry;
+// payment_retry handlers live in modules::payment_retry.
 // payments handlers live in modules::payments.
 // profile handlers live in modules::profile.
 // rates handlers live in modules::rates.

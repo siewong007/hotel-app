@@ -20,7 +20,7 @@ pub mod ledgers;
 // maintenance routes live in modules::maintenance.
 // night_audit routes live in modules::night_audit.
 // passkey routes live in modules::passkey.
-pub mod payment_retry;
+// payment_retry routes live in modules::payment_retry.
 // payments routes live in modules::payments.
 // profile routes live in modules::profile.
 // rates routes live in modules::rates.
@@ -388,7 +388,7 @@ pub fn create_router(pool: DbPool) -> Router {
     // static asset URLs depend on them.
     let api_routes = Router::new()
         .merge(crate::modules::auth::routes::routes())
-        .merge(payment_retry::routes())
+        .merge(crate::modules::payment_retry::routes::routes())
         .merge(crate::modules::booking_channels::routes::routes())
         .merge(crate::modules::rooms::routes::routes())
         .merge(crate::modules::guests::routes::routes())

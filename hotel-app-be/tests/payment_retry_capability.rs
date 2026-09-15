@@ -9,7 +9,7 @@
 
 mod postgres_tests {
     use chrono::{Duration, Utc};
-    use hotel_app_be::repositories::payment_retry::PaymentRetryRepository;
+    use hotel_app_be::modules::payment_retry::repository::PaymentRetryRepository;
     use sqlx::{PgPool, postgres::PgPoolOptions};
 
     async fn pool() -> Option<PgPool> {
@@ -426,7 +426,7 @@ mod postgres_tests {
 
         // Pointing a spent link at somebody else's payment must be refused
         // before PayPal is contacted at all.
-        let result = hotel_app_be::services::payment_retry::capture_recovered_paypal(
+        let result = hotel_app_be::modules::payment_retry::service::capture_recovered_paypal(
             &pool,
             &token,
             "ORDER-DOES-NOT-MATTER",
@@ -487,7 +487,7 @@ mod postgres_tests {
         // is already spent. Resolution must still succeed, or every authorised
         // PayPal order would be stranded between approval and capture.
         let resolved =
-            hotel_app_be::services::payment_retry::resolve_capability(&pool, &token).await;
+            hotel_app_be::modules::payment_retry::service::resolve_capability(&pool, &token).await;
 
         cleanup(&pool, guest_id, booking_id).await;
 
@@ -541,7 +541,7 @@ mod postgres_tests {
             0x44, 0x52,
         ];
 
-        let foreign = hotel_app_be::services::payment_retry::upload_recovered_receipt(
+        let foreign = hotel_app_be::modules::payment_retry::service::upload_recovered_receipt(
             &pool,
             &token,
             mine + 9_999,
@@ -566,7 +566,7 @@ mod postgres_tests {
             return;
         };
         // No capability exists for this token at all.
-        let result = hotel_app_be::services::payment_retry::upload_recovered_receipt(
+        let result = hotel_app_be::modules::payment_retry::service::upload_recovered_receipt(
             &pool,
             &"f".repeat(64),
             1,

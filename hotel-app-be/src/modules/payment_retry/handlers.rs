@@ -20,7 +20,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
 use crate::models::{PaymentActionResponse, PaypalCreateOrderResponse};
-use crate::services::payment_retry;
+use super::service;
 
 /// What the recovery page may show. Deliberately minimal: a reservation
 /// reference the guest can recognise, what they owe, and how they may pay.
@@ -81,7 +81,7 @@ pub async fn view_recovery_handler(
     Path(token): Path<String>,
 ) -> Result<Json<PaymentRecoveryView>, ApiError> {
     require_capacity(&limiters, &headers, peer).await?;
-    Ok(Json(payment_retry::describe_recovery(&pool, &token).await?))
+    Ok(Json(service::describe_recovery(&pool, &token).await?))
 }
 
 pub async fn recover_bank_transfer_handler(
@@ -93,7 +93,7 @@ pub async fn recover_bank_transfer_handler(
 ) -> Result<Json<PaymentActionResponse>, ApiError> {
     require_capacity(&limiters, &headers, peer).await?;
     Ok(Json(
-        payment_retry::recover_with_bank_transfer(&pool, &token).await?,
+        service::recover_with_bank_transfer(&pool, &token).await?,
     ))
 }
 
@@ -115,7 +115,7 @@ pub async fn recover_paypal_create_order_handler(
 ) -> Result<Json<PaypalCreateOrderResponse>, ApiError> {
     require_capacity(&limiters, &headers, peer).await?;
     Ok(Json(
-        payment_retry::recover_with_paypal(&pool, &token).await?,
+        service::recover_with_paypal(&pool, &token).await?,
     ))
 }
 
@@ -129,7 +129,7 @@ pub async fn recover_paypal_capture_handler(
 ) -> Result<Json<PaymentActionResponse>, ApiError> {
     require_capacity(&limiters, &headers, peer).await?;
     Ok(Json(
-        payment_retry::capture_recovered_paypal(
+        service::capture_recovered_paypal(
             &pool,
             &token,
             &request.order_id,
@@ -154,6 +154,6 @@ pub async fn recover_upload_receipt_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_capacity(&limiters, &headers, peer).await?;
     let bytes = crate::handlers::guest_portal::receipt_upload_bytes(multipart).await?;
-    payment_retry::upload_recovered_receipt(&pool, &token, payment_id, &bytes).await?;
+    service::upload_recovered_receipt(&pool, &token, payment_id, &bytes).await?;
     Ok(Json(serde_json::json!({ "uploaded": true })))
 }

@@ -9,7 +9,6 @@ pub mod data_transfer;
 pub mod ekyc;
 pub mod guest_portal;
 pub mod ledger;
-pub mod payment_retry;
 pub mod row_mappers;
 
 // Re-export all models for convenience

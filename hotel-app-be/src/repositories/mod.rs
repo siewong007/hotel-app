@@ -26,7 +26,7 @@ pub mod ledger;
 // night_audit persistence live in modules::night_audit.
 // passkey persistence live in modules::passkey.
 // payment persistence live in modules::payments.
-pub mod payment_retry;
+// payment_retry persistence live in modules::payment_retry.
 // rate persistence live in modules::rates.
 // rbac persistence live in modules::rbac.
 // rooms_queries persistence live in modules::rooms.

@@ -14,7 +14,7 @@ use crate::modules::communications::validation::html_escape;
 use crate::repositories::guest_portal::GuestPortalRepository;
 use super::repository::{PaymentRepository, PendingPaymentValues};
 use crate::services::audit::AuditLog;
-use crate::services::payment_retry;
+use crate::modules::payment_retry::service as payment_retry;
 use crate::utils::sanitization::Sanitizer;
 use rust_decimal::Decimal;
 use std::fs;
@@ -1360,7 +1360,7 @@ async fn create_bank_transfer_claim_inner(
     .await?;
 
     if let Some(capability_id) = capability_id {
-        let spent = crate::repositories::payment_retry::PaymentRetryRepository::consume_tx(
+        let spent = crate::modules::payment_retry::repository::PaymentRetryRepository::consume_tx(
             &mut tx,
             capability_id,
             payment_id,
@@ -1455,7 +1455,7 @@ async fn create_paypal_order_inner(
     .await?;
 
     if let Some(capability_id) = capability_id {
-        let spent = crate::repositories::payment_retry::PaymentRetryRepository::consume_tx(
+        let spent = crate::modules::payment_retry::repository::PaymentRetryRepository::consume_tx(
             &mut tx,
             capability_id,
             payment_id,
@@ -1494,7 +1494,7 @@ async fn create_paypal_order_inner(
                 // Best effort: the guest already has an error, and failing here
                 // too would replace it with a less useful one.
                 if let Err(restore_error) =
-                    crate::repositories::payment_retry::PaymentRetryRepository::restore(
+                    crate::modules::payment_retry::repository::PaymentRetryRepository::restore(
                         pool,
                         capability_id,
                         payment_id,
