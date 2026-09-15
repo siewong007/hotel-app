@@ -5,13 +5,28 @@ name: Desktop Build
 # CI loop. This workflow exists to catch resource-glob/capability/sidecar
 # packaging regressions that `ci.yml`'s placeholder-resource `cargo check`
 # cannot — see docs/ongoing-dev.md (desktop CI packaging item).
+#
+# Platforms: macOS (aarch64), Windows (x86_64), Linux (x86_64). Each job builds
+# the pinned PostgreSQL 19beta2 from the sha256-verified official source
+# tarball, because no trustworthy prebuilt binaries for that pre-release exist
+# (EDB's CDN rejects automated fetches; zonky embedded-postgres ships stable
+# releases only). Details: hotel-desktop/PACKAGING.md.
 on:
   workflow_dispatch:
     inputs:
       full_bundle:
-        description: 'Produce a full signed-placeholder bundle (installers) instead of just the raw binary'
+        description: 'Produce full bundles (installers) instead of just the raw binary'
         type: boolean
         default: false
+      platform:
+        description: 'Which desktop platform(s) to build'
+        type: choice
+        options:
+          - all
+          - macos
+          - windows
+          - linux
+        default: all
   push:
     tags:
       - 'v*'
@@ -21,8 +36,9 @@ permissions:
   contents: read
 
 jobs:
-  desktop-build:
+  desktop-build-macos:
     name: Desktop — Real Tauri Build (macOS aarch64)
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos' }}
     # Apple Silicon runner: matches the aarch64-apple-darwin sidecar triple
     # this repo builds and embeds (see hotel-desktop/scripts/copy-backend-sidecar.mjs).
     runs-on: macos-14
@@ -122,11 +138,11 @@ jobs:
         run: bun run provision:pgsql
 
       - name: Build desktop app (binary only)
-        if: ${{ github.event.inputs.full_bundle != 'true' }}
+        if: ${{ github.event.inputs.full_bundle != 'true' && github.ref_type != 'tag' }}
         run: bun run build:no-bundle
 
       - name: Build desktop app (full bundle)
-        if: ${{ github.event.inputs.full_bundle == 'true' }}
+        if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
         run: bun run build
 
       # No code signing / notarization is configured for this build — see the
@@ -141,3 +157,330 @@ jobs:
           path: |
             hotel-desktop/src-tauri/target/release/hotel-desktop
             hotel-desktop/src-tauri/target/release/bundle/**
+
+  desktop-build-linux:
+    name: Desktop — Real Tauri Build (Linux x86_64)
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux' }}
+    # ubuntu-24.04 pins the glibc floor (2.39) the bundled binaries support;
+    # see hotel-desktop/PACKAGING.md for the compat matrix.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    defaults:
+      run:
+        working-directory: hotel-desktop
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95.0
+
+      - name: Cache Cargo dependencies (backend)
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: hotel-app-be
+
+      - name: Cache Cargo dependencies (desktop)
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: hotel-desktop/src-tauri
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('hotel-web-fe/bun.lock', 'hotel-desktop/bun.lock') }}
+
+      - name: Install frontend dependencies
+        working-directory: hotel-web-fe
+        run: bun ci
+
+      - name: Install desktop dependencies
+        working-directory: hotel-desktop
+        run: bun ci
+
+      # Two dep groups: PostgreSQL build requirements (same feature set as the
+      # macOS job: OpenSSL, ICU, lz4) and the Tauri/WebKitGTK toolchain.
+      # patchelf rewrites bundled rpaths (see provision-pgsql.mjs); xvfb +
+      # libfuse2t64 are for the packaged-build smoke test only.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential curl ca-certificates pkg-config \
+            libssl-dev libicu-dev liblz4-dev zlib1g-dev libreadline-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            patchelf xvfb
+          # fuse is only needed to RUN an AppImage in the smoke test; the
+          # package name changed between Ubuntu releases.
+          sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2 || true
+
+      # Same flags as the macOS job: the @19-suffixed datadir/libdir make the
+      # compiled-in relative tails resolve correctly inside the bundle. Unlike
+      # macOS, no rename is needed — the portable provisioner copies
+      # share/postgresql@19 and lib/postgresql@19 verbatim.
+      - name: Build PostgreSQL 19 Beta 2
+        working-directory: ${{ runner.temp }}
+        env:
+          POSTGRES_VERSION: 19beta2
+        run: |
+          curl --fail --location --remote-name "https://ftp.postgresql.org/pub/source/v${POSTGRES_VERSION}/postgresql-${POSTGRES_VERSION}.tar.bz2"
+          curl --fail --location --remote-name "https://ftp.postgresql.org/pub/source/v${POSTGRES_VERSION}/postgresql-${POSTGRES_VERSION}.tar.bz2.sha256"
+          sha256sum --check "postgresql-${POSTGRES_VERSION}.tar.bz2.sha256"
+          tar -xjf "postgresql-${POSTGRES_VERSION}.tar.bz2"
+          cd "postgresql-${POSTGRES_VERSION}"
+          PG_PREFIX="${RUNNER_TEMP}/postgresql-${POSTGRES_VERSION}"
+          ./configure --prefix="${PG_PREFIX}" \
+            --datadir="${PG_PREFIX}/share/postgresql@19" \
+            --libdir="${PG_PREFIX}/lib/postgresql@19" \
+            --with-openssl --with-lz4
+          make -j"$(nproc)" world-bin
+          make install-world-bin
+
+      - name: Provision embedded PostgreSQL tree
+        env:
+          POSTGRES_PREFIX: ${{ runner.temp }}/postgresql-19beta2
+        run: bun run provision:pgsql
+
+      - name: Build desktop app (binary only)
+        if: ${{ github.event.inputs.full_bundle != 'true' && github.ref_type != 'tag' }}
+        run: bun run build:no-bundle
+
+      # Explicit bundle list instead of `bun run build` ("all"): `all` also
+      # attempts rpm, which needs an rpmbuild toolchain the runner lacks. RPM
+      # stays an opt-in local build (`bun run build:rpm` on a system with
+      # rpmbuild) — see PACKAGING.md.
+      - name: Build desktop app (deb + AppImage)
+        if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
+        run: bun scripts/tauri-build.mjs --bundles deb,appimage
+
+      - name: Package portable archive
+        run: bun run package:portable
+
+      # Smoke test for packaged builds: install the .deb, then verify the
+      # BUNDLED PostgreSQL binaries report the pinned build and the app binary
+      # launches (GUI probe under xvfb). Asserts the packaging contract, not
+      # just the compile.
+      - name: Smoke test .deb install
+        if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
+        run: |
+          set -euo pipefail
+          deb=$(ls src-tauri/target/release/bundle/deb/*.deb | head -1)
+          sudo dpkg -i "$deb" || sudo apt-get install -f -y
+          pkg=$(dpkg-deb -f "$deb" Package)
+          pg_bin="$(dpkg -L "$pkg" | grep -E '/pgsql/bin/postgres$' | head -1)"
+          test -n "$pg_bin" || { echo "bundled postgres missing from .deb"; exit 1; }
+          version="$("$pg_bin" --version)"
+          echo "bundled postgres: $version"
+          case "$version" in *19beta2*) ;; *) echo "unexpected bundled PostgreSQL: $version"; exit 1;; esac
+          app_bin="$(dpkg -L "$pkg" | grep -E '/bin/[^/]+$' | head -1)"
+          echo "installed app binary: $app_bin"
+          # Launch probe: a GUI app that survives 25s under xvfb got far enough
+          # to start services; `timeout` exit 124 means it was still alive.
+          set +e
+          timeout --signal=TERM 25 xvfb-run -a "$app_bin" > /tmp/desktop-smoke.log 2>&1
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
+            cat /tmp/desktop-smoke.log
+            exit 1
+          fi
+          echo "launch probe result rc=$rc (124 = still running = pass)"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: hotel-desktop-linux-x86_64
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            hotel-desktop/src-tauri/target/release/hotel-desktop
+            hotel-desktop/src-tauri/target/release/bundle/deb/**
+            hotel-desktop/src-tauri/target/release/bundle/appimage/**
+            hotel-desktop/src-tauri/target/release/bundle/*-portable.tar.gz
+
+  desktop-build-windows:
+    name: Desktop — Real Tauri Build (Windows x86_64)
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows' }}
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    defaults:
+      run:
+        working-directory: hotel-desktop
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95.0
+
+      - name: Cache Cargo dependencies (backend)
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: hotel-app-be
+
+      - name: Cache Cargo dependencies (desktop)
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: hotel-desktop/src-tauri
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('hotel-web-fe/bun.lock', 'hotel-desktop/bun.lock') }}
+
+      - name: Install frontend dependencies
+        working-directory: hotel-web-fe
+        run: bun ci
+
+      - name: Install desktop dependencies
+        working-directory: hotel-desktop
+        run: bun ci
+
+      # nasm: required by aws-lc-sys (rustls) in the backend build.
+      # winflexbison3: PostgreSQL meson build prerequisite.
+      # pkgconfiglite: lets meson locate the vcpkg-built dependencies.
+      - name: Install build tools
+        run: |
+          choco install -y winflexbison3 nasm pkgconfiglite
+          python -m pip install --upgrade meson ninja
+
+      # vcpkg provides OpenSSL/lz4/zlib/ICU for the PostgreSQL meson build.
+      # windows-latest ships vcpkg at VCPKG_INSTALLATION_ROOT; bootstrap a fresh
+      # copy if the image ever drops it.
+      - name: Install PostgreSQL dependencies (vcpkg)
+        run: |
+          $vcpkg = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $vcpkg -or -not (Test-Path (Join-Path $vcpkg 'vcpkg.exe'))) {
+            $vcpkg = Join-Path $env:RUNNER_TEMP 'vcpkg'
+            git clone --depth 1 https://github.com/microsoft/vcpkg $vcpkg
+            & (Join-Path $vcpkg 'bootstrap-vcpkg.bat')
+          }
+          & (Join-Path $vcpkg 'vcpkg.exe') install --triplet x64-windows openssl lz4 zlib icu
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "VCPKG_ROOT=$vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PKG_CONFIG_PATH=$vcpkg\installed\x64-windows\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Download PostgreSQL 19 Beta 2 source
+        working-directory: ${{ runner.temp }}
+        env:
+          POSTGRES_VERSION: 19beta2
+        run: |
+          $tarball = "postgresql-$env:POSTGRES_VERSION.tar.bz2"
+          curl.exe --fail --location --remote-name "https://ftp.postgresql.org/pub/source/v$env:POSTGRES_VERSION/$tarball"
+          curl.exe --fail --location --remote-name "https://ftp.postgresql.org/pub/source/v$env:POSTGRES_VERSION/$tarball.sha256"
+          $expected = (Get-Content "$tarball.sha256").Split(' ')[0].Trim().ToLower()
+          $actual = (Get-FileHash $tarball -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "sha256 mismatch for ${tarball}: $actual != $expected" }
+          tar -xjf $tarball
+
+      # Meson is the only supported Windows build for PG19 (the old MSVC perl
+      # scripts were removed). vcvars64 is located via vswhere so the recipe
+      # survives runner image changes. -Dicu=auto: ICU collations come along
+      # when vcpkg's pkgconfig resolves; the build does not hinge on it.
+      - name: Build PostgreSQL 19 Beta 2 (Meson + MSVC)
+        working-directory: ${{ runner.temp }}
+        shell: cmd
+        env:
+          POSTGRES_VERSION: 19beta2
+          PG_PREFIX: C:\hotel-pg19
+        run: |
+          for /f "usebackq tokens=*" %%i in (`""%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath"`) do set "VSINSTALL=%%i"
+          if not defined VSINSTALL (echo "vswhere could not locate a Visual Studio C++ toolchain" && exit /b 1)
+          call "%VSINSTALL%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          meson setup pgbuild "postgresql-%POSTGRES_VERSION%" --prefix "%PG_PREFIX%" --buildtype release -Dssl=openssl -Dlz4=enabled -Dzlib=enabled -Dicu=auto -Dnls=disabled -Dplperl=disabled -Dplpython=disabled -Dpltcl=disabled -Dtap_tests=disabled -Ddocs=disabled || exit /b 1
+          meson compile -C pgbuild || exit /b 1
+          meson install -C pgbuild || exit /b 1
+
+      # meson install only installs PostgreSQL's own artifacts — the vcpkg
+      # runtime DLLs must ride along in bin/, where Windows resolves them.
+      - name: Stage dependency DLLs into the prefix
+        run: |
+          Copy-Item "$env:VCPKG_ROOT\installed\x64-windows\bin\*.dll" "C:\hotel-pg19\bin\"
+          Get-ChildItem "C:\hotel-pg19\bin" | Measure-Object | Out-Default
+
+      - name: Provision embedded PostgreSQL tree
+        env:
+          POSTGRES_PREFIX: C:\hotel-pg19
+        run: bun run provision:pgsql
+
+      - name: Build desktop app (binary only)
+        if: ${{ github.event.inputs.full_bundle != 'true' && github.ref_type != 'tag' }}
+        run: bun run build:no-bundle
+
+      # NSIS is the always-on Windows installer; MSI joins it on tag releases
+      # (WiX toolchain download adds build time, so validation builds skip it).
+      # Signing is conditional: set the WINDOWS_CERT_THUMBPRINT secret (a cert
+      # present in the runner/build agent's certificate store) and Tauri signs
+      # exe + installers via signtool. Absent → unsigned artifacts, by design.
+      - name: Build desktop app (NSIS / MSI)
+        if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
+        env:
+          WINDOWS_CERT_THUMBPRINT: ${{ secrets.WINDOWS_CERT_THUMBPRINT }}
+          WINDOWS_SIGN_TIMESTAMP_URL: ${{ vars.WINDOWS_SIGN_TIMESTAMP_URL }}
+        run: |
+          $bundles = 'nsis'
+          if ($env:GITHUB_REF_TYPE -eq 'tag') { $bundles = 'nsis,msi' }
+          $buildArgs = @('--bundles', $bundles)
+          if ($env:WINDOWS_CERT_THUMBPRINT) {
+            $timestampUrl = if ($env:WINDOWS_SIGN_TIMESTAMP_URL) { $env:WINDOWS_SIGN_TIMESTAMP_URL } else { 'http://timestamp.digicert.com' }
+            $config = '{"bundle":{"windows":{"certificateThumbprint":"' + $env:WINDOWS_CERT_THUMBPRINT + '","digestAlgorithm":"sha256","timestampUrl":"' + $timestampUrl + '"}}}'
+            $buildArgs += @('--config', $config)
+            Write-Host "Windows signing enabled via certificateThumbprint (timestamp: $timestampUrl)"
+          } else {
+            Write-Host "WINDOWS_CERT_THUMBPRINT not set — producing unsigned installers"
+          }
+          & bun scripts/tauri-build.mjs @buildArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package portable archive
+        run: bun run package:portable
+
+      # Smoke test for packaged builds: silent-install the NSIS artifact, then
+      # verify the installed tree contains the app, the sidecar, and a bundled
+      # PostgreSQL that reports the pinned build. Asserts the packaging
+      # contract on a real Windows session, not just the compile.
+      - name: Smoke test NSIS install
+        if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS setup exe not found' }
+          Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait
+          $app = Get-ChildItem $env:LOCALAPPDATA -Recurse -Filter 'hotel-desktop.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $app) { throw 'hotel-desktop.exe not found under %LOCALAPPDATA% after silent install' }
+          $installDir = $app.Directory.FullName
+          $pg = Join-Path $installDir 'pgsql\bin\postgres.exe'
+          $sidecar = Get-ChildItem $installDir -Filter 'hotel-app-be-*.exe' | Select-Object -First 1
+          if (-not (Test-Path $pg)) { throw "bundled postgres.exe missing at $pg" }
+          if (-not $sidecar) { throw 'backend sidecar missing from install' }
+          $version = & $pg --version
+          Write-Host "bundled postgres: $version"
+          if ($version -notmatch '19beta2') { throw "unexpected bundled PostgreSQL: $version" }
+          Write-Host "NSIS install verified at $installDir"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: hotel-desktop-windows-x86_64
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            hotel-desktop/src-tauri/target/release/hotel-desktop.exe
+            hotel-desktop/src-tauri/target/release/hotel-app-be-*.exe
+            hotel-desktop/src-tauri/target/release/bundle/nsis/**
+            hotel-desktop/src-tauri/target/release/bundle/msi/**
+            hotel-desktop/src-tauri/target/release/bundle/*-portable.zip

@@ -55,7 +55,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Internationalization (EN + BM) | Delivered | ✓ `src/i18n` | ✓ `core/i18n.rs` + `core/locales/` | Intl-based, in-house (ADR 012); parity tests both sides |
 | Simplified Chinese locale | In progress | branch `feat/i18n-zh` (worktree) | — | Not merged; `docs/superpowers/plans/2026-09-14-i18n-zh.md` |
 | Search (global) | Delivered | ✓ | ✓ `routes/search.rs` | |
-| Desktop app (Tauri + embedded PG) | Delivered | ✓ shared | ✓ `hotel-desktop/src-tauri` | Sidecar backend; bundled postgres **19beta2** while the server stack runs 19beta3 (see `ARCHITECTURE.md` → Desktop flow); updater plugin wired but **not armed** (`hotel-desktop/UPDATER.md`) |
+| Desktop app (Tauri + embedded PG) | Delivered | ✓ shared | ✓ `hotel-desktop/src-tauri` | Sidecar backend; bundled postgres **19beta2** while the server stack runs 19beta3 (see `ARCHITECTURE.md` → Desktop flow); packages for macOS aarch64, Windows x64 (NSIS/MSI + portable), Linux x64 (deb/AppImage + portable) per `docs/guides/PACKAGING.md`; updater plugin wired but **not armed** (`hotel-desktop/UPDATER.md`) |
 | Realtime (WebSocket) | Delivered | ✓ | ✓ `modules/realtime`, loyalty/support hubs | `/api/updates/socket` (staff), `/api/admin/loyalty/socket`, `/api/guest-portal/me/{loyalty,support}/socket`; reconnect + lag-drop logging |
 | Turnstile bot protection | Delivered | ✓ | ✓ `services/turnstile.rs` | Public guest forms |
 | Unpaid online-hold release | Delivered | — | ✓ `services/unpaid_hold_scheduler.rs` | `unpaid_hold_release_hours` (24 default, 0 disables) |

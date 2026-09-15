@@ -66,10 +66,13 @@ coverage, and the GitHub Action SHA-pinning sweep.
   (`CONFIGURED_POSTGRES_BUILD_IDENTITY`, `hotel-desktop/src-tauri/src/postgres.rs`)
   while every server/CI/compose pin is `19beta3`. Bump with the GA move above —
   it needs re-provisioning plus a pgdata rebuild, not just a constant edit.
-- Desktop packaging: Windows/Linux CI jobs; network-fetch pgsql provisioning
-  (today Homebrew/source-local only); arm or hide the updater
-  (`hotel-desktop/UPDATER.md`); consolidate hand-maintained origin/proxy lists;
-  desktop session persistence across restarts (SameSite boundary).
+- Desktop packaging: Windows (NSIS/MSI + portable zip) and Linux (deb/AppImage +
+  portable tar.gz) jobs now exist in `desktop-build.yml` with install smoke
+  tests — still open: run them once end-to-end, RPM evaluation, arm or hide the
+  updater (`hotel-desktop/UPDATER.md`), signing certs (Windows thumbprint is
+  env-wired; macOS notarization is not), consolidate hand-maintained
+  origin/proxy lists; desktop session persistence across restarts
+  (SameSite boundary).
 - Dependabot alert #13 (moderate): glib 0.18.5 in hotel-desktop/src-tauri
   (unsound VariantStrIter, fixed 0.20.0). Semver-pinned by the tauri/gtk stack —
   requires a coordinated tauri/gtk major upgrade with desktop regression

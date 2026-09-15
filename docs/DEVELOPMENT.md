@@ -135,8 +135,13 @@ Desktop (`hotel-desktop/`):
 
 ```bash
 cd src-tauri && cargo check && cargo clippy --all-targets -- -D warnings
-bun run build          # installer; build:no-bundle = binary only
+bun run build          # installer(s) for the current OS; build:no-bundle = binary only
+bun run build:nsis     # Windows installer | build:deb / build:appimage on Linux
+bun run package:portable  # portable archive of the release output
 ```
+
+Cross-platform packaging (supported targets, signing, PostgreSQL provisioning,
+CI): `docs/guides/PACKAGING.md`.
 
 Root Makefile: `make check-all`, `make test-all`, `make lint-all`,
 `make help`.

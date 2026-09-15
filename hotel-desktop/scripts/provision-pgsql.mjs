@@ -16,7 +16,7 @@ import {
   symlinkSync,
   unlinkSync,
 } from 'node:fs';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectInputFiles, readJson, writeJson } from './lib/build-cache.mjs';
 
@@ -27,6 +27,9 @@ const srcTauriRoot = join(desktopRoot, 'src-tauri');
 const pgsqlDir = join(srcTauriRoot, 'pgsql');
 const pgsqlTmpDir = join(srcTauriRoot, 'pgsql.tmp');
 const manifestPath = join(pgsqlDir, '.provision-manifest.json');
+
+const PLATFORM = process.platform;
+const EXE_SUFFIX = PLATFORM === 'win32' ? '.exe' : '';
 
 // The Homebrew `bin/` keg for postgresql@<major> ships many client tools we
 // don't need at runtime (pg_upgrade, clusterdb, ...). Bundle exactly the subset
@@ -96,15 +99,15 @@ function extractBuildIdentity(versionOutput) {
 }
 
 function checkExistingInstall(expected) {
-  const postgresBin = join(pgsqlDir, 'bin', 'postgres');
-  const initdbBin = join(pgsqlDir, 'bin', 'initdb');
-  const pgCtlBin = join(pgsqlDir, 'bin', 'pg_ctl');
+  const postgresBin = join(pgsqlDir, 'bin', `postgres${EXE_SUFFIX}`);
+  const initdbBin = join(pgsqlDir, 'bin', `initdb${EXE_SUFFIX}`);
+  const pgCtlBin = join(pgsqlDir, 'bin', `pg_ctl${EXE_SUFFIX}`);
 
   // `hard: true` marks a tree that is CONFIRMED unusable (wrong build, broken
   // or incomplete binaries) — if provisioning then fails, the build must not
   // fall back to it. `hard: false` covers states where the tree may still be
   // fine (e.g. manifest predates its introduction).
-  const missing = REQUIRED_BIN_NAMES.filter((name) => !existsSync(join(pgsqlDir, 'bin', name)));
+  const missing = REQUIRED_BIN_NAMES.filter((name) => !existsSync(join(pgsqlDir, 'bin', `${name}${EXE_SUFFIX}`)));
   if (!existsSync(pgsqlDir) || missing.length > 0) {
     return {
       ok: false,
@@ -156,21 +159,26 @@ function checkExistingInstall(expected) {
     };
   }
 
-  // A tree whose binaries reference dylibs outside the bundle (Homebrew, the
-  // source-build prefix) or that carries absolute symlinks runs on the dev
-  // machine but is dead on arrival on end-user machines.
+  // A tree whose binaries reference libraries outside the bundle (Homebrew, the
+  // source-build prefix, system package dirs) or that carries absolute symlinks
+  // runs on the dev machine but is dead on arrival on end-user machines. Each
+  // platform gets its own self-containment check; Windows needs none beyond the
+  // --version probes above (DLLs resolve next to the exe).
   try {
-    const externalRefs = REQUIRED_BIN_NAMES.flatMap((name) => {
-      const binPath = join(pgsqlDir, 'bin', name);
-      const id = machOId(binPath);
-      return machODeps(binPath)
-        .filter((dep) => dep !== id && !isSystemDep(dep) && !dep.startsWith('@'))
-        .map((dep) => `${name} -> ${dep}`);
-    });
-    const absoluteSymlinks = walkTree(pgsqlDir)
-      .symlinks.filter((linkPath) => readlinkSync(linkPath).startsWith('/'))
-      .map((linkPath) => `absolute symlink ${linkPath}`);
-    const issues = [...externalRefs, ...absoluteSymlinks];
+    const issues = [];
+    if (PLATFORM === 'darwin') {
+      issues.push(...macosTreeIssues(pgsqlDir));
+    } else if (PLATFORM === 'linux') {
+      issues.push(...linuxTreeIssues(pgsqlDir));
+    }
+    issues.push(
+      ...walkTree(pgsqlDir)
+        .symlinks.filter((linkPath) => {
+          const target = readlinkSync(linkPath);
+          return target.startsWith('/') || /^[A-Za-z]:[\\/]/.test(target);
+        })
+        .map((linkPath) => `absolute symlink ${linkPath}`),
+    );
     if (issues.length > 0) {
       return {
         ok: false,
@@ -183,6 +191,18 @@ function checkExistingInstall(expected) {
   }
 
   return { ok: true, foundMajor, foundBuildIdentity, manifest };
+}
+
+// macOS self-containment: bundled Mach-O files must not reference dylibs
+// outside the tree (Homebrew kegs, the source-build prefix).
+function macosTreeIssues(treeRoot) {
+  return REQUIRED_BIN_NAMES.flatMap((name) => {
+    const binPath = join(treeRoot, 'bin', name);
+    const id = machOId(binPath);
+    return machODeps(binPath)
+      .filter((dep) => dep !== id && !isSystemDep(dep) && !dep.startsWith('@'))
+      .map((dep) => `${name} -> ${dep}`);
+  });
 }
 
 function locateBrewPrefix(major) {
@@ -208,7 +228,12 @@ function locatePostgresPrefix(major) {
     return resolvedPrefix;
   }
 
-  return locateBrewPrefix(major);
+  // Homebrew lookup is a macOS convenience only; Linux/Windows require an
+  // explicit POSTGRES_PREFIX (there is no equivalent canonical install root).
+  if (PLATFORM === 'darwin') {
+    return locateBrewPrefix(major);
+  }
+  return undefined;
 }
 
 function computeTreeStats(rootDir) {
@@ -415,6 +440,344 @@ function assertRelocatable(treeRoot) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Linux self-containment: bundled ELF binaries/libs must resolve every needed
+// library inside the tree (or against libc core). Provisioning writes $ORIGIN
+// rpaths via patchelf and copies external libs flat into pgsql/lib/.
+
+const ELF_MAGIC = 0x464c457f; // "\x7fELF" little-endian
+const ELF_FILE_BYTES = Buffer.alloc(4);
+
+function isElfFile(filePath) {
+  const fd = openSync(filePath, 'r');
+  try {
+    if (readSync(fd, ELF_FILE_BYTES, 0, 4, 0) < 4) {
+      return false;
+    }
+    return ELF_FILE_BYTES.readUInt32LE(0) === ELF_MAGIC;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+// The glibc core is guaranteed on any Linux desktop that can run Tauri
+// (WebKitGTK already needs it); bundling it would create version conflicts.
+const LINUX_SYSTEM_LIB = /^(?:linux-vdso|ld-linux|ld-musl|ld64|libc\.so|libm\.so|libdl\.so|libpthread\.so|librt\.so|libresolv\.so|libutil\.so|libnss_)/;
+
+function lddDeps(filePath) {
+  const resolved = new Map(); // soname -> absolute path
+  const missing = [];
+  let out;
+  try {
+    out = execFileSync('ldd', [filePath], { encoding: 'utf8' });
+  } catch {
+    return { resolved, missing };
+  }
+  for (const line of out.split('\n')) {
+    const trimmed = line.trim();
+    const arrow = trimmed.match(/^(\S+)\s*=>\s*(\S+)/);
+    if (arrow) {
+      if (arrow[2] === 'not' || trimmed.endsWith('not found')) {
+        missing.push(arrow[1]);
+      } else if (!LINUX_SYSTEM_LIB.test(arrow[1])) {
+        resolved.set(arrow[1], arrow[2].split(' ')[0]);
+      }
+      continue;
+    }
+    // Unnamed lines like "/lib64/ld-linux-x86-64.so.2 (0x...)": the loader —
+    // always system-provided.
+  }
+  return { resolved, missing };
+}
+
+function linuxTreeIssues(treeRoot) {
+  const issues = [];
+  for (const filePath of walkTree(treeRoot).files) {
+    if (!isElfFile(filePath)) {
+      continue;
+    }
+    for (const soname of lddDeps(filePath).missing) {
+      issues.push(`${relative(treeRoot, filePath)} -> ${soname} not found`);
+    }
+  }
+  return issues;
+}
+
+// The rpath that lets an ELF inside the bundle find its libraries without any
+// environment overrides: its own dir plus every directory under lib/ that
+// holds shared objects — bin/* needs the nested pkglib dir (libpq.so lives in
+// lib/postgresql@19/, not flat lib/) and external deps are copied flat into
+// lib/, so every ELF gets the full set relative to itself.
+function bundleRpath(filePath, libDirs) {
+  const parts = ['$ORIGIN'];
+  const seen = new Set(parts);
+  for (const libDir of libDirs) {
+    const relToLib = relative(dirname(filePath), libDir);
+    const entry = relToLib && relToLib !== '.' ? `$ORIGIN/${relToLib}` : '$ORIGIN';
+    if (!seen.has(entry)) {
+      seen.add(entry);
+      parts.push(entry);
+    }
+  }
+  return parts.join(':');
+}
+
+// Copy every non-system library the bundled ELFs resolve into pgsql/lib/,
+// iterating because newly copied libs can bring their own external deps.
+function bundleExternalLibs(treeRoot, libDir) {
+  const bundled = new Set();
+  const seen = new Set();
+  let pending = walkTree(treeRoot).files.filter(isElfFile);
+
+  while (pending.length > 0) {
+    const next = [];
+    for (const filePath of pending) {
+      if (seen.has(filePath)) {
+        continue;
+      }
+      seen.add(filePath);
+      for (const [soname, depPath] of lddDeps(filePath).resolved) {
+        if (!depPath.startsWith('/')) {
+          continue; // already a relative/bundled reference
+        }
+        const insideTree = resolve(depPath).startsWith(treeRoot + sep);
+        const target = join(libDir, soname);
+        if (insideTree || bundled.has(soname) || existsSync(target)) {
+          continue;
+        }
+        cpSync(realpathSync(depPath), target);
+        chmodSync(target, 0o755);
+        bundled.add(soname);
+        if (isElfFile(target)) {
+          next.push(target);
+        }
+      }
+    }
+    pending = next;
+  }
+
+  return [...bundled];
+}
+
+function relinkLinuxTree(treeRoot) {
+  const libDir = join(treeRoot, 'lib');
+  try {
+    execFileSync('patchelf', ['--version'], { stdio: 'pipe' });
+  } catch {
+    throw new Error(
+      'patchelf is required to make the bundled PostgreSQL tree relocatable on Linux ' +
+        '(apt install patchelf / dnf install patchelf).',
+    );
+  }
+
+  const bundledLibs = bundleExternalLibs(treeRoot, libDir);
+
+  const allFiles = walkTree(treeRoot).files;
+  const libDirs = new Set([libDir]);
+  for (const filePath of allFiles) {
+    if (isElfFile(filePath) && dirname(filePath).startsWith(libDir + sep)) {
+      libDirs.add(dirname(filePath));
+    }
+  }
+
+  let rewritten = 0;
+  for (const filePath of allFiles) {
+    if (!isElfFile(filePath)) {
+      continue;
+    }
+    execFileSync('patchelf', ['--set-rpath', bundleRpath(filePath, [...libDirs]), filePath], {
+      stdio: 'pipe',
+    });
+    rewritten += 1;
+  }
+  return { rewrittenFiles: rewritten, bundledLibs };
+}
+
+// ---------------------------------------------------------------------------
+// Portable provisioning (Linux + Windows): copy bin/, lib/, share/postgresql*
+// from a POSTGRES_PREFIX install root verbatim. PostgreSQL binaries self-locate
+// their share/pkglib dirs from the exe path via the tail baked in at configure
+// time, so preserving the prefix's directory names keeps relocation working on
+// every platform without rewriting paths inside files.
+
+const PORTABLE_SKIP_LIB_ENTRIES = new Set(['pkgconfig']);
+
+function copyPortablePrefixTree(postgresPrefix) {
+  const sourceBinDir = join(postgresPrefix, 'bin');
+  const sourceLibDir = join(postgresPrefix, 'lib');
+  const sourceShareDir = join(postgresPrefix, 'share');
+  if (!existsSync(sourceBinDir) || !existsSync(sourceShareDir)) {
+    throw new Error(
+      `${postgresPrefix} does not look like a PostgreSQL install prefix (needs bin/ and share/).`,
+    );
+  }
+
+  for (const binName of REQUIRED_BIN_NAMES) {
+    const sourceBin = join(sourceBinDir, `${binName}${EXE_SUFFIX}`);
+    if (!existsSync(sourceBin)) {
+      throw new Error(`Expected PostgreSQL binary not found: ${sourceBin}`);
+    }
+    cpSync(sourceBin, join(pgsqlTmpDir, 'bin', `${binName}${EXE_SUFFIX}`), {
+      preserveTimestamps: true,
+    });
+  }
+
+  // Windows resolves DLLs from the exe directory: every DLL the PostgreSQL
+  // build links (OpenSSL/ICU/lz4/zlib, vcpkg or EDB-provided) must ride along
+  // in bin/. CI copies dependency DLLs into the prefix before provisioning.
+  if (PLATFORM === 'win32') {
+    let dllCount = 0;
+    for (const entry of readdirSync(sourceBinDir)) {
+      if (!entry.toLowerCase().endsWith('.dll')) {
+        continue;
+      }
+      cpSync(join(sourceBinDir, entry), join(pgsqlTmpDir, 'bin', entry), {
+        preserveTimestamps: true,
+      });
+      dllCount += 1;
+    }
+    if (dllCount === 0) {
+      throw new Error(
+        `${sourceBinDir} contains no DLLs — copy the PostgreSQL runtime dependencies ` +
+          '(libcrypto/libssl, icu*, lz4, zlib) into the prefix bin/ before provisioning.',
+      );
+    }
+  }
+
+  if (existsSync(sourceLibDir)) {
+    for (const entry of readdirSync(sourceLibDir)) {
+      if (PORTABLE_SKIP_LIB_ENTRIES.has(entry)) {
+        continue;
+      }
+      cpSync(join(sourceLibDir, entry), join(pgsqlTmpDir, 'lib', entry), {
+        recursive: true,
+        preserveTimestamps: true,
+      });
+    }
+  }
+
+  // share/postgresql, share/postgresql@19, …: keep whatever name(s) the build
+  // configured so the compiled-in share tail resolves under the bundle.
+  const shareEntries = readdirSync(sourceShareDir).filter((entry) =>
+    entry.startsWith('postgresql'),
+  );
+  if (shareEntries.length === 0) {
+    throw new Error(
+      `${sourceShareDir} has no postgresql* directory — unsupported prefix layout.`,
+    );
+  }
+  for (const entry of shareEntries) {
+    cpSync(join(sourceShareDir, entry), join(pgsqlTmpDir, 'share', entry), {
+      recursive: true,
+      preserveTimestamps: true,
+    });
+  }
+}
+
+function verifyPortableTree(expected, failExitCode) {
+  const rawVersions = {};
+  const versions = {};
+  // psql links libpq — running it proves the client library (and, on Windows,
+  // the DLLs beside the exes) actually resolves inside the copied tree.
+  for (const binName of ['postgres', 'initdb', 'pg_ctl', 'psql']) {
+    rawVersions[binName] = runVersionCommand(
+      join(pgsqlTmpDir, 'bin', `${binName}${EXE_SUFFIX}`),
+      ['--version'],
+    );
+    versions[binName] = extractBuildIdentity(rawVersions[binName]);
+    if (!versions[binName]) {
+      rmSync(pgsqlTmpDir, { recursive: true, force: true });
+      console.error(`Verification failed: ${binName} --version did not run in the copied tree.`);
+      process.exit(failExitCode);
+    }
+  }
+
+  if (
+    extractMajorVersion(rawVersions.postgres) !== expected.major ||
+    versions.postgres !== expected.buildIdentity ||
+    versions.initdb !== versions.postgres ||
+    versions.pg_ctl !== versions.postgres ||
+    versions.psql !== versions.postgres
+  ) {
+    rmSync(pgsqlTmpDir, { recursive: true, force: true });
+    console.error(
+      `Verification failed: copied tree reports postgres ${versions.postgres}, initdb ${versions.initdb}, pg_ctl ${versions.pg_ctl}, psql ${versions.psql}; expected ${expected.buildIdentity}.`,
+    );
+    process.exit(failExitCode);
+  }
+
+  return versions.postgres;
+}
+
+function provisionPortableFromPrefix(expected, failExitCode = 1) {
+  const postgresPrefix = locatePostgresPrefix(expected.major);
+  if (!postgresPrefix) {
+    console.error(
+      `POSTGRES_PREFIX is not set. Point it at a PostgreSQL ${expected.buildIdentity} install prefix\n` +
+        `(a from-source build; see hotel-desktop/PACKAGING.md for the per-OS recipe), then re-run this script.`,
+    );
+    process.exit(failExitCode);
+  }
+
+  console.log(`Provisioning embedded PostgreSQL ${expected.buildIdentity} from ${postgresPrefix}`);
+
+  if (existsSync(pgsqlTmpDir)) {
+    rmSync(pgsqlTmpDir, { recursive: true, force: true });
+  }
+
+  try {
+    copyPortablePrefixTree(postgresPrefix);
+  } catch (error) {
+    rmSync(pgsqlTmpDir, { recursive: true, force: true });
+    console.error(`Failed to copy PostgreSQL tree: ${error.message}`);
+    process.exit(failExitCode);
+  }
+
+  let relink = { rewrittenFiles: 0, bundledLibs: [] };
+  if (PLATFORM === 'linux') {
+    try {
+      relink = relinkLinuxTree(pgsqlTmpDir);
+      const issues = linuxTreeIssues(pgsqlTmpDir);
+      if (issues.length > 0) {
+        throw new Error(`tree is not self-contained:\n${issues.slice(0, 10).join('\n')}`);
+      }
+    } catch (error) {
+      rmSync(pgsqlTmpDir, { recursive: true, force: true });
+      console.error(`Failed to make the copied PostgreSQL tree self-contained: ${error.message}`);
+      process.exit(failExitCode);
+    }
+    console.log(
+      `Rewrote rpaths on ${relink.rewrittenFiles} ELF files, bundled ${relink.bundledLibs.length} external libs` +
+        `${relink.bundledLibs.length ? ` (${relink.bundledLibs.join(', ')})` : ''}.`,
+    );
+  }
+
+  const foundBuildIdentity = verifyPortableTree(expected, failExitCode);
+
+  if (existsSync(pgsqlDir)) {
+    rmSync(pgsqlDir, { recursive: true, force: true });
+  }
+  renameSync(pgsqlTmpDir, pgsqlDir);
+
+  const stats = computeTreeStats(pgsqlDir);
+  writeJson(manifestPath, {
+    sourcePath: postgresPrefix,
+    version: foundBuildIdentity,
+    majorVersion: expected.major,
+    buildIdentity: foundBuildIdentity,
+    platform: PLATFORM,
+    date: new Date().toISOString(),
+    fileCount: stats.fileCount,
+    totalBytes: stats.totalBytes,
+    relocatable: true,
+    bundledLibs: relink.bundledLibs,
+  });
+
+  console.log(
+    `Provisioned pgsql/ from ${postgresPrefix} (PostgreSQL ${foundBuildIdentity}, ${stats.fileCount} files, ${stats.totalBytes} bytes).`,
+  );
+}
+
 function provisionFromPrefix(expected, failExitCode = 1) {
   const postgresPrefix = locatePostgresPrefix(expected.major);
   if (!postgresPrefix) {
@@ -551,31 +914,52 @@ function provisionFromPrefix(expected, failExitCode = 1) {
   );
 }
 
-const expected = readExpectedVersion();
-const existing = checkExistingInstall(expected);
+// Exported for scripts/provision-pgsql.test.mjs — pure helpers only; the
+// provisioning main body below stays guarded so importing this module does
+// not execute it.
+export {
+  bundleRpath,
+  extractBuildIdentity,
+  extractMajorVersion,
+  isElfFile,
+  isMachOFile,
+  isSystemDep,
+  LINUX_SYSTEM_LIB,
+  readExpectedVersion,
+  REQUIRED_BIN_NAMES,
+  walkTree,
+};
 
-if (!force) {
-  if (existing.ok) {
-    console.log(
-      `pgsql/ up to date (PostgreSQL ${existing.foundBuildIdentity}, full-build manifest verified).`,
-    );
-    process.exit(0);
+const invokedAsScript =
+  Boolean(process.argv[1]) && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedAsScript) {
+  const expected = readExpectedVersion();
+  const existing = checkExistingInstall(expected);
+
+  if (!force) {
+    if (existing.ok) {
+      console.log(
+        `pgsql/ up to date (PostgreSQL ${existing.foundBuildIdentity}, full-build manifest verified).`,
+      );
+      process.exit(0);
+    }
+    console.log(`pgsql/ needs provisioning: ${existing.reason}.`);
+  } else {
+    console.log('Force re-provisioning requested.');
   }
-  console.log(`pgsql/ needs provisioning: ${existing.reason}.`);
-} else {
-  console.log('Force re-provisioning requested.');
-}
 
-// Exit 2 tells callers (desktop-prepare.mjs) the on-disk tree is confirmed
-// unusable and MUST NOT be shipped; exit 1 means provisioning failed but the
-// existing tree was not proven wrong (safe to warn and continue).
-const failExitCode = existing.hard ? 2 : 1;
+  // Exit 2 tells callers (desktop-prepare.mjs) the on-disk tree is confirmed
+  // unusable and MUST NOT be shipped; exit 1 means provisioning failed but the
+  // existing tree was not proven wrong (safe to warn and continue).
+  const failExitCode = existing.hard ? 2 : 1;
 
-if (process.platform === 'darwin') {
-  provisionFromPrefix(expected, failExitCode);
-} else {
-  console.error(
-    'Windows/Linux pgsql provisioning source not configured — to be filled in by user.',
-  );
-  process.exit(failExitCode);
+  if (PLATFORM === 'darwin') {
+    provisionFromPrefix(expected, failExitCode);
+  } else if (PLATFORM === 'linux' || PLATFORM === 'win32') {
+    provisionPortableFromPrefix(expected, failExitCode);
+  } else {
+    console.error(`Unsupported platform for embedded PostgreSQL provisioning: ${PLATFORM}`);
+    process.exit(failExitCode);
+  }
 }

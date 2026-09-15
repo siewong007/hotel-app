@@ -35,19 +35,24 @@ Cache stamps are stored under `src-tauri/target/desktop-build-cache/`, so they a
 ## Embedded PostgreSQL Provisioning
 
 `bun run provision:pgsql` populates `src-tauri/pgsql/` (gitignored, ~44MB) with the
-subset of a Homebrew `postgresql@<major>` install (`bin`, `lib`, `share`) that the
-app needs at runtime. The major version comes from `CONFIGURED_POSTGRES_MAJOR_VERSION`
-in `src-tauri/src/postgres.rs` — it is not hardcoded in the script.
+subset of a PostgreSQL install prefix (`bin`, `lib`, `share`) that the app needs at
+runtime — Homebrew `postgresql@<major>` on macOS, a `POSTGRES_PREFIX` from-source
+build on Linux/Windows. The required build comes from `CONFIGURED_POSTGRES_MAJOR_VERSION`
+and `CONFIGURED_POSTGRES_BUILD_IDENTITY` in `src-tauri/src/postgres.rs` — it is not
+hardcoded in the script.
 
-- Fast path: if `pgsql/` exists, its `postgres`/`initdb`/`pg_ctl` report the expected
-  major version, and it exits 0 without copying anything.
+- Fast path: if `pgsql/` exists, its `postgres`/`initdb`/`pg_ctl`/`psql` report the
+  expected major version, and it exits 0 without copying anything.
 - On macOS, provisioning uses `POSTGRES_PREFIX` when set, otherwise it locates the
   source via `brew --prefix postgresql@<major>` (install it with
   `brew install postgresql@<major>` if available), then copies it into a
   `pgsql.tmp` staging directory, verifies the binaries, then atomically renames it
   into place. A failed copy never touches the existing `pgsql/` tree.
-- Windows/Linux sources are not configured yet; the script exits 1 with a message
-  rather than guessing a download URL.
+- On Linux/Windows, `POSTGRES_PREFIX` is required and must point at a from-source
+  PostgreSQL install prefix (no prebuilt binaries for the pinned beta exist).
+  Linux trees get `$ORIGIN` rpaths via `patchelf` and external `.so`s bundled into
+  `lib/`; Windows trees carry their dependency DLLs in `bin/`. Per-OS recipes:
+  `docs/guides/PACKAGING.md` and the `desktop-build.yml` CI jobs.
 - Force re-provisioning (e.g. after a version bump or a suspected bad copy):
   `bun run provision:pgsql:force`, or `bun scripts/provision-pgsql.mjs --force`.
 
@@ -66,9 +71,15 @@ bun run build:debug            # debug app + debug sidecar with Tauri's default 
 
 bun run build:msi              # Windows-only MSI package
 bun run build:nsis             # Windows-only NSIS package
+bun run build:deb              # Linux-only .deb package
+bun run build:appimage         # Linux-only AppImage
+bun run build:rpm              # Linux-only .rpm (needs an rpmbuild toolchain)
+
+bun run package:portable       # zip (win/mac) or tar.gz (linux) of the release output
+bun run test:scripts           # bun test over scripts/ (provision + sync helpers)
 ```
 
-For day-to-day verification, prefer `bun run build:fast`. For release candidates, use `bun run build` or a single installer target such as `bun run build:nsis`.
+For day-to-day verification, prefer `bun run build:fast`. For release candidates, use `bun run build` or a single installer target such as `bun run build:nsis`. Cross-platform packaging details (supported targets, signing, CI, smoke tests): `docs/guides/PACKAGING.md`.
 
 ## Rust Build Profiles
 

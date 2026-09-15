@@ -297,7 +297,7 @@ jobs:
           exit 1
 
   desktop:
-    name: Desktop — Cargo Check
+    name: Desktop — Cargo Check & Test (Linux)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -334,3 +334,51 @@ jobs:
 
       - name: Cargo check
         run: cargo check
+
+      # The desktop crate has real unit tests (postmaster.pid parsing, pgdata
+      # build-identity classification, patch-catalog validation). psql-spawning
+      # tests are #[cfg(unix)]-gated or skip without DESKTOP_TEST_* env vars.
+      - name: Cargo test
+        run: cargo test
+
+  # Same gate on Windows: exercises the cfg(windows) code paths (sidecar .exe
+  # naming, CREATE_NO_WINDOW spawning, \\?\ stripping) that the Linux job cannot
+  # compile. Full tauri bundling stays in desktop-build.yml — it is too slow for
+  # the per-PR loop.
+  desktop-windows:
+    name: Desktop — Cargo Check & Test (Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: hotel-desktop/src-tauri
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95.0
+
+      - name: Cache Cargo dependencies
+        if: ${{ !env.ACT }}
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: hotel-desktop/src-tauri
+
+      # aws-lc-sys (via rustls) builds C/asm in its build script: cmake is
+      # preinstalled on the runner, NASM is not.
+      - name: Install NASM
+        run: choco install -y nasm
+
+      - name: Stage placeholder desktop resources
+        run: |
+          $triple = (rustc -vV | Select-String '^host: ').Line -replace 'host: ', ''
+          New-Item -ItemType File -Force -Path "binaries/hotel-app-be-$triple.exe" | Out-Null
+          New-Item -ItemType File -Force -Path "pgsql/bin/placeholder" | Out-Null
+          New-Item -ItemType File -Force -Path "pgsql/lib/placeholder" | Out-Null
+          New-Item -ItemType File -Force -Path "pgsql/share/placeholder" | Out-Null
+
+      - name: Cargo check
+        run: cargo check
+
+      - name: Cargo test
+        run: cargo test
