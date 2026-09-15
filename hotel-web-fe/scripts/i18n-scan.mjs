@@ -112,8 +112,11 @@ const ALLOWED_PATTERNS = [
 // ---------------------------------------------------------------------------
 // File-scoped allowlist — literals that are legitimately untranslated only in
 // one file, where a global entry would mask real misses elsewhere. `pathRe`
-// is tested against the file's absolute path. Each entry carries its reason;
-// this list becomes Task 16's audit allowlist.
+// is tested against the file's absolute path. Each entry carries its reason.
+// `src/i18n/hardcoded.test.ts` embeds a SUPERSET of this table (its jsx-text
+// lookbehind is wider — it sees text under tags closed at line start that this
+// scanner misses — so the test's allowlist additionally covers `⌘K`); keep
+// the two in sync when either changes.
 // ---------------------------------------------------------------------------
 const FILE_ALLOWLIST = [
   {

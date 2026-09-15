@@ -17,14 +17,16 @@
  *   - literals in expression position `{'Save'}`  `cond && 'Save'`
  *     `a ?? 'Save'`  `cond ? 'A' : 'B'`
  *
- * The detection logic is a verbatim port of `scripts/i18n-scan.mjs` — the two
- * share ALLOWED_LITERALS / ALLOWED_PATTERNS / the per-file ALLOWLIST and the
- * same comment-blanker, so a manual `bun scripts/i18n-scan.mjs` sweep and this
- * gate can never disagree. The scan script cannot be imported (it runs main()
- * at module load), which is why the tables are embedded here — keep them in
- * sync when one changes.
+ * The detection logic is a port of `scripts/i18n-scan.mjs` — the two share
+ * ALLOWED_LITERALS / ALLOWED_PATTERNS and the same comment-blanker, and this
+ * test's ALLOWLIST is a superset of the scanner's FILE_ALLOWLIST (the test's
+ * wider jsx-text lookbehind flags strings the scanner cannot see — e.g. text
+ * under a tag closed at line start — so its allowlist additionally carries
+ * `⌘K`; the two tables can never be byte-identical). The scan script cannot
+ * be imported (it runs main() at module load), which is why the tables are
+ * embedded here — keep them in sync when one changes.
  *
- * One deliberate strengthening over the scanner: the jsx-text lookbehind also
+ * Deliberate strengthening over the scanner: the jsx-text lookbehind also
  * accepts whitespace before `>`, so text inside a tag closed at the start of a
  * line (`<Button\n  …\n>\n  Text\n</Button>`) is caught — the scanner misses
  * that shape (the "New task" leak this task fixed).
@@ -200,11 +202,15 @@ const ALLOWLIST: { path: RegExp; literals: Set<string> }[] = [
 
 // jsx-text heuristic: a "text node" that starts with a closing bracket, comma,
 // colon or `=`, ends with an opening bracket, looks like a TS signature
-// (`(cmd: string, args?: Record`), carries a JS operator, or trails into a
-// ternary `?` is really a code fragment caught between JSX siblings
-// (`) : cond ? (`, `= TanStackColumnDef`, `(KEY) ?? store.get`, `x > y ? <A/>`).
+// (`(cmd: string, args?: Record`), or carries a JS operator is really a code
+// fragment caught between JSX siblings (`) : cond ? (`, `= TanStackColumnDef`,
+// `(KEY) ?? store.get`). The final `\s\?\s*$` arm covers comparison-ternary
+// spans the widened lookbehind admits (`x > y ? <A/>` → body `y ?`) — it
+// anchors on whitespace BEFORE the `?` precisely so prose like
+// `Are you sure?` still flags; a bare `\?` arm would exempt every question
+// mark in the tree.
 const JSX_CODE_FRAGMENT_RE =
-  /^[)\],;:}=\[]|^[(\[][^<]*:|[([{&|]$|==|!=|&&|\|\||\?\?|\?\.|=>|\.\w+\s*\(|\?/;
+  /^[)\],;:}=\[]|^[(\[][^<]*:|[([{&|]$|==|!=|&&|\|\||\?\?|\?\.|=>|\.\w+\s*\(|\s\?\s*$/;
 
 // Attribute / property names whose literal values are user-visible.
 const TEXT_PROP_NAMES = [
@@ -461,6 +467,27 @@ describe('hardcoded-string audit', () => {
     const relPath = globKey.replace(/^\.\.\//, '');
     findings.push(...scanFile(relPath, source, used));
   }
+
+  it('flags question-mark prose while comparison-ternary fragments stay exempt', () => {
+    // Regression probe for the `\s\?\s*$` fragment arm: `{a > b ? <i/> : <b/>}`
+    // is a code fragment (whitespace before `?`); `…?` prose is not.
+    const probe = [
+      'const Probe = () => (',
+      '  <div>',
+      '    <span>Delete this booking?</span>',
+      '    <span>Are you sure?</span>',
+      '    <span>Continue?</span>',
+      '    {a > b ? <i /> : <b />}',
+      '  </div>',
+      ');',
+    ].join('\n');
+    const found = scanFile('probe/fixture.tsx', probe, new Set());
+    expect(found.map((f) => `${f.kind}  ${f.text}`).sort()).toEqual([
+      'jsx-text  Are you sure?',
+      'jsx-text  Continue?',
+      'jsx-text  Delete this booking?',
+    ]);
+  });
 
   it('flags no user-visible literal outside the allowlist', () => {
     expect(
