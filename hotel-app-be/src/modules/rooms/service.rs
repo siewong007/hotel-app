@@ -10,7 +10,7 @@ use crate::core::middleware::{
     check_permission, require_any_permission_helper, require_permission_helper,
 };
 use crate::models::*;
-use crate::repositories::rooms_queries as rq;
+use super::queries as rq;
 use crate::services::audit::AuditLog;
 use axum::{
     extract::{Multipart, Path, Query, State},

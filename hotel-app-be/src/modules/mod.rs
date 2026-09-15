@@ -17,6 +17,7 @@ pub mod rates;
 pub mod rbac;
 pub mod realtime;
 pub mod revenue;
+pub mod rooms;
 pub mod search;
 pub mod segments;
 pub mod settings;

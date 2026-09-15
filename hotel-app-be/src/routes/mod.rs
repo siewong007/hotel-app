@@ -25,7 +25,7 @@ pub mod payments;
 // profile routes live in modules::profile.
 // rates routes live in modules::rates.
 // rbac routes live in modules::rbac.
-pub mod rooms;
+// rooms routes live in modules::rooms.
 // search routes live in modules::search.
 // two_factor routes live in modules::two_factor.
 // users routes live in modules::users.
@@ -390,7 +390,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(auth::routes())
         .merge(payment_retry::routes())
         .merge(crate::modules::booking_channels::routes::routes())
-        .merge(rooms::routes())
+        .merge(crate::modules::rooms::routes::routes())
         .merge(guests::routes())
         .merge(crate::modules::housekeeping::routes::routes())
         .merge(crate::modules::maintenance::routes::routes())

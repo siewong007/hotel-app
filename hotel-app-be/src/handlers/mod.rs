@@ -24,7 +24,7 @@ pub mod payments;
 // profile handlers live in modules::profile.
 // rates handlers live in modules::rates.
 // rbac handlers live in modules::rbac.
-pub mod rooms;
+// rooms handlers live in modules::rooms.
 // search handlers live in modules::search.
 // two_factor handlers live in modules::two_factor.
 // users handlers live in modules::users.

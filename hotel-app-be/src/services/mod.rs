@@ -38,7 +38,7 @@ pub mod paypal_client;
 pub mod promotion_pricing;
 // rates service logic live in modules::rates.
 // rbac service logic live in modules::rbac.
-pub mod rooms;
+// rooms service logic live in modules::rooms.
 // search service logic live in modules::search.
 pub mod turnstile;
 // two_factor service logic live in modules::two_factor.

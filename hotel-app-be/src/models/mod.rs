@@ -15,7 +15,6 @@ pub mod ledger;
 pub mod night_audit;
 pub mod payment;
 pub mod payment_retry;
-pub mod room;
 pub mod row_mappers;
 
 // Re-export all models for convenience
@@ -37,6 +36,6 @@ pub use night_audit::*;
 pub use payment::*;
 pub use crate::modules::rates::models::*;
 pub use crate::modules::rbac::models::*;
-pub use room::*;
+pub use crate::modules::rooms::models::*;
 pub use crate::modules::search::models::*;
 pub use crate::modules::users::models::*;

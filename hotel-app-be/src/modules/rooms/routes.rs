@@ -5,7 +5,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Extension, Router,
@@ -39,7 +39,7 @@ pub fn routes() -> Router<DbPool> {
         .route(
             "/room-types/{id}/images",
             post(upload_room_type_image).layer(DefaultBodyLimit::max(
-                crate::services::rooms::MAX_ROOM_IMAGE_BYTES,
+                super::service::MAX_ROOM_IMAGE_BYTES,
             )),
         )
         .route("/rooms/{room_type}/reviews", get(get_room_reviews))
@@ -89,7 +89,7 @@ async fn get_rooms(
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::RoomWithRating>>, ApiError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rooms::get_rooms_handler(State(pool)).await
+    handlers::get_rooms_handler(State(pool)).await
 }
 
 async fn search_rooms(
@@ -98,7 +98,7 @@ async fn search_rooms(
     query: Query<models::SearchQuery>,
 ) -> Result<Json<Vec<models::RoomWithRating>>, ApiError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rooms::search_rooms_handler(State(pool), query).await
+    handlers::search_rooms_handler(State(pool), query).await
 }
 
 async fn create_room(
@@ -107,7 +107,7 @@ async fn create_room(
     Json(input): Json<models::RoomCreateInput>,
 ) -> Result<Json<models::Room>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
-    handlers::rooms::create_room_handler(State(pool), user_id, Json(input)).await
+    handlers::create_room_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn update_room(
@@ -117,7 +117,7 @@ async fn update_room(
     Json(input): Json<models::RoomUpdateInput>,
 ) -> Result<Json<models::Room>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
-    handlers::rooms::update_room_handler(State(pool), user_id, path, Json(input)).await
+    handlers::update_room_handler(State(pool), user_id, path, Json(input)).await
 }
 
 async fn delete_room_handler(
@@ -126,7 +126,7 @@ async fn delete_room_handler(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
-    handlers::rooms::delete_room_handler(State(pool), user_id, path).await
+    handlers::delete_room_handler(State(pool), user_id, path).await
 }
 
 async fn get_room_types(
@@ -134,14 +134,14 @@ async fn get_room_types(
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::RoomType>>, ApiError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rooms::get_room_types_handler(State(pool)).await
+    handlers::get_room_types_handler(State(pool)).await
 }
 
 async fn get_all_room_types(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::RoomType>>, ApiError> {
-    handlers::rooms::get_all_room_types_handler(State(pool), headers).await
+    handlers::get_all_room_types_handler(State(pool), headers).await
 }
 
 async fn get_room_type(
@@ -149,7 +149,7 @@ async fn get_room_type(
     path: Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<models::RoomType>, ApiError> {
-    handlers::rooms::get_room_type_handler(State(pool), path, headers).await
+    handlers::get_room_type_handler(State(pool), path, headers).await
 }
 
 async fn create_room_type(
@@ -157,7 +157,7 @@ async fn create_room_type(
     headers: HeaderMap,
     Json(input): Json<models::RoomTypeCreateInput>,
 ) -> Result<Json<models::RoomType>, ApiError> {
-    handlers::rooms::create_room_type_handler(State(pool), headers, Json(input)).await
+    handlers::create_room_type_handler(State(pool), headers, Json(input)).await
 }
 
 async fn update_room_type(
@@ -166,7 +166,7 @@ async fn update_room_type(
     headers: HeaderMap,
     Json(input): Json<models::RoomTypeUpdateInput>,
 ) -> Result<Json<models::RoomType>, ApiError> {
-    handlers::rooms::update_room_type_handler(State(pool), path, headers, Json(input)).await
+    handlers::update_room_type_handler(State(pool), path, headers, Json(input)).await
 }
 
 async fn upload_room_type_image(
@@ -175,7 +175,7 @@ async fn upload_room_type_image(
     path: Path<i64>,
     multipart: axum::extract::Multipart,
 ) -> Result<Json<models::RoomType>, ApiError> {
-    handlers::rooms::upload_room_type_image_handler(State(pool), headers, path, multipart).await
+    handlers::upload_room_type_image_handler(State(pool), headers, path, multipart).await
 }
 
 async fn delete_room_type(
@@ -183,7 +183,7 @@ async fn delete_room_type(
     path: Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::rooms::delete_room_type_handler(State(pool), path, headers).await
+    handlers::delete_room_type_handler(State(pool), path, headers).await
 }
 
 async fn get_room_reviews(
@@ -192,7 +192,7 @@ async fn get_room_reviews(
     path: Path<String>,
 ) -> Result<Json<Vec<models::GuestReview>>, ApiError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rooms::get_room_reviews_handler(State(pool), path).await
+    handlers::get_room_reviews_handler(State(pool), path).await
 }
 
 async fn update_room_status(
@@ -201,7 +201,7 @@ async fn update_room_status(
     headers: HeaderMap,
     Json(input): Json<models::RoomStatusUpdateInput>,
 ) -> Result<Json<models::Room>, ApiError> {
-    handlers::rooms::update_room_status_handler(State(pool), path, headers, Json(input)).await
+    handlers::update_room_status_handler(State(pool), path, headers, Json(input)).await
 }
 
 async fn create_room_event(
@@ -210,7 +210,7 @@ async fn create_room_event(
     headers: HeaderMap,
     Json(input): Json<models::RoomEventInput>,
 ) -> Result<Json<models::RoomEvent>, ApiError> {
-    handlers::rooms::create_room_event_handler(State(pool), path, headers, Json(input)).await
+    handlers::create_room_event_handler(State(pool), path, headers, Json(input)).await
 }
 
 async fn get_room_detailed(
@@ -218,7 +218,7 @@ async fn get_room_detailed(
     path: Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<models::RoomDetailedStatus>, ApiError> {
-    handlers::rooms::get_room_detailed_status_handler(State(pool), path, headers).await
+    handlers::get_room_detailed_status_handler(State(pool), path, headers).await
 }
 
 async fn get_room_history(
@@ -226,7 +226,7 @@ async fn get_room_history(
     path: Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    handlers::rooms::get_room_history_handler(State(pool), path, headers).await
+    handlers::get_room_history_handler(State(pool), path, headers).await
 }
 
 async fn end_maintenance(
@@ -234,7 +234,7 @@ async fn end_maintenance(
     path: Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<models::Room>, ApiError> {
-    handlers::rooms::end_maintenance_handler(State(pool), path, headers).await
+    handlers::end_maintenance_handler(State(pool), path, headers).await
 }
 
 async fn end_cleaning(
@@ -242,14 +242,14 @@ async fn end_cleaning(
     path: Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::rooms::end_cleaning_handler(State(pool), path, headers).await
+    handlers::end_cleaning_handler(State(pool), path, headers).await
 }
 
 async fn sync_room_statuses(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::rooms::sync_room_statuses_handler(State(pool), headers).await
+    handlers::sync_room_statuses_handler(State(pool), headers).await
 }
 
 async fn execute_room_change(
@@ -258,7 +258,7 @@ async fn execute_room_change(
     headers: HeaderMap,
     Json(input): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::rooms::execute_room_change_handler(State(pool), path, headers, Json(input)).await
+    handlers::execute_room_change_handler(State(pool), path, headers, Json(input)).await
 }
 
 async fn get_room_change_history(
@@ -266,7 +266,7 @@ async fn get_room_change_history(
     headers: HeaderMap,
     query: Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    handlers::rooms::get_room_change_history_handler(State(pool), headers, query).await
+    handlers::get_room_change_history_handler(State(pool), headers, query).await
 }
 
 // ==================== OCCUPANCY ROUTES ====================
@@ -276,7 +276,7 @@ async fn get_all_room_occupancy(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::RoomCurrentOccupancy>>, ApiError> {
-    handlers::rooms::get_all_room_occupancy_handler(State(pool), headers).await
+    handlers::get_all_room_occupancy_handler(State(pool), headers).await
 }
 
 async fn get_room_occupancy(
@@ -284,26 +284,26 @@ async fn get_room_occupancy(
     path: Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<models::RoomCurrentOccupancy>, ApiError> {
-    handlers::rooms::get_room_occupancy_handler(State(pool), path, headers).await
+    handlers::get_room_occupancy_handler(State(pool), path, headers).await
 }
 
 async fn get_hotel_occupancy_summary(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::HotelOccupancySummary>, ApiError> {
-    handlers::rooms::get_hotel_occupancy_summary_handler(State(pool), headers).await
+    handlers::get_hotel_occupancy_summary_handler(State(pool), headers).await
 }
 
 async fn get_occupancy_by_room_type(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::OccupancyByRoomType>>, ApiError> {
-    handlers::rooms::get_occupancy_by_room_type_handler(State(pool), headers).await
+    handlers::get_occupancy_by_room_type_handler(State(pool), headers).await
 }
 
 async fn get_rooms_with_occupancy(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::RoomWithOccupancy>>, ApiError> {
-    handlers::rooms::get_rooms_with_occupancy_handler(State(pool), headers).await
+    handlers::get_rooms_with_occupancy_handler(State(pool), headers).await
 }

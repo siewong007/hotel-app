@@ -27,7 +27,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/housekeeping/assignable-staff", get(assignable_staff))
         // Task completion can flip a room to available — let availability
         // subscribers see the inventory change like any /rooms mutation.
-        .route_layer(middleware::from_fn(crate::routes::rooms::publish_inventory_changes))
+        .route_layer(middleware::from_fn(crate::modules::rooms::routes::publish_inventory_changes))
 }
 
 async fn list_tasks(

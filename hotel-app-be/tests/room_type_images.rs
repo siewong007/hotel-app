@@ -2,7 +2,7 @@
 //! Skipped without `DATABASE_URL` — the jsonb row mapping needs one test that
 //! actually fetches from a real database (SQLx here is runtime-checked).
 
-use hotel_app_be::repositories::rooms_queries as rq;
+use hotel_app_be::modules::rooms::queries as rq;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 

@@ -11,7 +11,8 @@ use crate::models::{
     ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
 };
 use super::repository::{self, NewHousekeepingTask};
-use crate::services::{audit::AuditLog, rooms};
+use crate::services::{audit::AuditLog};
+use crate::modules::rooms::service as rooms;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 

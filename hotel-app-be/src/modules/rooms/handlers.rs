@@ -5,7 +5,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::services::rooms as room_service;
+use super::service as room_service;
 use axum::{
     extract::{Path, Query, State},
     http::HeaderMap,
