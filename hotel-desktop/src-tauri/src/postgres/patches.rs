@@ -1407,7 +1407,7 @@ mod tests {
         let fake_dir = TestPatchDir::new();
         let psql_path = fake_psql(
             &fake_dir,
-            "#!/bin/sh\nexec 0<&-\nprintf 'SQLSTATE 42P01 child diagnostic\\n' >&2\nsleep 0.025\nexit 7\n",
+            "#!/bin/sh\nexec 0<&-\nprintf 'SQLSTATE 42P01 child diagnostic\\n' >&2\nexit 7\n",
         );
 
         for attempt in 0..32 {
