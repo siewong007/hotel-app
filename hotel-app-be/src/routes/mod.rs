@@ -4,7 +4,7 @@
 //! Each submodule defines routes for a specific domain.
 
 pub mod analytics;
-pub mod audit;
+// audit routes live in modules::audit.
 pub mod auth;
 // booking_channels routes live in modules::booking_channels.
 pub mod bookings;
@@ -417,7 +417,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::guest_booking::routes::routes())
         .merge(guest_portal::routes())
         .merge(companies::routes())
-        .merge(audit::routes())
+        .merge(crate::modules::audit::routes::routes())
         .merge(crate::modules::search::routes::routes())
         .merge(night_audit::routes())
         .merge(data_transfer::routes())

@@ -14,7 +14,7 @@ use axum::{
     routing::get,
 };
 
-use crate::handlers::audit;
+use super::handlers;
 
 /// Create audit routes
 pub fn routes() -> Router<DbPool> {
@@ -37,7 +37,7 @@ async fn get_audit_logs(
     query: Query<models::AuditLogQuery>,
 ) -> Result<Json<models::AuditLogResponse>, ApiError> {
     require_permission_helper(&pool, &headers, "audit:read").await?;
-    audit::get_audit_logs(State(pool), query).await
+    handlers::get_audit_logs(State(pool), query).await
 }
 
 async fn get_audit_actions(
@@ -45,7 +45,7 @@ async fn get_audit_actions(
     headers: HeaderMap,
 ) -> Result<Json<Vec<String>>, ApiError> {
     require_permission_helper(&pool, &headers, "audit:read").await?;
-    audit::get_audit_actions(State(pool)).await
+    handlers::get_audit_actions(State(pool)).await
 }
 
 async fn get_audit_resource_types(
@@ -53,7 +53,7 @@ async fn get_audit_resource_types(
     headers: HeaderMap,
 ) -> Result<Json<Vec<String>>, ApiError> {
     require_permission_helper(&pool, &headers, "audit:read").await?;
-    audit::get_audit_resource_types(State(pool)).await
+    handlers::get_audit_resource_types(State(pool)).await
 }
 
 async fn get_audit_users(
@@ -61,7 +61,7 @@ async fn get_audit_users(
     headers: HeaderMap,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     require_permission_helper(&pool, &headers, "audit:read").await?;
-    audit::get_audit_users(State(pool)).await
+    handlers::get_audit_users(State(pool)).await
 }
 
 async fn get_audit_category_counts(
@@ -70,7 +70,7 @@ async fn get_audit_category_counts(
     query: Query<models::AuditLogQuery>,
 ) -> Result<Json<models::AuditCategoryCounts>, ApiError> {
     require_permission_helper(&pool, &headers, "audit:read").await?;
-    audit::get_audit_category_counts(State(pool), query).await
+    handlers::get_audit_category_counts(State(pool), query).await
 }
 
 async fn export_audit_logs_csv(
@@ -79,7 +79,7 @@ async fn export_audit_logs_csv(
     query: Query<models::AuditLogQuery>,
 ) -> Result<axum::response::Response, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "audit:export").await?;
-    audit::export_audit_logs_csv(State(pool), Extension(user_id), query).await
+    handlers::export_audit_logs_csv(State(pool), Extension(user_id), query).await
 }
 
 async fn get_db_statements(
@@ -88,5 +88,5 @@ async fn get_db_statements(
     query: Query<models::DbStatementsQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "audit:read").await?;
-    audit::get_db_statements(State(pool), query).await
+    handlers::get_db_statements(State(pool), query).await
 }

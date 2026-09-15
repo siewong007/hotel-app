@@ -4,7 +4,7 @@
 //! Handlers are organized by feature area for better maintainability.
 
 pub mod analytics;
-pub mod audit;
+// audit handlers live in modules::audit.
 pub mod auth;
 // booking_channels handlers live in modules::booking_channels.
 pub mod bookings;
