@@ -115,8 +115,16 @@ decisions to `architecture/architecture-flow.md` §Payments, and the
 
 Three were decisions with no other home, kept here as standing policy:
 
-- **Branch protection on master:** deliberately none. Direct-push to master is
-  the chosen process; no ruleset wanted.
+- **Branch protection on master:** an active ruleset now exists — corrected
+  2026-09-15 after a direct push was accepted with `remote: Bypassed rule
+  violations … Changes must be made through a pull request`. Ruleset
+  `master-protection` (id 21196959) is `enforcement: active` with a single
+  `pull_request` rule and a `RepositoryRole` bypass set to `always`, so repo
+  admins still push straight to master while everyone else must open a PR.
+  The entry this replaces claimed "deliberately none; no ruleset wanted",
+  which was true when written and is no longer. Verify with
+  `gh api repos/siewong007/hotel-app/rules/branches/master` before assuming
+  either way.
 - **Guest portal forgot-password and max-booking-window:** won't do. Neither
   feature is wanted — do not re-propose them as gaps.
 - **Zero-balance un-invoiced ledger rows read "Draft", not "Paid":**
