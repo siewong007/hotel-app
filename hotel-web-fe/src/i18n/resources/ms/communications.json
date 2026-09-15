@@ -1,1 +1,96 @@
-{}
+{
+  "pageTitle": "Komunikasi",
+  "tabs": {
+    "campaigns": "Kempen E-mel",
+    "templates": "Templat",
+    "suppressions": "Sekatan"
+  },
+  "errors": {
+    "requestFailed": "Permintaan gagal",
+    "portalSignInRequired": "Log masuk ke portal tetamu untuk meneruskan."
+  },
+  "actions": {
+    "testSend": "Hantar ujian",
+    "sendTest": "Hantar ujian",
+    "preview": "Pratonton",
+    "deliveries": "Penghantaran",
+    "deactivate": "Nyahaktif",
+    "suppress": "Sekat"
+  },
+  "campaignType": {
+    "announcement": "Pengumuman",
+    "promotion": "Promosi"
+  },
+  "fields": {
+    "subject": "Subjek",
+    "bodyHtml": "Badan (HTML)",
+    "promotion": "Promosi yang diterbitkan",
+    "segment": "Segmen tetamu",
+    "recipientEmail": "E-mel penerima",
+    "code": "Kod",
+    "allowedVariables": "Pemboleh ubah dibenarkan (dipisahkan koma)",
+    "emailToSuppress": "E-mel untuk disekat"
+  },
+  "hints": {
+    "promotionLoadFailed": "Promosi yang diterbitkan tidak dapat dimuatkan",
+    "promotion": "Pilih tawaran yang diiklankan oleh kempen ini",
+    "promotionsLoading": "Memuatkan promosi…",
+    "noPromotions": "Tiada promosi yang diterbitkan",
+    "segmentLoadFailed": "Segmen tidak dapat dimuatkan",
+    "segmentScoped": "Hanya ahli segmen yang melanggan dan tidak disekat menerima kempen ini",
+    "segmentAll": "Pilihan — biarkan kosong untuk mencapai setiap pelanggan yang layak",
+    "allEligibleGuests": "Semua tetamu yang layak",
+    "codeFormat": "lowercase_with_underscores",
+    "variables": "Rujuk mereka dalam badan sebagai {{variable}}; nilai sentiasa dilarikan HTML"
+  },
+  "columns": {
+    "recipients": "Penerima",
+    "sentFailed": "Dihantar / Gagal",
+    "recipient": "Penerima",
+    "attempts": "Cubaan",
+    "lastError": "Ralat terakhir",
+    "variables": "Pemboleh ubah",
+    "active": "Aktif",
+    "reason": "Sebab",
+    "source": "Sumber"
+  },
+  "campaigns": {
+    "heading": "Kempen",
+    "new": "Kempen baharu",
+    "newTitle": "Kempen baharu",
+    "editTitle": "Sunting kempen",
+    "testSent": "E-mel ujian dihantar.",
+    "sendTooltip": "Menyusun kempen untuk dihantar kepada semua pelanggan yang layak",
+    "cardSubtitle_other": "{{type}} · {{count}} penerima",
+    "sentFailed": "{{sent}} dihantar / {{failed}} gagal",
+    "audience": "Khalayak: {{eligible}} layak",
+    "audienceWithSegment": "Khalayak: {{eligible}} layak — {{excluded}} tetamu yang layak berada di luar segmen",
+    "previewTitle": "Pratonton — {{subject}}",
+    "previewAudience": "Penerima layak: {{eligible}} (dikecualikan — tiada e-mel: {{noEmail}}, tidak aktif: {{inactive}}, berhenti melanggan: {{unsubscribed}}, disekat: {{suppressed}})",
+    "previewAudienceWithSegment": "Penerima layak: {{eligible}} (dikecualikan — tiada e-mel: {{noEmail}}, tidak aktif: {{inactive}}, berhenti melanggan: {{unsubscribed}}, disekat: {{suppressed}}, di luar segmen: {{segment}})",
+    "testEmailTitle": "Hantar e-mel ujian",
+    "deliveriesTitle": "Penghantaran — {{name}}"
+  },
+  "deliveries": {
+    "attempts_other": "{{count}} cubaan",
+    "attemptsWithError_other": "{{count}} cubaan · {{error}}"
+  },
+  "templates": {
+    "heading": "Templat e-mel",
+    "new": "Templat baharu",
+    "newTitle": "Templat baharu",
+    "editTitle": "Sunting templat",
+    "variables": "Pemboleh ubah: {{variables}}",
+    "noVariables": "Tiada pemboleh ubah"
+  },
+  "suppressions": {
+    "heading": "Senarai sekatan",
+    "description": "Alamat di sini tidak pernah menerima e-mel pemasaran, tanpa mengira langganan.",
+    "reason": {
+      "unsubscribe": "Berhenti melanggan",
+      "bounce": "Lantunan",
+      "complaint": "Aduan",
+      "manual": "Manual"
+    }
+  }
+}

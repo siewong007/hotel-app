@@ -1,1 +1,99 @@
-{}
+{
+  "pageTitle": "Communications",
+  "tabs": {
+    "campaigns": "Email Campaigns",
+    "templates": "Templates",
+    "suppressions": "Suppressions"
+  },
+  "errors": {
+    "requestFailed": "Request failed",
+    "portalSignInRequired": "Sign in to the guest portal to continue."
+  },
+  "actions": {
+    "testSend": "Test send",
+    "sendTest": "Send test",
+    "preview": "Preview",
+    "deliveries": "Deliveries",
+    "deactivate": "Deactivate",
+    "suppress": "Suppress"
+  },
+  "campaignType": {
+    "announcement": "Announcement",
+    "promotion": "Promotion"
+  },
+  "fields": {
+    "subject": "Subject",
+    "bodyHtml": "Body (HTML)",
+    "promotion": "Published promotion",
+    "segment": "Guest segment",
+    "recipientEmail": "Recipient email",
+    "code": "Code",
+    "allowedVariables": "Allowed variables (comma-separated)",
+    "emailToSuppress": "Email to suppress"
+  },
+  "hints": {
+    "promotionLoadFailed": "Published promotions could not be loaded",
+    "promotion": "Choose the offer this campaign advertises",
+    "promotionsLoading": "Loading promotions…",
+    "noPromotions": "No published promotions available",
+    "segmentLoadFailed": "Segments could not be loaded",
+    "segmentScoped": "Only segment members who are subscribed and unsuppressed receive this campaign",
+    "segmentAll": "Optional — leave empty to reach every eligible subscriber",
+    "allEligibleGuests": "All eligible guests",
+    "codeFormat": "lowercase_with_underscores",
+    "variables": "Reference them in the body as {{variable}}; values are always HTML-escaped"
+  },
+  "columns": {
+    "recipients": "Recipients",
+    "sentFailed": "Sent / Failed",
+    "recipient": "Recipient",
+    "attempts": "Attempts",
+    "lastError": "Last error",
+    "variables": "Variables",
+    "active": "Active",
+    "reason": "Reason",
+    "source": "Source"
+  },
+  "campaigns": {
+    "heading": "Campaigns",
+    "new": "New campaign",
+    "newTitle": "New campaign",
+    "editTitle": "Edit campaign",
+    "testSent": "Test email sent.",
+    "sendTooltip": "Queues the campaign for sending to all eligible subscribers",
+    "cardSubtitle_one": "{{type}} · {{count}} recipient",
+    "cardSubtitle_other": "{{type}} · {{count}} recipients",
+    "sentFailed": "{{sent}} sent / {{failed}} failed",
+    "audience": "Audience: {{eligible}} eligible",
+    "audienceWithSegment": "Audience: {{eligible}} eligible — {{excluded}} eligible guests fall outside the segment",
+    "previewTitle": "Preview — {{subject}}",
+    "previewAudience": "Eligible recipients: {{eligible}} (excluded — no email: {{noEmail}}, inactive: {{inactive}}, unsubscribed: {{unsubscribed}}, suppressed: {{suppressed}})",
+    "previewAudienceWithSegment": "Eligible recipients: {{eligible}} (excluded — no email: {{noEmail}}, inactive: {{inactive}}, unsubscribed: {{unsubscribed}}, suppressed: {{suppressed}}, outside segment: {{segment}})",
+    "testEmailTitle": "Send test email",
+    "deliveriesTitle": "Deliveries — {{name}}"
+  },
+  "deliveries": {
+    "attempts_one": "{{count}} attempt",
+    "attempts_other": "{{count}} attempts",
+    "attemptsWithError_one": "{{count}} attempt · {{error}}",
+    "attemptsWithError_other": "{{count}} attempts · {{error}}"
+  },
+  "templates": {
+    "heading": "Email templates",
+    "new": "New template",
+    "newTitle": "New template",
+    "editTitle": "Edit template",
+    "variables": "Variables: {{variables}}",
+    "noVariables": "No variables"
+  },
+  "suppressions": {
+    "heading": "Suppression list",
+    "description": "Addresses here never receive marketing email, regardless of subscriptions.",
+    "reason": {
+      "unsubscribe": "Unsubscribe",
+      "bounce": "Bounce",
+      "complaint": "Complaint",
+      "manual": "Manual"
+    }
+  }
+}

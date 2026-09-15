@@ -1,1 +1,96 @@
-{}
+{
+  "pageTitle": "通信",
+  "tabs": {
+    "campaigns": "电子邮件活动",
+    "templates": "模板",
+    "suppressions": "抑制列表"
+  },
+  "errors": {
+    "requestFailed": "请求失败",
+    "portalSignInRequired": "请登录宾客门户以继续。"
+  },
+  "actions": {
+    "testSend": "测试发送",
+    "sendTest": "发送测试",
+    "preview": "预览",
+    "deliveries": "投递",
+    "deactivate": "停用",
+    "suppress": "抑制"
+  },
+  "campaignType": {
+    "announcement": "公告",
+    "promotion": "促销"
+  },
+  "fields": {
+    "subject": "主题",
+    "bodyHtml": "正文（HTML）",
+    "promotion": "已发布的促销",
+    "segment": "宾客细分",
+    "recipientEmail": "收件人邮箱",
+    "code": "代码",
+    "allowedVariables": "允许的变量（逗号分隔）",
+    "emailToSuppress": "要抑制的邮箱"
+  },
+  "hints": {
+    "promotionLoadFailed": "无法加载已发布的促销",
+    "promotion": "选择此活动宣传的优惠",
+    "promotionsLoading": "正在加载促销…",
+    "noPromotions": "没有已发布的促销",
+    "segmentLoadFailed": "无法加载细分",
+    "segmentScoped": "只有已订阅且未被抑制的细分成员才会收到此活动",
+    "segmentAll": "可选——留空即可覆盖所有符合条件的订阅者",
+    "allEligibleGuests": "所有符合条件的宾客",
+    "codeFormat": "lowercase_with_underscores",
+    "variables": "在正文中以 {{variable}} 引用；值始终经过 HTML 转义"
+  },
+  "columns": {
+    "recipients": "收件人数",
+    "sentFailed": "已发送 / 失败",
+    "recipient": "收件人",
+    "attempts": "尝试次数",
+    "lastError": "最近错误",
+    "variables": "变量",
+    "active": "启用",
+    "reason": "原因",
+    "source": "来源"
+  },
+  "campaigns": {
+    "heading": "活动",
+    "new": "新建活动",
+    "newTitle": "新建活动",
+    "editTitle": "编辑活动",
+    "testSent": "测试邮件已发送。",
+    "sendTooltip": "将活动加入队列，发送给所有符合条件的订阅者",
+    "cardSubtitle_other": "{{type}} · {{count}} 位收件人",
+    "sentFailed": "{{sent}} 已发送 / {{failed}} 失败",
+    "audience": "受众：{{eligible}} 位符合条件",
+    "audienceWithSegment": "受众：{{eligible}} 位符合条件 — {{excluded}} 位符合条件的宾客不在该细分内",
+    "previewTitle": "预览 — {{subject}}",
+    "previewAudience": "符合条件的收件人：{{eligible}}（已排除——无邮箱：{{noEmail}}，未激活：{{inactive}}，已退订：{{unsubscribed}}，已抑制：{{suppressed}}）",
+    "previewAudienceWithSegment": "符合条件的收件人：{{eligible}}（已排除——无邮箱：{{noEmail}}，未激活：{{inactive}}，已退订：{{unsubscribed}}，已抑制：{{suppressed}}，不在细分内：{{segment}}）",
+    "testEmailTitle": "发送测试邮件",
+    "deliveriesTitle": "投递 — {{name}}"
+  },
+  "deliveries": {
+    "attempts_other": "{{count}} 次尝试",
+    "attemptsWithError_other": "{{count}} 次尝试 · {{error}}"
+  },
+  "templates": {
+    "heading": "邮件模板",
+    "new": "新建模板",
+    "newTitle": "新建模板",
+    "editTitle": "编辑模板",
+    "variables": "变量：{{variables}}",
+    "noVariables": "无变量"
+  },
+  "suppressions": {
+    "heading": "抑制列表",
+    "description": "此列表中的地址不会收到营销邮件，无论订阅状态如何。",
+    "reason": {
+      "unsubscribe": "退订",
+      "bounce": "退信",
+      "complaint": "投诉",
+      "manual": "手动"
+    }
+  }
+}
