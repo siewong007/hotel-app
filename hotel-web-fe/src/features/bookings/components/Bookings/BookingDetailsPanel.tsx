@@ -110,6 +110,20 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
   const showVoid = canVoid(booking);
   const showReactivate = canReactivate(booking);
 
+  // Money already on the row and previously discarded. `balance_due` excludes
+  // deposit payment types by design, so the deposit is shown as its own held
+  // line rather than folded into what the guest owes.
+  const totalPaid = toMoneyNumber(booking.total_paid);
+  const totalRefunded = toMoneyNumber(booking.total_refunded);
+  const depositHeld = toMoneyNumber(booking.deposit_amount);
+
+  // Occupancy. Reads 1 adult when the columns are absent, matching the board.
+  const adults = Number(booking.adults ?? 1);
+  const children = Number(booking.children ?? 0);
+  const occupancyLabel = children > 0
+    ? t('details.occupancyWithChildren', { adults, children })
+    : t('details.occupancy', { adults });
+
   // Secondary metadata chips under the folio line — the channel / billing /
   // night-audit markers the phone list rows dropped stay reachable here, on
   // the detail page, at every viewport width.
@@ -207,6 +221,14 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 }}>
                 {booking.invoice_number || booking.folio_number || booking.booking_number || `#${booking.id}`}
               </Typography>
+              {(booking.guest_email || booking.company_name) && (
+                <Typography
+                  variant="body2"
+                  sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}
+                >
+                  {[booking.guest_email, booking.company_name].filter(Boolean).join(' · ')}
+                </Typography>
+              )}
               {(channelInfo || billingChipLabel || nightAuditInvolved) && (
                 <Stack
                   direction="row"
@@ -254,7 +276,10 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 <Typography variant="subtitle2" component="div" sx={{ fontWeight: 900 }}>{booking.room_type || t('details.roomFallback')}</Typography>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>{t('details.roomNumber', { number: booking.room_number || '-' })}</Typography>
+                }}>
+                  {t('details.roomNumber', { number: booking.room_number || '-' })}
+                  {occupancyLabel ? ` · ${occupancyLabel}` : ''}
+                </Typography>
               </Box>
             </Box>
           </Box>
@@ -287,6 +312,32 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 <Typography variant="subtitle1" component="div">{t('details.total')}</Typography>
                 <Typography variant="subtitle1" component="div" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
               </Stack>
+              {isPositiveMoney(totalPaid) && (
+                <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+                  <Typography sx={{ color: "text.secondary" }}>{t('details.paid')}</Typography>
+                  <Typography sx={{ fontWeight: 800, color: 'var(--hotel-success)' }}>
+                    {formatCurrency(totalPaid)}
+                  </Typography>
+                </Stack>
+              )}
+              {isPositiveMoney(totalRefunded) && (
+                <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+                  <Typography sx={{ color: "text.secondary" }}>{t('details.refunded')}</Typography>
+                  <Typography sx={{ fontWeight: 800 }}>{formatCurrency(totalRefunded)}</Typography>
+                </Stack>
+              )}
+              {isPositiveMoney(depositHeld) && (
+                <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: 'baseline' }}>
+                  {/* Held, not applied. `balance_due` deliberately excludes
+                      deposit payment types, so folding this into the balance
+                      would change what the guest appears to owe -- shown as its
+                      own line instead. The figure is the booking's deposit
+                      mirror, which covers historical stays that predate the
+                      deposit `payments` row. */}
+                  <Typography sx={{ color: "text.secondary" }}>{t('details.depositHeld')}</Typography>
+                  <Typography sx={{ fontWeight: 800 }}>{formatCurrency(depositHeld)}</Typography>
+                </Stack>
+              )}
               <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: isPositiveMoney(getBookingBalance(booking)) ? 'var(--hotel-danger-bg)' : 'var(--hotel-selected)', color: isPositiveMoney(getBookingBalance(booking)) ? 'var(--hotel-danger)' : 'var(--hotel-success)', fontWeight: 900 }}>
                 {isPositiveMoney(getBookingBalance(booking))
                   ? t('details.due', { amount: formatCurrency(getBookingBalance(booking)) })
@@ -296,6 +347,46 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               </Box>
             </Stack>
           </Box>
+
+          {(booking.special_requests?.trim() || booking.remarks?.trim() || booking.payment_note?.trim()) && (
+            <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>
+                {t('details.notes')}
+              </Typography>
+              <Stack spacing={1.5} sx={{ mt: 1 }}>
+                {booking.special_requests?.trim() && (
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 800 }}>
+                      {t('details.specialRequests')}
+                    </Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                      {booking.special_requests}
+                    </Typography>
+                  </Box>
+                )}
+                {booking.remarks?.trim() && (
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 800 }}>
+                      {t('details.remarks')}
+                    </Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                      {booking.remarks}
+                    </Typography>
+                  </Box>
+                )}
+                {booking.payment_note?.trim() && (
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 800 }}>
+                      {t('details.paymentNote')}
+                    </Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                      {booking.payment_note}
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
+            </Box>
+          )}
 
           {quickEdit}
 

@@ -429,6 +429,81 @@ describe('BookingDetailPage', () => {
     }
   });
 
+  describe('fields the panel used to discard', () => {
+    it('shows notes, remarks and the payment note the API already returns', async () => {
+      mocks.getBookingById.mockResolvedValue(buildBooking({
+        special_requests: 'High floor, away from the lift',
+        remarks: 'Booking.com - Ref: ABC123',
+        payment_note: 'Company to settle on invoice',
+      }));
+      renderPage();
+
+      expect(await screen.findByText('Notes & requests')).toBeDefined();
+      expect(screen.getByText('High floor, away from the lift')).toBeDefined();
+      expect(screen.getByText('Booking.com - Ref: ABC123')).toBeDefined();
+      expect(screen.getByText('Company to settle on invoice')).toBeDefined();
+    });
+
+    it('omits the notes section entirely when the booking carries none', async () => {
+      renderPage();
+
+      await screen.findAllByText('Jane Doe');
+      expect(screen.queryByText('Notes & requests')).toBeNull();
+    });
+
+    it('shows occupancy next to the room, counting children separately', async () => {
+      mocks.getBookingById.mockResolvedValue(buildBooking({ adults: 2, children: 1 }));
+      renderPage();
+
+      expect(await screen.findByText(/2 adult\(s\), 1 child\(ren\)/)).toBeDefined();
+    });
+
+    it('shows the amount paid and keeps the deposit as a separate held line', async () => {
+      mocks.getBookingById.mockResolvedValue(buildBooking({
+        total_paid: 200,
+        balance_due: 250,
+        deposit_amount: 50,
+        deposit_paid: true,
+        payment_status: 'partial',
+      }));
+      renderPage();
+
+      expect(await screen.findByText('Paid')).toBeDefined();
+      expect(screen.getByText('Deposit held')).toBeDefined();
+      // The deposit must NOT be folded into the balance: balance_due excludes
+      // deposit payment types by design, so 250 is what the guest still owes.
+      expect(screen.getByText(/Due.*250/)).toBeDefined();
+    });
+
+    it('hides the paid and deposit lines when there is nothing to show', async () => {
+      renderPage();
+
+      await screen.findAllByText('Jane Doe');
+      expect(screen.queryByText('Paid')).toBeNull();
+      expect(screen.queryByText('Deposit held')).toBeNull();
+      expect(screen.queryByText('Refunded')).toBeNull();
+    });
+  });
+
+  describe('quick edit parity with the drawer', () => {
+    it('offers the drawer\'s inline quick edit to an admin', async () => {
+      mocks.hasPermission.mockReturnValue(true);
+      renderPage();
+
+      // The full page used to be a strict subset of the drawer that opens it.
+      expect(await screen.findByText('Quick edit')).toBeDefined();
+      expect(screen.getByRole('button', { name: /Save changes/i })).toBeDefined();
+    });
+
+    it('withholds quick edit from a user without booking update rights', async () => {
+      mocks.hasPermission.mockReturnValue(false);
+      renderPage();
+
+      await screen.findAllByText('Jane Doe');
+      expect(screen.queryByText('Quick edit')).toBeNull();
+    });
+  });
+
   describe('permission gating', () => {
     it('hides the admin-only Edit control and skips the booking-channels/companies fetches for a non-admin user', async () => {
       renderPage();

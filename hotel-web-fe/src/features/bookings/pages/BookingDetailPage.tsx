@@ -14,6 +14,7 @@ import PageHeader from '../../../components/common/PageHeader';
 import EmptyState from '../../../components/common/EmptyState';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import BookingDetailsPanel from '../components/Bookings/BookingDetailsPanel';
+import BookingQuickEditSection from '../components/Bookings/BookingQuickEditSection';
 import { useBookingActions } from '../hooks/useBookingActions';
 import { useBooking } from '../hooks/useBookingQueries';
 import { useRooms } from '../../rooms/hooks/useRoomQueries';
@@ -109,6 +110,18 @@ const BookingDetailPage: React.FC<BookingDetailPageProps> = ({ bookingId }) => {
             booking={booking}
             isAdmin={isAdmin}
             onClose={backToList}
+            quickEdit={
+              isAdmin ? (
+                <BookingQuickEditSection
+                  key={booking.id}
+                  booking={booking}
+                  onError={setPageError}
+                  onCompleted={async () => {
+                    await bookingQuery.refetch();
+                  }}
+                />
+              ) : undefined
+            }
             {...callbacks}
           />
         </>

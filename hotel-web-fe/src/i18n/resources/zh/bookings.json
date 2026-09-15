@@ -129,7 +129,16 @@
     "notFoundTitle": "未找到预订",
     "loadFailed": "加载预订失败",
     "notFoundHint": "该预订可能已被删除，或您没有查看权限。",
-    "backToList": "返回预订列表"
+    "backToList": "返回预订列表",
+    "paid": "已付",
+    "refunded": "已退款",
+    "depositHeld": "押金保管中",
+    "notes": "备注与需求",
+    "specialRequests": "特殊需求",
+    "remarks": "备注",
+    "paymentNote": "付款备注",
+    "occupancy": "{{adults}} 位成人",
+    "occupancyWithChildren": "{{adults}} 位成人，{{children}} 位儿童"
   },
   "labels": {
     "guest": "客人：",

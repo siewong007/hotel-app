@@ -130,7 +130,16 @@
     "notFoundTitle": "Booking not found",
     "loadFailed": "Failed to load booking",
     "notFoundHint": "This booking may have been removed, or you may not have permission to view it.",
-    "backToList": "Back to bookings"
+    "backToList": "Back to bookings",
+    "paid": "Paid",
+    "refunded": "Refunded",
+    "depositHeld": "Deposit held",
+    "notes": "Notes & requests",
+    "specialRequests": "Special requests",
+    "remarks": "Remarks",
+    "paymentNote": "Payment note",
+    "occupancy": "{{adults}} adult(s)",
+    "occupancyWithChildren": "{{adults}} adult(s), {{children}} child(ren)"
   },
   "labels": {
     "guest": "Guest:",

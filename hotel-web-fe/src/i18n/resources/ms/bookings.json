@@ -129,7 +129,16 @@
     "notFoundTitle": "Tempahan tidak dijumpai",
     "loadFailed": "Gagal memuatkan tempahan",
     "notFoundHint": "Tempahan ini mungkin telah dipadamkan, atau anda tidak mempunyai kebenaran untuk melihatnya.",
-    "backToList": "Kembali ke tempahan"
+    "backToList": "Kembali ke tempahan",
+    "paid": "Dibayar",
+    "refunded": "Dibayar balik",
+    "depositHeld": "Deposit dipegang",
+    "notes": "Nota & permintaan",
+    "specialRequests": "Permintaan khas",
+    "remarks": "Catatan",
+    "paymentNote": "Nota pembayaran",
+    "occupancy": "{{adults}} dewasa",
+    "occupancyWithChildren": "{{adults}} dewasa, {{children}} kanak-kanak"
   },
   "labels": {
     "guest": "Tetamu:",
