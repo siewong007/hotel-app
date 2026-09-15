@@ -211,11 +211,14 @@ function isAllowedLiteral(text, kind) {
   }
   if (kind === 'jsx-text' && JSX_CODE_FRAGMENT_RE.test(text)) return true;
   // {cond && 'primary'}, {x ? 'en' : 'ms'}, {ch === 'ONL'} — in expression
-  // positions a lowercase/camelCase/short-CAPS token is an enum, style,
-  // locale, or channel code, not prose.
+  // positions a lowercase/camelCase/short-CAPS single token is an enum,
+  // style, locale, or channel code, not prose. Multi-word lowercase strings
+  // in these positions ARE prose ('past checkout date', 'vs same period last
+  // month') and must stay flagged, so spaces are deliberately not allowed
+  // here — a CSS value like '1px solid' is acceptable residual noise.
   if (
     kind === 'jsx-expr' &&
-    (/^[a-z0-9]+([ ._\/-][a-z0-9]+)*$/.test(text) ||
+    (/^[a-z0-9]+([._\/-][a-z0-9]+)*$/.test(text) ||
       /^[a-z]+([A-Z][a-zA-Z0-9]*)+$/.test(text) ||
       /^\p{Lu}{2,6}$/u.test(text))
   ) {
