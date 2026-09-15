@@ -356,7 +356,6 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
         onClose={() => setBookingDialogOpen(false)}
         room={null}
         rooms={roomsQuery.data ?? []}
-        guests={allGuestsQuery.data ?? []}
         initialGuest={guest ?? null}
         onSuccess={(message) => {
           emitApiNotification({ message, severity: 'success' });

@@ -91,6 +91,8 @@ export type {
   BookingVoidResponse,
   BookingReleaseResponse,
   BookingTimelineEntry,
+  BookingBoardSummary,
+  BookingBoardView,
   CheckInRequest,
   CheckInAdvisory,
   PreCheckInUpdateRequest,

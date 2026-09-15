@@ -44,8 +44,6 @@ const BookingDetailPage: React.FC<BookingDetailPageProps> = ({ bookingId }) => {
 
   const { callbacks, dialogs } = useBookingActions({
     rooms: roomsQuery.data ?? [],
-    // Check-in-by-id resolves against the loaded booking itself.
-    bookings: booking ? [booking] : [],
     onError: setPageError,
     onCompleted: async () => {
       await bookingQuery.refetch();

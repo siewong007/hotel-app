@@ -517,7 +517,8 @@
     "stateProvince": "State/Province",
     "postalCode": "Postal Code",
     "country": "Country",
-    "additionalDetails": "Additional details"
+    "additionalDetails": "Additional details",
+    "searching": "Searching guests…"
   },
   "config": {
     "forbidden": "You do not have permission to access this page. Contact your administrator for access.",
@@ -725,7 +726,9 @@
     "loadingRooms": "Loading available rooms…",
     "selectRooms": "Select one or more rooms",
     "setDatesHint": "Set dates below to filter by availability",
-    "roomsSelected": "{{count}} rooms selected: {{rooms}}"
+    "roomsSelected": "{{count}} rooms selected: {{rooms}}",
+    "guestSearchHint": "Type at least 2 characters to search guests",
+    "guestSearchNoMatch": "No matching guest — switch to Register new to create one"
   },
   "actions": {
     "editBookingNotes": "Edit booking notes"

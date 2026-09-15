@@ -69,9 +69,9 @@ const mocks = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
 
-  useBookingsWithDetails: vi.fn(),
-  bookingsWithDetailsQuery: {
-    data: undefined as unknown[] | undefined,
+  useBookingBoardSummary: vi.fn(),
+  boardSummaryQuery: {
+    data: undefined as Record<string, unknown> | undefined,
     isSuccess: true,
     error: null as unknown,
     refetch: vi.fn(),
@@ -168,7 +168,7 @@ vi.mock('../../hooks/useBookingQueries', () => ({
     error: null,
   }),
   useBookingStats: (...args: unknown[]) => mocks.useBookingStats(...args),
-  useBookingsWithDetails: (...args: unknown[]) => mocks.useBookingsWithDetails(...args),
+  useBookingBoardSummary: (...args: unknown[]) => mocks.useBookingBoardSummary(...args),
   useActiveCompanies: (...args: unknown[]) => mocks.useActiveCompanies(...args),
   useCheckInGuestMutation: (...args: unknown[]) => mocks.useCheckInGuestMutation(...args),
   useMarkBookingComplimentaryMutation: (...args: unknown[]) => mocks.useMarkBookingComplimentaryMutation(...args),
@@ -326,9 +326,26 @@ function setBookingsPageData(items: BookingWithDetails[], total: number) {
   mocks.bookingsPageQuery.data = { data: items, total };
 }
 
-function setWithDetailsData(items: BookingWithDetails[]) {
-  mocks.bookingsWithDetailsQuery.data = items;
-  mocks.bookingsWithDetailsQuery.isSuccess = true;
+// The board's figures come from GET /bookings/summary now, not from slicing a
+// full-table fetch, so tests state them directly instead of implying them from
+// the fixture rows.
+const emptySummary = {
+  arriving: 0,
+  ready_to_check_in: 0,
+  in_house: 0,
+  guests_in_house: 0,
+  departing: 0,
+  upcoming: 0,
+  normal_due: 0,
+  normal_due_amount: 0,
+  company_due: 0,
+  company_due_amount: 0,
+  company_outstanding_months: 1,
+};
+
+function setBoardSummary(overrides: Partial<typeof emptySummary> = {}) {
+  mocks.boardSummaryQuery.data = { ...emptySummary, ...overrides };
+  mocks.boardSummaryQuery.isSuccess = true;
 }
 
 function renderPage() {
@@ -344,7 +361,7 @@ function renderPage() {
 describe('BookingsPage', () => {
   it('reports no critical axe violations', async () => {
     setBookingsPageData(defaultBookings, defaultBookings.length);
-    setWithDetailsData(defaultBookings);
+    setBoardSummary({ in_house: 1, guests_in_house: 1, upcoming: 1 });
     const { container } = renderPage();
     await waitFor(() => expect(screen.getAllByText(/Room 101/).length).toBeGreaterThan(0));
     await expectNoCriticalAxeViolations(container);
@@ -373,10 +390,10 @@ describe('BookingsPage', () => {
     mocks.bookingStatsQuery.refetch.mockReset();
     mocks.useBookingStats.mockReset().mockReturnValue(mocks.bookingStatsQuery);
 
-    setWithDetailsData(defaultBookings);
-    mocks.bookingsWithDetailsQuery.error = null;
-    mocks.bookingsWithDetailsQuery.refetch.mockReset();
-    mocks.useBookingsWithDetails.mockReset().mockReturnValue(mocks.bookingsWithDetailsQuery);
+    setBoardSummary({ in_house: 1, guests_in_house: 1, upcoming: 1 });
+    mocks.boardSummaryQuery.error = null;
+    mocks.boardSummaryQuery.refetch.mockReset();
+    mocks.useBookingBoardSummary.mockReset().mockReturnValue(mocks.boardSummaryQuery);
 
     mocks.activeCompaniesQuery.data = [];
     mocks.lastActiveCompaniesArg = undefined;
@@ -454,7 +471,7 @@ describe('BookingsPage', () => {
 
     it('shows the friendly empty state when there are no bookings at all', () => {
       setBookingsPageData([], 0);
-      setWithDetailsData([]);
+      setBoardSummary();
 
       renderPage();
 
@@ -462,14 +479,14 @@ describe('BookingsPage', () => {
       expect(screen.getByText('Create your first booking using the New booking button above')).toBeDefined();
     });
 
-    it('reflects the with-details bookings in the quick-filter chip counts', () => {
+    it('takes the quick-filter chip counts from the server summary', () => {
       renderPage();
 
       // "All" uses the server-reported total (120), not the current page's array length.
       expect(screen.getByText('All 120')).toBeDefined();
-      // In-house: only booking2 (checked_in).
+      // The rest come straight from GET /bookings/summary, so they describe the
+      // whole dataset rather than whichever page happens to be loaded.
       expect(screen.getByText('In House 1')).toBeDefined();
-      // Upcoming: only booking3 (pending, check-in date after today).
       expect(screen.getByText('Upcoming 1')).toBeDefined();
     });
   });
@@ -491,26 +508,27 @@ describe('BookingsPage', () => {
       await waitFor(() => expect(mocks.lastBookingsPageParams).toMatchObject({ search: 'Jane', page: 1 }));
     });
 
-    it('selecting the "In House" quick filter sets status=checked_in and resets the page', async () => {
+    it('selecting the "In House" quick filter sends view=in_house and resets the page', async () => {
       renderPage();
       await waitFor(() => expect(mocks.lastBookingsPageParams).toMatchObject({ page: 1 }));
 
       fireEvent.click(screen.getByText('In House 1'));
 
-      await waitFor(() => expect(mocks.lastBookingsPageParams).toMatchObject({ status: 'checked_in', page: 1 }));
+      // The view is the filter now. It used to be approximated with
+      // status/date filters, which could not express "arriving today" or "past
+      // checkout with a balance" and disagreed with the counts on the cards.
+      await waitFor(() => expect(mocks.lastBookingsPageParams).toMatchObject({ view: 'in_house', page: 1 }));
       expect(mocks.lastBookingsPageParams).not.toHaveProperty('check_in_from');
     });
 
-    it('selecting the "Arriving" quick filter sets today\'s check-in date range', async () => {
+    it('selecting the "Arriving" quick filter sends view=arriving', async () => {
       renderPage();
       await waitFor(() => expect(mocks.lastBookingsPageParams).toMatchObject({ page: 1 }));
 
       fireEvent.click(screen.getByText('Arriving 0'));
 
       await waitFor(() => expect(mocks.lastBookingsPageParams).toMatchObject({
-        status: 'all',
-        check_in_from: today,
-        check_in_to: today,
+        view: 'arriving',
         page: 1,
       }));
     });

@@ -13,6 +13,7 @@ export {
   useBookingWorkflowFetcher,
   useBookingsPage,
   useBookingsWithDetails,
+  useBookingBoardSummary,
   useBookingStats,
   useBookingTimeline,
   useCheckInGuestMutation,

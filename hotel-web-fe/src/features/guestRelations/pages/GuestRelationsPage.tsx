@@ -600,7 +600,7 @@ const GuestRelationsPage: React.FC = () => {
           </Alert>
         ) : (
           <GuestListTable
-            guests={visibleGuests}
+            guests={guests}
             loading={loading}
             emptyMessage={emptyMessage}
             tourismConversionGuestId={tourismConversionGuestId}
@@ -656,7 +656,6 @@ const GuestRelationsPage: React.FC = () => {
         }}
         room={null}
         rooms={rooms}
-        guests={allGuests}
         initialGuest={bookingGuest}
         onSuccess={async (message) => {
           emitApiNotification({ message, severity: 'success' });

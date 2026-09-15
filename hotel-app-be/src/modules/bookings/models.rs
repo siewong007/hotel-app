@@ -7,7 +7,11 @@ use serde::{Deserialize, Serialize};
 use crate::models::{GuestEkycStatusSummary, GuestUpdateInput};
 
 /// Pagination and filter query parameters for bookings.
-#[derive(Debug, Deserialize)]
+///
+/// `Default` is derived so tests can build a params struct around the one or
+/// two fields they care about; every field is already `Option`, so the default
+/// is "no filter" and adding a field cannot silently change an existing query.
+#[derive(Debug, Default, Deserialize)]
 pub struct BookingPaginationParams {
     pub page: Option<i64>,
     pub page_size: Option<i64>,
@@ -31,6 +35,12 @@ pub struct BookingPaginationParams {
     pub check_in_to: Option<NaiveDate>,
     /// Filter by calendar month (bookings overlapping this month). Pass a date in YYYY-MM-01 format.
     pub month_search: Option<NaiveDate>,
+    /// Bookings board view: `arriving`, `in_house`, `departing`, `upcoming`,
+    /// `balance`, `normal_balance`, `company_balance`. Applies exactly the
+    /// predicate behind the matching summary count, so the card's number and
+    /// the list it opens always agree. `all`, absent and unrecognised values
+    /// mean no view filter. See `modules::bookings::summary::board_view_filter`.
+    pub view: Option<String>,
     /// Column to sort by.
     pub sort_by: Option<String>,
     /// Sort direction: asc | desc.
@@ -55,6 +65,33 @@ pub struct BookingStats {
 pub struct BookingRevenuePoint {
     pub date: NaiveDate,
     pub revenue: f64,
+}
+
+/// The bookings board's operational figures, computed server-side.
+///
+/// Replaces a client-side reduction over the entire non-voided bookings table.
+/// See `modules::bookings::summary` for each predicate and why it is worded the
+/// way it is.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BookingBoardSummary {
+    /// Stays arriving today that have not already been checked in or closed.
+    pub arriving: i64,
+    /// Of those, the ones whose status actually permits check-in now.
+    pub ready_to_check_in: i64,
+    pub in_house: i64,
+    /// Headcount, not room count: `SUM(adults + children)` over in-house stays.
+    pub guests_in_house: i64,
+    pub departing: i64,
+    pub upcoming: i64,
+    /// Non-company stays past checkout still carrying a balance.
+    pub normal_due: i64,
+    pub normal_due_amount: Decimal,
+    /// Company-billed stays past their payment terms still carrying a balance.
+    pub company_due: i64,
+    pub company_due_amount: Decimal,
+    /// Months after checkout before a company stay counts as overdue. Returned
+    /// so the UI can label the bucket without hardcoding the same number twice.
+    pub company_outstanding_months: i32,
 }
 
 /// Paginated response wrapper.
@@ -320,6 +357,10 @@ pub struct BookingWithDetails {
     pub room_type_code: Option<String>,
     pub check_in_date: NaiveDate,
     pub check_out_date: NaiveDate,
+    /// Occupancy. Consumed by the bookings board's in-house headcount; absent
+    /// from this struct the card could only ever report one guest per room.
+    pub adults: Option<i32>,
+    pub children: Option<i32>,
     #[serde(rename = "price_per_night")]
     pub room_rate: Decimal,
     pub total_amount: Decimal,
@@ -478,6 +519,11 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
             room_type_code: row.try_get("room_type_code")?,
             check_in_date: row.try_get("check_in_date")?,
             check_out_date: row.try_get("check_out_date")?,
+            // Tolerant like `booking_channel_id` above: not every query that maps
+            // into this struct selects occupancy, and a column this struct can do
+            // without must not fail the whole row.
+            adults: row.try_get("adults").ok().flatten(),
+            children: row.try_get("children").ok().flatten(),
             room_rate: { row.try_get("room_rate")? },
             total_amount: { row.try_get("total_amount")? },
             status: row.try_get("status")?,

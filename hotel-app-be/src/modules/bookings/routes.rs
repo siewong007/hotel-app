@@ -23,6 +23,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/bookings", post(create_booking))
         .route("/bookings/checkin-advisory", get(guest_checkin_advisory))
         .route("/bookings/stats", get(get_booking_stats))
+        .route("/bookings/summary", get(get_booking_board_summary))
         .route("/bookings/complimentary", get(get_complimentary_bookings))
         .route("/bookings/book-with-credits", post(book_with_credits))
         .route("/bookings/void", post(void_booking))
@@ -88,6 +89,17 @@ async fn get_booking_stats(
 ) -> Result<Json<models::BookingStats>, ApiError> {
     require_permission_helper(&pool, &headers, "bookings:read").await?;
     handlers::get_booking_stats_handler(State(pool)).await
+}
+
+/// Operational figures for the bookings board. Same permission as reading the
+/// list it summarises — it exposes no booking this caller could not already
+/// page through.
+async fn get_booking_board_summary(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<models::BookingBoardSummary>, ApiError> {
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    handlers::get_booking_board_summary_handler(State(pool)).await
 }
 
 async fn get_booking(

@@ -97,27 +97,27 @@ export function useCheckoutInvoiceData(
     const settings = getHotelSettings();
     setHotelSettings(settings);
 
-    // Fetch room price
+    // Room price. Still the whole room list: there is no GET /rooms/{id}, and
+    // rooms is a small, stable reference table (313 rows / ~227 kB) that every
+    // operational screen already holds under this same key, so this is a cache
+    // hit in practice. The guest list below was the one worth fixing.
     queryClient.ensureQueryData({
       queryKey: queryKeys.rooms.all,
       queryFn: () => RoomsService.getAllRooms(),
       staleTime: queryStaleTime.standard,
     }).then(rooms => {
       const room = rooms.find(r => r.id.toString() === booking.room_id.toString());
-      if (room) {
-        setRoomPrice(toMoneyNumber(room.price_per_night));
-      } else {
-        setRoomPrice(0);
-      }
+      setRoomPrice(room ? toMoneyNumber(room.price_per_night) : 0);
     }).catch(() => setRoomPrice(0));
 
-    // Fetch guest info
+    // Guest contact block for the invoice header -- one guest, by id. This used
+    // to download the entire guest table (1,731 rows / ~1,093 kB measured) to
+    // read one phone number, IC and address.
     queryClient.ensureQueryData({
-      queryKey: queryKeys.guests.list(),
-      queryFn: () => GuestsService.getAllGuests(),
+      queryKey: queryKeys.guests.detail(booking.guest_id),
+      queryFn: () => GuestsService.getGuest(booking.guest_id),
       staleTime: queryStaleTime.standard,
-    }).then(guests => {
-      const guest = guests.find(g => String(g.id) === String(booking.guest_id));
+    }).then(guest => {
       if (guest) {
         setGuestCompanyName(guest.company_name || '');
         setGuestPhone(guest.phone || '');

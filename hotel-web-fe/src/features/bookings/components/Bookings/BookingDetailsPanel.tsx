@@ -58,7 +58,7 @@ interface BookingDetailsPanelProps {
   booking: BookingWithDetails;
   isAdmin: boolean;
   onClose: () => void;
-  onCheckIn: (bookingId: string) => void;
+  onCheckIn: (booking: BookingWithDetails) => void;
   onCheckOut: (booking: BookingWithDetails) => void;
   onPayment: (booking: BookingWithDetails) => void;
   onWorkflow: (booking: BookingWithDetails) => void;
@@ -310,10 +310,10 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 {showCheckIn ? (
                   earlyCheckIn ? (
                     <Tooltip title={t('details.earlyCheckInTooltip', { time: getHotelSettings().check_in_time || '15:00' })} arrow>
-                      <Button fullWidth variant="contained" color="success" startIcon={<EarlyCheckInIcon />} onClick={() => onCheckIn(String(booking.id))}>{t('details.earlyCheckIn')}</Button>
+                      <Button fullWidth variant="contained" color="success" startIcon={<EarlyCheckInIcon />} onClick={() => onCheckIn(booking)}>{t('details.earlyCheckIn')}</Button>
                     </Tooltip>
                   ) : (
-                    <Button fullWidth variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => onCheckIn(String(booking.id))}>{t('details.checkInAction')}</Button>
+                    <Button fullWidth variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => onCheckIn(booking)}>{t('details.checkInAction')}</Button>
                   )
                 ) : showCheckOut ? (
                   <Button fullWidth variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => onCheckOut(booking)}>{t('details.checkOutAction')}</Button>
@@ -347,10 +347,10 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               {canCheckIn(booking) && (
                 isEarlyCheckIn(booking, getHotelSettings().check_in_time) ? (
                   <Tooltip title={t('details.earlyCheckInTooltip', { time: getHotelSettings().check_in_time || '15:00' })} arrow>
-                    <Button variant="contained" color="success" startIcon={<EarlyCheckInIcon />} onClick={() => onCheckIn(String(booking.id))}>{t('details.earlyCheckIn')}</Button>
+                    <Button variant="contained" color="success" startIcon={<EarlyCheckInIcon />} onClick={() => onCheckIn(booking)}>{t('details.earlyCheckIn')}</Button>
                   </Tooltip>
                 ) : (
-                  <Button variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => onCheckIn(String(booking.id))}>{t('details.checkInAction')}</Button>
+                  <Button variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => onCheckIn(booking)}>{t('details.checkInAction')}</Button>
                 )
               )}
               {canCheckOut(booking) && (

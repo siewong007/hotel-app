@@ -944,7 +944,6 @@ const RoomManagementPage: React.FC = () => {
         open={unifiedBookingOpen}
         onClose={handleUnifiedBookingClose}
         room={selectedRoom}
-        guests={guests}
         initialBookingType={unifiedBookingType}
         onSuccess={handleUnifiedBookingSuccess}
         onError={handleUnifiedBookingError}

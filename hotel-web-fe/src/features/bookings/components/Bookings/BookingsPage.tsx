@@ -20,19 +20,14 @@ import { useAuth } from '../../../../auth/AuthContext';
 import UnifiedBookingModal from '../../../rooms/components/UnifiedBooking';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { useBookings, PAGE_SIZE } from '../../hooks/useBookings';
-import { useBookingsWithDetails } from '../../hooks/useBookingQueries';
+import { useBookingBoardSummary } from '../../hooks/useBookingQueries';
 import { useBookingActions } from '../../hooks/useBookingActions';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
-import { formatLocalDate } from '../../../../utils/date';
-import { sumMoney } from '../../../../utils/money';
+import { toMoneyNumber } from '../../../../utils/money';
 import {
-  COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT,
   buildMonthOptions,
-  canCheckIn,
   formatOperationalDate,
-  getBookingBalance,
-  getBookingViewSlices,
   type BookingView,
 } from '../../utils/bookingPageUtils';
 import BookingSummarySection from './BookingSummarySection';
@@ -56,7 +51,6 @@ const BookingsPage: React.FC = () => {
   const {
     bookings,
     rooms,
-    guests,
     loading,
     error,
     setError,
@@ -81,22 +75,29 @@ const BookingsPage: React.FC = () => {
     setSearchDate,
     monthSearch,
     setMonthSearch,
+    boardView,
+    setBoardView,
     currentPage,
     setCurrentPage,
-    loadGuests,
     reload: loadData,
     handleSort,
     clearFilters,
   } = useBookings();
 
-  const [bookingView, setBookingView] = useState<BookingView>('all');
+  // The view lives in useBookings because it is a server-side filter now; this
+  // alias keeps the rest of the page reading the way it did.
+  const bookingView = boardView;
   const routedBookingSearch = pageSearchParams.get('search') || '';
   const routedBookingId = pageSearchParams.get('booking_id') || '';
   const createRequested = pageSearchParams.get('create') === '1';
   const routedView = pageSearchParams.get('view') || '';
-  const summaryBookingsQuery = useBookingsWithDetails();
-  const summaryBookings = summaryBookingsQuery.data ?? [];
-  const summaryLoaded = summaryBookingsQuery.isSuccess;
+  // Nine numbers from one aggregate. This replaced `useBookingsWithDetails()`,
+  // which paged the entire non-voided bookings table (5 requests / ~3.1 MB
+  // measured on 2,756 bookings) so the browser could reduce it to these same
+  // nine values -- and did it again on every booking mutation, including ones
+  // made by other staff via the data_changed socket.
+  const summaryQuery = useBookingBoardSummary();
+  const summary = summaryQuery.data;
 
   // Legacy deep link: /bookings?booking_id=<id> used to select the row and
   // auto-open the inline details panel. The /bookings/$bookingId route owns
@@ -110,7 +111,7 @@ const BookingsPage: React.FC = () => {
   useEffect(() => {
     if (!routedBookingSearch || routedBookingId) return;
 
-    setBookingView('all');
+    setBoardView('all');
     setSearchQuery(routedBookingSearch);
     setRoomNumberFilter('');
     setPaymentMethodFilter('');
@@ -132,6 +133,7 @@ const BookingsPage: React.FC = () => {
     setCustomEndDate,
     setSearchDate,
     setCurrentPage,
+    setBoardView,
   ]);
 
   // Deep link: ?view=arriving|departing|in_house|upcoming|balance selects the
@@ -142,9 +144,9 @@ const BookingsPage: React.FC = () => {
       'balance', 'normal_balance', 'company_balance',
     ];
     if (valid.includes(routedView as BookingView)) {
-      setBookingView(routedView as BookingView);
+      setBoardView(routedView as BookingView);
     }
-  }, [routedView]);
+  }, [routedView, setBoardView]);
 
   // Create booking dialog (using UnifiedBookingModal)
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -170,7 +172,7 @@ const BookingsPage: React.FC = () => {
   };
 
   const reloadBookingData = async () => {
-    await Promise.all([loadData(), summaryBookingsQuery.refetch()]);
+    await Promise.all([loadData(), summaryQuery.refetch()]);
   };
 
   // Row clicks open the detail drawer; the shared hook's callbacks drive the
@@ -182,8 +184,6 @@ const BookingsPage: React.FC = () => {
     openCheckInDialog,
   } = useBookingActions({
     rooms,
-    bookings,
-    summaryBookings,
     onError: setError,
     onCompleted: reloadBookingData,
   });
@@ -194,84 +194,45 @@ const BookingsPage: React.FC = () => {
   // Statistics — use server-side stats for global accuracy
   const todayCheckIns = statsData.today_check_ins;
 
-  const todayIso = useMemo(() => formatLocalDate(), []);
-
   const monthOptions = useMemo(() => buildMonthOptions(), []);
 
-  const operationsBookings = summaryLoaded ? summaryBookings : bookings;
   const bookingPagination = useMemo(
     () => getPaginationState({ page: currentPage, pageSize: PAGE_SIZE, totalItems: totalBookings }),
     [currentPage, totalBookings]
   );
 
-  const slices = useMemo(
-    () => getBookingViewSlices(operationsBookings, todayIso),
-    [operationsBookings, todayIso]
-  );
-  const {
-    arriving: arrivingBookings,
-    departing: departingBookings,
-    inHouse: inHouseBookings,
-    upcoming: upcomingBookings,
-    due: dueBookings,
-    normalDue: normalDueBookings,
-    companyDue: companyDueBookings,
-  } = slices;
+  // The server applies the view, so the page it returns IS the view. The old
+  // code filtered a full-table fetch client-side while ALSO setting server
+  // filters, which left the paginator describing a different set of rows than
+  // the list showed.
+  const visibleBookings = filteredAndSortedBookings;
 
-  const visibleBookings = useMemo(() => {
-    if (bookingView === 'arriving') return arrivingBookings;
-    if (bookingView === 'in_house') return inHouseBookings;
-    if (bookingView === 'departing') return departingBookings;
-    if (bookingView === 'upcoming') return upcomingBookings;
-    if (bookingView === 'balance') return dueBookings;
-    if (bookingView === 'normal_balance') return normalDueBookings;
-    if (bookingView === 'company_balance') return companyDueBookings;
-    return filteredAndSortedBookings;
-  }, [arrivingBookings, bookingView, companyDueBookings, departingBookings, dueBookings, filteredAndSortedBookings, inHouseBookings, normalDueBookings, upcomingBookings]);
-
-  const totalGuestsInHouse = inHouseBookings.reduce((sum, booking) => sum + Number(booking.adults || 1) + Number(booking.children || 0), 0);
   const roomCount = rooms.length || 0;
-  const normalOutstandingDue = normalDueBookings.reduce((sum, booking) => sumMoney([sum, getBookingBalance(booking)]), 0);
-  const companyOutstandingDue = companyDueBookings.reduce((sum, booking) => sumMoney([sum, getBookingBalance(booking)]), 0);
-  const normalBalanceScope = summaryLoaded ? t('page.scopeAll') : t('page.scopePage');
-  const companyBalanceScope = summaryLoaded
-    ? t('page.scopeCompanyAll', { months: COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT })
-    : t('page.scopeCompanyPage', { months: COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT });
+  const totalGuestsInHouse = summary?.guests_in_house ?? 0;
+  const normalOutstandingDue = toMoneyNumber(summary?.normal_due_amount ?? 0);
+  const companyOutstandingDue = toMoneyNumber(summary?.company_due_amount ?? 0);
+  const companyOutstandingMonths = summary?.company_outstanding_months ?? 1;
+  // Counts are whole-dataset now, never "this page only".
+  const normalBalanceScope = t('page.scopeAll');
+  const companyBalanceScope = t('page.scopeCompanyAll', { months: companyOutstandingMonths });
 
   const selectBookingView = (view: BookingView) => {
-    setBookingView(view);
-    setCurrentPage(1);
+    // The view is the filter. It no longer sets status/date filters as a proxy:
+    // those could not express "arriving today" or "past checkout with a balance"
+    // and disagreed with the counts on the cards.
     if (view === 'all') {
       clearFilters();
-    } else if (view === 'arriving') {
-      setDateFilter('today');
-      setStatusFilter('all');
-      setSearchDate('');
-    } else if (view === 'in_house') {
-      setStatusFilter('checked_in');
-      setDateFilter('all');
-      setSearchDate('');
-    } else if (view === 'departing') {
-      setStatusFilter('checked_in');
-      setDateFilter('date_search');
-      setSearchDate(todayIso);
-    } else if (view === 'upcoming') {
-      setStatusFilter('confirmed');
-      setDateFilter('month');
-      setSearchDate('');
-    } else if (view === 'balance' || view === 'normal_balance' || view === 'company_balance') {
-      setStatusFilter('all');
-      setDateFilter('all');
-      setSearchDate('');
+      return;
     }
+    setBoardView(view);
   };
 
   const handleTakePaymentAction = () => {
+    // Open the outstanding-balance view. This used to jump straight to
+    // `normalDueBookings[0]` from the full-table fetch; with the view resolved
+    // server-side the rows arrive after this returns, and picking a guest to
+    // charge is the clerk's call anyway.
     selectBookingView('normal_balance');
-    // Straight into the first outstanding booking's detail page — the payment
-    // action lives there now that the inline panel is gone.
-    const firstDue = normalDueBookings[0];
-    if (firstDue) navigate(`/bookings/${firstDue.id}`);
   };
 
   const hasActiveFilters = Boolean(
@@ -301,12 +262,7 @@ const BookingsPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => {
-              setCreateDialogOpen(true);
-              // Refresh the guest list so recently-added guests are searchable
-              // in the modal (the cached list may predate them otherwise).
-              loadGuests();
-            }}
+            onClick={() => setCreateDialogOpen(true)}
             disabled={rooms.length === 0}
             sx={{ minHeight: 44, px: 2.5, bgcolor: 'primary.main', '&:hover': { bgcolor: 'primary.dark' } }}
           >
@@ -329,19 +285,19 @@ const BookingsPage: React.FC = () => {
       )}
       <BookingSummarySection
         stats={{
-          arrivingCount: arrivingBookings.length,
-          readyToCheckInCount: arrivingBookings.filter(canCheckIn).length,
+          arrivingCount: summary?.arriving ?? 0,
+          readyToCheckInCount: summary?.ready_to_check_in ?? 0,
           todayCheckIns,
           totalGuestsInHouse,
-          inHouseCount: inHouseBookings.length,
+          inHouseCount: summary?.in_house ?? 0,
           roomCount,
-          departingCount: departingBookings.length,
-          upcomingCount: upcomingBookings.length,
+          departingCount: summary?.departing ?? 0,
+          upcomingCount: summary?.upcoming ?? 0,
           normalOutstandingDue,
-          normalDueCount: normalDueBookings.length,
+          normalDueCount: summary?.normal_due ?? 0,
           normalBalanceScope,
           companyOutstandingDue,
-          companyDueCount: companyDueBookings.length,
+          companyDueCount: summary?.company_due ?? 0,
           companyBalanceScope,
         }}
         activeView={bookingView}
@@ -359,18 +315,18 @@ const BookingsPage: React.FC = () => {
               paymentMethodFilter={paymentMethodFilter}
               onPaymentMethodFilterChange={(value) => {
                 setPaymentMethodFilter(value);
-                setBookingView('all');
+                setBoardView('all');
               }}
               onlineChannelFilter={onlineChannelFilter}
               onOnlineChannelFilterChange={(value) => {
                 setOnlineChannelFilter(value);
-                setBookingView('all');
+                setBoardView('all');
               }}
               searchDate={searchDate}
               onSearchDateChange={(value) => {
                 setSearchDate(value);
                 setDateFilter(value ? 'date_search' : 'all');
-                setBookingView('all');
+                setBoardView('all');
                 setCurrentPage(1);
               }}
               onClearSearchDate={() => {
@@ -382,7 +338,7 @@ const BookingsPage: React.FC = () => {
               onMonthSearchChange={(value) => {
                 setMonthSearch(value);
                 setDateFilter(value ? 'calendar_month' : 'all');
-                setBookingView('all');
+                setBoardView('all');
                 setCurrentPage(1);
               }}
               onClearMonthSearch={() => {
@@ -394,16 +350,17 @@ const BookingsPage: React.FC = () => {
               onSelectView={selectBookingView}
               viewCounts={{
                 all: totalBookings || bookings.length,
-                arriving: arrivingBookings.length,
-                inHouse: inHouseBookings.length,
-                upcoming: upcomingBookings.length,
-                due: dueBookings.length,
-                normalDue: normalDueBookings.length,
-                companyDue: companyDueBookings.length,
+                arriving: summary?.arriving ?? 0,
+                inHouse: summary?.in_house ?? 0,
+                upcoming: summary?.upcoming ?? 0,
+                // `balance` is the union of the two disjoint buckets.
+                due: (summary?.normal_due ?? 0) + (summary?.company_due ?? 0),
+                normalDue: summary?.normal_due ?? 0,
+                companyDue: summary?.company_due ?? 0,
               }}
               hasActiveFilters={hasActiveFilters}
               onClearFilters={() => {
-                setBookingView('all');
+                setBoardView('all');
                 clearFilters();
               }}
               paymentMethods={PAYMENT_METHODS}
@@ -430,7 +387,6 @@ const BookingsPage: React.FC = () => {
         onClose={closeCreateDialog}
         room={null}
         rooms={rooms}
-        guests={guests}
         onSuccess={(message) => {
           showSnackbar(message);
         }}

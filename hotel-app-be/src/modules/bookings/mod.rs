@@ -4,6 +4,7 @@ mod checkin_advisory;
 mod complimentary;
 mod credits;
 mod lifecycle;
+mod summary;
 
 pub mod auto_checkin;
 pub mod emails;
@@ -21,3 +22,4 @@ pub use checkin_advisory::*;
 pub use complimentary::*;
 pub use credits::*;
 pub use lifecycle::*;
+pub use summary::*;

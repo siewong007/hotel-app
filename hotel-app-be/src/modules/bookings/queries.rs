@@ -43,6 +43,11 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
         g.guest_type::text as guest_type, g.tourism_type::text as guest_tourism_type,
         b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
         b.check_in_date, b.check_out_date,
+        -- Occupancy. Load-bearing, not cosmetic: the bookings board sums these
+        -- into its "In-house guests" card, and while they were missing from this
+        -- select list every booking silently counted as exactly one guest, so the
+        -- card could never exceed the room count.
+        b.adults, b.children,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
         -- payment_status is derived live from the payments table so the chip
@@ -126,6 +131,8 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
         g.guest_type::text as guest_type, g.tourism_type::text as guest_tourism_type,
         b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
         b.check_in_date, b.check_out_date,
+        -- Occupancy -- keep in step with GET_BOOKINGS_BASE_QUERY above.
+        b.adults, b.children,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
         -- payment_status is derived live from the payments table so the chip

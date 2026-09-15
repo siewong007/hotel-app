@@ -5,7 +5,6 @@ use crate::core::error::ApiError;
 use crate::models::{Booking, BookingPaginationParams, BookingWithDetails, row_mappers};
 use super::list as booking_list;
 use crate::utils::pagination::Pagination;
-use sqlx::Row;
 
 pub struct BookingRepository;
 
@@ -92,18 +91,21 @@ impl BookingRepository {
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        // The windowed COUNT(*) OVER() rides along on every data row, so the page
-        // total comes back without a second query. Only an empty page needs the
-        // standalone count (offset past the end / no matching rows).
-        let total: i64 = match rows.first() {
-            Some(first) => first.try_get::<i64, _>("total_count").unwrap_or(0),
-            None => apply_binds!(sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(
-                &*list_query.count_sql
-            )))
-            .fetch_one(pool)
-            .await
-            .unwrap_or(0),
-        };
+        // The total always comes from its own query. The data query deliberately
+        // carries no COUNT(*) OVER(): a window function would be evaluated across
+        // the whole filtered set before LIMIT applies, which stops LIMIT pushing
+        // down to an index scan and drives every LATERAL join over every matching
+        // row (see `build_booking_list_query`). The count is issued sequentially
+        // rather than concurrently on purpose -- it costs ~0.87 ms against the
+        // page query's ~0.52 ms, and the backend pool is five connections, so
+        // doubling the per-request connection demand to save half a millisecond
+        // is a bad trade under concurrent load.
+        let total: i64 = apply_binds!(sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(
+            &*list_query.count_sql
+        )))
+        .fetch_one(pool)
+        .await
+        .unwrap_or(0);
 
         let bookings = rows
             .iter()

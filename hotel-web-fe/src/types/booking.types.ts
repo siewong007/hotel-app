@@ -46,8 +46,10 @@ export interface Booking {
   cancellation_reason?: string;
   special_requests?: string;
   number_of_guests?: number;
-  // Occupancy breakdown; present on the backend Booking/BookingWithDetails
-  // model (models/booking.rs) but not all list endpoints populate it.
+  // Occupancy breakdown. Now selected by both booking list and detail queries
+  // (modules/bookings/queries.rs). They were missing from those select lists,
+  // which silently made every booking count as one guest wherever occupancy was
+  // summed — keep them in the select list, not just in this type.
   adults?: number;
   children?: number;
   is_complimentary?: boolean;
@@ -298,6 +300,42 @@ export interface BookingTimelineEntry {
   metadata?: Record<string, any>;
   created_at: string;
 }
+
+/**
+ * The bookings board's operational figures, computed server-side by
+ * `GET /bookings/summary`.
+ *
+ * These used to be derived in the browser from an unfiltered fetch of the whole
+ * bookings table (5 requests, ~3.1 MB). Each figure is now produced by the same
+ * SQL predicate that `?view=<name>` applies to the list, so a card's number and
+ * the rows it opens cannot disagree.
+ */
+export interface BookingBoardSummary {
+  arriving: number;
+  ready_to_check_in: number;
+  in_house: number;
+  /** Headcount, not room count: SUM(adults + children) over in-house stays. */
+  guests_in_house: number;
+  departing: number;
+  upcoming: number;
+  normal_due: number;
+  normal_due_amount: number | string;
+  company_due: number;
+  company_due_amount: number | string;
+  /** Months after checkout before a company stay counts overdue. */
+  company_outstanding_months: number;
+}
+
+/** Board views the list endpoint accepts as `?view=`. */
+export type BookingBoardView =
+  | 'all'
+  | 'arriving'
+  | 'in_house'
+  | 'departing'
+  | 'upcoming'
+  | 'balance'
+  | 'normal_balance'
+  | 'company_balance';
 
 export interface RateCodesResponse {
   rate_codes: string[];

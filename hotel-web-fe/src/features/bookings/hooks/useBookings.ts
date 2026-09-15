@@ -1,10 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
-import { BookingWithDetails, Room, Guest } from '../../../types';
+import { BookingWithDetails, Room, BookingBoardView } from '../../../types';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { normalizePage, toPaginationSearchParams } from '../../../utils/pagination';
 import { formatLocalDate, addLocalDays } from '../../../utils/date';
 import { useBookingStats, useBookingsPage } from './useBookingQueries';
-import { useGuests } from '../../guests/hooks/useGuestQueries';
 import { useRooms } from '../../rooms/hooks/useRoomQueries';
 
 export type SortField = 'check_in_date' | 'check_out_date' | 'guest_name' | 'room_number' | 'status' | 'folio_number' | 'invoice_number';
@@ -37,6 +36,10 @@ export function useBookings() {
   const [customEndDate, setCustomEndDate] = useState('');
   const [searchDate, setSearchDate] = useState('');
   const [monthSearch, setMonthSearch] = useState('');
+  // The board view is a server-side filter, not a client-side slice over a
+  // full-table fetch. It goes into apiParams so the page, the total and the
+  // paginator all describe the same set of rows.
+  const [boardView, setBoardViewState] = useState<BookingBoardView>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 700);
   const debouncedRoomNumberFilter = useDebouncedValue(roomNumberFilter, 700);
@@ -52,6 +55,8 @@ export function useBookings() {
       status: statusFilter,
     };
 
+    if (boardView !== 'all') params.view = boardView;
+
     if (debouncedSearchQuery.trim()) params.search = debouncedSearchQuery.trim();
     if (debouncedRoomNumberFilter.trim()) params.room_number = debouncedRoomNumberFilter.trim();
     if (paymentMethodFilter.trim()) params.payment_method = paymentMethodFilter.trim();
@@ -64,20 +69,18 @@ export function useBookings() {
     else if (dateFilter === 'calendar_month' && monthSearch) { params.month_search = `${monthSearch}-01`; }
 
     return params;
-  }, [currentPage, sortField, sortOrder, debouncedSearchQuery, debouncedRoomNumberFilter, paymentMethodFilter, onlineChannelFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate, monthSearch]);
+  }, [currentPage, sortField, sortOrder, debouncedSearchQuery, debouncedRoomNumberFilter, paymentMethodFilter, onlineChannelFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate, monthSearch, boardView]);
 
   const bookingsQuery = useBookingsPage(apiParams);
   const roomsQuery = useRooms();
   const statsQuery = useBookingStats();
-  const guestsQuery = useGuests();
 
   const bookings = (bookingsQuery.data?.data ?? []) as BookingWithDetails[];
   const rooms = roomOverrides ?? (roomsQuery.data ?? []);
-  const guests = (guestsQuery.data ?? []) as Guest[];
   const totalBookings = bookingsQuery.data?.total ?? 0;
   const statsData = (statsQuery.data ?? { total: 0, checked_in: 0, confirmed: 0, today_check_ins: 0 }) as BookingStats;
   const loading = bookingsQuery.isPending;
-  const queryError = bookingsQuery.error || roomsQuery.error || guestsQuery.error || statsQuery.error;
+  const queryError = bookingsQuery.error || roomsQuery.error || statsQuery.error;
   const effectiveError = error || (queryError instanceof Error ? queryError.message : null);
 
   const loadRooms = useCallback(async () => {
@@ -89,17 +92,13 @@ export function useBookings() {
     await statsQuery.refetch();
   }, [statsQuery]);
 
-  const loadGuests = useCallback(async () => {
-    await guestsQuery.refetch();
-  }, [guestsQuery]);
-
   const loadBookings = useCallback(async () => {
     await bookingsQuery.refetch();
   }, [bookingsQuery]);
 
   const reload = useCallback(async () => {
-    await Promise.all([bookingsQuery.refetch(), statsQuery.refetch(), guestsQuery.refetch(), roomsQuery.refetch()]);
-  }, [bookingsQuery, statsQuery, guestsQuery, roomsQuery]);
+    await Promise.all([bookingsQuery.refetch(), statsQuery.refetch(), roomsQuery.refetch()]);
+  }, [bookingsQuery, statsQuery, roomsQuery]);
 
   const handleSort = useCallback((field: SortField) => {
     setSortField(prev => {
@@ -111,6 +110,7 @@ export function useBookings() {
   }, []);
 
   const clearFilters = useCallback(() => {
+    setBoardViewState('all');
     setSearchQuery('');
     setRoomNumberFilter('');
     setPaymentMethodFilter('');
@@ -123,6 +123,11 @@ export function useBookings() {
     setMonthSearch('');
     setSortField('check_in_date');
     setSortOrder('desc');
+    setCurrentPage(1);
+  }, []);
+
+  const setBoardView = useCallback((value: BookingBoardView) => {
+    setBoardViewState(value);
     setCurrentPage(1);
   }, []);
 
@@ -150,7 +155,6 @@ export function useBookings() {
     bookings,
     rooms,
     setRooms,
-    guests,
     loading,
     error: effectiveError,
     setError,
@@ -178,11 +182,12 @@ export function useBookings() {
     setSearchDate,
     monthSearch,
     setMonthSearch,
+    boardView,
+    setBoardView,
     currentPage,
     setCurrentPage,
     loadRooms,
     loadStats,
-    loadGuests,
     loadBookings,
     reload,
     handleSort,

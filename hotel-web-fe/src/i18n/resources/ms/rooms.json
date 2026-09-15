@@ -517,7 +517,8 @@
     "stateProvince": "Negeri/Wilayah",
     "postalCode": "Poskod",
     "country": "Negara",
-    "additionalDetails": "Butiran tambahan"
+    "additionalDetails": "Butiran tambahan",
+    "searching": "Mencari tetamu…"
   },
   "config": {
     "forbidden": "Anda tidak mempunyai kebenaran untuk mengakses halaman ini. Hubungi pentadbir anda untuk akses.",
@@ -723,7 +724,9 @@
     "loadingRooms": "Memuatkan bilik tersedia…",
     "selectRooms": "Pilih satu atau lebih bilik",
     "setDatesHint": "Tetapkan tarikh di bawah untuk menapis mengikut ketersediaan",
-    "roomsSelected": "{{count}} bilik dipilih: {{rooms}}"
+    "roomsSelected": "{{count}} bilik dipilih: {{rooms}}",
+    "guestSearchHint": "Taip sekurang-kurangnya 2 aksara untuk mencari tetamu",
+    "guestSearchNoMatch": "Tiada tetamu sepadan — tukar ke Daftar baharu untuk menciptanya"
   },
   "actions": {
     "editBookingNotes": "Sunting nota tempahan"

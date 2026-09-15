@@ -63,6 +63,21 @@ export function useActiveBookings(enabled = true, refetchInterval?: number) {
   });
 }
 
+/**
+ * The bookings board's operational figures.
+ *
+ * `queryStaleTime.short` matches the list it sits above, so the cards and the
+ * rows refresh together rather than one lagging the other after a mutation.
+ */
+export function useBookingBoardSummary(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.bookings.boardSummary(),
+    queryFn: () => BookingsService.getBookingBoardSummary(),
+    enabled,
+    staleTime: queryStaleTime.short,
+  });
+}
+
 export function useBookingStats(enabled = true) {
   return useQuery({
     queryKey: queryKeys.bookings.stats(),

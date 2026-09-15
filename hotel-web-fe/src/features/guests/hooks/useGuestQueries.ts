@@ -47,6 +47,29 @@ export function useGuestsPage(params?: GuestPageParams, enabled = true) {
   });
 }
 
+/**
+ * Server-side guest lookup for pickers.
+ *
+ * Replaces downloading the whole guest table and filtering it in the browser
+ * (1,731 rows / ~1,093 kB measured). The backend searches name, email, phone,
+ * IC, company and linked username, with trigram indexes behind the two biggest
+ * columns, and returns a bounded page.
+ *
+ * Disabled below `minLength` so an empty picker issues no request at all; the
+ * caller is expected to pass an already-debounced term.
+ */
+export function useGuestSearch(search: string, limit = 20, minLength = 2) {
+  const term = search.trim();
+  const params = { search: term, page_size: limit, page: 1 };
+  return useQuery({
+    queryKey: queryKeys.guests.page(params),
+    queryFn: () => GuestsService.getGuestsPage(params),
+    enabled: term.length >= minLength,
+    placeholderData: keepPreviousData,
+    staleTime: queryStaleTime.short,
+  });
+}
+
 export function useGuest(id?: string | number | null, enabled = true) {
   return useQuery({
     queryKey: queryKeys.guests.detail(id ?? ''),

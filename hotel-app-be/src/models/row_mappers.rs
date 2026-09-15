@@ -85,6 +85,8 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         check_out_date: row
             .try_get("check_out_date")
             .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+        adults: row.try_get("adults").ok(),
+        children: row.try_get("children").ok(),
         room_rate: get_decimal(row, "room_rate"),
         total_amount: get_decimal(row, "total_amount"),
         status: row.try_get("status").unwrap_or_default(),

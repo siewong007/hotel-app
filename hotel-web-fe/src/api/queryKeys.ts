@@ -40,6 +40,7 @@ export const queryKeys = {
     page: (params?: KeyParams) => [...bookings, 'page', paramsOrEmpty(params)] as const,
     withDetails: (filters?: KeyParams) => [...bookings, 'with-details', paramsOrEmpty(filters)] as const,
     stats: () => [...bookings, 'stats'] as const,
+    boardSummary: () => [...bookings, 'board-summary'] as const,
     detail: (id: string | number) => [...bookings, 'detail', String(id)] as const,
     timeline: (id: string | number) => [...bookings, 'timeline', String(id)] as const,
     paymentWorkflow: (id: string | number) => [...bookings, 'payment-workflow', String(id)] as const,

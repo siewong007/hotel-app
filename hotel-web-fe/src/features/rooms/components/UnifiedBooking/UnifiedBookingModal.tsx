@@ -9,6 +9,8 @@ import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils/date';
 import { isPositiveMoney, multiplyMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 import { useUnifiedBookingData } from '../../hooks/useUnifiedBookingData';
+import { useDebouncedValue } from '../../../../hooks/useDebouncedValue';
+import { useGuestSearch } from '../../../guests/hooks/useGuestQueries';
 import { isValidEmail } from '../../../../utils/validation';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { useTranslation } from '../../../../i18n/useTranslation';
@@ -31,12 +33,47 @@ import type { BookingType, BookingMode, ReservationType } from './bookingTypes';
 import { errorMessage } from '../../../../utils/errorMessage';
 export type { BookingType, BookingMode };
 
+/**
+ * Find a guest whose `field` equals `value` exactly, without holding the guest
+ * table in memory.
+ *
+ * The backend's `search` is a substring match across name, email, phone, IC,
+ * company and linked username, so an exact match is always somewhere in the
+ * result set; the exact comparison then happens here over a bounded page. If a
+ * term somehow had more than `PAGE` substring matches the check can miss, and
+ * creation falls through to the backend's own duplicate-name guard, which still
+ * rejects a conflicting nick_name.
+ */
+const DUPLICATE_LOOKUP_PAGE = 100;
+
+async function findGuestExact(
+  value: string,
+  field: (guest: Guest) => string | null | undefined,
+): Promise<Guest | undefined> {
+  const term = value.trim();
+  if (!term) return undefined;
+  const needle = term.toLowerCase();
+  try {
+    const page = await GuestsService.getGuestsPage({
+      search: term,
+      page_size: DUPLICATE_LOOKUP_PAGE,
+      page: 1,
+    });
+    return page.data.find((guest) => (field(guest) ?? '').trim().toLowerCase() === needle);
+  } catch {
+    // A failed pre-check must not block the booking: the backend still guards
+    // duplicate names on create.
+    return undefined;
+  }
+}
+
+
+
 interface UnifiedBookingModalProps {
   open: boolean;
   onClose: () => void;
   room?: Room | null;  // Optional - if not provided, room selection step will be shown
   rooms?: Room[];      // Legacy caller prop; selection uses date-filtered availability
-  guests: Guest[];
   initialGuest?: Guest | null;
   initialBookingType?: BookingType;
   onSuccess: (message: string) => void;
@@ -79,7 +116,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   open,
   onClose,
   room: roomProp,
-  guests,
   initialGuest = null,
   initialBookingType,
   onSuccess,
@@ -332,6 +368,22 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     });
   }, [availableRooms, checkInDate, checkOutDate, loadingAvailableRooms, needsRoomSelection]);
 
+  // Guest picker options come from the server, not a preloaded table. The old
+  // modal received all 1,731 guests (~1,093 kB) and filtered them with MUI's
+  // createFilterOptions; this asks the backend for the ~20 that match.
+  const [guestSearch, setGuestSearch] = useState('');
+  const debouncedGuestSearch = useDebouncedValue(guestSearch, 300);
+  const guestSearchQuery = useGuestSearch(debouncedGuestSearch);
+  const guestOptions = useMemo(() => {
+    const results = guestSearchQuery.data?.data ?? [];
+    // Keep the chosen guest present even once the term stops matching it, or
+    // the Autocomplete would drop its own value.
+    if (selectedGuest && !results.some((g) => g.id === selectedGuest.id)) {
+      return [selectedGuest, ...results];
+    }
+    return results;
+  }, [guestSearchQuery.data, selectedGuest]);
+
   // Load guests with credits when complimentary reservation is selected
   useEffect(() => {
     if (reservationType === 'complimentary' && open) {
@@ -421,8 +473,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         const modalDisplayName = [newGuestForm.first_name.trim(), newGuestForm.last_name.trim()]
           .filter(Boolean)
           .join(' ');
-        const modalFullName = modalDisplayName.toLowerCase();
-        const existingGuestByName = guests.find(g => g.nick_name.toLowerCase().trim() === modalFullName);
+        const existingGuestByName = await findGuestExact(modalDisplayName, (g) => g.nick_name);
         if (existingGuestByName) {
           reportError(t('unified.errDuplicateGuestName', { name: modalDisplayName }));
           setProcessing(false);
@@ -431,7 +482,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
         // Check for duplicate email
         if (newGuestForm.email && newGuestForm.email.trim()) {
-          const existingGuest = guests.find(g => g.email && g.email.toLowerCase() === newGuestForm.email.toLowerCase());
+          const existingGuest = await findGuestExact(newGuestForm.email, (g) => g.email);
           if (existingGuest) {
             reportError(t('unified.errDuplicateGuestEmail', { email: newGuestForm.email }));
             setProcessing(false);
@@ -672,7 +723,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
           // Check for duplicate email
           if (newGuestForm.email && newGuestForm.email.trim()) {
-            const existingGuest = guests.find(g => g.email && g.email.toLowerCase() === newGuestForm.email.toLowerCase());
+            const existingGuest = await findGuestExact(newGuestForm.email, (g) => g.email);
             if (existingGuest) {
               reportError(t('unified.errDuplicateGuestEmail', { email: newGuestForm.email }));
               setProcessing(false);
@@ -1147,7 +1198,14 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
              toggle so a phone user can fold a finished section away. */}
           <CollapsibleSection title={`${step(3)} ${t('unified.secGuest')}`} sx={{ mb: 2.75 }}>
             <GuestSelector
-              guests={guests}
+              guests={guestOptions}
+              onGuestSearchChange={setGuestSearch}
+              loadingGuests={guestSearchQuery.isFetching}
+              guestNoOptionsText={
+                debouncedGuestSearch.trim().length < 2
+                  ? t('unified.guestSearchHint')
+                  : t('unified.guestSearchNoMatch')
+              }
               selectedGuest={selectedGuest}
               onGuestSelect={setSelectedGuest}
               isCreatingNew={isCreatingNewGuest}

@@ -322,6 +322,9 @@
     "/api/bookings/stats": {
       "GET": {}
     },
+    "/api/bookings/summary": {
+      "GET": {}
+    },
     "/api/bookings/void": {
       "POST": {}
     },

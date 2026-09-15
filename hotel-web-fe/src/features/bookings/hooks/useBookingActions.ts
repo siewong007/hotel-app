@@ -24,7 +24,10 @@ import type { PaymentDialogContext } from '../components/Bookings/dialogs/Paymen
 
 /** The action callbacks BookingDetailsPanel (and its phone action menu) fire. */
 export interface BookingActionCallbacks {
-  onCheckIn: (bookingId: string) => void;
+  /** Takes the booking itself. It used to take an id and resolve it against a
+   *  lookup pool, which tied check-in to a full-table fetch that no longer
+   *  exists -- and every caller already holds the row. */
+  onCheckIn: (booking: BookingWithDetails) => void;
   onCheckOut: (booking: BookingWithDetails) => void;
   onPayment: (booking: BookingWithDetails) => void;
   onWorkflow: (booking: BookingWithDetails) => void;
@@ -38,10 +41,6 @@ export interface BookingActionCallbacks {
 export interface UseBookingActionsOptions {
   /** Room list handed to the edit dialog's room picker. */
   rooms: Room[];
-  /** Lookup pool for check-in-by-id (the page's loaded bookings). */
-  bookings: BookingWithDetails[];
-  /** Secondary lookup pool for check-in-by-id (BookingsPage summary rows). */
-  summaryBookings?: BookingWithDetails[];
   /** Page-level error surface (BookingsPage's `setError`, detail page's alert). */
   onError: (message: string) => void;
   /** Reload page data after a mutation completes (list refetch / detail refetch). */
@@ -59,8 +58,6 @@ export interface UseBookingActionsOptions {
  */
 export function useBookingActions({
   rooms,
-  bookings,
-  summaryBookings = [],
   onError,
   onCompleted,
 }: UseBookingActionsOptions) {
@@ -135,25 +132,13 @@ export function useBookingActions({
     setPaymentDialogOpen(true);
   };
 
-  // Check-in functions
-  const handleCheckIn = async (bookingId: string) => {
-    const booking = bookings.find(b => String(b.id) === String(bookingId)) ||
-      summaryBookings.find(b => String(b.id) === String(bookingId));
-    if (!booking) {
-      onError('Booking not found');
-      return;
-    }
+  const handleCheckIn = (booking: BookingWithDetails) => {
     setCheckinBooking(booking);
     setShowCheckinModal(true);
   };
 
-  // Direct open for callers that already hold the booking object (the create
-  // flow's onBookingCreated builds a BookingWithDetails that is not in the
-  // list lookup pools yet).
-  const openCheckInDialog = (booking: BookingWithDetails) => {
-    setCheckinBooking(booking);
-    setShowCheckinModal(true);
-  };
+  /** Same thing under the name the create flow calls it by. */
+  const openCheckInDialog = handleCheckIn;
 
   // View invoice for checked-out bookings. For company city-ledger bookings the
   // payments live on the customer ledger (not the booking `payments` table), so

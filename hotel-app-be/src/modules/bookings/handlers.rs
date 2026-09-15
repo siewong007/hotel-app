@@ -52,6 +52,12 @@ pub async fn get_booking_stats_handler(
     booking_service::get_booking_stats_handler(State(pool)).await
 }
 
+pub async fn get_booking_board_summary_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<BookingBoardSummary>, ApiError> {
+    booking_service::get_booking_board_summary_handler(State(pool)).await
+}
+
 pub async fn create_booking_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,

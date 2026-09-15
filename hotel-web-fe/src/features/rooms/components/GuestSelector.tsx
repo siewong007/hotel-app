@@ -59,7 +59,17 @@ interface GuestSelectorProps {
   // For existing guest mode
   selectedGuest: Guest | null;
   onGuestSelect: (guest: Guest | null) => void;
+  /** Options to offer. When `onGuestSearchChange` is supplied these are already
+   *  server-filtered results, not the whole guest table. */
   guests: Guest[];
+  /** Supply to search server-side: the component stops filtering `guests`
+   *  itself and reports what the user types instead. Without it the old
+   *  client-side filter is used (the complimentary-credits path still does). */
+  onGuestSearchChange?: (query: string) => void;
+  /** Spinner in the picker while a server search is in flight. */
+  loadingGuests?: boolean;
+  /** Shown when a server search returned nothing. */
+  guestNoOptionsText?: string;
 
   // For new guest mode
   newGuestForm: NewGuestForm;
@@ -102,6 +112,9 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
   selectedGuest,
   onGuestSelect,
   guests,
+  onGuestSearchChange,
+  loadingGuests = false,
+  guestNoOptionsText,
   newGuestForm,
   onNewGuestFormChange,
   isCreatingNew,
@@ -245,7 +258,16 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             value={selectedGuest}
             onChange={(_, newValue) => handleGuestSelect(newValue)}
             options={guests}
-            filterOptions={guestFilterOptions}
+            // Server-searched: MUI must not filter the page it was given, or a
+            // result the backend matched on a field the label omits (phone, IC)
+            // would be hidden again.
+            filterOptions={onGuestSearchChange ? (options) => options : guestFilterOptions}
+            onInputChange={onGuestSearchChange
+              ? (_, value, reason) => { if (reason === 'input') onGuestSearchChange(value); }
+              : undefined}
+            loading={loadingGuests}
+            loadingText={t('guestSelector.searching')}
+            noOptionsText={onGuestSearchChange ? guestNoOptionsText : undefined}
             getOptionLabel={(option) => {
               const parts = [option.nick_name];
               if (option.company_name) parts.push(`(${option.company_name})`);

@@ -9,6 +9,8 @@ import {
   BookingReleaseResponse,
   BookingTimelineEntry,
   BookingWithDetails,
+  BookingBoardSummary,
+  BookingBoardView,
   CheckInRequest,
   CheckInAdvisory,
 } from '../types';
@@ -290,6 +292,8 @@ export class BookingsService {
     check_in_from?: string;
     check_in_to?: string;
     month_search?: string;
+    /** Bookings board view; applies the same predicate as the matching summary count. */
+    view?: BookingBoardView;
     sort_by?: string;
     sort_order?: string;
   } = {}): Promise<{ data: BookingWithDetails[]; total: number; page: number; page_size: number }> {
@@ -307,6 +311,9 @@ export class BookingsService {
       if (params.check_in_from) searchParams.check_in_from = params.check_in_from;
       if (params.check_in_to) searchParams.check_in_to = params.check_in_to;
       if (params.month_search) searchParams.month_search = params.month_search;
+      // 'all' means no view filter; the backend treats it the same way, but not
+      // sending it keeps the query key and the request URL clean.
+      if (params.view && params.view !== 'all') searchParams.view = params.view;
       if (params.sort_by) searchParams.sort_by = params.sort_by;
       if (params.sort_order) searchParams.sort_order = params.sort_order;
 
@@ -323,6 +330,22 @@ export class BookingsService {
         page: meta.page ?? 1,
         page_size: meta.page_size ?? 50,
       };
+    } catch (error) {
+      throw toApiError(error, t('generic', undefined, 'errors'));
+    }
+  }
+
+  /**
+   * The bookings board's nine operational figures.
+   *
+   * Replaces a client-side reduction over `getAllBookings()` with no filter,
+   * which paged the entire non-voided table (5 requests / ~3.1 MB measured on
+   * 2,756 bookings) to produce these same numbers. No retry wrapper: the board
+   * renders without the summary, and a stale count is worse than a missing one.
+   */
+  static async getBookingBoardSummary(): Promise<BookingBoardSummary> {
+    try {
+      return await api.get('bookings/summary').json<BookingBoardSummary>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
     }
