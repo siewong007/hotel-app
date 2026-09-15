@@ -1,7 +1,7 @@
 [package]
 name = "hotel-desktop"
 version = "1.0.0"
-description = "Hotel Management System - Desktop Application"
+description = "Hotel Management System desktop application with an embedded PostgreSQL database."
 authors = ["Hotel App"]
 edition = "2024"
 rust-version = "1.95.0"

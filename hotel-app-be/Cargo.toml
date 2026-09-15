@@ -1,6 +1,7 @@
 [package]
 name = "hotel-app-be"
 version = "0.2.0"
+description = "Hotel Management System backend API: bookings, billing, ledgers, and night audit."
 edition = "2024"
 rust-version = "1.95.0"
 
