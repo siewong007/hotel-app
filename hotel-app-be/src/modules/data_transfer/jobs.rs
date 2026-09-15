@@ -37,9 +37,11 @@ use super::repository::{
     DataTransferRepository, ForeignKeyRef, InsertRowOutcome, PkLookup, QualifiedTable,
     TransferTable, transfer_order,
 };
+use super::crypto::{DecryptingReader, is_encrypted_backup};
 use super::service::{
-    AUDIT_USER_FK_COLUMNS, EXCLUDED_TABLES, backup_environment, expand_full_overwrite_tables,
-    is_transferable_key, table_is_sensitive,
+    AUDIT_USER_FK_COLUMNS, EXCLUDED_TABLES, TransferTier, backup_environment,
+    expand_full_overwrite_tables, is_never_imported_key, is_transferable_key,
+    protected_table_keys, table_is_sensitive,
 };
 
 /// Staging root for in-flight backup uploads — `private_uploads` resolves
@@ -276,6 +278,12 @@ pub async fn delete_staged_upload(upload_id: Uuid) -> Result<(), ApiError> {
 /// v1/v2 documents and earlier `hotel-backup` versions) get the `"legacy"`
 /// label only so the parse error can name what was uploaded.
 pub fn detect_backup_format(prefix: &[u8]) -> &'static str {
+    // An encrypted envelope is opaque past its magic — nothing about the
+    // document inside is knowable until a passphrase opens it, so the sniff
+    // reports the container and preview does the rest.
+    if is_encrypted_backup(prefix) {
+        return "encrypted";
+    }
     let text = String::from_utf8_lossy(prefix);
     let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
     if compact.contains("\"format\":\"hotel-backup\"") {
@@ -304,39 +312,86 @@ pub fn detect_backup_format(prefix: &[u8]) -> &'static str {
 // Staged-file parsing
 // ---------------------------------------------------------------------------
 
-fn parse_reader<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, String> {
+fn parse_reader<T: serde::de::DeserializeOwned>(
+    path: &Path,
+    passphrase: Option<&str>,
+) -> Result<T, String> {
     let file = fs::File::open(path).map_err(|error| error.to_string())?;
-    serde_json::from_reader(BufReader::new(file)).map_err(|error| error.to_string())
+    let mut reader = BufReader::new(file);
+    let mut prefix = [0u8; ENVELOPE_SNIFF_BYTES];
+    let read = read_prefix(&mut reader, &mut prefix)?;
+    reader = reopen(path)?;
+    if is_encrypted_backup(&prefix[..read]) {
+        let passphrase = passphrase.ok_or_else(|| {
+            "the upload is encrypted — supply the backup passphrase to read it".to_string()
+        })?;
+        let decrypting = DecryptingReader::new(reader, passphrase)?;
+        return serde_json::from_reader(BufReader::new(decrypting))
+            .map_err(|error| error.to_string());
+    }
+    serde_json::from_reader(reader).map_err(|error| error.to_string())
+}
+
+/// Bytes sniffed to decide whether a staged file is an encrypted envelope.
+const ENVELOPE_SNIFF_BYTES: usize = 32;
+
+fn read_prefix<R: Read>(reader: &mut R, buffer: &mut [u8]) -> Result<usize, String> {
+    let mut filled = 0;
+    while filled < buffer.len() {
+        match reader.read(&mut buffer[filled..]) {
+            Ok(0) => break,
+            Ok(count) => filled += count,
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Ok(filled)
+}
+
+fn reopen(path: &Path) -> Result<BufReader<fs::File>, String> {
+    fs::File::open(path)
+        .map(BufReader::new)
+        .map_err(|error| error.to_string())
 }
 
 /// Parse a staged upload as the only supported document — a `hotel-backup`
 /// file. Retired shapes get a named error; anything else fails the parse.
 /// Runs inside `spawn_blocking`: a 256 MB parse must not sit on a runtime
 /// worker.
-fn parse_staged_file(path: &Path) -> Result<BackupFile, String> {
+fn parse_staged_file(path: &Path, passphrase: Option<&str>) -> Result<BackupFile, String> {
     let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
     let mut prefix = Vec::new();
     file.by_ref()
         .take(SNIFF_PREFIX_BYTES as u64)
         .read_to_end(&mut prefix)
         .map_err(|error| error.to_string())?;
-    if detect_backup_format(&prefix) == "legacy" {
+    let encrypted = is_encrypted_backup(&prefix);
+    if !encrypted && detect_backup_format(&prefix) == "legacy" {
         return Err("the file uses a retired export format (legacy v1/v2 or hotel-backup v3) — export a fresh backup from the source system and import that instead".to_string());
     }
-    parse_reader::<BackupFile>(path).map_err(|_| {
-        "the file is not a recognized hotel backup (expected a hotel-backup v1 document)"
-            .to_string()
+    parse_reader::<BackupFile>(path, passphrase).map_err(|error| {
+        // A decryption failure names a fixable cause (wrong passphrase, or a
+        // damaged file); collapsing it into the generic "not a backup" text
+        // would send an operator looking for the wrong problem.
+        if encrypted {
+            error
+        } else {
+            "the file is not a recognized hotel backup (expected a hotel-backup v1 document)"
+                .to_string()
+        }
     })
 }
 
-async fn read_staged_backup(upload_id: Uuid) -> Result<BackupFile, ApiError> {
+async fn read_staged_backup(
+    upload_id: Uuid,
+    passphrase: Option<String>,
+) -> Result<BackupFile, ApiError> {
     let path = staged_upload_path(upload_id);
     if !path.exists() {
         return Err(ApiError::NotFound(
             "staged upload not found — the file may have expired or been consumed".to_string(),
         ));
     }
-    tokio::task::spawn_blocking(move || parse_staged_file(&path))
+    tokio::task::spawn_blocking(move || parse_staged_file(&path, passphrase.as_deref()))
         .await
         .map_err(|error| ApiError::Internal(format!("backup parse task failed: {error}")))?
         .map_err(|error| {
@@ -446,6 +501,7 @@ impl MissingRefScan {
         pool: &DbPool,
         children: &[QualifiedTable],
         fallback_user_id: i64,
+        tier: TransferTier,
     ) -> Result<(Self, Vec<ForeignKeyRef>), ApiError> {
         let foreign_keys = DataTransferRepository::foreign_key_refs(pool, children).await?;
         let bare_names: Vec<&str> = children
@@ -462,7 +518,7 @@ impl MissingRefScan {
             // References between transferable tables are import ordering's
             // problem, not this scan's — those rows come with the file or
             // fail the deferred constraint check.
-            if is_transferable_key(&fk.parent.key()) {
+            if is_transferable_key(&fk.parent.key(), tier) {
                 transferable_edges.push(fk);
                 continue;
             }
@@ -651,8 +707,14 @@ impl PkBinding {
 
 /// What a staged backup would do — the pre-flight diff behind
 /// `POST /data-transfer/import/preview`.
-pub async fn preview_import(pool: &DbPool, upload_id: Uuid) -> Result<ImportPreview, ApiError> {
-    preview_structured(pool, upload_id, read_staged_backup(upload_id).await?).await
+pub async fn preview_import(
+    pool: &DbPool,
+    upload_id: Uuid,
+    passphrase: Option<String>,
+) -> Result<ImportPreview, ApiError> {
+    let file = read_staged_backup(upload_id, passphrase.clone()).await?;
+    let tier = staged_file_tier(upload_id, passphrase).await;
+    preview_structured(pool, upload_id, file, tier).await
 }
 
 /// Diff the staged `hotel-backup` file against the destination.
@@ -660,6 +722,7 @@ async fn preview_structured(
     pool: &DbPool,
     upload_id: Uuid,
     file: BackupFile,
+    tier: TransferTier,
 ) -> Result<ImportPreview, ApiError> {
     // The manifest and integrity trailer exist precisely so this check can
     // run: a file whose row counts disagree with its own trailer was
@@ -705,6 +768,7 @@ async fn preview_structured(
             application_version: Some(file.application_version.clone()),
         },
         file.tables,
+        tier,
     )
     .await?;
     preview.warnings.extend(trailer_warnings);
@@ -720,14 +784,22 @@ async fn preview_structured(
             file.version
         ));
     }
-    if file.kind != "business-data" {
+    if file.kind != "business-data" && file.kind != "full-system" {
         preview
             .validation_errors
             .push(format!("unsupported backup kind '{}'", file.kind));
     }
-    if file.includes_secrets == Some(true) {
+    // `includesSecrets` is expected on a full-system document and suspicious
+    // on anything else, where no legitimate producer sets it.
+    if file.includes_secrets == Some(true) && file.kind != "full-system" {
         preview.warnings.push(
-            "the file declares it may contain secrets — no legitimate export sets includesSecrets; inspect it before importing"
+            "the file declares it may contain secrets but is not a full-system backup — no legitimate export does this; inspect it before importing"
+                .to_string(),
+        );
+    }
+    if tier == TransferTier::System {
+        preview.warnings.push(
+            "this is a full-system backup: importing it replaces user accounts, passwords, RBAC grants and eKYC records in this database"
                 .to_string(),
         );
     }
@@ -926,6 +998,7 @@ async fn preview_table_map(
     upload_id: Uuid,
     header: FileHeader<'_>,
     tables: BTreeMap<String, Vec<Box<RawValue>>>,
+    tier: TransferTier,
 ) -> Result<ImportPreview, ApiError> {
     let descriptors = DataTransferRepository::transfer_tables(pool).await?;
     let descriptor_by_name: HashMap<String, TransferTable> = descriptors
@@ -949,7 +1022,16 @@ async fn preview_table_map(
             ));
             continue;
         }
-        if is_transferable_key(&key) {
+        if is_never_imported_key(&key) {
+            // Carried by the document for forensics, never applied. Reported
+            // rather than dropped silently so the preview's row totals and
+            // the operator's expectations still line up.
+            warnings.push(format!(
+                "'{key}' is present in the file and will not be imported — it records which schema patches the SOURCE database had applied, and restoring it here would make this database misreport its own schema"
+            ));
+            continue;
+        }
+        if is_transferable_key(&key, tier) {
             if descriptor_by_name.contains_key(&key) {
                 transferable.push((key, rows));
             } else {
@@ -972,7 +1054,7 @@ async fn preview_table_map(
         .iter()
         .filter_map(|(key, _)| QualifiedTable::parse(key).ok())
         .collect();
-    let (scan, transferable_edges) = MissingRefScan::build(pool, &children, 0).await?;
+    let (scan, transferable_edges) = MissingRefScan::build(pool, &children, 0, tier).await?;
 
     // References between transferable tables resolve against the file's own
     // rows first and the destination second — a referenced key present in
@@ -1299,8 +1381,8 @@ fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 /// A `hotel-backup` file is sensitive when the header declares it or any
 /// `"public.<name>"` entity key names a [`SENSITIVE_TABLES`] entry. Legacy
 /// files always carried guest data, and anything unrecognizable fails closed.
-fn staged_file_is_sensitive_sync(path: &Path) -> bool {
-    let Ok(bytes) = fs::read(path) else {
+fn staged_file_is_sensitive_sync(path: &Path, passphrase: Option<&str>) -> bool {
+    let Some(bytes) = staged_plaintext(path, passphrase) else {
         // Unreadable files fail closed; execute surfaces the real error later.
         return true;
     };
@@ -1345,15 +1427,67 @@ fn staged_file_is_sensitive_sync(path: &Path) -> bool {
     false
 }
 
-async fn staged_file_is_sensitive(upload_id: Uuid) -> bool {
+async fn staged_file_is_sensitive(upload_id: Uuid, passphrase: Option<String>) -> bool {
     let path = staged_upload_path(upload_id);
     if !path.exists() {
         // Missing uploads fail closed; execute reports NotFound separately.
         return true;
     }
-    tokio::task::spawn_blocking(move || staged_file_is_sensitive_sync(&path))
+    tokio::task::spawn_blocking(move || {
+        staged_file_is_sensitive_sync(&path, passphrase.as_deref())
+    })
+    .await
+    .unwrap_or(true)
+}
+
+/// The staged document as plaintext bytes, decrypting first when the file is
+/// an encrypted envelope. `None` means it could not be read at all, which
+/// every caller treats as "fail closed".
+///
+/// This materializes the document, matching what the plaintext sniff has
+/// always done; the 256 MB upload cap is what bounds it.
+fn staged_plaintext(path: &Path, passphrase: Option<&str>) -> Option<Vec<u8>> {
+    let mut file = fs::File::open(path).ok()?;
+    let mut prefix = [0u8; ENVELOPE_SNIFF_BYTES];
+    let read = read_prefix(&mut file, &mut prefix).ok()?;
+    if !is_encrypted_backup(&prefix[..read]) {
+        return fs::read(path).ok();
+    }
+    let reader = reopen(path).ok()?;
+    let mut decrypting = DecryptingReader::new(reader, passphrase?).ok()?;
+    let mut plain = Vec::new();
+    decrypting.read_to_end(&mut plain).ok()?;
+    Some(plain)
+}
+
+/// Which tier a staged file demands, decided by what it actually contains
+/// rather than by the `exportType` it declares — a hand-edited header must
+/// not be able to smuggle `public.users` in under a `full` label.
+///
+/// Fails closed: anything unreadable is treated as a system file so the
+/// stricter gate applies and execute reports the real error later.
+fn staged_file_tier_sync(path: &Path, passphrase: Option<&str>) -> TransferTier {
+    let Some(bytes) = staged_plaintext(path, passphrase) else {
+        return TransferTier::System;
+    };
+    let protected: Vec<String> = protected_table_keys();
+    for key in protected {
+        let needle = format!("\"{key}\"");
+        if find_subslice(&bytes, needle.as_bytes()).is_some() {
+            return TransferTier::System;
+        }
+    }
+    TransferTier::Business
+}
+
+async fn staged_file_tier(upload_id: Uuid, passphrase: Option<String>) -> TransferTier {
+    let path = staged_upload_path(upload_id);
+    if !path.exists() {
+        return TransferTier::System;
+    }
+    tokio::task::spawn_blocking(move || staged_file_tier_sync(&path, passphrase.as_deref()))
         .await
-        .unwrap_or(true)
+        .unwrap_or(TransferTier::System)
 }
 
 /// The permission checks that depend on the file and the requested mode —
@@ -1371,9 +1505,18 @@ pub async fn enforce_import_permissions(
     headers: &axum::http::HeaderMap,
     request: &ImportExecuteRequest,
 ) -> Result<(), ApiError> {
-    if staged_file_is_sensitive(request.upload_id).await {
+    if staged_file_is_sensitive(request.upload_id, request.passphrase.clone()).await {
         crate::core::middleware::check_permission(pool, user_id, "data_transfer:import_sensitive")
             .await?;
+    }
+    // A file carrying the protected set can rewrite who can log in and what
+    // they may do, so it clears the same bar as producing one: super admin
+    // plus step-up re-authentication, on top of the import permissions.
+    if staged_file_tier(request.upload_id, request.passphrase.clone()).await == TransferTier::System
+    {
+        crate::core::middleware::ensure_super_admin(pool, user_id).await?;
+        let claims = crate::core::middleware::extract_claims(headers).await?;
+        super::step_up::require_step_up(headers, &claims)?;
     }
     if request.on_conflict == Some(ConflictPolicy::Update) {
         crate::core::middleware::check_permission(pool, user_id, "data_transfer:override").await?;
@@ -1396,11 +1539,20 @@ pub async fn start_import_job(
             "confirm must be true to run an import — the operation is destructive".to_string(),
         ));
     }
+    // Resolved from the file's own contents, then reused for the job — the
+    // permission gate in `enforce_import_permissions` ran against the same
+    // classification, so the two cannot disagree.
+    let tier = staged_file_tier(request.upload_id, request.passphrase.clone()).await;
     for table in &request.tables {
         QualifiedTable::parse(table)?;
-        if !is_transferable_key(table) {
+        if is_never_imported_key(table) {
             return Err(ApiError::BadRequest(format!(
-                "Transfer table '{table}' is not permitted: only the business-data table set can be imported"
+                "Transfer table '{table}' cannot be imported: it records which schema patches the source database had applied, and restoring it would make this database misreport its own schema"
+            )));
+        }
+        if !is_transferable_key(table, tier) {
+            return Err(ApiError::BadRequest(format!(
+                "Transfer table '{table}' is not permitted for this file's table set"
             )));
         }
     }
@@ -1424,7 +1576,7 @@ pub async fn start_import_job(
     let job_path = path.clone();
     let job_request = request;
     tokio::spawn(async move {
-        run_import_job(job_pool, job_id, job_path, job_request, import_user_id).await;
+        run_import_job(job_pool, job_id, job_path, job_request, import_user_id, tier).await;
     });
 
     Ok(ImportExecuteResponse { job_id })
@@ -1439,11 +1591,13 @@ async fn run_import_job(
     path: PathBuf,
     request: ImportExecuteRequest,
     import_user_id: i64,
+    tier: TransferTier,
 ) {
     let started = Instant::now();
     audit_import_event(&pool, import_user_id, job_id, &request, "start", None, None).await;
 
-    let outcome = execute_staged_import(&pool, job_id, &path, &request, import_user_id).await;
+    let outcome =
+        execute_staged_import(&pool, job_id, &path, &request, import_user_id, tier).await;
 
     if let Err(error) = tokio::fs::remove_file(&path).await {
         log::warn!("import job {job_id}: could not remove staged file: {error}");
@@ -1565,10 +1719,14 @@ async fn execute_staged_import(
     path: &Path,
     request: &ImportExecuteRequest,
     import_user_id: i64,
+    tier: TransferTier,
 ) -> Result<ImportJobResult, ApiError> {
     let file_path = path.to_path_buf();
-    let file = tokio::task::spawn_blocking(move || parse_staged_file(&file_path))
-        .await
+    let passphrase = request.passphrase.clone();
+    let file = tokio::task::spawn_blocking(move || {
+        parse_staged_file(&file_path, passphrase.as_deref())
+    })
+    .await
         .map_err(|error| ApiError::Internal(format!("backup parse task failed: {error}")))?
         .map_err(ApiError::BadRequest)?;
 
@@ -1584,13 +1742,13 @@ async fn execute_staged_import(
             file.version
         )));
     }
-    if file.kind != "business-data" {
+    if file.kind != "business-data" && file.kind != "full-system" {
         return Err(ApiError::BadRequest(format!(
             "unsupported backup kind '{}'",
             file.kind
         )));
     }
-    import_structured_backup(pool, job_id, import_user_id, request, file.tables).await
+    import_structured_backup(pool, job_id, import_user_id, tier, request, file.tables).await
 }
 
 /// The import engine: clear (restore) then insert every selected entity in
@@ -1600,6 +1758,7 @@ async fn import_structured_backup(
     pool: &DbPool,
     job_id: Uuid,
     import_user_id: i64,
+    tier: TransferTier,
     request: &ImportExecuteRequest,
     file_tables: BTreeMap<String, Vec<Box<RawValue>>>,
 ) -> Result<ImportJobResult, ApiError> {
@@ -1619,7 +1778,11 @@ async fn import_structured_backup(
     let mut unsupported_entities = Vec::new();
     for (key, rows) in file_tables {
         let known = QualifiedTable::parse(&key)
-            .map(|_| is_transferable_key(&key) && descriptor_by_name.contains_key(&key))
+            .map(|_| {
+                !is_never_imported_key(&key)
+                    && is_transferable_key(&key, tier)
+                    && descriptor_by_name.contains_key(&key)
+            })
             .unwrap_or(false);
         if known {
             importable.insert(key, rows);
@@ -1635,9 +1798,9 @@ async fn import_structured_backup(
     };
     for table in &selected {
         QualifiedTable::parse(table)?;
-        if !is_transferable_key(table) {
+        if !is_transferable_key(table, tier) {
             return Err(ApiError::BadRequest(format!(
-                "Transfer table '{table}' is not permitted: only the business-data table set can be imported"
+                "Transfer table '{table}' is not permitted for this file's table set"
             )));
         }
         if !importable.contains_key(table) {
@@ -1647,7 +1810,7 @@ async fn import_structured_backup(
         }
     }
     if request.mode == BackupImportMode::Restore {
-        expand_full_overwrite_tables(&mut selected, &dependencies);
+        expand_full_overwrite_tables(&mut selected, &dependencies, tier);
     }
     let selected_names: Vec<String> = selected.into_iter().collect();
     let order = transfer_order(&selected_names, &dependencies)?;
@@ -1671,6 +1834,7 @@ async fn import_structured_backup(
             .map(|table| table.table.clone())
             .collect::<Vec<_>>(),
         import_user_id,
+        tier,
     )
     .await?;
 
@@ -1957,7 +2121,7 @@ mod tests {
             "integrity":{"entities":0,"rows":0,"entityRows":{},"completedAt":"x"}
         }"#;
         fs::write(&path, document).expect("fixture writes");
-        let parsed = parse_staged_file(&path).expect("v1 document parses");
+        let parsed = parse_staged_file(&path, None).expect("v1 document parses");
         assert_eq!(parsed.version, 1);
         fs::remove_file(&path).ok();
     }
@@ -1968,7 +2132,7 @@ mod tests {
         let path = dir.join(format!("data-transfer-parse-test-{}.json", Uuid::new_v4()));
         fs::write(&path, br#"{"version":"2.0","exported_at":"x","tables":{}}"#)
             .expect("fixture writes");
-        let error = parse_staged_file(&path).expect_err("legacy files must be rejected");
+        let error = parse_staged_file(&path, None).expect_err("legacy files must be rejected");
         assert!(
             error.contains("retired export format"),
             "the error must name the legacy format: {error}"
@@ -2053,7 +2217,7 @@ mod tests {
         let dir = std::env::temp_dir();
         let path = dir.join(format!("data-transfer-parse-test-{}.json", Uuid::new_v4()));
         fs::write(&path, b"[1,2,3]").expect("fixture writes");
-        assert!(parse_staged_file(&path).is_err());
+        assert!(parse_staged_file(&path, None).is_err());
         fs::remove_file(&path).ok();
     }
 }

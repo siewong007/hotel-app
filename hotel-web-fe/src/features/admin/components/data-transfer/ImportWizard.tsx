@@ -22,6 +22,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
@@ -91,7 +92,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
   const isPhone = useIsPhone();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
-  const { t } = useTranslation('dataTransfer');
+  const { t, tOr } = useTranslation('dataTransfer');
 
   // The backend re-checks all of these at execute time — the client gates are
   // for honest UI, not security.
@@ -107,6 +108,10 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [ack, setAck] = useState(false);
   const [stepUpOpen, setStepUpOpen] = useState(false);
+  // Encrypted (`system`) uploads stay encrypted on disk, so the passphrase is
+  // held for the life of the wizard and re-sent on preview and on execute.
+  const [passphrase, setPassphrase] = useState('');
+  const [passphrasePrompt, setPassphrasePrompt] = useState<UploadResponse | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   // The wizard's single error surface — services send the skip-notification
   // header, so nothing else (global toast) reports these failures.
@@ -152,6 +157,8 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
     setAck(false);
     setConfirmOpen(false);
     setStepUpOpen(false);
+    setPassphrase('');
+    setPassphrasePrompt(null);
     setError(null);
     setStep('select');
     recordedJobRef.current = null;
@@ -173,20 +180,54 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
     try {
       const staged = await uploadMutation.mutateAsync(picked);
       setUpload(staged);
-      try {
-        const report = await previewMutation.mutateAsync(staged.uploadId);
-        setPreview(report);
-        setStep('review');
-      } catch (previewError) {
-        // Without a preview the upload is unusable — free the staged file.
-        void deleteUploadMutation.mutateAsync(staged.uploadId).catch(() => undefined);
-        setError(errorMessage(previewError, t('import.errors.preview')));
-        setStep('select');
+      if (staged.detectedFormat === 'encrypted') {
+        // Nothing about the document is knowable until it opens, so the
+        // wizard cannot preview until the operator supplies the passphrase.
+        setPassphrasePrompt(staged);
+        return;
       }
+      await runPreview(staged, undefined);
     } catch (uploadError) {
       setError(errorMessage(uploadError, t('import.errors.upload')));
       setStep('select');
     }
+  };
+
+  /** Preview a staged upload, freeing it if the preview cannot be produced —
+   * an upload with no preview is unusable and would otherwise sit on disk
+   * until the server's 24 h sweep. */
+  const runPreview = async (staged: UploadResponse, secret: string | undefined) => {
+    try {
+      const report = await previewMutation.mutateAsync({
+        uploadId: staged.uploadId,
+        passphrase: secret,
+      });
+      setPreview(report);
+      setStep('review');
+    } catch (previewError) {
+      void deleteUploadMutation.mutateAsync(staged.uploadId).catch(() => undefined);
+      setError(errorMessage(previewError, t('import.errors.preview')));
+      setStep('select');
+    }
+  };
+
+  const submitPassphrase = async () => {
+    const staged = passphrasePrompt;
+    if (!staged || !passphrase) return;
+    setPassphrasePrompt(null);
+    setStep('processing');
+    await runPreview(staged, passphrase);
+  };
+
+  const cancelPassphrase = () => {
+    const staged = passphrasePrompt;
+    setPassphrasePrompt(null);
+    setPassphrase('');
+    if (staged) {
+      void deleteUploadMutation.mutateAsync(staged.uploadId).catch(() => undefined);
+    }
+    setUpload(null);
+    setStep('select');
   };
 
   const acceptFile = (picked: File | undefined) => {
@@ -228,6 +269,7 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
         uploadId: upload.uploadId,
         mode,
         onConflict: mode === 'merge' ? onConflict : undefined,
+        passphrase: passphrase || undefined,
         stepUpToken,
       });
       setJobId(response.jobId);
@@ -838,6 +880,49 @@ const ImportWizard: React.FC<ImportWizardProps> = ({ notify, onFinished, pollInt
             sx={{ fontWeight: 700 }}
           >
             {mode === 'restore' ? t('import.restoreImport') : t('import.startImport')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* An encrypted upload cannot even be previewed until it opens, so the
+          passphrase is collected before the diff rather than at execute. */}
+      <Dialog open={passphrasePrompt !== null} onClose={cancelPassphrase} maxWidth="xs" fullWidth>
+        <DialogContent sx={{ pt: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+            <LockIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              {tOr('import.passphrase.title', 'This backup is encrypted')}
+            </Typography>
+          </Box>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+            {tOr(
+              'import.passphrase.help',
+              'Enter the passphrase it was exported with. It is not stored on the server, and the file stays encrypted on disk.',
+            )}
+          </Typography>
+          <TextField
+            label={tOr('import.passphrase.label', 'Backup passphrase')}
+            type="password"
+            value={passphrase}
+            onChange={(event) => setPassphrase(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && passphrase) {
+                void submitPassphrase();
+              }
+            }}
+            autoComplete="off"
+            required
+            fullWidth
+            size="small"
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={cancelPassphrase} color="inherit">
+            {t('common:actions.cancel')}
+          </Button>
+          <Button onClick={() => void submitPassphrase()} variant="contained" disabled={!passphrase}>
+            {tOr('import.passphrase.submit', 'Unlock')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -161,6 +161,11 @@ pub struct UploadResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ImportPreviewRequest {
     pub upload_id: Uuid,
+    /// Passphrase for an encrypted (`system`) upload. The staged file stays
+    /// encrypted on disk, so every read supplies this again rather than the
+    /// server caching a decrypted copy anywhere.
+    #[serde(default)]
+    pub passphrase: Option<String>,
 }
 
 /// Per-entity diff between a staged backup and the destination database.
@@ -263,6 +268,10 @@ pub struct ImportExecuteRequest {
     /// Must be `true` — an import is destructive enough to need an explicit
     /// confirmation flag rather than defaulting into one.
     pub confirm: bool,
+    /// Passphrase for an encrypted (`system`) upload — see
+    /// [`ImportPreviewRequest::passphrase`].
+    #[serde(default)]
+    pub passphrase: Option<String>,
 }
 
 /// `202 Accepted` body for `POST /data-transfer/import/execute` — the handle
@@ -287,6 +296,13 @@ pub enum ExportScope {
     /// `full` plus a `manifest.relationships` FK edge list, for migration
     /// tooling. Same permission requirements as `full`.
     Backup,
+    /// `backup` plus the protected set — credentials, RBAC grants, sessions,
+    /// eKYC evidence, and the internal system tables. This is the only scope
+    /// that can rebuild a hotel's logins and authorization from a file, and
+    /// the only one whose document is a credential store in its own right:
+    /// it is restricted to super administrators, requires step-up, and is
+    /// always written encrypted under a caller-supplied passphrase.
+    System,
 }
 
 impl ExportScope {
@@ -296,12 +312,26 @@ impl ExportScope {
             ExportScope::Standard => "standard",
             ExportScope::Full => "full",
             ExportScope::Backup => "backup",
+            ExportScope::System => "system",
         }
     }
 
     /// Whether this scope emits sensitive entities.
     pub fn includes_sensitive(self) -> bool {
         !matches!(self, ExportScope::Standard)
+    }
+
+    /// Whether this scope emits the protected set (credentials, sessions,
+    /// eKYC, system tables) — true only for [`ExportScope::System`].
+    pub fn includes_protected(self) -> bool {
+        matches!(self, ExportScope::System)
+    }
+
+    /// Whether a document in this scope must be encrypted. The protected set
+    /// must never exist as plaintext outside the database, so the export
+    /// refuses to run without a passphrase.
+    pub fn requires_encryption(self) -> bool {
+        self.includes_protected()
     }
 }
 

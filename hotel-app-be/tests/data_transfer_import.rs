@@ -235,7 +235,7 @@ async fn staged_import_never_writes_credential_tables() {
         .await
         .expect("staging a well-formed v1 body must succeed");
 
-    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
         .await
         .expect("preview must answer for a staged upload");
     assert!(
@@ -257,6 +257,7 @@ async fn staged_import_never_writes_credential_tables() {
             on_conflict: None,
             tables: vec!["public.users".to_string()],
             confirm: true,
+            passphrase: None,
         },
     )
     .await;
@@ -275,6 +276,7 @@ async fn staged_import_never_writes_credential_tables() {
             on_conflict: None,
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -467,7 +469,7 @@ async fn staged_v1_upload_previews_executes_and_cleans_up() {
     assert_eq!(upload.detected_format, "v1");
     assert!(upload.bytes > 0);
 
-    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
         .await
         .expect("preview must answer for a staged upload");
     assert_eq!(preview.format, "v1");
@@ -494,6 +496,7 @@ async fn staged_v1_upload_previews_executes_and_cleans_up() {
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -517,7 +520,7 @@ async fn staged_v1_upload_previews_executes_and_cleans_up() {
     assert_eq!(outcome.inserted, 2);
 
     // The job deletes its staged file — a second preview/preview-by-id must 404.
-    let gone = data_transfer_jobs::preview_import(&pool, upload.upload_id).await;
+    let gone = data_transfer_jobs::preview_import(&pool, upload.upload_id, None).await;
     assert!(
         matches!(gone, Err(ApiError::NotFound(_))),
         "a consumed upload must not be previewable again: {gone:?}"
@@ -566,6 +569,7 @@ async fn staged_v1_merge_update_and_fail_conflict_policies() {
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -593,6 +597,7 @@ async fn staged_v1_merge_update_and_fail_conflict_policies() {
             on_conflict: Some(ConflictPolicy::Update),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -634,6 +639,7 @@ async fn staged_v1_merge_update_and_fail_conflict_policies() {
             on_conflict: Some(ConflictPolicy::Fail),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -712,7 +718,7 @@ async fn retired_backup_formats_are_rejected() {
             "{label} must be detected as a retired format"
         );
 
-        let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id).await;
+        let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None).await;
         match preview {
             Err(ApiError::BadRequest(message)) => assert!(
                 message.contains("retired"),
@@ -730,6 +736,7 @@ async fn retired_backup_formats_are_rejected() {
                 on_conflict: Some(ConflictPolicy::Skip),
                 tables: vec![],
                 confirm: true,
+            passphrase: None,
             },
         )
         .await
@@ -787,7 +794,7 @@ async fn staged_upload_guardrails() {
     .await
     .expect("unknown-but-object content must still stage");
     assert_eq!(upload.detected_format, "unknown");
-    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id).await;
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None).await;
     assert!(
         matches!(preview, Err(ApiError::BadRequest(_))),
         "an unparseable staged file must surface a validation error: {preview:?}"
@@ -803,6 +810,7 @@ async fn staged_upload_guardrails() {
             on_conflict: None,
             tables: vec![],
             confirm: false,
+            passphrase: None,
         },
     )
     .await;
@@ -815,11 +823,11 @@ async fn staged_upload_guardrails() {
     data_transfer_jobs::delete_staged_upload(upload.upload_id)
         .await
         .expect("deleting a staged upload");
-    let gone = data_transfer_jobs::preview_import(&pool, upload.upload_id).await;
+    let gone = data_transfer_jobs::preview_import(&pool, upload.upload_id, None).await;
     assert!(matches!(gone, Err(ApiError::NotFound(_))));
 
     // A never-staged id is a 404 too.
-    let missing = data_transfer_jobs::preview_import(&pool, uuid::Uuid::new_v4()).await;
+    let missing = data_transfer_jobs::preview_import(&pool, uuid::Uuid::new_v4(), None).await;
     assert!(matches!(missing, Err(ApiError::NotFound(_))));
 }
 
@@ -928,7 +936,7 @@ async fn preview_flags_transferable_parent_keys_absent_from_file_and_database() 
     .await
     .expect("staging");
 
-    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
         .await
         .expect("preview must answer");
     let notes = preview
@@ -981,7 +989,7 @@ async fn preview_flags_transferable_parent_keys_absent_from_file_and_database() 
     )))
     .await
     .expect("staging");
-    let ok_preview = data_transfer_jobs::preview_import(&pool, ok_upload.upload_id)
+    let ok_preview = data_transfer_jobs::preview_import(&pool, ok_upload.upload_id, None)
         .await
         .expect("preview must answer");
     assert!(
@@ -1007,6 +1015,7 @@ async fn preview_flags_transferable_parent_keys_absent_from_file_and_database() 
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await

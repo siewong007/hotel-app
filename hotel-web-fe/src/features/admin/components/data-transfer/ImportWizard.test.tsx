@@ -117,7 +117,7 @@ describe('ImportWizard', () => {
     await stageFile();
 
     expect(svc.uploadBackup).toHaveBeenCalledTimes(1);
-    expect(svc.previewImport).toHaveBeenCalledWith('u1');
+    expect(svc.previewImport).toHaveBeenCalledWith('u1', undefined);
     // Entity table: short name, row diff columns.
     expect(screen.getByText('guests')).toBeTruthy();
     expect(screen.getByText(/from production/)).toBeTruthy();

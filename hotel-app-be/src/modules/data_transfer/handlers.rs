@@ -21,21 +21,33 @@ use axum::{
 use uuid::Uuid;
 
 /// Export transferable data as a `hotel-backup` v1 file in the requested
-/// scope (`standard`, `full`, or `backup`).
+/// scope (`standard`, `full`, `backup`, or `system`).
+///
+/// An encrypted document is not JSON and must not be labelled as such — it
+/// gets `application/octet-stream` and a `.enc` extension so neither a
+/// browser nor an operator mistakes it for something readable.
 pub async fn export_booking_data_handler(
     State(pool): State<DbPool>,
     user_id: i64,
     scope: ExportScope,
+    passphrase: Option<String>,
 ) -> Result<Response, ApiError> {
-    let body = data_transfer_service::export_booking_data_body(&pool, user_id, scope).await?;
+    let encrypted = passphrase.is_some() || scope.requires_encryption();
+    let body =
+        data_transfer_service::export_booking_data_body(&pool, user_id, scope, passphrase).await?;
+    let (extension, content_type) = if encrypted {
+        ("json.enc", "application/octet-stream")
+    } else {
+        ("json", "application/json")
+    };
     let filename = format!(
-        "saliminn-backup-{}-{}.json",
+        "saliminn-backup-{}-{}.{extension}",
         scope.label(),
         chrono::Utc::now().format("%Y%m%dT%H%M%SZ")
     );
     Ok(Response::builder()
         .status(axum::http::StatusCode::OK)
-        .header("Content-Type", "application/json")
+        .header("Content-Type", content_type)
         .header(
             "Content-Disposition",
             format!("attachment; filename=\"{filename}\""),
@@ -123,7 +135,7 @@ pub async fn preview_import_handler(
     Json(request): Json<ImportPreviewRequest>,
 ) -> Result<Json<ImportPreview>, ApiError> {
     Ok(Json(
-        data_transfer_jobs::preview_import(&pool, request.upload_id).await?,
+        data_transfer_jobs::preview_import(&pool, request.upload_id, request.passphrase).await?,
     ))
 }
 

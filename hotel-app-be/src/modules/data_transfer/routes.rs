@@ -71,7 +71,39 @@ async fn export_data(
     if query.scope.includes_sensitive() {
         super::step_up::require_step_up(&headers, &claims)?;
     }
-    handlers::export_booking_data_handler(State(pool), user_id, query.scope).await
+    // The `system` scope is the only one whose file is itself a credential
+    // store, so it is not delegatable through RBAC: it needs the super-admin
+    // flag on top of the permission and the step-up token.
+    if query.scope.includes_protected() {
+        crate::core::middleware::ensure_super_admin(&pool, user_id).await?;
+    }
+    let passphrase = backup_passphrase(&headers)?;
+    handlers::export_booking_data_handler(State(pool), user_id, query.scope, passphrase).await
+}
+
+/// Header carrying the passphrase a `system` export is encrypted under.
+///
+/// A header rather than a query parameter on purpose: `?passphrase=` would be
+/// captured by access logs, proxy logs and browser history, which for the one
+/// secret protecting a credential-bearing backup is the whole ballgame.
+///
+/// Must stay in the CORS `allow_headers` list in `routes/mod.rs` or the
+/// preflight fails for cross-origin deployments only — green locally, broken
+/// in production.
+pub const BACKUP_PASSPHRASE_HEADER: &str = "x-backup-passphrase";
+
+/// The export passphrase, read from [`BACKUP_PASSPHRASE_HEADER`].
+fn backup_passphrase(headers: &HeaderMap) -> Result<Option<String>, ApiError> {
+    let Some(value) = headers.get(BACKUP_PASSPHRASE_HEADER) else {
+        return Ok(None);
+    };
+    let passphrase = value
+        .to_str()
+        .map_err(|_| ApiError::BadRequest("the backup passphrase must be ASCII".to_string()))?;
+    if passphrase.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(passphrase.to_string()))
 }
 
 async fn preview_export_counts(
@@ -89,6 +121,11 @@ async fn preview_export_counts(
         "data_transfer:view"
     };
     check_permission(&pool, user_id, permission).await?;
+    // Same gate as the export itself: the system preview enumerates the
+    // protected entities and their row counts, so it is super-admin only.
+    if query.scope.includes_protected() {
+        crate::core::middleware::ensure_super_admin(&pool, user_id).await?;
+    }
     handlers::preview_export_counts_handler(State(pool), query.scope).await
 }
 

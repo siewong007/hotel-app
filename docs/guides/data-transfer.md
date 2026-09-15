@@ -7,13 +7,25 @@ format: portable across environments, self-describing (every file carries a
 manifest of what it contains and what was deliberately excluded), and safe to
 diff against a destination before anything is written.
 
-It is **not** a replacement for `pg_dump`. `pg_dump` captures the whole
-database — credentials, sessions, audit history, schema bookkeeping — and is
-the recovery point of last resort (see the nightly `saliminn-backup.timer`
-dumps in [deployment.md](deployment.md#backup-and-recovery)). A `hotel-backup`
-file deliberately carries *business data only*: it never contains password
-hashes, sessions, tokens, or eKYC evidence, so it is safe to move between
-environments and to restore into a database that already has users.
+It is **not** a replacement for `pg_dump`. `pg_dump` also captures the schema
+itself, sequences, functions and roles, and is the recovery point of last
+resort (see the nightly `saliminn-backup.timer` dumps in
+[deployment.md](deployment.md#backup-and-recovery)).
+
+There are two tiers of file, and the difference is the whole security story:
+
+- **Business-data files** (`standard`, `full`, `backup`) carry *business data
+  only*: never password hashes, sessions, tokens, or eKYC evidence. They are
+  safe to move between environments and to restore into a database that
+  already has users, and they are written as plain JSON.
+- **Full-system files** (`system`) additionally carry the protected set — user
+  accounts and password hashes, RBAC grants, sessions, eKYC evidence and the
+  internal system tables. This is the only export that can rebuild a hotel's
+  logins and authorization from a file, and a `system` file *is* a credential
+  store in its own right. It is restricted to super administrators, requires
+  step-up re-authentication, and is **always encrypted** under a passphrase
+  the caller supplies — the server never stores that passphrase and cannot
+  recover the file without it.
 
 ## Table of Contents
 
@@ -118,13 +130,20 @@ outcomes are audited as `data_transfer_step_up` /
 | `standard` (default) | `data_transfer:export` | — | All transferable entities **except** the `SENSITIVE_TABLES` set; the manifest lists them by name under `omitted` |
 | `full` | `data_transfer:export_sensitive` | `X-Step-Up` | Every transferable entity, sensitive included; `includesSensitiveData: true` |
 | `backup` | `data_transfer:export_sensitive` | `X-Step-Up` | `full` plus `manifest.relationships` — the column-level FK edge list between emitted entities, for migration tooling |
+| `system` | `data_transfer:export_sensitive` **+ super admin** | `X-Step-Up` | `backup` plus the protected set (credentials, RBAC, sessions, eKYC, system tables). Always encrypted — the request must carry `X-Backup-Passphrase` or it is refused before a single row is read |
 
-`SENSITIVE_TABLES` (in `services/data_transfer.rs`) is the registry that
-decides what "sensitive" means — guest, payment, ledger, support, consent,
-and other confidential business tables. Secrets are never in scope for *any*
-tier: `users`/RBAC/session/token/eKYC tables are excluded outright and the
-`bookings.pre_checkin_token` columns are stripped at the `SELECT` projection.
-Every file declares `includesSecrets: false` — see the format below.
+`SENSITIVE_TABLES` (in `modules/data_transfer/service.rs`) is the registry
+that decides what "sensitive" means — guest, payment, ledger, support,
+consent, and other confidential business tables.
+
+The protected set is governed separately by `EXCLUDED_TABLES` and
+`PROTECTED_TABLE_ORDER` in the same file. It stays out of `standard`, `full`
+and `backup` entirely; only `system` carries it. The
+`bookings.pre_checkin_token` columns are stripped at the `SELECT` projection
+at **every** scope including `system` — a live portal bearer token has no
+restore value and every reason not to travel. A business-data file declares
+`includesSecrets: false`; a `system` file declares `true` and
+`kind: "full-system"`.
 
 ## The `hotel-backup` v1 file format
 
@@ -174,10 +193,10 @@ Field by field:
 |---|---|
 | `format` | Always `"hotel-backup"`. Anything else → the import reports `unsupported backup format '<value>'`. |
 | `version` | Integer `1`. Any other value → `unsupported hotel-backup version <n> — this build understands version 1` — including `3`, which is a retired version stamp, not a newer one. |
-| `kind` | Payload class; only `"business-data"` exists. Other values are rejected at import. |
-| `exportType` | The scope the file was generated with: `"standard"`, `"full"`, or `"backup"`. Echoed by the import preview. |
+| `kind` | Payload class: `"business-data"`, or `"full-system"` for a `system` export. Other values are rejected at import. |
+| `exportType` | The scope the file was generated with: `"standard"`, `"full"`, `"backup"`, or `"system"`. Echoed by the import preview. Never trusted for authorization — the tier is recomputed from the entity keys the file actually contains. |
 | `includesSensitiveData` | `true` when the file carries `SENSITIVE_TABLES` entities — computed from the actual entity set, not just the declared scope. Execute requires `data_transfer:import_sensitive` when this (or a sensitive entity key) is present. |
-| `includesSecrets` | Always `false` — credentials, tokens, and key material are never exported by any scope. A file declaring `true` produces a preview warning and still imports only the transferable set. |
+| `includesSecrets` | `false` on business-data files; `true` on a `system` file, which really does carry credential material. A file declaring `true` **without** `kind: "full-system"` produces a preview warning, since no legitimate producer emits that combination. |
 | `exportId` | UUIDv4 identifying this exact file. Also recorded on the `data_export` audit row, so a download can be tied to its event. |
 | `exportedAt` | RFC 3339 export start timestamp (UTC). |
 | `applicationVersion` | The backend's `CARGO_PKG_VERSION`. Preview warns when it differs from the importing build. |
@@ -246,8 +265,14 @@ Grouped by domain:
 - **Support & teams:** `support_conversations`, `support_messages`,
   `support_events`, `teams`, `team_members`, `team_roles`
 
-29 tables are **excluded** — emitted in `manifest.exclusions` with one of five
-reason codes:
+29 tables are **protected**. They are excluded from `standard`, `full` and
+`backup` documents and emitted in those files' `manifest.exclusions` with one
+of five reason codes. A `system` export carries them instead, and its manifest
+lists only what it genuinely left out — the exclusions list always describes
+the file you are holding, not a fixed set.
+
+The reason codes still carry: they are why these tables are gated behind super
+admin, step-up and encryption rather than available at `full`.
 
 | Reason | Tables | Why |
 |---|---|---|
@@ -256,6 +281,20 @@ reason codes:
 | `sensitive_ekyc_pii` | `public.ekyc_verifications`, `public.ekyc_decision_history`, `public.ekyc_access_events`, `public.ekyc_sensitive_reveals`, `public.ekyc_idempotency_keys`, `public.ekyc_notes`, `public.ekyc_reason_codes` | Identity documents and biometric evidence |
 | `ephemeral_queue_state` | `public.email_deliveries`, `public.support_action_idempotency_keys`, `public.support_guest_request_idempotency_keys` | Live send/request queues — re-importing would replay sends |
 | `internal_system_table` | `public.job_runs`, `public.hotel_schema_revisions`, `app.invalid_data_quarantine`, `public.audit_logs`, `public.audit_logs_default` | Platform bookkeeping, not business data |
+
+Two entries behave specially inside a `system` export:
+
+- **`public.audit_logs_default`** is never named as its own entity. It is the
+  DEFAULT PARTITION of `public.audit_logs`, and the introspection that builds
+  the entity list skips partition children by design. Its rows travel with the
+  partitioned parent, so audit history is carried in full.
+- **`public.hotel_schema_revisions`** is exported but **never imported**, at
+  any scope. It records which schema patches the *source* database had
+  applied; restoring it would make the destination misreport its own schema,
+  and the next patch run would either skip real work or abort on the
+  baseline-checksum guard. On desktop a patch failure is fatal at startup, so
+  the app would not come up at all. It rides the file so an operator can read
+  what the source was running, and the importer drops it with a warning.
 
 Two **columns** inside a transferable table are also excluded —
 `EXCLUDED_EXPORT_COLUMNS` strips them from the `SELECT` projection, the manifest
@@ -454,11 +493,35 @@ and — under `restore` — still expands to dependents.
   bind-mounted on the host, is **not publicly served** (only authenticated
   handlers ever read it), and staged files self-delete 24 h after abandonment.
 - **Exports** run under `data_transfer:export` (standard) or
-  `data_transfer:export_sensitive` + step-up (full/backup); the streamed
+  `data_transfer:export_sensitive` + step-up (full/backup). A business-data
   document never contains credential/session/eKYC material — the table-level
-  exclusions above plus the `bookings.pre_checkin_token` column exclusion are
-  enforced at the `SELECT` projection, so the values cannot leak into the
-  file, and `includesSecrets` is always `false`.
+  exclusions above are enforced at the `SELECT` projection, so the values
+  cannot leak into the file, and `includesSecrets` is always `false`.
+  `bookings.pre_checkin_token` is stripped at every scope, `system` included.
+- **`system` exports** add super-admin on top of
+  `data_transfer:export_sensitive` and step-up, so the tier cannot be
+  delegated through RBAC, and the request is refused before a single row is
+  read unless it carries `X-Backup-Passphrase`. The passphrase travels as a
+  header, never `?passphrase=`, so it stays out of access logs, proxy logs
+  and browser history; the server neither stores nor logs it, and a lost
+  passphrase means a lost backup.
+- **Encryption** is AES-256-GCM over 1 MiB frames, keyed by PBKDF2-HMAC-SHA256
+  at 600,000 iterations over a per-file random salt
+  (`modules/data_transfer/crypto.rs`). Framing is what keeps the export streaming — one frame is in
+  memory at a time in each direction. Every frame's AAD binds a digest of the
+  envelope header, the frame index, and a final-frame marker, so a tampered
+  header (for example a downgraded iteration count), reordered or spliced
+  frames, appended bytes, and truncation are each rejected rather than
+  decrypted into a partial backup. An encrypted download is served as
+  `application/octet-stream` with a `.json.enc` name.
+- **Encrypted uploads are never decrypted to disk.** The staged file stays in
+  its envelope under `private_uploads/data-transfer/`; preview and execute
+  each take the passphrase again and decrypt into memory for that call only.
+- **`system` imports** are gated on what the file actually contains, not what
+  it declares: the tier is recomputed from the entity keys present, so a
+  hand-edited header cannot smuggle `public.users` in under a `full` label.
+  A file carrying the protected set requires super admin and step-up, on top
+  of the usual import permissions.
 - **Imports** require `data_transfer:import`, with `import_sensitive`,
   `override`, and `restore` layered per file and mode (see the permission
   matrix); `restore` additionally demands a step-up token. Execute requires

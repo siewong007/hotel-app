@@ -23,10 +23,25 @@
       "tagline": "Confidential — contains guest and financial data"
     },
     "backup": {
-      "title": "Full system backup",
+      "title": "Migration backup",
       "restriction": "Highly restricted",
       "description": "The complete transferable dataset plus relationship metadata, in a migration-ready format. Use for disaster recovery or moving to a new server.",
-      "tagline": "Confidential — the whole dataset with FK metadata"
+      "tagline": "Confidential — the whole business dataset with FK metadata"
+    },
+    "system": {
+      "title": "Full system backup",
+      "restriction": "Super admin only",
+      "description": "Everything in the migration backup plus user accounts and password hashes, RBAC grants, sessions, eKYC records and audit history. Always encrypted with a passphrase you supply. This is the only export that can rebuild logins on a restored database.",
+      "tagline": "Encrypted — includes credentials, eKYC and audit history"
+    },
+    "passphrase": {
+      "title": "Encrypt this backup",
+      "help": "This file carries user accounts, password hashes, RBAC grants and eKYC records, so it is always encrypted. Store the passphrase somewhere safe — without it the backup cannot be restored.",
+      "label": "Passphrase",
+      "minimum": "At least 12 characters",
+      "confirmLabel": "Confirm passphrase",
+      "mismatch": "The passphrases do not match",
+      "submit": "Continue"
     },
     "secretsExcluded": "Passwords, sessions, tokens, passkeys, and other secrets are never included in any export.",
     "sensitiveConfirmTitle": "This export contains confidential data",
@@ -165,7 +180,13 @@
     "ackMerge": "I understand this modifies live data and that the action will be recorded.",
     "restoreImport": "Restore & import",
     "startImport": "Start import",
-    "importAnother": "Import another file"
+    "importAnother": "Import another file",
+    "passphrase": {
+      "title": "This backup is encrypted",
+      "help": "Enter the passphrase it was exported with. It is not stored on the server, and the file stays encrypted on disk.",
+      "label": "Backup passphrase",
+      "submit": "Unlock"
+    }
   },
   "history": {
     "serverBacked": "Every export, import, and re-authentication on this server is recorded in the audit log.",

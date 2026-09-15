@@ -54,6 +54,13 @@ function filenameFromDisposition(disposition: string | null): string {
 const stepUpHeaders = (stepUpToken?: string) =>
   stepUpToken ? { 'X-Step-Up': stepUpToken } : {};
 
+/** Header carrying the backup passphrase on `system` exports — mirrors
+ * `backup_passphrase` in `modules/data_transfer/routes.rs`. A header rather
+ * than a query parameter so the one secret protecting a credential-bearing
+ * backup never lands in an access log or browser history. */
+const passphraseHeaders = (passphrase?: string) =>
+  passphrase ? { 'X-Backup-Passphrase': passphrase } : {};
+
 export class DataTransferService {
   static async previewExport(scope: ExportScope = 'standard'): Promise<ExportPreview> {
     try {
@@ -75,11 +82,19 @@ export class DataTransferService {
    * object-URL anchor so the browser handles the file write. `full`/`backup`
    * scopes need a fresh `stepUpToken` from `stepUp`.
    */
-  static async exportData(scope: ExportScope = 'standard', stepUpToken?: string): Promise<ExportDownload> {
+  static async exportData(
+    scope: ExportScope = 'standard',
+    stepUpToken?: string,
+    passphrase?: string,
+  ): Promise<ExportDownload> {
     try {
       const response = await api.get('data-transfer/export', {
         timeout: false,
-        headers: { ...SKIP_NOTIFICATION, ...stepUpHeaders(stepUpToken) },
+        headers: {
+          ...SKIP_NOTIFICATION,
+          ...stepUpHeaders(stepUpToken),
+          ...passphraseHeaders(passphrase),
+        },
         searchParams: { scope },
       });
       const blob = await response.blob();
@@ -122,11 +137,11 @@ export class DataTransferService {
   }
 
   /** Pre-flight diff of a staged upload against this database. */
-  static async previewImport(uploadId: string): Promise<ImportPreview> {
+  static async previewImport(uploadId: string, passphrase?: string): Promise<ImportPreview> {
     try {
       return await api
         .post('data-transfer/import/preview', {
-          json: { uploadId },
+          json: passphrase ? { uploadId, passphrase } : { uploadId },
           headers: SKIP_NOTIFICATION,
           timeout: false,
         })
@@ -176,6 +191,7 @@ export class DataTransferService {
       mode: BackupImportMode;
       onConflict?: ConflictPolicy;
       tables?: string[];
+      passphrase?: string;
     },
     stepUpToken?: string,
   ): Promise<ImportExecuteResponse> {

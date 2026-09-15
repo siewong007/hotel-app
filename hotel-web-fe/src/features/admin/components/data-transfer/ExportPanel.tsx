@@ -21,6 +21,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
   alpha,
   useTheme,
@@ -40,6 +41,7 @@ import type { ExportPreview, ExportScope } from '../../../../types';
 import { useExportDataMutation, useExportPreviewMutation } from '../../hooks/useDataTransferQueries';
 import type { NotifyFn } from './types';
 import StepUpDialog from './StepUpDialog';
+import { MIN_BACKUP_PASSPHRASE_LEN } from './constants';
 import { exclusionReasonLabel, formatBytes, formatNum, shortEntityName } from './utils';
 
 interface ExportPanelProps {
@@ -57,18 +59,28 @@ interface TierDef {
   stepUp: boolean;
   /** Sensitive tiers get the confidential-data confirmation first. */
   sensitive: boolean;
+  /** `system` only: super-admin gated, and the file is always encrypted, so
+   * the panel collects a passphrase before the download can start. */
+  protectedTier?: boolean;
 }
 
 const TIERS: TierDef[] = [
   { scope: 'standard', permission: 'data_transfer:export', stepUp: false, sensitive: false },
   { scope: 'full', permission: 'data_transfer:export_sensitive', stepUp: true, sensitive: true },
   { scope: 'backup', permission: 'data_transfer:export_sensitive', stepUp: true, sensitive: true },
+  {
+    scope: 'system',
+    permission: 'data_transfer:export_sensitive',
+    stepUp: true,
+    sensitive: true,
+    protectedTier: true,
+  },
 ];
 
 const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
   const theme = useTheme();
   const { t, tOr } = useTranslation('dataTransfer');
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const queryClient = useQueryClient();
 
   // Per-scope preview so each card shows the manifest its tier would emit.
@@ -79,6 +91,11 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
   const [confirmScope, setConfirmScope] = useState<ExportScope | null>(null);
   const [ackSensitive, setAckSensitive] = useState(false);
   const [stepUpScope, setStepUpScope] = useState<ExportScope | null>(null);
+  // A `system` export is refused without a passphrase, so it is collected
+  // before the request rather than after a failed download.
+  const [passphraseScope, setPassphraseScope] = useState<ExportScope | null>(null);
+  const [passphrase, setPassphrase] = useState('');
+  const [passphraseConfirm, setPassphraseConfirm] = useState('');
   // The panel's single error surface — mutations carry the skip-notification
   // header, so failures land here and nowhere else.
   const [error, setError] = useState<string | null>(null);
@@ -100,11 +117,11 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
     }
   };
 
-  const runExport = async (scope: ExportScope, stepUpToken?: string) => {
+  const runExport = async (scope: ExportScope, stepUpToken?: string, secret?: string) => {
     setError(null);
     setDownloadingScope(scope);
     try {
-      const download = await exportMutation.mutateAsync({ scope, stepUpToken });
+      const download = await exportMutation.mutateAsync({ scope, stepUpToken, passphrase: secret });
       // The server audited the export — pull the fresh history row.
       void queryClient.invalidateQueries({ queryKey: queryKeys.dataTransfer.history() });
       notify(t('export.downloaded', { filename: download.filename, bytes: formatBytes(download.bytes) }));
@@ -130,12 +147,27 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
     const scope = confirmScope;
     setConfirmScope(null);
     if (!scope) return;
-    if (TIERS.find((tier) => tier.scope === scope)?.stepUp) {
+    const tier = TIERS.find((entry) => entry.scope === scope);
+    if (tier?.protectedTier) {
+      setPassphrase('');
+      setPassphraseConfirm('');
+      setPassphraseScope(scope);
+    } else if (tier?.stepUp) {
       setStepUpScope(scope);
     } else {
       void runExport(scope);
     }
   };
+
+  /** Passphrase accepted — hand off to step-up, which finishes the download. */
+  const confirmPassphrase = () => {
+    const scope = passphraseScope;
+    setPassphraseScope(null);
+    if (scope) setStepUpScope(scope);
+  };
+
+  const passphraseValid =
+    passphrase.length >= MIN_BACKUP_PASSPHRASE_LEN && passphrase === passphraseConfirm;
 
   const cardSx = {
     borderRadius: 3,
@@ -307,7 +339,9 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
         </Alert>
       )}
 
-      {TIERS.map(renderTier)}
+      {/* The system tier is super-admin only server-side; hiding it from
+          everyone else keeps the panel honest about what they can run. */}
+      {TIERS.filter((tier) => !tier.protectedTier || user?.is_super_admin).map(renderTier)}
 
       {/* ===== Sensitive-export confirmation ===== */}
       <Dialog
@@ -393,9 +427,79 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
         onVerified={(token) => {
           const scope = stepUpScope;
           setStepUpScope(null);
-          if (scope) void runExport(scope, token);
+          if (!scope) return;
+          const secret = passphrase || undefined;
+          // Held only for the request; the server never stores it and neither
+          // does the panel once the download has been handed off.
+          setPassphrase('');
+          setPassphraseConfirm('');
+          void runExport(scope, token, secret);
         }}
       />
+
+      {/* A system backup is refused without a passphrase, so it is collected
+          (and confirmed — a mistyped one is unrecoverable) before step-up. */}
+      <Dialog
+        open={passphraseScope !== null}
+        onClose={() => setPassphraseScope(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogContent sx={{ pt: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+            <LockIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              {tOr('export.passphrase.title', 'Encrypt this backup')}
+            </Typography>
+          </Box>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+            {tOr(
+              'export.passphrase.help',
+              'This file carries user accounts, password hashes, RBAC grants and eKYC records, so it is always encrypted. Store the passphrase somewhere safe — without it the backup cannot be restored.',
+            )}
+          </Typography>
+          <TextField
+            label={tOr('export.passphrase.label', 'Passphrase')}
+            type="password"
+            value={passphrase}
+            onChange={(event) => setPassphrase(event.target.value)}
+            autoComplete="new-password"
+            required
+            fullWidth
+            size="small"
+            autoFocus
+            helperText={tOr(
+              'export.passphrase.minimum',
+              `At least ${MIN_BACKUP_PASSPHRASE_LEN} characters`,
+            )}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            label={tOr('export.passphrase.confirmLabel', 'Confirm passphrase')}
+            type="password"
+            value={passphraseConfirm}
+            onChange={(event) => setPassphraseConfirm(event.target.value)}
+            autoComplete="new-password"
+            required
+            fullWidth
+            size="small"
+            error={passphraseConfirm.length > 0 && passphrase !== passphraseConfirm}
+            helperText={
+              passphraseConfirm.length > 0 && passphrase !== passphraseConfirm
+                ? tOr('export.passphrase.mismatch', 'The passphrases do not match')
+                : ' '
+            }
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setPassphraseScope(null)} color="inherit">
+            {t('common:actions.cancel')}
+          </Button>
+          <Button onClick={confirmPassphrase} variant="contained" disabled={!passphraseValid}>
+            {tOr('export.passphrase.submit', 'Continue')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
