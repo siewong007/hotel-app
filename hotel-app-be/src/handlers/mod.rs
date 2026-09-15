@@ -16,7 +16,7 @@ pub mod guests;
 // housekeeping handlers live in modules::housekeeping.
 pub mod ledgers;
 // Loyalty handlers live in modules::loyalty::handlers.
-pub mod maintenance;
+// maintenance handlers live in modules::maintenance.
 pub mod night_audit;
 pub mod passkey;
 pub mod payment_retry;

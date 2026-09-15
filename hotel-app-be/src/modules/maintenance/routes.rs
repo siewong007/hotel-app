@@ -10,7 +10,7 @@ use axum::{
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use crate::handlers::maintenance;
+use super::handlers;
 use crate::models::{
     CreateMaintenanceTicketRequest, ListMaintenanceTicketsQuery, MaintenanceTicket,
     MaintenanceTicketListResponse, UpdateMaintenanceTicketRequest,
@@ -30,7 +30,7 @@ async fn list_tickets(
     query: Query<ListMaintenanceTicketsQuery>,
 ) -> Result<Json<MaintenanceTicketListResponse>, ApiError> {
     require_permission_helper(&pool, &headers, "maintenance:read").await?;
-    maintenance::list_tickets_handler(State(pool), query).await
+    handlers::list_tickets_handler(State(pool), query).await
 }
 
 async fn get_ticket(
@@ -39,7 +39,7 @@ async fn get_ticket(
     Path(ticket_id): Path<i64>,
 ) -> Result<Json<MaintenanceTicket>, ApiError> {
     require_permission_helper(&pool, &headers, "maintenance:read").await?;
-    maintenance::get_ticket_handler(State(pool), Path(ticket_id)).await
+    handlers::get_ticket_handler(State(pool), Path(ticket_id)).await
 }
 
 async fn create_ticket(
@@ -48,7 +48,7 @@ async fn create_ticket(
     Json(input): Json<CreateMaintenanceTicketRequest>,
 ) -> Result<Json<MaintenanceTicket>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "maintenance:write").await?;
-    maintenance::create_ticket_handler(State(pool), Extension(user_id), Json(input)).await
+    handlers::create_ticket_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn update_ticket(
@@ -58,7 +58,7 @@ async fn update_ticket(
     Json(input): Json<UpdateMaintenanceTicketRequest>,
 ) -> Result<Json<MaintenanceTicket>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "maintenance:write").await?;
-    maintenance::update_ticket_handler(
+    handlers::update_ticket_handler(
         State(pool),
         Extension(user_id),
         Path(ticket_id),

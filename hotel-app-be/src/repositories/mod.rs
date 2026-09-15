@@ -22,7 +22,7 @@ pub mod guest_portal_session;
 pub mod invoice_numbers;
 pub mod ledger;
 // Loyalty persistence lives in modules::loyalty::repository.
-pub mod maintenance;
+// maintenance persistence live in modules::maintenance.
 pub mod night_audit;
 pub mod passkey;
 pub mod payment;

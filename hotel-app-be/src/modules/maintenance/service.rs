@@ -8,7 +8,7 @@ use crate::models::{
     MaintenanceTicketListResponse, MaintenanceTicketPatch, UpdateMaintenanceTicketRequest,
 };
 use crate::modules::housekeeping::repository as housekeeping_repo;
-use crate::repositories::maintenance::{self, NewMaintenanceTicket};
+use super::repository::{self, NewMaintenanceTicket};
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
@@ -108,9 +108,9 @@ pub async fn list_tickets(
     }
 
     let pagination = normalize_pagination(params.page, params.page_size, 50, 200);
-    let (total, items) = maintenance::list_tickets(
+    let (total, items) = repository::list_tickets(
         pool,
-        maintenance::MaintenanceTicketFilters {
+        repository::MaintenanceTicketFilters {
             status: params.status.as_deref(),
             room_id: params.room_id,
             assigned_to: params.assigned_to,
@@ -131,7 +131,7 @@ pub async fn list_tickets(
 }
 
 pub async fn get_ticket(pool: &DbPool, ticket_id: i64) -> Result<MaintenanceTicket, ApiError> {
-    maintenance::find_ticket(pool, ticket_id)
+    repository::find_ticket(pool, ticket_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Maintenance ticket not found".to_string()))
 }
@@ -158,9 +158,9 @@ pub async fn create_ticket(
     }
     let description = sanitize_optional_notes(input.description);
 
-    let ticket_number = maintenance::next_ticket_number(pool).await?;
+    let ticket_number = repository::next_ticket_number(pool).await?;
 
-    let ticket = maintenance::insert_ticket(
+    let ticket = repository::insert_ticket(
         pool,
         NewMaintenanceTicket {
             room_id: input.room_id,
@@ -206,7 +206,7 @@ pub async fn update_ticket(
     ticket_id: i64,
     input: UpdateMaintenanceTicketRequest,
 ) -> Result<MaintenanceTicket, ApiError> {
-    let existing = maintenance::find_ticket(pool, ticket_id)
+    let existing = repository::find_ticket(pool, ticket_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Maintenance ticket not found".to_string()))?;
 
@@ -251,7 +251,7 @@ pub async fn update_ticket(
         clear_assignee: input.clear_assignee.unwrap_or(false),
     };
 
-    let ticket = maintenance::patch_ticket(pool, ticket_id, &patch).await?;
+    let ticket = repository::patch_ticket(pool, ticket_id, &patch).await?;
 
     let _ = AuditLog::log_event(
         pool,

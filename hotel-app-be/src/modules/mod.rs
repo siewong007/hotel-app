@@ -6,6 +6,7 @@ pub mod guest_relations;
 pub mod housekeeping;
 pub mod insights;
 pub mod loyalty;
+pub mod maintenance;
 pub mod promotions;
 pub mod realtime;
 pub mod revenue;
