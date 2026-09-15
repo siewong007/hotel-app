@@ -279,6 +279,23 @@
       "DELETE": {},
       "PUT": {}
     },
+    "/api/booking-channels/{id}/commission-rules": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/booking-channels/{id}/mappings": {
+      "GET": {}
+    },
+    "/api/booking-channels/{id}/mappings/rate-plans": {
+      "PUT": {}
+    },
+    "/api/booking-channels/{id}/mappings/room-types": {
+      "PUT": {}
+    },
+    "/api/booking-channels/{id}/pricing-rules": {
+      "GET": {},
+      "POST": {}
+    },
     "/api/booking/offers": {
       "GET": {}
     },
@@ -365,6 +382,26 @@
     },
     "/api/bookings/{id}/timeline": {
       "GET": {}
+    },
+    "/api/channel-commission-rules/{id}": {
+      "DELETE": {},
+      "PATCH": {}
+    },
+    "/api/channel-pricing-rules/{id}": {
+      "DELETE": {},
+      "PATCH": {}
+    },
+    "/api/channel-pricing/matrix": {
+      "GET": {}
+    },
+    "/api/channel-pricing/preview": {
+      "POST": {}
+    },
+    "/api/channel-rate-plan-mappings/{id}": {
+      "DELETE": {}
+    },
+    "/api/channel-room-type-mappings/{id}": {
+      "DELETE": {}
     },
     "/api/communications/unsubscribe/{token}": {
       "GET": {},
@@ -1165,6 +1202,21 @@
     },
     {
       "name": "bookings"
+    },
+    {
+      "name": "channel-commission-rules"
+    },
+    {
+      "name": "channel-pricing"
+    },
+    {
+      "name": "channel-pricing-rules"
+    },
+    {
+      "name": "channel-rate-plan-mappings"
+    },
+    {
+      "name": "channel-room-type-mappings"
     },
     {
       "name": "communications"
