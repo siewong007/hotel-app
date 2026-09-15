@@ -132,6 +132,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
             noWrap
             sx={{ fontSize: '0.66rem', color: 'text.secondary', textTransform: 'capitalize' }}
           >
+            {/* intentional: dynamic key — role is a DB enum value; unknown roles humanize */}
             {(roles[0] && tOr(`roles.${roles[0]}`, formatStatusLabel(roles[0]))) || user?.username || tNav('userMenu.defaultRole')}
           </Typography>
         </Box>

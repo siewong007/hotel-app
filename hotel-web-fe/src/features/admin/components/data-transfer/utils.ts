@@ -35,6 +35,7 @@ export const exclusionReasonLabel = (
   reason: string,
   resolve: (key: string, fallback: string) => string,
 ): string =>
+  // intentional: dynamic key — reason is a backend exclusion code; unknown codes humanize
   resolve(`export.exclusions.${reason}`, formatStatusLabel(reason, reason));
 
 /** Display labels `describeHistoryAction` needs — supplied by the component

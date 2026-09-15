@@ -142,6 +142,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
         {conversation.conversation_number}
       </TableCell>
       <TableCell>
+        {/* intentional: dynamic key — category is a DB enum value; out-of-enum values humanize */}
         <Chip size="small" variant="outlined" label={tOr(`support:categories.${conversation.category}`, formatStatusLabel(conversation.category))} />
       </TableCell>
       <TableCell>

@@ -149,6 +149,7 @@ const ConsentForm: React.FC<ConsentFormProps> = ({
               label={
                 <Box>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {/* intentional: dynamic key — consent topic is a DB enum value; unknown topics use TOPIC_LABELS */}
                     {tOr(`consent.topics.${topic}`, TOPIC_LABELS[topic] ?? topic)}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>

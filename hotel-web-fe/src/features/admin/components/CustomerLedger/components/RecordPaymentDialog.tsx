@@ -329,6 +329,7 @@ const EntryModeBody: React.FC<EntryModeProps> = (props) => {
                           <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
                             {formatCurrency(toMoneyNumber(payment.payment_amount))}
                           </Typography>
+                          {/* intentional: dynamic key — payment_method is a hotel-configured DB value; unknown methods humanize via formatStatusLabel */}
                           <Chip label={tOr(`ledger.paymentMethod.${payment.payment_method}`, formatStatusLabel(payment.payment_method))} size="small" variant="outlined" />
                         </Box>
                       }

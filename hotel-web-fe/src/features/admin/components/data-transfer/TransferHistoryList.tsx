@@ -69,6 +69,7 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, load
     reAuth: t('history.reAuth'),
     importWithMode: (mode) =>
       t('history.importWithMode', {
+        // intentional: dynamic key — mode is a legacy audit value; unknown modes humanize
         mode: tOr(`history.modes.${mode}`, formatStatusLabel(mode, mode)),
       }),
   };

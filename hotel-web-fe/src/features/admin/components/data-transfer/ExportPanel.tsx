@@ -173,6 +173,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ notify }) => {
             {[...exclusionsByReason.entries()].map(([reason, names]) => (
               <Box key={reason} sx={{ mb: 1.25 }}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  {/* intentional: dynamic key — tOr resolves export.exclusions.<reason>; unknown codes humanize */}
                   {exclusionReasonLabel(reason, tOr)}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>

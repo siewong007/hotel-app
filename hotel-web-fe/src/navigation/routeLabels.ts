@@ -27,6 +27,7 @@ export const useRouteLabels = (): RouteLabelHelpers => {
 
   const navLabel = useCallback(
     (route: AppRouteDefinition) =>
+      // intentional: dynamic key — route.id is registry data; the registry's English label is the fallback
       tOr(
         `routes.${route.id}.label`,
         route.navLabel || route.breadcrumbLabel || route.path
@@ -36,6 +37,7 @@ export const useRouteLabels = (): RouteLabelHelpers => {
 
   const breadcrumbLabel = useCallback(
     (route: AppRouteDefinition) =>
+      // intentional: dynamic key — route.id is registry data; the registry's English label is the fallback
       tOr(
         `routes.${route.id}.breadcrumb`,
         route.breadcrumbLabel || route.navLabel || route.path
@@ -44,6 +46,7 @@ export const useRouteLabels = (): RouteLabelHelpers => {
   );
 
   const groupLabel = useCallback(
+    // intentional: dynamic key — group is a registry enum; the raw value is the fallback
     (group: NavGroup) => tOr(`groups.${group}`, group),
     [tOr]
   );

@@ -201,8 +201,8 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
     serverGroups.forEach((g) => {
       out.push({
         key: g.type,
-        // Localized header for the known types; the server's English label is
-        // the fallback for any type the bundle doesn't map.
+        // intentional: dynamic key — localized header for the known types; the
+        // server's English label is the fallback for any type the bundle doesn't map.
         label: tOr(`palette.scopes.${g.type}`, g.label),
         items: g.results.map((h) => ({
           key: `${g.type}-${h.id}`,

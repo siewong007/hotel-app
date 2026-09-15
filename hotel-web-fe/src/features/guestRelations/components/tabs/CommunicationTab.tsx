@@ -217,6 +217,7 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
                     {summary.subscriptions.map((subscription) => (
                       <TableRow key={`${subscription.channel}:${subscription.topic}`}>
                         <TableCell>
+                          {/* intentional: dynamic key — subscription topic is a DB enum value; unknown values humanize */}
                           {tOr(
                             `consent.topics.${subscription.topic}`,
                             TOPIC_LABELS[subscription.topic as NotificationTopic] ??
@@ -224,6 +225,7 @@ const CommunicationTab: React.FC<CommunicationTabProps> = ({
                           )}
                         </TableCell>
                         <TableCell>
+                          {/* intentional: dynamic key — subscription channel is a DB enum value; unknown values humanize */}
                           {tOr(`communication.channels.${subscription.channel}`, formatStatusLabel(subscription.channel))}
                         </TableCell>
                         <TableCell>

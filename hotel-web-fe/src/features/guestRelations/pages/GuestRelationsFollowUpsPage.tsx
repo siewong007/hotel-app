@@ -157,6 +157,7 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
       accessorFn: (item: FollowUpQueueItem) => item.interaction_type,
       enableSorting: false,
       cell: (info) => (
+        // intentional: dynamic key — interaction_type is a DB enum value; unknown values humanize
         <Chip
           size="small"
           label={tOr(`interactions.types.${info.row.original.interaction_type}`, formatStatusLabel(info.row.original.interaction_type))}
