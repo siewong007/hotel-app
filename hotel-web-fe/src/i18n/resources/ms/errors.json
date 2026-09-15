@@ -42,5 +42,6 @@
     "notFoundMessage": "Halaman yang anda minta tidak wujud atau mungkin telah dialihkan.",
     "lockedTitle": "Sumber dikunci",
     "lockedMessage": "Sumber ini sedang dikunci. Sila cuba lagi nanti atau hubungi pentadbir."
-  }
+  },
+  "appStart": "Tidak dapat memulakan aplikasi."
 }

@@ -107,12 +107,9 @@ import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/
 
 // Extracted modules
 import type { CompanyOption, LedgerUiStatus, EntryStatusFilter } from './types';
-import { EXPENSE_TYPES, PAYMENT_METHODS } from './constants';
 import {
   formatDateForInput,
   formatDateForDisplay,
-  getStatusColor,
-  getStatusText,
   asMoney,
   isLedgerVoided,
   getLedgerUiStatus,
@@ -159,6 +156,7 @@ const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
   const isPhone = useIsPhone();
   const { t: tNav } = useTranslation('nav');
+  const { t } = useTranslation('finance');
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
   const {
     ledgers,
@@ -507,7 +505,7 @@ const CustomerLedgerPage: React.FC = () => {
   // Handle company registration
   const handleRegisterCompany = async () => {
     if (!companyRegForm.company_name.trim()) {
-      showSnackbar('Company name is required', 'warning');
+      showSnackbar(t('ledger.toast.companyNameRequired'), 'warning');
       return;
     }
 
@@ -554,7 +552,7 @@ const CustomerLedgerPage: React.FC = () => {
         setCompanyRegPrefillCreate(false);
       }
 
-      showSnackbar(`Company "${companyRegForm.company_name}" registered successfully`);
+      showSnackbar(t('ledger.toast.companyRegistered', { name: companyRegForm.company_name }));
       setCompanyRegDialogOpen(false);
       resetCompanyRegForm();
 
@@ -562,7 +560,7 @@ const CustomerLedgerPage: React.FC = () => {
       await loadCompanies();
     } catch (error) {
       console.error('Failed to register company:', error);
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to register company', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('ledger.errors.registerCompany'), 'error');
     } finally {
       setCreatingCompany(false);
     }
@@ -632,7 +630,7 @@ const CustomerLedgerPage: React.FC = () => {
         notes: companyEditForm.notes.trim() || undefined,
       });
 
-      showSnackbar(`Company "${companyEditForm.company_name}" updated successfully`);
+      showSnackbar(t('ledger.toast.companyUpdated', { name: companyEditForm.company_name }));
       setCompanyEditDialogOpen(false);
       resetCompanyEditForm();
 
@@ -640,7 +638,7 @@ const CustomerLedgerPage: React.FC = () => {
       await loadCompanies();
     } catch (error) {
       console.error('Failed to update company:', error);
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update company', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('ledger.errors.updateCompany'), 'error');
     } finally {
       setUpdatingCompany(false);
     }
@@ -661,7 +659,7 @@ const CustomerLedgerPage: React.FC = () => {
 
       await CompaniesService.deleteCompany(deletingCompanyData.id);
 
-      showSnackbar(`Company "${deletingCompanyData.company_name}" deleted successfully`);
+      showSnackbar(t('ledger.toast.companyDeleted', { name: deletingCompanyData.company_name }));
       setCompanyDeleteDialogOpen(false);
       setDeletingCompanyData(null);
 
@@ -669,7 +667,7 @@ const CustomerLedgerPage: React.FC = () => {
       await loadCompanies();
     } catch (error) {
       console.error('Failed to delete company:', error);
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to delete company', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('ledger.errors.deleteCompany'), 'error');
     } finally {
       setDeletingCompany(false);
     }
@@ -722,19 +720,19 @@ const CustomerLedgerPage: React.FC = () => {
   // Handle recording company payment (distributes across selected ledgers)
   const handleRecordCompanyPayment = async () => {
     if (selectedLedgersForPayment.length === 0 || !companyPaymentForm.payment_amount) {
-      showSnackbar('Please select at least one ledger entry and enter payment amount', 'warning');
+      showSnackbar(t('ledger.toast.selectEntriesAndAmount'), 'warning');
       return;
     }
 
     const paymentAmount = toMoneyNumber(companyPaymentForm.payment_amount);
     if (!isPositiveMoney(paymentAmount)) {
-      showSnackbar('Please enter a valid payment amount', 'warning');
+      showSnackbar(t('ledger.toast.invalidPaymentAmount'), 'warning');
       return;
     }
 
     const selectedBalance = sumMoney(selectedLedgersForPayment.map(getLedgerBalanceDue));
     if (isGreaterMoney(paymentAmount, selectedBalance)) {
-      showSnackbar('Payment amount cannot exceed the selected outstanding balance', 'warning');
+      showSnackbar(t('ledger.toast.exceedsSelectedBalance'), 'warning');
       return;
     }
 
@@ -766,7 +764,7 @@ const CustomerLedgerPage: React.FC = () => {
           );
         } catch (error) {
           console.error('Failed to verify receipt number:', error);
-          showSnackbar('Unable to verify receipt number. Please try again.', 'error');
+          showSnackbar(t('ledger.errors.verifyReceipt'), 'error');
           return;
         }
 
@@ -774,7 +772,7 @@ const CustomerLedgerPage: React.FC = () => {
           payments.some(payment => normalizeReceiptNumber(payment.receipt_number) === receiptNumber),
         );
         if (receiptExists) {
-          showSnackbar('Receipt number already exists', 'warning');
+          showSnackbar(t('ledger.toast.receiptExists'), 'warning');
           return;
         }
       }
@@ -799,13 +797,13 @@ const CustomerLedgerPage: React.FC = () => {
 
       if (stillOutstanding.length === 0) {
         // Everything is settled — close the window.
-        showSnackbar(`Payment of ${formatCurrency(paymentAmount)} recorded — all entries settled!`);
+        showSnackbar(t('ledger.toast.paymentSettledAll', { amount: formatCurrency(paymentAmount) }));
         setCompanyPaymentDialogOpen(false);
         resetCompanyPaymentForm();
       } else {
         // Outstanding entries remain — keep the window open and re-arm the form
         // for the next payment against the still-unpaid entries.
-        showSnackbar(`Payment of ${formatCurrency(paymentAmount)} recorded! Outstanding entries remain.`);
+        showSnackbar(t('ledger.toast.paymentRecordedPartial', { amount: formatCurrency(paymentAmount) }));
         setPaymentCompanyLedgers(stillOutstanding);
         setSelectedLedgersForPayment(stillOutstanding);
         setCompanyPaymentForm(prev => ({
@@ -826,7 +824,7 @@ const CustomerLedgerPage: React.FC = () => {
       companyPaymentAttemptRef.current = null;
     } catch (error) {
       console.error('Failed to record payment:', error);
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to record payment', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('ledger.errors.recordPayment'), 'error');
     } finally {
       setProcessingCompanyPayment(false);
     }
@@ -906,11 +904,11 @@ const CustomerLedgerPage: React.FC = () => {
         && !selectedInvoiceLedgers.includes(ledger.id),
     );
     if (invoiceNumberExists) {
-      showSnackbar('Invoice number already exists', 'warning');
+      showSnackbar(t('ledger.toast.invoiceExists'), 'warning');
       return;
     }
     if (getSelectedInvoiceLedgers().length === 0) {
-      showSnackbar('Select at least one eligible ledger entry', 'warning');
+      showSnackbar(t('ledger.toast.selectEligible'), 'warning');
       return;
     }
     setSelectedInvoiceLedgers(getSelectedInvoiceLedgers().map(entry => entry.id));
@@ -1027,7 +1025,7 @@ const CustomerLedgerPage: React.FC = () => {
         ...createFormData,
         amount: toMoneyNumber(createFormData.amount),
       });
-      showSnackbar('Ledger entry created successfully!');
+      showSnackbar(t('ledger.toast.entryCreated'));
       setCreateDialogOpen(false);
       setDuplicateDialogOpen(false);
       setPossibleDuplicateLedger(null);
@@ -1082,7 +1080,7 @@ const CustomerLedgerPage: React.FC = () => {
         setEditBookingRoomRate(isPositiveMoney(roomRate) ? roomRate.toFixed(2) : '');
       } catch (err) {
         console.error('Failed to load booking rate for ledger entry:', err);
-        showSnackbar('Unable to load booking room rate', 'warning');
+        showSnackbar(t('ledger.errors.loadRoomRate'), 'warning');
       } finally {
         setLoadingEditBookingRoomRate(false);
       }
@@ -1100,7 +1098,7 @@ const CustomerLedgerPage: React.FC = () => {
       bookingRoomRateOverride !== undefined &&
       !isPositiveMoney(bookingRoomRateOverride)
     ) {
-      showSnackbar('Please enter a valid booking room rate', 'warning');
+      showSnackbar(t('ledger.toast.invalidRoomRate'), 'warning');
       return;
     }
 
@@ -1154,7 +1152,7 @@ const CustomerLedgerPage: React.FC = () => {
 
     const balanceDue = getLedgerBalanceDue(paymentLedger);
     if (isGreaterMoney(paymentFormData.payment_amount, balanceDue)) {
-      showSnackbar('Payment amount cannot exceed the outstanding balance', 'warning');
+      showSnackbar(t('ledger.toast.exceedsOutstanding'), 'warning');
       return;
     }
 
@@ -1218,13 +1216,13 @@ const CustomerLedgerPage: React.FC = () => {
       const remainingBalance = getLedgerBalanceDue(updatedLedger);
       if (!isPositiveMoney(remainingBalance)) {
         // Fully settled — close the window.
-        showSnackbar('Payment recorded — balance fully settled!');
+        showSnackbar(t('ledger.toast.paymentSettled'));
         setPaymentDialogOpen(false);
         setPaymentLedger(null);
       } else {
         // Still outstanding — keep the window open and re-arm the form for the
         // next payment (defaulting the amount to the remaining balance).
-        showSnackbar('Payment recorded! Remaining balance still outstanding.');
+        showSnackbar(t('ledger.toast.paymentRecordedOutstanding'));
         setPaymentLedger(updatedLedger);
         setPaymentFormData({
           payment_amount: remainingBalance,
@@ -1268,10 +1266,10 @@ const CustomerLedgerPage: React.FC = () => {
       const payments = await LedgerService.getLedgerPayments(paymentLedger.id);
       setPaymentHistory(payments);
       setEditingPaymentId(null);
-      showSnackbar('Payment date updated successfully');
+      showSnackbar(t('ledger.toast.paymentDateUpdated'));
       await loadData();
     } catch (err) {
-      showSnackbar(err instanceof Error && err.message ? err.message : 'Failed to update payment date', 'error');
+      showSnackbar(err instanceof Error && err.message ? err.message : t('ledger.errors.updatePaymentDate'), 'error');
     } finally {
       setSavingPaymentDate(false);
     }
@@ -1282,21 +1280,21 @@ const CustomerLedgerPage: React.FC = () => {
   const handleDeletePayment = async (payment: CustomerLedgerPayment) => {
     if (!paymentLedger) return;
     const accepted = await confirm({
-      title: 'Delete payment',
-      message: 'This removes the payment from the ledger and restores the outstanding balance. This cannot be undone.',
-      confirmText: 'Delete payment',
+      title: t('ledger.confirm.deletePayment.title'),
+      message: t('ledger.confirm.deletePayment.message'),
+      confirmText: t('ledger.confirm.deletePayment.confirmText'),
       severity: 'error',
     });
     if (!accepted) return;
     try {
       await LedgerService.deleteLedgerPayment(paymentLedger.id, payment.id);
-      showSnackbar('Payment deleted successfully');
+      showSnackbar(t('ledger.toast.paymentDeleted'));
       // Refresh payment history
       const payments = await LedgerService.getLedgerPayments(paymentLedger.id);
       setPaymentHistory(payments);
       await loadData();
     } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to delete payment', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : t('ledger.errors.deletePayment'), 'error');
     }
   };
 
@@ -1314,7 +1312,7 @@ const CustomerLedgerPage: React.FC = () => {
       await LedgerService.voidLedger(voidingLedger.id, {
         reason: voidReason || 'Voided by admin',
       });
-      showSnackbar('Ledger entry voided successfully');
+      showSnackbar(t('ledger.toast.entryVoided'));
       setVoidDialogOpen(false);
       setVoidingLedger(null);
       setVoidReason('');
@@ -1333,7 +1331,7 @@ const CustomerLedgerPage: React.FC = () => {
       const booking = await api.get(`bookings/${ledger.booking_id}`).json<BookingWithDetails>();
       checkoutFlow.openReceipt(enhanceBookingDetails(booking), ledger);
     } catch (err) {
-      showSnackbar(err instanceof Error && err.message ? err.message : 'Failed to load invoice', 'error');
+      showSnackbar(err instanceof Error && err.message ? err.message : t('ledger.errors.loadInvoice'), 'error');
     } finally {
       setLoadingLedgerInvoice(false);
     }
@@ -1346,7 +1344,7 @@ const CustomerLedgerPage: React.FC = () => {
       ledgers,
       hotelSettings,
       formatCurrency,
-      onEmpty: () => showSnackbar('No ledger entries to print for this company.', 'info'),
+      onEmpty: () => showSnackbar(t('ledger.toast.nothingToPrint'), 'info'),
     });
   };
 
@@ -1484,7 +1482,7 @@ const CustomerLedgerPage: React.FC = () => {
       return;
     }
     if (!activeCompany) {
-      showSnackbar('Select a company first', 'warning');
+      showSnackbar(t('ledger.toast.selectCompany'), 'warning');
       return;
     }
     if (action === 'entry') {
@@ -1506,11 +1504,11 @@ const CustomerLedgerPage: React.FC = () => {
 
   const handleSubmitCreditNote = async () => {
     if (!creditNoteLedgerId) {
-      showSnackbar('Pick a ledger entry to credit', 'warning');
+      showSnackbar(t('ledger.toast.pickEntry'), 'warning');
       return;
     }
     if (!creditNoteReason) {
-      showSnackbar('Pick a credit reason', 'warning');
+      showSnackbar(t('ledger.toast.pickReason'), 'warning');
       return;
     }
     try {
@@ -1522,14 +1520,14 @@ const CustomerLedgerPage: React.FC = () => {
         reason: reasonText,
         notes: creditNoteNotes.trim() || undefined,
       });
-      showSnackbar('Credit note issued — reversal entry posted.');
+      showSnackbar(t('ledger.toast.creditNoteIssued'));
       setCreditNoteDialogOpen(false);
       setCreditNoteLedgerId('');
       setCreditNoteReason('');
       setCreditNoteNotes('');
       await loadData();
     } catch (err) {
-      showSnackbar(err instanceof Error && err.message ? err.message : 'Failed to issue credit note', 'error');
+      showSnackbar(err instanceof Error && err.message ? err.message : t('ledger.errors.issueCreditNote'), 'error');
     } finally {
       setProcessingCreditNote(false);
     }
@@ -1573,7 +1571,7 @@ const CustomerLedgerPage: React.FC = () => {
               mb: 0.5,
             }}
           >
-            LEDGER <Box component="span" sx={{ color: 'text.disabled', mx: 0.5 }}>/</Box> COMPANIES
+            {t('ledger.eyebrow')} <Box component="span" sx={{ color: 'text.disabled', mx: 0.5 }}>/</Box> {t('ledger.companies')}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
             <Typography
@@ -1581,7 +1579,7 @@ const CustomerLedgerPage: React.FC = () => {
               component="h1"
               sx={{ fontWeight: 700, letterSpacing: '-0.4px', m: 0 }}
             >
-              Company Ledger
+              {t('ledger.title')}
             </Typography>
             <Chip
               size="small"
@@ -1597,12 +1595,12 @@ const CustomerLedgerPage: React.FC = () => {
               color: "text.secondary",
               mt: 0.5
             }}>
-            Corporate accounts, balances and direct check-ins.
+            {t('ledger.subtitle')}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadData}>
-            Refresh
+            {t('common:actions.refresh')}
           </Button>
           <Button
             variant="contained"
@@ -1611,7 +1609,7 @@ const CustomerLedgerPage: React.FC = () => {
             endIcon={<ArrowDropDownIcon />}
             onClick={(event) => setCreateMenuAnchor(event.currentTarget)}
           >
-            Create
+            {t('common:actions.create')}
           </Button>
           <Menu
             anchorEl={createMenuAnchor}
@@ -1619,19 +1617,19 @@ const CustomerLedgerPage: React.FC = () => {
             onClose={() => setCreateMenuAnchor(null)}
           >
             <MenuItem onClick={() => openContextualCreate('entry')}>
-              <AddIcon fontSize="small" sx={{ mr: 1 }} /> New Ledger Entry
+              <AddIcon fontSize="small" sx={{ mr: 1 }} /> {t('ledger.menu.newEntry')}
             </MenuItem>
             <MenuItem onClick={() => openContextualCreate('invoice')}>
-              <InvoiceIcon fontSize="small" sx={{ mr: 1 }} /> Generate Invoice
+              <InvoiceIcon fontSize="small" sx={{ mr: 1 }} /> {t('ledger.menu.generateInvoice')}
             </MenuItem>
             <MenuItem onClick={() => openContextualCreate('payment')} disabled={!activeCompany || !isPositiveMoney(activeAgg.due)}>
-              <PaymentIcon fontSize="small" sx={{ mr: 1 }} /> Record Payment
+              <PaymentIcon fontSize="small" sx={{ mr: 1 }} /> {t('ledger.payment.record')}
             </MenuItem>
             <MenuItem onClick={() => openContextualCreate('checkin')}>
-              <CheckInIcon fontSize="small" sx={{ mr: 1 }} /> Company Check-In
+              <CheckInIcon fontSize="small" sx={{ mr: 1 }} /> {t('ledger.checkin.title')}
             </MenuItem>
             <MenuItem onClick={() => openContextualCreate('credit')} disabled={!activeCompany}>
-              <CreditNoteIcon fontSize="small" sx={{ mr: 1 }} /> Credit Note
+              <CreditNoteIcon fontSize="small" sx={{ mr: 1 }} /> {t('ledger.menu.creditNote')}
             </MenuItem>
             <Divider sx={{ my: 0.5 }} />
             <MenuItem
@@ -1640,7 +1638,7 @@ const CustomerLedgerPage: React.FC = () => {
                 setCompanyRegDialogOpen(true);
               }}
             >
-              <BusinessIcon fontSize="small" sx={{ mr: 1 }} /> Register Company
+              <BusinessIcon fontSize="small" sx={{ mr: 1 }} /> {t('ledger.registerCompany')}
             </MenuItem>
           </Menu>
         </Box>
@@ -1651,7 +1649,7 @@ const CustomerLedgerPage: React.FC = () => {
           sx={{ mb: 2 }}
           action={
             <Button color="inherit" size="small" onClick={loadData}>
-              Retry
+              {t('common:state.retry')}
             </Button>
           }
         >
@@ -1727,7 +1725,7 @@ const CustomerLedgerPage: React.FC = () => {
                 <BusinessIcon sx={{ fontSize: 26 }} />
               </Box>
               <Typography sx={{ fontWeight: 600, fontSize: 16, color: 'text.primary', mb: 0.5 }}>
-                Pick a company on the left
+                {t('ledger.empty.pickCompany')}
               </Typography>
               <Typography
                 variant="body2"
@@ -1736,8 +1734,7 @@ const CustomerLedgerPage: React.FC = () => {
                   maxWidth: 320,
                   mx: 'auto'
                 }}>
-                Select a company to view its ledger entries, balance, and take actions like
-                check-in, payment, or invoicing.
+                {t('ledger.empty.pickCompanyHelp')}
               </Typography>
             </Box>
           ) : (
@@ -1819,7 +1816,7 @@ const CustomerLedgerPage: React.FC = () => {
                     value="entries"
                     label={
                       <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                        <span>Ledger entries</span>
+                        <span>{t('ledger.tabs.entries')}</span>
                         <Box
                           component="span"
                           sx={{
@@ -1839,7 +1836,7 @@ const CustomerLedgerPage: React.FC = () => {
                       </Box>
                     }
                   />
-                  <Tab value="info" label="Company info" />
+                  <Tab value="info" label={t('ledger.tabs.companyInfo')} />
                 </Tabs>
                 <Box
                   sx={{
@@ -1870,7 +1867,7 @@ const CustomerLedgerPage: React.FC = () => {
                         flexShrink: 0,
                       }}
                     >
-                      New entry
+                      {t('ledger.newEntry')}
                     </Button>
                   )}
                   {detailTab === 'info' && (
@@ -1890,7 +1887,7 @@ const CustomerLedgerPage: React.FC = () => {
                         flexShrink: 0,
                       }}
                     >
-                      Edit company
+                      {t('ledger.editCompany')}
                     </Button>
                   )}
                 </Box>

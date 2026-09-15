@@ -35,6 +35,7 @@ import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../../../components/data-table/MobileCardRow';
 import { ActionsMenu } from '../../../../../components/common/ActionsMenu';
+import { useTranslation } from '../../../../../i18n';
 
 interface LedgerEntriesTabProps {
   search: string;
@@ -75,14 +76,14 @@ const canViewInvoice = (ledger: CustomerLedger) => !!ledger.booking_id;
 const canVoid = (ledger: CustomerLedger) => !isLedgerVoided(ledger);
 
 const ENTRY_STATUS_OPTIONS = [
-  { key: 'all', label: 'All' },
-  { key: 'draft', label: 'Draft' },
-  { key: 'uninvoiced', label: 'Uninvoiced' },
-  { key: 'outstanding', label: 'Outstanding' },
-  { key: 'invoiced', label: 'Invoiced' },
-  { key: 'paid', label: 'Paid' },
-  { key: 'overdue', label: 'Overdue' },
-  { key: 'voided', label: 'Voided' },
+  { key: 'all', labelKey: 'common:field.all' },
+  { key: 'draft', labelKey: 'status:ledger.draft' },
+  { key: 'uninvoiced', labelKey: 'status:ledger.uninvoiced' },
+  { key: 'outstanding', labelKey: 'status:ledger.outstanding' },
+  { key: 'invoiced', labelKey: 'status:ledger.invoiced' },
+  { key: 'paid', labelKey: 'status:ledger.paid' },
+  { key: 'overdue', labelKey: 'status:ledger.overdue' },
+  { key: 'voided', labelKey: 'status:ledger.voided' },
 ] as const;
 
 const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
@@ -108,6 +109,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
   formatCurrency,
 }) => {
   const isPhone = useIsPhone();
+  const { t } = useTranslation('finance');
 
   // Phone card footer: Record Payment keeps a dedicated button; the other
   // four row actions collapse into the shared ActionsMenu (BottomSheet on
@@ -124,16 +126,16 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
           onClick={() => onRecordPayment(entry)}
           sx={{ textTransform: 'none', fontWeight: 600 }}
         >
-          Pay
+          {t('ledger.entries.pay')}
         </Button>
       )}
       <ActionsMenu
         title={entry.description}
-        triggerLabel={`Actions for ${entry.folio_number || `entry ${entry.id}`}`}
+        triggerLabel={t('ledger.entries.actionsFor', { ref: entry.folio_number || `entry ${entry.id}` })}
         actions={[
           {
             id: 'view-invoice',
-            label: 'View invoice',
+            label: t('ledger.entries.viewInvoice'),
             icon: <OpenInNewIcon fontSize="small" />,
             onClick: () => onViewInvoice(entry),
             disabled: busy,
@@ -141,19 +143,19 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
           },
           {
             id: 'edit',
-            label: 'Edit entry',
+            label: t('ledger.entries.editEntry'),
             icon: <EditIcon fontSize="small" />,
             onClick: () => onEdit(entry),
           },
           {
             id: 'print',
-            label: 'Print receipt',
+            label: t('ledger.entries.printReceipt'),
             icon: <PrintIcon fontSize="small" />,
             onClick: () => onPrintReceipt(entry),
           },
           {
             id: 'void',
-            label: 'Void entry',
+            label: t('ledger.entries.voidEntry'),
             icon: <VoidIcon fontSize="small" />,
             onClick: () => onVoid(entry),
             destructive: true,
@@ -175,7 +177,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
       onRowsPerPageChange={(event) => {
         onPageSizeChange(parseInt(event.target.value, 10));
       }}
-      labelRowsPerPage="Entries per page"
+      labelRowsPerPage={t('ledger.entries.perPage')}
     />
   );
 
@@ -197,7 +199,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
       >
         <TextField
           size="small"
-          placeholder="Search ledger #, description, or invoice no..."
+          placeholder={t('ledger.entries.searchPlaceholder')}
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           sx={{ width: 240, bgcolor: 'background.paper' }}
@@ -224,7 +226,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
               <Chip
                 key={s.key}
                 size="small"
-                label={s.label}
+                label={t(s.labelKey)}
                 onClick={() => onStatusFilterChange(s.key as EntryStatusFilter)}
                 variant={statusFilter === s.key ? 'filled' : 'outlined'}
                 sx={{
@@ -271,7 +273,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                   },
                 }}
               >
-                {s.label}
+                {t(s.labelKey)}
               </Button>
             ))}
           </Box>
@@ -288,8 +290,8 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
             color: "text.secondary"
           }}>
             {entryCount === 0
-              ? 'No ledger entries for this company yet.'
-              : 'No entries match this filter.'}
+              ? t('ledger.entries.emptyNone')
+              : t('ledger.entries.emptyNoMatch')}
           </Typography>
         </Box>
       ) : isPhone ? (
@@ -303,8 +305,8 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
               <Box key={entry.id} sx={{ opacity: voided ? 0.6 : 1, borderBottom: '1px solid', borderColor: 'divider' }}>
                 <MobileCardRow
                   title={entry.description}
-                  subtitle={`${entry.folio_number || `#${entry.id}`}${entry.room_number ? ` · Room ${entry.room_number}` : ''} · ${formatDateForDisplay(entry.posting_date || entry.created_at)}`}
-                  meta={`${entry.invoice_number || 'Not invoiced'} · ${isPositiveMoney(balance) ? `Due ${formatCurrency(balance)}` : `Paid ${formatCurrency(paid)}`}`}
+                  subtitle={`${entry.folio_number || `#${entry.id}`}${entry.room_number ? ` · ${t('ledger.roomWithNumber', { number: entry.room_number })}` : ''} · ${formatDateForDisplay(entry.posting_date || entry.created_at)}`}
+                  meta={`${entry.invoice_number || t('ledger.notInvoiced')} · ${isPositiveMoney(balance) ? t('ledger.metaDue', { amount: formatCurrency(balance) }) : t('ledger.metaPaid', { amount: formatCurrency(paid) })}`}
                   status={<LedgerStatusBadge status={uiStatus} />}
                   footer={entryCardFooter(entry, loadingInvoice)}
                 />
@@ -330,13 +332,13 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                   },
                 }}
               >
-                <TableCell sx={{ pl: 2.5, width: '30%' }}>Description</TableCell>
-                <TableCell>Stay / Ledger Date</TableCell>
-                <TableCell>Invoice #</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Amount</TableCell>
-                <TableCell align="right">Paid</TableCell>
-                <TableCell align="right">Balance</TableCell>
+                <TableCell sx={{ pl: 2.5, width: '30%' }}>{t('common:field.description')}</TableCell>
+                <TableCell>{t('ledger.field.stayLedgerDate')}</TableCell>
+                <TableCell>{t('ledger.field.invoiceNumber')}</TableCell>
+                <TableCell>{t('common:field.status')}</TableCell>
+                <TableCell align="right">{t('common:field.amount')}</TableCell>
+                <TableCell align="right">{t('ledger.col.paid')}</TableCell>
+                <TableCell align="right">{t('ledger.col.balance')}</TableCell>
                 <TableCell sx={{ width: 110 }} />
               </TableRow>
             </TableHead>
@@ -436,7 +438,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                         {canRecordPayment(entry) && (
                           <IconButton
                             size="small"
-                            title="Record payment"
+                            title={t('ledger.payment.record')}
                             onClick={() => onRecordPayment(entry)}
                           >
                             <PaymentIcon sx={{ fontSize: 16 }} />
@@ -445,7 +447,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                         {canViewInvoice(entry) && (
                           <IconButton
                             size="small"
-                            title="View invoice"
+                            title={t('ledger.entries.viewInvoice')}
                             onClick={() => onViewInvoice(entry)}
                             disabled={loadingInvoice}
                           >
@@ -454,14 +456,14 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                         )}
                         <IconButton
                           size="small"
-                          title="Edit entry"
+                          title={t('ledger.entries.editEntry')}
                           onClick={() => onEdit(entry)}
                         >
                           <EditIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                         <IconButton
                           size="small"
-                          title="Print receipt"
+                          title={t('ledger.entries.printReceipt')}
                           onClick={() => onPrintReceipt(entry)}
                         >
                           <PrintIcon sx={{ fontSize: 16 }} />
@@ -469,7 +471,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                         {canVoid(entry) && (
                           <IconButton
                             size="small"
-                            title="Void entry"
+                            title={t('ledger.entries.voidEntry')}
                             color="error"
                             onClick={() => onVoid(entry)}
                           >

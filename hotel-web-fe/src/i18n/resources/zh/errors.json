@@ -42,5 +42,6 @@
     "notFoundMessage": "您访问的页面不存在或可能已被移动。",
     "lockedTitle": "资源已锁定",
     "lockedMessage": "该资源当前已锁定，请稍后重试或联系管理员。"
-  }
+  },
+  "appStart": "无法启动应用程序。"
 }

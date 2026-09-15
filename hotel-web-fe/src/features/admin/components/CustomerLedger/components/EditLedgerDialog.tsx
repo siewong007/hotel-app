@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import type { CustomerLedger, CustomerLedgerUpdateRequest } from '../../../../../types';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
+import { useTranslation, statusLabel } from '../../../../../i18n';
 import { EXPENSE_TYPES } from '../constants';
 import { isLedgerVoided } from '../helpers';
 
@@ -61,15 +62,17 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
   updating,
   onUpdate,
   currencySymbol,
-}) => (
+}) => {
+  const { t } = useTranslation('finance');
+  return (
   <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-    <DialogTitle>Edit Ledger Entry - {editingLedger?.invoice_number || `#${editingLedger?.id}`}</DialogTitle>
+    <DialogTitle>{t('ledger.editDialog.title', { ref: editingLedger?.invoice_number || `#${editingLedger?.id}` })}</DialogTitle>
     <DialogContent>
       <Grid container spacing={2} sx={{ mt: 1 }}>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Company Name"
+            label={t('ledger.field.companyName')}
             value={editFormData.company_name || ''}
             onChange={(e) => setEditFormData({ ...editFormData, company_name: e.target.value })}
           />
@@ -77,7 +80,7 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Registration Number"
+            label={t('ledger.field.registrationNumber')}
             value={editFormData.company_registration_number || ''}
             onChange={(e) => setEditFormData({ ...editFormData, company_registration_number: e.target.value })}
           />
@@ -85,7 +88,7 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Contact Person"
+            label={t('ledger.field.contactPerson')}
             value={editFormData.contact_person || ''}
             onChange={(e) => setEditFormData({ ...editFormData, contact_person: e.target.value })}
           />
@@ -93,7 +96,7 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Contact Email"
+            label={t('ledger.field.contactEmail')}
             type="email"
             value={editFormData.contact_email || ''}
             onChange={(e) => setEditFormData({ ...editFormData, contact_email: e.target.value })}
@@ -102,7 +105,7 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
         <Grid size={12}>
           <TextField
             fullWidth
-            label="Description"
+            label={t('common:field.description')}
             multiline
             rows={2}
             value={editFormData.description || ''}
@@ -111,15 +114,15 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth>
-            <InputLabel>Expense Type</InputLabel>
+            <InputLabel>{t('ledger.field.expenseType')}</InputLabel>
             <Select
               value={editFormData.expense_type || ''}
-              label="Expense Type"
+              label={t('ledger.field.expenseType')}
               onChange={(e) => setEditFormData({ ...editFormData, expense_type: e.target.value })}
             >
               {EXPENSE_TYPES.map((type) => (
                 <MenuItem key={type.value} value={type.value}>
-                  {type.label}
+                  {t(type.labelKey)}
                 </MenuItem>
               ))}
             </Select>
@@ -127,16 +130,16 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth>
-            <InputLabel>Status</InputLabel>
+            <InputLabel>{t('common:field.status')}</InputLabel>
             <Select
               value={editFormData.status || ''}
-              label="Status"
+              label={t('common:field.status')}
               onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
             >
-              <MenuItem value="pending">Pending</MenuItem>
-              <MenuItem value="partial">Partial</MenuItem>
-              <MenuItem value="paid" disabled={isPaidStatusBlocked(editingLedger)}>Paid</MenuItem>
-              <MenuItem value="overdue">Overdue</MenuItem>
+              <MenuItem value="pending">{statusLabel(t, 'ledger', 'pending')}</MenuItem>
+              <MenuItem value="partial">{statusLabel(t, 'ledger', 'partial')}</MenuItem>
+              <MenuItem value="paid" disabled={isPaidStatusBlocked(editingLedger)}>{statusLabel(t, 'ledger', 'paid')}</MenuItem>
+              <MenuItem value="overdue">{statusLabel(t, 'ledger', 'overdue')}</MenuItem>
             </Select>
             {/* `update_customer_ledger` writes only the `status` column — it does
                 not insert a customer_ledger_payments row, and leaves paid_amount,
@@ -144,15 +147,15 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
                 and that dialog carries its own payment-date field. */}
             <FormHelperText>
               {isPaidStatusBlocked(editingLedger)
-                ? 'Paid is unavailable while a balance is outstanding — it would record no payment and no payment date. Use Record Payment to settle the balance; the status then flips to Paid on its own.'
-                : 'Changing the status here only relabels the entry — it records no payment and sets no payment date. Use Record Payment to enter the amount and the date it was actually paid.'}
+                ? t('ledger.editDialog.paidBlockedHelp')
+                : t('ledger.editDialog.statusRelabelHelp')}
             </FormHelperText>
           </FormControl>
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            label="Due Date"
+            label={t('ledger.field.dueDate')}
             type="date"
             value={editFormData.due_date || ''}
             onChange={(e) => setEditFormData({ ...editFormData, due_date: e.target.value })}
@@ -165,12 +168,12 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
-              label="Booking Room Rate"
+              label={t('ledger.field.bookingRoomRate')}
               type="number"
               value={bookingRoomRate}
               onChange={(e) => setBookingRoomRate(e.target.value)}
               disabled={loadingBookingRoomRate}
-              helperText="Per night for the linked booking"
+              helperText={t('ledger.field.bookingRoomRateHelp')}
               slotProps={{
                 input: {
                   startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
@@ -186,7 +189,7 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
         <Grid size={12}>
           <TextField
             fullWidth
-            label="Notes"
+            label={t('common:field.notes')}
             multiline
             rows={2}
             value={editFormData.notes || ''}
@@ -196,7 +199,7 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
         <Grid size={12}>
           <TextField
             fullWidth
-            label="Internal Notes (Staff Only)"
+            label={t('ledger.field.internalNotes')}
             multiline
             rows={2}
             value={editFormData.internal_notes || ''}
@@ -206,12 +209,13 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
       </Grid>
     </DialogContent>
     <DialogActions>
-      <Button onClick={onClose}>Cancel</Button>
+      <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
       <Button onClick={onUpdate} variant="contained" disabled={updating}>
-        {updating ? 'Updating...' : 'Update Entry'}
+        {updating ? t('ledger.editDialog.updating') : t('ledger.editDialog.updateEntry')}
       </Button>
     </DialogActions>
   </Dialog>
-);
+  );
+};
 
 export default EditLedgerDialog;

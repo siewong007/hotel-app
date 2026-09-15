@@ -44,6 +44,8 @@ import type {
 import { asMoney, formatDateForDisplay, formatDateForInput } from '../helpers';
 import { PAYMENT_METHODS } from '../constants';
 import { isGreaterMoney, isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n';
+import { formatStatusLabel } from '../../../../../utils/formatters';
 
 export interface CompanyPaymentForm {
   payment_amount: string;
@@ -133,13 +135,15 @@ const PaymentFields: React.FC<PaymentFieldsProps> = ({
   amountError,
   amountHelperText,
   amountMax,
-}) => (
+}) => {
+  const { t } = useTranslation('finance');
+  return (
   <Grid container spacing={2}>
     <Grid size={{ xs: 12, sm: 6 }}>
       <TextField
         fullWidth
         required
-        label="Payment Amount"
+        label={t('ledger.payment.amount')}
         type="number"
         value={amount}
         onChange={(e) => onAmountChange(e.target.value)}
@@ -155,15 +159,15 @@ const PaymentFields: React.FC<PaymentFieldsProps> = ({
     </Grid>
     <Grid size={{ xs: 12, sm: 6 }}>
       <FormControl fullWidth required>
-        <InputLabel>Payment Method</InputLabel>
+        <InputLabel>{t('ledger.payment.method')}</InputLabel>
         <Select
           value={method}
-          label="Payment Method"
+          label={t('ledger.payment.method')}
           onChange={(e) => onMethodChange(e.target.value)}
         >
           {PAYMENT_METHODS.map((m) => (
             <MenuItem key={m.value} value={m.value}>
-              {m.label}
+              {t(m.labelKey)}
             </MenuItem>
           ))}
         </Select>
@@ -172,16 +176,16 @@ const PaymentFields: React.FC<PaymentFieldsProps> = ({
     <Grid size={{ xs: 12, sm: 6 }}>
       <TextField
         fullWidth
-        label="Payment Reference"
+        label={t('ledger.payment.reference')}
         value={reference}
         onChange={(e) => onReferenceChange(e.target.value)}
-        placeholder="Transaction ID, cheque number, etc."
+        placeholder={t('ledger.payment.referencePlaceholder')}
       />
     </Grid>
     <Grid size={{ xs: 12, sm: 6 }}>
       <TextField
         fullWidth
-        label="Receipt Number"
+        label={t('ledger.payment.receiptNumber')}
         value={receipt}
         onChange={(e) => onReceiptChange(e.target.value)}
       />
@@ -189,7 +193,7 @@ const PaymentFields: React.FC<PaymentFieldsProps> = ({
     <Grid size={{ xs: 12, sm: 6 }}>
       <TextField
         fullWidth
-        label="Payment Date"
+        label={t('ledger.payment.date')}
         type="date"
         value={date}
         onChange={(e) => onDateChange(e.target.value)}
@@ -199,7 +203,7 @@ const PaymentFields: React.FC<PaymentFieldsProps> = ({
     <Grid size={12}>
       <TextField
         fullWidth
-        label="Notes"
+        label={t('common:field.notes')}
         multiline
         rows={2}
         value={notes}
@@ -207,7 +211,8 @@ const PaymentFields: React.FC<PaymentFieldsProps> = ({
       />
     </Grid>
   </Grid>
-);
+  );
+};
 
 const EntryModeBody: React.FC<EntryModeProps> = (props) => {
   const {
@@ -216,20 +221,21 @@ const EntryModeBody: React.FC<EntryModeProps> = (props) => {
     setEditingPaymentDate, savingPaymentDate, onSavePaymentDate, onDeletePayment,
     currencySymbol, formatCurrency, getLedgerBalanceDue,
   } = props;
+  const { t, tOr } = useTranslation('finance');
   return (
     <>
       <Tabs value={paymentTab} onChange={(_e, v) => setPaymentTab(v)} sx={{ mb: 2 }}>
-        <Tab label="Record Payment" />
-        <Tab label="Payment History" />
+        <Tab label={t('ledger.payment.record')} />
+        <Tab label={t('ledger.payment.history')} />
       </Tabs>
 
       {paymentTab === 0 && (
         <Box>
           <Alert severity="info" sx={{ mb: 2 }}>
             <Typography variant="body2">
-              <strong>Total Amount:</strong> {formatCurrency(toMoneyNumber(paymentLedger?.amount))}<br />
-              <strong>Already Paid:</strong> {formatCurrency(toMoneyNumber(paymentLedger?.paid_amount))}<br />
-              <strong>Balance Due:</strong> {formatCurrency(toMoneyNumber(paymentLedger?.balance_due))}
+              <strong>{t('ledger.payment.totalAmount')}:</strong> {formatCurrency(toMoneyNumber(paymentLedger?.amount))}<br />
+              <strong>{t('ledger.payment.alreadyPaid')}:</strong> {formatCurrency(toMoneyNumber(paymentLedger?.paid_amount))}<br />
+              <strong>{t('ledger.payment.balanceDue')}:</strong> {formatCurrency(toMoneyNumber(paymentLedger?.balance_due))}
             </Typography>
           </Alert>
 
@@ -251,8 +257,8 @@ const EntryModeBody: React.FC<EntryModeProps> = (props) => {
             amountHelperText={
               paymentLedger
                 ? isGreaterMoney(paymentFormData.payment_amount, getLedgerBalanceDue(paymentLedger))
-                  ? `Cannot exceed outstanding balance of ${formatCurrency(getLedgerBalanceDue(paymentLedger))}`
-                  : `Outstanding balance: ${formatCurrency(getLedgerBalanceDue(paymentLedger))}`
+                  ? t('ledger.payment.cannotExceed', { amount: formatCurrency(getLedgerBalanceDue(paymentLedger)) })
+                  : t('ledger.payment.outstandingBalance', { amount: formatCurrency(getLedgerBalanceDue(paymentLedger)) })
                 : undefined
             }
             amountMax={paymentLedger ? getLedgerBalanceDue(paymentLedger) : undefined}
@@ -264,7 +270,7 @@ const EntryModeBody: React.FC<EntryModeProps> = (props) => {
         <Box>
           {paymentHistory.length === 0 ? (
             <Typography sx={{ color: 'text.secondary', textAlign: 'center', py: 3 }}>
-              No payment history yet
+              {t('ledger.payment.historyEmpty')}
             </Typography>
           ) : (
             <List>
@@ -279,14 +285,14 @@ const EntryModeBody: React.FC<EntryModeProps> = (props) => {
                             color="primary"
                             onClick={() => onSavePaymentDate(payment)}
                             disabled={savingPaymentDate}
-                            aria-label="Save payment date"
+                            aria-label={t('ledger.payment.saveDate')}
                           >
                             {savingPaymentDate ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
                           </IconButton>
                           <IconButton
                             size="small"
                             onClick={() => setEditingPaymentId(null)}
-                            aria-label="Cancel edit"
+                            aria-label={t('ledger.payment.cancelEdit')}
                           >
                             <CloseIcon fontSize="small" />
                           </IconButton>
@@ -296,12 +302,12 @@ const EntryModeBody: React.FC<EntryModeProps> = (props) => {
                           <IconButton
                             size="small"
                             color="primary"
-                            aria-label="Edit payment date"
+                            aria-label={t('ledger.payment.editDate')}
                             onClick={() => {
                               setEditingPaymentId(payment.id);
                               setEditingPaymentDate(formatDateForInput(payment.payment_date));
                             }}
-                            title="Edit payment date"
+                            title={t('ledger.payment.editDate')}
                           >
                             <EditIcon fontSize="small" />
                           </IconButton>
@@ -309,7 +315,7 @@ const EntryModeBody: React.FC<EntryModeProps> = (props) => {
                             size="small"
                             color="error"
                             onClick={() => onDeletePayment(payment)}
-                            title="Delete payment"
+                            title={t('ledger.payment.delete')}
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
@@ -323,7 +329,7 @@ const EntryModeBody: React.FC<EntryModeProps> = (props) => {
                           <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
                             {formatCurrency(toMoneyNumber(payment.payment_amount))}
                           </Typography>
-                          <Chip label={payment.payment_method} size="small" variant="outlined" />
+                          <Chip label={tOr(`ledger.paymentMethod.${payment.payment_method}`, formatStatusLabel(payment.payment_method))} size="small" variant="outlined" />
                         </Box>
                       }
                       secondary={
@@ -332,7 +338,7 @@ const EntryModeBody: React.FC<EntryModeProps> = (props) => {
                             <TextField
                               size="small"
                               type="date"
-                              label="Payment Date"
+                              label={t('ledger.payment.date')}
                               value={editingPaymentDate}
                               onChange={(e) => setEditingPaymentDate(e.target.value)}
                               sx={{ mt: 1 }}
@@ -345,7 +351,7 @@ const EntryModeBody: React.FC<EntryModeProps> = (props) => {
                           )}
                           {payment.payment_reference && (
                             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              Ref: {payment.payment_reference}
+                              {t('ledger.payment.ref', { ref: payment.payment_reference })}
                             </Typography>
                           )}
                           {payment.notes && (
@@ -374,6 +380,7 @@ const CompanyModeBody: React.FC<CompanyModeProps> = (props) => {
     setSelectedLedgersForPayment, paymentCompany, paymentCompanyLedgers, ledgers,
     currencySymbol, formatCurrency,
   } = props;
+  const { t } = useTranslation('finance');
 
   const selectedDue = selectedLedgersForPayment.reduce((sum, l) => {
     const amount = asMoney(l.amount);
@@ -397,19 +404,19 @@ const CompanyModeBody: React.FC<CompanyModeProps> = (props) => {
             {paymentCompany.company_name}
           </Typography>
           {paymentCompany.contact_person && (
-            <Typography variant="caption">Contact: {paymentCompany.contact_person}</Typography>
+            <Typography variant="caption">{t('ledger.field.contactPerson')}: {paymentCompany.contact_person}</Typography>
           )}
         </Alert>
       )}
 
       {paymentCompanyLedgers.length === 0 ? (
         <Alert severity="warning">
-          No outstanding ledger entries found for this company.
+          {t('ledger.payment.noOutstanding')}
         </Alert>
       ) : (
         <Grid container spacing={2} sx={{ mt: 0.5 }}>
           <Grid size={12}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Select Ledger Entries</Typography>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('ledger.payment.selectEntries')}</Typography>
             <Paper variant="outlined" sx={{ maxHeight: 220, overflow: 'auto' }}>
               <Box sx={{ px: 2, py: 0.5, borderBottom: '1px solid', borderColor: 'divider' }}>
                 <FormControlLabel
@@ -421,7 +428,7 @@ const CompanyModeBody: React.FC<CompanyModeProps> = (props) => {
                       onChange={(e) => setSelectedLedgersForPayment(e.target.checked ? [...paymentCompanyLedgers] : [])}
                     />
                   }
-                  label={<Typography variant="body2" sx={{ fontWeight: 600 }}>Select All</Typography>}
+                  label={<Typography variant="body2" sx={{ fontWeight: 600 }}>{t('common:actions.selectAll')}</Typography>}
                 />
               </Box>
               {paymentCompanyLedgers.map((ledger) => {
@@ -457,7 +464,7 @@ const CompanyModeBody: React.FC<CompanyModeProps> = (props) => {
                             variant="body2"
                             sx={{ color: 'error.main', fontWeight: 600, ml: 2, whiteSpace: 'nowrap' }}
                           >
-                            Due: {formatCurrency(balanceDue)}
+                            {t('ledger.payment.due', { amount: formatCurrency(balanceDue) })}
                           </Typography>
                         </Box>
                       }
@@ -473,17 +480,17 @@ const CompanyModeBody: React.FC<CompanyModeProps> = (props) => {
               <Paper variant="outlined" sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)' }}>
                 <Grid container spacing={1}>
                   <Grid size={6}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>Selected Entries</Typography>
-                    <Typography variant="body2">{selectedLedgersForPayment.length} of {paymentCompanyLedgers.length} entries</Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('ledger.payment.selectedEntries')}</Typography>
+                    <Typography variant="body2">{t('ledger.payment.entriesCount', { count: paymentCompanyLedgers.length, selected: selectedLedgersForPayment.length, total: paymentCompanyLedgers.length })}</Typography>
                   </Grid>
                   <Grid size={3}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>Total Amount</Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('ledger.payment.totalAmount')}</Typography>
                     <Typography variant="body2">
                       {formatCurrency(selectedLedgersForPayment.reduce((sum, l) => sumMoney([sum, l.amount]), 0))}
                     </Typography>
                   </Grid>
                   <Grid size={3}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>Total Balance Due</Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('ledger.payment.totalBalanceDue')}</Typography>
                     <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 600 }}>
                       {formatCurrency(selectedDue)}
                     </Typography>
@@ -497,15 +504,12 @@ const CompanyModeBody: React.FC<CompanyModeProps> = (props) => {
             <Grid size={12}>
               {exceedsSelection && (
                 <Alert severity="warning" sx={{ mb: 1 }}>
-                  Payment amount exceeds selected entries by{' '}
-                  <strong>{formatCurrency(subtractMoney(amount, selectedDue))}</strong>. The excess will be parked as
-                  credit on account.
+                  {t('ledger.payment.exceedsSelection', { amount: formatCurrency(subtractMoney(amount, selectedDue)) })}
                 </Alert>
               )}
               {exceedsOutstanding && (
                 <Alert severity="error">
-                  Payment amount exceeds the company's total outstanding balance of{' '}
-                  <strong>{formatCurrency(companyDue)}</strong>. Reduce the amount, or issue a credit note instead.
+                  {t('ledger.payment.exceedsOutstanding', { amount: formatCurrency(companyDue) })}
                 </Alert>
               )}
             </Grid>
@@ -527,7 +531,7 @@ const CompanyModeBody: React.FC<CompanyModeProps> = (props) => {
               onNotesChange={(v) => setCompanyPaymentForm({ ...companyPaymentForm, notes: v })}
               currencySymbol={currencySymbol}
               amountHelperText={
-                paymentCompany ? `Max ${formatCurrency(companyDue)}` : undefined
+                paymentCompany ? t('ledger.payment.max', { amount: formatCurrency(companyDue) }) : undefined
               }
               amountMax={paymentCompany ? companyDue : undefined}
             />
@@ -545,6 +549,7 @@ const CompanyModeBody: React.FC<CompanyModeProps> = (props) => {
  * entries (POST ledgers/company-payments, with credit-on-account overflow).
  */
 const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = (props) => {
+  const { t } = useTranslation('finance');
   const { mode, open, onClose } = props;
 
   const submitDisabled =
@@ -570,18 +575,18 @@ const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = (props) => {
         })();
 
   const busy = mode === 'entry' ? props.processingPayment : props.processingCompanyPayment;
-  const submitLabel = busy ? 'Processing...' : 'Record Payment';
+  const submitLabel = busy ? t('common:state.processing') : t('ledger.payment.record');
   const entryOnRecordTab = mode === 'entry' && props.paymentTab === 0;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth={mode === 'entry' ? 'md' : 'sm'} fullWidth>
       <DialogTitle>
         {mode === 'entry' ? (
-          <>Payment - {props.paymentLedger?.company_name}</>
+          <>{t('ledger.payment.titleEntry', { company: props.paymentLedger?.company_name ?? '' })}</>
         ) : (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <PaymentIcon color="primary" />
-            Record Payment
+            {t('ledger.payment.record')}
           </Box>
         )}
       </DialogTitle>
@@ -589,7 +594,7 @@ const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = (props) => {
         {mode === 'entry' ? <EntryModeBody {...props} /> : <CompanyModeBody {...props} />}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{mode === 'entry' ? 'Close' : 'Cancel'}</Button>
+        <Button onClick={onClose}>{mode === 'entry' ? t('common:actions.close') : t('common:actions.cancel')}</Button>
         {(mode === 'company' || entryOnRecordTab) && (
           <Button
             onClick={mode === 'entry' ? props.onRecordPayment : props.onSubmit}

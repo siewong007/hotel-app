@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import '../index.css';
 import { logWebVitals } from '../reportWebVitals';
 import GuestApp from './GuestApp';
+import { t } from '../i18n';
 
 const MODULE_RETRY_PARAM = 'module-retry';
 
@@ -40,7 +41,7 @@ bootstrap().catch(error => {
   const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
   root.render(
     <div style={{ padding: 24, fontFamily: 'Inter, Roboto, Helvetica, Arial, sans-serif' }}>
-      Unable to start the application.
+      {t('errors:appStart')}
     </div>,
   );
 });

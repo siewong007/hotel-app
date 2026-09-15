@@ -56,7 +56,15 @@
     "partial": "Partial",
     "paid": "Paid",
     "overdue": "Overdue",
-    "void": "Void"
+    "void": "Void",
+    "draft": "Draft",
+    "ready_to_invoice": "Ready",
+    "invoiced": "Invoiced",
+    "partially_paid": "Partially Paid",
+    "voided": "Voided",
+    "outstanding": "Outstanding",
+    "uninvoiced": "Uninvoiced",
+    "settled": "Settled"
   },
   "room": {
     "available": "Available",

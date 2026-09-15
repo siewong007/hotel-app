@@ -42,5 +42,6 @@
     "notFoundMessage": "The page you requested does not exist or may have moved.",
     "lockedTitle": "Resource locked",
     "lockedMessage": "This resource is currently locked. Please try again later or contact an administrator."
-  }
+  },
+  "appStart": "Unable to start the application."
 }

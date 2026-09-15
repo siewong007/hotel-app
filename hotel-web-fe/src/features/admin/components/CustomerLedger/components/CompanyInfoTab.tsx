@@ -6,6 +6,7 @@ import { Edit as EditIcon } from '@mui/icons-material';
 import type { Company } from '../../../../../types';
 import { InfoField } from '../StatusPill';
 import { subtractMoney, toMoneyNumber } from '../../../../../utils/money';
+import { useTranslation } from '../../../../../i18n';
 
 interface CompanyInfoTabProps {
   company: Company;
@@ -20,6 +21,7 @@ const CompanyInfoTab: React.FC<CompanyInfoTabProps> = ({
   formatCurrency,
   onEdit,
 }) => {
+  const { t } = useTranslation('finance');
   return (
     <Box sx={{ p: 2.5 }}>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
@@ -29,7 +31,7 @@ const CompanyInfoTab: React.FC<CompanyInfoTabProps> = ({
           startIcon={<EditIcon fontSize="small" />}
           onClick={onEdit}
         >
-          Edit company
+          {t('ledger.editCompany')}
         </Button>
       </Box>
       <Typography
@@ -43,7 +45,7 @@ const CompanyInfoTab: React.FC<CompanyInfoTabProps> = ({
           mb: 1.5,
         }}
       >
-        Contact
+        {t('ledger.sections.contact')}
       </Typography>
       <Box
         sx={{
@@ -53,15 +55,15 @@ const CompanyInfoTab: React.FC<CompanyInfoTabProps> = ({
           mb: 3,
         }}
       >
-        <InfoField label="Phone" value={company.contact_phone || '-'} />
-        <InfoField label="Contact person" value={company.contact_person || '-'} />
-        <InfoField label="Email" value={company.contact_email || '-'} />
+        <InfoField label={t('common:field.phone')} value={company.contact_phone || '-'} />
+        <InfoField label={t('ledger.field.contactPerson')} value={company.contact_person || '-'} />
+        <InfoField label={t('common:field.email')} value={company.contact_email || '-'} />
         <InfoField
-          label="Registration no."
+          label={t('ledger.field.registrationNo')}
           value={company.registration_number || '-'}
         />
         <InfoField
-          label="Address"
+          label={t('common:field.address')}
           value={
             [
               company.billing_address,
@@ -87,7 +89,7 @@ const CompanyInfoTab: React.FC<CompanyInfoTabProps> = ({
           mb: 1.5,
         }}
       >
-        Billing terms
+        {t('ledger.sections.billingTerms')}
       </Typography>
       <Box
         sx={{
@@ -97,7 +99,7 @@ const CompanyInfoTab: React.FC<CompanyInfoTabProps> = ({
         }}
       >
         <InfoField
-          label="Credit limit"
+          label={t('ledger.field.creditLimit')}
           value={
             company.credit_limit != null
               ? formatCurrency(toMoneyNumber(company.credit_limit))
@@ -105,11 +107,11 @@ const CompanyInfoTab: React.FC<CompanyInfoTabProps> = ({
           }
         />
         <InfoField
-          label="Payment terms"
-          value={`Net ${company.payment_terms_days || 30} days`}
+          label={t('ledger.field.paymentTerms')}
+          value={t('ledger.paymentTermsValue', { days: company.payment_terms_days || 30 })}
         />
         <InfoField
-          label="Available credit"
+          label={t('ledger.field.availableCredit')}
           value={
             company.credit_limit != null
               ? formatCurrency(

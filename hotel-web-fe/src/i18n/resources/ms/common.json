@@ -164,5 +164,36 @@
     "hours": "jam",
     "days": "hari",
     "minutes": "minit"
+  },
+  "charts": {
+    "loading": "Memuatkan carta",
+    "emptyPeriod": "Tiada data untuk tempoh ini",
+    "loadFailed": "Data carta gagal dimuatkan"
+  },
+  "desktop": {
+    "upgradeTitle": "Kemas kini pangkalan data diperlukan",
+    "upgradeBody": "Data tersimpan anda telah dicipta dengan PostgreSQL {{fromVersion}}, tetapi versi aplikasi ini disertakan dengan PostgreSQL {{toVersion}}. Aplikasi tidak dapat membuka data sedia ada secara langsung dan tidak akan bermula sehingga ini diselesaikan.",
+    "restorePrompt": "Pulihkan daripada sandaran yang diambil pada {{date}}? Perubahan yang dibuat selepas tarikh itu akan hilang. Direktori data sedia ada anda disimpan (dinamakan semula), bukan dipadamkan.",
+    "noBackup": "Tiada sandaran automatik tersedia, jadi aplikasi tidak dapat menaik taraf dengan selamat. Untuk memulihkan, pasang binaan desktop yang sepadan dengan PostgreSQL {{fromVersion}} untuk membaca data sedia ada, atau migrasikan direktori data secara manual dengan pg_upgrade. Data sedia ada anda tidak diubah.",
+    "upgrading": "Sedang menaik taraf pangkalan data. Ini mungkin mengambil beberapa minit; jangan tutup aplikasi.",
+    "openDataFolder": "Buka folder data",
+    "retryNoUpgrade": "Cuba semula tanpa menaik taraf",
+    "restoreBackup": "Pulihkan daripada sandaran",
+    "starting": "Memulakan perkhidmatan desktop",
+    "unavailable": "Perkhidmatan desktop tidak tersedia",
+    "waitingAddress": "Menunggu alamat API tempatan",
+    "dataFolder": "Folder data: {{path}}",
+    "restartServices": "Mulakan semula perkhidmatan",
+    "versionOlder": "versi lama",
+    "versionCurrent": "versi semasa",
+    "errors": {
+      "statusRead": "Tidak dapat membaca status perkhidmatan desktop",
+      "backendStopped": "Perkhidmatan backend telah berhenti",
+      "backendStoppedCode": "Perkhidmatan backend berhenti dengan kod {{code}}",
+      "subscribeFailed": "Tidak dapat melanggan peristiwa perkhidmatan desktop",
+      "restartFailed": "Tidak dapat memulakan semula perkhidmatan backend",
+      "upgradeFailed": "Kemas kini pangkalan data gagal",
+      "openFolderFailed": "Tidak dapat membuka folder data"
+    }
   }
 }

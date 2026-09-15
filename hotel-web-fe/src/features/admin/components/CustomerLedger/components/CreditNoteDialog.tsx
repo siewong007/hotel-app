@@ -16,6 +16,7 @@ import {
 import { CreditScore as CreditNoteIcon } from '@mui/icons-material';
 import type { Company, CustomerLedger } from '../../../../../types';
 import { asMoney } from '../helpers';
+import { useTranslation } from '../../../../../i18n';
 
 interface CreditNoteDialogProps {
   open: boolean;
@@ -47,7 +48,9 @@ const CreditNoteDialog: React.FC<CreditNoteDialogProps> = ({
   processingCreditNote,
   onSubmit,
   formatCurrency,
-}) => (
+}) => {
+  const { t } = useTranslation('finance');
+  return (
   <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
     <DialogTitle>
       <Box
@@ -57,7 +60,7 @@ const CreditNoteDialog: React.FC<CreditNoteDialogProps> = ({
           gap: 1
         }}>
         <CreditNoteIcon color="error" />
-        Issue Credit Note
+        {t('ledger.creditNote.title')}
         {activeCompany && (
           <Typography
             variant="caption"
@@ -72,9 +75,7 @@ const CreditNoteDialog: React.FC<CreditNoteDialogProps> = ({
     </DialogTitle>
     <DialogContent>
       <Alert severity="info" sx={{ mb: 2 }}>
-        A credit note posts a <strong>reversal entry</strong> against an existing ledger
-        row. The original entry stays in the ledger and the reversal is audit-tracked.
-        Reversals cannot be issued against another reversal.
+        {t('ledger.creditNote.info')}
       </Alert>
       <Grid container spacing={2}>
         <Grid size={12}>
@@ -82,10 +83,10 @@ const CreditNoteDialog: React.FC<CreditNoteDialogProps> = ({
             select
             fullWidth
             required
-            label="Original ledger entry"
+            label={t('ledger.creditNote.entryLabel')}
             value={creditNoteLedgerId}
             onChange={(e) => setCreditNoteLedgerId(e.target.value === '' ? '' : Number(e.target.value))}
-            helperText="Pick the entry to reverse"
+            helperText={t('ledger.creditNote.entryHelp')}
           >
             {reversibleEntries.map(l => (
               <MenuItem key={l.id} value={l.id}>
@@ -102,7 +103,7 @@ const CreditNoteDialog: React.FC<CreditNoteDialogProps> = ({
                 mt: 0.5,
                 display: 'block'
               }}>
-              No reversible entries for this company.
+              {t('ledger.creditNote.noReversible')}
             </Typography>
           )}
         </Grid>
@@ -111,17 +112,17 @@ const CreditNoteDialog: React.FC<CreditNoteDialogProps> = ({
             select
             fullWidth
             required
-            label="Reason"
+            label={t('ledger.creditNote.reasonLabel')}
             value={creditNoteReason}
             onChange={(e) => setCreditNoteReason(e.target.value)}
           >
-            <MenuItem value="">Pick a reason…</MenuItem>
-            <MenuItem value="Refund — early checkout">Refund — early checkout</MenuItem>
-            <MenuItem value="Room downgrade">Room downgrade</MenuItem>
-            <MenuItem value="Service not rendered">Service not rendered</MenuItem>
-            <MenuItem value="Billing error">Billing error</MenuItem>
-            <MenuItem value="Goodwill / discount">Goodwill / discount</MenuItem>
-            <MenuItem value="Other">Other</MenuItem>
+            <MenuItem value="">{t('ledger.creditNote.reasonPlaceholder')}</MenuItem>
+            <MenuItem value="Refund — early checkout">{t('ledger.creditNote.reasons.refundEarlyCheckout')}</MenuItem>
+            <MenuItem value="Room downgrade">{t('ledger.creditNote.reasons.roomDowngrade')}</MenuItem>
+            <MenuItem value="Service not rendered">{t('ledger.creditNote.reasons.serviceNotRendered')}</MenuItem>
+            <MenuItem value="Billing error">{t('ledger.creditNote.reasons.billingError')}</MenuItem>
+            <MenuItem value="Goodwill / discount">{t('ledger.creditNote.reasons.goodwillDiscount')}</MenuItem>
+            <MenuItem value="Other">{t('ledger.creditNote.reasons.other')}</MenuItem>
           </TextField>
         </Grid>
         <Grid size={12}>
@@ -129,17 +130,17 @@ const CreditNoteDialog: React.FC<CreditNoteDialogProps> = ({
             fullWidth
             multiline
             rows={3}
-            label="Details (optional)"
+            label={t('ledger.creditNote.detailsLabel')}
             value={creditNoteNotes}
             onChange={(e) => setCreditNoteNotes(e.target.value)}
-            placeholder="Explain the credit — appears on the reversal record."
+            placeholder={t('ledger.creditNote.detailsPlaceholder')}
           />
         </Grid>
       </Grid>
     </DialogContent>
     <DialogActions>
       <Button onClick={onClose} disabled={processingCreditNote}>
-        Cancel
+        {t('common:actions.cancel')}
       </Button>
       <Button
         onClick={onSubmit}
@@ -148,10 +149,11 @@ const CreditNoteDialog: React.FC<CreditNoteDialogProps> = ({
         disabled={processingCreditNote || !creditNoteLedgerId || !creditNoteReason}
         startIcon={processingCreditNote ? <CircularProgress size={18} /> : <CreditNoteIcon />}
       >
-        {processingCreditNote ? 'Issuing…' : 'Issue credit note'}
+        {processingCreditNote ? t('ledger.creditNote.issuing') : t('ledger.creditNote.issue')}
       </Button>
     </DialogActions>
   </Dialog>
-);
+  );
+};
 
 export default CreditNoteDialog;

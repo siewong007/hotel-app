@@ -56,7 +56,15 @@
     "partial": "Separa",
     "paid": "Dibayar",
     "overdue": "Tertunggak",
-    "void": "Terbatal"
+    "void": "Terbatal",
+    "draft": "Draf",
+    "ready_to_invoice": "Sedia",
+    "invoiced": "Diinvois",
+    "partially_paid": "Dibayar Separa",
+    "voided": "Dibatalkan",
+    "outstanding": "Tertunggak",
+    "uninvoiced": "Belum Diinvois",
+    "settled": "Selesai"
   },
   "room": {
     "available": "Tersedia",

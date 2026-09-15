@@ -56,7 +56,15 @@
     "partial": "部分支付",
     "paid": "已支付",
     "overdue": "已逾期",
-    "void": "已作废"
+    "void": "已作废",
+    "draft": "草稿",
+    "ready_to_invoice": "待开票",
+    "invoiced": "已开票",
+    "partially_paid": "部分付款",
+    "voided": "已作废",
+    "outstanding": "未结",
+    "uninvoiced": "未开票",
+    "settled": "已结清"
   },
   "room": {
     "available": "可售",

@@ -168,5 +168,36 @@
     "hours": "hours",
     "days": "days",
     "minutes": "minutes"
+  },
+  "charts": {
+    "loading": "Loading chart",
+    "emptyPeriod": "No data for this period",
+    "loadFailed": "Chart data failed to load"
+  },
+  "desktop": {
+    "upgradeTitle": "Database upgrade required",
+    "upgradeBody": "Your saved data was created with PostgreSQL {{fromVersion}}, but this version of the app ships PostgreSQL {{toVersion}}. The app cannot open the existing data directly and will not start until this is resolved.",
+    "restorePrompt": "Restore from backup taken {{date}}? Changes made after that date will be lost. Your existing data directory is kept (renamed aside), not deleted.",
+    "noBackup": "No automatic backup is available, so the app cannot upgrade safely. To recover, install a desktop build matching PostgreSQL {{fromVersion}} to read the existing data, or migrate the data directory manually with pg_upgrade. Your existing data has been left untouched.",
+    "upgrading": "Upgrading database. This may take a few minutes; do not close the app.",
+    "openDataFolder": "Open data folder",
+    "retryNoUpgrade": "Retry without upgrading",
+    "restoreBackup": "Restore from backup",
+    "starting": "Starting desktop services",
+    "unavailable": "Desktop services are unavailable",
+    "waitingAddress": "Waiting for the local API address",
+    "dataFolder": "Data folder: {{path}}",
+    "restartServices": "Restart services",
+    "versionOlder": "an older version",
+    "versionCurrent": "the current version",
+    "errors": {
+      "statusRead": "Unable to read desktop service status",
+      "backendStopped": "Backend service stopped",
+      "backendStoppedCode": "Backend service stopped with code {{code}}",
+      "subscribeFailed": "Unable to subscribe to desktop service events",
+      "restartFailed": "Unable to restart backend service",
+      "upgradeFailed": "Database upgrade failed",
+      "openFolderFailed": "Unable to open data folder"
+    }
   }
 }
