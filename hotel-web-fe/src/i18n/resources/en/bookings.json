@@ -7,7 +7,11 @@
     "retry": "Retry",
     "bookingNotFound": "Booking not found",
     "workflowLoadFailed": "Failed to load booking workflow",
-    "checkoutSuccess": "Guest checked out successfully!"
+    "checkoutSuccess": "Guest checked out successfully!",
+    "loadFailed": "Failed to load booking",
+    "backToBookings": "Back to bookings",
+    "bookingNotFoundHint": "This booking may have been removed, or you may not have permission to view it.",
+    "kicker": "Booking"
   },
   "filters": {
     "searchPlaceholder": "Search booking, guest, invoice, or room number...",
@@ -114,6 +118,16 @@
     "roomFallback": "Room",
     "roomNumber": "Room {{number}}",
     "nightsAbbrev": "{{count}}N"
+  },
+  "drawer": {
+    "aria": "Booking details",
+    "unavailable": "Booking details unavailable."
+  },
+  "quickEdit": {
+    "title": "Quick edit",
+    "checkOutDate": "Check-Out Date",
+    "remarks": "Remarks",
+    "saveChanges": "Save changes"
   },
   "labels": {
     "guest": "Guest:",
@@ -405,6 +419,7 @@
       "cardNumber": "Card Number",
       "expireDate": "Expire Date",
       "expireFormat": "Format: MM/YY",
+      "expirePlaceholder": "MM/YY",
       "nameOnCard": "Name on Card",
       "showCardNumber": "Show card number",
       "hideCardNumber": "Hide card number",

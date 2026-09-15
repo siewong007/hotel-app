@@ -7,7 +7,11 @@
     "retry": "Cuba semula",
     "bookingNotFound": "Tempahan tidak dijumpai",
     "workflowLoadFailed": "Gagal memuatkan aliran kerja tempahan",
-    "checkoutSuccess": "Tetamu telah selesai daftar keluar!"
+    "checkoutSuccess": "Tetamu telah selesai daftar keluar!",
+    "loadFailed": "Gagal memuatkan tempahan",
+    "backToBookings": "Kembali ke tempahan",
+    "bookingNotFoundHint": "Tempahan ini mungkin telah dialih keluar, atau anda mungkin tidak mempunyai kebenaran untuk melihatnya.",
+    "kicker": "Tempahan"
   },
   "filters": {
     "searchPlaceholder": "Cari tempahan, tetamu, invois atau nombor bilik...",
@@ -113,6 +117,16 @@
     "roomFallback": "Bilik",
     "roomNumber": "Bilik {{number}}",
     "nightsAbbrev": "{{count}} mlm"
+  },
+  "drawer": {
+    "aria": "Butiran tempahan",
+    "unavailable": "Butiran tempahan tidak tersedia."
+  },
+  "quickEdit": {
+    "title": "Suntingan pantas",
+    "checkOutDate": "Tarikh Daftar Keluar",
+    "remarks": "Ulasan",
+    "saveChanges": "Simpan perubahan"
   },
   "labels": {
     "guest": "Tetamu:",
@@ -404,6 +418,7 @@
       "cardNumber": "Nombor Kad",
       "expireDate": "Tarikh Luput",
       "expireFormat": "Format: BB/TT",
+      "expirePlaceholder": "BB/TT",
       "nameOnCard": "Nama pada Kad",
       "showCardNumber": "Tunjuk nombor kad",
       "hideCardNumber": "Sembunyi nombor kad",

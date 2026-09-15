@@ -7,7 +7,11 @@
     "retry": "重试",
     "bookingNotFound": "未找到预订",
     "workflowLoadFailed": "加载预订工作流失败",
-    "checkoutSuccess": "客人已成功退房！"
+    "checkoutSuccess": "客人已成功退房！",
+    "loadFailed": "加载预订失败",
+    "backToBookings": "返回预订列表",
+    "bookingNotFoundHint": "该预订可能已被删除，或者您没有查看权限。",
+    "kicker": "预订"
   },
   "filters": {
     "searchPlaceholder": "搜索预订、客人、发票或房号…",
@@ -113,6 +117,16 @@
     "roomFallback": "客房",
     "roomNumber": "客房 {{number}}",
     "nightsAbbrev": "{{count}} 晚"
+  },
+  "drawer": {
+    "aria": "预订详情",
+    "unavailable": "预订详情不可用。"
+  },
+  "quickEdit": {
+    "title": "快速编辑",
+    "checkOutDate": "退房日期",
+    "remarks": "备注",
+    "saveChanges": "保存更改"
   },
   "labels": {
     "guest": "客人：",
@@ -404,6 +418,7 @@
       "cardNumber": "卡号",
       "expireDate": "有效期",
       "expireFormat": "格式：MM/YY",
+      "expirePlaceholder": "MM/YY",
       "nameOnCard": "持卡人姓名",
       "showCardNumber": "显示卡号",
       "hideCardNumber": "隐藏卡号",

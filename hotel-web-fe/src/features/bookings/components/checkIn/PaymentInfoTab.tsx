@@ -240,7 +240,7 @@ export function PaymentInfoTab({
                   <TextField
                     fullWidth
                     label={t('checkInForm.payment.expireDate')}
-                    placeholder="MM/YY"
+                    placeholder={t('checkInForm.payment.expirePlaceholder')}
                     value={cardExpiry}
                     onChange={(e) => {
                       setCardExpiry(e.target.value);

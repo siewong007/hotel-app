@@ -693,11 +693,11 @@ function BookingDetailsDialog({
         {!booking.can_cancel ? (
           <Box sx={{ mt: 1.5 }}>
             {booking.cancellation_pending ? (
-              <Chip label="Cancellation under review" color="warning" size="small" />
+              <Chip label={t("dashboard.bookings.cancellationPending")} color="warning" size="small" />
             ) : (
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
                 {booking.cancellation_unavailable_reason ??
-                  "This booking cannot be cancelled online."}
+                  t("dashboard.bookings.cancellationUnavailableFallback")}
               </Typography>
             )}
           </Box>

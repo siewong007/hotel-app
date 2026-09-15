@@ -32,6 +32,7 @@ interface BookingDetailPageProps {
  */
 const BookingDetailPage: React.FC<BookingDetailPageProps> = ({ bookingId }) => {
   const { hasPermission } = useAuth();
+  const { t } = useTranslation('bookings');
   const { t: tNav } = useTranslation('nav');
   const navigate = useNavigate();
   const isAdmin = hasPermission('bookings:update') || hasPermission('bookings:manage');
@@ -88,21 +89,21 @@ const BookingDetailPage: React.FC<BookingDetailPageProps> = ({ bookingId }) => {
         </Box>
       ) : bookingQuery.error || !booking ? (
         <EmptyState
-          title="Booking not found"
+          title={t('page.bookingNotFound')}
           description={
-            getQueryErrorMessage(bookingQuery.error, 'Failed to load booking')
-            ?? 'This booking may have been removed, or you may not have permission to view it.'
+            getQueryErrorMessage(bookingQuery.error, t('page.loadFailed'))
+            ?? t('page.bookingNotFoundHint')
           }
           action={
             <Button variant="outlined" startIcon={<BackIcon />} onClick={backToList}>
-              Back to bookings
+              {t('page.backToBookings')}
             </Button>
           }
         />
       ) : (
         <>
           <PageHeader
-            kicker="Booking"
+            kicker={t('page.kicker')}
             title={booking.guest_name || bookingRef}
             subtitle={booking.guest_name ? bookingRef : undefined}
           />

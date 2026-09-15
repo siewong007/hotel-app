@@ -10,6 +10,7 @@ import {
   Typography,
 } from '@mui/material';
 import type { BookingWithDetails } from '../../../../types';
+import { useTranslation } from '../../../../i18n';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getErrorMessage } from '../../utils/bookingPageUtils';
 import { useBooking, useUpdateBooking } from '../../hooks/useBookingQueries';
@@ -53,6 +54,7 @@ const BookingQuickEditSection: React.FC<{
   onError: (message: string) => void;
   onCompleted: () => Promise<void> | void;
 }> = ({ booking, onError, onCompleted }) => {
+  const { t } = useTranslation('bookings');
   const updateBooking = useUpdateBooking();
   const [fields, setFields] = useState<QuickEditFields>(() => initialFields(booking));
   const [saving, setSaving] = useState(false);
@@ -69,10 +71,10 @@ const BookingQuickEditSection: React.FC<{
           special_requests: fields.special_requests,
         },
       });
-      emitApiNotification({ severity: 'success', message: 'Booking updated successfully!' });
+      emitApiNotification({ severity: 'success', message: t('edit.success') });
       await onCompleted();
     } catch (err: unknown) {
-      onError(getErrorMessage(err) || 'Failed to update booking');
+      onError(getErrorMessage(err) || t('edit.failed'));
     } finally {
       setSaving(false);
     }
@@ -81,14 +83,14 @@ const BookingQuickEditSection: React.FC<{
   return (
     <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>
-        Quick edit
+        {t('quickEdit.title')}
       </Typography>
       <Stack spacing={1.5} sx={{ mt: 1 }}>
         <Stack direction="row" spacing={1.5}>
           <TextField
             fullWidth
             size="small"
-            label="Check-In Date"
+            label={t('edit.checkInDate')}
             type="date"
             value={fields.check_in_date}
             onChange={(e) => setFields((prev) => ({ ...prev, check_in_date: e.target.value }))}
@@ -97,7 +99,7 @@ const BookingQuickEditSection: React.FC<{
           <TextField
             fullWidth
             size="small"
-            label="Check-Out Date"
+            label={t('quickEdit.checkOutDate')}
             type="date"
             value={fields.check_out_date}
             onChange={(e) => setFields((prev) => ({ ...prev, check_out_date: e.target.value }))}
@@ -107,7 +109,7 @@ const BookingQuickEditSection: React.FC<{
         <TextField
           fullWidth
           size="small"
-          label="Remarks"
+          label={t('quickEdit.remarks')}
           value={fields.remarks}
           onChange={(e) => setFields((prev) => ({ ...prev, remarks: e.target.value }))}
           slotProps={{ inputLabel: { shrink: true } }}
@@ -115,7 +117,7 @@ const BookingQuickEditSection: React.FC<{
         <TextField
           fullWidth
           size="small"
-          label="Special Requests"
+          label={t('edit.specialRequests')}
           value={fields.special_requests}
           onChange={(e) => setFields((prev) => ({ ...prev, special_requests: e.target.value }))}
           slotProps={{ inputLabel: { shrink: true } }}
@@ -128,7 +130,7 @@ const BookingQuickEditSection: React.FC<{
             disabled={saving}
             startIcon={saving ? <CircularProgress size={14} /> : undefined}
           >
-            {saving ? 'Saving…' : 'Save changes'}
+            {saving ? t('common:state.saving') : t('quickEdit.saveChanges')}
           </Button>
         </Box>
       </Stack>
@@ -152,6 +154,7 @@ const BookingDetailDrawer: React.FC<BookingDetailDrawerProps> = ({
   onCompleted,
   ...callbacks
 }) => {
+  const { t } = useTranslation('bookings');
   const bookingQuery = useBooking(bookingId, open);
   const booking = bookingQuery.data;
 
@@ -161,7 +164,7 @@ const BookingDetailDrawer: React.FC<BookingDetailDrawerProps> = ({
       open={open}
       onClose={onClose}
       slotProps={{ paper: { sx: { width: { xs: '100%', sm: 420 } } } }}
-      aria-label="Booking details"
+      aria-label={t('drawer.aria')}
     >
       {!bookingId ? null : bookingQuery.isPending ? (
         <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'center' }}>
@@ -169,7 +172,7 @@ const BookingDetailDrawer: React.FC<BookingDetailDrawerProps> = ({
         </Box>
       ) : bookingQuery.error || !booking ? (
         <Box sx={{ p: 2.5 }}>
-          <Alert severity="warning">Booking details unavailable.</Alert>
+          <Alert severity="warning">{t('drawer.unavailable')}</Alert>
         </Box>
       ) : (
         <BookingDetailsPanel

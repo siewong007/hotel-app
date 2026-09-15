@@ -6,6 +6,7 @@ import type {
   Room,
 } from '../../../types';
 import { useCheckoutFlow } from '../../invoices/hooks/useCheckoutFlow';
+import { useTranslation } from '../../../i18n';
 import { LedgerService } from '../../../api/ledger.service';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { isPositiveMoney } from '../../../utils/money';
@@ -63,6 +64,7 @@ export function useBookingActions({
   onError,
   onCompleted,
 }: UseBookingActionsOptions) {
+  const { t } = useTranslation('bookings');
   const updateBookingMutation = useUpdateBooking();
 
   const showSnackbar = (message: string) => {
@@ -75,7 +77,7 @@ export function useBookingActions({
     updateBooking: (bookingId, data) => updateBookingMutation.mutateAsync({ bookingId: String(bookingId), data }),
     setRoomDirty: false,
     onAfterCheckout: () => onCompleted(),
-    successMessage: () => 'Guest checked out successfully!',
+    successMessage: () => t('page.checkoutSuccess'),
     notify: (message) => showSnackbar(message),
   });
 
@@ -138,7 +140,7 @@ export function useBookingActions({
     const booking = bookings.find(b => String(b.id) === String(bookingId)) ||
       summaryBookings.find(b => String(b.id) === String(bookingId));
     if (!booking) {
-      onError('Booking not found');
+      onError(t('page.bookingNotFound'));
       return;
     }
     setCheckinBooking(booking);
@@ -187,7 +189,7 @@ export function useBookingActions({
       setWorkflowSummary(summary);
       setWorkflowTimeline(timeline);
     } catch (err: unknown) {
-      onError(getErrorMessage(err) || 'Failed to load booking workflow');
+      onError(getErrorMessage(err) || t('page.workflowLoadFailed'));
     } finally {
       setWorkflowLoading(false);
     }

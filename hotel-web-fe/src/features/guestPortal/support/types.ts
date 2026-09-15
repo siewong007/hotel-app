@@ -4,13 +4,15 @@
  * receive assignment, priority, escalation, or internal-note data.
  */
 
+// Category display names come from `support.categories.<value>` in the
+// guestPortal i18n bundle (see CATEGORY_KEYS in PortalSupportTab).
 export const PORTAL_SUPPORT_CATEGORIES = [
-  { value: 'booking', label: 'Booking or check-in' },
-  { value: 'stay', label: 'My stay or room' },
-  { value: 'billing', label: 'Billing or payment' },
-  { value: 'loyalty', label: 'Membership or rewards' },
-  { value: 'technical', label: 'Portal or technical issue' },
-  { value: 'other', label: 'Something else' },
+  { value: 'booking' },
+  { value: 'stay' },
+  { value: 'billing' },
+  { value: 'loyalty' },
+  { value: 'technical' },
+  { value: 'other' },
 ] as const;
 
 export type PortalSupportCategory = (typeof PORTAL_SUPPORT_CATEGORIES)[number]['value'];
