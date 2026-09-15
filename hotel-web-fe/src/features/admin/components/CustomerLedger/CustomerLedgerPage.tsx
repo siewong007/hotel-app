@@ -1585,7 +1585,7 @@ const CustomerLedgerPage: React.FC = () => {
               size="small"
               color="success"
               variant="outlined"
-              label={`${companies.length} ${companies.length === 1 ? 'account' : 'accounts'}`}
+              label={t('ledger.companiesCount', { count: companies.length })}
               sx={{ fontWeight: 700, height: 24 }}
             />
           </Box>
