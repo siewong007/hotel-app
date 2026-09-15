@@ -17,10 +17,15 @@ export interface LogoLoaderProps {
   label?: string;
   /** Entrance delay before the loader fades in — keeps sub-200ms waits from
    *  flashing. Defaults to 0 on fullScreen (nothing else is on screen) and
-   *  200 elsewhere. */
+   *  200 elsewhere. The delay is opacity-only: the status node is in the
+   *  a11y tree immediately, so a fast resolve can still announce "Loading"
+   *  for a loader that never painted. */
   delayMs?: number;
   /** Region floor for `page` (default 240px) and `overlay` (default 100%). */
   minHeight?: number | string;
+  /** Render the mark already settled — skip the draw-on entrance when an
+   *  identical static mark was already on screen (the #boot-splash handoff). */
+  skipEntrance?: boolean;
   /** Spacing tweaks for the outer container. */
   sx?: SxProps<Theme>;
 }
@@ -76,7 +81,7 @@ const MARK_SIZES: Record<LogoLoaderVariant, number> = {
 
 /**
  * The app's logo-based loading element. Use by surface size — never spinners:
- *   fullScreen — app boot / auth resolve (BootSplash, desktop service gate)
+ *   fullScreen — app boot / auth resolve (BootSplash)
  *   page       — a route or panel whose content is not yet loaded
  *   inline     — inside a card/section alongside other content
  *   overlay    — blocking wait over a positioned ancestor (scrim + mark)
@@ -90,30 +95,38 @@ const LogoLoader: React.FC<LogoLoaderProps> = ({
   label,
   delayMs,
   minHeight,
+  skipEntrance = false,
   sx,
 }) => {
   const { t } = useTranslation('common');
   const isFullScreen = variant === 'fullScreen';
   const effectiveDelay = delayMs ?? (isFullScreen ? 0 : 200);
   const markSize = size ?? MARK_SIZES[variant];
-  const hotelName = isFullScreen ? getHotelSettings().hotel_name.trim() : '';
+  // Stored settings are user-controlled JSON — a null/non-string hotel_name
+  // must degrade to '' rather than crash the loader into an ErrorBoundary.
+  const hotelName = isFullScreen ? String(getHotelSettings().hotel_name ?? '').trim() : '';
 
   const mark = (
     <Box
+      className="hotel-loader__mark"
       sx={{
         position: 'relative',
         width: markSize,
         height: markSize,
         flexShrink: 0,
-        animation: `${markSettle} 0.5s cubic-bezier(0.2, 0.6, 0.2, 1) both, ${breathe} 3.6s ease-in-out 1s infinite`,
-        '& .hotel-mark__roofline, & .hotel-mark__s, & .hotel-mark__baseline': {
-          strokeDasharray: 1,
-          strokeDashoffset: 1,
-          animation: `${drawStroke} 0.5s ease-out forwards`,
-        },
-        '& .hotel-mark__roofline': { animationDelay: '0.15s' },
-        '& .hotel-mark__s': { animationDelay: '0.35s', animationDuration: '0.6s' },
-        '& .hotel-mark__baseline': { animationDelay: '0.8s', animationDuration: '0.35s' },
+        animation: skipEntrance
+          ? `${breathe} 3.6s ease-in-out 1s infinite`
+          : `${markSettle} 0.5s cubic-bezier(0.2, 0.6, 0.2, 1) both, ${breathe} 3.6s ease-in-out 1s infinite`,
+        ...(!skipEntrance && {
+          '& .hotel-mark__roofline, & .hotel-mark__s, & .hotel-mark__baseline': {
+            strokeDasharray: 1,
+            strokeDashoffset: 1,
+            animation: `${drawStroke} 0.5s ease-out forwards`,
+          },
+          '& .hotel-mark__roofline': { animationDelay: '0.15s' },
+          '& .hotel-mark__s': { animationDelay: '0.35s', animationDuration: '0.6s' },
+          '& .hotel-mark__baseline': { animationDelay: '0.8s', animationDuration: '0.35s' },
+        }),
       }}
     >
       <BrandMark size={markSize} decorative />
@@ -151,6 +164,8 @@ const LogoLoader: React.FC<LogoLoaderProps> = ({
       px: 3,
       pt: 'var(--sat)',
       pb: 'var(--sab)',
+      pl: 'calc(24px + var(--sal))',
+      pr: 'calc(24px + var(--sar))',
     },
     page: {
       display: 'flex',
@@ -191,6 +206,7 @@ const LogoLoader: React.FC<LogoLoaderProps> = ({
         {
           '@media (prefers-reduced-motion: reduce)': {
             animation: 'none',
+            '& .hotel-loader__mark': { animation: 'none' },
             '& .hotel-mark__roofline, & .hotel-mark__s, & .hotel-mark__baseline': {
               animation: 'none',
               strokeDashoffset: 0,
@@ -218,7 +234,7 @@ const LogoLoader: React.FC<LogoLoaderProps> = ({
           {hotelName}
         </Typography>
       )}
-      {label !== undefined ? (
+      {label ? (
         <Typography
           variant="body2"
           sx={{

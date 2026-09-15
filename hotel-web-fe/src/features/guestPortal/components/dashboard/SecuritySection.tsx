@@ -5,7 +5,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -31,6 +30,7 @@ import PhonelinkLockOutlinedIcon from '@mui/icons-material/PhonelinkLockOutlined
 
 import { useAuth } from '../../../../auth/AuthContext';
 import { useConfirm } from '../../../../components/common/ConfirmProvider';
+import { LogoLoader } from '../../../../components';
 import type { PasskeyInfo } from '../../../../types';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { guestErrorMessage } from '../../utils/feedback';
@@ -860,12 +860,11 @@ export function SecuritySection() {
         <PasskeysCard twoFactorEnabled={enabled} />
 
         {statusQuery.isPending ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 4 }}>
-            <CircularProgress size={22} />
-            <Typography sx={{ color: 'text.secondary' }}>
-              {t('dashboard.security.loading')}
-            </Typography>
-          </Box>
+          <LogoLoader
+            variant="inline"
+            label={t('dashboard.security.loading')}
+            sx={{ py: 4 }}
+          />
         ) : statusQuery.isError ? (
           <ErrorState
             message={t('dashboard.security.loadFailed')}

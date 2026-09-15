@@ -38,8 +38,8 @@ The bundle also re-exports the MUI primitives you'll most often need for layout/
 - **`DataTable`** — TanStack-Table-backed table. Pass `data` (row objects) and `columns` (`{ accessorKey, header, cell? }[]`); `emptyMessage`, `enablePagination`, `pageSize`, `onRowClick` are optional.
 - **`TabPanel`** — pair with MUI `<Tabs>`; renders `children` only when `value === index`.
 - **`ModernDatePicker`** — controlled date field; `label`, `value` (`YYYY-MM-DD`), `onChange` required; supports `error`/`helperText`, `size`, `required`.
-- **`HotelSpinner`** — branded full-screen loader (`size` in px).
-- **`LoadingSpinner`** — inline loader; `variant="circular" | "dots"`, `size`, `color`.
+- **`BrandMark`** — the Salim Inn monogram as inline SVG; `size` in px, `decorative` hides it from assistive tech.
+- **`LogoLoader`** — logo-based loader; `variant="fullScreen" | "page" | "inline" | "overlay"`, optional `label`, `delayMs` anti-flash delay.
 
 ## Where the truth lives
 

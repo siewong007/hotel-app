@@ -5,7 +5,7 @@ import {
   IconButton,
   Stack,
   Tooltip,
-  CircularProgress,
+
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import type { Permission, Role } from '../../../../../types';

@@ -1,14 +1,18 @@
 import { Box, Skeleton } from '@mui/material';
 import { LogoLoader } from '../components';
 import { useTranslation } from '../i18n';
+import { bootSplashPresent } from '../utils/bootSplash';
 
 // Full-viewport boot screen shown while auth resolves, before any shell exists.
 // Deliberately NOT a page-shaped skeleton — a fake dashboard reads as a wrong
 // page flashing by on every refresh (the access token is in-memory only, so
 // every reload pays for the refresh round trip here). The brand mark carries
 // the wait; the static #boot-splash in index.html/guest.html fades into this
-// identical centered mark, so the pre-React → React handoff is invisible.
-export const BootSplash = () => <LogoLoader variant="fullScreen" />;
+// identical centered mark — skipEntrance renders it already settled so the
+// pre-React → React handoff is a plain crossfade, not a re-draw.
+export const BootSplash = () => (
+  <LogoLoader variant="fullScreen" skipEntrance={bootSplashPresent} />
+);
 
 export const LoadingFallback = () => {
   const { t } = useTranslation('common');

@@ -48,6 +48,7 @@ import { useGuestLoyaltySocket } from "../../hooks/useGuestLoyaltySocket";
 import { guestErrorMessage } from "../../utils/feedback";
 import { useTranslation } from "../../../../i18n";
 import { useAutoFocusError } from "../../../../hooks/useAutoFocusError";
+import { LogoLoader } from "../../../../components";
 import { PromotionCatalog, VoucherWallet } from "../../../promotions";
 import PortalNotificationPreferences from "../../../communications/components/PortalNotificationPreferences";
 import { AppearancePreferenceCard } from "./AppearancePreferenceCard";
@@ -101,22 +102,11 @@ const REFUND_REASON_KEYS: Record<(typeof REFUND_REASONS)[number], string> = {
 export function LoadingState({ label }: { label?: string }) {
   const { t } = useTranslation("guestPortal");
   return (
-    <Box
-      role="status"
-      aria-live="polite"
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 1.5,
-        py: 7,
-      }}
-    >
-      <CircularProgress size={22} />
-      <Typography sx={{
-        color: "text.secondary"
-      }}>{label ?? t("dashboard.loading")}</Typography>
-    </Box>
+    <LogoLoader
+      variant="inline"
+      label={label ?? t("dashboard.loading")}
+      sx={{ display: "flex", justifyContent: "center", py: 7 }}
+    />
   );
 }
 
