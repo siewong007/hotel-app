@@ -177,7 +177,14 @@
       "summaryRoom": "房间：{{number}}（{{type}}）",
       "summaryRate": "房价：{{amount}} / 晚",
       "summaryCompany": "公司：{{name}}",
-      "summaryDates": "日期：{{from}} 至 {{to}}"
+      "summaryDates": "日期：{{from}} 至 {{to}}",
+      "requireCompanyRoom": "请选择公司和房间",
+      "invalidRoomRate": "请输入有效的房价",
+      "requireGuestName": "请输入客人的名字和姓氏",
+      "requireIcNumber": "请输入客人的身份证/护照号码",
+      "invalidGuestEmail": "请输入客人的有效电子邮箱地址",
+      "requireGuest": "请选择或创建客人",
+      "roomNotFound": "未找到房间 ID，请选择其他房间。"
     },
     "invoice": {
       "title": "生成公司发票",
@@ -204,7 +211,10 @@
       "paymentTermsNote": "请在发票日期起 {{days}} 天内付款。",
       "generated": "本发票由计算机生成。",
       "preview": "预览发票",
-      "backToEdit": "返回编辑"
+      "backToEdit": "返回编辑",
+      "selectAllBillable": "全选可开票项目",
+      "deselectAll": "取消全选",
+      "selectEntryAria": "选择 {{description}}"
     },
     "payment": {
       "record": "记录付款",
@@ -264,7 +274,8 @@
       "reasonLabel": "作废原因（可选）",
       "reasonPlaceholder": "输入作废原因...",
       "voidEntry": "作废条目",
-      "voiding": "作废中..."
+      "voiding": "作废中...",
+      "defaultReason": "管理员作废"
     },
     "duplicateDialog": {
       "title": "发现可能重复的账本项目",
@@ -316,7 +327,11 @@
       "selectCompany": "请先选择公司",
       "pickEntry": "请选择要贷记的账本项目",
       "pickReason": "请选择贷记原因",
-      "creditNoteIssued": "贷记单已开具 — 冲销条目已入账。"
+      "creditNoteIssued": "贷记单已开具 — 冲销条目已入账。",
+      "entryUpdated": "账本项目更新成功！",
+      "entryAndRateUpdated": "账本项目及预订房价更新成功！",
+      "guestCheckedOut": "{{guest}} 已从 {{room}} 房退房",
+      "companyCheckedIn": "客人 {{guest}} 已入住 {{room}} 房（公司：{{company}}）"
     },
     "errors": {
       "registerCompany": "注册公司失败",
@@ -328,7 +343,32 @@
       "updatePaymentDate": "更新付款日期失败",
       "deletePayment": "删除付款失败",
       "loadInvoice": "加载发票失败",
-      "issueCreditNote": "开具贷记单失败"
+      "issueCreditNote": "开具贷记单失败",
+      "createEntry": "创建账本项目失败",
+      "updateEntry": "更新账本项目失败",
+      "voidEntry": "作废账本项目失败",
+      "companyCheckIn": "公司入住办理失败"
+    },
+    "netTermsShort": "账期 {{days}} 天",
+    "creditLimitShort": "限额 {{amount}}",
+    "print": {
+      "invoiceDocTitle": "发票 - {{number}}",
+      "invoiceFileName": "发票-{{number}}",
+      "termsDays": "{{days}} 天",
+      "statementDocTitle": "公司对账单 - {{company}}",
+      "statementTitle": "公司对账单",
+      "statementDate": "对账日期：",
+      "totalEntries": "条目总数",
+      "totalPaid": "已付总额",
+      "generatedOn": "生成于 {{date}}",
+      "appFooter": "{{hotel}} - 酒店管理系统",
+      "receiptDocTitle": "收据 - {{number}}",
+      "receiptTitle": "付款收据",
+      "receiptNumber": "收据 / 发票 #",
+      "dateCreated": "创建日期",
+      "checkInDate": "入住日期",
+      "checkOutDate": "退房日期",
+      "paidAmount": "已付金额"
     }
   }
 }

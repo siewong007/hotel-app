@@ -461,6 +461,9 @@
     }
   },
   "comp": {
+    "pageTitle": "Complimentary Management",
+    "tabBookings": "Complimentary Bookings ({{count}})",
+    "tabCredits": "Guest Credits ({{count}})",
     "editTitle": "Edit Complimentary Booking",
     "bookingLine": "Booking: {{number}} - {{guest}}",
     "startDate": "Complimentary Start Date",

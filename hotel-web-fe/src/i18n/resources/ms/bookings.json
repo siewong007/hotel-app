@@ -460,6 +460,9 @@
     }
   },
   "comp": {
+    "pageTitle": "Pengurusan Komplimentari",
+    "tabBookings": "Tempahan Komplimentari ({{count}})",
+    "tabCredits": "Kredit Tetamu ({{count}})",
     "editTitle": "Sunting Tempahan Komplimentari",
     "bookingLine": "Tempahan: {{number}} - {{guest}}",
     "startDate": "Tarikh Mula Komplimentari",

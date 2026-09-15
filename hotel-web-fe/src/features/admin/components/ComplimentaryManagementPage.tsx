@@ -16,6 +16,7 @@ import {
   CardGiftcard as GiftIcon,
 } from '@mui/icons-material';
 import { BookingsService, GuestsService, RoomsService } from '../../../api';
+import { useTranslation } from '../../../i18n';
 import { BookingWithDetails } from '../../../types';
 import { TabPanel } from '../../../components';
 import PageHeader from '../../../components/common/PageHeader';
@@ -39,6 +40,7 @@ import type {
 } from './complimentary/types';
 
 export default function ComplimentaryManagementPage() {
+  const { t } = useTranslation('bookings');
   const queryClient = useQueryClient();
 
   const complimentaryQuery = useQuery({
@@ -124,13 +126,13 @@ export default function ComplimentaryManagementPage() {
         title={
           <>
             <GiftIcon sx={{ mr: 1, fontSize: 28, verticalAlign: 'text-bottom' }} />
-            Complimentary Management
+            {t('comp.pageTitle')}
           </>
         }
         sx={{ mb: 3 }}
         actions={
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadData}>
-            Refresh
+            {t('common:actions.refresh')}
           </Button>
         }
       />
@@ -153,9 +155,9 @@ export default function ComplimentaryManagementPage() {
           scrollButtons="auto"
           allowScrollButtonsMobile
         >
-          <Tab label={`Complimentary Bookings (${bookings?.length || 0})`} />
+          <Tab label={t('comp.tabBookings', { count: bookings?.length || 0 })} />
           <Tab
-            label={`Guest Credits (${guestCredits?.length || 0})`}
+            label={t('comp.tabCredits', { count: guestCredits?.length || 0 })}
           />
         </Tabs>
       </Paper>

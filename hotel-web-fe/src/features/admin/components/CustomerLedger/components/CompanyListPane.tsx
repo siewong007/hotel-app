@@ -324,7 +324,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
                       fontVariantNumeric: 'tabular-nums',
                     }}
                   >
-	                    {isPositiveMoney(agg.due) ? formatCurrency(agg.due) : 'Settled'}
+	                    {isPositiveMoney(agg.due) ? formatCurrency(agg.due) : t('status:ledger.settled')}
                   </Typography>
                 </Box>
 	                {isPositiveMoney(agg.total) && (

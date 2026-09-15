@@ -37,6 +37,9 @@ import {
   AuditCategoryId,
 } from '../../../types/audit.types';
 import { getActionLabel, getResourceLabel } from '../../../types/audit.types';
+import { useTranslation } from '../../../i18n';
+import { dateFormatter, formatNumber } from '../../../i18n/format';
+import type { TranslationVars } from '../../../i18n';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import EmptyState from '../../../components/common/EmptyState';
 import {
@@ -79,8 +82,8 @@ const T = {
 
 interface CatDef {
   id: AuditCategoryId;
-  name: string;
-  sub: string;
+  nameKey: string;
+  subKey: string;
   Icon: typeof RoomIcon;
   acc: string;
   accDeep: string;
@@ -88,23 +91,23 @@ interface CatDef {
 }
 
 const CATEGORIES: CatDef[] = [
-  { id: 'rooms', name: 'Room Activity', sub: 'Inventory & status', Icon: RoomIcon, acc: T.emerald, accDeep: T.emerald, accSoft: T.emeraldSoft },
-  { id: 'guests', name: 'Guest Activity', sub: 'Profiles & KYC', Icon: GuestIcon, acc: T.blue, accDeep: T.blue, accSoft: T.blueSoft },
-  { id: 'bookings', name: 'Booking Activity', sub: 'Reservations & stays', Icon: BookingIcon, acc: T.violet, accDeep: T.violet, accSoft: T.violetSoft },
-  { id: 'system', name: 'System Configuration', sub: 'Settings & access', Icon: SystemIcon, acc: T.amber, accDeep: T.amber, accSoft: T.amberSoft },
-  { id: 'reports', name: 'Report Activity', sub: 'Exports & night audit', Icon: ReportIcon, acc: T.teal, accDeep: T.teal, accSoft: T.tealSoft },
+  { id: 'rooms', nameKey: 'audit.page.categories.rooms.name', subKey: 'audit.page.categories.rooms.sub', Icon: RoomIcon, acc: T.emerald, accDeep: T.emerald, accSoft: T.emeraldSoft },
+  { id: 'guests', nameKey: 'audit.page.categories.guests.name', subKey: 'audit.page.categories.guests.sub', Icon: GuestIcon, acc: T.blue, accDeep: T.blue, accSoft: T.blueSoft },
+  { id: 'bookings', nameKey: 'audit.page.categories.bookings.name', subKey: 'audit.page.categories.bookings.sub', Icon: BookingIcon, acc: T.violet, accDeep: T.violet, accSoft: T.violetSoft },
+  { id: 'system', nameKey: 'audit.page.categories.system.name', subKey: 'audit.page.categories.system.sub', Icon: SystemIcon, acc: T.amber, accDeep: T.amber, accSoft: T.amberSoft },
+  { id: 'reports', nameKey: 'audit.page.categories.reports.name', subKey: 'audit.page.categories.reports.sub', Icon: ReportIcon, acc: T.teal, accDeep: T.teal, accSoft: T.tealSoft },
 ];
 
 type Verb = 'create' | 'update' | 'delete' | 'view' | 'run' | 'export' | 'check';
 
-const VERB_LABEL: Record<Verb, string> = {
-  create: 'Created',
-  update: 'Updated',
-  delete: 'Deleted',
-  view: 'Viewed',
-  run: 'Ran',
-  export: 'Exported',
-  check: 'Checked',
+const VERB_LABEL_KEY: Record<Verb, string> = {
+  create: 'audit.page.verbs.create',
+  update: 'audit.page.verbs.update',
+  delete: 'audit.page.verbs.delete',
+  view: 'audit.page.verbs.view',
+  run: 'audit.page.verbs.run',
+  export: 'audit.page.verbs.export',
+  check: 'audit.page.verbs.check',
 };
 
 const VERB_STYLE: Record<Verb, { bg: string; fg: string }> = {
@@ -138,17 +141,18 @@ const fmtDate = (iso: string) => {
   const d = new Date(iso);
   return `${PAD(d.getDate())}/${PAD(d.getMonth() + 1)}/${d.getFullYear()}`;
 };
-function fmtDay(key: string): string {
+type TFn = (key: string, vars?: TranslationVars) => string;
+
+function fmtDay(key: string, t: TFn): string {
   const d = new Date(key + 'T00:00:00');
   const today = new Date();
   const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const td = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const diff = Math.round((td.getTime() - dd.getTime()) / 86400000);
-  const wk = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
-  const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
-  if (diff === 0) return `Today · ${wk} ${d.getDate()} ${mo}`;
-  if (diff === 1) return `Yesterday · ${wk} ${d.getDate()} ${mo}`;
-  return `${wk} ${d.getDate()} ${mo} ${d.getFullYear()}`;
+  const short = dateFormatter({ weekday: 'short', day: 'numeric', month: 'short' }).format(d);
+  if (diff === 0) return t('audit.page.dayToday', { date: short });
+  if (diff === 1) return t('audit.page.dayYesterday', { date: short });
+  return dateFormatter({ weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(d);
 }
 const initials = (nm: string) =>
   nm.split(/[\s._-]+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
@@ -295,9 +299,8 @@ function analyzeDetails(details: DetailRecord | null): { changes: ChangeRow[]; m
   return { changes, metadata };
 }
 
-const changeKindLabel = (hasChanges: boolean) => hasChanges ? 'Field changes' : 'Action only';
-
 const AuditLogPage: React.FC = () => {
+  const { t } = useTranslation('admin');
   const [activeCat, setActiveCat] = useState<AuditCategoryId>('rooms');
   const [verbFilter, setVerbFilter] = useState<Verb | 'all'>('all');
   const [searchInput, setSearchInput] = useState('');
@@ -382,8 +385,8 @@ const AuditLogPage: React.FC = () => {
 
   const hasDateRange = !!(query.start_date || query.end_date);
   const dateLabel = hasDateRange
-    ? `${shortStamp(query.start_date) || '…'} → ${shortStamp(query.end_date) || 'now'}`
-    : 'All dates';
+    ? `${shortStamp(query.start_date) || '…'} → ${shortStamp(query.end_date) || t('audit.page.rangeNow')}`
+    : t('audit.page.allDates');
 
   const openDateMenu = (e: React.MouseEvent<HTMLElement>) => {
     setDraftStart(query.start_date || '');
@@ -409,7 +412,7 @@ const AuditLogPage: React.FC = () => {
       await exportCsvMutation.mutateAsync({ ...query, category: activeCat });
     } catch (e) {
       console.error('CSV export failed:', e);
-      emitApiNotification({ message: errorMessage(e, 'Failed to export CSV'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(e, t('audit.page.exportCsvFailed')), severity: 'error' });
     }
   };
   const handleExportPDF = async () => {
@@ -417,7 +420,7 @@ const AuditLogPage: React.FC = () => {
       await exportPdfMutation.mutateAsync({ ...query, category: activeCat });
     } catch (e) {
       console.error('PDF export failed:', e);
-      emitApiNotification({ message: errorMessage(e, 'Failed to export PDF'), severity: 'error' });
+      emitApiNotification({ message: errorMessage(e, t('audit.page.exportPdfFailed')), severity: 'error' });
     }
   };
 
@@ -427,27 +430,27 @@ const AuditLogPage: React.FC = () => {
       <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap', mb: 2.25 }}>
         <Box>
           <Box sx={{ fontSize: 11.5, color: T.ink3, fontWeight: 500, display: 'flex', gap: 0.75, mb: 0.75 }}>
-            <span>Settings</span><span style={{ color: T.ink4 }}>/</span>
-            <span>Security</span><span style={{ color: T.ink4 }}>/</span>
-            <span style={{ color: T.ink2, fontWeight: 600 }}>Audit Log</span>
+            <span>{t('audit.page.breadcrumbSettings')}</span><span style={{ color: T.ink4 }}>/</span>
+            <span>{t('audit.page.breadcrumbSecurity')}</span><span style={{ color: T.ink4 }}>/</span>
+            <span style={{ color: T.ink2, fontWeight: 600 }}>{t('audit.page.title')}</span>
           </Box>
-          <Typography sx={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px' }}>Audit Log</Typography>
+          <Typography sx={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px' }}>{t('audit.page.title')}</Typography>
           <Typography sx={{ fontSize: 13, color: T.ink3, mt: 0.5 }}>
-            A chronological record of every action across the property — separated by activity stream.
+            {t('audit.page.subtitle')}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { auditLogsQuery.refetch(); countsQuery.refetch(); }} disabled={loading}
             sx={{ textTransform: 'none', borderColor: T.border, color: T.ink }}>
-            Refresh
+            {t('common:actions.refresh')}
           </Button>
           <Button variant="outlined" startIcon={<PdfIcon />} onClick={handleExportPDF} disabled={exporting || loading}
             sx={{ textTransform: 'none', borderColor: T.border, color: T.ink }}>
-            PDF
+            {t('audit.page.exportPdf')}
           </Button>
           <Button variant="contained" startIcon={<DownloadIcon />} onClick={handleExportCSV} disabled={exporting || loading}
             sx={{ textTransform: 'none', bgcolor: 'var(--hotel-primary)', '&:hover': { bgcolor: 'var(--hotel-primary-hover)' } }}>
-            Export
+            {t('common:actions.export')}
           </Button>
         </Box>
       </Box>
@@ -479,13 +482,13 @@ const AuditLogPage: React.FC = () => {
                   <cat.Icon sx={{ fontSize: 18 }} />
                 </Box>
                 <Box>
-                  <Box sx={{ fontSize: 12.5, fontWeight: 700, color: T.ink }}>{cat.name}</Box>
-                  <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 500 }}>{cat.sub}</Box>
+                  <Box sx={{ fontSize: 12.5, fontWeight: 700, color: T.ink }}>{t(cat.nameKey)}</Box>
+                  <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 500 }}>{t(cat.subKey)}</Box>
                 </Box>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                <Box sx={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{n}</Box>
-                <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' }}>events</Box>
+                <Box sx={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{formatNumber(n)}</Box>
+                <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' }}>{t('audit.page.events')}</Box>
               </Box>
               <Box sx={{ mt: 1.125, display: 'flex', alignItems: 'flex-end', gap: '2px', height: 22 }}>
                 {sparkBars(i).map((h, k) => (
@@ -502,7 +505,7 @@ const AuditLogPage: React.FC = () => {
           size="small"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Search this stream by user, target, code, or action…"
+          placeholder={t('audit.page.searchPlaceholder')}
           sx={{ flex: { xs: '1 1 100%', sm: 1 }, minWidth: { xs: 0, sm: 280 }, bgcolor: T.surface, '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
           slotProps={{
             input: { startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>) }
@@ -518,7 +521,7 @@ const AuditLogPage: React.FC = () => {
                   border: 'none', color: sel ? 'var(--hotel-bg)' : T.ink3, bgcolor: sel ? T.ink : 'transparent',
                   '&:hover': { color: sel ? 'var(--hotel-bg)' : T.ink },
                 }}>
-                {v === 'all' ? 'All actions' : VERB_LABEL[v as Verb]}
+                {v === 'all' ? t('audit.page.allActions') : t(VERB_LABEL_KEY[v as Verb])}
               </Box>
             );
           })}
@@ -543,14 +546,14 @@ const AuditLogPage: React.FC = () => {
           slotProps={{ paper: { sx: { p: 1.5, width: 300 } } }}
         >
           <Typography sx={{ fontSize: 11, fontWeight: 700, color: T.ink3, letterSpacing: '0.5px', textTransform: 'uppercase', mb: 1 }}>
-            Filter by timestamp
+            {t('audit.page.filterByTimestamp')}
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
             {[
-              { lb: 'Today', fn: applyToday },
-              { lb: 'Last 7 days', fn: () => applyPreset(7) },
-              { lb: 'Last 30 days', fn: () => applyPreset(30) },
-              { lb: 'All time', fn: () => applyRange(undefined, undefined) },
+              { lb: t('common:time.today'), fn: applyToday },
+              { lb: t('audit.page.lastDays', { count: 7 }), fn: () => applyPreset(7) },
+              { lb: t('audit.page.lastDays', { count: 30 }), fn: () => applyPreset(30) },
+              { lb: t('audit.page.allTime'), fn: () => applyRange(undefined, undefined) },
             ].map((p) => (
               <Box key={p.lb} component="button" onClick={p.fn}
                 sx={{ px: 1, py: 0.5, fontSize: 11.5, fontWeight: 600, borderRadius: '7px', cursor: 'pointer', border: `1px solid ${T.border}`, bgcolor: T.surface, color: T.ink2, '&:hover': { borderColor: T.borderHi, color: T.ink } }}>
@@ -560,14 +563,14 @@ const AuditLogPage: React.FC = () => {
           </Box>
           <Divider sx={{ mb: 1.5 }} />
           <TextField
-            size="small" fullWidth type="datetime-local" label="From"
+            size="small" fullWidth type="datetime-local" label={t('common:field.from')}
             value={draftStart} onChange={(e) => setDraftStart(e.target.value)}
             sx={{ mb: 1.25 }} slotProps={{
             inputLabel: { shrink: true }
           }}
           />
           <TextField
-            size="small" fullWidth type="datetime-local" label="To"
+            size="small" fullWidth type="datetime-local" label={t('common:field.to')}
             value={draftEnd} onChange={(e) => setDraftEnd(e.target.value)}
             sx={{ mb: 1.5 }} slotProps={{
             inputLabel: { shrink: true }
@@ -575,14 +578,14 @@ const AuditLogPage: React.FC = () => {
           />
           <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
             <Button size="small" onClick={() => applyRange(undefined, undefined)} sx={{ textTransform: 'none', color: T.ink2 }}>
-              Clear
+              {t('common:actions.clear')}
             </Button>
             <Button
               size="small" variant="contained"
               onClick={() => applyRange(draftStart || undefined, draftEnd || undefined)}
               sx={{ textTransform: 'none', bgcolor: 'var(--hotel-primary)', '&:hover': { bgcolor: 'var(--hotel-primary-hover)' } }}
             >
-              Apply
+              {t('common:actions.apply')}
             </Button>
           </Box>
         </Menu>
@@ -594,9 +597,9 @@ const AuditLogPage: React.FC = () => {
             <activeDef.Icon sx={{ fontSize: 20 }} />
           </Box>
           <Box>
-            <Box sx={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.2px' }}>{activeDef.name}</Box>
+            <Box sx={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.2px' }}>{t(activeDef.nameKey)}</Box>
             <Box sx={{ fontSize: 11.5, color: T.ink3, mt: '2px', fontWeight: 500 }}>
-              Showing {pageRows.length} of {total} events · Newest first
+              {t('audit.page.showingEvents', { shown: pageRows.length, total })}
             </Box>
           </Box>
         </Box>
@@ -608,16 +611,16 @@ const AuditLogPage: React.FC = () => {
         ) : grouped.length === 0 ? (
           <EmptyState
             icon={<InboxIcon />}
-            title="No events match your filters"
-            description="Try a different stream, widen the date range, or clear the search."
+            title={t('audit.page.emptyTitle')}
+            description={t('audit.page.emptyDescription')}
           />
         ) : (
           grouped.map(([day, rows]) => (
             <React.Fragment key={day}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: '10px 18px', bgcolor: T.surface2, borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.ink3, letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                 <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: T.ink4 }} />
-                <span>{fmtDay(day)}</span>
-                <Box sx={{ ml: 'auto', color: T.ink3, fontWeight: 600 }}>{rows.length} event{rows.length === 1 ? '' : 's'}</Box>
+                <span>{fmtDay(day, t)}</span>
+                <Box sx={{ ml: 'auto', color: T.ink3, fontWeight: 600 }}>{t('audit.page.eventsCount', { count: rows.length })}</Box>
               </Box>
               {rows.map((r) => {
                 const verb = deriveVerb(r.action);
@@ -630,9 +633,9 @@ const AuditLogPage: React.FC = () => {
                 const hasFieldChanges = r.has_changes ?? detailAnalysis.changes.length > 0;
                 const changeSummary = hasFieldChanges
                   ? detailAnalysis.changes.length > 0
-                    ? `${detailAnalysis.changes.length} field change${detailAnalysis.changes.length === 1 ? '' : 's'}`
-                    : changeKindLabel(true)
-                  : changeKindLabel(false);
+                    ? t('audit.page.fieldChanges', { count: detailAnalysis.changes.length })
+                    : t('audit.export.fieldChanges')
+                  : t('audit.export.actionOnly');
                 return (
                   <Box key={r.id}>
                     <Box
@@ -668,13 +671,13 @@ const AuditLogPage: React.FC = () => {
                           {isSys ? <CronIcon sx={{ fontSize: 14 }} /> : initials(r.username || 'NA')}
                         </Box>
                         <Box sx={{ minWidth: 0 }}>
-                          <Box sx={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.username || 'System'}</Box>
-                          <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 500 }}>{isSys ? 'Automated' : `User #${r.user_id}`}</Box>
+                          <Box sx={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.username || t('audit.export.systemUser')}</Box>
+                          <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 500 }}>{isSys ? t('audit.page.automated') : t('audit.page.userNumber', { id: r.user_id })}</Box>
                         </Box>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, minWidth: 0 }}>
                         <Box sx={{ display: 'inline-flex', alignItems: 'center', fontSize: 11.5, fontWeight: 700, px: 1, py: '3px', borderRadius: '6px', whiteSpace: 'nowrap', flexShrink: 0, bgcolor: vs.bg, color: vs.fg }}>
-                          {VERB_LABEL[verb]}
+                          {t(VERB_LABEL_KEY[verb])}
                         </Box>
                         {/* `overflowWrap: anywhere` so a long resource label or
                             the inline #id pill breaks instead of running past
@@ -683,10 +686,10 @@ const AuditLogPage: React.FC = () => {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, flexWrap: 'wrap' }}>
                             <Box component="span" sx={{ fontWeight: 600 }}>{actionLabel}</Box>
                             {!hasFieldChanges && (
-                              <Tooltip title="Action trigger recorded without field-level before/after changes.">
+                              <Tooltip title={t('audit.page.actionOnlyTooltip')}>
                                 <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.35, fontSize: 10.5, fontWeight: 700, color: 'var(--hotel-warning)', bgcolor: 'var(--hotel-warning-bg)', border: '1px solid var(--hotel-warning-border)', px: 0.65, py: '1px', borderRadius: '999px', lineHeight: 1.4 }}>
                                   <ActionOnlyIcon sx={{ fontSize: 12 }} />
-                                  Action only
+                                  {t('audit.export.actionOnly')}
                                 </Box>
                               </Tooltip>
                             )}
@@ -707,7 +710,7 @@ const AuditLogPage: React.FC = () => {
                         {r.ip_address || '—'}
                         <Tooltip title={r.user_agent || ''}>
                           <Box sx={{ color: T.ink3, fontSize: 10, fontWeight: 500, mt: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {r.user_agent ? r.user_agent.slice(0, 22) : 'Server'}
+                            {r.user_agent ? r.user_agent.slice(0, 22) : t('audit.page.server')}
                           </Box>
                         </Tooltip>
                       </Box>
@@ -715,19 +718,19 @@ const AuditLogPage: React.FC = () => {
                     <Collapse in={open} unmountOnExit>
                       <Box sx={{ p: '14px 18px 16px 48px', bgcolor: T.surface, borderBottom: `1px solid ${T.border}`, borderTop: `1px dashed ${T.border}`, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
                         <Box>
-                          <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>Event details</Box>
+                          <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>{t('audit.page.eventDetails')}</Box>
                           <Box sx={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '6px 12px', fontSize: 12.5 }}>
-                            <Box sx={{ color: T.ink3 }}>Event ID</Box><Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>#{r.id}</Box>
-                            <Box sx={{ color: T.ink3 }}>Timestamp</Box><Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>{fmtDate(r.created_at)} · {fmtTime(r.created_at)}</Box>
-                            <Box sx={{ color: T.ink3 }}>Actor</Box><Box sx={{ fontWeight: 600 }}>{r.username || 'System'} <Box component="span" sx={{ color: T.ink3, fontWeight: 500 }}>{r.user_id != null ? `(#${r.user_id})` : '(automated)'}</Box></Box>
-                            <Box sx={{ color: T.ink3 }}>Stream</Box><Box sx={{ fontWeight: 600, textTransform: 'capitalize' }}>{r.category || activeCat}</Box>
-                            <Box sx={{ color: T.ink3 }}>IP</Box><Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>{r.ip_address || '—'}</Box>
-                            <Box sx={{ color: T.ink3 }}>Source</Box><Box sx={{ fontWeight: 600, wordBreak: 'break-word' }}>{r.user_agent || 'Server'}</Box>
-                            <Box sx={{ color: T.ink3 }}>Resource</Box><Box sx={{ fontWeight: 600 }}>{resLabel}{r.resource_id != null ? ` #${r.resource_id}` : ''}</Box>
+                            <Box sx={{ color: T.ink3 }}>{t('audit.page.eventId')}</Box><Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>#{r.id}</Box>
+                            <Box sx={{ color: T.ink3 }}>{t('audit.export.col.timestamp')}</Box><Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>{fmtDate(r.created_at)} · {fmtTime(r.created_at)}</Box>
+                            <Box sx={{ color: T.ink3 }}>{t('audit.page.actor')}</Box><Box sx={{ fontWeight: 600 }}>{r.username || t('audit.export.systemUser')} <Box component="span" sx={{ color: T.ink3, fontWeight: 500 }}>{r.user_id != null ? `(#${r.user_id})` : t('audit.page.automatedTag')}</Box></Box>
+                            <Box sx={{ color: T.ink3 }}>{t('audit.export.col.stream')}</Box><Box sx={{ fontWeight: 600, textTransform: 'capitalize' }}>{r.category || activeCat}</Box>
+                            <Box sx={{ color: T.ink3 }}>{t('audit.export.col.ip')}</Box><Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>{r.ip_address || '—'}</Box>
+                            <Box sx={{ color: T.ink3 }}>{t('audit.page.source')}</Box><Box sx={{ fontWeight: 600, wordBreak: 'break-word' }}>{r.user_agent || t('audit.page.server')}</Box>
+                            <Box sx={{ color: T.ink3 }}>{t('audit.export.col.resource')}</Box><Box sx={{ fontWeight: 600 }}>{resLabel}{r.resource_id != null ? ` #${r.resource_id}` : ''}</Box>
                           </Box>
                         </Box>
                         <Box>
-                          <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>Field changes</Box>
+                          <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>{t('audit.export.fieldChanges')}</Box>
                           {detailAnalysis.changes.length > 0 ? (
                             <Box sx={{ bgcolor: T.surface2, border: `1px solid ${T.border}`, borderRadius: '9px', overflow: 'hidden', fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5 }}>
                               {detailAnalysis.changes.map((d, i) => (
@@ -741,12 +744,12 @@ const AuditLogPage: React.FC = () => {
                           ) : (
                             <Box sx={{ fontSize: 12, color: T.ink3, p: '10px 12px', bgcolor: T.surface2, border: `1px solid ${T.border}`, borderRadius: '9px', display: 'flex', gap: 0.75, alignItems: 'center' }}>
                               <ActionOnlyIcon sx={{ fontSize: 16, color: 'var(--hotel-warning)' }} />
-                              Action-only event — no field-level changes were captured.
+                              {t('audit.page.actionOnlyDetail')}
                             </Box>
                           )}
                           {detailAnalysis.metadata.length > 0 && (
                             <Box sx={{ mt: 1.5 }}>
-                              <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>Recorded metadata</Box>
+                              <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>{t('audit.page.recordedMetadata')}</Box>
                               <Box sx={{ bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '9px', overflow: 'hidden', fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5 }}>
                                 {detailAnalysis.metadata.map((d, i) => (
                                   <Box key={d.k} sx={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 1.25, p: '6px 10px', borderBottom: i < detailAnalysis.metadata.length - 1 ? `1px solid ${T.border}` : 'none' }}>
@@ -770,10 +773,12 @@ const AuditLogPage: React.FC = () => {
         {/* Footer / pagination */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: '12px 18px', bgcolor: T.surface2, borderTop: `1px solid ${T.border}`, fontSize: 12, color: T.ink3, fontWeight: 500, flexWrap: 'wrap' }}>
           <span>
-            {total === 0 ? 'No events' : `Showing ${(curPage - 1) * pageSize + 1}–${Math.min(curPage * pageSize, total)} of ${total}`}
+            {total === 0
+              ? t('audit.page.noEvents')
+              : t('common:pagination.showing', { from: (curPage - 1) * pageSize + 1, to: Math.min(curPage * pageSize, total), total })}
           </span>
           <Box sx={{ flex: 1 }} />
-          <span>Rows per page</span>
+          <span>{t('common:pagination.rowsPerPage')}</span>
           <Select
             size="small"
             value={pageSize}
@@ -783,9 +788,9 @@ const AuditLogPage: React.FC = () => {
             {[25, 50, 100].map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
           </Select>
           <Box sx={{ display: 'inline-flex', gap: '2px', ml: 1.5 }}>
-            <IconButton size="small" disabled={curPage <= 1} onClick={() => setQuery((p) => ({ ...p, page: curPage - 1 }))} aria-label="Previous page">‹</IconButton>
-            <Box sx={{ minWidth: 28, height: 28, borderRadius: '7px', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, bgcolor: T.ink, color: 'var(--hotel-bg)' }}>{curPage}</Box>
-            <IconButton size="small" disabled={curPage >= totalPages} onClick={() => setQuery((p) => ({ ...p, page: curPage + 1 }))} aria-label="Next page">›</IconButton>
+            <IconButton size="small" disabled={curPage <= 1} onClick={() => setQuery((p) => ({ ...p, page: curPage - 1 }))} aria-label={t('common:pagination.previous')}>‹</IconButton>
+            <Box sx={{ minWidth: 28, height: 28, borderRadius: '7px', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, bgcolor: T.ink, color: 'var(--hotel-bg)' }}>{formatNumber(curPage)}</Box>
+            <IconButton size="small" disabled={curPage >= totalPages} onClick={() => setQuery((p) => ({ ...p, page: curPage + 1 }))} aria-label={t('common:pagination.next')}>›</IconButton>
           </Box>
         </Box>
       </Box>

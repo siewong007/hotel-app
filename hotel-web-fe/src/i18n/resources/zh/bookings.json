@@ -460,6 +460,9 @@
     }
   },
   "comp": {
+    "pageTitle": "免费预订管理",
+    "tabBookings": "免费预订（{{count}}）",
+    "tabCredits": "客人免费房晚（{{count}}）",
     "editTitle": "编辑免费预订",
     "bookingLine": "预订：{{number}} - {{guest}}",
     "startDate": "免费开始日期",

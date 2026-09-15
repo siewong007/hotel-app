@@ -230,7 +230,7 @@ const CustomerLedgerPage: React.FC = () => {
       await loadData();
       await loadAllCompanyBookings();
     },
-    successMessage: (b) => `${b.guest_name} checked out from Room ${b.room_number}`,
+    successMessage: (b) => t('ledger.toast.guestCheckedOut', { guest: b.guest_name, room: b.room_number }),
     notify: (message, severity) => showSnackbar(message, severity as ApiNotificationSeverity),
   });
 
@@ -608,7 +608,7 @@ const CustomerLedgerPage: React.FC = () => {
   // Handle update company
   const handleUpdateCompany = async () => {
     if (!editingCompany || !companyEditForm.company_name.trim()) {
-      showSnackbar('Company name is required', 'warning');
+      showSnackbar(t('ledger.toast.companyNameRequired'), 'warning');
       return;
     }
 
@@ -1032,7 +1032,7 @@ const CustomerLedgerPage: React.FC = () => {
       resetCreateForm();
       await loadData();
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to create ledger entry');
+      setError(err instanceof Error && err.message ? err.message : t('ledger.errors.createEntry'));
     } finally {
       setCreating(false);
     }
@@ -1111,15 +1111,15 @@ const CustomerLedgerPage: React.FC = () => {
       }
       await LedgerService.updateCustomerLedger(editingLedger.id, editFormData);
       showSnackbar(bookingRoomRateOverride !== undefined
-        ? 'Ledger entry and booking rate updated successfully!'
-        : 'Ledger entry updated successfully!');
+        ? t('ledger.toast.entryAndRateUpdated')
+        : t('ledger.toast.entryUpdated'));
       setEditDialogOpen(false);
       setEditingLedger(null);
       setEditBookingRoomRate('');
       await loadData();
       await loadAllCompanyBookings();
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to update ledger entry');
+      setError(err instanceof Error && err.message ? err.message : t('ledger.errors.updateEntry'));
     } finally {
       setUpdating(false);
     }
@@ -1184,7 +1184,7 @@ const CustomerLedgerPage: React.FC = () => {
           payments = await LedgerService.getLedgerPayments(paymentLedger.id);
         } catch (error) {
           console.error('Failed to verify receipt number:', error);
-          showSnackbar('Unable to verify receipt number. Please try again.', 'error');
+          showSnackbar(t('ledger.errors.verifyReceipt'), 'error');
           return;
         }
 
@@ -1192,7 +1192,7 @@ const CustomerLedgerPage: React.FC = () => {
           payment => normalizeReceiptNumber(payment.receipt_number) === receiptNumber,
         );
         if (receiptExists) {
-          showSnackbar('Receipt number already exists', 'warning');
+          showSnackbar(t('ledger.toast.receiptExists'), 'warning');
           return;
         }
       }
@@ -1240,7 +1240,7 @@ const CustomerLedgerPage: React.FC = () => {
       // replays server-side instead.
       ledgerPaymentAttemptRef.current = null;
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to record payment');
+      setError(err instanceof Error && err.message ? err.message : t('ledger.errors.recordPayment'));
     } finally {
       setProcessingPayment(false);
     }
@@ -1310,7 +1310,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setVoiding(true);
       await LedgerService.voidLedger(voidingLedger.id, {
-        reason: voidReason || 'Voided by admin',
+        reason: voidReason || t('ledger.voidDialog.defaultReason'),
       });
       showSnackbar(t('ledger.toast.entryVoided'));
       setVoidDialogOpen(false);
@@ -1318,7 +1318,7 @@ const CustomerLedgerPage: React.FC = () => {
       setVoidReason('');
       await loadData();
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Failed to void ledger entry');
+      setError(err instanceof Error && err.message ? err.message : t('ledger.errors.voidEntry'));
     } finally {
       setVoiding(false);
     }

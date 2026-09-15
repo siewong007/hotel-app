@@ -243,8 +243,8 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                   disabled={eligibleInvoiceCount === 0}
                 >
                   {eligibleInvoiceCount > 0 && selectedInvoiceLedgers.length === eligibleInvoiceCount
-                    ? 'Deselect all'
-                    : 'Select all billable'}
+                    ? t('ledger.invoice.deselectAll')
+                    : t('ledger.invoice.selectAllBillable')}
                 </Button>
               </Box>
               <Typography
@@ -296,7 +296,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                                   onClick={(event) => event.stopPropagation()}
                                   onKeyDown={(event) => event.stopPropagation()}
                                   onChange={() => onToggleLedgerSelection(ledger.id)}
-                                  slotProps={{ input: { 'aria-label': `Select ${ledger.description}` } }}
+                                  slotProps={{ input: { 'aria-label': t('ledger.invoice.selectEntryAria', { description: ledger.description }) } }}
                                 />
                               </Stack>
                             }

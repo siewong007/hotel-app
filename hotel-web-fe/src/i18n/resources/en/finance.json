@@ -183,7 +183,14 @@
       "summaryRoom": "Room: {{number}} ({{type}})",
       "summaryRate": "Rate: {{amount}} / night",
       "summaryCompany": "Company: {{name}}",
-      "summaryDates": "Dates: {{from}} to {{to}}"
+      "summaryDates": "Dates: {{from}} to {{to}}",
+      "requireCompanyRoom": "Please select a company and room",
+      "invalidRoomRate": "Please enter a valid room rate",
+      "requireGuestName": "Please enter guest first and last name",
+      "requireIcNumber": "Please enter IC/Passport number for the guest",
+      "invalidGuestEmail": "Please enter a valid email address for the guest",
+      "requireGuest": "Please select or create a guest",
+      "roomNotFound": "Room ID not found. Please select a different room."
     },
     "invoice": {
       "title": "Generate Company Invoice",
@@ -210,7 +217,10 @@
       "paymentTermsNote": "Please make payment within {{days}} days of invoice date.",
       "generated": "This is a computer-generated invoice.",
       "preview": "Preview Invoice",
-      "backToEdit": "Back to Edit"
+      "backToEdit": "Back to Edit",
+      "selectAllBillable": "Select all billable",
+      "deselectAll": "Deselect all",
+      "selectEntryAria": "Select {{description}}"
     },
     "payment": {
       "record": "Record Payment",
@@ -271,7 +281,8 @@
       "reasonLabel": "Void Reason (Optional)",
       "reasonPlaceholder": "Enter reason for voiding...",
       "voidEntry": "Void Entry",
-      "voiding": "Voiding..."
+      "voiding": "Voiding...",
+      "defaultReason": "Voided by admin"
     },
     "duplicateDialog": {
       "title": "Possible duplicate ledger entry found",
@@ -323,7 +334,11 @@
       "selectCompany": "Select a company first",
       "pickEntry": "Pick a ledger entry to credit",
       "pickReason": "Pick a credit reason",
-      "creditNoteIssued": "Credit note issued — reversal entry posted."
+      "creditNoteIssued": "Credit note issued — reversal entry posted.",
+      "entryUpdated": "Ledger entry updated successfully!",
+      "entryAndRateUpdated": "Ledger entry and booking rate updated successfully!",
+      "guestCheckedOut": "{{guest}} checked out from Room {{room}}",
+      "companyCheckedIn": "Guest {{guest}} checked in to Room {{room}} (Company: {{company}})"
     },
     "errors": {
       "registerCompany": "Failed to register company",
@@ -335,7 +350,32 @@
       "updatePaymentDate": "Failed to update payment date",
       "deletePayment": "Failed to delete payment",
       "loadInvoice": "Failed to load invoice",
-      "issueCreditNote": "Failed to issue credit note"
+      "issueCreditNote": "Failed to issue credit note",
+      "createEntry": "Failed to create ledger entry",
+      "updateEntry": "Failed to update ledger entry",
+      "voidEntry": "Failed to void ledger entry",
+      "companyCheckIn": "Failed to perform company check-in"
+    },
+    "netTermsShort": "Net {{days}}d",
+    "creditLimitShort": "Limit {{amount}}",
+    "print": {
+      "invoiceDocTitle": "Invoice - {{number}}",
+      "invoiceFileName": "Invoice-{{number}}",
+      "termsDays": "{{days}} days",
+      "statementDocTitle": "Company Ledger Statement - {{company}}",
+      "statementTitle": "Company Ledger Statement",
+      "statementDate": "Statement Date:",
+      "totalEntries": "Total Entries",
+      "totalPaid": "Total Paid",
+      "generatedOn": "Generated on {{date}}",
+      "appFooter": "{{hotel}} - Hotel Management System",
+      "receiptDocTitle": "Receipt - {{number}}",
+      "receiptTitle": "Payment Receipt",
+      "receiptNumber": "Receipt / Invoice #",
+      "dateCreated": "Date Created",
+      "checkInDate": "Check-in Date",
+      "checkOutDate": "Check-out Date",
+      "paidAmount": "Paid Amount"
     }
   }
 }

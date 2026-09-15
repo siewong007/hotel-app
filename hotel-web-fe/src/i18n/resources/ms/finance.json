@@ -177,7 +177,14 @@
       "summaryRoom": "Bilik: {{number}} ({{type}})",
       "summaryRate": "Kadar: {{amount}} / malam",
       "summaryCompany": "Syarikat: {{name}}",
-      "summaryDates": "Tarikh: {{from}} hingga {{to}}"
+      "summaryDates": "Tarikh: {{from}} hingga {{to}}",
+      "requireCompanyRoom": "Sila pilih syarikat dan bilik",
+      "invalidRoomRate": "Sila masukkan kadar bilik yang sah",
+      "requireGuestName": "Sila masukkan nama pertama dan nama keluarga tetamu",
+      "requireIcNumber": "Sila masukkan nombor IC/Pasport tetamu",
+      "invalidGuestEmail": "Sila masukkan alamat e-mel yang sah untuk tetamu",
+      "requireGuest": "Sila pilih atau cipta tetamu",
+      "roomNotFound": "ID bilik tidak ditemui. Sila pilih bilik lain."
     },
     "invoice": {
       "title": "Jana Invois Syarikat",
@@ -204,7 +211,10 @@
       "paymentTermsNote": "Sila buat pembayaran dalam masa {{days}} hari dari tarikh invois.",
       "generated": "Ini adalah invois yang dijana oleh komputer.",
       "preview": "Pratonton Invois",
-      "backToEdit": "Kembali ke Edit"
+      "backToEdit": "Kembali ke Edit",
+      "selectAllBillable": "Pilih semua boleh dibil",
+      "deselectAll": "Nyahpilih semua",
+      "selectEntryAria": "Pilih {{description}}"
     },
     "payment": {
       "record": "Rekod Bayaran",
@@ -264,7 +274,8 @@
       "reasonLabel": "Sebab Pembatalan (Pilihan)",
       "reasonPlaceholder": "Masukkan sebab pembatalan...",
       "voidEntry": "Batalkan Entri",
-      "voiding": "Membatalkan..."
+      "voiding": "Membatalkan...",
+      "defaultReason": "Dibatalkan oleh pentadbir"
     },
     "duplicateDialog": {
       "title": "Kemungkinan entri lejar pendua ditemui",
@@ -316,7 +327,11 @@
       "selectCompany": "Pilih syarikat dahulu",
       "pickEntry": "Pilih entri lejar untuk dikreditkan",
       "pickReason": "Pilih sebab kredit",
-      "creditNoteIssued": "Nota kredit dikeluarkan — entri balasan direkodkan."
+      "creditNoteIssued": "Nota kredit dikeluarkan — entri balasan direkodkan.",
+      "entryUpdated": "Entri lejar berjaya dikemas kini!",
+      "entryAndRateUpdated": "Entri lejar dan kadar tempahan berjaya dikemas kini!",
+      "guestCheckedOut": "{{guest}} daftar keluar dari Bilik {{room}}",
+      "companyCheckedIn": "Tetamu {{guest}} daftar masuk ke Bilik {{room}} (Syarikat: {{company}})"
     },
     "errors": {
       "registerCompany": "Gagal mendaftar syarikat",
@@ -328,7 +343,32 @@
       "updatePaymentDate": "Gagal mengemas kini tarikh bayaran",
       "deletePayment": "Gagal memadam bayaran",
       "loadInvoice": "Gagal memuatkan invois",
-      "issueCreditNote": "Gagal mengeluarkan nota kredit"
+      "issueCreditNote": "Gagal mengeluarkan nota kredit",
+      "createEntry": "Gagal mencipta entri lejar",
+      "updateEntry": "Gagal mengemas kini entri lejar",
+      "voidEntry": "Gagal membatalkan entri lejar",
+      "companyCheckIn": "Gagal melakukan daftar masuk syarikat"
+    },
+    "netTermsShort": "Bersih {{days}} hari",
+    "creditLimitShort": "Had {{amount}}",
+    "print": {
+      "invoiceDocTitle": "Invois - {{number}}",
+      "invoiceFileName": "Invois-{{number}}",
+      "termsDays": "{{days}} hari",
+      "statementDocTitle": "Penyata Lejar Syarikat - {{company}}",
+      "statementTitle": "Penyata Lejar Syarikat",
+      "statementDate": "Tarikh Penyata:",
+      "totalEntries": "Jumlah Entri",
+      "totalPaid": "Jumlah Dibayar",
+      "generatedOn": "Dijana pada {{date}}",
+      "appFooter": "{{hotel}} - Sistem Pengurusan Hotel",
+      "receiptDocTitle": "Resit - {{number}}",
+      "receiptTitle": "Resit Bayaran",
+      "receiptNumber": "Resit / Invois #",
+      "dateCreated": "Tarikh Dicipta",
+      "checkInDate": "Tarikh Daftar Masuk",
+      "checkOutDate": "Tarikh Daftar Keluar",
+      "paidAmount": "Amaun Dibayar"
     }
   }
 }
