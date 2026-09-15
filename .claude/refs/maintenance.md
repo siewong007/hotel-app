@@ -57,8 +57,12 @@ add it — flag the conflict to the user and record which one won.
   referenced by a rules/refs file.
 - Memory: if `MEMORY.md` exceeds ~40 lines, run the
   `anthropic-skills:consolidate-memory` skill.
-- Any `.claude/refs/*.md` older than 90 days → spot-check 3 of its line anchors
-  with Grep; if ≥2 are stale, schedule a refresh (haiku read + sonnet rewrite).
+- When a change touches code a `.claude/refs/*.md` documents → spot-check 3 of
+  that ref's line anchors with Grep before finishing, regardless of the ref's
+  age (drift tracks edits to the described code, not time). If ≥2 are stale,
+  refresh the ref in the same change.
+- Any `.claude/refs/*.md` older than 90 days → same spot-check; if ≥2 anchors
+  are stale, schedule a refresh (haiku read + sonnet rewrite).
 
 ## Line budgets (hard limits from the system's design)
 
