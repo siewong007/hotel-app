@@ -3,7 +3,7 @@ import { Box, Divider, IconButton, List, Tooltip, Typography } from '@mui/materi
 import AddIcon from '@mui/icons-material/Add';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import HotelIcon from '@mui/icons-material/Hotel';
+import BrandMark from '../../common/BrandMark';
 import { Link, useLocation, useNavigate } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import { useTranslation } from '../../../i18n';
@@ -118,20 +118,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
             '&:hover': { opacity: 0.92 },
           }}
         >
-          <Box
-            sx={{
-              width: 32,
-              height: 32,
-              borderRadius: 1.5,
-              bgcolor: 'primary.main',
-              color: 'primary.contrastText',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <HotelIcon sx={{ fontSize: 18 }} />
-          </Box>
+          <BrandMark size={32} decorative />
           {!collapsed && (
             <Typography noWrap sx={{ fontSize: '0.9rem', fontWeight: 700 }}>
               {hotelName}
