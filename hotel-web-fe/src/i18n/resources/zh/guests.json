@@ -537,5 +537,85 @@
       "promotion": "促销与优惠",
       "birthday_voucher": "生日礼券"
     }
+  },
+  "drawer": {
+    "ariaLabel": "客人 {{name}} 的详情",
+    "closeAria": "关闭客人详情",
+    "openFull": "打开客人 360",
+    "quickEdit": "快速编辑",
+    "portalAccount": "门户账户",
+    "accountActive": "已启用",
+    "accountDeactivated": "已停用",
+    "blacklistReason": "黑名单原因"
+  },
+  "followUps": {
+    "kicker": "宾客关系",
+    "title": "跟进队列",
+    "subtitle": "整个客人名册中的未处理备注跟进，最早优先。",
+    "markedDone": "跟进已标记完成",
+    "completeFailed": "完成跟进失败",
+    "loadFailed": "跟进加载失败",
+    "subjectFallback": "跟进",
+    "unassigned": "未分配",
+    "markDone": "标记完成",
+    "overdue": "已逾期",
+    "shownOfTotal": "{{total}} 条跟进中的 {{shown}} 条",
+    "oldestFirst": "最早优先",
+    "emptyTitle": "没有跟进",
+    "emptyAll": "跟进队列已清空——没有等待团队处理的事项。",
+    "emptyFiltered": "此类别中没有跟进。请尝试其他筛选。",
+    "filters": {
+      "overdue": "已逾期",
+      "today": "今天",
+      "upcoming": "即将到期",
+      "all": "全部"
+    },
+    "cols": {
+      "guest": "客人",
+      "subject": "主题",
+      "type": "类型",
+      "due": "到期",
+      "assignee": "负责人",
+      "snippet": "摘要"
+    }
+  },
+  "dashboard": {
+    "title": "宾客关系",
+    "subtitle": "整个客人名册的今日动态、待处理请求和跟进。",
+    "directory": "客人名录",
+    "room": "房间 {{label}}",
+    "rating": "评分 {{rating}}/5",
+    "unrated": "未评分",
+    "dueAt": "到期 {{date}}",
+    "waitingForStaff_one": "{{count}} 条等待员工处理",
+    "waitingForStaff_other": "{{count}} 条等待员工处理",
+    "stats": {
+      "arrivals": "到店",
+      "inHouse": "在住",
+      "departures": "离店",
+      "vipArrivals": "VIP 到店",
+      "openSupport": "待处理客服",
+      "awaitingReview": "待回复评价",
+      "followUpsDue": "到期跟进"
+    },
+    "cards": {
+      "arrivalsTitle": "今日到店",
+      "arrivalsEmpty": "今日无到店客人。",
+      "inHouseTitle": "在住客人",
+      "inHouseEmpty": "当前没有在住客人。",
+      "departuresTitle": "今日离店",
+      "departuresEmpty": "今日无离店客人。",
+      "vipTitle": "今日 VIP 到店",
+      "vipEmpty": "今日无 VIP 到店客人。",
+      "supportTitle": "待处理客服请求",
+      "supportViewAll": "打开客服收件箱",
+      "supportEmpty": "没有待处理的客服会话。",
+      "reviewsTitle": "待回复的评价",
+      "reviewsEmpty": "没有待回复的评价。",
+      "followUpsTitle": "未完成的跟进",
+      "followUpsViewAll": "查看跟进队列",
+      "followUpsEmpty": "没有到期的跟进。",
+      "viewAllBookings": "在预订中查看全部"
+    }
   }
 }

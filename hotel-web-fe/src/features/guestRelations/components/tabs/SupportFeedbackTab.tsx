@@ -91,7 +91,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
   canRespondToReviews,
   onNewConversation,
 }) => {
-  const { t } = useTranslation('guests');
+  const { t, tOr } = useTranslation('guests');
   const conversationsQuery = useGuestSupportConversations(guestId);
   const reviewsQuery = useGuestReviews(guestId, canViewReviews);
   const respondMutation = useRespondToReview();
@@ -142,7 +142,7 @@ const SupportFeedbackTab: React.FC<SupportFeedbackTabProps> = ({
         {conversation.conversation_number}
       </TableCell>
       <TableCell>
-        <Chip size="small" variant="outlined" label={formatStatusLabel(conversation.category)} />
+        <Chip size="small" variant="outlined" label={tOr(`support:categories.${conversation.category}`, formatStatusLabel(conversation.category))} />
       </TableCell>
       <TableCell>
         <SupportStatusChip status={conversation.status} />

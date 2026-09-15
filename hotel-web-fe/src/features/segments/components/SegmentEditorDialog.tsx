@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import { SegmentsApi } from '../api';
 import { hasUsableRules } from '../constants';
 import type { GuestSegment, SegmentInput, SegmentRules } from '../types';
@@ -26,6 +27,7 @@ interface SegmentEditorDialogProps {
 }
 
 export function SegmentEditorDialog({ open, segment, onClose }: SegmentEditorDialogProps) {
+  const { t } = useTranslation('segments');
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<SegmentInput>(() => ({
@@ -52,7 +54,7 @@ export function SegmentEditorDialog({ open, segment, onClose }: SegmentEditorDia
       queryClient.invalidateQueries({ queryKey: ['segments'] });
       onClose();
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
+    onError: (e) => setError(e instanceof Error ? e.message : t('editor.saveFailed')),
   });
 
   const preview = useMutation({
@@ -60,7 +62,7 @@ export function SegmentEditorDialog({ open, segment, onClose }: SegmentEditorDia
     onSuccess: (p) => setPreviewCount(p.count),
     onError: (e) => {
       setPreviewCount(null);
-      setError(e instanceof Error ? e.message : 'Preview failed');
+      setError(e instanceof Error ? e.message : t('editor.previewFailed'));
     },
   });
 
@@ -68,7 +70,7 @@ export function SegmentEditorDialog({ open, segment, onClose }: SegmentEditorDia
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle>{segment === null ? 'New segment' : `Edit ${segment.name}`}</DialogTitle>
+      <DialogTitle>{segment === null ? t('editor.titleNew') : t('editor.titleEdit', { name: segment.name })}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error && (
@@ -77,14 +79,14 @@ export function SegmentEditorDialog({ open, segment, onClose }: SegmentEditorDia
             </Alert>
           )}
           <TextField
-            label="Name"
+            label={t('common:field.name')}
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             fullWidth
             required
           />
           <TextField
-            label="Description"
+            label={t('common:field.description')}
             value={form.description ?? ''}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             fullWidth
@@ -96,10 +98,10 @@ export function SegmentEditorDialog({ open, segment, onClose }: SegmentEditorDia
                 onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
               />
             }
-            label="Active — only active segments can target campaigns"
+            label={t('editor.activeLabel')}
           />
           <Typography variant="subtitle2">
-            Guests match when ANY group matches; conditions inside a group must ALL match.
+            {t('editor.rulesExplainer')}
           </Typography>
           <SegmentRuleBuilder
             rules={form.rules}
@@ -119,18 +121,18 @@ export function SegmentEditorDialog({ open, segment, onClose }: SegmentEditorDia
                 preview.mutate(form.rules);
               }}
             >
-              Preview members
+              {t('editor.previewMembers')}
             </Button>
             {previewCount !== null && (
               <Typography variant="body2">
-                <strong>{previewCount}</strong> active guests match
+                <strong>{previewCount}</strong> {t('editor.activeGuestsMatch')}
               </Typography>
             )}
           </Stack>
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t('common:actions.close')}</Button>
         <Button
           variant="contained"
           disabled={save.isPending || !form.name.trim() || !rulesValid}
@@ -139,7 +141,7 @@ export function SegmentEditorDialog({ open, segment, onClose }: SegmentEditorDia
             save.mutate(form);
           }}
         >
-          Save
+          {t('common:actions.save')}
         </Button>
       </DialogActions>
     </Dialog>

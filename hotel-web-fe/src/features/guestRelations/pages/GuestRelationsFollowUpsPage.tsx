@@ -18,6 +18,7 @@ import { getQueryErrorMessage } from '../../../api/queryConfig';
 import { DataTable, EmptyState, PageHeader } from '../../../components';
 import type { ColumnDef } from '../../../components';
 import { useAuth } from '../../../auth/AuthContext';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { Link, useNavigate, useSearchParams } from '../../../router';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { formatHotelDateTime, isHotelDatePast } from '../../../utils/date';
@@ -26,11 +27,11 @@ import { getPaginationState } from '../../../utils/pagination';
 import { GUEST_DESIGN } from '../../guests/constants';
 import { useCompleteFollowUp, useGuestFollowUps } from '../hooks/useGuestRelationsQueries';
 
-const DUE_FILTERS: Array<{ key: FollowUpDue; label: string }> = [
-  { key: 'overdue', label: 'Overdue' },
-  { key: 'today', label: 'Today' },
-  { key: 'upcoming', label: 'Upcoming' },
-  { key: 'all', label: 'All' },
+const DUE_FILTERS: Array<{ key: FollowUpDue; labelKey: string }> = [
+  { key: 'overdue', labelKey: 'followUps.filters.overdue' },
+  { key: 'today', labelKey: 'followUps.filters.today' },
+  { key: 'upcoming', labelKey: 'followUps.filters.upcoming' },
+  { key: 'all', labelKey: 'followUps.filters.all' },
 ];
 
 /** The API serializes follow_up_at as an instant; the backend bucket boundary
@@ -52,6 +53,7 @@ const guestProfilePath = (guestId: number) => `/guest-relations/guests/${guestId
  * through `useCompleteFollowUp`.
  */
 const GuestRelationsFollowUpsPage: React.FC = () => {
+  const { t, tOr } = useTranslation('guests');
   const navigate = useNavigate();
   const [pageSearchParams] = useSearchParams();
   const { hasPermission } = useAuth();
@@ -102,16 +104,16 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
     try {
       setError(null);
       await completeFollowUp({ guestId: item.guest_id, noteId: item.note_id });
-      emitApiNotification({ message: 'Follow-up marked done', severity: 'success' });
+      emitApiNotification({ message: t('followUps.markedDone'), severity: 'success' });
     } catch (err) {
-      setError(errorMessage(err, 'Failed to complete follow-up'));
+      setError(errorMessage(err, t('followUps.completeFailed')));
     }
-  }, [completeFollowUp]);
+  }, [completeFollowUp, t]);
 
   const columns = React.useMemo<ColumnDef<FollowUpQueueItem, any>[]>(() => [
     {
       id: 'guest',
-      header: 'Guest',
+      header: t('followUps.cols.guest'),
       accessorFn: (item: FollowUpQueueItem) => item.guest_name,
       enableSorting: false,
       meta: { stopRowClick: true },
@@ -137,34 +139,34 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
     },
     {
       id: 'subject',
-      header: 'Subject',
+      header: t('followUps.cols.subject'),
       accessorFn: (item: FollowUpQueueItem) => item.subject ?? '',
       enableSorting: false,
       cell: (info) => {
         const item = info.row.original;
         return (
           <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-            {item.subject?.trim() || 'Follow-up'}
+            {item.subject?.trim() || t('followUps.subjectFallback')}
           </Typography>
         );
       },
     },
     {
       id: 'type',
-      header: 'Type',
+      header: t('followUps.cols.type'),
       accessorFn: (item: FollowUpQueueItem) => item.interaction_type,
       enableSorting: false,
       cell: (info) => (
         <Chip
           size="small"
-          label={formatStatusLabel(info.row.original.interaction_type)}
+          label={tOr(`interactions.types.${info.row.original.interaction_type}`, formatStatusLabel(info.row.original.interaction_type))}
           sx={{ bgcolor: GUEST_DESIGN.paper3, color: GUEST_DESIGN.ink2, fontWeight: 600 }}
         />
       ),
     },
     {
       id: 'due',
-      header: 'Due',
+      header: t('followUps.cols.due'),
       accessorFn: (item: FollowUpQueueItem) => item.follow_up_at,
       enableSorting: false,
       cell: (info) => {
@@ -188,7 +190,7 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
               // convention for tinting --hotel-* tokens.
               <Chip
                 size="small"
-                label="Overdue"
+                label={t('followUps.overdue')}
                 sx={{
                   mt: 0.25,
                   bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`,
@@ -203,7 +205,7 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
     },
     {
       id: 'assignee',
-      header: 'Assignee',
+      header: t('followUps.cols.assignee'),
       accessorFn: (item: FollowUpQueueItem) => item.assigned_to_name ?? '',
       enableSorting: false,
       cell: (info) => {
@@ -216,14 +218,14 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
               whiteSpace: 'nowrap',
             }}
           >
-            {item.assigned_to_name || 'Unassigned'}
+            {item.assigned_to_name || t('followUps.unassigned')}
           </Typography>
         );
       },
     },
     {
       id: 'snippet',
-      header: 'Snippet',
+      header: t('followUps.cols.snippet'),
       accessorFn: (item: FollowUpQueueItem) => item.snippet ?? '',
       enableSorting: false,
       cell: (info) => {
@@ -262,12 +264,12 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
             onClick={() => void handleMarkDone(item)}
             sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
           >
-            Mark done
+            {t('followUps.markDone')}
           </Button>
         );
       },
     },
-  ], [completingFollowUp, completingVariables, handleMarkDone]);
+  ], [completingFollowUp, completingVariables, handleMarkDone, t, tOr]);
 
   const pagination = React.useMemo(
     () => getPaginationState({ page: currentPage, pageSize, totalItems: total }),
@@ -277,7 +279,7 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
   if (!hasAccess) {
     return (
       <Alert severity="warning" sx={{ m: 2 }}>
-        You do not have permission to access this page. Contact your administrator for access.
+        {t('permissionDenied')}
       </Alert>
     );
   }
@@ -285,11 +287,11 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
   const emptyMessage = (
     <EmptyState
       icon={<FollowUpsIcon />}
-      title="No follow-ups"
+      title={t('followUps.emptyTitle')}
       description={
         due === 'all'
-          ? 'The follow-up queue is clear — nothing is waiting on the team.'
-          : 'No follow-ups in this bucket. Try a different filter.'
+          ? t('followUps.emptyAll')
+          : t('followUps.emptyFiltered')
       }
     />
   );
@@ -303,9 +305,9 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
       )}
 
       <PageHeader
-        kicker="Guest relations"
-        title="Follow-up queue"
-        subtitle="Open note follow-ups across the whole guest book, oldest first."
+        kicker={t('followUps.kicker')}
+        title={t('followUps.title')}
+        subtitle={t('followUps.subtitle')}
       />
 
       <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
@@ -319,7 +321,7 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
             borderBottom: `1px solid ${GUEST_DESIGN.rule}`,
           }}
         >
-          {DUE_FILTERS.map(({ key, label }) => {
+          {DUE_FILTERS.map(({ key, labelKey }) => {
             const active = due === key;
             return (
               <Box
@@ -344,7 +346,7 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
                   '&:hover': { bgcolor: active ? GUEST_DESIGN.ink : GUEST_DESIGN.paper2 },
                 }}
               >
-                {label}
+                {t(labelKey)}
               </Box>
             );
           })}
@@ -365,10 +367,10 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
           }}
         >
           <Box>
-            {items.length} of {total} follow-ups
+            {t('followUps.shownOfTotal', { shown: items.length, total })}
           </Box>
           <Box sx={{ fontSize: 11.5, color: GUEST_DESIGN.ink2, fontWeight: 600 }}>
-            Oldest first
+            {t('followUps.oldestFirst')}
           </Box>
         </Box>
 
@@ -378,11 +380,11 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
             sx={{ m: 2 }}
             action={
               <Button color="inherit" size="small" onClick={() => void followUpsQuery.refetch()}>
-                Retry
+                {t('common:state.retry')}
               </Button>
             }
           >
-            {getQueryErrorMessage(followUpsQuery.error, 'Failed to load follow-ups')}
+            {getQueryErrorMessage(followUpsQuery.error, t('followUps.loadFailed'))}
           </Alert>
         ) : (
           <DataTable<FollowUpQueueItem>
@@ -413,7 +415,7 @@ const GuestRelationsFollowUpsPage: React.FC = () => {
             }}
           >
             <Box>
-              Showing {pagination.startItem}–{pagination.endItem} of {pagination.totalItems}
+              {t('common:pagination.showing', { from: pagination.startItem, to: pagination.endItem, total: pagination.totalItems })}
             </Box>
             <Pagination
               count={pagination.totalPages}

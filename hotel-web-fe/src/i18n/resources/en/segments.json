@@ -1,3 +1,86 @@
 {
-  "title": "Segments"
+  "title": "Segments",
+  "page": {
+    "title": "Guest segments",
+    "kicker": "Revenue · Marketing",
+    "subtitle": "Dynamic rule-based audiences — evaluated live, never stored. Attach a segment to an email campaign to narrow its audience.",
+    "newSegment": "New segment",
+    "updateFailed": "Update failed",
+    "deleteFailed": "Delete failed",
+    "emptyTitle": "No segments",
+    "emptyDescription": "Create a segment to target email campaigns at a dynamic guest audience.",
+    "meta_one": "{{count}} member · Updated {{date}}",
+    "meta_other": "{{count}} members · Updated {{date}}",
+    "preview": "Preview",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "deleteTitle": "Delete segment",
+    "deleteConfirm": "Delete “{{name}}”? Campaigns using it keep their audience — deactivate instead if unsure.",
+    "previewTitle": "Preview — {{name}}",
+    "previewFailed": "Preview failed to load.",
+    "activeGuestsMatch": "active guests match",
+    "guestNumber": "Guest #{{id}}",
+    "cols": {
+      "name": "Name",
+      "rules": "Rules",
+      "members": "Members",
+      "status": "Status",
+      "updated": "Updated",
+      "actions": "Actions"
+    }
+  },
+  "editor": {
+    "titleNew": "New segment",
+    "titleEdit": "Edit {{name}}",
+    "activeLabel": "Active — only active segments can target campaigns",
+    "rulesExplainer": "Guests match when ANY group matches; conditions inside a group must ALL match.",
+    "previewMembers": "Preview members",
+    "activeGuestsMatch": "active guests match",
+    "saveFailed": "Save failed",
+    "previewFailed": "Preview failed"
+  },
+  "builder": {
+    "field": "Field",
+    "condition": "Condition",
+    "value": "Value",
+    "values": "Values",
+    "tag": "Tag",
+    "true": "True",
+    "false": "False",
+    "noValues": "No recorded values yet — type is not allowed",
+    "removeCondition": "Remove condition",
+    "or": "OR",
+    "and": "AND",
+    "addCondition": "Add condition",
+    "removeGroup": "Remove group",
+    "addOrGroup": "Add OR group"
+  },
+  "fields": {
+    "country": "Country",
+    "nationality": "Nationality",
+    "language_preference": "Language preference",
+    "communication_preference": "Communication preference",
+    "vip_status": "VIP status",
+    "guest_type": "Guest type",
+    "marketing_opt_in": "Marketing opt-in",
+    "tags": "Guest tags",
+    "total_stays": "Total stays",
+    "total_spend": "Total spend",
+    "age_years": "Age (years)",
+    "days_since_last_stay": "Days since last stay",
+    "loyalty_tier_id": "Loyalty tier",
+    "has_loyalty_membership": "Loyalty membership"
+  },
+  "ops": {
+    "is": "is",
+    "isNot": "is not",
+    "isOneOf": "is one of",
+    "isSet": "is set",
+    "isNotSet": "is not set",
+    "isExactly": "is exactly",
+    "atLeast": "at least",
+    "atMost": "at most",
+    "includesTag": "includes tag",
+    "excludesTag": "excludes tag"
+  }
 }

@@ -12,6 +12,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import {
   NO_VALUE_OPS,
   SEGMENT_FIELDS,
@@ -47,6 +48,7 @@ function ConditionRow({
   onChange: (next: SegmentCondition) => void;
   onRemove: () => void;
 }) {
+  const { t } = useTranslation('segments');
   const meta = segmentFieldMeta(condition.field);
 
   const changeField = (field: string) => {
@@ -70,7 +72,7 @@ function ConditionRow({
       return (
         <TextField
           select
-          label="Values"
+          label={t('builder.values')}
           value={asList(condition.value).map(String)}
           onChange={(e) => {
             const raw = e.target.value as unknown as string[];
@@ -97,20 +99,20 @@ function ConditionRow({
         return (
           <TextField
             select
-            label="Value"
+            label={t('builder.value')}
             value={condition.value === true || condition.value === 'true' ? 'true' : 'false'}
             onChange={(e) => onChange({ ...condition, value: e.target.value === 'true' })}
             sx={{ minWidth: 120 }}
             disabled={disabled}
           >
-            <MenuItem value="true">True</MenuItem>
-            <MenuItem value="false">False</MenuItem>
+            <MenuItem value="true">{t('builder.true')}</MenuItem>
+            <MenuItem value="false">{t('builder.false')}</MenuItem>
           </TextField>
         );
       case 'number':
         return (
           <TextField
-            label="Value"
+            label={t('builder.value')}
             type="number"
             value={condition.value ?? ''}
             onChange={(e) => onChange({ ...condition, value: Number(e.target.value) })}
@@ -125,7 +127,7 @@ function ConditionRow({
         return (
           <TextField
             select
-            label="Value"
+            label={t('builder.value')}
             value={condition.value === undefined ? '' : String(condition.value)}
             onChange={(e) =>
               onChange({
@@ -135,7 +137,7 @@ function ConditionRow({
             }
             sx={{ minWidth: 200 }}
             disabled={disabled}
-            helperText={options.length === 0 ? 'No recorded values yet — type is not allowed' : undefined}
+            helperText={options.length === 0 ? t('builder.noValues') : undefined}
           >
             {options.map((o) => (
               <MenuItem key={o.value} value={o.value}>
@@ -148,7 +150,7 @@ function ConditionRow({
       default:
         return (
           <TextField
-            label={m.kind === 'tag' ? 'Tag' : 'Value'}
+            label={m.kind === 'tag' ? t('builder.tag') : t('builder.value')}
             value={condition.value ?? ''}
             onChange={(e) => onChange({ ...condition, value: e.target.value })}
             sx={{ minWidth: 200 }}
@@ -162,7 +164,7 @@ function ConditionRow({
     <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
       <TextField
         select
-        label="Field"
+        label={t('builder.field')}
         value={condition.field}
         onChange={(e) => changeField(e.target.value)}
         sx={{ minWidth: 200 }}
@@ -170,13 +172,13 @@ function ConditionRow({
       >
         {SEGMENT_FIELDS.map((f) => (
           <MenuItem key={f.field} value={f.field}>
-            {f.label}
+            {t(f.labelKey)}
           </MenuItem>
         ))}
       </TextField>
       <TextField
         select
-        label="Condition"
+        label={t('builder.condition')}
         value={condition.op}
         onChange={(e) => changeOp(e.target.value)}
         sx={{ minWidth: 140 }}
@@ -184,13 +186,13 @@ function ConditionRow({
       >
         {(meta?.ops ?? []).map((o) => (
           <MenuItem key={o.op} value={o.op}>
-            {o.label}
+            {t(o.labelKey)}
           </MenuItem>
         ))}
       </TextField>
       {meta && valueInput(meta)}
       <IconButton
-        aria-label="Remove condition"
+        aria-label={t('builder.removeCondition')}
         onClick={onRemove}
         disabled={disabled}
         sx={{ mt: 0.5 }}
@@ -219,6 +221,7 @@ export function SegmentRuleBuilder({
   fieldOptions,
   disabled,
 }: SegmentRuleBuilderProps) {
+  const { t } = useTranslation('segments');
   const patchGroup = (gi: number, conditions: SegmentCondition[]) => {
     const groups = rules.groups.map((g, i) => (i === gi ? { conditions } : g));
     onChange({ groups });
@@ -234,7 +237,7 @@ export function SegmentRuleBuilder({
           {gi > 0 && (
             <Divider sx={{ my: 1 }}>
               <Typography variant="caption" color="text.secondary">
-                OR
+                {t('builder.or')}
               </Typography>
             </Divider>
           )}
@@ -244,7 +247,7 @@ export function SegmentRuleBuilder({
                 <Box key={ci}>
                                   {ci > 0 && (
                     <Typography variant="caption" color="text.secondary" sx={{ pl: 0.5 }}>
-                      AND
+                      {t('builder.and')}
                     </Typography>
                   )}
                   <ConditionRow
@@ -278,7 +281,7 @@ export function SegmentRuleBuilder({
                   }
                   disabled={disabled}
                 >
-                  Add condition
+                  {t('builder.addCondition')}
                 </Button>
                 <Button
                   size="small"
@@ -286,7 +289,7 @@ export function SegmentRuleBuilder({
                   onClick={() => removeGroup(gi)}
                   disabled={disabled}
                 >
-                  Remove group
+                  {t('builder.removeGroup')}
                 </Button>
               </Stack>
             </Stack>
@@ -308,7 +311,7 @@ export function SegmentRuleBuilder({
           }
           disabled={disabled}
         >
-          Add OR group
+          {t('builder.addOrGroup')}
         </Button>
       </Box>
     </Stack>

@@ -1,3 +1,86 @@
 {
-  "title": "Segmen"
+  "title": "Segmen",
+  "page": {
+    "title": "Segmen tetamu",
+    "kicker": "Hasil · Pemasaran",
+    "subtitle": "Khalayak dinamik berasaskan peraturan — dinilai secara langsung, tidak pernah disimpan. Lampirkan segmen pada kempen e-mel untuk mengecilkan khalayaknya.",
+    "newSegment": "Segmen baharu",
+    "updateFailed": "Kemas kini gagal",
+    "deleteFailed": "Padam gagal",
+    "emptyTitle": "Tiada segmen",
+    "emptyDescription": "Cipta segmen untuk menyasarkan kempen e-mel pada khalayak tetamu yang dinamik.",
+    "meta_one": "{{count}} ahli · Dikemas kini {{date}}",
+    "meta_other": "{{count}} ahli · Dikemas kini {{date}}",
+    "preview": "Pratonton",
+    "activate": "Aktifkan",
+    "deactivate": "Nyahaktifkan",
+    "deleteTitle": "Padam segmen",
+    "deleteConfirm": "Padam “{{name}}”? Kempen yang menggunakannya mengekalkan khalayak mereka — nyahaktifkan jika tidak pasti.",
+    "previewTitle": "Pratonton — {{name}}",
+    "previewFailed": "Pratonton gagal dimuatkan.",
+    "activeGuestsMatch": "tetamu aktif sepadan",
+    "guestNumber": "Tetamu #{{id}}",
+    "cols": {
+      "name": "Nama",
+      "rules": "Peraturan",
+      "members": "Ahli",
+      "status": "Status",
+      "updated": "Dikemas kini",
+      "actions": "Tindakan"
+    }
+  },
+  "editor": {
+    "titleNew": "Segmen baharu",
+    "titleEdit": "Edit {{name}}",
+    "activeLabel": "Aktif — hanya segmen aktif boleh menyasarkan kempen",
+    "rulesExplainer": "Tetamu sepadan apabila MANA-MANA kumpulan sepadan; syarat dalam kumpulan mestilah SEMUANYA sepadan.",
+    "previewMembers": "Pratonton ahli",
+    "activeGuestsMatch": "tetamu aktif sepadan",
+    "saveFailed": "Simpan gagal",
+    "previewFailed": "Pratonton gagal"
+  },
+  "builder": {
+    "field": "Medan",
+    "condition": "Syarat",
+    "value": "Nilai",
+    "values": "Nilai-nilai",
+    "tag": "Tag",
+    "true": "Benar",
+    "false": "Palsu",
+    "noValues": "Belum ada nilai direkodkan — menaip tidak dibenarkan",
+    "removeCondition": "Buang syarat",
+    "or": "ATAU",
+    "and": "DAN",
+    "addCondition": "Tambah syarat",
+    "removeGroup": "Buang kumpulan",
+    "addOrGroup": "Tambah kumpulan ATAU"
+  },
+  "fields": {
+    "country": "Negara",
+    "nationality": "Kewarganegaraan",
+    "language_preference": "Keutamaan bahasa",
+    "communication_preference": "Keutamaan komunikasi",
+    "vip_status": "Status VIP",
+    "guest_type": "Jenis tetamu",
+    "marketing_opt_in": "Persetujuan pemasaran",
+    "tags": "Tag tetamu",
+    "total_stays": "Jumlah penginapan",
+    "total_spend": "Jumlah perbelanjaan",
+    "age_years": "Umur (tahun)",
+    "days_since_last_stay": "Hari sejak penginapan terakhir",
+    "loyalty_tier_id": "Peringkat kesetiaan",
+    "has_loyalty_membership": "Keahlian kesetiaan"
+  },
+  "ops": {
+    "is": "ialah",
+    "isNot": "bukan",
+    "isOneOf": "ialah salah satu daripada",
+    "isSet": "ditetapkan",
+    "isNotSet": "tidak ditetapkan",
+    "isExactly": "tepat",
+    "atLeast": "sekurang-kurangnya",
+    "atMost": "selebih-lebihnya",
+    "includesTag": "termasuk tag",
+    "excludesTag": "tidak termasuk tag"
+  }
 }

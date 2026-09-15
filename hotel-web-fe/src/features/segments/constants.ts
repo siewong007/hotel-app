@@ -12,12 +12,14 @@ export type SegmentValueKind =
 
 export interface SegmentOpMeta {
   op: string;
-  label: string;
+  /** Key under the `segments` namespace — resolve with `t()` at render. */
+  labelKey: string;
 }
 
 export interface SegmentFieldMeta {
   field: string;
-  label: string;
+  /** Key under the `segments` namespace — resolve with `t()` at render. */
+  labelKey: string;
   kind: SegmentValueKind;
   ops: SegmentOpMeta[];
   /** true when the `in` operator takes a comma-separated list */
@@ -26,25 +28,25 @@ export interface SegmentFieldMeta {
 }
 
 const TEXT_OPS: SegmentOpMeta[] = [
-  { op: 'eq', label: 'is' },
-  { op: 'ne', label: 'is not' },
-  { op: 'in', label: 'is one of' },
-  { op: 'is_set', label: 'is set' },
-  { op: 'is_not_set', label: 'is not set' },
+  { op: 'eq', labelKey: 'ops.is' },
+  { op: 'ne', labelKey: 'ops.isNot' },
+  { op: 'in', labelKey: 'ops.isOneOf' },
+  { op: 'is_set', labelKey: 'ops.isSet' },
+  { op: 'is_not_set', labelKey: 'ops.isNotSet' },
 ];
 
 const NUM_OPS: SegmentOpMeta[] = [
-  { op: 'eq', label: 'is exactly' },
-  { op: 'gte', label: 'at least' },
-  { op: 'lte', label: 'at most' },
+  { op: 'eq', labelKey: 'ops.isExactly' },
+  { op: 'gte', labelKey: 'ops.atLeast' },
+  { op: 'lte', labelKey: 'ops.atMost' },
 ];
 
 const RANGE_OPS: SegmentOpMeta[] = [
-  { op: 'gte', label: 'at least' },
-  { op: 'lte', label: 'at most' },
+  { op: 'gte', labelKey: 'ops.atLeast' },
+  { op: 'lte', labelKey: 'ops.atMost' },
 ];
 
-const BOOL_OPS: SegmentOpMeta[] = [{ op: 'eq', label: 'is' }];
+const BOOL_OPS: SegmentOpMeta[] = [{ op: 'eq', labelKey: 'ops.is' }];
 
 const textChoice = (
   pick: (o: SegmentFieldOptions) => string[],
@@ -55,7 +57,7 @@ const textChoice = (
 export const SEGMENT_FIELDS: SegmentFieldMeta[] = [
   {
     field: 'country',
-    label: 'Country',
+    labelKey: 'fields.country',
     kind: 'choice',
     ops: TEXT_OPS,
     listCapable: true,
@@ -63,7 +65,7 @@ export const SEGMENT_FIELDS: SegmentFieldMeta[] = [
   },
   {
     field: 'nationality',
-    label: 'Nationality',
+    labelKey: 'fields.nationality',
     kind: 'choice',
     ops: TEXT_OPS,
     listCapable: true,
@@ -71,7 +73,7 @@ export const SEGMENT_FIELDS: SegmentFieldMeta[] = [
   },
   {
     field: 'language_preference',
-    label: 'Language preference',
+    labelKey: 'fields.language_preference',
     kind: 'choice',
     ops: TEXT_OPS,
     listCapable: true,
@@ -79,7 +81,7 @@ export const SEGMENT_FIELDS: SegmentFieldMeta[] = [
   },
   {
     field: 'communication_preference',
-    label: 'Communication preference',
+    labelKey: 'fields.communication_preference',
     kind: 'choice',
     ops: TEXT_OPS,
     listCapable: true,
@@ -87,7 +89,7 @@ export const SEGMENT_FIELDS: SegmentFieldMeta[] = [
   },
   {
     field: 'vip_status',
-    label: 'VIP status',
+    labelKey: 'fields.vip_status',
     kind: 'choice',
     ops: TEXT_OPS,
     listCapable: true,
@@ -95,54 +97,54 @@ export const SEGMENT_FIELDS: SegmentFieldMeta[] = [
   },
   {
     field: 'guest_type',
-    label: 'Guest type',
+    labelKey: 'fields.guest_type',
     kind: 'choice',
     ops: [
-      { op: 'eq', label: 'is' },
-      { op: 'ne', label: 'is not' },
-      { op: 'in', label: 'is one of' },
+      { op: 'eq', labelKey: 'ops.is' },
+      { op: 'ne', labelKey: 'ops.isNot' },
+      { op: 'in', labelKey: 'ops.isOneOf' },
     ],
     listCapable: true,
     options: (o) => o.guest_types.map((v) => ({ value: v, label: formatStatusLabel(v) })),
   },
   {
     field: 'marketing_opt_in',
-    label: 'Marketing opt-in',
+    labelKey: 'fields.marketing_opt_in',
     kind: 'bool',
     ops: BOOL_OPS,
   },
   {
     field: 'tags',
-    label: 'Guest tags',
+    labelKey: 'fields.tags',
     kind: 'tag',
     ops: [
-      { op: 'contains', label: 'includes tag' },
-      { op: 'not_contains', label: 'excludes tag' },
+      { op: 'contains', labelKey: 'ops.includesTag' },
+      { op: 'not_contains', labelKey: 'ops.excludesTag' },
     ],
   },
-  { field: 'total_stays', label: 'Total stays', kind: 'number', ops: NUM_OPS },
-  { field: 'total_spend', label: 'Total spend', kind: 'number', ops: RANGE_OPS },
-  { field: 'age_years', label: 'Age (years)', kind: 'number', ops: RANGE_OPS },
+  { field: 'total_stays', labelKey: 'fields.total_stays', kind: 'number', ops: NUM_OPS },
+  { field: 'total_spend', labelKey: 'fields.total_spend', kind: 'number', ops: RANGE_OPS },
+  { field: 'age_years', labelKey: 'fields.age_years', kind: 'number', ops: RANGE_OPS },
   {
     field: 'days_since_last_stay',
-    label: 'Days since last stay',
+    labelKey: 'fields.days_since_last_stay',
     kind: 'number',
     ops: RANGE_OPS,
   },
   {
     field: 'loyalty_tier_id',
-    label: 'Loyalty tier',
+    labelKey: 'fields.loyalty_tier_id',
     kind: 'tier',
     ops: [
-      { op: 'eq', label: 'is' },
-      { op: 'in', label: 'is one of' },
+      { op: 'eq', labelKey: 'ops.is' },
+      { op: 'in', labelKey: 'ops.isOneOf' },
     ],
     listCapable: true,
     options: (o) => o.loyalty_tiers.map((t) => ({ value: String(t.id), label: t.name })),
   },
   {
     field: 'has_loyalty_membership',
-    label: 'Loyalty membership',
+    labelKey: 'fields.has_loyalty_membership',
     kind: 'bool',
     ops: BOOL_OPS,
   },

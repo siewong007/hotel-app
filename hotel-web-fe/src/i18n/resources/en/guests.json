@@ -537,5 +537,85 @@
       "promotion": "Promotions and offers",
       "birthday_voucher": "Birthday voucher"
     }
+  },
+  "drawer": {
+    "ariaLabel": "Guest {{name}} details",
+    "closeAria": "Close guest details",
+    "openFull": "Open guest 360",
+    "quickEdit": "Quick edit",
+    "portalAccount": "Portal account",
+    "accountActive": "active",
+    "accountDeactivated": "deactivated",
+    "blacklistReason": "Blacklist reason"
+  },
+  "followUps": {
+    "kicker": "Guest relations",
+    "title": "Follow-up queue",
+    "subtitle": "Open note follow-ups across the whole guest book, oldest first.",
+    "markedDone": "Follow-up marked done",
+    "completeFailed": "Failed to complete follow-up",
+    "loadFailed": "Failed to load follow-ups",
+    "subjectFallback": "Follow-up",
+    "unassigned": "Unassigned",
+    "markDone": "Mark done",
+    "overdue": "Overdue",
+    "shownOfTotal": "{{shown}} of {{total}} follow-ups",
+    "oldestFirst": "Oldest first",
+    "emptyTitle": "No follow-ups",
+    "emptyAll": "The follow-up queue is clear — nothing is waiting on the team.",
+    "emptyFiltered": "No follow-ups in this bucket. Try a different filter.",
+    "filters": {
+      "overdue": "Overdue",
+      "today": "Today",
+      "upcoming": "Upcoming",
+      "all": "All"
+    },
+    "cols": {
+      "guest": "Guest",
+      "subject": "Subject",
+      "type": "Type",
+      "due": "Due",
+      "assignee": "Assignee",
+      "snippet": "Snippet"
+    }
+  },
+  "dashboard": {
+    "title": "Guest Relations",
+    "subtitle": "Today's flow, open requests and follow-ups across the whole guest book.",
+    "directory": "Guest directory",
+    "room": "Room {{label}}",
+    "rating": "Rating {{rating}}/5",
+    "unrated": "Unrated",
+    "dueAt": "due {{date}}",
+    "waitingForStaff_one": "{{count}} waiting for staff",
+    "waitingForStaff_other": "{{count}} waiting for staff",
+    "stats": {
+      "arrivals": "Arrivals",
+      "inHouse": "In house",
+      "departures": "Departures",
+      "vipArrivals": "VIP arrivals",
+      "openSupport": "Open support",
+      "awaitingReview": "Awaiting review",
+      "followUpsDue": "Follow-ups due"
+    },
+    "cards": {
+      "arrivalsTitle": "Arrivals today",
+      "arrivalsEmpty": "No arrivals due today.",
+      "inHouseTitle": "In-house guests",
+      "inHouseEmpty": "No guests currently in house.",
+      "departuresTitle": "Departures today",
+      "departuresEmpty": "No departures due today.",
+      "vipTitle": "VIP arrivals today",
+      "vipEmpty": "No VIP arrivals due today.",
+      "supportTitle": "Open support requests",
+      "supportViewAll": "Open the support inbox",
+      "supportEmpty": "No open support conversations.",
+      "reviewsTitle": "Reviews awaiting a response",
+      "reviewsEmpty": "No reviews awaiting a response.",
+      "followUpsTitle": "Open follow-ups",
+      "followUpsViewAll": "View the follow-up queue",
+      "followUpsEmpty": "No follow-ups due.",
+      "viewAllBookings": "View all in bookings"
+    }
   }
 }

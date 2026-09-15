@@ -20,6 +20,10 @@ import { getQueryErrorMessage } from '../../../api/queryConfig';
 import { PageHeader, StatStrip } from '../../../components';
 import type { StatStripItem } from '../../../components';
 import { useAuth } from '../../../auth/AuthContext';
+import { dateFormatter } from '../../../i18n/format';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
+import type { UseTranslationResult } from '../../../i18n/useTranslation';
 import { useNavigate } from '../../../router';
 import { formatHotelDateTime } from '../../../utils/date';
 import { GUEST_DESIGN } from '../../guests/constants';
@@ -29,43 +33,47 @@ import type { OverviewPreviewRow } from '../components/OverviewSectionCard';
 
 const guestProfilePath = (guestId: number) => `/guest-relations/guests/${guestId}`;
 
-const bookingRows = (items: OverviewBookingItem[]): OverviewPreviewRow[] =>
+const bookingRows = (items: OverviewBookingItem[], t: UseTranslationResult['t']): OverviewPreviewRow[] =>
   items.slice(0, 5).map((item) => ({
     key: item.booking_id,
     to: guestProfilePath(item.guest_id),
     primary: item.guest_name,
-    secondary: [item.room_label ? `Room ${item.room_label}` : null, item.status]
+    secondary: [item.room_label ? t('dashboard.room', { label: item.room_label }) : null, item.status ? statusLabel(t, 'booking', item.status) : null]
       .filter(Boolean)
       .join(' · '),
   }));
 
-const supportRows = (items: OverviewSupportItem[]): OverviewPreviewRow[] =>
+const supportRows = (items: OverviewSupportItem[], t: UseTranslationResult['t']): OverviewPreviewRow[] =>
   items.slice(0, 5).map((item) => ({
     key: item.conversation_id,
     // Unglinked conversations have no guest 360 to land on — send the reader
     // to the inbox row's owning module instead.
     to: item.guest_id != null ? guestProfilePath(item.guest_id) : '/support',
     primary: `${item.conversation_number} — ${item.subject}`,
-    secondary: [item.guest_name, item.status, item.priority].filter(Boolean).join(' · '),
+    secondary: [
+      item.guest_name,
+      item.status ? statusLabel(t, 'support', item.status) : null,
+      item.priority ? statusLabel(t, 'priority', item.priority) : null,
+    ].filter(Boolean).join(' · '),
   }));
 
-const reviewRows = (items: OverviewReviewItem[]): OverviewPreviewRow[] =>
+const reviewRows = (items: OverviewReviewItem[], t: UseTranslationResult['t']): OverviewPreviewRow[] =>
   items.slice(0, 5).map((item) => ({
     key: item.review_id,
     to: guestProfilePath(item.guest_id),
     primary: item.guest_name,
     secondary: [
-      item.rating != null ? `Rating ${item.rating}/5` : 'Unrated',
+      item.rating != null ? t('dashboard.rating', { rating: item.rating }) : t('dashboard.unrated'),
       formatHotelDateTime(item.created_at),
     ].join(' · '),
   }));
 
-const followUpRows = (items: FollowUpQueueItem[]): OverviewPreviewRow[] =>
+const followUpRows = (items: FollowUpQueueItem[], t: UseTranslationResult['t']): OverviewPreviewRow[] =>
   items.slice(0, 5).map((item) => ({
     key: item.note_id,
     to: guestProfilePath(item.guest_id),
-    primary: item.subject || 'Follow-up',
-    secondary: [item.guest_name, `due ${formatHotelDateTime(item.follow_up_at)}`].join(' · '),
+    primary: item.subject || t('followUps.subjectFallback'),
+    secondary: [item.guest_name, t('dashboard.dueAt', { date: formatHotelDateTime(item.follow_up_at) })].join(' · '),
   }));
 
 /**
@@ -75,6 +83,7 @@ const followUpRows = (items: FollowUpQueueItem[]): OverviewPreviewRow[] =>
  * includes those sections for the caller's permissions.
  */
 const GuestRelationsOverviewPage: React.FC = () => {
+  const { t } = useTranslation('guests');
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const hasAccess = hasPermission('guests:read') || hasPermission('guests:manage');
@@ -86,23 +95,23 @@ const GuestRelationsOverviewPage: React.FC = () => {
   if (!hasAccess) {
     return (
       <Alert severity="warning" sx={{ m: 2 }}>
-        You do not have permission to access this page. Contact your administrator for access.
+        {t('permissionDenied')}
       </Alert>
     );
   }
 
-  const dateLabel = new Date().toLocaleDateString('en-US', {
+  const dateLabel = dateFormatter({
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  });
+  }).format(new Date());
 
   const statItems: StatStripItem[] = overview
     ? [
         {
           key: 'arrivals',
-          label: 'Arrivals',
+          label: t('dashboard.stats.arrivals'),
           value: overview.arrivals.count,
           icon: <ArrivalsIcon />,
           color: GUEST_DESIGN.blue,
@@ -110,7 +119,7 @@ const GuestRelationsOverviewPage: React.FC = () => {
         },
         {
           key: 'inHouse',
-          label: 'In house',
+          label: t('dashboard.stats.inHouse'),
           value: overview.in_house.count,
           icon: <InHouseIcon />,
           color: GUEST_DESIGN.green700,
@@ -118,7 +127,7 @@ const GuestRelationsOverviewPage: React.FC = () => {
         },
         {
           key: 'departures',
-          label: 'Departures',
+          label: t('dashboard.stats.departures'),
           value: overview.departures.count,
           icon: <DeparturesIcon />,
           color: GUEST_DESIGN.amber,
@@ -126,7 +135,7 @@ const GuestRelationsOverviewPage: React.FC = () => {
         },
         {
           key: 'vipArrivals',
-          label: 'VIP arrivals',
+          label: t('dashboard.stats.vipArrivals'),
           value: overview.vip_arrivals.count,
           icon: <VipIcon />,
           color: GUEST_DESIGN.gold,
@@ -136,9 +145,9 @@ const GuestRelationsOverviewPage: React.FC = () => {
           ? [
               {
                 key: 'support',
-                label: 'Open support',
+                label: t('dashboard.stats.openSupport'),
                 value: overview.support.open,
-                hint: `${overview.support.waiting_for_staff} waiting for staff`,
+                hint: t('dashboard.waitingForStaff', { count: overview.support.waiting_for_staff }),
                 icon: <SupportIcon />,
                 color: GUEST_DESIGN.rose,
                 onClick: () => navigate('/support'),
@@ -149,7 +158,7 @@ const GuestRelationsOverviewPage: React.FC = () => {
           ? [
               {
                 key: 'reviews',
-                label: 'Awaiting review',
+                label: t('dashboard.stats.awaitingReview'),
                 value: overview.reviews.count,
                 icon: <ReviewsIcon />,
                 color: GUEST_DESIGN.amber,
@@ -158,7 +167,7 @@ const GuestRelationsOverviewPage: React.FC = () => {
           : []),
         {
           key: 'followUps',
-          label: 'Follow-ups due',
+          label: t('dashboard.stats.followUpsDue'),
           value: overview.follow_ups.count,
           icon: <FollowUpsIcon />,
           color: GUEST_DESIGN.rose,
@@ -177,8 +186,8 @@ const GuestRelationsOverviewPage: React.FC = () => {
 
       <PageHeader
         kicker={dateLabel}
-        title="Guest Relations"
-        subtitle="Today's flow, open requests and follow-ups across the whole guest book."
+        title={t('dashboard.title')}
+        subtitle={t('dashboard.subtitle')}
         actions={(
           <Button
             startIcon={<DirectoryIcon />}
@@ -186,7 +195,7 @@ const GuestRelationsOverviewPage: React.FC = () => {
             variant="contained"
             sx={{ textTransform: 'none' }}
           >
-            Guest directory
+            {t('dashboard.directory')}
           </Button>
         )}
       />
@@ -202,65 +211,65 @@ const GuestRelationsOverviewPage: React.FC = () => {
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <OverviewSectionCard
-                title="Arrivals today"
+                title={t('dashboard.cards.arrivalsTitle')}
                 icon={<ArrivalsIcon />}
                 accent={GUEST_DESIGN.blue}
                 count={overview.arrivals.count}
-                rows={bookingRows(overview.arrivals.items)}
+                rows={bookingRows(overview.arrivals.items, t)}
                 viewAllTo="/bookings"
-                viewAllLabel="View all in bookings"
-                emptyText="No arrivals due today."
+                viewAllLabel={t('dashboard.cards.viewAllBookings')}
+                emptyText={t('dashboard.cards.arrivalsEmpty')}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <OverviewSectionCard
-                title="In-house guests"
+                title={t('dashboard.cards.inHouseTitle')}
                 icon={<InHouseIcon />}
                 accent={GUEST_DESIGN.green700}
                 count={overview.in_house.count}
-                rows={bookingRows(overview.in_house.items)}
+                rows={bookingRows(overview.in_house.items, t)}
                 viewAllTo="/bookings"
-                viewAllLabel="View all in bookings"
-                emptyText="No guests currently in house."
+                viewAllLabel={t('dashboard.cards.viewAllBookings')}
+                emptyText={t('dashboard.cards.inHouseEmpty')}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <OverviewSectionCard
-                title="Departures today"
+                title={t('dashboard.cards.departuresTitle')}
                 icon={<DeparturesIcon />}
                 accent={GUEST_DESIGN.amber}
                 count={overview.departures.count}
-                rows={bookingRows(overview.departures.items)}
+                rows={bookingRows(overview.departures.items, t)}
                 viewAllTo="/bookings"
-                viewAllLabel="View all in bookings"
-                emptyText="No departures due today."
+                viewAllLabel={t('dashboard.cards.viewAllBookings')}
+                emptyText={t('dashboard.cards.departuresEmpty')}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <OverviewSectionCard
-                title="VIP arrivals today"
+                title={t('dashboard.cards.vipTitle')}
                 icon={<VipIcon />}
                 accent={GUEST_DESIGN.gold}
                 count={overview.vip_arrivals.count}
-                rows={bookingRows(overview.vip_arrivals.items)}
+                rows={bookingRows(overview.vip_arrivals.items, t)}
                 viewAllTo="/bookings"
-                viewAllLabel="View all in bookings"
-                emptyText="No VIP arrivals due today."
+                viewAllLabel={t('dashboard.cards.viewAllBookings')}
+                emptyText={t('dashboard.cards.vipEmpty')}
               />
             </Grid>
 
             {overview.support && (
               <Grid size={{ xs: 12, md: 6, xl: 4 }}>
                 <OverviewSectionCard
-                  title="Open support requests"
+                  title={t('dashboard.cards.supportTitle')}
                   icon={<SupportIcon />}
                   accent={GUEST_DESIGN.rose}
                   count={overview.support.open}
-                  subtitle={`${overview.support.waiting_for_staff} waiting for staff`}
-                  rows={supportRows(overview.support.items)}
+                  subtitle={t('dashboard.waitingForStaff', { count: overview.support.waiting_for_staff })}
+                  rows={supportRows(overview.support.items, t)}
                   viewAllTo="/support"
-                  viewAllLabel="Open the support inbox"
-                  emptyText="No open support conversations."
+                  viewAllLabel={t('dashboard.cards.supportViewAll')}
+                  emptyText={t('dashboard.cards.supportEmpty')}
                 />
               </Grid>
             )}
@@ -268,26 +277,26 @@ const GuestRelationsOverviewPage: React.FC = () => {
             {overview.reviews && (
               <Grid size={{ xs: 12, md: 6, xl: 4 }}>
                 <OverviewSectionCard
-                  title="Reviews awaiting a response"
+                  title={t('dashboard.cards.reviewsTitle')}
                   icon={<ReviewsIcon />}
                   accent={GUEST_DESIGN.amber}
                   count={overview.reviews.count}
-                  rows={reviewRows(overview.reviews.items)}
-                  emptyText="No reviews awaiting a response."
+                  rows={reviewRows(overview.reviews.items, t)}
+                  emptyText={t('dashboard.cards.reviewsEmpty')}
                 />
               </Grid>
             )}
 
             <Grid size={{ xs: 12, md: 6, xl: 4 }}>
               <OverviewSectionCard
-                title="Open follow-ups"
+                title={t('dashboard.cards.followUpsTitle')}
                 icon={<FollowUpsIcon />}
                 accent={GUEST_DESIGN.rose}
                 count={overview.follow_ups.count}
-                rows={followUpRows(overview.follow_ups.items)}
+                rows={followUpRows(overview.follow_ups.items, t)}
                 viewAllTo="/guest-relations/follow-ups"
-                viewAllLabel="View the follow-up queue"
-                emptyText="No follow-ups due."
+                viewAllLabel={t('dashboard.cards.followUpsViewAll')}
+                emptyText={t('dashboard.cards.followUpsEmpty')}
               />
             </Grid>
           </Grid>

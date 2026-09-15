@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { ChevronRightOutlined as ChevronRightIcon } from '@mui/icons-material';
 import { Link } from '../../../router';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 /** One linkable preview row inside an overview section card. */
 export interface OverviewPreviewRow {
@@ -52,7 +53,9 @@ const OverviewSectionCard: React.FC<OverviewSectionCardProps> = ({
   viewAllTo,
   viewAllLabel,
   emptyText,
-}) => (
+}) => {
+  const { t } = useTranslation('guests');
+  return (
   <Card sx={{ height: '100%' }}>
     <CardContent
       sx={{
@@ -143,12 +146,13 @@ const OverviewSectionCard: React.FC<OverviewSectionCardProps> = ({
             '&:hover': { textDecoration: 'underline' },
           }}
         >
-          {viewAllLabel ?? 'View all'}
+          {viewAllLabel ?? t('common:actions.viewAll')}
           <ChevronRightIcon sx={{ fontSize: 14 }} />
         </Typography>
       )}
     </CardContent>
   </Card>
-);
+  );
+};
 
 export default OverviewSectionCard;
