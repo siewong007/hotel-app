@@ -1,8 +1,9 @@
-import { Suspense, lazy } from 'react';
+import { Suspense } from 'react';
 import { CircularProgress } from '@mui/material';
 import { createFileRoute } from '@tanstack/react-router';
 import { ProtectedRoute } from '../../features/auth/components/ProtectedRoute';
 import { AnimatedRoute, ComponentErrorBoundary } from '../../components';
+import { lazyRoute } from '../../navigation/lazyRoute';
 
 // The follow-up queue is a non-nav file route rendered directly — same
 // precedent as guests/$guestId.tsx — bound to its own seeded
@@ -11,7 +12,7 @@ import { AnimatedRoute, ComponentErrorBoundary } from '../../components';
 // `requiresPolicy`: the policy row only exists on databases that ran patch
 // 0003, and the page's own `guests:read` guard covers access when the row is
 // absent.
-const GuestRelationsFollowUpsPage = lazy(
+const GuestRelationsFollowUpsPage = lazyRoute(
   () => import('../../features/guestRelations/pages/GuestRelationsFollowUpsPage')
 );
 

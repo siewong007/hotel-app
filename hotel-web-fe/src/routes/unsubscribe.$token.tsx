@@ -1,10 +1,11 @@
-import { Suspense, lazy } from 'react';
+import { Suspense } from 'react';
 import { CircularProgress } from '@mui/material';
 import { createFileRoute } from '@tanstack/react-router';
+import { lazyRoute } from '../navigation/lazyRoute';
 
 // Public, token-authenticated page; rendered directly (not via the registry)
 // because it is the only parameterised public route.
-const UnsubscribePage = lazy(
+const UnsubscribePage = lazyRoute(
   () => import('../features/communications/pages/UnsubscribePage')
 );
 

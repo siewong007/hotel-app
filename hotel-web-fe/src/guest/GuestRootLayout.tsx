@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Outlet, useLocation } from '@tanstack/react-router';
 import { ErrorBoundary } from '../components';
 import { useAuth } from '../auth/AuthContext';
@@ -8,9 +8,10 @@ import { isPublicGuestPath } from './guestDocumentPaths';
 import { GuestOneTap } from '../features/auth/google/GuestOneTap';
 import { GuestPortalThemeProvider } from '../features/guestPortal/theme/GuestPortalThemeProvider';
 import { CrossAppRedirect } from './CrossAppRedirect';
+import { lazyRoute } from '../navigation/lazyRoute';
 import { useTranslation } from '../i18n';
 
-const GuestPortalShell = lazy(
+const GuestPortalShell = lazyRoute(
   () => import('../features/guestPortal/components/GuestPortalShell').then(module => ({
     default: module.GuestPortalShell,
   })),

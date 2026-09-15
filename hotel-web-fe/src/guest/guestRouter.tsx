@@ -1,7 +1,8 @@
-import { Suspense, lazy, useEffect, type ComponentType } from 'react';
+import { Suspense, useEffect, type ComponentType } from 'react';
 import { CircularProgress } from '@mui/material';
 import { createRootRoute, createRoute, createRouter, useNavigate } from '@tanstack/react-router';
 import { StatusPage } from '../components';
+import { lazyRoute } from '../navigation/lazyRoute';
 import { UnauthOnlyRoute } from '../router/RouteGuards';
 import { GuestRootLayout } from './GuestRootLayout';
 
@@ -12,7 +13,9 @@ const rootRoute = createRootRoute({
 function lazyDefault(
   loader: () => Promise<{ default: ComponentType<any> }>,
 ) {
-  return lazy(loader);
+  // lazyRoute, not bare lazy(): a stale deploy chunk must trigger the
+  // one-time reload recovery rather than landing in the error boundary.
+  return lazyRoute(loader);
 }
 
 function page(
@@ -35,7 +38,7 @@ function page(
   });
 }
 
-const UnsubscribePage = lazy(
+const UnsubscribePage = lazyRoute(
   () => import('../features/communications/pages/UnsubscribePage'),
 );
 
@@ -52,10 +55,10 @@ const unsubscribeRoute = createRoute({
   },
 });
 
-const PortalDashboardPage = lazy(
+const PortalDashboardPage = lazyRoute(
   () => import('../features/guestPortal/components/PortalDashboardPage'),
 );
-const PortalBookingPage = lazy(
+const PortalBookingPage = lazyRoute(
   () => import('../features/guestPortal/booking/PortalBookingPage'),
 );
 
