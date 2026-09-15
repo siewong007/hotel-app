@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
-import { CircularProgress } from '@mui/material';
 import { createFileRoute } from '@tanstack/react-router';
 import { ProtectedRoute } from '../../../features/auth/components/ProtectedRoute';
-import { AnimatedRoute, ComponentErrorBoundary } from '../../../components';
+import { AnimatedRoute, ComponentErrorBoundary, LogoLoader } from '../../../components';
 import { lazyRoute } from '../../../navigation/lazyRoute';
 
 // Guest 360 is a parameterised file route rendered directly — same precedent
@@ -18,7 +17,7 @@ function GuestProfileRoute() {
     <ProtectedRoute routeId="guest-relations-detail">
       <AnimatedRoute animationType="fade">
         <ComponentErrorBoundary>
-          <Suspense fallback={<CircularProgress sx={{ m: 8 }} />}>
+          <Suspense fallback={<LogoLoader variant="page" />}>
             <GuestProfilePage guestId={guestId} />
           </Suspense>
         </ComponentErrorBoundary>

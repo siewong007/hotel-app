@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
-import { CircularProgress } from '@mui/material';
 import { createFileRoute } from '@tanstack/react-router';
+import { LogoLoader } from '../components';
 import { lazyRoute } from '../navigation/lazyRoute';
 
 // Public, token-authenticated page; rendered directly (not via the registry)
@@ -12,7 +12,7 @@ const UnsubscribePage = lazyRoute(
 function UnsubscribeRoute() {
   const { token } = Route.useParams();
   return (
-    <Suspense fallback={<CircularProgress sx={{ m: 8 }} />}>
+    <Suspense fallback={<LogoLoader variant="page" />}>
       <UnsubscribePage token={token} />
     </Suspense>
   );

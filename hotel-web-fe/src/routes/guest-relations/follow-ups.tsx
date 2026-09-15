@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
-import { CircularProgress } from '@mui/material';
 import { createFileRoute } from '@tanstack/react-router';
 import { ProtectedRoute } from '../../features/auth/components/ProtectedRoute';
-import { AnimatedRoute, ComponentErrorBoundary } from '../../components';
+import { AnimatedRoute, ComponentErrorBoundary, LogoLoader } from '../../components';
 import { lazyRoute } from '../../navigation/lazyRoute';
 
 // The follow-up queue is a non-nav file route rendered directly — same
@@ -21,7 +20,7 @@ function FollowUpsRoute() {
     <ProtectedRoute routeId="guest-relations-follow-ups">
       <AnimatedRoute animationType="slide">
         <ComponentErrorBoundary>
-          <Suspense fallback={<CircularProgress sx={{ m: 8 }} />}>
+          <Suspense fallback={<LogoLoader variant="page" />}>
             <GuestRelationsFollowUpsPage />
           </Suspense>
         </ComponentErrorBoundary>

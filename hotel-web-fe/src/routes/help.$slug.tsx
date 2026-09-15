@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
-import { CircularProgress } from '@mui/material';
 import { createFileRoute } from '@tanstack/react-router';
 import { ProtectedRoute } from '../features/auth/components/ProtectedRoute';
-import { AnimatedRoute, ComponentErrorBoundary } from '../components';
+import { AnimatedRoute, ComponentErrorBoundary, LogoLoader } from '../components';
 import { lazyRoute } from '../navigation/lazyRoute';
 
 // Article detail lives under the existing 'help' route id — no new
@@ -18,7 +17,7 @@ function HelpArticleRoute() {
     <ProtectedRoute routeId="help">
       <AnimatedRoute animationType="fade">
         <ComponentErrorBoundary>
-          <Suspense fallback={<CircularProgress sx={{ m: 8 }} />}>
+          <Suspense fallback={<LogoLoader variant="page" />}>
             <HelpArticlePage slug={slug} />
           </Suspense>
         </ComponentErrorBoundary>
