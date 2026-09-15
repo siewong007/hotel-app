@@ -3,20 +3,20 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::models::ReportQuery;
-use crate::repositories::analytics;
+use super::repository;
 use crate::services::audit::AuditLog;
 use std::collections::HashMap;
 
 pub async fn occupancy_report(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
-    analytics::occupancy_report(pool).await
+    repository::occupancy_report(pool).await
 }
 
 pub async fn booking_analytics(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
-    analytics::booking_analytics(pool).await
+    repository::booking_analytics(pool).await
 }
 
 pub async fn benchmark_report(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
-    analytics::benchmark_report(pool).await
+    repository::benchmark_report(pool).await
 }
 
 pub async fn personalized_report(
@@ -34,7 +34,7 @@ pub async fn personalized_report(
             .await
             .unwrap_or(false);
 
-    analytics::personalized_report(pool, user_id, has_full_analytics, params).await
+    repository::personalized_report(pool, user_id, has_full_analytics, params).await
 }
 
 pub async fn generate_report(
@@ -56,7 +56,7 @@ pub async fn generate_report(
         "posted_status": &params.posted_status,
         "room_type": &params.room_type,
     });
-    let report = analytics::generate_report(pool, params).await?;
+    let report = repository::generate_report(pool, params).await?;
 
     let _ = AuditLog::log_event(
         pool,

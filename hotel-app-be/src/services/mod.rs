@@ -3,7 +3,7 @@
 //! Services that encapsulate complex business logic.
 
 pub mod account_emails;
-pub mod analytics;
+// analytics service logic live in modules::analytics.
 pub mod audit;
 pub mod auth;
 pub mod auto_checkin;

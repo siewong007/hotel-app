@@ -34,7 +34,7 @@ mod postgres_tests {
     use hotel_app_be::modules::settings::models::SystemSettingUpdate;
     use hotel_app_be::modules::settings::repository::SettingsRepository;
     use hotel_app_be::modules::settings::service as settings_service;
-    use hotel_app_be::repositories::analytics as analytics_repo;
+    use hotel_app_be::modules::analytics::repository as analytics_repo;
     use hotel_app_be::repositories::audit::AuditRepository;
     use hotel_app_be::modules::search::repository::SearchRepository;
     use hotel_app_be::services::audit as audit_service;

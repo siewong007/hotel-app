@@ -5,7 +5,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::ReportQuery;
-use crate::services::analytics;
+use super::service;
 use axum::{
     Json,
     extract::{Extension, Query, State},
@@ -15,19 +15,19 @@ use std::collections::HashMap;
 pub async fn get_occupancy_report_handler(
     State(pool): State<DbPool>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(analytics::occupancy_report(&pool).await?))
+    Ok(Json(service::occupancy_report(&pool).await?))
 }
 
 pub async fn get_booking_analytics_handler(
     State(pool): State<DbPool>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(analytics::booking_analytics(&pool).await?))
+    Ok(Json(service::booking_analytics(&pool).await?))
 }
 
 pub async fn get_benchmark_report_handler(
     State(pool): State<DbPool>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(analytics::benchmark_report(&pool).await?))
+    Ok(Json(service::benchmark_report(&pool).await?))
 }
 
 pub async fn get_personalized_report_handler(
@@ -36,7 +36,7 @@ pub async fn get_personalized_report_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        analytics::personalized_report(&pool, user_id, params).await?,
+        service::personalized_report(&pool, user_id, params).await?,
     ))
 }
 
@@ -46,6 +46,6 @@ pub async fn generate_report_handler(
     Query(params): Query<ReportQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        analytics::generate_report(&pool, user_id, params).await?,
+        service::generate_report(&pool, user_id, params).await?,
     ))
 }

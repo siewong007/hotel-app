@@ -3,7 +3,7 @@
 //! This module provides a modular structure for routes.
 //! Each submodule defines routes for a specific domain.
 
-pub mod analytics;
+// analytics routes live in modules::analytics.
 // audit routes live in modules::audit.
 pub mod auth;
 // booking_channels routes live in modules::booking_channels.
@@ -406,7 +406,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::rbac::routes::routes())
         .merge(crate::modules::users::routes::routes())
         .merge(crate::modules::profile::routes::routes())
-        .merge(analytics::routes())
+        .merge(crate::modules::analytics::routes::routes())
         .merge(crate::modules::settings::routes::routes())
         .merge(crate::modules::system::routes::routes())
         .merge(crate::modules::insights::routes::routes())

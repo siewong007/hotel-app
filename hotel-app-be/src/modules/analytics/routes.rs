@@ -7,7 +7,7 @@ use crate::core::error::ApiError;
 use crate::core::middleware::{
     require_any_permission_helper, require_auth, require_permission_helper,
 };
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -33,7 +33,7 @@ async fn get_occupancy(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
-    handlers::analytics::get_occupancy_report_handler(State(pool)).await
+    handlers::get_occupancy_report_handler(State(pool)).await
 }
 
 async fn get_booking_analytics(
@@ -41,7 +41,7 @@ async fn get_booking_analytics(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
-    handlers::analytics::get_booking_analytics_handler(State(pool)).await
+    handlers::get_booking_analytics_handler(State(pool)).await
 }
 
 async fn get_benchmark(
@@ -49,7 +49,7 @@ async fn get_benchmark(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
-    handlers::analytics::get_benchmark_report_handler(State(pool)).await
+    handlers::get_benchmark_report_handler(State(pool)).await
 }
 
 async fn get_personalized(
@@ -59,7 +59,7 @@ async fn get_personalized(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
     let user_id = require_auth(&headers).await?;
-    handlers::analytics::get_personalized_report_handler(State(pool), Extension(user_id), query)
+    handlers::get_personalized_report_handler(State(pool), Extension(user_id), query)
         .await
 }
 
@@ -81,5 +81,5 @@ async fn generate_report(
                 }
             })?;
 
-    handlers::analytics::generate_report_handler(State(pool), Extension(user_id), query).await
+    handlers::generate_report_handler(State(pool), Extension(user_id), query).await
 }

@@ -1,3 +1,4 @@
+pub mod analytics;
 pub mod audit;
 pub mod booking_channels;
 pub mod communications;

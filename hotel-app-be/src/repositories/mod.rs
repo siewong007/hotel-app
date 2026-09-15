@@ -3,7 +3,7 @@
 //! Repositories encapsulate all database queries and provide a clean interface
 //! for the service/handler layers to interact with the database.
 
-pub mod analytics;
+// analytics persistence live in modules::analytics.
 pub mod audit;
 pub mod auth;
 pub mod booking;
@@ -11,7 +11,7 @@ pub mod booking;
 pub mod booking_list;
 pub mod bookings;
 pub mod bookings_queries;
-pub mod channel_net_revenue;
+// channel_net_revenue persistence live in modules::analytics.
 // company persistence live in modules::companies.
 pub mod data_transfer;
 pub mod ekyc;

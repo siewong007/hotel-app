@@ -2,7 +2,6 @@
 //!
 //! Each module contains models for a specific domain of the application.
 
-pub mod analytics;
 pub mod audit;
 pub mod auth;
 pub mod booking;
@@ -17,7 +16,7 @@ pub mod payment_retry;
 pub mod row_mappers;
 
 // Re-export all models for convenience
-pub use analytics::*;
+pub use crate::modules::analytics::models::*;
 pub use audit::*;
 pub use auth::*;
 pub use booking::*;

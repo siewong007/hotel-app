@@ -3,7 +3,7 @@
 //! Each module contains handlers for a specific domain of the application.
 //! Handlers are organized by feature area for better maintainability.
 
-pub mod analytics;
+// analytics handlers live in modules::analytics.
 // audit handlers live in modules::audit.
 pub mod auth;
 // booking_channels handlers live in modules::booking_channels.
