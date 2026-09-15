@@ -15,7 +15,6 @@ pub mod ledger;
 pub mod night_audit;
 pub mod payment;
 pub mod payment_retry;
-pub mod rbac;
 pub mod room;
 pub mod row_mappers;
 
@@ -37,7 +36,7 @@ pub use crate::modules::maintenance::models::*;
 pub use night_audit::*;
 pub use payment::*;
 pub use crate::modules::rates::models::*;
-pub use rbac::*;
+pub use crate::modules::rbac::models::*;
 pub use room::*;
 pub use crate::modules::search::models::*;
 pub use crate::modules::users::models::*;

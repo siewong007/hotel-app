@@ -28,7 +28,7 @@ pub mod passkey;
 pub mod payment;
 pub mod payment_retry;
 // rate persistence live in modules::rates.
-pub mod rbac;
+// rbac persistence live in modules::rbac.
 pub mod rooms_queries;
 // search persistence live in modules::search.
 // user persistence live in modules::users.

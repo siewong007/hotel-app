@@ -3,7 +3,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::repositories::rbac::RbacRepository;
+use super::repository::RbacRepository;
 use crate::modules::users::repository::UserRepository;
 use crate::services::audit::AuditLog;
 use std::collections::HashSet;

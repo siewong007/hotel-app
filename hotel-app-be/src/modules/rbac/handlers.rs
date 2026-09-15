@@ -6,7 +6,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::services::rbac as svc;
+use super::service as svc;
 use axum::{
     extract::{Extension, Path, State},
     response::Json,

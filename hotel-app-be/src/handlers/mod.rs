@@ -23,7 +23,7 @@ pub mod payment_retry;
 pub mod payments;
 // profile handlers live in modules::profile.
 // rates handlers live in modules::rates.
-pub mod rbac;
+// rbac handlers live in modules::rbac.
 pub mod rooms;
 // search handlers live in modules::search.
 pub mod two_factor;

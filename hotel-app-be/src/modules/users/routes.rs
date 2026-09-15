@@ -198,7 +198,7 @@ async fn assign_role(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
-    crate::handlers::rbac::assign_role_to_user_handler(State(pool), Extension(actor_user_id), Json(input))
+    crate::modules::rbac::handlers::assign_role_to_user_handler(State(pool), Extension(actor_user_id), Json(input))
         .await
 }
 
@@ -209,7 +209,7 @@ async fn remove_role(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
-    crate::handlers::rbac::remove_role_from_user_handler(State(pool), Extension(actor_user_id), path).await
+    crate::modules::rbac::handlers::remove_role_from_user_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn replace_user_roles(
@@ -220,7 +220,7 @@ async fn replace_user_roles(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
-    crate::handlers::rbac::replace_user_roles_handler(
+    crate::modules::rbac::handlers::replace_user_roles_handler(
         State(pool),
         Extension(actor_user_id),
         path,

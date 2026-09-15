@@ -18,7 +18,7 @@ use crate::modules::settings::repository::SettingsRepository;
 use crate::repositories::auth::AuthRepository;
 use crate::repositories::guest::GuestRepository;
 use crate::repositories::passkey::PasskeyRepository;
-use crate::repositories::rbac::RbacRepository;
+use crate::modules::rbac::repository::RbacRepository;
 use crate::services::account_emails;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity;

@@ -1,6 +1,6 @@
 //! User administration workflows.
 //!
-//! Role *membership* stays in [`crate::services::rbac`]; this module owns the
+//! Role *membership* stays in [`crate::modules::rbac::service`]; this module owns the
 //! user record itself (create / update / deactivate). Both share the
 //! role-priority guard so an administrator can never act on a peer or superior.
 
@@ -14,11 +14,11 @@ use crate::models::{
     UserCreateInput, UserResponse, UserUpdateInput, UserWithRolesAndPermissions,
 };
 use crate::repositories::auth::AuthRepository;
-use crate::repositories::rbac::RbacRepository;
+use crate::modules::rbac::repository::RbacRepository;
 use super::repository::UserRepository;
 use crate::services::audit::AuditLog;
 use crate::modules::profile::service::{location_from_timezone, mask_ip_address};
-use crate::services::rbac::{ensure_actor_can_manage_roles, ensure_actor_can_manage_user};
+use crate::modules::rbac::service::{ensure_actor_can_manage_roles, ensure_actor_can_manage_user};
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 use chrono::{Duration, Utc};

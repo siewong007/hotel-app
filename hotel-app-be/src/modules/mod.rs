@@ -13,6 +13,7 @@ pub mod maintenance;
 pub mod profile;
 pub mod promotions;
 pub mod rates;
+pub mod rbac;
 pub mod realtime;
 pub mod revenue;
 pub mod search;
