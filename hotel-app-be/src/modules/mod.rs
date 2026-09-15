@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod booking_channels;
 pub mod communications;
+pub mod companies;
 pub mod consent;
 pub mod ekyc;
 pub mod guest_booking;

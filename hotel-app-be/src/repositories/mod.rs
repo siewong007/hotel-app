@@ -12,7 +12,7 @@ pub mod booking_list;
 pub mod bookings;
 pub mod bookings_queries;
 pub mod channel_net_revenue;
-pub mod company;
+// company persistence live in modules::companies.
 pub mod data_transfer;
 pub mod ekyc;
 pub mod guest;

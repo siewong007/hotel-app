@@ -3,7 +3,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -34,7 +34,7 @@ async fn list_companies(
     query: Query<models::CompanyListQuery>,
 ) -> Result<Json<Vec<models::Company>>, ApiError> {
     require_permission_helper(&pool, &headers, COMPANIES_READ).await?;
-    handlers::companies::list_companies_handler(State(pool), query).await
+    handlers::list_companies_handler(State(pool), query).await
 }
 
 async fn get_company(
@@ -43,7 +43,7 @@ async fn get_company(
     path: Path<i64>,
 ) -> Result<Json<models::Company>, ApiError> {
     require_permission_helper(&pool, &headers, COMPANIES_READ).await?;
-    handlers::companies::get_company_handler(State(pool), path).await
+    handlers::get_company_handler(State(pool), path).await
 }
 
 async fn create_company(
@@ -52,7 +52,7 @@ async fn create_company(
     Json(input): Json<models::CompanyCreateRequest>,
 ) -> Result<Json<models::Company>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, COMPANIES_CREATE).await?;
-    handlers::companies::create_company_handler(State(pool), user_id, Json(input)).await
+    handlers::create_company_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn update_company(
@@ -62,7 +62,7 @@ async fn update_company(
     Json(input): Json<models::CompanyUpdateRequest>,
 ) -> Result<Json<models::Company>, ApiError> {
     require_permission_helper(&pool, &headers, COMPANIES_UPDATE).await?;
-    handlers::companies::update_company_handler(State(pool), path, Json(input)).await
+    handlers::update_company_handler(State(pool), path, Json(input)).await
 }
 
 async fn delete_company(
@@ -71,5 +71,5 @@ async fn delete_company(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, COMPANIES_DELETE).await?;
-    handlers::companies::delete_company_handler(State(pool), path).await
+    handlers::delete_company_handler(State(pool), path).await
 }

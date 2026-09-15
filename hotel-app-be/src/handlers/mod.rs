@@ -8,7 +8,7 @@ pub mod analytics;
 pub mod auth;
 // booking_channels handlers live in modules::booking_channels.
 pub mod bookings;
-pub mod companies;
+// companies handlers live in modules::companies.
 pub mod data_transfer;
 // eKYC handlers live in modules::ekyc.
 pub mod guest_portal;
