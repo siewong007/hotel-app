@@ -71,23 +71,25 @@ const MORE_VALUE = 'more';
 // `rewards` group under a desktop dropdown and the phone "More" sheet;
 // `account` items live in the avatar menu on web and the "More" sheet on
 // phones.
+// Labels come from `guestPortal:nav.<section>` at render time; every section
+// id below has a key in all three locales.
 const primarySections = [
-  { label: 'Home', section: 'overview', to: DASHBOARD_LINK, icon: <HomeOutlinedIcon /> },
-  { label: 'Stays', section: 'stays', to: '/guest-portal?section=stays', icon: <HotelOutlinedIcon /> },
-  { label: 'Points', section: 'points-history', to: '/guest-portal?section=points-history', icon: <HistoryOutlinedIcon /> },
+  { section: 'overview', to: DASHBOARD_LINK, icon: <HomeOutlinedIcon /> },
+  { section: 'stays', to: '/guest-portal?section=stays', icon: <HotelOutlinedIcon /> },
+  { section: 'points-history', to: '/guest-portal?section=points-history', icon: <HistoryOutlinedIcon /> },
 ] as const;
 
 const rewardsSections = [
-  { label: 'Offers', section: 'offers', to: '/guest-portal?section=offers', icon: <LocalOfferOutlinedIcon /> },
-  { label: 'Vouchers', section: 'vouchers', to: '/guest-portal?section=vouchers', icon: <ConfirmationNumberOutlinedIcon /> },
-  { label: 'Free nights', section: 'credits', to: '/guest-portal?section=credits', icon: <CardGiftcardOutlinedIcon /> },
+  { section: 'offers', to: '/guest-portal?section=offers', icon: <LocalOfferOutlinedIcon /> },
+  { section: 'vouchers', to: '/guest-portal?section=vouchers', icon: <ConfirmationNumberOutlinedIcon /> },
+  { section: 'credits', to: '/guest-portal?section=credits', icon: <CardGiftcardOutlinedIcon /> },
 ] as const;
 
 const accountSections = [
-  { label: 'Profile', section: 'profile', to: '/guest-portal?section=profile', icon: <PersonOutlineOutlinedIcon /> },
-  { label: 'Identity', section: 'identity', to: '/guest-portal?section=identity', icon: <BadgeOutlinedIcon /> },
-  { label: 'Security', section: 'security', to: '/guest-portal?section=security', icon: <ShieldOutlinedIcon /> },
-  { label: 'Preferences', section: 'preferences', to: '/guest-portal?section=preferences', icon: <TuneOutlinedIcon /> },
+  { section: 'profile', to: '/guest-portal?section=profile', icon: <PersonOutlineOutlinedIcon /> },
+  { section: 'identity', to: '/guest-portal?section=identity', icon: <BadgeOutlinedIcon /> },
+  { section: 'security', to: '/guest-portal?section=security', icon: <ShieldOutlinedIcon /> },
+  { section: 'preferences', to: '/guest-portal?section=preferences', icon: <TuneOutlinedIcon /> },
 ] as const;
 
 type GuestSection =
@@ -151,7 +153,7 @@ const groupLabelSx = {
 
 /** Guest-only navigation that preserves the existing portal route contract. */
 export function GuestPortalShell({ children, showAccountNav = true }: GuestPortalShellProps) {
-  const { t, tOr } = useTranslation('guestPortal');
+  const { t } = useTranslation('guestPortal');
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -279,14 +281,14 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
               >
                 {primarySections.map(link => (
                   <Button
-                    key={link.label}
+                    key={link.section}
                     component={Link}
                     to={link.to}
                     color="inherit"
                     aria-current={activeSection === link.section ? 'page' : undefined}
                     sx={navButtonSx(activeSection === link.section)}
                   >
-                    {tOr(`nav.${link.section}`, link.label)}
+                    {t(`nav.${link.section}`)}
                   </Button>
                 ))}
                 <Button
@@ -311,7 +313,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                 >
                   {rewardsSections.map(link => (
                     <MenuItem
-                      key={link.label}
+                      key={link.section}
                       component={Link}
                       to={link.to}
                       onClick={() => setRewardsAnchor(null)}
@@ -319,7 +321,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                       sx={{ gap: 1.25, minHeight: 44 }}
                     >
                       <ListItemIcon sx={{ minWidth: 0, color: 'var(--hotel-primary)' }}>{link.icon}</ListItemIcon>
-                      {tOr(`nav.${link.section}`, link.label)}
+                      {t(`nav.${link.section}`)}
                     </MenuItem>
                   ))}
                 </Menu>
@@ -400,7 +402,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                       <Divider component="li" />
                       {accountSections.map(link => (
                         <MenuItem
-                          key={link.label}
+                          key={link.section}
                           component={Link}
                           to={link.to}
                           onClick={() => setAccountAnchor(null)}
@@ -408,7 +410,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                           sx={{ gap: 1.25, minHeight: 44 }}
                         >
                           <ListItemIcon sx={{ minWidth: 0, color: 'var(--hotel-primary)' }}>{link.icon}</ListItemIcon>
-                          {tOr(`nav.${link.section}`, link.label)}
+                          {t(`nav.${link.section}`)}
                         </MenuItem>
                       ))}
                       <Divider component="li" />
@@ -481,7 +483,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
         <Box component="nav" aria-label={t('shell.mobileNavAria')} sx={{ display: { xs: showAccountNav ? 'block' : 'none', md: 'none' }, position: 'fixed', inset: 'auto 0 0', zIndex: theme => theme.zIndex.appBar, px: 1, pb: 'max(8px, env(safe-area-inset-bottom))', pt: 1, bgcolor: 'color-mix(in srgb, var(--hotel-bg) 92%, transparent)', backdropFilter: 'blur(14px)', borderTop: '1px solid var(--hotel-border)' }}>
           <BottomNavigation showLabels value={mobileValue} sx={{ height: 64, borderRadius: 2, bgcolor: 'var(--hotel-surface-overlay)', boxShadow: 'var(--hotel-shadow-md)', overflow: 'hidden', '& .MuiBottomNavigationAction-root': { minWidth: 0, maxWidth: 'none', color: 'var(--hotel-text-muted)', transition: 'color 200ms ease, transform 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }, '& .MuiBottomNavigationAction-root.Mui-selected': { color: 'var(--hotel-primary)' }, '& .MuiBottomNavigationAction-label': { fontSize: '0.625rem', fontWeight: 700, mt: 0.25 }, '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: '0.625rem' } }}>
             {primarySections.map(link => (
-              <BottomNavigationAction key={link.label} component={Link} to={link.to} value={link.to} label={tOr(`nav.${link.section}`, link.label)} icon={link.icon} aria-current={activeSection === link.section ? 'page' : undefined} />
+              <BottomNavigationAction key={link.section} component={Link} to={link.to} value={link.to} label={t(`nav.${link.section}`)} icon={link.icon} aria-current={activeSection === link.section ? 'page' : undefined} />
             ))}
             <BottomNavigationAction
               component={Link}
@@ -533,7 +535,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
             </Typography>
             {rewardsSections.map(link => (
               <ListItemButton
-                key={link.label}
+                key={link.section}
                 component={Link}
                 to={link.to}
                 selected={activeSection === link.section}
@@ -541,7 +543,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                 sx={sheetRowSx}
               >
                 <ListItemIcon sx={sheetIconSx}>{link.icon}</ListItemIcon>
-                <ListItemText primary={tOr(`nav.${link.section}`, link.label)} slotProps={{
+                <ListItemText primary={t(`nav.${link.section}`)} slotProps={{
                   primary: { sx: { fontWeight: 600 } }
                 }} />
               </ListItemButton>
@@ -552,7 +554,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
             </Typography>
             {accountSections.map(link => (
               <ListItemButton
-                key={link.label}
+                key={link.section}
                 component={Link}
                 to={link.to}
                 selected={activeSection === link.section}
@@ -560,7 +562,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                 sx={sheetRowSx}
               >
                 <ListItemIcon sx={sheetIconSx}>{link.icon}</ListItemIcon>
-                <ListItemText primary={tOr(`nav.${link.section}`, link.label)} slotProps={{
+                <ListItemText primary={t(`nav.${link.section}`)} slotProps={{
                   primary: { sx: { fontWeight: 600 } }
                 }} />
               </ListItemButton>

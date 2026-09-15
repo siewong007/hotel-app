@@ -1,3 +1,4 @@
+import { t as translate } from '../../i18n';
 import type { SupportConversation } from './types';
 
 export interface SupportConversationPermissions {
@@ -28,14 +29,17 @@ export interface SupportConversationAccess {
  * only a convenience layer; the backend still validates every transition.
  *
  * `t` is optional so tests can exercise the pure permission matrix without a
- * translator; callers that render `blockedReplyMessage` should always pass it
- * (`useTranslation('support')`) so the explanation is localized.
+ * translator; when omitted the module-level `t` (bound to the active locale)
+ * supplies the `support:` message. Callers that render `blockedReplyMessage`
+ * should still pass their `useTranslation('support')` `t` so the text
+ * re-renders on language switch.
  */
 export function getSupportConversationAccess(
   conversation: SupportConversation,
   permissions: SupportConversationPermissions,
   t?: (key: string) => string,
 ): SupportConversationAccess {
+  const tt = t ?? ((key: string) => translate(`support:${key}`));
   const isActive = conversation.status === 'waiting_for_staff'
     || conversation.status === 'waiting_for_guest';
   const isAssignedToCurrentUser = permissions.currentUserId !== undefined
@@ -62,19 +66,14 @@ export function getSupportConversationAccess(
   if (!canReply) {
     if (!isActive) {
       blockedReplyMessage = conversation.status === 'closed'
-        ? t?.('access.blockedClosed')
-          ?? 'This conversation must be reopened before another reply or internal note can be added.'
-        : t?.('access.blockedResolved')
-          ?? 'This conversation is resolved. Reopen it before sending another reply or internal note.';
+        ? tt('access.blockedClosed')
+        : tt('access.blockedResolved');
     } else if (isUnassigned && permissions.canWrite && !permissions.canAssign) {
-      blockedReplyMessage = t?.('access.blockedNeedsClaim')
-        ?? 'A support coordinator must claim this conversation before you can reply.';
+      blockedReplyMessage = tt('access.blockedNeedsClaim');
     } else if (conversation.assigned_to_user_id && !isAssignedToCurrentUser && !permissions.canManage) {
-      blockedReplyMessage = t?.('access.blockedOtherAssignee')
-        ?? 'This conversation is assigned to another support staff member.';
+      blockedReplyMessage = tt('access.blockedOtherAssignee');
     } else {
-      blockedReplyMessage = t?.('access.blockedNoPermission')
-        ?? 'You do not have permission to reply to this conversation.';
+      blockedReplyMessage = tt('access.blockedNoPermission');
     }
   }
 

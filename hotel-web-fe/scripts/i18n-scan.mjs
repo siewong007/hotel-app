@@ -67,6 +67,16 @@ const ALLOWED_LITERALS = new Set([
   'ERROR',
   'Hotel ERP System', // brand fallback title (GuestRootLayout FALLBACK_APP_TITLE)
   'Hotel ERP',
+  'esc',              // keyboard glyph on the command-palette hint chip
+  'px',               // CSS unit shown as a numeric input adornment
+  'CSV',              // file-format name on export buttons
+  'VIP',              // universal guest-tier acronym badge (not localized)
+  'Cash',             // default payment/refund-method *value* persisted on
+                      // booking/payment records; methods come from hotel
+                      // settings, not the bundle
+  'Queen',            // default bed_type value stored on room types
+  'DLX',              // room-type code example shown as an input placeholder
+  'VpnKey',           // MUI icon identifier fallback (useRBACData) — never rendered
 ]);
 
 // Patterns applied to the trimmed literal — a match means "do not report".
@@ -75,12 +85,88 @@ const ALLOWED_PATTERNS = [
   /^\p{Lu}*[\d&+\/._-][\p{Lu}\d&+\/._ -]*$/u,      // codes w/ digit or symbol: 2FA, V1
   /^[dMyLhHmsS]{1,5}([\/\-.,:\s][dMyLhHmsS]{1,5})+$/, // date-format tokens: dd/MM/yyyy, HH:mm
   /^[a-zA-Z][\w-]*([.:][\w-]+)+$/,                 // translation-key shaped: ns:key, a.b.c
-  /^\/[\w-]*(\/[\w-]*)*$/,                         // route/path shaped: /bookings
+  /^\/[\w\-./]*(\?[\w\-=&%]*)?$/,                  // route/path shaped: /bookings,
+                                                 //   /salim-inn/index.html,
+                                                 //   /guest-portal?section=stays
+  /^https?:\/\/\S*$/,                              // absolute URL: 'http://localhost' SSR base
+  /^(?:wss?|https?|mailto|tel|data|blob):$/,       // bare URL scheme: 'ws:', 'wss:'
+  /^[a-z]{2,3}(-[A-Za-z]{2,8})+$/,                 // BCP-47 tag: 'zh-CN' (Google Sign-In)
+  /^extends\s+\w/,                                 // TS `extends Omit<…>` clause misparsed
+                                                 //   as JSX text by the text-node regex
   /^#/,                                            // CSS colour: '#fff'
   /^var\(/,                                        // CSS variable: 'var(--hotel-…)'
   /^[a-z][a-zA-Z-]*\([^)]*\)$/,                    // CSS function: 'rotate(180deg)'
   /^(?:color-mix|light-dark|env|image-set)\(/,     // nested-paren CSS functions
-  /^-?[\d.]+(px|em|rem|deg|vh|vw|s|ms|fr|ch|ex|%)$/, // CSS measure: '-0.015em'
+  /^-?[\d.]+(px|em|rem|deg|vh|vw|s|ms|fr|ch|ex|%)(\s+-?[\d.]+(px|em|rem|deg|vh|vw|s|ms|fr|ch|ex|%))*$/,
+                                                 // CSS measure list: '-0.015em', '1fr 1fr',
+                                                 //   '1px 7px'
+  /^-?[\d.]+(px|em|rem)\s+(solid|dashed|dotted|double|groove|ridge|inset|outset)\b/,
+                                                 // CSS border shorthand: '1px solid',
+                                                 //   '1px solid var(--hotel-border-subtle)'
+];
+
+// ---------------------------------------------------------------------------
+// File-scoped allowlist — literals that are legitimately untranslated only in
+// one file, where a global entry would mask real misses elsewhere. `pathRe`
+// is tested against the file's absolute path. Each entry carries its reason;
+// this list becomes Task 16's audit allowlist.
+// ---------------------------------------------------------------------------
+const FILE_ALLOWLIST = [
+  {
+    // ROOM/BOOKING_STATUS_CONFIG `label` fields are the documented English
+    // fallback and reference; components render via the getLocalizedStatus*
+    // helpers (rooms:statusLabels/statusShort/…).
+    pathRe: /features\/rooms\/config\.ts$/,
+    literals: new Set([
+      'Vacant/Clean', 'Occupied', 'Reserved', 'Reserved / Dirty', 'Dirty',
+      'Maintenance', 'Pending', 'Checked Out', 'Voided',
+    ]),
+  },
+  {
+    // Preset `label` is the English reference kept next to the size numbers;
+    // the settings UI renders t('admin:settings.fontPresets.<key>.label').
+    pathRe: /features\/insights\/utils\/reportTypography\.ts$/,
+    literals: new Set(['Very Small', 'Small', 'Medium', 'Large', 'Very Large']),
+  },
+  {
+    // Font-family option names are proper nouns rendered as-is in every locale.
+    pathRe: /utils\/hotelSettings\.ts$/,
+    literals: new Set([
+      'Arial', 'Helvetica', 'Georgia', 'Times New Roman', 'Tahoma',
+      'Courier New',
+    ]),
+  },
+  {
+    // English search alias kept so "new booking" still matches when the
+    // interface runs in ms/zh (the localized label is checked alongside it).
+    pathRe: /components\/layout\/CommandPalette\.tsx$/,
+    literals: new Set(['new booking']),
+  },
+  {
+    // Default payment note persisted verbatim on the payment record.
+    pathRe: /features\/bookings\/components\/Bookings\/dialogs\/PaymentDialog\.tsx$/,
+    literals: new Set(['Required before checkout']),
+  },
+  {
+    // Default void reason persisted verbatim on the booking record.
+    pathRe: /features\/bookings\/components\/Bookings\/dialogs\/VoidDialog\.tsx$/,
+    literals: new Set(['Voided by admin']),
+  },
+  {
+    // Default deposit-waive reason persisted verbatim in payment_note.
+    pathRe: /features\/bookings\/components\/EnhancedCheckInModal\.tsx$/,
+    literals: new Set(['No reason provided']),
+  },
+  {
+    // Default for absent notes inside the room-status note stored on the room.
+    pathRe: /features\/invoices\/hooks\/useCheckoutFlow\.ts$/,
+    literals: new Set(['None']),
+  },
+  {
+    // Tag appended to booking remarks persisted verbatim on the booking.
+    pathRe: /features\/rooms\/components\/UnifiedBooking\/UnifiedBookingModal\.tsx$/,
+    literals: new Set(['[Hourly Stay]']),
+  },
 ];
 
 // jsx-text heuristic: a "text node" that starts with a closing bracket, comma,
@@ -271,6 +357,12 @@ function scanFile(path) {
   const consider = (index, kind, raw) => {
     const text = raw.trim().replace(/\s+/g, ' ');
     if (isAllowedLiteral(text, kind)) return;
+    if (
+      FILE_ALLOWLIST.some(
+        (entry) => entry.pathRe.test(path) && entry.literals.has(text)
+      )
+    )
+      return;
     if (DEV_ONLY_LINE_RE.test(lineTextAt(index))) return;
     if (reported.has(index)) return;
     reported.add(index);

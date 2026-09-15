@@ -85,13 +85,13 @@ type ResolutionChoice = 'refund' | 'forfeit' | 'cancel';
 
 const DEFAULT_REFUND_METHODS = ['Cash', 'Bank Transfer', 'E-Wallet', 'Other'];
 
-// `label` is the English reason text stored on the forfeit record (the
+// `storedLabel` is the English reason text stored on the forfeit record (the
 // backend keeps it verbatim); `labelKey` is what the UI displays.
 const FORFEIT_REASONS = [
-  { value: 'ROOM_DAMAGE', label: 'Room damage', labelKey: 'roomDamage' },
-  { value: 'MISSING_ITEM', label: 'Missing item or key', labelKey: 'missingItem' },
-  { value: 'OUTSTANDING_CHARGE', label: 'Outstanding charge', labelKey: 'outstandingCharge' },
-  { value: 'OTHER', label: 'Other', labelKey: 'other' },
+  { value: 'ROOM_DAMAGE', storedLabel: 'Room damage', labelKey: 'roomDamage' },
+  { value: 'MISSING_ITEM', storedLabel: 'Missing item or key', labelKey: 'missingItem' },
+  { value: 'OUTSTANDING_CHARGE', storedLabel: 'Outstanding charge', labelKey: 'outstandingCharge' },
+  { value: 'OTHER', storedLabel: 'Other', labelKey: 'other' },
 ] as const;
 
 /** Exported so the modal's confirm step can reuse the same chip tone; the
@@ -270,7 +270,7 @@ const ForfeitPanel: React.FC<PanelProps & {
   const selectedReason = FORFEIT_REASONS.find((r) => r.value === reasonCode);
   // The English label is what the forfeit record stores; the translated
   // reason is display-only (same split as the credit-note reason picker).
-  const reasonLabel = selectedReason?.label ?? '';
+  const reasonLabel = selectedReason?.storedLabel ?? '';
   const reasonDisplay = selectedReason
     ? t(`deposit.forfeit.reasons.${selectedReason.labelKey}`)
     : '';

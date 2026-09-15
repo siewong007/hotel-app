@@ -735,8 +735,11 @@ const SettingsPage: React.FC = () => {
                 }}
               >
                 <optgroup label={t('settings.currencyRecommended')}>
-                  <option value="MYR">RM - Malaysian Ringgit (MYR)</option>
-                  <option value="USD">$ - US Dollar (USD)</option>
+                  {(['MYR', 'USD'] as const).map((code) => (
+                    <option key={code} value={code}>
+                      {SUPPORTED_CURRENCIES[code].symbol} - {SUPPORTED_CURRENCIES[code].name} ({code})
+                    </option>
+                  ))}
                 </optgroup>
                 <optgroup label={t('settings.currencyOther')}>
                   {Object.entries(SUPPORTED_CURRENCIES)

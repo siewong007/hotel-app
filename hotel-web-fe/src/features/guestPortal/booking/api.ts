@@ -1,4 +1,5 @@
 import { api } from '../../../api/client';
+import { t } from '../../../i18n';
 import { apiUrl } from '../../../desktop/runtimeApi';
 import { SKIP_API_NOTIFICATION_HEADER } from '../../../utils/apiNotifications';
 import { getPortalToken } from '../api/portalTokenStore';
@@ -16,7 +17,7 @@ import type {
 function authHeaders(token?: string): Record<string, string> {
   const portalToken = token ?? getPortalToken();
   if (!portalToken) {
-    throw new Error('Sign in to the guest portal to continue');
+    throw new Error(t('communications:errors.portalSignInRequired'));
   }
   // Guest surfaces render every failure inline — the shared client's
   // global toast would repeat the same message.
