@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use super::user::{User, UserResponse};
+use crate::models::{User, UserResponse};
 
 /// Role entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

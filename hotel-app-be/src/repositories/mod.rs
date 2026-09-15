@@ -27,7 +27,7 @@ pub mod night_audit;
 pub mod passkey;
 pub mod payment;
 pub mod payment_retry;
-pub mod rate;
+// rate persistence live in modules::rates.
 pub mod rbac;
 pub mod rooms_queries;
 // search persistence live in modules::search.

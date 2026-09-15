@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::middleware::require_permission_helper;
-use crate::handlers;
+use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -45,36 +45,36 @@ pub fn routes() -> Router<DbPool> {
 async fn get_rate_plans(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rates::get_rate_plans(State(pool)).await
+    handlers::get_rate_plans(State(pool)).await
 }
 
 async fn create_rate_plan(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::RatePlanInput>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
-    handlers::rates::create_rate_plan(State(pool), user_id, Json(input)).await
+    handlers::create_rate_plan(State(pool), user_id, Json(input)).await
 }
 
 async fn get_rate_plan(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rates::get_rate_plan(State(pool), path).await
+    handlers::get_rate_plan(State(pool), path).await
 }
 
 async fn get_rate_plan_with_rates(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rates::get_rate_plan_with_rates(State(pool), path).await
+    handlers::get_rate_plan_with_rates(State(pool), path).await
 }
 
 async fn update_rate_plan(
@@ -82,18 +82,18 @@ async fn update_rate_plan(
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::RatePlanUpdateInput>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
-    handlers::rates::update_rate_plan(State(pool), path, user_id, Json(input)).await
+    handlers::update_rate_plan(State(pool), path, user_id, Json(input)).await
 }
 
 async fn delete_rate_plan(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
-    handlers::rates::delete_rate_plan(State(pool), path, user_id).await
+    handlers::delete_rate_plan(State(pool), path, user_id).await
 }
 
 // Room rate handlers
@@ -101,45 +101,45 @@ async fn delete_rate_plan(
 async fn get_room_rates(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rates::get_room_rates(State(pool)).await
+    handlers::get_room_rates(State(pool)).await
 }
 
 async fn create_room_rate(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::RoomRateInput>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
-    handlers::rates::create_room_rate(State(pool), user_id, Json(input)).await
+    handlers::create_room_rate(State(pool), user_id, Json(input)).await
 }
 
 async fn bulk_upsert_room_rates(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::BulkRoomRateInput>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
-    handlers::rates::bulk_upsert_room_rates(State(pool), user_id, Json(input)).await
+    handlers::bulk_upsert_room_rates(State(pool), user_id, Json(input)).await
 }
 
 async fn get_room_rates_by_plan(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rates::get_room_rates_by_plan(State(pool), path).await
+    handlers::get_room_rates_by_plan(State(pool), path).await
 }
 
 async fn get_room_rate(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rates::get_room_rate(State(pool), path).await
+    handlers::get_room_rate(State(pool), path).await
 }
 
 async fn update_room_rate(
@@ -147,33 +147,33 @@ async fn update_room_rate(
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::RoomRateUpdateInput>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
-    handlers::rates::update_room_rate(State(pool), path, user_id, Json(input)).await
+    handlers::update_room_rate(State(pool), path, user_id, Json(input)).await
 }
 
 async fn delete_room_rate(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
-    handlers::rates::delete_room_rate(State(pool), path, user_id).await
+    handlers::delete_room_rate(State(pool), path, user_id).await
 }
 
 async fn get_applicable_rate(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     query: Query<models::ApplicableRateQuery>,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rates::get_applicable_rate(State(pool), query).await
+    handlers::get_applicable_rate(State(pool), query).await
 }
 
 async fn get_room_types_for_rates(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<impl IntoResponse, handlers::rates::RateError> {
+) -> Result<impl IntoResponse, handlers::RateError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
-    handlers::rates::get_room_types_for_rates(State(pool)).await
+    handlers::get_room_types_for_rates(State(pool)).await
 }

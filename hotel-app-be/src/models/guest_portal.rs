@@ -251,7 +251,7 @@ pub struct GuestPortalClaimAccountRequest {
     #[validate(length(min = 1, max = 200, message = "Guest name is required"))]
     pub guest_name: String,
     #[validate(regex(
-        path = *super::auth::USERNAME_PATTERN,
+        path = *crate::models::USERNAME_PATTERN,
         message = "Username may only contain letters, digits, dots, underscores and dashes"
     ))]
     #[validate(length(

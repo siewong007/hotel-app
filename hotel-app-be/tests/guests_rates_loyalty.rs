@@ -49,7 +49,7 @@ mod postgres_tests {
     };
     use hotel_app_be::repositories::guest::GuestRepository;
     use hotel_app_be::services::guests as guest_service;
-    use hotel_app_be::services::rates as rate_service;
+    use hotel_app_be::modules::rates::service as rate_service;
     use hotel_app_be::{AuthService, Claims};
     use rust_decimal::Decimal;
     use sqlx::{PgPool, postgres::PgPoolOptions};

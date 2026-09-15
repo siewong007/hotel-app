@@ -15,7 +15,7 @@ use crate::models::{
     ApplicableRateQuery, BulkRoomRateInput, RatePlanInput, RatePlanUpdateInput, RoomRateInput,
     RoomRateUpdateInput,
 };
-use crate::services::rates as svc;
+use super::service as svc;
 
 /// Rate-specific error type.
 pub enum RateError {

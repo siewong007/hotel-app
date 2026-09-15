@@ -9,7 +9,7 @@ use crate::models::{
     RoomRateCreateValues, RoomRateInput, RoomRateUpdateInput, RoomRateUpdateValues,
     RoomRateWithDetails, RoomType,
 };
-use crate::repositories::rate::RateRepository;
+use super::repository::RateRepository;
 use crate::services::audit::AuditLog;
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;

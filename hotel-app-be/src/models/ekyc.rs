@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::FromRow;
 
-use super::guest::GuestUpdateInput;
+use crate::models::GuestUpdateInput;
 
 /// eKYC submission request from a guest-facing flow.
 #[derive(Debug, Serialize, Deserialize)]

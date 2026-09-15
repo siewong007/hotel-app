@@ -10,6 +10,7 @@ pub mod insights;
 pub mod loyalty;
 pub mod maintenance;
 pub mod promotions;
+pub mod rates;
 pub mod realtime;
 pub mod revenue;
 pub mod search;

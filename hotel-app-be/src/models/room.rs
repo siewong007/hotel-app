@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use super::booking::BookingWithDetails;
+use crate::models::BookingWithDetails;
 
 /// Core room entity - Note: This struct is used for manual construction
 /// The actual DB columns differ but handlers construct this for API responses

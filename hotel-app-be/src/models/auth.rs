@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use super::rbac::RouteAccessPolicy;
-use super::user::UserResponse;
+use crate::models::RouteAccessPolicy;
+use crate::models::UserResponse;
 
 /// Username vocabulary for self-registration. Deliberately narrow: usernames
 /// are echoed into audit exports and admin UIs.

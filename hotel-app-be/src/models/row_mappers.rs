@@ -61,8 +61,8 @@ pub fn get_opt_bool(row: &DbRow, col: &str) -> Option<bool> {
 // BookingWithDetails mapper
 // =============================================================================
 
-use super::booking::BookingWithDetails;
-use super::guest::GuestEkycStatusSummary;
+use crate::models::BookingWithDetails;
+use crate::models::GuestEkycStatusSummary;
 
 pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
     let guest_id = row.try_get("guest_id").unwrap_or_default();
@@ -132,7 +132,7 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
 // Booking mapper
 // =============================================================================
 
-use super::booking::Booking;
+use crate::models::Booking;
 
 pub fn row_to_booking(row: &DbRow) -> Booking {
     Booking {
@@ -195,7 +195,7 @@ pub fn row_to_booking(row: &DbRow) -> Booking {
 // Payment mapper
 // =============================================================================
 
-use super::payment::{Invoice, Payment};
+use crate::models::{Invoice, Payment};
 
 // Maps a `payments` row to the `Payment` model against the REAL columns of the
 // table. NOTE: `payments` stores only a single `amount`; there is no column for
@@ -278,7 +278,7 @@ pub fn row_to_invoice(row: &DbRow) -> Invoice {
 // Rate mappers
 // =============================================================================
 
-use super::rate::{RatePlan, RoomRate, RoomRateWithDetails};
+use crate::models::{RatePlan, RoomRate, RoomRateWithDetails};
 
 pub fn row_to_rate_plan(row: &DbRow) -> RatePlan {
     RatePlan {
@@ -344,7 +344,7 @@ pub fn row_to_room_rate_with_details(row: &DbRow) -> RoomRateWithDetails {
 // Ledger mappers
 // =============================================================================
 
-use super::ledger::{CustomerLedger, CustomerLedgerPayment};
+use crate::models::{CustomerLedger, CustomerLedgerPayment};
 
 pub fn row_to_customer_ledger(row: &DbRow) -> CustomerLedger {
     let status: String = row.try_get("status").unwrap_or_default();
@@ -445,7 +445,7 @@ pub fn row_to_customer_ledger_payment(row: &DbRow) -> CustomerLedgerPayment {
 // Company mapper
 // =============================================================================
 
-use super::company::Company;
+use crate::models::Company;
 
 pub fn row_to_company(row: &DbRow) -> Company {
     Company {
@@ -474,7 +474,7 @@ pub fn row_to_company(row: &DbRow) -> Company {
 // Room mappers
 // =============================================================================
 
-use super::room::{
+use crate::models::{
     GuestReview, HotelOccupancySummary, OccupancyByRoomType, RoomCurrentOccupancy, RoomType,
 };
 

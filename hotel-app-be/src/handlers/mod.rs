@@ -22,7 +22,7 @@ pub mod passkey;
 pub mod payment_retry;
 pub mod payments;
 pub mod profile;
-pub mod rates;
+// rates handlers live in modules::rates.
 pub mod rbac;
 pub mod rooms;
 // search handlers live in modules::search.

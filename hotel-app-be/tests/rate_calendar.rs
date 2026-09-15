@@ -256,7 +256,7 @@ mod postgres_tests {
             price,
         };
 
-        let created = hotel_app_be::services::rates::bulk_upsert_room_rates(
+        let created = hotel_app_be::modules::rates::service::bulk_upsert_room_rates(
             &pool,
             BULK_BASE,
             input(180.0, "2026-11-01", "2026-11-10"),
@@ -267,7 +267,7 @@ mod postgres_tests {
         assert!(created.iter().all(|r| r.price == Decimal::from(180)));
 
         // Identical call must update the same rows, not insert duplicates.
-        let updated = hotel_app_be::services::rates::bulk_upsert_room_rates(
+        let updated = hotel_app_be::modules::rates::service::bulk_upsert_room_rates(
             &pool,
             BULK_BASE,
             input(190.0, "2026-11-01", "2026-11-10"),
@@ -282,7 +282,7 @@ mod postgres_tests {
         // A different band start inserts new rows rather than updating; the
         // unique key is (plan, room_type, effective_from), so a same-start
         // band is always an in-place reprice.
-        let inserted = hotel_app_be::services::rates::bulk_upsert_room_rates(
+        let inserted = hotel_app_be::modules::rates::service::bulk_upsert_room_rates(
             &pool,
             BULK_BASE,
             input(200.0, "2026-11-11", "2026-11-15"),
@@ -300,7 +300,7 @@ mod postgres_tests {
             price: 100.0,
         };
         assert!(
-            hotel_app_be::services::rates::bulk_upsert_room_rates(&pool, BULK_BASE, empty)
+            hotel_app_be::modules::rates::service::bulk_upsert_room_rates(&pool, BULK_BASE, empty)
                 .await
                 .is_err()
         );
@@ -312,7 +312,7 @@ mod postgres_tests {
             price: 100.0,
         };
         assert!(
-            hotel_app_be::services::rates::bulk_upsert_room_rates(&pool, BULK_BASE, inverted)
+            hotel_app_be::modules::rates::service::bulk_upsert_room_rates(&pool, BULK_BASE, inverted)
                 .await
                 .is_err()
         );
@@ -324,7 +324,7 @@ mod postgres_tests {
             price: 100.0,
         };
         assert!(
-            hotel_app_be::services::rates::bulk_upsert_room_rates(&pool, BULK_BASE, missing_plan)
+            hotel_app_be::modules::rates::service::bulk_upsert_room_rates(&pool, BULK_BASE, missing_plan)
                 .await
                 .is_err()
         );

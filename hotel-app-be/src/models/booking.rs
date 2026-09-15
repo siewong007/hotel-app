@@ -4,7 +4,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use super::guest::{GuestEkycStatusSummary, GuestUpdateInput};
+use crate::models::{GuestEkycStatusSummary, GuestUpdateInput};
 
 /// Pagination and filter query parameters for bookings.
 #[derive(Debug, Deserialize)]
