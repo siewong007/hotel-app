@@ -8,6 +8,22 @@
 # (see docs/guides/deployment.md); until it exists, these dumps are the
 # recovery point of last resort.
 #
+# For whoever picks that up: the tooling is already on this host and does not
+# need to be built. `age`, `rclone` and `aws` are installed, and the
+# online-shopping stack ships encrypted dumps nightly with them — see
+# /opt/online-shopping/backup.sh, which streams pg_dump through `age` so a
+# plaintext dump never touches disk, uploads with `rclone copy`, verifies a
+# sha256 sidecar, and prunes daily/weekly tiers remotely. The one thing that is
+# NOT decided is the destination: the only configured rclone remote points at
+# another business's bucket, and hotel dumps carry guest PII and payment
+# records, so they need their own bucket/prefix and access list before this is
+# wired up. `offsite: false` in backup-status.json is deliberately reported so
+# the health check can be tightened to require off-site once it exists.
+#
+# archive_mode is also off, so there is no PITR: the recovery point is the last
+# nightly. Measured 2026-09-15, restoring the newest nightly would have lost
+# 4 bookings, 10 payments, 3 invoices and 47 audit rows.
+#
 # Retention is per-class on purpose. A single shared counter across nightly-*
 # and predeploy-* looks conservative but is the opposite: predeploy dumps are
 # written on every deploy, so a busy day evicts the nightly history that the
