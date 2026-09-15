@@ -3,7 +3,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::repositories::ledger as repo;
+use super::repository as repo;
 use crate::services::audit::AuditLog;
 use crate::utils::sanitization::Sanitizer;
 

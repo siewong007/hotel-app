@@ -10,7 +10,7 @@ use axum::{
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::services::ledgers as svc;
+use super::service as svc;
 
 pub async fn list_customer_ledgers_handler(
     State(pool): State<DbPool>,

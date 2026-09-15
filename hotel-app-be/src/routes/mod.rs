@@ -15,7 +15,7 @@ pub mod data_transfer;
 // guest_portal routes live in modules::guest_portal.
 // guests routes live in modules::guests.
 // housekeeping routes live in modules::housekeeping.
-pub mod ledgers;
+// ledgers routes live in modules::ledgers.
 // Loyalty routes live in modules::loyalty::routes (merged below).
 // maintenance routes live in modules::maintenance.
 // night_audit routes live in modules::night_audit.
@@ -397,7 +397,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::bookings::routes::routes())
         .merge(crate::modules::rates::routes::routes())
         .merge(crate::modules::payments::routes::routes())
-        .merge(ledgers::routes())
+        .merge(crate::modules::ledgers::routes::routes())
         .merge(crate::modules::loyalty::routes::routes())
         .merge(crate::modules::promotions::routes::routes())
         .merge(crate::modules::communications::routes::routes())

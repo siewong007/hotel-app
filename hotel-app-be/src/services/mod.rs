@@ -24,7 +24,7 @@ pub mod google_identity;
 // guests service logic live in modules::guests.
 // housekeeping service logic live in modules::housekeeping.
 pub mod invoice_numbers;
-pub mod ledgers;
+// ledgers service logic live in modules::ledgers.
 // Loyalty service logic lives in modules::loyalty::service.
 // maintenance service logic live in modules::maintenance.
 // night_audit service logic live in modules::night_audit.

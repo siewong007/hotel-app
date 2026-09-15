@@ -6,7 +6,6 @@ pub mod audit;
 pub mod common;
 pub mod data_transfer;
 pub mod ekyc;
-pub mod ledger;
 pub mod row_mappers;
 
 // Re-export all models for convenience
@@ -22,7 +21,7 @@ pub use ekyc::*;
 pub use crate::modules::guests::models::*;
 pub use crate::modules::guest_portal::models::*;
 pub use crate::modules::housekeeping::models::*;
-pub use ledger::*;
+pub use crate::modules::ledgers::models::*;
 pub use crate::modules::maintenance::models::*;
 pub use crate::modules::night_audit::models::*;
 pub use crate::modules::payments::models::*;

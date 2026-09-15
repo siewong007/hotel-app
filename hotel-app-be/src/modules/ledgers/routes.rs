@@ -5,7 +5,7 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use crate::handlers;
+use super::handlers as handlers;
 use crate::models;
 use axum::{
     Router,
@@ -55,7 +55,7 @@ async fn list_ledgers(
     query: Query<models::LedgerListQuery>,
 ) -> Result<Json<models::LedgerPaginatedResponse>, ApiError> {
     require_permission_helper(&pool, &headers, LEDGERS_READ).await?;
-    handlers::ledgers::list_customer_ledgers_handler(State(pool), query).await
+    handlers::list_customer_ledgers_handler(State(pool), query).await
 }
 
 async fn create_ledger(
@@ -64,7 +64,7 @@ async fn create_ledger(
     Json(input): Json<models::CustomerLedgerCreateRequest>,
 ) -> Result<Json<models::CustomerLedger>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_CREATE).await?;
-    handlers::ledgers::create_customer_ledger_handler(State(pool), Json(input), user_id).await
+    handlers::create_customer_ledger_handler(State(pool), Json(input), user_id).await
 }
 
 async fn get_ledger_summary(
@@ -72,7 +72,7 @@ async fn get_ledger_summary(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, LEDGERS_READ).await?;
-    handlers::ledgers::get_ledger_summary_handler(State(pool)).await
+    handlers::get_ledger_summary_handler(State(pool)).await
 }
 
 async fn get_ledger(
@@ -81,7 +81,7 @@ async fn get_ledger(
     path: Path<i64>,
 ) -> Result<Json<models::CustomerLedger>, ApiError> {
     require_permission_helper(&pool, &headers, LEDGERS_READ).await?;
-    handlers::ledgers::get_customer_ledger_handler(State(pool), path).await
+    handlers::get_customer_ledger_handler(State(pool), path).await
 }
 
 async fn update_ledger(
@@ -91,7 +91,7 @@ async fn update_ledger(
     Json(input): Json<models::CustomerLedgerUpdateRequest>,
 ) -> Result<Json<models::CustomerLedger>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_UPDATE).await?;
-    handlers::ledgers::update_customer_ledger_handler(State(pool), path, Json(input), user_id).await
+    handlers::update_customer_ledger_handler(State(pool), path, Json(input), user_id).await
 }
 
 async fn delete_ledger(
@@ -100,7 +100,7 @@ async fn delete_ledger(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_MANAGE).await?;
-    handlers::ledgers::delete_customer_ledger_handler(State(pool), path, user_id).await
+    handlers::delete_customer_ledger_handler(State(pool), path, user_id).await
 }
 
 async fn get_ledger_with_payments(
@@ -109,7 +109,7 @@ async fn get_ledger_with_payments(
     path: Path<i64>,
 ) -> Result<Json<models::CustomerLedgerWithPayments>, ApiError> {
     require_permission_helper(&pool, &headers, LEDGERS_READ).await?;
-    handlers::ledgers::get_customer_ledger_with_payments_handler(State(pool), path).await
+    handlers::get_customer_ledger_with_payments_handler(State(pool), path).await
 }
 
 async fn get_ledger_payments(
@@ -118,7 +118,7 @@ async fn get_ledger_payments(
     path: Path<i64>,
 ) -> Result<Json<Vec<models::CustomerLedgerPayment>>, ApiError> {
     require_permission_helper(&pool, &headers, LEDGERS_READ).await?;
-    handlers::ledgers::get_ledger_payments_handler(State(pool), path).await
+    handlers::get_ledger_payments_handler(State(pool), path).await
 }
 
 async fn create_ledger_payment(
@@ -128,7 +128,7 @@ async fn create_ledger_payment(
     Json(input): Json<models::CustomerLedgerPaymentRequest>,
 ) -> Result<Json<models::CustomerLedgerPayment>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_CREATE).await?;
-    handlers::ledgers::create_ledger_payment_handler(State(pool), path, Json(input), user_id).await
+    handlers::create_ledger_payment_handler(State(pool), path, Json(input), user_id).await
 }
 
 async fn create_company_ledger_payment(
@@ -137,7 +137,7 @@ async fn create_company_ledger_payment(
     Json(input): Json<models::CompanyLedgerPaymentRequest>,
 ) -> Result<Json<models::CompanyLedgerPaymentResponse>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_CREATE).await?;
-    handlers::ledgers::create_company_ledger_payment_handler(State(pool), Json(input), user_id)
+    handlers::create_company_ledger_payment_handler(State(pool), Json(input), user_id)
         .await
 }
 
@@ -148,7 +148,7 @@ async fn update_ledger_payment(
     Json(input): Json<models::UpdateLedgerPaymentRequest>,
 ) -> Result<Json<models::CustomerLedgerPayment>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_UPDATE).await?;
-    handlers::ledgers::update_ledger_payment_handler(State(pool), path, Json(input), user_id).await
+    handlers::update_ledger_payment_handler(State(pool), path, Json(input), user_id).await
 }
 
 async fn delete_ledger_payment(
@@ -157,7 +157,7 @@ async fn delete_ledger_payment(
     path: Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_MANAGE).await?;
-    handlers::ledgers::delete_ledger_payment_handler(State(pool), path, user_id).await
+    handlers::delete_ledger_payment_handler(State(pool), path, user_id).await
 }
 
 async fn void_ledger(
@@ -167,7 +167,7 @@ async fn void_ledger(
     Json(input): Json<models::LedgerVoidRequest>,
 ) -> Result<Json<models::CustomerLedger>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_VOID).await?;
-    handlers::ledgers::void_ledger_handler(State(pool), path, Json(input), user_id).await
+    handlers::void_ledger_handler(State(pool), path, Json(input), user_id).await
 }
 
 async fn reverse_ledger(
@@ -177,5 +177,5 @@ async fn reverse_ledger(
     Json(input): Json<models::LedgerReversalRequest>,
 ) -> Result<Json<models::CustomerLedger>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_VOID).await?;
-    handlers::ledgers::create_ledger_reversal_handler(State(pool), path, Json(input), user_id).await
+    handlers::create_ledger_reversal_handler(State(pool), path, Json(input), user_id).await
 }

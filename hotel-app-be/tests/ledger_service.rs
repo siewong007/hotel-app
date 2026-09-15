@@ -49,7 +49,7 @@ mod postgres_tests {
         BookingUpdateInput, CompanyCreateRequest, CompanyUpdateRequest,
         CustomerLedgerCreateRequest, CustomerLedgerPaymentRequest, LedgerListQuery,
     };
-    use hotel_app_be::services::{ledgers};
+    use hotel_app_be::modules::ledgers::service as ledgers;
     use hotel_app_be::modules::bookings::service as bookings;
     use hotel_app_be::modules::companies::service as companies;
     use rust_decimal::Decimal;

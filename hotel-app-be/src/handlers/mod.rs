@@ -14,7 +14,7 @@ pub mod data_transfer;
 // guest_portal handlers live in modules::guest_portal.
 // guests handlers live in modules::guests.
 // housekeeping handlers live in modules::housekeeping.
-pub mod ledgers;
+// ledgers handlers live in modules::ledgers.
 // Loyalty handlers live in modules::loyalty::handlers.
 // maintenance handlers live in modules::maintenance.
 // night_audit handlers live in modules::night_audit.

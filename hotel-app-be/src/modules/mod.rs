@@ -13,6 +13,7 @@ pub mod guest_relations;
 pub mod guests;
 pub mod housekeeping;
 pub mod insights;
+pub mod ledgers;
 pub mod loyalty;
 pub mod maintenance;
 pub mod night_audit;
