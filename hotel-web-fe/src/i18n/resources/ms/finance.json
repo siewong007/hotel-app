@@ -13,6 +13,7 @@
     "printStatement": "Cetak penyata",
     "notInvoiced": "Belum diinvois",
     "checkoutShort": "Keluar",
+    "companiesCount_other": "{{count}} akaun",
     "activeGuests_other": "{{count}} tetamu aktif",
     "roomWithNumber": "Bilik {{number}}",
     "receiptWithNumber": "Resit {{number}}",
@@ -216,7 +217,8 @@
       "backToEdit": "Kembali ke Edit",
       "selectAllBillable": "Pilih semua boleh dibil",
       "deselectAll": "Nyahpilih semua",
-      "selectEntryAria": "Pilih {{description}}"
+      "selectEntryAria": "Pilih {{description}}",
+      "entryMeta": "{{amount}} · baki {{balance}}"
     },
     "payment": {
       "record": "Rekod Bayaran",
@@ -372,6 +374,244 @@
       "checkInDate": "Tarikh Daftar Masuk",
       "checkOutDate": "Tarikh Daftar Keluar",
       "paidAmount": "Amaun Dibayar"
+    }
+  },
+  "checkout": {
+    "title": {
+      "receipt": "Invois",
+      "preview": "Pratonton Invois - Semak Sebelum Daftar Keluar",
+      "confirm": "Sahkan Daftar Keluar"
+    },
+    "reviewTitle": "Sila semak invois dengan teliti sebelum meneruskan daftar keluar.",
+    "reviewSubtitle": "Pastikan semua caj, cukai dan bayaran balik adalah betul.",
+    "companyBilling": "Pengebilan Syarikat: {{name}}",
+    "companyBillingNote": "Caj bilik akan dicatatkan secara automatik ke lejar syarikat semasa daftar keluar.",
+    "companyBillingNoteShort": "Caj bilik akan dicatatkan secara automatik ke lejar syarikat.",
+    "contactLine": "Telefon: {{phone}} | E-mel: {{email}}",
+    "sections": {
+      "invoiceDetails": "Butiran Invois",
+      "guestInfo": "Maklumat Tetamu",
+      "stayDetails": "Butiran Penginapan",
+      "charges": "Caj",
+      "chargesBreakdown": "Pecahan Caj",
+      "depositAdjustments": "Pelarasan deposit",
+      "payments": "Bayaran"
+    },
+    "field": {
+      "invoiceNumber": "Nombor Invois",
+      "scheduled": "Dijadualkan",
+      "duration": "Tempoh",
+      "guestName": "Nama Tetamu",
+      "idIc": "ID / IC",
+      "method": "Kaedah",
+      "reference": "Rujukan",
+      "referenceOptional": "Rujukan (Pilihan)",
+      "notesOptional": "Nota (Pilihan)",
+      "refundDate": "Tarikh Bayaran Balik"
+    },
+    "chip": {
+      "early": "Awal",
+      "late": "Lewat"
+    },
+    "hourlyStay": "Penginapan Mengikut Jam",
+    "nights_other": "{{count}} malam",
+    "charges": {
+      "roomHourly": "Caj Bilik (Penginapan Mengikut Jam)",
+      "roomChargeOn": "Caj Bilik — {{date}}",
+      "roomNights_other": "Caj Bilik ({{count}} malam)",
+      "serviceTax": "Cukai Perkhidmatan ({{rate}}%)",
+      "tourismTax": "Cukai Pelancongan",
+      "tourismTaxOn": "Cukai Pelancongan — {{date}}",
+      "extraBed": "Caj Katil Tambahan",
+      "editRates": "Edit Kadar",
+      "saveRates": "Simpan Kadar"
+    },
+    "total": {
+      "refund": "Jumlah Bayaran Balik",
+      "collect": "Jumlah Perlu Dikutip",
+      "refundTo": "Jumlah Perlu Dibayar Balik"
+    },
+    "payments": {
+      "depositRows": "Deposit — cagaran, bukan bayaran bil",
+      "depositHeld": "Deposit dipegang",
+      "depositForfeited": "Deposit dilucutkan",
+      "editDepositMethod": "Edit kaedah bayaran deposit",
+      "depositRefund": "Bayaran Balik Deposit ({{method}})",
+      "empty": "Tiada bayaran direkodkan lagi",
+      "recording": "Merekodkan..."
+    },
+    "billBalance": {
+      "line": "Baki bil: {{amount}} — {{label}}",
+      "paid": "Dibayar",
+      "partial": "Dibayar separa",
+      "outstanding": "Tertunggak"
+    },
+    "readiness": {
+      "blocked": "Daftar keluar belum sedia — {{blockers}}",
+      "ready": "Sedia untuk daftar keluar — {{summary}}",
+      "blockerDeposit": "Selesaikan deposit cagaran {{amount}}",
+      "blockerBalance": "Selesaikan baki bil tertunggak sebanyak {{amount}}",
+      "billToLedger": "Bil dicaj ke lejar syarikat",
+      "billPaid": "Bil dibayar"
+    },
+    "actions": {
+      "printInvoice": "Cetak Invois",
+      "printPreview": "Cetak Pratonton",
+      "proceed": "Teruskan ke Daftar Keluar",
+      "backToInvoice": "Kembali ke Invois",
+      "confirmCheckout": "Sahkan Daftar Keluar"
+    },
+    "confirm": {
+      "deletePayment": {
+        "title": "Padam rekod bayaran",
+        "message": "Ini membuang bayaran daripada folio dan mengembalikan baki tertunggak. Tindakan ini tidak boleh dibatalkan.",
+        "confirmText": "Padam bayaran"
+      },
+      "cancelDeposit": {
+        "title": "Batal deposit",
+        "messageVoid": "Menandakan deposit sebagai tidak dikutip. Rekod bayaran disimpan sebagai terbatal dan pembatalan boleh dikembalikan.",
+        "messageWaive": "Menandakan deposit sebagai tidak dikutip — tiada wang diterima. Bendera deposit tempahan dikosongkan.",
+        "confirmText": "Batal deposit"
+      },
+      "revertRefund": {
+        "title": "Balikkan bayaran balik deposit",
+        "message": "Ini membuang rekod bayaran balik supaya deposit boleh dibayar balik semula.",
+        "confirmText": "Balikkan bayaran balik"
+      }
+    },
+    "errors": {
+      "updatePayment": "Gagal mengemas kini bayaran",
+      "processCheckout": "Gagal memproses daftar keluar",
+      "saveRates": "Gagal menyimpan kadar harian",
+      "settleBalanceFirst": "Sila selesaikan baki penuh sebelum meneruskan daftar keluar."
+    },
+    "print": {
+      "paymentMethod": "Kaedah Bayaran",
+      "amountPaid": "Amaun Dibayar",
+      "balanceDue": "Baki Perlu Dibayar",
+      "overpayment": "Bayaran Berlebihan",
+      "fullyPaid": "Dibayar Penuh",
+      "depositWaivedTitle": "Deposit - Diketepikan",
+      "depositForfeitedTitle": "Deposit - Dilucutkan",
+      "depositTitle": "Deposit",
+      "depositState": "Deposit {{state}}",
+      "stateRefunded": "(Dibayar Balik)",
+      "stateForfeited": "(Dilucutkan)",
+      "statePendingRefund": "(Bayaran Balik Belum Selesai)",
+      "reason": "Sebab: {{reason}}",
+      "forfeitedNote": "Deposit sebanyak {{amount}} telah dilucutkan kepada hotel.",
+      "refundedNote": "Deposit sebanyak {{amount}} telah dibayar balik secara berasingan kepada tetamu.",
+      "waivedMember": "Diketepikan (Manfaat ahli)",
+      "thanks": "Terima kasih kerana memilih {{hotel}}!",
+      "seeYouAgain": "Kami berharap dapat berjumpa anda lagi.",
+      "generated": "Ini adalah invois yang dijana komputer dan tidak memerlukan tandatangan.",
+      "earlyCheckout": "(Daftar Keluar Awal)",
+      "lateCheckout": "(Daftar Keluar Lewat)"
+    }
+  },
+  "deposit": {
+    "title": "Deposit cagaran",
+    "prompt": "Bagaimanakah deposit ini perlu diselesaikan?",
+    "ariaLabel": "Penyelesaian deposit",
+    "noneCityLedger": "Lejar Bandar - N/A",
+    "chip": {
+      "none": "Tiada deposit",
+      "pending": "Menunggu penyelesaian",
+      "refunded": "Dibayar balik",
+      "partially_forfeited": "Dilucutkan separa",
+      "forfeited": "Dilucutkan sepenuhnya",
+      "cancelled": "Dibatalkan",
+      "waived": "Dibatalkan — tidak dikutip"
+    },
+    "line": {
+      "collected": "Dikutip {{amount}}",
+      "collectedVia": "Dikutip {{amount}} melalui {{method}}",
+      "recordedOnBooking": "Direkodkan pada tempahan",
+      "refunded": "Dibayar balik {{amount}}",
+      "forfeited": "Dilucutkan {{amount}}",
+      "remaining": "Baki {{amount}}",
+      "via": "melalui {{method}}",
+      "ref": "Ruj {{ref}}"
+    },
+    "options": {
+      "refund": {
+        "title": "Bayar balik deposit",
+        "description": "Pulangkan {{amount}} kepada tetamu"
+      },
+      "forfeit": {
+        "title": "Lucutkan deposit",
+        "description": "Simpan sebahagian atau kesemuanya atas sebab yang diluluskan"
+      },
+      "cancel": {
+        "title": "Batalkan deposit belum dikutip",
+        "description": "Ia direkodkan tetapi tiada wang diterima"
+      },
+      "requiresPermission": "Memerlukan kebenaran {{permission}}",
+      "noDepositToForfeit": "Tiada deposit dikutip untuk dilucutkan"
+    },
+    "refund": {
+      "fixedNote": "Amaun bayaran balik — ditetapkan kepada baki dipegang penuh:",
+      "method": "Kaedah bayaran balik",
+      "referenceOptional": "Rujukan (pilihan)",
+      "noteOptional": "Nota (pilihan)",
+      "submit": "Bayar balik {{amount}}"
+    },
+    "forfeit": {
+      "amount": "Amaun lucutan",
+      "reason": "Sebab lucutan",
+      "staffNotes": "Nota kakitangan",
+      "notesRequired": "Diperlukan apabila sebabnya Lain-lain",
+      "helperRefundable": "Deposit boleh dibayar balik: {{amount}}",
+      "helperExceeds": "Tidak boleh melebihi {{amount}}",
+      "helperPositive": "Masukkan amaun melebihi 0",
+      "helperRemaining": "Baki untuk dibayar balik selepas: {{amount}}",
+      "hint": "Simpan sebahagian atau keseluruhan deposit — selebihnya kekal boleh dibayar balik.",
+      "review": "Semak lucutan",
+      "reviewSummary": "Anda menahan {{amount}} daripada deposit — {{remainder}} akan kekal untuk dibayar balik.",
+      "reviewReason": "Sebab: {{reason}}",
+      "submit": "Lucutkan {{amount}}",
+      "reasons": {
+        "roomDamage": "Kerosakan bilik",
+        "missingItem": "Barang atau kunci hilang",
+        "outstandingCharge": "Caj tertunggak",
+        "other": "Lain-lain"
+      }
+    },
+    "cancel": {
+      "recorded": "Deposit direkodkan:",
+      "hint": "Gunakan ini hanya apabila deposit direkodkan tetapi tiada wang sebenarnya diterima.",
+      "reason": "Sebab",
+      "noRefundWarning": "Ini tidak mengeluarkan bayaran balik.",
+      "submit": "Batalkan rekod deposit"
+    },
+    "strip": {
+      "refunded": "Deposit dibayar balik",
+      "forfeited": "Deposit dilucutkan",
+      "partiallyForfeited": "Deposit dilucutkan separa",
+      "kept": "Disimpan {{amount}}",
+      "remainderRefunded": "Baki dibayar balik {{amount}}",
+      "cancelled": "Dibatalkan — tidak dikutip",
+      "waivedNote": "Bendera deposit tempahan diketepikan — tiada wang diterima.",
+      "voidedNote": "Rekod bayaran deposit terbatal — tiada wang diterima.",
+      "revertRefund": "Balikkan bayaran balik",
+      "restore": "Pulihkan deposit"
+    },
+    "wording": {
+      "refunded": "Deposit {{amount}} dibayar balik",
+      "refundedVia": "Deposit {{amount}} dibayar balik melalui {{method}}",
+      "forfeited": "Deposit {{amount}} dilucutkan",
+      "partial": "Deposit {{amount}} dilucutkan separa",
+      "partialRefunded": "Deposit {{amount}} dilucutkan separa · baki {{refunded}} dibayar balik",
+      "cancelled": "Deposit dibatalkan — tidak dikutip",
+      "pending": "Deposit belum selesai — {{amount}} masih dipegang"
+    },
+    "errors": {
+      "refund": "Gagal membayar balik deposit",
+      "forfeit": "Gagal melucutkan deposit",
+      "exceedsRefundable": "Amaun lucutan tidak boleh melebihi deposit yang boleh dibayar balik",
+      "cancel": "Gagal membatalkan deposit",
+      "revertRefund": "Gagal membalikkan bayaran balik deposit",
+      "restore": "Gagal memulihkan deposit"
     }
   }
 }

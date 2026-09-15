@@ -13,6 +13,7 @@
     "printStatement": "打印对账单",
     "notInvoiced": "未开票",
     "checkoutShort": "退房",
+    "companiesCount_other": "{{count}} 个账户",
     "activeGuests_other": "{{count}} 位在住客人",
     "roomWithNumber": "{{number}} 房",
     "receiptWithNumber": "收据 {{number}}",
@@ -216,7 +217,8 @@
       "backToEdit": "返回编辑",
       "selectAllBillable": "全选可开票项目",
       "deselectAll": "取消全选",
-      "selectEntryAria": "选择 {{description}}"
+      "selectEntryAria": "选择 {{description}}",
+      "entryMeta": "{{amount}} · 余额 {{balance}}"
     },
     "payment": {
       "record": "记录付款",
@@ -372,6 +374,244 @@
       "checkInDate": "入住日期",
       "checkOutDate": "退房日期",
       "paidAmount": "已付金额"
+    }
+  },
+  "checkout": {
+    "title": {
+      "receipt": "发票",
+      "preview": "发票预览 - 退房前请核对",
+      "confirm": "确认退房"
+    },
+    "reviewTitle": "请在办理退房前仔细核对发票。",
+    "reviewSubtitle": "请确认所有费用、税费和退款均正确无误。",
+    "companyBilling": "公司挂账：{{name}}",
+    "companyBillingNote": "退房时房费将自动记入公司账本。",
+    "companyBillingNoteShort": "房费将自动记入公司账本。",
+    "contactLine": "电话：{{phone}} | 电子邮箱：{{email}}",
+    "sections": {
+      "invoiceDetails": "发票详情",
+      "guestInfo": "客人信息",
+      "stayDetails": "住宿详情",
+      "charges": "费用",
+      "chargesBreakdown": "费用明细",
+      "depositAdjustments": "押金调整",
+      "payments": "付款"
+    },
+    "field": {
+      "invoiceNumber": "发票编号",
+      "scheduled": "原定",
+      "duration": "时长",
+      "guestName": "客人姓名",
+      "idIc": "证件号码",
+      "method": "方式",
+      "reference": "参考号",
+      "referenceOptional": "参考号（可选）",
+      "notesOptional": "备注（可选）",
+      "refundDate": "退款日期"
+    },
+    "chip": {
+      "early": "提前",
+      "late": "延迟"
+    },
+    "hourlyStay": "钟点房",
+    "nights_other": "{{count}} 晚",
+    "charges": {
+      "roomHourly": "房费（钟点房）",
+      "roomChargeOn": "房费 — {{date}}",
+      "roomNights_other": "房费（{{count}} 晚）",
+      "serviceTax": "服务税（{{rate}}%）",
+      "tourismTax": "旅游税",
+      "tourismTaxOn": "旅游税 — {{date}}",
+      "extraBed": "加床费",
+      "editRates": "编辑房价",
+      "saveRates": "保存房价"
+    },
+    "total": {
+      "refund": "退款总额",
+      "collect": "应收总额",
+      "refundTo": "应退总额"
+    },
+    "payments": {
+      "depositRows": "押金 — 属抵押款，非账单付款",
+      "depositHeld": "押金在押",
+      "depositForfeited": "押金已没收",
+      "editDepositMethod": "编辑押金付款方式",
+      "depositRefund": "押金退款（{{method}}）",
+      "empty": "暂无付款记录",
+      "recording": "记录中…"
+    },
+    "billBalance": {
+      "line": "账单余额：{{amount}} — {{label}}",
+      "paid": "已付清",
+      "partial": "部分支付",
+      "outstanding": "未结清"
+    },
+    "readiness": {
+      "blocked": "暂无法退房 — {{blockers}}",
+      "ready": "可以退房 — {{summary}}",
+      "blockerDeposit": "请处理 {{amount}} 的押金",
+      "blockerBalance": "请结清未付账单余额 {{amount}}",
+      "billToLedger": "账单记入公司账本",
+      "billPaid": "账单已付清"
+    },
+    "actions": {
+      "printInvoice": "打印发票",
+      "printPreview": "打印预览",
+      "proceed": "继续退房",
+      "backToInvoice": "返回发票",
+      "confirmCheckout": "确认退房"
+    },
+    "confirm": {
+      "deletePayment": {
+        "title": "删除付款记录",
+        "message": "此操作将从账单中移除该付款并恢复未结余额，且无法撤销。",
+        "confirmText": "删除付款"
+      },
+      "cancelDeposit": {
+        "title": "取消押金",
+        "messageVoid": "将押金标记为未收取。付款记录将保留为作废状态，取消操作可以恢复。",
+        "messageWaive": "将押金标记为未收取 — 未收到任何款项。预订上的押金标记将被清除。",
+        "confirmText": "取消押金"
+      },
+      "revertRefund": {
+        "title": "撤销押金退款",
+        "message": "此操作将移除退款记录，以便该押金可以再次退款。",
+        "confirmText": "撤销退款"
+      }
+    },
+    "errors": {
+      "updatePayment": "更新付款失败",
+      "processCheckout": "退房处理失败",
+      "saveRates": "保存每日房价失败",
+      "settleBalanceFirst": "请先结清全部余额再办理退房。"
+    },
+    "print": {
+      "paymentMethod": "付款方式",
+      "amountPaid": "已付金额",
+      "balanceDue": "应付余额",
+      "overpayment": "超额付款",
+      "fullyPaid": "已全额支付",
+      "depositWaivedTitle": "押金 - 已豁免",
+      "depositForfeitedTitle": "押金 - 已没收",
+      "depositTitle": "押金",
+      "depositState": "押金{{state}}",
+      "stateRefunded": "（已退款）",
+      "stateForfeited": "（已没收）",
+      "statePendingRefund": "（待退款）",
+      "reason": "原因：{{reason}}",
+      "forfeitedNote": "押金 {{amount}} 已被酒店没收。",
+      "refundedNote": "押金 {{amount}} 已单独退还给客人。",
+      "waivedMember": "已豁免（会员权益）",
+      "thanks": "感谢您选择 {{hotel}}！",
+      "seeYouAgain": "期待您的再次光临。",
+      "generated": "本发票由电脑生成，无需签名。",
+      "earlyCheckout": "（提前退房）",
+      "lateCheckout": "（延迟退房）"
+    }
+  },
+  "deposit": {
+    "title": "押金",
+    "prompt": "这笔押金应如何处理？",
+    "ariaLabel": "押金处理",
+    "noneCityLedger": "公司挂账 - N/A",
+    "chip": {
+      "none": "无押金",
+      "pending": "待处理",
+      "refunded": "已退款",
+      "partially_forfeited": "部分没收",
+      "forfeited": "全部没收",
+      "cancelled": "已取消",
+      "waived": "已取消 — 未收取"
+    },
+    "line": {
+      "collected": "已收 {{amount}}",
+      "collectedVia": "已收 {{amount}}（{{method}}）",
+      "recordedOnBooking": "已在预订上登记",
+      "refunded": "已退 {{amount}}",
+      "forfeited": "已没收 {{amount}}",
+      "remaining": "剩余 {{amount}}",
+      "via": "通过 {{method}}",
+      "ref": "参考号 {{ref}}"
+    },
+    "options": {
+      "refund": {
+        "title": "退还押金",
+        "description": "将 {{amount}} 退还给客人"
+      },
+      "forfeit": {
+        "title": "没收押金",
+        "description": "因核准原因保留部分或全部押金"
+      },
+      "cancel": {
+        "title": "取消未收取的押金",
+        "description": "该押金已登记但未实际收款"
+      },
+      "requiresPermission": "需要 {{permission}} 权限",
+      "noDepositToForfeit": "没有已收取的押金可没收"
+    },
+    "refund": {
+      "fixedNote": "退款金额 — 固定为全部在押余额：",
+      "method": "退款方式",
+      "referenceOptional": "参考号（可选）",
+      "noteOptional": "备注（可选）",
+      "submit": "退款 {{amount}}"
+    },
+    "forfeit": {
+      "amount": "没收金额",
+      "reason": "没收原因",
+      "staffNotes": "员工备注",
+      "notesRequired": "原因为“其他”时必填",
+      "helperRefundable": "可退押金：{{amount}}",
+      "helperExceeds": "不能超过 {{amount}}",
+      "helperPositive": "请输入大于 0 的金额",
+      "helperRemaining": "没收后剩余可退：{{amount}}",
+      "hint": "保留部分或全部押金 — 其余部分仍可退还。",
+      "review": "核对没收",
+      "reviewSummary": "您将扣留押金中的 {{amount}} — {{remainder}} 仍将可退。",
+      "reviewReason": "原因：{{reason}}",
+      "submit": "没收 {{amount}}",
+      "reasons": {
+        "roomDamage": "房间损坏",
+        "missingItem": "物品或钥匙遗失",
+        "outstandingCharge": "未结费用",
+        "other": "其他"
+      }
+    },
+    "cancel": {
+      "recorded": "已登记押金：",
+      "hint": "仅在押金已登记但实际未收到款项时使用。",
+      "reason": "原因",
+      "noRefundWarning": "此操作不会产生退款。",
+      "submit": "取消押金记录"
+    },
+    "strip": {
+      "refunded": "押金已退款",
+      "forfeited": "押金已没收",
+      "partiallyForfeited": "押金已部分没收",
+      "kept": "已扣留 {{amount}}",
+      "remainderRefunded": "余款已退 {{amount}}",
+      "cancelled": "已取消 — 未收取",
+      "waivedNote": "预订上的押金标记已豁免 — 未收到任何款项。",
+      "voidedNote": "押金付款记录已作废 — 未收到任何款项。",
+      "revertRefund": "撤销退款",
+      "restore": "恢复押金"
+    },
+    "wording": {
+      "refunded": "押金已退 {{amount}}",
+      "refundedVia": "押金已通过 {{method}} 退还 {{amount}}",
+      "forfeited": "押金已没收 {{amount}}",
+      "partial": "押金已部分没收 {{amount}}",
+      "partialRefunded": "押金已部分没收 {{amount}} · 余款已退 {{refunded}}",
+      "cancelled": "押金已取消 — 未收取",
+      "pending": "押金待处理 — 仍有 {{amount}} 在押"
+    },
+    "errors": {
+      "refund": "押金退款失败",
+      "forfeit": "没收押金失败",
+      "exceedsRefundable": "没收金额不能超过可退押金",
+      "cancel": "取消押金失败",
+      "revertRefund": "撤销押金退款失败",
+      "restore": "恢复押金失败"
     }
   }
 }

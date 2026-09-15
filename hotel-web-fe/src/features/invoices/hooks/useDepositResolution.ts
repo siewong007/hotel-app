@@ -3,6 +3,7 @@ import type { BookingWithDetails } from '../../../types';
 import { BookingsService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useTranslation } from '../../../i18n';
 import {
   isGreaterMoney,
   isLessMoney,
@@ -245,6 +246,7 @@ export function useDepositResolution({
   invalidateInvoiceState,
   depositWaived = false,
 }: UseDepositResolutionOptions): UseDepositResolutionResult {
+  const { t } = useTranslation('finance');
   const [refunding, setRefunding] = useState(false);
   const [forfeiting, setForfeiting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -308,13 +310,13 @@ export function useDepositResolution({
         invalidateInvoiceState?.();
         return true;
       } catch (err) {
-        setError(errorMessage(err, 'Failed to refund deposit'));
+        setError(errorMessage(err, t('deposit.errors.refund')));
         return false;
       } finally {
         setRefunding(false);
       }
     },
-    [booking, deposit, reloadPayments, setError, invalidateInvoiceState],
+    [booking, deposit, reloadPayments, setError, invalidateInvoiceState, t],
   );
 
   const forfeit = useCallback(
@@ -326,7 +328,7 @@ export function useDepositResolution({
       // keyboard/programmatic paths — refuse over-ceiling forfeits locally
       // instead of relying on the backend 400.
       if (isGreaterMoney(forfeitAmount, deposit.remaining)) {
-        setError('Forfeit amount cannot exceed the refundable deposit');
+        setError(t('deposit.errors.exceedsRefundable'));
         return false;
       }
       setForfeiting(true);
@@ -337,13 +339,13 @@ export function useDepositResolution({
         invalidateInvoiceState?.();
         return true;
       } catch (err) {
-        setError(errorMessage(err, 'Failed to forfeit deposit'));
+        setError(errorMessage(err, t('deposit.errors.forfeit')));
         return false;
       } finally {
         setForfeiting(false);
       }
     },
-    [booking, deposit.remaining, reloadPayments, setError, invalidateInvoiceState],
+    [booking, deposit.remaining, reloadPayments, setError, invalidateInvoiceState, t],
   );
 
   // One "cancel uncollected deposit" choice that auto-routes: no completed
@@ -377,13 +379,13 @@ export function useDepositResolution({
         invalidateInvoiceState?.();
         return true;
       } catch (err) {
-        setError(errorMessage(err, 'Failed to cancel deposit'));
+        setError(errorMessage(err, t('deposit.errors.cancel')));
         return false;
       } finally {
         setCancelling(false);
       }
     },
-    [booking, deposit.status, completedDepositRows, reloadPayments, setError, invalidateInvoiceState],
+    [booking, deposit.status, completedDepositRows, reloadPayments, setError, invalidateInvoiceState, t],
   );
 
   const revertRefund = useCallback(async (): Promise<boolean> => {
@@ -396,12 +398,12 @@ export function useDepositResolution({
       invalidateInvoiceState?.();
       return true;
     } catch (err) {
-      setError(errorMessage(err, 'Failed to revert deposit refund'));
+      setError(errorMessage(err, t('deposit.errors.revertRefund')));
       return false;
     } finally {
       setReverting(false);
     }
-  }, [booking, reloadPayments, setError, invalidateInvoiceState]);
+  }, [booking, reloadPayments, setError, invalidateInvoiceState, t]);
 
   const restoreDeposit = useCallback(async (): Promise<boolean> => {
     if (!booking) return false;
@@ -413,12 +415,12 @@ export function useDepositResolution({
       invalidateInvoiceState?.();
       return true;
     } catch (err) {
-      setError(errorMessage(err, 'Failed to restore deposit'));
+      setError(errorMessage(err, t('deposit.errors.restore')));
       return false;
     } finally {
       setRestoring(false);
     }
-  }, [booking, reloadPayments, setError, invalidateInvoiceState]);
+  }, [booking, reloadPayments, setError, invalidateInvoiceState, t]);
 
   return {
     deposit,

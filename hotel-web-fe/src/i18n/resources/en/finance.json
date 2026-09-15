@@ -13,6 +13,8 @@
     "printStatement": "Print statement",
     "notInvoiced": "Not invoiced",
     "checkoutShort": "Out",
+    "companiesCount_one": "{{count}} account",
+    "companiesCount_other": "{{count}} accounts",
     "activeGuests_one": "{{count}} active guest",
     "activeGuests_other": "{{count}} active guests",
     "roomWithNumber": "Room {{number}}",
@@ -222,7 +224,8 @@
       "backToEdit": "Back to Edit",
       "selectAllBillable": "Select all billable",
       "deselectAll": "Deselect all",
-      "selectEntryAria": "Select {{description}}"
+      "selectEntryAria": "Select {{description}}",
+      "entryMeta": "{{amount}} · balance {{balance}}"
     },
     "payment": {
       "record": "Record Payment",
@@ -379,6 +382,246 @@
       "checkInDate": "Check-in Date",
       "checkOutDate": "Check-out Date",
       "paidAmount": "Paid Amount"
+    }
+  },
+  "checkout": {
+    "title": {
+      "receipt": "Invoice",
+      "preview": "Invoice Preview - Review Before Checkout",
+      "confirm": "Confirm Checkout"
+    },
+    "reviewTitle": "Please review the invoice carefully before proceeding with checkout.",
+    "reviewSubtitle": "Verify all charges, taxes, and refunds are correct.",
+    "companyBilling": "Company Billing: {{name}}",
+    "companyBillingNote": "Room charges will be automatically posted to the company ledger upon checkout.",
+    "companyBillingNoteShort": "Room charges will be automatically posted to the company ledger.",
+    "contactLine": "Phone: {{phone}} | Email: {{email}}",
+    "sections": {
+      "invoiceDetails": "Invoice Details",
+      "guestInfo": "Guest Information",
+      "stayDetails": "Stay Details",
+      "charges": "Charges",
+      "chargesBreakdown": "Charges Breakdown",
+      "depositAdjustments": "Deposit adjustments",
+      "payments": "Payments"
+    },
+    "field": {
+      "invoiceNumber": "Invoice Number",
+      "scheduled": "Scheduled",
+      "duration": "Duration",
+      "guestName": "Guest Name",
+      "idIc": "ID / IC",
+      "method": "Method",
+      "reference": "Reference",
+      "referenceOptional": "Reference (Optional)",
+      "notesOptional": "Notes (Optional)",
+      "refundDate": "Refund Date"
+    },
+    "chip": {
+      "early": "Early",
+      "late": "Late"
+    },
+    "hourlyStay": "Hourly Stay",
+    "nights_one": "{{count}} night",
+    "nights_other": "{{count}} nights",
+    "charges": {
+      "roomHourly": "Room Charges (Hourly Stay)",
+      "roomChargeOn": "Room Charge — {{date}}",
+      "roomNights_one": "Room Charges ({{count}} night)",
+      "roomNights_other": "Room Charges ({{count}} nights)",
+      "serviceTax": "Service Tax ({{rate}}%)",
+      "tourismTax": "Tourism Tax",
+      "tourismTaxOn": "Tourism Tax — {{date}}",
+      "extraBed": "Extra Bed Charge",
+      "editRates": "Edit Rates",
+      "saveRates": "Save Rates"
+    },
+    "total": {
+      "refund": "Total Refund",
+      "collect": "Total to Collect",
+      "refundTo": "Total to Refund"
+    },
+    "payments": {
+      "depositRows": "Deposits — collateral, not bill payments",
+      "depositHeld": "Deposit held",
+      "depositForfeited": "Deposit forfeited",
+      "editDepositMethod": "Edit deposit payment method",
+      "depositRefund": "Deposit Refund ({{method}})",
+      "empty": "No payments recorded yet",
+      "recording": "Recording..."
+    },
+    "billBalance": {
+      "line": "Bill balance: {{amount}} — {{label}}",
+      "paid": "Paid",
+      "partial": "Partially paid",
+      "outstanding": "Outstanding"
+    },
+    "readiness": {
+      "blocked": "Checkout is not ready — {{blockers}}",
+      "ready": "Ready for checkout — {{summary}}",
+      "blockerDeposit": "Resolve the {{amount}} security deposit",
+      "blockerBalance": "Settle the outstanding bill balance of {{amount}}",
+      "billToLedger": "Bill to the company ledger",
+      "billPaid": "Bill paid"
+    },
+    "actions": {
+      "printInvoice": "Print Invoice",
+      "printPreview": "Print Preview",
+      "proceed": "Proceed to Checkout",
+      "backToInvoice": "Back to Invoice",
+      "confirmCheckout": "Confirm Checkout"
+    },
+    "confirm": {
+      "deletePayment": {
+        "title": "Delete payment record",
+        "message": "This removes the payment from the folio and restores the outstanding balance. This cannot be undone.",
+        "confirmText": "Delete payment"
+      },
+      "cancelDeposit": {
+        "title": "Cancel deposit",
+        "messageVoid": "Marks the deposit as not collected. The payment record is kept as void and the cancellation can be reverted.",
+        "messageWaive": "Marks the deposit as not collected — no money was received. The booking deposit flag is cleared.",
+        "confirmText": "Cancel deposit"
+      },
+      "revertRefund": {
+        "title": "Revert deposit refund",
+        "message": "This removes the refund record so the deposit can be refunded again.",
+        "confirmText": "Revert refund"
+      }
+    },
+    "errors": {
+      "updatePayment": "Failed to update payment",
+      "processCheckout": "Failed to process checkout",
+      "saveRates": "Failed to save daily rates",
+      "settleBalanceFirst": "Please settle the full balance before proceeding to checkout."
+    },
+    "print": {
+      "paymentMethod": "Payment Method",
+      "amountPaid": "Amount Paid",
+      "balanceDue": "Balance Due",
+      "overpayment": "Overpayment",
+      "fullyPaid": "Fully Paid",
+      "depositWaivedTitle": "Deposit - Waived",
+      "depositForfeitedTitle": "Deposit - Forfeited",
+      "depositTitle": "Deposit",
+      "depositState": "Deposit {{state}}",
+      "stateRefunded": "(Refunded)",
+      "stateForfeited": "(Forfeited)",
+      "statePendingRefund": "(Pending Refund)",
+      "reason": "Reason: {{reason}}",
+      "forfeitedNote": "Deposit of {{amount}} has been forfeited to the hotel.",
+      "refundedNote": "Deposit of {{amount}} has been refunded separately to the guest.",
+      "waivedMember": "Waived (Member benefit)",
+      "thanks": "Thank you for choosing {{hotel}}!",
+      "seeYouAgain": "We hope to see you again soon.",
+      "generated": "This is a computer-generated invoice and does not require a signature.",
+      "earlyCheckout": "(Early Checkout)",
+      "lateCheckout": "(Late Checkout)"
+    }
+  },
+  "deposit": {
+    "title": "Security deposit",
+    "prompt": "How should this deposit be resolved?",
+    "ariaLabel": "Deposit resolution",
+    "noneCityLedger": "City Ledger - N/A",
+    "chip": {
+      "none": "No deposit",
+      "pending": "Pending resolution",
+      "refunded": "Refunded",
+      "partially_forfeited": "Partially forfeited",
+      "forfeited": "Fully forfeited",
+      "cancelled": "Cancelled",
+      "waived": "Cancelled — not collected"
+    },
+    "line": {
+      "collected": "Collected {{amount}}",
+      "collectedVia": "Collected {{amount}} via {{method}}",
+      "recordedOnBooking": "Recorded on the booking",
+      "refunded": "Refunded {{amount}}",
+      "forfeited": "Forfeited {{amount}}",
+      "remaining": "Remaining {{amount}}",
+      "via": "via {{method}}",
+      "ref": "Ref {{ref}}"
+    },
+    "options": {
+      "refund": {
+        "title": "Refund deposit",
+        "description": "Return {{amount}} to the guest"
+      },
+      "forfeit": {
+        "title": "Forfeit deposit",
+        "description": "Keep some or all of it for an approved reason"
+      },
+      "cancel": {
+        "title": "Cancel uncollected deposit",
+        "description": "It was recorded but no money was received"
+      },
+      "requiresPermission": "Requires the {{permission}} permission",
+      "noDepositToForfeit": "No collected deposit to forfeit"
+    },
+    "refund": {
+      "fixedNote": "Refund amount — fixed to the full held balance:",
+      "method": "Refund method",
+      "referenceOptional": "Reference (optional)",
+      "noteOptional": "Note (optional)",
+      "submit": "Refund {{amount}}"
+    },
+    "forfeit": {
+      "amount": "Forfeit amount",
+      "reason": "Forfeit reason",
+      "staffNotes": "Staff notes",
+      "notesRequired": "Required when the reason is Other",
+      "helperRefundable": "Refundable deposit: {{amount}}",
+      "helperExceeds": "Cannot exceed {{amount}}",
+      "helperPositive": "Enter an amount above 0",
+      "helperRemaining": "Remaining to refund after: {{amount}}",
+      "hint": "Keep part or all of the deposit — the rest stays refundable.",
+      "review": "Review forfeiture",
+      "reviewSummary": "You are retaining {{amount}} of the deposit — {{remainder}} will remain to refund.",
+      "reviewReason": "Reason: {{reason}}",
+      "submit": "Forfeit {{amount}}",
+      "reasons": {
+        "roomDamage": "Room damage",
+        "missingItem": "Missing item or key",
+        "outstandingCharge": "Outstanding charge",
+        "other": "Other"
+      }
+    },
+    "cancel": {
+      "recorded": "Recorded deposit:",
+      "hint": "Use this only when the deposit was recorded but no money was actually received.",
+      "reason": "Reason",
+      "noRefundWarning": "This does not issue a refund.",
+      "submit": "Cancel deposit record"
+    },
+    "strip": {
+      "refunded": "Deposit refunded",
+      "forfeited": "Deposit forfeited",
+      "partiallyForfeited": "Deposit partially forfeited",
+      "kept": "Kept {{amount}}",
+      "remainderRefunded": "Remainder refunded {{amount}}",
+      "cancelled": "Cancelled — not collected",
+      "waivedNote": "The booking deposit flag was waived — no money was received.",
+      "voidedNote": "The deposit payment record was voided — no money was received.",
+      "revertRefund": "Revert refund",
+      "restore": "Restore deposit"
+    },
+    "wording": {
+      "refunded": "Deposit refunded {{amount}}",
+      "refundedVia": "Deposit refunded {{amount}} via {{method}}",
+      "forfeited": "Deposit forfeited {{amount}}",
+      "partial": "Deposit partially forfeited {{amount}}",
+      "partialRefunded": "Deposit partially forfeited {{amount}} · remainder refunded {{refunded}}",
+      "cancelled": "Deposit cancelled — not collected",
+      "pending": "Deposit pending — {{amount}} still held"
+    },
+    "errors": {
+      "refund": "Failed to refund deposit",
+      "forfeit": "Failed to forfeit deposit",
+      "exceedsRefundable": "Forfeit amount cannot exceed the refundable deposit",
+      "cancel": "Failed to cancel deposit",
+      "revertRefund": "Failed to revert deposit refund",
+      "restore": "Failed to restore deposit"
     }
   }
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box } from '@mui/material';
+import { useTranslation } from '../../../i18n';
 import type { BookingWithDetails } from '../../../types';
 import type { HotelSettings } from '../../../utils/hotelSettings';
 import type { ChargesBreakdown } from '../utils/chargesCalculation';
@@ -63,90 +64,93 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
   isLateCheckout,
   formatBookingStatus,
   formatCurrency,
-}) => (
+}) => {
+  const { t } = useTranslation('finance');
+
+  return (
   <Box id="printable-invoice" sx={{ display: 'none' }}>
     <div className="invoice-header">
       <h1>{hotelSettings.hotel_name}</h1>
       <p>{hotelSettings.hotel_address}</p>
-      <p>Phone: {hotelSettings.hotel_phone} | Email: {hotelSettings.hotel_email}</p>
+      <p>{t('checkout.contactLine', { phone: hotelSettings.hotel_phone, email: hotelSettings.hotel_email })}</p>
     </div>
 
     <div className="invoice-meta">
       <div>
-        <h3>Invoice Details</h3>
+        <h3>{t('checkout.sections.invoiceDetails')}</h3>
         <p>
-          <span className="label">Invoice Number:</span>
+          <span className="label">{t('checkout.field.invoiceNumber')}:</span>
           <span className="value">{booking.invoice_number || booking.folio_number || `#${booking.id}`}</span>
         </p>
         <p>
-          <span className="label">Date:</span>
+          <span className="label">{t('common:field.date')}:</span>
           <span className="value">{new Date().toLocaleDateString()}</span>
         </p>
         <p>
-          <span className="label">Status:</span>
+          <span className="label">{t('common:field.status')}:</span>
           <span className="value">{formatBookingStatus(booking.status)}</span>
         </p>
       </div>
 
       <div>
-        <h3>Guest Information</h3>
+        <h3>{t('checkout.sections.guestInfo')}</h3>
         <p>
-          <span className="label">Name:</span>
+          <span className="label">{t('common:field.name')}:</span>
           <span className="value">{booking.guest_name}</span>
         </p>
         <p>
-          <span className="label">Room:</span>
+          <span className="label">{t('ledger.field.room')}:</span>
           <span className="value">{booking.room_number} - {booking.room_type}</span>
         </p>
         {guestCompanyName && (
           <p>
-            <span className="label">Company:</span>
+            <span className="label">{t('ledger.field.company')}:</span>
             <span className="value">{guestCompanyName}</span>
           </p>
         )}
         {guestPhone && (
           <p>
-            <span className="label">Phone:</span>
+            <span className="label">{t('common:field.phone')}:</span>
             <span className="value">{guestPhone}</span>
           </p>
         )}
         {guestIcNumber && (
           <p>
-            <span className="label">ID / IC:</span>
+            <span className="label">{t('checkout.field.idIc')}:</span>
             <span className="value">{guestIcNumber}</span>
           </p>
         )}
         {guestAddress && (
           <p>
-            <span className="label">Address:</span>
+            <span className="label">{t('common:field.address')}:</span>
             <span className="value">{guestAddress}</span>
           </p>
         )}
       </div>
 
       <div>
-        <h3>Stay Details</h3>
+        <h3>{t('checkout.sections.stayDetails')}</h3>
         <p>
-          <span className="label">Check-in:</span>
+          <span className="label">{t('bookings:details.checkIn')}:</span>
           <span className="value">{new Date(booking.check_in_date).toLocaleDateString()}</span>
         </p>
         <p>
-          <span className="label">Check-out:</span>
+          <span className="label">{t('bookings:details.checkOut')}:</span>
           <span className="value">
             {getActualCheckoutDate().toLocaleDateString()}
-            {isEarlyCheckout() && ' (Early Checkout)'}
-            {isLateCheckout() && ' (Late Checkout)'}
+            {isEarlyCheckout() && t('checkout.print.earlyCheckout')}
+            {isLateCheckout() && t('checkout.print.lateCheckout')}
           </span>
         </p>
         {(isEarlyCheckout() || isLateCheckout()) && (
           <p>
-            <span className="label">Scheduled:</span>
+            <span className="label">{t('checkout.field.scheduled')}:</span>
             <span className="value">{new Date(booking.check_out_date).toLocaleDateString()}</span>
           </p>
         )}
         <p>
-          <span className="label">Duration:</span>
-          <span className="value">{isHourlyBooking ? 'Hourly Stay' : `${calculateNights()} night(s)`}</span>
+          <span className="label">{t('checkout.field.duration')}:</span>
+          <span className="value">{isHourlyBooking ? t('checkout.hourlyStay') : t('checkout.nights', { count: calculateNights() })}</span>
         </p>
       </div>
     </div>
@@ -154,14 +158,14 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
     <table>
       <thead>
         <tr>
-          <th>Description</th>
-          <th className="amount">Amount</th>
+          <th>{t('common:field.description')}</th>
+          <th className="amount">{t('common:field.amount')}</th>
         </tr>
       </thead>
       <tbody>
         {isHourlyBooking ? (
           <tr>
-            <td>Room Charges (Hourly Stay)</td>
+            <td>{t('checkout.charges.roomHourly')}</td>
             <td className="amount">{formatCurrency(charges.roomCharges)}</td>
           </tr>
         ) : (
@@ -179,12 +183,12 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
               return (
                 <React.Fragment key={i}>
                   <tr>
-                    <td>Room Charge — {date.toLocaleDateString()}</td>
+                    <td>{t('checkout.charges.roomChargeOn', { date: date.toLocaleDateString() })}</td>
                     <td className="amount">{formatCurrency(dayRate)}</td>
                   </tr>
                   {isPositiveMoney(dayTax) && (
                     <tr style={{ color: '#666' }}>
-                      <td style={{ paddingLeft: '24px' }}>Service Tax ({hotelSettings.service_tax_rate}%)</td>
+                      <td style={{ paddingLeft: '24px' }}>{t('checkout.charges.serviceTax', { rate: hotelSettings.service_tax_rate })}</td>
                       <td className="amount">{formatCurrency(dayTax)}</td>
                     </tr>
                   )}
@@ -199,7 +203,7 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
           if (isHourlyBooking || tourismTaxNights <= 0) {
             return (
               <tr>
-                <td>Tourism Tax</td>
+                <td>{t('checkout.charges.tourismTax')}</td>
                 <td className="amount">{formatCurrency(charges.tourismTax)}</td>
               </tr>
             );
@@ -211,7 +215,7 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
             date.setDate(date.getDate() + i);
             return (
               <tr key={`tt-print-${i}`}>
-                <td>Tourism Tax — {date.toLocaleDateString()}</td>
+                <td>{t('checkout.charges.tourismTaxOn', { date: date.toLocaleDateString() })}</td>
                 <td className="amount">{formatCurrency(perNight)}</td>
               </tr>
             );
@@ -221,12 +225,12 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
         {isPositiveMoney(charges.extraBedCharge) && (
           <>
             <tr>
-              <td>Extra Bed Charge</td>
+              <td>{t('checkout.charges.extraBed')}</td>
               <td className="amount">{formatCurrency(charges.extraBedCharge)}</td>
             </tr>
             {isPositiveMoney(charges.extraBedServiceTax) && (
               <tr>
-                <td style={{ paddingLeft: '24px' }}>Service Tax ({hotelSettings.service_tax_rate}%)</td>
+                <td style={{ paddingLeft: '24px' }}>{t('checkout.charges.serviceTax', { rate: hotelSettings.service_tax_rate })}</td>
                 <td className="amount">{formatCurrency(charges.extraBedServiceTax)}</td>
               </tr>
             )}
@@ -235,13 +239,13 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
 
         {isPositiveMoney(charges.depositRefund) ? (
           <tr className="refund-row">
-            <td>Deposit {depositRefunded ? '(Refunded)' : depositForfeited ? '(Forfeited)' : '(Pending Refund)'}</td>
+            <td>{t('checkout.print.depositState', { state: depositRefunded ? t('checkout.print.stateRefunded') : depositForfeited ? t('checkout.print.stateForfeited') : t('checkout.print.statePendingRefund') })}</td>
             <td className="amount">{formatCurrency(charges.depositRefund)}</td>
           </tr>
         ) : null}
 
         <tr className="total-row">
-          <td>{charges.grandTotal >= 0 ? 'Total Amount Due' : 'Total Refund'}</td>
+          <td>{charges.grandTotal >= 0 ? t('ledger.invoice.totalDue') : t('checkout.total.refund')}</td>
           <td className="amount">{formatCurrency(Math.abs(charges.grandTotal))}</td>
         </tr>
       </tbody>
@@ -251,8 +255,8 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
       <table style={{ marginTop: '15px' }}>
         <thead>
           <tr>
-            <th>Payment Method</th>
-            <th className="amount">Amount Paid</th>
+            <th>{t('checkout.print.paymentMethod')}</th>
+            <th className="amount">{t('checkout.print.amountPaid')}</th>
           </tr>
         </thead>
         <tbody>
@@ -264,13 +268,13 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
           ))}
           {isPositiveMoney(balanceDue) && (
             <tr style={{ color: '#e65100', fontWeight: 700 }}>
-              <td>Balance Due</td>
+              <td>{t('checkout.print.balanceDue')}</td>
               <td className="amount">{formatCurrency(balanceDue)}</td>
             </tr>
           )}
           {!isPositiveMoney(balanceDue) && (
             <tr style={{ color: '#2e7d32', fontWeight: 700 }}>
-              <td>{isLessMoney(balanceDue, 0) ? 'Overpayment' : 'Fully Paid'}</td>
+              <td>{isLessMoney(balanceDue, 0) ? t('checkout.print.overpayment') : t('checkout.print.fullyPaid')}</td>
               <td className="amount">{isLessMoney(balanceDue, 0) ? formatCurrency(Math.abs(balanceDue)) : '-'}</td>
             </tr>
           )}
@@ -280,32 +284,33 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
 
     {depositWaived ? (
       <div className="notes" style={{ backgroundColor: '#fff3e0', borderLeftColor: '#e65100' }}>
-        <strong style={{ color: '#e65100' }}>Deposit - Waived</strong>
-        Reason: {depositWaiveReason}
+        <strong style={{ color: '#e65100' }}>{t('checkout.print.depositWaivedTitle')}</strong>
+        {t('checkout.print.reason', { reason: depositWaiveReason })}
       </div>
     ) : depositForfeited ? (
       <div className="notes" style={{ backgroundColor: '#fff3e0', borderLeftColor: '#e65100' }}>
-        <strong style={{ color: '#e65100' }}>Deposit - Forfeited</strong>
-        Deposit of {formatCurrency(charges.depositRefund)} has been forfeited to the hotel.
+        <strong style={{ color: '#e65100' }}>{t('checkout.print.depositForfeitedTitle')}</strong>
+        {t('checkout.print.forfeitedNote', { amount: formatCurrency(charges.depositRefund) })}
       </div>
     ) : isPositiveMoney(charges.depositRefund) ? (
       <div className="notes success-note">
-        <strong>Deposit</strong>
-        Deposit of {formatCurrency(charges.depositRefund)} has been refunded separately to the guest.
+        <strong>{t('checkout.print.depositTitle')}</strong>
+        {t('checkout.print.refundedNote', { amount: formatCurrency(charges.depositRefund) })}
       </div>
     ) : (
       <div className="notes" style={{ backgroundColor: '#e3f2fd', borderLeftColor: '#1565c0' }}>
-        <strong style={{ color: '#1565c0' }}>Deposit</strong>
-        Waived (Member benefit)
+        <strong style={{ color: '#1565c0' }}>{t('checkout.print.depositTitle')}</strong>
+        {t('checkout.print.waivedMember')}
       </div>
     )}
 
     <div className="footer">
-      <strong>Thank you for choosing {hotelSettings.hotel_name}!</strong>
-      <p>We hope to see you again soon.</p>
-      <p style={{ marginTop: '10px' }}>This is a computer-generated invoice and does not require a signature.</p>
+      <strong>{t('checkout.print.thanks', { hotel: hotelSettings.hotel_name })}</strong>
+      <p>{t('checkout.print.seeYouAgain')}</p>
+      <p style={{ marginTop: '10px' }}>{t('checkout.print.generated')}</p>
     </div>
   </Box>
-);
+  );
+};
 
 export default CheckoutInvoicePrintView;
