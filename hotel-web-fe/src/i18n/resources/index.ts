@@ -17,6 +17,7 @@
 import enAdmin from './en/admin.json';
 import enAuth from './en/auth.json';
 import enBookings from './en/bookings.json';
+import enChannels from './en/channels.json';
 import enCommon from './en/common.json';
 import enCommunications from './en/communications.json';
 import enInsights from './en/insights.json';
@@ -46,6 +47,7 @@ import enValidation from './en/validation.json';
 import msAdmin from './ms/admin.json';
 import msAuth from './ms/auth.json';
 import msBookings from './ms/bookings.json';
+import msChannels from './ms/channels.json';
 import msCommon from './ms/common.json';
 import msCommunications from './ms/communications.json';
 import msInsights from './ms/insights.json';
@@ -75,6 +77,7 @@ import msValidation from './ms/validation.json';
 import zhAdmin from './zh/admin.json';
 import zhAuth from './zh/auth.json';
 import zhBookings from './zh/bookings.json';
+import zhChannels from './zh/channels.json';
 import zhCommon from './zh/common.json';
 import zhCommunications from './zh/communications.json';
 import zhInsights from './zh/insights.json';
@@ -112,6 +115,7 @@ const enResources = {
   admin: enAdmin as TranslationBundle,
   auth: enAuth as TranslationBundle,
   bookings: enBookings as TranslationBundle,
+  channels: enChannels as TranslationBundle,
   common: enCommon as TranslationBundle,
   communications: enCommunications as TranslationBundle,
   dashboard: enDashboard as TranslationBundle,
@@ -144,6 +148,7 @@ const msResources = {
   admin: msAdmin as TranslationBundle,
   auth: msAuth as TranslationBundle,
   bookings: msBookings as TranslationBundle,
+  channels: msChannels as TranslationBundle,
   common: msCommon as TranslationBundle,
   communications: msCommunications as TranslationBundle,
   dashboard: msDashboard as TranslationBundle,
@@ -176,6 +181,7 @@ const zhResources = {
   admin: zhAdmin as TranslationBundle,
   auth: zhAuth as TranslationBundle,
   bookings: zhBookings as TranslationBundle,
+  channels: zhChannels as TranslationBundle,
   common: zhCommon as TranslationBundle,
   communications: zhCommunications as TranslationBundle,
   dashboard: zhDashboard as TranslationBundle,

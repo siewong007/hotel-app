@@ -35,8 +35,8 @@ use axum::Json;
 use axum::extract::{Extension, Path, State};
 use hotel_app_be::core::error::ApiError;
 use hotel_app_be::models::{Booking, BookingUpdateInput};
-use hotel_app_be::modules::payments::repository::PaymentRepository;
 use hotel_app_be::modules::bookings::service as bookings;
+use hotel_app_be::modules::payments::repository::PaymentRepository;
 use rust_decimal::Decimal;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::str::FromStr;
@@ -403,6 +403,10 @@ async fn checkout(pool: &PgPool, actor_id: i64, booking_id: i64) -> Result<Booki
         actor_id,
         booking_id,
         BookingUpdateInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             status: Some("checked_out".to_string()),
             ..Default::default()
         },
@@ -662,6 +666,10 @@ async fn prior_waive_update_releases_flag_only_deposit() {
         f.actor_id,
         f.booking_id,
         BookingUpdateInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             deposit_paid: Some(false),
             deposit_amount: Some(0.0),
             ..Default::default()
@@ -710,6 +718,10 @@ async fn waive_folded_into_checkout_request_does_not_satisfy_guard() {
         f.actor_id,
         f.booking_id,
         BookingUpdateInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             status: Some("checked_out".to_string()),
             deposit_paid: Some(false),
             deposit_amount: Some(0.0),
@@ -784,6 +796,10 @@ async fn deposit_assertion_records_deposit_payment_method() {
         f.actor_id,
         f.booking_id,
         BookingUpdateInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             deposit_paid: Some(true),
             deposit_amount: Some(50.0),
             deposit_payment_method: Some("E-Wallet".to_string()),
@@ -843,6 +859,10 @@ async fn deposit_assertion_falls_back_when_method_absent_or_blank() {
         absent.actor_id,
         absent.booking_id,
         BookingUpdateInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             deposit_paid: Some(true),
             deposit_amount: Some(50.0),
             payment_method: Some("Debit Card".to_string()),
@@ -857,6 +877,10 @@ async fn deposit_assertion_falls_back_when_method_absent_or_blank() {
         blank.actor_id,
         blank.booking_id,
         BookingUpdateInput {
+            rate_plan_id: None,
+            commission_type_override: None,
+            commission_value_override: None,
+            commission_scope_override: None,
             deposit_paid: Some(true),
             deposit_amount: Some(60.0),
             deposit_payment_method: Some("   ".to_string()),

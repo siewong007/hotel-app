@@ -9,7 +9,7 @@ use sqlx::Row;
 use crate::core::db::{DbPool, DbRow, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
-use crate::models::{BookingChannel, ReportQuery};
+use crate::models::{BookingChannel, ChannelCommissionRule, ReportQuery};
 use crate::modules::booking_channels::repository as booking_channels;
 use crate::utils::report_labels::booking_channel_label;
 
@@ -32,6 +32,10 @@ struct RawRevenueRow {
     commission_value_override: Option<Decimal>,
     commission_scope_override: Option<String>,
     legacy_commission_rate: Option<Decimal>,
+    /// Write-time snapshots — frozen economics that later rule edits never
+    /// rewrite. Preferred over every recomputed term below.
+    stored_commission_amount: Option<Decimal>,
+    stored_net_revenue: Option<Decimal>,
     gross_room_revenue: Decimal,
     service_tax: Decimal,
     tourism_tax: Decimal,
@@ -214,6 +218,19 @@ fn direct_rule(name: String, channel_type: String) -> ChannelRule {
     }
 }
 
+/// All active commission rules grouped by channel — loaded once per report so
+/// per-row dated resolution stays in memory.
+async fn commission_rules_by_channel(
+    pool: &DbPool,
+) -> Result<HashMap<i64, Vec<ChannelCommissionRule>>, ApiError> {
+    let rules = booking_channels::all_active_commission_rules(pool).await?;
+    let mut grouped: HashMap<i64, Vec<ChannelCommissionRule>> = HashMap::new();
+    for rule in rules {
+        grouped.entry(rule.channel_id).or_default().push(rule);
+    }
+    Ok(grouped)
+}
+
 fn resolve_channel(raw: &RawRevenueRow, channels: &[BookingChannel]) -> ChannelRule {
     if let Some(channel_id) = raw.booking_channel_id
         && let Some(channel) = channels.iter().find(|channel| channel.id == channel_id)
@@ -271,16 +288,72 @@ fn resolve_channel(raw: &RawRevenueRow, channels: &[BookingChannel]) -> ChannelR
     direct_rule(title_case_label(source), "other".to_string())
 }
 
+/// Commission terms for one report row. Precedence, highest first:
+///   1. the booking's write-time snapshot (frozen economics),
+///   2. explicit booking-level commission overrides,
+///   3. the effective-dated commission rule at check-in,
+///   4. the channel's default commission,
+///   5. the legacy `commission_rate` column (only when nothing else resolved).
 fn commission_for_row(
     raw: &RawRevenueRow,
     channel: &ChannelRule,
+    dated_rules: &[crate::models::ChannelCommissionRule],
 ) -> (String, String, Decimal, Decimal) {
+    let stay_nights = Decimal::from(raw.stay_nights.max(1));
+
+    // 1. Write-time snapshot — recorded at booking, immune to later edits.
+    //    The stored amount is booking-level; split it across stay nights like
+    //    the per-booking fixed-amount path does.
+    if let Some(stored) = raw.stored_commission_amount {
+        return (
+            channel.commission_type.clone(),
+            channel.commission_scope.clone(),
+            channel.commission_value,
+            (stored / stay_nights).round_dp(2),
+        );
+    }
+    // A net-rate snapshot stores the net without a commission split — the row's
+    // commission is the residual between the charged gross and the stored net.
+    if let Some(stored_net) = raw.stored_net_revenue {
+        let per_night_net = stored_net / stay_nights;
+        let residual = (raw.gross_room_revenue - per_night_net)
+            .max(Decimal::ZERO)
+            .round_dp(2);
+        return (
+            "net_rate".to_string(),
+            "per_booking".to_string(),
+            Decimal::ZERO,
+            residual,
+        );
+    }
+
     let mut commission_type = channel.commission_type.clone();
     let mut commission_scope = channel.commission_scope.clone();
     let mut commission_value = channel.commission_value;
+    let mut rule_resolved = false;
 
+    // 2. Explicit booking override.
+    if let Some(override_type) = raw.commission_type_override.as_deref() {
+        let normalized = normalize_commission_type(override_type);
+        commission_type = normalized.clone();
+        commission_scope =
+            normalize_commission_scope(raw.commission_scope_override.as_deref(), &normalized);
+        commission_value = raw.commission_value_override.unwrap_or(Decimal::ZERO);
+        rule_resolved = true;
+    // 3. Effective-dated commission rule at check-in.
+    } else if let Some(config) = crate::modules::booking_channels::pricing::select_commission_rule(
+        dated_rules,
+        raw.check_in_date,
+    ) {
+        commission_type = config.commission_type;
+        commission_scope = config.scope;
+        commission_value = config.value;
+        rule_resolved = true;
+    }
+
+    // 5. Legacy commission_rate — only when no authoritative term resolved.
     if let Some(legacy_rate) = raw.legacy_commission_rate
-        && raw.commission_type_override.is_none()
+        && !rule_resolved
         && commission_type == "none"
         && legacy_rate > Decimal::ZERO
     {
@@ -289,23 +362,12 @@ fn commission_for_row(
         commission_value = legacy_rate;
     }
 
-    if let Some(override_type) = raw.commission_type_override.as_deref() {
-        let normalized = normalize_commission_type(override_type);
-        commission_type = normalized.clone();
-        commission_scope =
-            normalize_commission_scope(raw.commission_scope_override.as_deref(), &normalized);
-        commission_value = raw.commission_value_override.unwrap_or(Decimal::ZERO);
-    }
-
     let commission_amount = match commission_type.as_str() {
         "percentage" => {
             (raw.gross_room_revenue * commission_value / Decimal::new(100, 0)).round_dp(2)
         }
         "fixed_amount" if commission_scope == "per_night" => commission_value.round_dp(2),
-        "fixed_amount" => {
-            let nights = raw.stay_nights.max(1);
-            (commission_value / Decimal::from(nights)).round_dp(2)
-        }
+        "fixed_amount" => (commission_value / stay_nights).round_dp(2),
         _ => Decimal::ZERO,
     };
 
@@ -346,6 +408,11 @@ fn map_posted_row(row: &DbRow) -> RawRevenueRow {
             row,
             "legacy_commission_rate",
         ),
+        stored_commission_amount: crate::models::row_mappers::get_opt_decimal(
+            row,
+            "stored_commission_amount",
+        ),
+        stored_net_revenue: crate::models::row_mappers::get_opt_decimal(row, "stored_net_revenue"),
         gross_room_revenue: crate::models::row_mappers::get_decimal(row, "gross_room_revenue"),
         service_tax: crate::models::row_mappers::get_decimal(row, "service_tax"),
         tourism_tax: crate::models::row_mappers::get_decimal(row, "tourism_tax"),
@@ -391,6 +458,11 @@ fn map_unposted_row(row: &DbRow, tax_rate: Decimal) -> RawRevenueRow {
             row,
             "legacy_commission_rate",
         ),
+        stored_commission_amount: crate::models::row_mappers::get_opt_decimal(
+            row,
+            "stored_commission_amount",
+        ),
+        stored_net_revenue: crate::models::row_mappers::get_opt_decimal(row, "stored_net_revenue"),
         gross_room_revenue: (room_charge + extra_bed_charge).round_dp(2),
         service_tax: (service_tax + extra_bed_tax).round_dp(2),
         tourism_tax: crate::models::row_mappers::get_decimal(row, "tourism_tax"),
@@ -424,6 +496,8 @@ async fn fetch_posted_rows(
             b.commission_value_override,
             b.commission_scope_override,
             b.commission_rate AS legacy_commission_rate,
+            b.commission_amount AS stored_commission_amount,
+            b.net_revenue AS stored_net_revenue,
             (COALESCE(napn.room_charge, 0) + COALESCE(napn.extra_bed_charge, 0)) AS gross_room_revenue,
             (COALESCE(napn.service_tax, 0) + COALESCE(napn.extra_bed_tax, 0)) AS service_tax,
             COALESCE(napn.tourism_tax, 0) AS tourism_tax,
@@ -499,6 +573,8 @@ async fn fetch_unposted_rows(
             b.commission_value_override,
             b.commission_scope_override,
             b.commission_rate AS legacy_commission_rate,
+            b.commission_amount AS stored_commission_amount,
+            b.net_revenue AS stored_net_revenue,
             CASE
                 WHEN b.daily_rates IS NOT NULL AND b.daily_rates ? b.business_date::text
                     THEN (b.daily_rates ->> b.business_date::text)::DECIMAL
@@ -637,6 +713,8 @@ async fn fetch_statement_posted_rows(
             b.commission_value_override,
             b.commission_scope_override,
             b.commission_rate AS legacy_commission_rate,
+            b.commission_amount AS stored_commission_amount,
+            b.net_revenue AS stored_net_revenue,
             (COALESCE(napn.room_charge, 0) + COALESCE(napn.extra_bed_charge, 0)) AS gross_room_revenue,
             (COALESCE(napn.service_tax, 0) + COALESCE(napn.extra_bed_tax, 0)) AS service_tax,
             COALESCE(napn.tourism_tax, 0) AS tourism_tax,
@@ -704,6 +782,8 @@ async fn fetch_statement_unposted_rows(
             b.commission_value_override,
             b.commission_scope_override,
             b.commission_rate AS legacy_commission_rate,
+            b.commission_amount AS stored_commission_amount,
+            b.net_revenue AS stored_net_revenue,
             CASE
                 WHEN b.daily_rates IS NOT NULL AND b.daily_rates ? b.business_date::text
                     THEN (b.daily_rates ->> b.business_date::text)::DECIMAL
@@ -761,6 +841,7 @@ pub async fn generate_monthly_statement(
     let tax_rate = tax_rate_pct / Decimal::new(100, 0);
 
     let channels = booking_channels::list(pool).await?;
+    let dated_rules = commission_rules_by_channel(pool).await?;
     let mut raw_rows = Vec::new();
     if include_posted {
         raw_rows.extend(fetch_statement_posted_rows(pool, start_date, end_date).await?);
@@ -783,8 +864,13 @@ pub async fn generate_monthly_statement(
 
     let computed_rows = raw_rows.into_iter().filter_map(|raw| {
         let channel = resolve_channel(&raw, &channels);
+        let channel_rules = channel
+            .id
+            .and_then(|id| dated_rules.get(&id))
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         let (commission_type, commission_scope, commission_value, commission_amount) =
-            commission_for_row(&raw, &channel);
+            commission_for_row(&raw, &channel, channel_rules);
         let row = ComputedRevenueRow {
             booking_id: raw.booking_id,
             booking_number: raw.booking_number,
@@ -994,6 +1080,7 @@ pub async fn generate(
     let tax_rate = tax_rate_pct / Decimal::new(100, 0);
 
     let channels = booking_channels::list(pool).await?;
+    let dated_rules = commission_rules_by_channel(pool).await?;
     let mut raw_rows = Vec::new();
     if include_posted {
         raw_rows.extend(fetch_posted_rows(pool, start_date, end_date).await?);
@@ -1006,8 +1093,13 @@ pub async fn generate(
         .into_iter()
         .map(|raw| {
             let channel = resolve_channel(&raw, &channels);
+            let channel_rules = channel
+                .id
+                .and_then(|id| dated_rules.get(&id))
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
             let (commission_type, commission_scope, commission_value, commission_amount) =
-                commission_for_row(&raw, &channel);
+                commission_for_row(&raw, &channel, channel_rules);
             let net_hotel_revenue = (raw.gross_room_revenue - commission_amount).round_dp(2);
 
             ComputedRevenueRow {

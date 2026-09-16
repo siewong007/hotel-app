@@ -312,3 +312,51 @@ is a browser preference (`localStorage`), consistent with how `themeMode` and
 - ❌ Features a library would give for free must be written if ever needed:
   context/gender selection, ICU message format, translator tooling integration
 - ❌ Translations live in the repo, so a copy change is a code change
+
+## ADR 013: Write-Time Snapshots for Channel Economics
+
+**Status:** Accepted (2026-09-16)
+
+**Context:** Channels needed their own selling prices and commission models
+(OTA markup, net-rate agreements, corporate rates) on top of the internal rate
+stack — and reports needed channel-level net revenue that stays correct
+*historically*. The baseline already had a `booking_channels` registry with
+commission defaults, and `bookings` already carried `commission_amount`,
+`net_revenue`, `commission_*_override` and `ota_reference` columns that no code
+path ever wrote. Two designs were rejected: channel-as-rate-plan conflates the
+sellable-plan and distribution axes and explodes N×M; computing commission at
+report time means every edit to a channel retroactively rewrites the financial
+history it reports on.
+
+**Decision:** Two independent dimensions per channel, resolved by one engine
+(`modules/booking_channels/pricing.rs`): *price derivation* via effective-dated
+`channel_pricing_rules` (markup percent/fixed, discount percent, fixed price,
+net rate; optional room-type and rate-plan scope; priority + specificity
+ordering; min/max guardrails) and *distribution cost* via dated
+`channel_commission_rules` falling back to the channel's commission defaults.
+The guest portal's "Direct Website" bookings pass through the same engine — no
+rule means the price is byte-identical to before. The decision that protects
+history: when a booking is written (staff create, staff reprice, portal
+commit), the resolved rule, selling price, commission and net revenue are
+**frozen onto the booking row** in `channel_pricing_snapshot` +
+`commission_amount` + `net_revenue`. Reports read the snapshot first, then
+dated rules, then channel defaults — so editing a rule can never move a closed
+stay. `channel_room_type_mappings` / `channel_rate_plan_mappings` hold external
+IDs and sync status for a future channel-manager integration; they are schema
+readiness, not a sync subsystem. The duplicate `system_settings` JSON channel
+list is deprecated — the table is the only source of truth, mirrored into the
+local display cache for legacy chips. New `channels:read|write|manage`
+permissions gate the surface.
+
+**Consequences:**
+- ✅ Historical bookings and net-revenue reports are stable under rule edits
+- ✅ One resolution path serves staff booking write, portal quote, preview and
+  the room-type × channel matrix — no drift between them
+- ✅ Portal pricing needs zero special-casing; a Direct rule is opt-in
+- ✅ Mapping tables make the OTA/channel-manager phase additive rather than a
+  remodel
+- ❌ Reports carry a three-tier fallback (snapshot → dated rule → default) for
+  pre-feature bookings, which must be preserved when touching
+  `channel_net_revenue.rs`
+- ❌ Snapshot semantics mean "what did we earn" is only exact for bookings
+  written after this feature; older rows resolve at report time as before

@@ -134,6 +134,10 @@
       "label": "Segmen",
       "breadcrumb": "Segmen Tetamu"
     },
+    "channels": {
+      "label": "Saluran",
+      "breadcrumb": "Saluran Tempahan"
+    },
     "settings": {
       "label": "Tetapan Hotel",
       "breadcrumb": "Tetapan Hotel"

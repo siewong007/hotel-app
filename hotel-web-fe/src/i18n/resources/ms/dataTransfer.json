@@ -23,10 +23,25 @@
       "tagline": "Sulit — mengandungi data tetamu dan kewangan"
     },
     "backup": {
-      "title": "Sandaran sistem penuh",
+      "title": "Sandaran migrasi",
       "restriction": "Sangat terhad",
       "description": "Set data boleh pindah lengkap bersama metadata hubungan, dalam format sedia migrasi. Gunakan untuk pemulihan bencana atau berpindah ke pelayan baharu.",
-      "tagline": "Sulit — keseluruhan set data dengan metadata FK"
+      "tagline": "Sulit — keseluruhan set data perniagaan dengan metadata FK"
+    },
+    "system": {
+      "title": "Sandaran sistem penuh",
+      "restriction": "Super admin sahaja",
+      "description": "Semua dalam sandaran migrasi serta akaun pengguna dan cincangan kata laluan, geran RBAC, sesi, rekod eKYC dan sejarah audit. Sentiasa disulitkan dengan frasa laluan yang anda berikan. Ini satu-satunya eksport yang boleh membina semula log masuk pada pangkalan data yang dipulihkan.",
+      "tagline": "Disulitkan — termasuk kelayakan, eKYC dan sejarah audit"
+    },
+    "passphrase": {
+      "title": "Sulitkan sandaran ini",
+      "help": "Fail ini membawa akaun pengguna, cincangan kata laluan, geran RBAC dan rekod eKYC, jadi ia sentiasa disulitkan. Simpan frasa laluan di tempat selamat — tanpanya sandaran tidak boleh dipulihkan.",
+      "label": "Frasa laluan",
+      "minimum": "Sekurang-kurangnya 12 aksara",
+      "confirmLabel": "Sahkan frasa laluan",
+      "mismatch": "Frasa laluan tidak sepadan",
+      "submit": "Teruskan"
     },
     "secretsExcluded": "Kata laluan, sesi, token, passkey dan rahsia lain tidak pernah disertakan dalam mana-mana eksport.",
     "sensitiveConfirmTitle": "Eksport ini mengandungi data sulit",
@@ -165,7 +180,13 @@
     "ackMerge": "Saya faham ini mengubah data langsung dan tindakan ini akan direkodkan.",
     "restoreImport": "Pulih & import",
     "startImport": "Mula import",
-    "importAnother": "Import fail lain"
+    "importAnother": "Import fail lain",
+    "passphrase": {
+      "title": "Sandaran ini disulitkan",
+      "help": "Masukkan frasa laluan yang digunakan semasa eksport. Ia tidak disimpan pada pelayan, dan fail kekal disulitkan pada cakera.",
+      "label": "Frasa laluan sandaran",
+      "submit": "Buka"
+    }
   },
   "history": {
     "serverBacked": "Setiap eksport, import dan pengesahan semula pada pelayan ini direkodkan dalam log audit.",

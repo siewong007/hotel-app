@@ -686,6 +686,7 @@ pub async fn resolve_channel_nights(
 
 /// Full quote: nights + commission + estimated net revenue, as a booking write
 /// or the preview endpoint consumes it.
+#[allow(clippy::too_many_arguments)]
 pub async fn resolve_channel_quote(
     pool: &DbPool,
     channel: &BookingChannel,

@@ -194,10 +194,14 @@ pub fn table_is_sensitive(name_or_key: &str) -> bool {
     SENSITIVE_TABLES.contains(&bare)
 }
 
-/// Schema tables that must never cross the export/import boundary, as
-/// `name → reason` pairs. This is the source of truth for the manifest's
-/// `exclusions` list: every table `transfer_tables()` can see that is not in
-/// [`TABLE_INSERT_ORDER`] must appear here — nothing is silently omitted.
+/// Schema tables outside the business-data set, as `name → reason` pairs.
+///
+/// These are excluded from `standard`, `full` and `backup` documents and
+/// listed in those manifests' `exclusions`. [`ExportScope::System`] is the
+/// exception: it carries them, which is what makes a restore able to rebuild
+/// logins, RBAC grants and audit history. Every table `transfer_tables()` can
+/// see that is not in [`TABLE_INSERT_ORDER`] must appear here — nothing is
+/// silently omitted from either the document or the manifest.
 ///
 /// Reason codes:
 /// - `credentials_and_auth_state` — password hashes, TOTP seeds, RBAC grants.
@@ -246,6 +250,107 @@ pub const EXCLUDED_TABLES: &[(&str, &str)] = &[
     ("public.audit_logs_default", "internal_system_table"),
 ];
 
+/// The protected tables in foreign-key-safe **insert** order, appended after
+/// [`TABLE_INSERT_ORDER`] when the scope is [`ExportScope::System`]. Ordered
+/// from the live FK graph: `roles`/`permissions`/`route_access_policies`/
+/// `ekyc_reason_codes` and the standalone system tables have no protected
+/// parent, `users` follows them, and everything else hangs off `users` or an
+/// `ekyc_verifications` row.
+///
+/// `users` also sits on the `users` ↔ `guests` cycle that predates this
+/// change; the importer already breaks it by deferring constraints, so the
+/// static position here is not load-bearing for correctness.
+///
+/// `public.audit_logs_default` is deliberately absent: it is the DEFAULT
+/// PARTITION of `public.audit_logs`, and `transfer_tables()` skips partition
+/// children by design. Its rows travel with the partitioned parent, so the
+/// audit history is carried in full without naming the child.
+pub const PROTECTED_TABLE_ORDER: &[&str] = &[
+    // authorization roots
+    "roles",
+    "permissions",
+    "route_access_policies",
+    "ekyc_reason_codes",
+    // standalone system bookkeeping
+    "job_runs",
+    "hotel_schema_revisions",
+    "audit_logs",
+    "invalid_data_quarantine",
+    // identity, then everything keyed by it
+    "users",
+    "role_permissions",
+    "user_roles",
+    "user_permissions",
+    "refresh_tokens",
+    "user_sessions",
+    "passkeys",
+    "passkey_challenges",
+    "two_factor_challenges",
+    "guest_portal_sessions",
+    "payment_retry_capabilities",
+    "ekyc_verifications",
+    "ekyc_decision_history",
+    "ekyc_access_events",
+    "ekyc_sensitive_reveals",
+    "ekyc_idempotency_keys",
+    "ekyc_notes",
+    "email_deliveries",
+    "support_action_idempotency_keys",
+    "support_guest_request_idempotency_keys",
+];
+
+/// [`PROTECTED_TABLE_ORDER`] as schema-qualified keys. Kept separate because
+/// the quarantine table lives in `app`, not `public` — the business set is
+/// uniformly `public`, so the transferable check cannot assume a schema once
+/// the protected set is in play.
+pub fn protected_table_keys() -> Vec<String> {
+    PROTECTED_TABLE_ORDER
+        .iter()
+        .map(|name| {
+            if *name == "invalid_data_quarantine" {
+                format!("app.{name}")
+            } else {
+                format!("public.{name}")
+            }
+        })
+        .collect()
+}
+
+/// Protected tables the importer must never write, whatever a file declares.
+///
+/// `hotel_schema_revisions` is the patch catalog's lineage record:
+/// `patches/_begin.sql` reads it to decide which patches a database still
+/// needs. Restoring a row captured at a different patch level makes the
+/// destination claim a schema it does not have, so the next patch run either
+/// skips real work or aborts on the baseline-checksum guard — and desktop
+/// treats a patch failure as fatal, so the app never starts. It rides the
+/// document so an operator can read what the source was running, and is
+/// dropped on the way in.
+pub const NEVER_IMPORTED_TABLES: &[&str] = &["hotel_schema_revisions"];
+
+/// Which table set a transfer may touch. Threaded through the import so the
+/// protected set is unreachable unless the file actually carries it *and* the
+/// caller cleared the super-admin and step-up gates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransferTier {
+    /// Business data only — the historical boundary, and the default.
+    Business,
+    /// Business data plus the protected credential, session, eKYC and system
+    /// tables.
+    System,
+}
+
+impl TransferTier {
+    /// The tier a scope exports at.
+    pub fn for_scope(scope: ExportScope) -> Self {
+        if scope.includes_protected() {
+            TransferTier::System
+        } else {
+            TransferTier::Business
+        }
+    }
+}
+
 /// Every reason code [`EXCLUDED_TABLES`] may use — keeps the manifest's
 /// vocabulary fixed instead of drifting per entry. The manifest builder
 /// validates each entry against this list so a typo fails the export instead
@@ -292,9 +397,21 @@ const ALL_IMPORT_TABLES: &[&str] = TABLE_INSERT_ORDER;
 /// state, so exporting them would hand a `data_transfer:export_sensitive`
 /// holder every password hash and TOTP seed, and importing them could plant a
 /// forged `is_super_admin` account.
-pub(crate) fn is_transferable_key(key: &str) -> bool {
+pub(crate) fn is_transferable_key(key: &str, tier: TransferTier) -> bool {
+    let Ok(table) = QualifiedTable::parse(key) else {
+        return false;
+    };
+    if table.schema == "public" && ALL_IMPORT_TABLES.contains(&table.name.as_str()) {
+        return true;
+    }
+    tier == TransferTier::System && protected_table_keys().iter().any(|known| known == key)
+}
+
+/// Whether a qualified key names a table the importer refuses to write even
+/// inside a `system` document. See [`NEVER_IMPORTED_TABLES`].
+pub(crate) fn is_never_imported_key(key: &str) -> bool {
     QualifiedTable::parse(key)
-        .map(|table| table.schema == "public" && ALL_IMPORT_TABLES.contains(&table.name.as_str()))
+        .map(|table| NEVER_IMPORTED_TABLES.contains(&table.name.as_str()))
         .unwrap_or(false)
 }
 
@@ -386,7 +503,7 @@ async fn transferable_export_tables(
     let mut tables: Vec<TransferTable> = DataTransferRepository::transfer_tables(pool)
         .await?
         .into_iter()
-        .filter(|table| is_transferable_key(&table.table.key()))
+        .filter(|table| is_transferable_key(&table.table.key(), TransferTier::for_scope(scope)))
         .filter(|table| scope.includes_sensitive() || !table_is_sensitive(&table.table.name))
         .collect();
     tables.sort_by_key(|table| table.table.key());
@@ -433,12 +550,21 @@ fn build_backup_manifest(
         })
         .collect();
 
+    // A `system` document carries the protected set, so its manifest must not
+    // claim otherwise — the exclusions list is what an operator reads to know
+    // what a restore will and will not rebuild. The reason-code validation
+    // still runs at every scope so a typo fails the export rather than
+    // shipping an undocumented reason.
+    let emitted_keys: HashSet<String> = tables.iter().map(|table| table.table.key()).collect();
     let mut exclusions = Vec::with_capacity(EXCLUDED_TABLES.len());
     for (name, reason) in EXCLUDED_TABLES {
         if !KNOWN_EXCLUSION_REASONS.contains(reason) {
             return Err(ApiError::Internal(format!(
                 "excluded table '{name}' uses unknown reason '{reason}'"
             )));
+        }
+        if emitted_keys.contains(*name) {
+            continue;
         }
         exclusions.push(BackupExclusion {
             name: (*name).to_string(),
@@ -498,13 +624,15 @@ async fn backup_relationships(
 /// Everything a backup document emits before the streamed `tables` payload.
 /// `export_id` identifies this exact file — it also lands on the audit row so
 /// a download can be tied to its event. `export_type` and
-/// `includes_sensitive_data` describe the tier; `includes_secrets` is always
-/// `false` — credentials never leave the database at any scope.
+/// `includes_sensitive_data` and `includes_protected` describe the tier: the
+/// second is true only for [`ExportScope::System`], the one scope whose
+/// document carries credential, session and eKYC material.
 struct ExportHeader {
     export_id: Uuid,
     exported_at: String,
     export_type: &'static str,
     includes_sensitive_data: bool,
+    includes_protected: bool,
     source: BackupSource,
     manifest: BackupManifest,
 }
@@ -518,6 +646,7 @@ fn build_export_header_inner(
         exported_at: chrono::Utc::now().to_rfc3339(),
         export_type: scope.label(),
         includes_sensitive_data: scope.includes_sensitive(),
+        includes_protected: scope.includes_protected(),
         source: BackupSource {
             environment: backup_environment(),
             database_provider: "postgresql".to_string(),
@@ -553,8 +682,16 @@ fn export_doc_prefix(header: &ExportHeader) -> Result<String, ApiError> {
         .map_err(|error| ApiError::Internal(error.to_string()))?;
     let manifest = serde_json::to_string(&header.manifest)
         .map_err(|error| ApiError::Internal(error.to_string()))?;
+    // `kind` and `includesSecrets` follow the scope: a `system` document is
+    // the one shape that really does carry credential material, and it has to
+    // say so — the import path reads both to decide what it is looking at.
+    let (kind, includes_secrets) = if header.includes_protected {
+        ("full-system", true)
+    } else {
+        ("business-data", false)
+    };
     Ok(format!(
-        "{{\"format\":\"hotel-backup\",\"version\":1,\"kind\":\"business-data\",\"exportType\":{},\"includesSensitiveData\":{},\"includesSecrets\":false,\"exportId\":{export_id},\"exportedAt\":{exported_at},\"applicationVersion\":{application_version},\"source\":{source},\"manifest\":{manifest},\"tables\":{{",
+        "{{\"format\":\"hotel-backup\",\"version\":1,\"kind\":\"{kind}\",\"exportType\":{},\"includesSensitiveData\":{},\"includesSecrets\":{includes_secrets},\"exportId\":{export_id},\"exportedAt\":{exported_at},\"applicationVersion\":{application_version},\"source\":{source},\"manifest\":{manifest},\"tables\":{{",
         serde_json::to_string(header.export_type)
             .map_err(|error| ApiError::Internal(error.to_string()))?,
         header.includes_sensitive_data,
@@ -660,6 +797,39 @@ fn stream_export(
     })
 }
 
+/// Wrap a plaintext export stream in the encrypted envelope, preserving the
+/// streaming property: each 1 MiB of document is sealed and released as it is
+/// produced, so neither side ever holds the whole file.
+///
+/// Key derivation is deliberately the one blocking step — PBKDF2 at 600k
+/// iterations costs about half a second, which must not run on a runtime
+/// worker. Sealing each frame afterwards is AES-NI work measured in
+/// microseconds and stays inline.
+fn encrypt_stream(
+    inner: futures_core::stream::BoxStream<'static, Result<Bytes, ApiError>>,
+    passphrase: String,
+) -> futures_core::stream::BoxStream<'static, Result<Bytes, ApiError>> {
+    Box::pin(async_stream::try_stream! {
+        let mut encryptor = tokio::task::spawn_blocking(move || {
+            super::crypto::BackupEncryptor::new(&passphrase)
+        })
+        .await
+        .map_err(|error| ApiError::Internal(format!("backup key derivation failed: {error}")))??;
+
+        for await chunk in inner {
+            let chunk = chunk?;
+            let sealed = encryptor.push(&chunk)?;
+            if !sealed.is_empty() {
+                yield Bytes::from(sealed);
+            }
+        }
+
+        // Always emitted: the closing frame carries the `final` marker that
+        // makes a truncated download detectable.
+        yield Bytes::from(encryptor.finish()?);
+    })
+}
+
 /// Build the full-database export as a streamed response body.
 ///
 /// The pre-cursor export loaded every transferable table into memory and
@@ -675,14 +845,30 @@ pub async fn export_booking_data_body(
     pool: &DbPool,
     user_id: i64,
     scope: ExportScope,
+    passphrase: Option<String>,
 ) -> Result<Body, ApiError> {
+    // Checked before a single row is read: a `system` document without a
+    // passphrase must never begin streaming, or a client disconnect could
+    // still have spilled protected rows over the wire.
+    let passphrase = match (scope.requires_encryption(), passphrase) {
+        (true, None) => {
+            return Err(ApiError::BadRequest(
+                "a system backup carries credentials and eKYC evidence and must be encrypted — supply a passphrase in the X-Backup-Passphrase header".to_string(),
+            ));
+        }
+        (_, Some(passphrase)) => {
+            super::crypto::validate_passphrase(&passphrase)?;
+            Some(passphrase)
+        }
+        (false, None) => None,
+    };
+
     let tables = transferable_export_tables(pool, scope).await?;
-    Ok(Body::from_stream(stream_export(
-        pool.clone(),
-        tables,
-        scope,
-        Some(user_id),
-    )))
+    let stream = stream_export(pool.clone(), tables, scope, Some(user_id));
+    Ok(Body::from_stream(match passphrase {
+        Some(passphrase) => encrypt_stream(stream, passphrase),
+        None => stream,
+    }))
 }
 
 /// Collect a full export into one in-memory document.
@@ -707,13 +893,14 @@ pub async fn export_booking_data(pool: &DbPool, scope: ExportScope) -> Result<St
 pub(crate) fn expand_full_overwrite_tables(
     selected: &mut HashSet<String>,
     dependencies: &HashMap<String, HashSet<String>>,
+    tier: TransferTier,
 ) {
     let mut changed = true;
     while changed {
         changed = false;
         for (child, parents) in dependencies {
             if parents.iter().any(|parent| selected.contains(parent))
-                && is_transferable_key(child)
+                && is_transferable_key(child, tier)
                 && selected.insert(child.clone())
             {
                 changed = true;
@@ -735,9 +922,10 @@ pub(crate) fn import_error_detail(error: &ApiError) -> String {
 mod tests {
     use super::{
         ALL_IMPORT_TABLES, EXCLUDED_TABLES, Environment, KNOWN_EXCLUSION_REASONS,
-        QualifiedTable, SENSITIVE_TABLES, TABLE_INSERT_ORDER, TransferTable, backup_environment,
-        build_backup_manifest, build_export_header_inner, environment_name, export_columns,
-        export_doc_prefix, export_doc_suffix, table_is_sensitive,
+        PROTECTED_TABLE_ORDER, QualifiedTable, SENSITIVE_TABLES, TABLE_INSERT_ORDER, TransferTable,
+        TransferTier, backup_environment, build_backup_manifest, build_export_header_inner,
+        environment_name, export_columns, export_doc_prefix, export_doc_suffix,
+        is_never_imported_key, is_transferable_key, protected_table_keys, table_is_sensitive,
     };
     use crate::models::{BackupIntegrity, ExportScope};
     use std::collections::{BTreeMap, HashSet};
@@ -750,8 +938,10 @@ mod tests {
             TABLE_INSERT_ORDER.len(),
             "TABLE_INSERT_ORDER must not contain duplicates"
         );
-        // The full-backup set the API exports/imports.
-        assert_eq!(TABLE_INSERT_ORDER.len(), 75);
+        // The business-data set the API exports/imports — 75 plus the four
+        // channel-pricing tables. The protected set is counted separately in
+        // `the_system_tier_carries_every_excluded_table`.
+        assert_eq!(TABLE_INSERT_ORDER.len(), 79);
         // Introspection list and the canonical order must stay in lock-step.
         assert_eq!(ALL_IMPORT_TABLES, TABLE_INSERT_ORDER);
     }
@@ -777,8 +967,116 @@ mod tests {
                 "'{name}' is both transferable and excluded"
             );
         }
-        // The 29 pg_class-visible tables kept out of the transferable set.
+        // The 29 tables outside the business-data set.
         assert_eq!(EXCLUDED_TABLES.len(), 29);
+    }
+
+    #[test]
+    fn protected_order_is_unique_and_disjoint_from_the_business_set() {
+        let unique: HashSet<_> = PROTECTED_TABLE_ORDER.iter().collect();
+        assert_eq!(
+            unique.len(),
+            PROTECTED_TABLE_ORDER.len(),
+            "PROTECTED_TABLE_ORDER must not contain duplicates"
+        );
+        for name in PROTECTED_TABLE_ORDER {
+            assert!(
+                !TABLE_INSERT_ORDER.contains(name),
+                "'{name}' is in both the business and protected sets"
+            );
+        }
+    }
+
+    /// The whole point of the `system` scope: every table the business scopes
+    /// exclude has to be carried, or a "full system backup" silently is not
+    /// one. `audit_logs_default` is the single deliberate absence — it is the
+    /// DEFAULT PARTITION of `audit_logs`, invisible to `transfer_tables()`,
+    /// and its rows travel with the partitioned parent.
+    #[test]
+    fn the_system_tier_carries_every_excluded_table() {
+        let carried: HashSet<String> = protected_table_keys().into_iter().collect();
+        let mut uncarried: Vec<&str> = EXCLUDED_TABLES
+            .iter()
+            .map(|(name, _)| *name)
+            .filter(|name| !carried.contains(*name))
+            .collect();
+        uncarried.sort_unstable();
+        assert_eq!(
+            uncarried,
+            vec!["public.audit_logs_default"],
+            "the system scope must carry every excluded table except the audit partition child"
+        );
+        assert_eq!(carried.len(), EXCLUDED_TABLES.len() - 1);
+    }
+
+    #[test]
+    fn protected_keys_are_transferable_only_at_the_system_tier() {
+        for key in protected_table_keys() {
+            assert!(
+                !is_transferable_key(&key, TransferTier::Business),
+                "'{key}' must stay out of a business-tier transfer"
+            );
+            assert!(
+                is_transferable_key(&key, TransferTier::System),
+                "'{key}' must be transferable at the system tier"
+            );
+        }
+        // The business set stays transferable at both tiers.
+        assert!(is_transferable_key("public.bookings", TransferTier::Business));
+        assert!(is_transferable_key("public.bookings", TransferTier::System));
+    }
+
+    /// The quarantine table is the one protected entry outside `public`, so a
+    /// schema-blind check would drop it from a system backup.
+    #[test]
+    fn the_system_tier_reaches_outside_the_public_schema() {
+        assert!(
+            protected_table_keys().contains(&"app.invalid_data_quarantine".to_string()),
+            "the quarantine table must be carried under its real schema"
+        );
+        assert!(is_transferable_key(
+            "app.invalid_data_quarantine",
+            TransferTier::System
+        ));
+        assert!(!is_transferable_key(
+            "app.invalid_data_quarantine",
+            TransferTier::Business
+        ));
+    }
+
+    /// Restoring the source database's patch lineage would make this database
+    /// misreport its own schema, and the next patch run would abort — on
+    /// desktop that is a fatal startup failure. It ships in the document and
+    /// is refused on the way in, at every tier.
+    #[test]
+    fn the_schema_lineage_table_is_never_importable() {
+        assert!(is_never_imported_key("public.hotel_schema_revisions"));
+        assert!(!is_never_imported_key("public.users"));
+        assert!(
+            protected_table_keys().contains(&"public.hotel_schema_revisions".to_string()),
+            "it still travels in the file, for forensics"
+        );
+    }
+
+    #[test]
+    fn only_the_system_scope_is_protected_and_must_be_encrypted() {
+        for scope in [
+            ExportScope::Standard,
+            ExportScope::Full,
+            ExportScope::Backup,
+        ] {
+            assert!(!scope.includes_protected(), "{scope:?} must not be protected");
+            assert!(!scope.requires_encryption());
+            assert_eq!(TransferTier::for_scope(scope), TransferTier::Business);
+        }
+        assert!(ExportScope::System.includes_protected());
+        assert!(ExportScope::System.includes_sensitive());
+        assert!(ExportScope::System.requires_encryption());
+        assert_eq!(
+            TransferTier::for_scope(ExportScope::System),
+            TransferTier::System
+        );
+        assert_eq!(ExportScope::System.label(), "system");
     }
 
     #[test]

@@ -35,7 +35,7 @@ async fn setup_pg_pool() -> Option<PgPool> {
 /// The raw text of one streamed export — key order checks need the bytes, not
 /// a parsed `Value` (a deserialized map cannot prove field order).
 async fn streamed_export_text(pool: &PgPool) -> String {
-    let body = export_booking_data_body(pool, 0, hotel_app_be::models::ExportScope::Full)
+    let body = export_booking_data_body(pool, 0, hotel_app_be::models::ExportScope::Full, None)
         .await
         .expect("streamed export must build");
     let bytes = axum::body::to_bytes(body, usize::MAX)

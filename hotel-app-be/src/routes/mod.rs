@@ -361,6 +361,16 @@ pub fn create_router(pool: DbPool) -> Router {
                         crate::modules::auth::turnstile::TURNSTILE_HEADER,
                     ),
                     axum::http::HeaderName::from_static(CLIENT_TIMEZONE_HEADER),
+                    // Step-up token and backup passphrase on the data-transfer
+                    // endpoints. Same trap as the two above: the development
+                    // branch allows any header, so leaving these out is
+                    // invisible until a cross-origin deployment preflights.
+                    axum::http::HeaderName::from_static(
+                        crate::modules::data_transfer::step_up::STEP_UP_HEADER,
+                    ),
+                    axum::http::HeaderName::from_static(
+                        crate::modules::data_transfer::routes::BACKUP_PASSPHRASE_HEADER,
+                    ),
                 ])
                 .allow_methods([
                     Method::GET,

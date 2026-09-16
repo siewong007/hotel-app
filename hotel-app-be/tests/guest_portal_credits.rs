@@ -289,6 +289,9 @@ mod postgres_tests {
             settled_by_credits,
             is_tourist: false,
             tourism_tax_amount: Decimal::ZERO,
+            commission_amount: None,
+            net_revenue: None,
+            channel_pricing_snapshot: None,
         }
     }
 

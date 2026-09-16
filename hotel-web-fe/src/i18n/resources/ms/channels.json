@@ -1,0 +1,222 @@
+{
+  "title": "Saluran",
+  "subtitle": "Saluran pengedaran, harga jualan, dan komisen",
+  "tabs": {
+    "channels": "Saluran",
+    "matrix": "Matriks harga"
+  },
+  "actions": {
+    "newChannel": "Saluran baharu"
+  },
+  "types": {
+    "direct": "Langsung",
+    "ota": "OTA",
+    "corporate": "Korporat",
+    "walk_in": "Walk-in",
+    "phone": "Telefon",
+    "website": "Laman web",
+    "channel_manager": "Pengurus saluran",
+    "other": "Lain-lain"
+  },
+  "integration": {
+    "manual": "Manual",
+    "channel_manager": "Pengurus saluran",
+    "api": "API"
+  },
+  "status": {
+    "active": "Aktif",
+    "inactive": "Tidak aktif"
+  },
+  "commissionTypes": {
+    "none": "Tiada",
+    "percentage": "Peratusan",
+    "fixed_amount": "Amaun tetap"
+  },
+  "commissionScopes": {
+    "per_booking": "Setiap tempahan",
+    "per_night": "Setiap malam"
+  },
+  "ruleTypes": {
+    "markup_percent": "Tokokan %",
+    "markup_fixed": "Tokokan (tetap)",
+    "discount_percent": "Diskaun %",
+    "fixed_price": "Harga tetap",
+    "net_rate": "Kadar net"
+  },
+  "ruleTypeHelp": {
+    "markup_percent": "Harga jualan = kadar sumber ditambah peratusan ini.",
+    "markup_fixed": "Harga jualan = kadar sumber ditambah amaun ini, setiap malam.",
+    "discount_percent": "Harga jualan = kadar sumber ditolak peratusan ini.",
+    "fixed_price": "Harga jualan sentiasa amaun ini setiap malam dalam tempoh berkuat kuasa.",
+    "net_rate": "Hotel menerima amaun net ini setiap malam; saluran menetapkan harga jualannya sendiri."
+  },
+  "list": {
+    "loadError": "Saluran tidak dapat dimuatkan.",
+    "emptyTitle": "Tiada saluran lagi",
+    "emptyBody": "Cipta saluran tempahan untuk mula menetapkan harga mengikut sumber pengedaran.",
+    "noCommission": "Tiada komisen",
+    "open": "Buka saluran",
+    "edit": "Edit",
+    "deactivate": "Nyahaktifkan",
+    "deactivateTitle": "Nyahaktifkan saluran?",
+    "deactivateMessage": "{{name}} tidak lagi menentukan harga dan komisen untuk tempahan baharu. Tempahan sedia ada mengekalkan nilai yang direkodkan.",
+    "deactivateConfirm": "Nyahaktifkan",
+    "columns": {
+      "name": "Saluran",
+      "type": "Jenis",
+      "code": "Kod",
+      "commission": "Komisen lalai",
+      "integration": "Integrasi",
+      "status": "Status",
+      "actions": "Tindakan"
+    }
+  },
+  "matrix": {
+    "dateLabel": "Tarikh",
+    "hint": "Harga jualan berselesai bagi setiap saluran pada tarikh dipilih.",
+    "loadError": "Matriks harga tidak dapat dimuatkan.",
+    "empty": "Tiada sel untuk tarikh ini.",
+    "roomType": "Jenis bilik",
+    "netTag": "net",
+    "cellTooltip": "{{rule}} — anggaran net {{net}}"
+  },
+  "detail": {
+    "title": "Saluran",
+    "back": "Semua saluran",
+    "inactiveNotice": "Saluran ini tidak aktif — peraturannya tidak lagi digunapakai untuk tempahan baharu.",
+    "tabs": {
+      "rules": "Peraturan harga",
+      "commission": "Komisen",
+      "mappings": "Pemetaan",
+      "preview": "Pratonton"
+    }
+  },
+  "dialog": {
+    "newTitle": "Saluran baharu",
+    "editTitle": "Edit saluran"
+  },
+  "fields": {
+    "name": "Nama",
+    "channelType": "Jenis saluran",
+    "abbreviation": "Singkatan",
+    "abbreviationHelp": "Label pendek dalam penapis tempahan dan laporan.",
+    "code": "Kod",
+    "codeHelp": "Pengecam stabil yang digunakan integrasi.",
+    "integrationMode": "Mod integrasi",
+    "integrationModeHelp": "Cara tempahan saluran ini sampai ke hotel.",
+    "commissionType": "Jenis komisen lalai",
+    "commissionPercent": "Komisen %",
+    "commissionAmount": "Amaun komisen",
+    "commissionScope": "Skop komisen",
+    "active": "Aktif"
+  },
+  "rules": {
+    "new": "Peraturan baharu",
+    "loadError": "Peraturan harga tidak dapat dimuatkan.",
+    "emptyTitle": "Tiada peraturan harga",
+    "emptyBody": "Tanpa peraturan, saluran ini menjual pada kadar dalaman.",
+    "deleteTitle": "Padam peraturan harga?",
+    "deleteMessage": "Peraturan berhenti berkuat kuasa serta-merta; tempahan yang telah direkod mengekalkan snapshotnya.",
+    "disable": "Lumpuhkan",
+    "enable": "Aktifkan",
+    "scopeAllRooms": "Semua jenis bilik",
+    "scopeAnyPlan": "Mana-mana pelan kadar",
+    "openEnded": "terbuka",
+    "columns": {
+      "type": "Peraturan",
+      "value": "Nilai",
+      "roomType": "Jenis bilik",
+      "ratePlan": "Pelan kadar",
+      "window": "Tempoh berkuat kuasa",
+      "bounds": "Min / maks",
+      "priority": "Keutamaan",
+      "status": "Status",
+      "actions": "Tindakan"
+    }
+  },
+  "rulesDialog": {
+    "newTitle": "Peraturan harga baharu",
+    "editTitle": "Edit peraturan harga",
+    "ruleType": "Jenis peraturan",
+    "valuePercent": "Nilai (%)",
+    "valueAmount": "Nilai",
+    "roomType": "Jenis bilik",
+    "roomTypeHelp": "Hadkan peraturan kepada satu jenis bilik, atau biarkan merentasi saluran.",
+    "ratePlan": "Pelan kadar",
+    "ratePlanHelp": "Hadkan peraturan kepada satu pelan kadar, atau laksanakan pada mana-mana pelan.",
+    "effectiveFrom": "Berkuat kuasa dari",
+    "effectiveTo": "Berkuat kuasa hingga",
+    "windowError": "Tarikh akhir tempoh mestilah pada atau selepas tarikh mula.",
+    "minPrice": "Harga min (pilihan)",
+    "maxPrice": "Harga maks (pilihan)",
+    "boundsHelp": "Hadkan harga semalaman berselesai dalam julat ini.",
+    "priority": "Keutamaan",
+    "priorityHelp": "Keutamaan lebih tinggi menang apabila beberapa peraturan sepadan.",
+    "reason": "Sebab (pilihan)",
+    "largeChangeWarning": "Perhatian: {{value}}% ialah perubahan besar daripada kadar sumber."
+  },
+  "commission": {
+    "new": "Override baharu",
+    "loadError": "Peraturan komisen tidak dapat dimuatkan.",
+    "emptyTitle": "Tiada peraturan komisen bertarikh",
+    "emptyBody": "Komisen lalai saluran digunakan melainkan peraturan bertarikh mengatasinya.",
+    "deleteTitle": "Padam peraturan komisen?",
+    "deleteMessage": "Komisen lalai saluran digunakan untuk penginapan yang menggunakan peraturan ini.",
+    "defaultChip": "Lalai: {{type}} {{value}}",
+    "columns": {
+      "type": "Jenis",
+      "value": "Nilai",
+      "scope": "Skop",
+      "window": "Tempoh berkuat kuasa",
+      "priority": "Keutamaan",
+      "status": "Status",
+      "actions": "Tindakan"
+    }
+  },
+  "commissionDialog": {
+    "newTitle": "Peraturan komisen baharu",
+    "editTitle": "Edit peraturan komisen",
+    "type": "Jenis komisen"
+  },
+  "mappings": {
+    "notice": "Pemetaan menyimpan pengecam luaran saluran untuk integrasi pengurus saluran masa hadapan — tiada penyelarasan buat masa ini.",
+    "roomTypes": "Pemetaan jenis bilik",
+    "ratePlans": "Pemetaan pelan kadar",
+    "add": "Tambah pemetaan",
+    "empty": "Tiada pemetaan lagi.",
+    "deleteTitle": "Padam pemetaan?",
+    "deleteMessage": "Pautan pengecam luaran dibuang.",
+    "roomDialogTitle": "Petakan jenis bilik",
+    "planDialogTitle": "Petakan pelan kadar",
+    "columns": {
+      "roomType": "Jenis bilik",
+      "ratePlan": "Pelan kadar",
+      "externalId": "ID luaran",
+      "externalName": "Nama luaran",
+      "enabled": "Didayakan",
+      "actions": "Tindakan"
+    }
+  },
+  "preview": {
+    "roomType": "Jenis bilik",
+    "ratePlan": "Pelan kadar",
+    "checkIn": "Daftar masuk",
+    "checkOut": "Daftar keluar",
+    "run": "Pratonton",
+    "windowError": "Daftar keluar mestilah selepas daftar masuk.",
+    "error": "Pratonton tidak dapat diselesaikan untuk penginapan itu.",
+    "sellingSubtotal": "Subjumlah jualan",
+    "channelManaged": "Diuruskan saluran",
+    "estimatedCommission": "Anggaran komisen",
+    "estimatedNet": "Anggaran hasil net",
+    "disclaimer": "Anggaran sahaja — komisen dan hasil net dibekukan pada tempahan apabila ia direkodkan.",
+    "columns": {
+      "date": "Malam",
+      "sourceRate": "Kadar sumber",
+      "sellingPrice": "Harga jualan",
+      "rule": "Peraturan"
+    },
+    "hint": "Jual {{selling}} · anggaran komisen {{commission}} · anggaran net {{net}}",
+    "hintManaged": "Jualan diuruskan saluran · anggaran net {{net}}"
+  }
+}

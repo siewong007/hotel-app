@@ -559,7 +559,7 @@ mod tests {
 
     #[test]
     fn rejects_a_short_passphrase() {
-        let error = BackupEncryptor::new("short").unwrap_err();
+        let error = BackupEncryptor::new("short").err().unwrap();
         assert!(matches!(error, ApiError::BadRequest(_)));
     }
 

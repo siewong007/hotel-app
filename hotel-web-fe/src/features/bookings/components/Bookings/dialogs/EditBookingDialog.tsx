@@ -22,6 +22,7 @@ import { ReportsService, type BookingChannel } from '../../../../../api/reports.
 import { queryKeys } from '../../../../../api/queryKeys';
 import { queryStaleTime } from '../../../../../api/queryConfig';
 import { useAuth } from '../../../../../auth/AuthContext';
+import { useChannelPreview } from '../../../../channels/hooks/useChannels';
 import { useCurrency } from '../../../../../hooks/useCurrency';
 import { useActiveCompanies, useUpdateBooking } from '../../../hooks/useBookingQueries';
 import { statusLabel, useTranslation } from '../../../../../i18n';
@@ -94,6 +95,43 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
 
   const editBookingUsesOta = selectedEditBookingChannel?.channel_type === 'ota'
     || String(editFormData.source || '').toLowerCase() === 'online';
+
+  const channelPreview = useChannelPreview();
+  const previewChannelId = editFormData.booking_channel_id == null || editFormData.booking_channel_id === ''
+    ? null
+    : Number(editFormData.booking_channel_id);
+  const previewRoomTypeId = editRoomTypeConfig?.id ?? null;
+
+  // Resolve the channel selling price/commission for the current channel +
+  // room type + dates so staff see the economics before saving.
+  useEffect(() => {
+    const checkIn = editFormData.check_in_date;
+    const checkOut = editFormData.check_out_date;
+    if (!open || !isAdmin || !previewChannelId || !previewRoomTypeId || !checkIn || !checkOut || checkIn >= checkOut) {
+      channelPreview.reset();
+      return;
+    }
+    channelPreview.mutate({
+      channel_id: previewChannelId,
+      room_type_id: previewRoomTypeId,
+      check_in: checkIn,
+      check_out: checkOut,
+    });
+  }, [open, isAdmin, previewChannelId, previewRoomTypeId, editFormData.check_in_date, editFormData.check_out_date, channelPreview]);
+
+  const channelPriceHint = useMemo(() => {
+    const data = channelPreview.data;
+    if (!data || channelPreview.isError) return null;
+    const money = (value: string | number | null) => (value == null ? '—' : formatCurrency(Number(value)));
+    if (data.selling_subtotal == null) {
+      return t('channels:preview.hintManaged', { net: money(data.net_revenue) });
+    }
+    return t('channels:preview.hint', {
+      selling: money(data.selling_subtotal),
+      commission: money(data.commission_amount),
+      net: money(data.net_revenue),
+    });
+  }, [channelPreview.data, channelPreview.isError, formatCurrency, t]);
 
   // Initialise the form from the booking each time the dialog opens.
   useEffect(() => {
@@ -329,6 +367,13 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
               ))}
             </TextField>
           </Grid>
+          {(channelPreview.isPending || channelPriceHint) && (
+            <Grid size={12}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                {channelPreview.isPending ? '…' : channelPriceHint}
+              </Typography>
+            </Grid>
+          )}
           {editBookingUsesOta && (
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField

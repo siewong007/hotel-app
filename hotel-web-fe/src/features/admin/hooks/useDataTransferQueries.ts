@@ -13,8 +13,15 @@ export function useExportPreviewMutation() {
 export function useExportDataMutation() {
   return useMutation({
     mutationKey: queryKeys.dataTransfer.export(),
-    mutationFn: ({ scope, stepUpToken }: { scope: ExportScope; stepUpToken?: string }) =>
-      DataTransferService.exportData(scope, stepUpToken),
+    mutationFn: ({
+      scope,
+      stepUpToken,
+      passphrase,
+    }: {
+      scope: ExportScope;
+      stepUpToken?: string;
+      passphrase?: string;
+    }) => DataTransferService.exportData(scope, stepUpToken, passphrase),
   });
 }
 
@@ -43,7 +50,8 @@ export function useUploadBackupMutation() {
 
 export function useImportPreviewMutation() {
   return useMutation({
-    mutationFn: (uploadId: string) => DataTransferService.previewImport(uploadId),
+    mutationFn: ({ uploadId, passphrase }: { uploadId: string; passphrase?: string }) =>
+      DataTransferService.previewImport(uploadId, passphrase),
   });
 }
 
@@ -54,6 +62,7 @@ export function useExecuteImportMutation() {
       mode: BackupImportMode;
       onConflict?: ConflictPolicy;
       tables?: string[];
+      passphrase?: string;
       stepUpToken?: string;
     }) => {
       const { stepUpToken, ...body } = input;

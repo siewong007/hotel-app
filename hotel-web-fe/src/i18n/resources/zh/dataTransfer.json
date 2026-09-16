@@ -23,10 +23,25 @@
       "tagline": "机密——包含客人与财务数据"
     },
     "backup": {
-      "title": "完整系统备份",
+      "title": "迁移备份",
       "restriction": "高度受限",
       "description": "完整的可传输数据集及关系元数据，采用可直接用于迁移的格式。用于灾难恢复或迁移至新服务器。",
-      "tagline": "机密——包含外键元数据的完整数据集"
+      "tagline": "机密——包含外键元数据的完整业务数据集"
+    },
+    "system": {
+      "title": "完整系统备份",
+      "restriction": "仅限超级管理员",
+      "description": "包含迁移备份的全部内容，另加用户账户与密码哈希、RBAC 授权、会话、eKYC 记录和审计历史。始终使用您提供的口令加密。这是唯一能在恢复后的数据库上重建登录凭据的导出。",
+      "tagline": "已加密——包含凭据、eKYC 与审计历史"
+    },
+    "passphrase": {
+      "title": "加密此备份",
+      "help": "此文件包含用户账户、密码哈希、RBAC 授权和 eKYC 记录，因此始终加密。请妥善保管口令——没有它将无法恢复该备份。",
+      "label": "口令",
+      "minimum": "至少 12 个字符",
+      "confirmLabel": "确认口令",
+      "mismatch": "两次输入的口令不一致",
+      "submit": "继续"
     },
     "secretsExcluded": "任何导出均不会包含密码、会话、令牌、通行密钥及其他机密信息。",
     "sensitiveConfirmTitle": "此导出包含机密数据",
@@ -165,7 +180,13 @@
     "ackMerge": "我理解这会修改实时数据，且该操作将被记录。",
     "restoreImport": "还原并导入",
     "startImport": "开始导入",
-    "importAnother": "导入另一个文件"
+    "importAnother": "导入另一个文件",
+    "passphrase": {
+      "title": "此备份已加密",
+      "help": "请输入导出时使用的口令。它不会存储在服务器上，文件在磁盘上保持加密状态。",
+      "label": "备份口令",
+      "submit": "解锁"
+    }
   },
   "history": {
     "serverBacked": "此服务器上的每次导出、导入和重新验证均会记录在审计日志中。",

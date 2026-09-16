@@ -230,7 +230,7 @@ async fn special_types_survive_export_and_reimport() {
     .expect("template row_to_json must run");
 
     // The real export path — the fixture rows must appear verbatim.
-    let body = export_booking_data_body(&pool, 0, hotel_app_be::models::ExportScope::Full)
+    let body = export_booking_data_body(&pool, 0, hotel_app_be::models::ExportScope::Full, None)
         .await
         .expect("streamed export must build");
     let bytes = axum::body::to_bytes(body, usize::MAX)
@@ -295,6 +295,7 @@ async fn special_types_survive_export_and_reimport() {
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -545,6 +546,7 @@ async fn foreign_keys_survive_export_and_reimport() {
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -691,6 +693,7 @@ async fn restore_clears_the_selection_and_expanded_dependents() {
             // purely through expansion.
             tables: vec!["public.teams".to_string()],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -842,7 +845,7 @@ async fn missing_user_refs_remap_or_skip_and_are_reported() {
         .expect("the missing-ref document must stage");
 
     // Preview flags the unresolvable row before anything writes.
-    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
         .await
         .expect("preview must answer");
     let user_guests = preview
@@ -881,6 +884,7 @@ async fn missing_user_refs_remap_or_skip_and_are_reported() {
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -975,6 +979,7 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
                 on_conflict: Some(ConflictPolicy::Skip),
                 tables: vec![],
                 confirm: true,
+            passphrase: None,
             },
         )
     };
@@ -986,7 +991,7 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
     ))
     .await
     .expect("a truncated object still stages");
-    let preview = data_transfer_jobs::preview_import(&pool, truncated.upload_id).await;
+    let preview = data_transfer_jobs::preview_import(&pool, truncated.upload_id, None).await;
     assert!(
         matches!(preview, Err(ApiError::BadRequest(_))),
         "a truncated document must fail preview with BadRequest: {preview:?}"
@@ -1017,7 +1022,7 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
         data_transfer_jobs::stage_backup_upload(Body::from(serde_json::to_vec(&v99).unwrap()))
             .await
             .expect("a version-99 document still stages");
-    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
         .await
         .expect("preview answers with the document's own errors");
     assert!(
@@ -1053,7 +1058,7 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
     ))
     .await
     .expect("a wrong-format document still stages");
-    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
         .await
         .expect("preview answers");
     assert!(
@@ -1078,7 +1083,7 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
     }])))
     .await
     .expect("an unknown-entity document still stages");
-    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
         .await
         .expect("preview answers");
     assert!(
@@ -1150,7 +1155,7 @@ async fn excluded_entities_in_a_file_are_never_imported() {
         .await
         .expect("the mixed document must stage");
 
-    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
         .await
         .expect("preview must answer");
     assert!(
@@ -1178,6 +1183,7 @@ async fn excluded_entities_in_a_file_are_never_imported() {
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -1299,6 +1305,7 @@ async fn credential_columns_cannot_be_written_by_an_import() {
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -1433,7 +1440,7 @@ async fn preview_diff_counts_new_and_existing_exactly() {
     let upload = data_transfer_jobs::stage_backup_upload(Body::from(file))
         .await
         .expect("the diff document must stage");
-    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
         .await
         .expect("preview must answer");
 
@@ -1533,6 +1540,7 @@ async fn job_reports_running_then_succeeded_and_removes_the_staged_file() {
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -1609,6 +1617,7 @@ async fn in_file_duplicate_ids_skip_the_second_row() {
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await
@@ -1701,6 +1710,7 @@ async fn failed_import_rolls_back_every_entity() {
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
             confirm: true,
+            passphrase: None,
         },
     )
     .await

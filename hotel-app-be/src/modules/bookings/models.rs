@@ -161,6 +161,13 @@ pub struct Booking {
     pub daily_rates: Option<serde_json::Value>,
 
     pub cleaning_preference: Option<bool>,
+    /// Channel attribution economics snapshotted at write time — later rule
+    /// edits never rewrite these. Tolerant: absent from most SELECT lists.
+    pub rate_plan_id: Option<i64>,
+    pub commission_amount: Option<Decimal>,
+    pub net_revenue: Option<Decimal>,
+    /// Resolved rule/commission detail frozen at write time (JSONB).
+    pub channel_pricing_snapshot: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -185,6 +192,13 @@ pub struct BookingInput {
     pub amount_paid: Option<f64>,
     pub source: Option<String>, // walk_in, online, phone, agent
     pub booking_channel_id: Option<i64>,
+    /// Rate plan the staff member attached; drives channel-rule scoping.
+    pub rate_plan_id: Option<i64>,
+    /// Explicit commission terms for this booking — win over dated rules and
+    /// channel defaults when supplied (e.g. an actual OTA statement).
+    pub commission_type_override: Option<String>,
+    pub commission_value_override: Option<f64>,
+    pub commission_scope_override: Option<String>,
     pub ota_reference: Option<String>,
     pub booking_number: Option<String>, // Optional - if provided, use this instead of auto-generating
     pub deposit_paid: Option<bool>,
@@ -260,6 +274,12 @@ pub struct BookingUpdateInput {
     pub special_requests: Option<String>,
     pub source: Option<String>,
     pub booking_channel_id: Option<i64>,
+    /// Rate plan the staff member attached; drives channel-rule scoping.
+    pub rate_plan_id: Option<i64>,
+    /// Explicit commission terms — win over dated rules and channel defaults.
+    pub commission_type_override: Option<String>,
+    pub commission_value_override: Option<f64>,
+    pub commission_scope_override: Option<String>,
     pub ota_reference: Option<String>,
     pub room_rate_override: Option<f64>,
     pub daily_rates: Option<serde_json::Value>,
@@ -492,6 +512,10 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Booking {
             payment_note: row.try_get("payment_note")?,
             daily_rates: row.try_get("daily_rates")?,
             cleaning_preference: row.try_get("cleaning_preference")?,
+            rate_plan_id: row.try_get("rate_plan_id").ok().flatten(),
+            commission_amount: row.try_get("commission_amount").ok().flatten(),
+            net_revenue: row.try_get("net_revenue").ok().flatten(),
+            channel_pricing_snapshot: row.try_get("channel_pricing_snapshot").ok().flatten(),
             created_at: row.try_get("created_at")?,
             updated_at: row.try_get("updated_at")?,
         })
@@ -617,6 +641,10 @@ mod tests {
             payment_note: None,
             daily_rates: None,
             cleaning_preference: None,
+            rate_plan_id: None,
+            commission_amount: None,
+            net_revenue: None,
+            channel_pricing_snapshot: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

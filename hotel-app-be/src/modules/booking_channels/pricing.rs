@@ -49,12 +49,12 @@ pub fn rule_applies(
 
 /// The single winning rule for one night, or `None` when the channel sells at
 /// the source rate. Order: priority DESC → specificity DESC → newest first.
-pub fn select_rule<'a>(
-    rules: &'a [ChannelPricingRule],
+pub fn select_rule(
+    rules: &[ChannelPricingRule],
     date: NaiveDate,
     room_type_id: i64,
     rate_plan_id: Option<i64>,
-) -> Option<&'a ChannelPricingRule> {
+) -> Option<&ChannelPricingRule> {
     rules
         .iter()
         .filter(|rule| rule_applies(rule, date, room_type_id, rate_plan_id))
@@ -89,7 +89,10 @@ pub struct PricedNight {
 
 /// Apply `rule` to `source_rate`. Returns `PricedNight` minus the date/rule id
 /// wiring handled by [`price_night`].
-pub fn apply_rule(source_rate: Decimal, rule: &ChannelPricingRule) -> (Option<Decimal>, Option<Decimal>) {
+pub fn apply_rule(
+    source_rate: Decimal,
+    rule: &ChannelPricingRule,
+) -> (Option<Decimal>, Option<Decimal>) {
     match rule.rule_type.as_str() {
         "markup_percent" => (
             Some(clamp_and_round(
@@ -162,16 +165,6 @@ pub struct CommissionConfig {
     pub commission_type: String,
     pub value: Decimal,
     pub scope: String,
-}
-
-impl CommissionConfig {
-    pub fn none() -> Self {
-        Self {
-            commission_type: "none".to_string(),
-            value: Decimal::ZERO,
-            scope: "per_booking".to_string(),
-        }
-    }
 }
 
 /// Commission owed for `base` (the room revenue actually charged) over
@@ -320,6 +313,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use rust_decimal::Decimal;
 
+    #[allow(clippy::too_many_arguments)]
     fn rule(
         id: i64,
         rule_type: &str,
@@ -346,7 +340,9 @@ mod tests {
             reason: None,
             created_by: None,
             updated_by: None,
-            created_at: Utc.with_ymd_and_hms(2026, 1, id as u32 % 28 + 1, 0, 0, 0).unwrap(),
+            created_at: Utc
+                .with_ymd_and_hms(2026, 1, id as u32 % 28 + 1, 0, 0, 0)
+                .unwrap(),
             updated_at: Utc::now(),
         }
     }
@@ -372,7 +368,16 @@ mod tests {
 
     #[test]
     fn discount_percent_subtracts() {
-        let r = rule(1, "discount_percent", "5", 0, None, None, "2026-01-01", None);
+        let r = rule(
+            1,
+            "discount_percent",
+            "5",
+            0,
+            None,
+            None,
+            "2026-01-01",
+            None,
+        );
         let night = price_night(date("2026-03-01"), Decimal::new(300, 0), &[r], 5, None);
         assert_eq!(night.selling_price, Some(Decimal::new(28500, 2)));
     }
@@ -394,42 +399,92 @@ mod tests {
 
     #[test]
     fn min_max_clamp_bounds_price() {
-        let mut floor = rule(1, "discount_percent", "50", 0, None, None, "2026-01-01", None);
+        let mut floor = rule(
+            1,
+            "discount_percent",
+            "50",
+            0,
+            None,
+            None,
+            "2026-01-01",
+            None,
+        );
         floor.min_price = Some(Decimal::new(280, 0));
         let night = price_night(date("2026-03-01"), Decimal::new(300, 0), &[floor], 5, None);
         assert_eq!(night.selling_price, Some(Decimal::new(28000, 2)));
 
         let mut ceiling = rule(2, "markup_percent", "50", 0, None, None, "2026-01-01", None);
         ceiling.max_price = Some(Decimal::new(350, 0));
-        let night = price_night(date("2026-03-01"), Decimal::new(300, 0), &[ceiling], 5, None);
+        let night = price_night(
+            date("2026-03-01"),
+            Decimal::new(300, 0),
+            &[ceiling],
+            5,
+            None,
+        );
         assert_eq!(night.selling_price, Some(Decimal::new(35000, 2)));
     }
 
     #[test]
     fn higher_priority_wins() {
         let low = rule(1, "markup_percent", "5", 0, None, None, "2026-01-01", None);
-        let high = rule(2, "markup_percent", "10", 10, None, None, "2026-01-01", None);
-        let night = price_night(date("2026-03-01"), Decimal::new(300, 0), &[low, high], 5, None);
+        let high = rule(
+            2,
+            "markup_percent",
+            "10",
+            10,
+            None,
+            None,
+            "2026-01-01",
+            None,
+        );
+        let night = price_night(
+            date("2026-03-01"),
+            Decimal::new(300, 0),
+            &[low, high],
+            5,
+            None,
+        );
         assert_eq!(night.selling_price, Some(Decimal::new(33000, 2)));
     }
 
     #[test]
     fn scoped_rule_beats_channel_wide_at_equal_priority() {
-        let wide = rule(1, "markup_percent", "5", 0, None, None, "2026-01-01", None);
-        let scoped = rule(2, "markup_percent", "10", 0, Some(5), None, "2026-01-01", None);
-        let night = price_night(date("2026-03-01"), Decimal::new(300, 0), &[wide, scoped], 5, None);
+        let rules = [
+            rule(1, "markup_percent", "5", 0, None, None, "2026-01-01", None),
+            rule(
+                2,
+                "markup_percent",
+                "10",
+                0,
+                Some(5),
+                None,
+                "2026-01-01",
+                None,
+            ),
+        ];
+        let night = price_night(date("2026-03-01"), Decimal::new(300, 0), &rules, 5, None);
         assert_eq!(night.rule_id, Some(2));
         // Another room type falls back to the channel-wide rule.
-        let other = price_night(date("2026-03-01"), Decimal::new(300, 0), &[wide, scoped], 9, None);
+        let other = price_night(date("2026-03-01"), Decimal::new(300, 0), &rules, 9, None);
         assert_eq!(other.rule_id, Some(1));
     }
 
     #[test]
     fn window_bounds_resolution() {
-        let r = rule(1, "markup_percent", "10", 0, None, None, "2026-03-01", Some("2026-03-31"));
-        assert!(select_rule(&[r.clone()], date("2026-03-15"), 5, None).is_some());
-        assert!(select_rule(&[r.clone()], date("2026-03-31"), 5, None).is_some());
-        assert!(select_rule(&[r.clone()], date("2026-04-01"), 5, None).is_none());
+        let r = rule(
+            1,
+            "markup_percent",
+            "10",
+            0,
+            None,
+            None,
+            "2026-03-01",
+            Some("2026-03-31"),
+        );
+        assert!(select_rule(std::slice::from_ref(&r), date("2026-03-15"), 5, None).is_some());
+        assert!(select_rule(std::slice::from_ref(&r), date("2026-03-31"), 5, None).is_some());
+        assert!(select_rule(std::slice::from_ref(&r), date("2026-04-01"), 5, None).is_none());
     }
 
     #[test]
@@ -480,7 +535,13 @@ mod tests {
     fn stay_quote_computes_net_revenue() {
         let r = rule(1, "markup_percent", "10", 0, None, None, "2026-01-01", None);
         let nights = vec![
-            price_night(date("2026-03-01"), Decimal::new(300, 0), &[r.clone()], 5, None),
+            price_night(
+                date("2026-03-01"),
+                Decimal::new(300, 0),
+                std::slice::from_ref(&r),
+                5,
+                None,
+            ),
             price_night(date("2026-03-02"), Decimal::new(300, 0), &[r], 5, None),
         ];
         let cfg = CommissionConfig {
@@ -494,14 +555,28 @@ mod tests {
         assert_eq!(quote.net_revenue, Some(Decimal::new(56100, 2)));
     }
 
+    fn no_commission() -> CommissionConfig {
+        CommissionConfig {
+            commission_type: "none".to_string(),
+            value: Decimal::ZERO,
+            scope: "per_booking".to_string(),
+        }
+    }
+
     #[test]
     fn net_rate_stay_uses_net_subtotal() {
         let r = rule(1, "net_rate", "255", 0, None, None, "2026-01-01", None);
         let nights = vec![
-            price_night(date("2026-03-01"), Decimal::new(300, 0), &[r.clone()], 5, None),
+            price_night(
+                date("2026-03-01"),
+                Decimal::new(300, 0),
+                std::slice::from_ref(&r),
+                5,
+                None,
+            ),
             price_night(date("2026-03-02"), Decimal::new(300, 0), &[r], 5, None),
         ];
-        let quote = resolve_stay(nights, CommissionConfig::none(), Decimal::ZERO, None);
+        let quote = resolve_stay(nights, no_commission(), Decimal::ZERO, None);
         assert_eq!(quote.selling_subtotal, None);
         assert_eq!(quote.net_subtotal, Some(Decimal::new(51000, 2)));
         assert_eq!(quote.commission_amount, None);
@@ -511,12 +586,16 @@ mod tests {
     #[test]
     fn net_rate_with_recorded_sell_shows_spread() {
         let r = rule(1, "net_rate", "255", 0, None, None, "2026-01-01", None);
-        let nights = vec![
-            price_night(date("2026-03-01"), Decimal::new(300, 0), &[r], 5, None),
-        ];
+        let nights = vec![price_night(
+            date("2026-03-01"),
+            Decimal::new(300, 0),
+            &[r],
+            5,
+            None,
+        )];
         let quote = resolve_stay(
             nights,
-            CommissionConfig::none(),
+            no_commission(),
             Decimal::ZERO,
             Some(Decimal::new(330, 0)),
         );

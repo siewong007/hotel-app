@@ -15,8 +15,13 @@
 /** Export breadth selected by `?scope=` on the export endpoints. `full` and
  * `backup` carry sensitive entities and require `data_transfer:export_sensitive`
  * plus a fresh step-up token; `backup` additionally emits the FK
- * `manifest.relationships` edge list for migration tooling. */
-export type ExportScope = 'standard' | 'full' | 'backup';
+ * `manifest.relationships` edge list for migration tooling.
+ *
+ * `system` adds the protected set — user accounts and password hashes, RBAC
+ * grants, sessions, eKYC evidence and the internal system tables — so it is
+ * restricted to super administrators and its file is always encrypted under a
+ * passphrase the caller supplies. */
+export type ExportScope = 'standard' | 'full' | 'backup' | 'system';
 
 /** One transferable entity's manifest entry — name, primary-key columns and
  * the exported column list, in schema order. */
@@ -57,7 +62,7 @@ export interface ExportPreview {
  * structured `hotel-backup` version-1 document; `"legacy"` is any retired
  * export shape (the flat v1/v2 exports and older `hotel-backup` versions),
  * which the server rejects at preview/execute; `"unknown"` failed the sniff. */
-export type BackupDetectedFormat = 'v1' | 'legacy' | 'unknown';
+export type BackupDetectedFormat = 'v1' | 'legacy' | 'unknown' | 'encrypted';
 
 /** `POST data-transfer/import/uploads` response — the staged file's handle. */
 export interface UploadResponse {
@@ -132,6 +137,9 @@ export interface ImportExecuteRequest {
   /** Restrict the import to these qualified entity names; empty/absent = all. */
   tables?: string[];
   confirm: true;
+  /** Passphrase for an encrypted (`system`) upload. The staged file is never
+   * decrypted to disk, so preview and execute each supply it again. */
+  passphrase?: string;
 }
 
 /** `202 Accepted` body — the job handle the client polls. */
