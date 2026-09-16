@@ -201,7 +201,7 @@ jobs:
         run: |
           # Client tools must match the server: apt postgresql-client is older
           # than postgres:19beta3 and pg_dump aborts on the version mismatch,
-          # so the round-trip runs inside the same image as the service.
+          # so the dump/restore runs inside the same image as the service.
           psql "$DATABASE_URL" -c "DROP DATABASE IF EXISTS hotel_ci_restore" \
                              -c "CREATE DATABASE hotel_ci_restore"
           docker run --rm --network host -e PGPASSWORD=postgres postgres:19beta3 bash -c '
@@ -209,9 +209,25 @@ jobs:
             pg_dump --format=custom --no-owner --no-acl -f /tmp/hotel_ci.dump -h localhost -U postgres hotel_ci
             pg_restore --list /tmp/hotel_ci.dump >/dev/null
             pg_restore --no-owner --no-acl -h localhost -U postgres -d hotel_ci_restore /tmp/hotel_ci.dump
-            diff <(pg_dump --schema-only -h localhost -U postgres hotel_ci) \
-                 <(pg_dump --schema-only -h localhost -U postgres hotel_ci_restore)
           '
+          # Semantic equality gate, not a text diff: pg_dump --schema-only emits
+          # per-dump \restrict tokens and re-deparses CHECK expressions after
+          # restore, so byte comparison is flaky. Compare object inventory and
+          # exact row counts — that is what a partial/broken restore loses.
+          RESTORE_URL="${DATABASE_URL%/*}/hotel_ci_restore"
+          OBJECTS_SQL="SELECT 'tables', count(*) FROM pg_tables WHERE schemaname='public'
+             UNION ALL SELECT 'columns', count(*) FROM information_schema.columns WHERE table_schema='public'
+             UNION ALL SELECT 'indexes', count(*) FROM pg_indexes WHERE schemaname='public'
+             UNION ALL SELECT 'constraints', count(*) FROM information_schema.table_constraints WHERE table_schema='public'
+             UNION ALL SELECT 'sequences', count(*) FROM information_schema.sequences WHERE sequence_schema='public'
+             UNION ALL SELECT 'functions', count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public'
+             UNION ALL SELECT 'triggers', count(*) FROM information_schema.triggers WHERE trigger_schema='public'
+             ORDER BY 1"
+          COUNTQ=$(psql "$DATABASE_URL" -Atc "SELECT string_agg(format('SELECT %L AS t, count(*) FROM %I', tablename, tablename), ' UNION ALL ') || ' ORDER BY t' FROM pg_tables WHERE schemaname='public'")
+          diff <(psql "$DATABASE_URL" -Atc "$OBJECTS_SQL") \
+               <(psql "$RESTORE_URL" -Atc "$OBJECTS_SQL")
+          diff <(psql "$DATABASE_URL" -Atc "$COUNTQ") \
+               <(psql "$RESTORE_URL" -Atc "$COUNTQ")
 
       - name: Verify PostgreSQL patch lifecycle
         run: cargo test --test postgres_patch_lifecycle -- --nocapture
