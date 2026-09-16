@@ -118,20 +118,29 @@ impl PasskeyRepository {
         .map_err(ApiError::from)
     }
 
-    pub async fn challenge_exists(
+    /// Atomically consumes a pending challenge: the UPDATE only matches a row
+    /// that is unexpired and still unused, so `rows_affected == 0` means the
+    /// challenge was invalid, expired, or already spent. Taking the row lock
+    /// inside the same statement that marks it used closes the check-then-act
+    /// window — two concurrent requests presenting the same challenge cannot
+    /// both consume it.
+    pub async fn consume_challenge(
         pool: &DbPool,
         user_id: i64,
         challenge: &[u8],
         challenge_type: &str,
     ) -> Result<bool, ApiError> {
-        sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM passkey_challenges WHERE user_id = $1 AND challenge = $2 AND challenge_type = $3 AND expires_at > CURRENT_TIMESTAMP AND used_at IS NULL)"
+        sqlx::query(
+            "UPDATE passkey_challenges SET used_at = CURRENT_TIMESTAMP \
+             WHERE user_id = $1 AND challenge = $2 AND challenge_type = $3 \
+               AND expires_at > CURRENT_TIMESTAMP AND used_at IS NULL",
         )
         .bind(user_id)
         .bind(challenge)
         .bind(challenge_type)
-        .fetch_one(pool)
+        .execute(pool)
         .await
+        .map(|result| result.rows_affected() > 0)
         .map_err(ApiError::from)
     }
 
@@ -154,22 +163,6 @@ impl PasskeyRepository {
         .bind(public_key)
         .bind(counter)
         .bind(device_name)
-        .execute(pool)
-        .await
-        .map(|_| ())
-        .map_err(ApiError::from)
-    }
-
-    pub async fn mark_challenge_used(
-        pool: &DbPool,
-        user_id: i64,
-        challenge: &[u8],
-    ) -> Result<(), ApiError> {
-        sqlx::query(
-            "UPDATE passkey_challenges SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND challenge = $2",
-        )
-        .bind(user_id)
-        .bind(challenge)
         .execute(pool)
         .await
         .map(|_| ())

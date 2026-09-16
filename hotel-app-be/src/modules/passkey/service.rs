@@ -129,10 +129,12 @@ pub async fn register_finish(
     .ok_or_else(|| ApiError::Forbidden("Cannot register a passkey for another user".to_string()))?;
 
     let expected_challenge = decode_standard_b64(&req.challenge, "challenge")?;
-    let challenge_exists =
-        PasskeyRepository::challenge_exists(pool, user.id, &expected_challenge, "registration")
-            .await?;
-    if !challenge_exists {
+    // Consume the challenge before anything else: the ceremony is single-use,
+    // and the atomic UPDATE makes that hold under concurrency. A rejected
+    // attempt burns the challenge and the client starts a fresh ceremony.
+    if !PasskeyRepository::consume_challenge(pool, user.id, &expected_challenge, "registration")
+        .await?
+    {
         return Err(ApiError::Unauthorized(
             "Invalid or expired challenge".to_string(),
         ));
@@ -192,8 +194,6 @@ pub async fn register_finish(
         &device_name,
     )
     .await?;
-
-    let _ = PasskeyRepository::mark_challenge_used(pool, user.id, &expected_challenge).await;
 
     // Enrollment is the step that turns a stolen session into permanent
     // access, so it must be on the record even though nothing else in this
@@ -276,10 +276,11 @@ pub async fn login_finish(
         .await?;
 
     let expected_challenge = decode_standard_b64(&req.challenge, "challenge")?;
-    let challenge_exists =
-        PasskeyRepository::challenge_exists(pool, user.id, &expected_challenge, "authentication")
-            .await?;
-    if !challenge_exists {
+    // Single-use, consumed atomically — a replayed or raced assertion finds
+    // the row already spent. A rejected attempt burns the challenge.
+    if !PasskeyRepository::consume_challenge(pool, user.id, &expected_challenge, "authentication")
+        .await?
+    {
         let _ = AuditLog::log_login_failure(
             pool,
             &req.username,
@@ -343,8 +344,18 @@ pub async fn login_finish(
         .verify(&signed_data, &signature_bytes)
         .map_err(|_| ApiError::Unauthorized("Invalid passkey signature".to_string()))?;
 
-    let _ = PasskeyRepository::update_last_used(pool, passkey.id, i64::from(counter)).await;
-    let _ = PasskeyRepository::mark_challenge_used(pool, user.id, &expected_challenge).await;
+    // The challenge is already spent; the counter write is bookkeeping that
+    // must not fail the login, but silent drops weaken clone detection.
+    if let Err(e) =
+        PasskeyRepository::update_last_used(pool, passkey.id, i64::from(counter)).await
+    {
+        log::warn!(
+            "Failed to record sign counter for passkey {} (user {}): {}",
+            passkey.id,
+            user.id,
+            e
+        );
+    }
 
     // Passkey logins were completely invisible (no audit row on success or
     // failure), unlike password logins. Mirror the password path.
