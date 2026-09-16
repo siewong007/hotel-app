@@ -476,6 +476,23 @@
         "export": "Dieksport",
         "check": "Disemak"
       }
+    },
+    "pdf": {
+      "reportTitle": "Laporan Log Audit",
+      "generatedAt": "Dijana: {{time}}",
+      "systemUser": "Sistem",
+      "actionOnly": "Tindakan sahaja",
+      "fieldChanges": "Perubahan medan",
+      "col": {
+        "timestamp": "Cap Masa",
+        "user": "Pengguna",
+        "action": "Tindakan",
+        "stream": "Strim",
+        "resource": "Sumber",
+        "id": "ID",
+        "changeType": "Jenis Perubahan",
+        "ip": "IP"
+      }
     }
   },
   "jobs": {

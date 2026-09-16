@@ -1068,7 +1068,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             onClick={handleSaveDailyRates}
                             disabled={savingRates}
                           >
-                            {savingRates ? 'Saving...' : 'Save Rates'}
+                            {savingRates ? t('common:state.saving') : t('checkout.saveRates')}
                           </Button>
                         ) : (
                           <Button
@@ -1245,7 +1245,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Grid container>
                     <Grid size={8}>
                       <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        {displayTotal >= 0 ? 'Total Amount Due' : 'Total Refund'}
+                        {displayTotal >= 0 ? t('ledger.invoice.totalDue') : t('checkout.totalRefund')}
                       </Typography>
                     </Grid>
                     <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -1405,7 +1405,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               onClick={handleUpdatePayment}
                               disabled={updatingPayment || !isPositiveMoney(editAmount)}
                             >
-                              {updatingPayment ? 'Saving...' : 'Save'}
+                              {updatingPayment ? t('common:state.saving') : t('common:actions.save')}
                             </Button>
                           </Box>
                         </Box>)
@@ -1517,7 +1517,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 onClick={handleUpdatePayment}
                                 disabled={updatingPayment}
                               >
-                                {updatingPayment ? 'Saving...' : 'Save'}
+                                {updatingPayment ? t('common:state.saving') : t('common:actions.save')}
                               </Button>
                             </Box>
                           </Box>)
@@ -1656,7 +1656,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               onClick={handleUpdatePayment}
                               disabled={updatingPayment || !isPositiveMoney(editAmount)}
                             >
-                              {updatingPayment ? 'Saving...' : 'Save'}
+                              {updatingPayment ? t('common:state.saving') : t('common:actions.save')}
                             </Button>
                           </Box>
                         </Box>
@@ -1797,7 +1797,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         disabled={recordingPayment || !isPositiveMoney(paymentAmount) || isGreaterMoney(paymentAmount, balanceDue)}
                         startIcon={recordingPayment ? <CircularProgress size={14} /> : <PaymentIcon />}
                       >
-                        {recordingPayment ? 'Recording...' : 'Record Payment'}
+                        {recordingPayment ? t('common:state.recording') : t('ledger.payment.record')}
                       </Button>
                     </Grid>
                   </Grid>
@@ -2158,7 +2158,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               disabled={loading}
               startIcon={loading ? <CircularProgress size={20} /> : <CheckIcon />}
             >
-              {loading ? 'Processing...' : 'Confirm Checkout'}
+              {loading ? t('common:state.processing') : t('checkout.titleConfirm')}
             </Button>
           </>
         )}

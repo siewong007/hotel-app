@@ -97,7 +97,8 @@
     "totalCollect": "Jumlah untuk Dikutip",
     "totalRefund": "Jumlah untuk Dibayar Balik",
     "tourismTax": "Cukai Pelancongan",
-    "tourismTaxDay": "Cukai Pelancongan — {{date}}"
+    "tourismTaxDay": "Cukai Pelancongan — {{date}}",
+    "saveRates": "Simpan Kadar"
   },
   "deposit": {
     "cancel": {
@@ -470,7 +471,8 @@
       "totalDue": "Jumlah Perlu Dibayar",
       "selectAllBillable": "Pilih semua boleh dibil",
       "deselectAll": "Nyahpilih semua",
-      "selectEntryAria": "Pilih {{description}}"
+      "selectEntryAria": "Pilih {{description}}",
+      "entryMeta": "{{amount}} · baki {{balance}}"
     },
     "menu": {
       "creditNote": "Nota Kredit",
@@ -618,7 +620,8 @@
       "checkInDate": "Tarikh Daftar Masuk",
       "checkOutDate": "Tarikh Daftar Keluar",
       "paidAmount": "Amaun Dibayar"
-    }
+    },
+    "companiesCount_other": "{{count}} akaun"
   },
   "title": "Kewangan"
 }

@@ -383,7 +383,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                       {formatDateForDisplay(entry.posting_date || entry.created_at)}
                     </TableCell>
                     <TableCell sx={{ color: entry.invoice_number ? 'text.primary' : 'text.disabled', fontSize: 12 }}>
-                      {entry.invoice_number || 'Not invoiced'}
+                      {entry.invoice_number || t('ledger.notInvoiced')}
                     </TableCell>
                     <TableCell>
                       <LedgerStatusBadge status={uiStatus} />

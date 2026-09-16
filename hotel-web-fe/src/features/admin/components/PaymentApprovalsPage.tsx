@@ -441,7 +441,7 @@ const PaymentApprovalsPage: React.FC = () => {
                             onClick={() => openReceiptDialog(entry)}
                             sx={{ mr: 1 }}
                           >
-                            {entry.receipt_uploaded ? 'Receipt uploaded' : entry.receipt_requested ? 'Request again' : 'Request receipt'}
+                            {entry.receipt_uploaded ? t('paymentApprovals.receiptUploaded') : entry.receipt_requested ? t('paymentApprovals.requestAgain') : t('paymentApprovals.requestReceipt')}
                           </Button>
                         </>
                       ) : null}
@@ -452,7 +452,7 @@ const PaymentApprovalsPage: React.FC = () => {
                         disabled={isBusy}
                         onClick={() => openRejectDialog(entry)}
                       >
-                        {isPaypal ? 'Cancel PayPal attempt' : 'Reject'}
+                        {isPaypal ? t('paymentApprovals.cancelPaypal') : t('paymentApprovals.reject')}
                       </Button>
                       </>}
                     </TableCell>

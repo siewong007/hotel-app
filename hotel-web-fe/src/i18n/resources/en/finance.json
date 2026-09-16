@@ -99,7 +99,8 @@
     "totalCollect": "Total to Collect",
     "totalRefund": "Total to Refund",
     "tourismTax": "Tourism Tax",
-    "tourismTaxDay": "Tourism Tax — {{date}}"
+    "tourismTaxDay": "Tourism Tax — {{date}}",
+    "saveRates": "Save Rates"
   },
   "deposit": {
     "cancel": {
@@ -475,7 +476,8 @@
       "totalDue": "Total Amount Due",
       "selectAllBillable": "Select all billable",
       "deselectAll": "Deselect all",
-      "selectEntryAria": "Select {{description}}"
+      "selectEntryAria": "Select {{description}}",
+      "entryMeta": "{{amount}} · balance {{balance}}"
     },
     "menu": {
       "creditNote": "Credit Note",
@@ -627,7 +629,9 @@
       "checkInDate": "Check-in Date",
       "checkOutDate": "Check-out Date",
       "paidAmount": "Paid Amount"
-    }
+    },
+    "companiesCount_one": "{{count}} account",
+    "companiesCount_other": "{{count}} accounts"
   },
   "title": "Finance"
 }

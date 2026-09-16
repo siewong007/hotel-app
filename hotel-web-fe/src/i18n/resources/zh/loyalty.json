@@ -117,7 +117,8 @@
       "reversed": "已冲销",
       "gift": "已赠送",
       "expired": "已过期"
-    }
+    },
+    "metaValue": " · {{symbol}}{{amount}}"
   },
   "portal": {
     "title": "忠诚计划",

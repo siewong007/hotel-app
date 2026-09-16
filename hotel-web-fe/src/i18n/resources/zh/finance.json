@@ -97,7 +97,8 @@
     "totalCollect": "应收总额",
     "totalRefund": "应退总额",
     "tourismTax": "旅游税",
-    "tourismTaxDay": "旅游税 — {{date}}"
+    "tourismTaxDay": "旅游税 — {{date}}",
+    "saveRates": "保存房价"
   },
   "deposit": {
     "cancel": {
@@ -470,7 +471,8 @@
       "totalDue": "应付总额",
       "selectAllBillable": "全选可开票项目",
       "deselectAll": "取消全选",
-      "selectEntryAria": "选择 {{description}}"
+      "selectEntryAria": "选择 {{description}}",
+      "entryMeta": "{{amount}} · 余额 {{balance}}"
     },
     "menu": {
       "creditNote": "贷记单",
@@ -618,7 +620,8 @@
       "checkInDate": "入住日期",
       "checkOutDate": "退房日期",
       "paidAmount": "已付金额"
-    }
+    },
+    "companiesCount_other": "{{count}} 个账户"
   },
   "title": "财务"
 }

@@ -117,7 +117,8 @@
       "reversed": "Reversed",
       "gift": "Gifted",
       "expired": "Expired"
-    }
+    },
+    "metaValue": " · {{symbol}}{{amount}}"
   },
   "portal": {
     "title": "Loyalty",

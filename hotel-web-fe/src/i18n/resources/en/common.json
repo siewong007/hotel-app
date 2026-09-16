@@ -75,7 +75,8 @@
     "deleting": "Deleting…",
     "unavailable": "Unavailable",
     "retry": "Retry",
-    "searching": "Searching…"
+    "searching": "Searching…",
+    "recording": "Recording…"
   },
   "field": {
     "name": "Name",

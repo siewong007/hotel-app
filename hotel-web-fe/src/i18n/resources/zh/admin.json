@@ -476,6 +476,23 @@
         "export": "已导出",
         "check": "已核对"
       }
+    },
+    "pdf": {
+      "reportTitle": "审计日志报告",
+      "generatedAt": "生成时间：{{time}}",
+      "systemUser": "系统",
+      "actionOnly": "仅操作",
+      "fieldChanges": "字段变更",
+      "col": {
+        "timestamp": "时间戳",
+        "user": "用户",
+        "action": "操作",
+        "stream": "类别",
+        "resource": "资源",
+        "id": "ID",
+        "changeType": "变更类型",
+        "ip": "IP"
+      }
     }
   },
   "jobs": {

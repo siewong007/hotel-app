@@ -81,6 +81,7 @@ const ALLOWED_LITERALS = new Set([
   'ERROR',
   'Hotel ERP System', // brand fallback title (GuestRootLayout FALLBACK_APP_TITLE)
   'Hotel ERP',
+  'Salim Inn',        // hotel brand name (BrandMark title attribute)
   'esc',              // keyboard glyph on the command-palette hint chip
   'px',               // CSS unit shown as a numeric input adornment
   'CSV',              // file-format name on export buttons
@@ -144,10 +145,34 @@ const ALLOWLIST: { path: RegExp; literals: Set<string> }[] = [
     ]),
   },
   {
-    // Preset `label` is the English reference kept next to the size numbers;
-    // the settings UI renders t('admin:settings.fontPresets.<key>.label').
-    path: /features\/insights\/utils\/reportTypography\.ts$/,
-    literals: new Set(['Very Small', 'Small', 'Medium', 'Large', 'Very Large']),
+    // Hotel-industry acronyms rendered identically in every locale — even the
+    // zh bundles keep 'ADR'/'RevPAR' verbatim.
+    path: /features\/dashboard\/components\/reports\/ReportsAnalytics\.tsx$/,
+    literals: new Set(['ADR', 'RevPAR']),
+  },
+  {
+    path: /features\/dashboard\/components\/reports\/drawers\.tsx$/,
+    literals: new Set(['ADR']),
+  },
+  {
+    // Database table name rendered inside <code> for the not-installed hint.
+    path: /features\/admin\/system\/JobsPage\.tsx$/,
+    literals: new Set(['job_runs']),
+  },
+  {
+    path: /features\/admin\/system\/SystemHealthPage\.tsx$/,
+    literals: new Set(['job_runs']),
+  },
+  {
+    // File extension inside the import-dropzone sentence (<strong>.json</strong>).
+    path: /features\/admin\/components\/data-transfer\/ImportWizard\.tsx$/,
+    literals: new Set(['.json']),
+  },
+  {
+    // Default void reason persisted verbatim on the ledger record — same
+    // exemption as the booking VoidDialog entry below.
+    path: /features\/admin\/components\/CustomerLedger\/CustomerLedgerPage\.tsx$/,
+    literals: new Set(['Voided by admin']),
   },
   {
     // Font-family option names are proper nouns rendered as-is in every locale.

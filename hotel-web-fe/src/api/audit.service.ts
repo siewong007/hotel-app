@@ -151,7 +151,7 @@ export class AuditService {
     // until a CJK-capable font is embedded via addFont. Dates are pinned to
     // 'en' for the same reason (zh-CN month/meridiem names are non-Latin-1).
     const exportT = (key: string, vars?: Record<string, string | number>) =>
-      translateFor('en', `admin:audit.export.${key}`, vars);
+      translateFor('en', `admin:audit.pdf.${key}`, vars);
 
     // Title
     doc.setFontSize(16);

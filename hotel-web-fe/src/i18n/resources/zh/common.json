@@ -75,7 +75,8 @@
     "deleting": "删除中…",
     "unavailable": "不可用",
     "retry": "重试",
-    "searching": "搜索中…"
+    "searching": "搜索中…",
+    "recording": "记录中…"
   },
   "field": {
     "name": "名称",

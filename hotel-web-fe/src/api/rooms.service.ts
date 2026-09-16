@@ -245,7 +245,7 @@ export class RoomsService {
     return {
       ...room,
       displayPrice: `$${typeof room.price_per_night === 'number' ? room.price_per_night.toFixed(0) : room.price_per_night}/night`,
-      availabilityText: room.available ? 'Available' : 'Booked',
+      availabilityText: room.available ? t('status:room.available') : t('status:room.booked'),
     };
   }
 

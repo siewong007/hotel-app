@@ -482,6 +482,23 @@
         "export": "Exported",
         "check": "Checked"
       }
+    },
+    "pdf": {
+      "reportTitle": "Audit Log Report",
+      "generatedAt": "Generated: {{time}}",
+      "systemUser": "System",
+      "actionOnly": "Action only",
+      "fieldChanges": "Field changes",
+      "col": {
+        "timestamp": "Timestamp",
+        "user": "User",
+        "action": "Action",
+        "stream": "Stream",
+        "resource": "Resource",
+        "id": "ID",
+        "changeType": "Change Type",
+        "ip": "IP"
+      }
     }
   },
   "jobs": {

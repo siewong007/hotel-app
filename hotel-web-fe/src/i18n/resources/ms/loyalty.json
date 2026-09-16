@@ -117,7 +117,8 @@
       "reversed": "Dibalikkan",
       "gift": "Dihadiahkan",
       "expired": "Luput"
-    }
+    },
+    "metaValue": " · {{symbol}}{{amount}}"
   },
   "portal": {
     "title": "Kesetiaan",

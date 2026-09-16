@@ -158,7 +158,7 @@ const NightAuditPage: React.FC = () => {
       lines.push('NIGHT AUDIT REPORT');
       lines.push(`Audit Date,${formatHotelDate(audit.audit_date)}`);
       lines.push(`Run At,${formatHotelDateTime(audit.run_at)}`);
-      lines.push(`Run By,${audit.run_by_username || 'System'}`);
+      lines.push(`Run By,${audit.run_by_username || t('history.system')}`);
       lines.push(`Status,${audit.status}`);
       lines.push('');
 
