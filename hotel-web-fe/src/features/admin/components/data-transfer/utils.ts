@@ -33,6 +33,7 @@ export const shortEntityName = (name: string): string =>
 export const exclusionReasonLabel = (
   tOr: UseTranslationResult['tOr'],
   reason: string,
+  // intentional: dynamic key — reason is a backend exclusion code; unknown codes humanize
 ): string => tOr(`export.exclusions.${reason}`, formatStatusLabel(reason, reason));
 
 /** History row title — `actionLabel` (set for security rows and i18n) wins;
