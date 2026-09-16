@@ -235,6 +235,12 @@ async fn staged_import_never_writes_credential_tables() {
         .await
         .expect("staging a well-formed v1 body must succeed");
 
+    // The mixed document is content-sniffed as a SYSTEM-tier file no matter
+    // what `kind` it declares: preview warns it is a credential store and
+    // lists the protected entity it would write. It is never executed here —
+    // a written `users` row can never be deleted again (audit_logs is
+    // append-only) and the execute route's super-admin + step-up gate is what
+    // keeps forged rows out (covered in data_transfer_permissions.rs).
     let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id, None)
         .await
         .expect("preview must answer for a staged upload");
@@ -242,17 +248,49 @@ async fn staged_import_never_writes_credential_tables() {
         preview
             .warnings
             .iter()
-            .any(|warning| warning.contains("public.users")),
-        "the preview must warn that public.users is excluded: {:?}",
+            .any(|warning| warning.contains("full-system backup")),
+        "the preview must warn that the file is a credential store: {:?}",
         preview.warnings
     );
+    assert!(
+        preview
+            .entities
+            .iter()
+            .any(|entity| entity.name == "public.users"),
+        "a system-tier file previews the protected set honestly"
+    );
 
-    // Selecting the table by name is rejected before a job spawns.
+    // A BUSINESS file — one that does not carry the protected set — still
+    // refuses a selection naming a protected table outright.
+    let business_file = serde_json::to_vec(&serde_json::json!({
+        "format": "hotel-backup",
+        "version": 1,
+        "kind": "business-data",
+        "exportId": "11111111-2222-3333-4444-555555555556",
+        "exportedAt": "2026-09-14T12:00:00Z",
+        "applicationVersion": "0.2.0",
+        "source": {"environment": "development", "databaseProvider": "postgresql"},
+        "manifest": {"entities": [], "exclusions": []},
+        "tables": {
+            "public.amenities": []
+        },
+        "integrity": {
+            "entities": 1,
+            "rows": 0,
+            "entityRows": {"public.amenities": 0},
+            "completedAt": "2026-09-14T12:00:01Z"
+        }
+    }))
+    .expect("v1 fixture serializes");
+    let business_upload =
+        data_transfer_jobs::stage_backup_upload(axum::body::Body::from(business_file))
+            .await
+            .expect("staging a business-tier body must succeed");
     let rejected = data_transfer_jobs::start_import_job(
         &pool,
         1,
         ImportExecuteRequest {
-            upload_id: upload.upload_id,
+            upload_id: business_upload.upload_id,
             mode: BackupImportMode::Merge,
             on_conflict: None,
             tables: vec!["public.users".to_string()],
@@ -263,15 +301,15 @@ async fn staged_import_never_writes_credential_tables() {
     .await;
     assert!(
         matches!(&rejected, Err(ApiError::BadRequest(message)) if message.contains("not permitted")),
-        "a selection naming public.users must be rejected outright: {rejected:?}"
+        "a selection naming public.users on a business file must be rejected outright: {rejected:?}"
     );
 
-    // Running the file as-is must leave the forged row unwritten.
+    // Running the business file as-is must leave the forged row unwritten.
     let job = data_transfer_jobs::start_import_job(
         &pool,
         1,
         ImportExecuteRequest {
-            upload_id: upload.upload_id,
+            upload_id: business_upload.upload_id,
             mode: BackupImportMode::Merge,
             on_conflict: None,
             tables: vec![],
@@ -287,16 +325,6 @@ async fn staged_import_never_writes_credential_tables() {
         ImportJobState::Succeeded,
         "import job failed: {:?}",
         status.error
-    );
-    let result = status.result.expect("a succeeded job carries its result");
-    assert!(
-        result
-            .report
-            .unsupported_entities
-            .iter()
-            .any(|entity| entity == "public.users"),
-        "public.users must be reported as unsupported: {:?}",
-        result.report.unsupported_entities
     );
 
     let forged: i64 =
