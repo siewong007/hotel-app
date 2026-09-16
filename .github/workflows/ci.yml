@@ -199,14 +199,19 @@ jobs:
       # scripts apply to every dump they produce.
       - name: Verify pg_dump/pg_restore round-trip
         run: |
-          RESTORE_URL="${DATABASE_URL%/*}/hotel_ci_restore"
-          pg_dump --format=custom --no-owner --no-acl -f /tmp/hotel_ci.dump "$DATABASE_URL"
-          pg_restore --list /tmp/hotel_ci.dump >/dev/null
+          # Client tools must match the server: apt postgresql-client is older
+          # than postgres:19beta3 and pg_dump aborts on the version mismatch,
+          # so the round-trip runs inside the same image as the service.
           psql "$DATABASE_URL" -c "DROP DATABASE IF EXISTS hotel_ci_restore" \
                              -c "CREATE DATABASE hotel_ci_restore"
-          pg_restore --no-owner --no-acl -d "$RESTORE_URL" /tmp/hotel_ci.dump
-          diff <(pg_dump --schema-only "$DATABASE_URL") \
-               <(pg_dump --schema-only "$RESTORE_URL")
+          docker run --rm --network host -e PGPASSWORD=postgres postgres:19beta3 bash -c '
+            set -euo pipefail
+            pg_dump --format=custom --no-owner --no-acl -f /tmp/hotel_ci.dump -h localhost -U postgres hotel_ci
+            pg_restore --list /tmp/hotel_ci.dump >/dev/null
+            pg_restore --no-owner --no-acl -h localhost -U postgres -d hotel_ci_restore /tmp/hotel_ci.dump
+            diff <(pg_dump --schema-only -h localhost -U postgres hotel_ci) \
+                 <(pg_dump --schema-only -h localhost -U postgres hotel_ci_restore)
+          '
 
       - name: Verify PostgreSQL patch lifecycle
         run: cargo test --test postgres_patch_lifecycle -- --nocapture
