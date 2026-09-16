@@ -234,13 +234,19 @@ jobs:
             -o "UserKnownHostsFile=$RUNNER_TEMP/vps-known-hosts" \
             "$VPS_USER@$VPS_HOST" \
             "set -eu
+             failed=0
              for target in /tmp /opt; do
                available=\$(df --output=avail -B1 \"\$target\" | tail -n 1 | tr -d ' ')
                if [ \"\$available\" -lt $required_bytes ]; then
                  echo \"Insufficient free space on \$target for a protected deployment\" >&2
-                 exit 1
+                 failed=1
                fi
-             done"
+             done
+             if [ \"\$failed\" -ne 0 ]; then
+               df -h /tmp /opt >&2 || true
+               du -xh --max-depth=2 /opt/saliminn /tmp 2>/dev/null | sort -rh | head -n 20 >&2 || true
+               exit 1
+             fi"
 
       - name: Upload release directly to the VPS
         shell: bash
