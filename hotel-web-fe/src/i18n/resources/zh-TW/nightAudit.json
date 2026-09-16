@@ -1,0 +1,159 @@
+{
+  "title": "夜間稽核",
+  "tabs": {
+    "aria": "夜間稽核分頁",
+    "run": "執行稽核",
+    "history": "稽核歷史"
+  },
+  "actions": {
+    "refresh": "重新整理夜間稽核",
+    "loadPreview": "載入預覽",
+    "runAudit": "執行稽核",
+    "runNightAudit": "執行夜間稽核",
+    "running": "執行中…",
+    "rerun": "重新執行稽核",
+    "rerunning": "重新執行中…",
+    "exportPdf": "匯出 PDF",
+    "exportCsv": "匯出 CSV",
+    "loadJournal": "載入日記帳分錄",
+    "loadingJournal": "正在載入日記帳分錄…"
+  },
+  "fields": {
+    "auditDate": "稽核日期",
+    "year": "年",
+    "month": "月",
+    "notesOptional": "備註（選填）",
+    "notesPlaceholder": "新增關於此次稽核的備註…"
+  },
+  "status": {
+    "alreadyCompleted": "稽核已完成",
+    "completedSeeHistory": "夜間稽核已完成。詳情請見「稽核歷史」分頁。",
+    "notRunYet": "尚未執行",
+    "posted": "已過帳"
+  },
+  "history": {
+    "found_other": "找到 {{count}} 筆稽核",
+    "perPage": "每頁稽核筆數",
+    "empty": "沒有可用的稽核歷史。",
+    "colDate": "稽核日期",
+    "colRunAt": "執行時間",
+    "colRunBy": "執行者",
+    "colStatus": "狀態",
+    "colBookings": "預訂",
+    "colOccupancy": "住房率",
+    "expandAria": "展開稽核詳情",
+    "collapseAria": "收合稽核詳情",
+    "runByLine": "{{runAt}} · {{runBy}}",
+    "metaLine": "{{count}} 筆預訂 · 住房率 {{pct}}%",
+    "system": "系統"
+  },
+  "rerun": {
+    "title": "重新執行夜間稽核",
+    "message": "這會重設此日期先前的稽核資料，並再次執行稽核。",
+    "confirm": "重新執行稽核",
+    "success": "夜間稽核重新執行成功"
+  },
+  "confirm": {
+    "title": "確認夜間稽核",
+    "intro": "您即將執行 {{date}} 的夜間稽核。",
+    "willDo": "此操作將會：",
+    "markPosted": "將 {{count}} 筆預訂標記為已過帳",
+    "lockBookings": "鎖定這些預訂，禁止再編輯",
+    "recordSnapshot": "記錄客房狀態快照以供報表使用",
+    "cannotUndo": "此操作無法復原。"
+  },
+  "errors": {
+    "exportCsv": "匯出稽核失敗，請重試。",
+    "exportPdf": "匯出稽核失敗：{{message}}",
+    "run": "執行夜間稽核失敗"
+  },
+  "journal": {
+    "title": "日記帳分錄",
+    "entries_other": "{{count}} 筆分錄",
+    "entryFallback": "日記帳分錄",
+    "expandAria": "展開區段",
+    "collapseAria": "收合區段",
+    "debit": "借方：",
+    "credit": "貸方：",
+    "colBooking": "預訂編號",
+    "colRoom": "客房",
+    "colDescription": "說明",
+    "colDebit": "借方",
+    "colCredit": "貸方",
+    "total": "合計",
+    "grandTotal": "總計",
+    "totalDebit": "借方合計：",
+    "totalCredit": "貸方合計：",
+    "roomLine": "#{{booking}} · 客房 {{room}}",
+    "drCr": "借 {{debit}} · 貸 {{credit}}"
+  },
+  "ledger": {
+    "title": "賓客帳冊",
+    "colAccount": "帳戶",
+    "colDebits": "借方",
+    "colCredits": "貸方"
+  },
+  "roomSold": {
+    "title": "按日期的客房銷售明細",
+    "colRoom": "客房",
+    "colType": "類型",
+    "colGuest": "賓客姓名",
+    "totalRow": "客房銷售合計"
+  },
+  "roomStatus": {
+    "label": "客房狀態",
+    "auditDate": "客房狀態（稽核日期）",
+    "whenAudited": "客房狀態（稽核當時）",
+    "available": "{{count}} 間可售",
+    "occupied": "{{count}} 間已入住",
+    "reserved": "{{count}} 間已預訂",
+    "maintenance": "{{count}} 間維修中",
+    "dirty": "{{count}} 間待清潔"
+  },
+  "breakdown": {
+    "colBookings": "預訂",
+    "colAmount": "金額",
+    "total": "合計"
+  },
+  "preview": {
+    "title": "夜間稽核預覽",
+    "bookingsToPost": "待過帳預訂",
+    "estimatedRevenue": "預估營收",
+    "roomsOccupied": "已入住客房",
+    "occupancy": "住房率",
+    "projected": "預計營收",
+    "byPayment": "按付款方式",
+    "byChannel": "按通路",
+    "toBePosted": "待過帳預訂（{{count}}）",
+    "noBookings": "此日期沒有待過帳的預訂。",
+    "willPost": "今晚將過帳的內容",
+    "colBooking": "預訂編號",
+    "colGuest": "賓客",
+    "colRoom": "客房",
+    "colCheckIn": "入住",
+    "colCheckOut": "退房",
+    "colAmount": "金額",
+    "colStatus": "狀態",
+    "colChannel": "通路"
+  },
+  "report": {
+    "title": "夜間稽核報表",
+    "completedLine": "於 {{time}} 由 {{name}} 完成",
+    "revenue": "營收 {{amount}}",
+    "bookingsPosted": "已過帳預訂",
+    "checkins": "入住",
+    "checkouts": "退房",
+    "occupancy": "住房率",
+    "notes": "備註"
+  },
+  "csv": {
+    "summaryStatistics": "摘要統計",
+    "postedBookings": "已過帳預訂",
+    "occupancyRate": "住房率",
+    "totalBookings": "預訂總數",
+    "colRoomType": "房型",
+    "colNights": "晚數",
+    "colPaymentMethod": "付款方式",
+    "colPaymentStatus": "付款狀態"
+  }
+}

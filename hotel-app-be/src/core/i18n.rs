@@ -35,7 +35,7 @@ pub const DEFAULT_LOCALE: &str = "en";
 /// Must stay in step with the web client's `src/i18n/locales.ts` registry and
 /// with the `consent_records.locale` check constraint — a locale offered in
 /// the switcher but rejected on write would fail a guest's consent submission.
-pub const SUPPORTED_LOCALES: &[&str] = &["en", "ms", "zh"];
+pub const SUPPORTED_LOCALES: &[&str] = &["en", "ms", "zh", "zh-TW"];
 
 /// `system_settings` key holding the hotel's preferred default language.
 ///
@@ -61,25 +61,54 @@ impl Locale {
         self.0
     }
 
-    /// Resolve a tag to a supported locale, matching on the primary subtag.
+    /// Resolve a tag to a supported locale.
     ///
     /// Accepts anything a client may send — `ms`, `ms-MY`, `en_US`, `EN` —
     /// and returns `None` for anything unsupported, so callers can keep
     /// walking their own preference chain rather than being handed a default
     /// too early.
+    ///
+    /// The full tag is tried against the supported codes first, so the
+    /// canonical `zh-TW` round-trips instead of collapsing on its primary
+    /// subtag. For `zh` tags that do not match exactly, the script subtag
+    /// decides — `Hant` to `zh-TW`, `Hans` to `zh` — then the region
+    /// (`TW`/`HK`/`MO` to `zh-TW`), and a bare or mainland `zh` to `zh`,
+    /// matching CLDR's likely-subtags default. Everything else falls back to
+    /// primary-subtag matching, so a region we do not model still lands on
+    /// the right language.
     pub fn parse(tag: &str) -> Option<Self> {
-        let primary = tag
-            .trim()
-            .split(['-', '_'])
-            .next()
-            .unwrap_or_default()
-            .to_ascii_lowercase();
+        let normalized = tag.trim().replace('_', "-").to_ascii_lowercase();
+        if normalized.is_empty() {
+            return None;
+        }
+        if let Some(candidate) = SUPPORTED_LOCALES
+            .iter()
+            .find(|candidate| candidate.eq_ignore_ascii_case(&normalized))
+        {
+            return Some(Locale(candidate));
+        }
+        let mut parts = normalized.split('-');
+        let primary = parts.next().unwrap_or_default();
         if primary.is_empty() {
             return None;
         }
+        let resolved = if primary == "zh" {
+            let subtags: Vec<&str> = parts.collect();
+            if subtags.contains(&"hant") {
+                "zh-TW"
+            } else if subtags.contains(&"hans") {
+                "zh"
+            } else if subtags.iter().any(|sub| matches!(*sub, "tw" | "hk" | "mo")) {
+                "zh-TW"
+            } else {
+                "zh"
+            }
+        } else {
+            primary
+        };
         SUPPORTED_LOCALES
             .iter()
-            .find(|candidate| **candidate == primary)
+            .find(|candidate| **candidate == resolved)
             .map(|candidate| Locale(candidate))
     }
 
@@ -203,16 +232,10 @@ impl Locale {
 /// Lives here rather than beside each sender because every queued mail
 /// resolves the same chain at render time; there is no request or session
 /// left to consult when the worker sends.
-pub async fn mail_locale(
-    pool: &crate::core::db::DbPool,
-    stored: Option<&str>,
-) -> Locale {
-    let hotel_default = crate::core::settings_cache::get_string(
-        pool,
-        DEFAULT_LOCALE_SETTING_KEY,
-        DEFAULT_LOCALE,
-    )
-    .await;
+pub async fn mail_locale(pool: &crate::core::db::DbPool, stored: Option<&str>) -> Locale {
+    let hotel_default =
+        crate::core::settings_cache::get_string(pool, DEFAULT_LOCALE_SETTING_KEY, DEFAULT_LOCALE)
+            .await;
     Locale::resolve([stored, Some(hotel_default.as_str())])
 }
 
@@ -235,11 +258,13 @@ static CATALOGS: OnceLock<HashMap<&'static str, Catalog>> = OnceLock::new();
 const EN_SOURCE: &str = include_str!("locales/en.json");
 const MS_SOURCE: &str = include_str!("locales/ms.json");
 const ZH_SOURCE: &str = include_str!("locales/zh.json");
+const ZH_TW_SOURCE: &str = include_str!("locales/zh-TW.json");
 
 fn source_for(locale: &str) -> &'static str {
     match locale {
         "ms" => MS_SOURCE,
         "zh" => ZH_SOURCE,
+        "zh-TW" => ZH_TW_SOURCE,
         _ => EN_SOURCE,
     }
 }
@@ -334,6 +359,32 @@ mod tests {
         assert_eq!(Locale::parse("en_US").map(|l| l.as_str()), Some("en"));
         assert_eq!(Locale::parse("  MS-my  ").map(|l| l.as_str()), Some("ms"));
         assert_eq!(Locale::parse("zh-CN").map(|l| l.as_str()), Some("zh"));
+        assert_eq!(Locale::parse("zh-TW").map(|l| l.as_str()), Some("zh-TW"));
+    }
+
+    #[test]
+    fn splits_chinese_tags_by_script() {
+        // Bare `zh` defaults to Simplified (CLDR likely-subtags); so do the
+        // Hans script and the mainland/Singapore regions.
+        assert_eq!(Locale::parse("zh").map(|l| l.as_str()), Some("zh"));
+        assert_eq!(Locale::parse("zh-SG").map(|l| l.as_str()), Some("zh"));
+        assert_eq!(Locale::parse("zh-Hans").map(|l| l.as_str()), Some("zh"));
+        // Traditional script and the TW/HK/MO regions land on zh-TW.
+        assert_eq!(Locale::parse("zh-Hant").map(|l| l.as_str()), Some("zh-TW"));
+        assert_eq!(Locale::parse("zh-HK").map(|l| l.as_str()), Some("zh-TW"));
+        assert_eq!(Locale::parse("zh-MO").map(|l| l.as_str()), Some("zh-TW"));
+        assert_eq!(Locale::parse("zh_TW").map(|l| l.as_str()), Some("zh-TW"));
+        assert_eq!(
+            Locale::parse("zh-Hant-HK").map(|l| l.as_str()),
+            Some("zh-TW")
+        );
+        // An explicit script tag outranks region: Hans-in-Taiwan is still
+        // Simplified, Hant-on-the-mainland is still Traditional.
+        assert_eq!(Locale::parse("zh-Hans-TW").map(|l| l.as_str()), Some("zh"));
+        assert_eq!(
+            Locale::parse("zh-Hant-CN").map(|l| l.as_str()),
+            Some("zh-TW")
+        );
     }
 
     #[test]
@@ -358,6 +409,12 @@ mod tests {
         assert_eq!(
             Locale::from_accept_language("ms, en;q=0.9").map(|l| l.as_str()),
             Some("ms")
+        );
+        // A Traditional-Chinese browser tag resolves to zh-TW through the
+        // same negotiation, not to the Simplified primary subtag.
+        assert_eq!(
+            Locale::from_accept_language("zh-HK,zh-TW;q=0.8,en;q=0.5").map(|l| l.as_str()),
+            Some("zh-TW")
         );
     }
 

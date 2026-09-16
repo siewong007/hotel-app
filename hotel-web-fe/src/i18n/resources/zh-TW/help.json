@@ -1,0 +1,86 @@
+{
+  "hub": {
+    "kicker": "說明中心",
+    "title": "需要什麼協助？",
+    "subtitle": "經營飯店的指南與解答 — 可直接搜尋，或按主題瀏覽。",
+    "searchPlaceholder": "搜尋說明文章…",
+    "searchHint": "試試「退款」、「辦理入住」或「新增員工」",
+    "quickTasksTitle": "常用操作",
+    "quickTasksSubtitle": "最常見工作的直達指南。",
+    "categoriesTitle": "按主題瀏覽",
+    "popularTitle": "熱門文章",
+    "troubleshootingTitle": "遇到問題了嗎？",
+    "troubleshootingSubtitle": "員工最常遇到問題的逐步排解方法。",
+    "escalationTitle": "取得更多協助",
+    "escalationBody": "存取權變更、權限問題及疑似系統缺陷，請聯絡您的管理員或主管。請提供頁面名稱、確切的錯誤訊息，以及稽核紀錄條目（如有）。",
+    "escalationLink": "閱讀呈報指南",
+    "supportInboxNote": "是要協助賓客嗎？他們的訊息在「營運」下的客服收件匣。",
+    "articlesCount": "{{count}} 篇文章"
+  },
+  "search": {
+    "label": "搜尋說明",
+    "recentLabel": "最近搜尋",
+    "noResultsTitle": "沒有相符的文章",
+    "noResultsBody": "請嘗試不同的關鍵字 — 或瀏覽下方分類。",
+    "clearLabel": "清除搜尋",
+    "resultsLabel": "文章",
+    "suggestionsLabel": "試試",
+    "suggestions": {
+      "refund": "退款",
+      "checkIn": "辦理入住",
+      "staff": "新增員工"
+    }
+  },
+  "categories": {
+    "getting-started": { "name": "入門", "desc": "登入、安全性與介面導覽" },
+    "bookings": { "name": "預訂與櫃檯", "desc": "建立、查找、入住、退房及作廢預訂" },
+    "guests": { "name": "賓客", "desc": "賓客資料、住宿紀錄與入口帳戶" },
+    "rooms-inventory": { "name": "客房與庫存", "desc": "房型、客房看板、線上庫存與房務" },
+    "payments-ledgers": { "name": "付款與帳冊", "desc": "訂金、退款、核准、公司帳戶與折讓" },
+    "rates-promotions": { "name": "房價與促銷", "desc": "優惠方案、優惠券與忠誠計畫" },
+    "reports-night-audit": { "name": "報表與夜間稽核", "desc": "每日報表、指標、結算營業日與稽核紀錄" },
+    "communications": { "name": "通訊", "desc": "電子郵件行銷活動、通知與賓客客服收件匣" },
+    "staff-access": { "name": "員工與存取權", "desc": "使用者帳戶、角色、權限與 eKYC 審核" },
+    "settings-data": { "name": "設定與資料", "desc": "飯店設定、預設值與資料轉移" },
+    "troubleshooting": { "name": "疑難排解", "desc": "當內容遺失、卡住或無法運作時" }
+  },
+  "quickTasks": {
+    "create-a-booking": { "label": "建立預訂", "desc": "現場散客、電話訂房與回頭客" },
+    "check-in-a-guest": { "label": "辦理賓客入住", "desc": "抵達日規則與提前入住" },
+    "find-a-reservation": { "label": "查找預訂", "desc": "依編號、賓客姓名或客房" },
+    "refund-a-deposit": { "label": "退還訂金", "desc": "退房退款與撤回規則" },
+    "add-manage-staff": { "label": "新增員工", "desc": "帳戶與角色指派" },
+    "run-night-audit": { "label": "執行夜間稽核", "desc": "安全地結算營業日" }
+  },
+  "troubleshootingLinks": {
+    "cant-find-a-booking": "找不到預訂",
+    "payment-problems": "付款失敗或卡住",
+    "email-not-sending": "電子郵件無法發送",
+    "page-missing-or-access-denied": "看不到需要的頁面",
+    "session-and-stale-data": "畫面資料似乎過期"
+  },
+  "article": {
+    "backToHelp": "返回說明中心",
+    "onThisPage": "本頁內容",
+    "lastReviewed": "最後審閱於 {{date}}",
+    "readingTime": "閱讀時間 {{count}} 分鐘",
+    "openPage": "開啟頁面",
+    "requiresLabel": "需要",
+    "relatedTitle": "相關文章",
+    "feedbackTitle": "這篇文章有幫助嗎？",
+    "feedbackYes": "有",
+    "feedbackNo": "沒有",
+    "feedbackThanks": "感謝 — 已記錄。您的管理員可在下次內容審閱時查看回饋。",
+    "feedbackVotedYes": "已記錄 — 很高興對您有幫助。",
+    "feedbackVotedNo": "已記錄 — 感謝您的誠實回饋。如果問題仍未解決，呈報指南說明了下一步。",
+    "notFoundTitle": "找不到文章",
+    "notFoundBody": "此指南可能已移動或更名。請瀏覽說明中心找到所需內容。",
+    "browseAll": "瀏覽所有主題"
+  },
+  "aria": {
+    "helpNavigation": "說明導覽",
+    "toc": "文章目錄",
+    "searchResults": "說明搜尋結果",
+    "breadcrumbs": "麵包屑導覽"
+  }
+}

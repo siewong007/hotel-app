@@ -4,8 +4,9 @@ How to add a translated string, translate an existing screen, and add a
 language. The design rationale is [ADR 012](../architecture/ADRS.md); this file
 is the working guide.
 
-Supported today: **English (`en`)**, **Bahasa Melayu (`ms`)**, and
-**简体中文 (`zh`, `Intl` tag `zh-CN`)**. The full coverage audit lives in
+Supported today: **English (`en`)**, **Bahasa Melayu (`ms`)**,
+**简体中文 (`zh`, `Intl` tag `zh-CN`)**, and **繁體中文 (`zh-TW`)**. The full
+coverage audit lives in
 [../i18n-coverage-inventory.md](../i18n-coverage-inventory.md).
 
 ## Where things live
@@ -116,6 +117,11 @@ The web client sends `Accept-Language` on every API call
 (`src/api/client.ts`). `Locale::from_accept_language` parses it, including
 q-values, and is the entry point for the handler that will record a first-time
 guest's language — no handler reads it yet.
+
+Chinese tags are matched by script and region, not just the `zh` prefix:
+`zh-TW`, `zh-HK`, `zh-MO`, and any `zh-Hant…` tag resolve to `zh-TW`;
+`zh-CN`, `zh-SG`, `zh-MY`, `zh-Hans…`, and bare `zh` resolve to `zh` —
+the same rule `matchLocale` applies to `navigator.languages` on the web.
 
 ## Formatting
 

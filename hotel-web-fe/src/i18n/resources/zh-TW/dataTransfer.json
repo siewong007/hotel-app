@@ -1,0 +1,223 @@
+{
+  "page": {
+    "noPermission": "您沒有權限使用資料轉移。",
+    "permissionChip": "data_transfer:view",
+    "title": "資料轉移",
+    "subtitle": "下載此系統資料的備份，或在此伺服器上還原備份。匯入會先暫存、預覽並確認，之後才會寫入任何資料。",
+    "tabs": {
+      "export": "匯出",
+      "import": "匯入",
+      "history": "歷史"
+    }
+  },
+  "export": {
+    "standard": {
+      "title": "標準匯出",
+      "description": "僅營運與設定資料 — 客房、房價方案、促銷、忠誠計畫、設定。不含賓客、預訂、付款與員工紀錄。",
+      "tagline": "環境間的例行轉移"
+    },
+    "full": {
+      "title": "完整匯出",
+      "restriction": "受限",
+      "description": "所有可轉移的實體，包含敏感業務資料 — 賓客、預訂、付款、帳冊、員工及營運歷史。",
+      "tagline": "機密 — 包含賓客與財務資料"
+    },
+    "backup": {
+      "title": "移轉備份",
+      "restriction": "高度受限",
+      "description": "完整的可轉移資料集加上關聯中繼資料，採用可直接移轉的格式。用於災難復原或移轉到新伺服器。",
+      "tagline": "機密 — 完整業務資料集含外鍵中繼資料"
+    },
+    "system": {
+      "title": "完整系統備份",
+      "restriction": "僅限超級管理員",
+      "description": "移轉備份的全部內容，加上使用者帳戶與密碼雜湊、RBAC 授權、工作階段、eKYC 紀錄與稽核歷史。一律以您提供的密碼片語加密。這是唯一能在還原的資料庫上重建登入的匯出。",
+      "tagline": "已加密 — 包含憑證、eKYC 與稽核歷史"
+    },
+    "passphrase": {
+      "title": "加密此備份",
+      "help": "此檔案包含使用者帳戶、密碼雜湊、RBAC 授權與 eKYC 紀錄，因此一律加密。請將密碼片語存放在安全的地方 — 沒有它就無法還原備份。",
+      "label": "密碼片語",
+      "minimum": "至少 12 個字元",
+      "confirmLabel": "確認密碼片語",
+      "mismatch": "兩次輸入的密碼片語不一致",
+      "submit": "繼續"
+    },
+    "secretsExcluded": "任何匯出都不會包含密碼、工作階段、權杖、通行金鑰及其他機密。",
+    "sensitiveConfirmTitle": "此匯出包含機密資料",
+    "sensitiveConfirmBody": "檔案包含賓客資料、預訂、付款與營運紀錄。請妥善保存，僅透過核准的管道分享。",
+    "sensitiveConfirmAck": "我了解此檔案包含機密資料，必須安全處理。",
+    "stepUpRequired": "需要重新驗證身分",
+    "missingPermission": "需要 {{permission}}",
+    "preview": "預覽筆數",
+    "download": "下載",
+    "previewScope": "{{scope}} 匯出內容",
+    "neverIncluded": "永不包含 — {{count}} 個受保護的資料表",
+    "errors": {
+      "preview": "預覽匯出資料失敗。",
+      "export": "匯出資料失敗。"
+    },
+    "downloaded": "備份已下載 — {{filename}}（{{bytes}}）。",
+    "colEntity": "實體",
+    "colRows": "筆數",
+    "previewSummary": "{{records}} 筆紀錄 · {{entities}} 個實體",
+    "sensitiveAckAria": "確認敏感匯出警告",
+    "exclusions": {
+      "credentials_and_auth_state": "憑證與驗證狀態",
+      "session_or_token_material": "工作階段與權杖",
+      "sensitive_ekyc_pii": "eKYC 身分資料",
+      "ephemeral_queue_state": "進行中的佇列狀態",
+      "internal_system_table": "內部系統資料表"
+    }
+  },
+  "stepUp": {
+    "title": "確認您的身分",
+    "description": "這是特權操作。請重新輸入憑證以繼續 — 驗證有效期為 2 分鐘，並綁定此工作階段。",
+    "password": "密碼",
+    "totp": "兩步驟驗證碼",
+    "totpHint": "如果您的帳戶已啟用兩步驟驗證則為必填。",
+    "confirm": "驗證並繼續",
+    "verifying": "驗證中…"
+  },
+  "import": {
+    "sensitiveTitle": "此檔案包含敏感資料",
+    "sensitiveWarning": "此檔案包含敏感業務資料 — 賓客、預訂、付款或員工紀錄。匯入需要 data_transfer:import_sensitive 權限。",
+    "missingTitle": "需要額外權限",
+    "missingPermissions": "您的帳戶無法執行此匯入 — 需要：{{permissions}}",
+    "restoreRequiresPermission": "還原需要 data_transfer:restore 權限並重新驗證身分。",
+    "updateRequiresPermission": "需要 data_transfer:override",
+    "restoreStepUp": "還原需要重新驗證身分 — 請驗證您的身分以繼續。",
+    "conflicts": {
+      "skip": "跳過 — 保留現有資料列",
+      "update": "更新 — 覆寫現有資料列",
+      "fail": "失敗 — 遇到第一筆重複即中止匯入"
+    },
+    "jobFinished_other": "匯入完成 — 已套用 {{count}} 列。",
+    "jobFinishedSkipped_other": "匯入完成 — 已跳過 {{count}} 列。",
+    "errors": {
+      "preview": "預覽備份內容失敗。",
+      "upload": "上傳備份檔案失敗。",
+      "start": "啟動匯入失敗。",
+      "tooLarge": "「{{name}}」大小為 {{size}} — 備份檔案上限為 {{limit}}。"
+    },
+    "colEntity": "實體",
+    "selectTitle": "選擇要匯入的備份檔案",
+    "selectDrop1": "拖放或選擇一個",
+    "selectDrop2": "由本應用程式產生的備份（最大 {{size}}）。寫入前會先預覽並確認其內容。",
+    "selectFile": "選擇 JSON 檔案",
+    "chooseFileAria": "選擇備份檔案",
+    "processingAria": "正在上傳並分析備份",
+    "analyzing": "正在分析備份內容…",
+    "uploading": "正在上傳備份檔案…",
+    "metaFormat": "格式 v{{version}}",
+    "metaExported": "匯出於 {{date}}",
+    "metaFrom": "來自 {{env}}",
+    "metaApp": "應用程式 {{version}}",
+    "metaUnavailable": "備份中繼資料不可用",
+    "removeFile": "移除檔案",
+    "cannotImport": "此檔案無法匯入",
+    "rowsWillBeSkipped_other": "將跳過 {{count}} 列",
+    "problemRows_other": "{{count}} 列 — {{reason}}",
+    "unrecognizedTitle": "無法識別的實體將被忽略",
+    "unrecognizedBody": "{{entities}} — 存在於檔案中但不屬於可轉移集合；一律不會套用。",
+    "previewSummary": "{{entities}} 個實體共 {{rows}} 列",
+    "cols": {
+      "rows": "筆數",
+      "new": "新增",
+      "existing": "已存在",
+      "skipped": "已跳過",
+      "inserted": "已插入",
+      "updated": "已更新"
+    },
+    "entitiesAria": "備份檔案中的實體",
+    "resultsAria": "各實體的匯入結果",
+    "modeTitle": "匯入模式",
+    "modeAria": "匯入模式",
+    "modeMerge": "合併 — 加入現有資料",
+    "modeRestore": "還原 — 取代現有資料",
+    "conflictTitle": "當資料列已存在時：",
+    "conflictAria": "衝突處理策略",
+    "restoreWarningTitle": "還原會先刪除現有資料",
+    "restoreWarningBody": "備份中實體的每一列 — 以及相依於它們的資料表 — 都會在插入檔案資料列之前被刪除，包括不在備份中的資料列。",
+    "chooseDifferent": "選擇其他檔案",
+    "reviewImport": "檢閱並匯入",
+    "runningTitle": "匯入執行中…",
+    "progressAria": "匯入進度",
+    "applyingEntity": "正在套用 {{entity}} — {{total}} 列中的 {{applied}} 列",
+    "rowsApplied": "已套用 {{total}} 列中的 {{applied}} 列",
+    "progressRefreshFailed": "進度重新整理失敗 — 匯入本身會在伺服器上繼續，輪詢會持續重試。",
+    "failedTitle": "匯入失敗 — 未套用任何內容",
+    "failedGeneric": "匯入失敗。",
+    "failedTxn": "匯入在單一交易中執行，因此資料庫保持不變。",
+    "viewHistory": "查看歷史",
+    "startOver": "重新開始",
+    "completeTitle": "匯入完成",
+    "insertedCount_other": "已插入 {{count}} 筆",
+    "updatedCount_other": "已更新 {{count}} 筆",
+    "skippedCount_other": "已跳過 {{count}} 筆",
+    "skippedRefsTitle": "因參照遺失而跳過的資料列",
+    "notApplied": "檔案中這些實體未被套用：{{entities}}。",
+    "confirmRestore": "確認還原",
+    "confirmImport": "確認匯入",
+    "confirmAbout": "您即將{{mode}}",
+    "confirmRows_other": "{{count}} 列",
+    "confirmAcross": "橫跨",
+    "confirmEntities_other": "{{count}} 個實體",
+    "confirmLogged": "此操作會記錄到轉移歷史。",
+    "modes": {
+      "merge": "合併",
+      "restore": "還原"
+    },
+    "confirmDeleteTitle": "這會先刪除現有資料",
+    "confirmDeleteBody1": "還原會清除備份中的實體",
+    "confirmDeleteEm": "以及所有相依於它們的資料表",
+    "confirmDeleteBody2": "— 包括不在檔案中的資料列 — 之後才插入。請先匯出一份新備份，以便需要時回復。",
+    "confirmMergeBody": "合併只會插入新資料列。現有資料列依衝突處理策略處理：",
+    "ackAria": "確認匯入警告",
+    "ackRestore": "我了解還原會刪除現有資料，且我已有可回復的最新備份。",
+    "ackMerge": "我了解這會修改線上資料，且此操作會被記錄。",
+    "restoreImport": "還原並匯入",
+    "startImport": "開始匯入",
+    "importAnother": "匯入其他檔案",
+    "passphrase": {
+      "title": "此備份已加密",
+      "help": "請輸入匯出時使用的密碼片語。它不會儲存在伺服器上，檔案在磁碟上保持加密。",
+      "label": "備份密碼片語",
+      "submit": "解鎖"
+    }
+  },
+  "history": {
+    "serverBacked": "此伺服器上的每次匯出、匯入與重新驗證都會記錄在稽核紀錄中。",
+    "reAuth": "重新驗證",
+    "reAuthDenied": "重新驗證被拒",
+    "importStarted": "匯入已開始",
+    "exportTypes": {
+      "standard": "標準匯出",
+      "full": "完整匯出",
+      "backup": "完整系統備份"
+    },
+    "title": "轉移歷史",
+    "loadingAria": "正在載入轉移歷史",
+    "empty": "尚無轉移紀錄。",
+    "colAction": "操作",
+    "colScope": "範圍",
+    "colRecords": "紀錄",
+    "colBy": "執行者",
+    "colDate": "日期與時間",
+    "colStatus": "狀態",
+    "recordsCount_other": "{{count}} 筆紀錄",
+    "entitiesCount_other": "{{count}} 個實體",
+    "jobRef": "工作 {{id}}",
+    "unknownUser": "系統",
+    "statuses": {
+      "success": "成功",
+      "partial": "部分成功",
+      "failed": "失敗",
+      "started": "已開始"
+    },
+    "actionExport": "匯出",
+    "actionReAuth": "重新驗證",
+    "actionImport": "匯入",
+    "actionImportMode": "匯入（{{mode}}）"
+  }
+}

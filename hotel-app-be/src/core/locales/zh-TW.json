@@ -1,0 +1,158 @@
+{
+  "email": {
+    "greeting": "尊敬的 {{name}}，",
+    "fallback": {
+      "guest": "賓客",
+      "booking": "您的預訂"
+    },
+    "labels": {
+      "booking": "預訂",
+      "room": "客房",
+      "stay": "住宿",
+      "total": "總額",
+      "payment": "付款",
+      "method": "方式",
+      "paymentsReceived": "已收款項",
+      "balance": "餘額",
+      "checkIn": "入住",
+      "checkOut": "退房",
+      "invoice": "發票",
+      "totalCharged": "收費總額",
+      "reason": "原因",
+      "linkValidUntil": "連結有效期至"
+    },
+    "stay": {
+      "range": "{{from}} 至 {{to}} · {{nights}} 晚",
+      "text": "預訂：{{booking}}\n客房：{{room}}（{{roomType}}）\n住宿：{{from}} 至 {{to}}（{{nights}} 晚）\n總額：{{total}}",
+      "rangeShort": "{{from}} 至 {{to}}"
+    },
+    "cta": {
+      "viewBooking": "查看您的預訂",
+      "preCheckIn": "開始線上入住登記",
+      "verifyEmail": "驗證我的電子郵件",
+      "portal": "開啟賓客入口",
+      "uploadReceipt": "上傳收據",
+      "completePayment": "完成付款"
+    },
+    "bookingConfirmed": {
+      "subject": "{{hotel}} 預訂已確認 {{booking}}",
+      "preheader": "您在 {{hotel}} 的預訂 {{booking}} 已確認。",
+      "heading": "預訂已確認",
+      "bodyHtml": "您的預訂 <strong>{{booking}}</strong> 已確認。我們期待您的光臨。",
+      "bodyText": "您的預訂 {{booking}} 已確認。我們期待您的光臨。",
+      "portalNote": "您可以隨時在賓客入口查看此預訂。"
+    },
+    "paymentConfirmed": {
+      "subject": "付款已確認 · {{hotel}} {{booking}}",
+      "preheader": "{{hotel}} 預訂 {{booking}} 的付款已確認。",
+      "heading": "付款已確認",
+      "bodyHtml": "我們已確認您為預訂 <strong>{{booking}}</strong> 支付的 <strong>{{amount}}</strong>（{{method}}）款項。",
+      "bodyText": "我們已確認您為預訂 {{booking}} 支付的 {{amount}}（{{method}}）款項。",
+      "settled": "您的預訂已全額付清並確認，無需再支付任何款項。",
+      "outstanding": "您的預訂已確認，剩餘餘額可在飯店支付。"
+    },
+    "months": {
+      "01": "1月",
+      "02": "2月",
+      "03": "3月",
+      "04": "4月",
+      "05": "5月",
+      "06": "6月",
+      "07": "7月",
+      "08": "8月",
+      "09": "9月",
+      "10": "10月",
+      "11": "11月",
+      "12": "12月"
+    },
+    "date": {
+      "pattern": "{{year}}年{{month}}{{day_num}}日"
+    },
+    "verifyEmail": {
+      "subject": "驗證您的電子郵件 · {{hotel}}",
+      "preheader": "確認您的電子郵件地址，以完成 {{hotel}} 帳戶的設定。",
+      "heading": "驗證您的電子郵件",
+      "bodyHtml": "請確認這是您的電子郵件地址，以便登入您的帳戶。以下連結 24 小時內有效。",
+      "bodyText": "請確認這是您的電子郵件地址，以便登入您的帳戶。以下連結 24 小時內有效。"
+    },
+    "chrome": {
+      "sentBy": "此郵件由 {{hotel}} 發送。",
+      "sealCaveat": "此標識僅為視覺提示，可以被複製。真正能證明此郵件來自我們的是您信箱服務商的寄件網域驗證，以及您手動輸入 {{host}} 前往，而不是點擊連結。",
+      "unsubscribe": "取消訂閱",
+      "spamNote": "如果此郵件不在您的主要收件匣中，請檢查垃圾郵件和促銷資料夾並將其標記為非垃圾郵件，以便下一封正常送達。"
+    },
+    "preArrival": {
+      "subject": "您在 {{hotel}} 的住宿即將開始 · {{booking}}",
+      "preheader": "您在 {{hotel}} 的住宿 {{booking}} 將於 {{checkIn}} 開始。",
+      "heading": "您的住宿即將開始",
+      "bodyHtml": "我們期待您的光臨。您的住宿 <strong>{{booking}}</strong> 將於 <strong>{{checkIn}}</strong> 開始。",
+      "checkInNote": "您可以透過下方連結完成線上入住登記，無需前往櫃檯。",
+      "bodyText": "尊敬的 {{name}}，\n您的住宿 {{booking}} 將於 {{checkIn}} 開始。客房：{{room}}。退房：{{checkOut}}。\n您可以透過此郵件中的連結完成線上入住登記。",
+      "cta": "完成預先入住登記"
+    },
+    "birthday": {
+      "subject": "來自 {{hotel}} 的生日祝福！",
+      "preheader": "一份來自 {{hotel}} 的生日禮物正在您的錢包中等待。",
+      "heading": "生日快樂",
+      "bodyHtml": "生日快樂！感謝您入住我們飯店，這是送給您的禮物。",
+      "walletNote": "您也可以在賓客入口錢包中找到它。",
+      "signoff": "誠摯祝福，",
+      "bodyText": "尊敬的 {{name}}，\n生日快樂！您的禮物是 {{gift}}。\n優惠券代碼：{{code}}（有效期至 {{expiry}}）。\n誠摯祝福，\n{{hotel}}",
+      "cta": "開啟您的錢包",
+      "giftLabel": "禮物",
+      "codeLabel": "優惠券代碼",
+      "validUntil": "有效期至",
+      "fallbackGift": "您的生日禮遇"
+    },
+    "roomAssigned": {
+      "subject": "{{hotel}} · 客房 {{room}} 已安排 · {{booking}}",
+      "preheader": "客房 {{room}} 已安排給 {{hotel}} 預訂 {{booking}}。",
+      "heading": "您的客房已安排",
+      "bodyHtml": "您的線上付款已確認，客房已安排。",
+      "portalNote": "您也可以在賓客入口查看這些詳情。",
+      "bodyText": "您的線上付款已確認，客房已安排。\n預訂：{{booking}}\n客房：{{room}}（{{roomType}}）\n住宿：{{from}} 至 {{to}}"
+    },
+    "receipt": {
+      "subject": "您的 {{hotel}} 收據 · {{booking}}",
+      "preheader": "您在 {{hotel}} 住宿 {{booking}} 的收據。",
+      "heading": "您的收據",
+      "bodyHtml": "感謝您的入住。這是您的收據。",
+      "portalNote": "您可以隨時在賓客入口查看您的預訂。",
+      "bodyText": "尊敬的 {{name}}，\n感謝您的入住。這是您的收據。\n預訂：{{booking}}\n發票：{{invoice}}\n住宿：{{stay}}\n收費總額：{{total}}\n已收款：{{paid}}\n餘額：{{balance}}"
+    },
+    "receiptRequest": {
+      "subject": "需要收據 · {{hotel}} {{booking}}",
+      "preheader": "請為 {{hotel}} 預訂 {{booking}} 上傳您的轉帳收據。",
+      "heading": "需要收據",
+      "bodyHtml": "請在 24 小時內上傳預訂 <strong>{{booking}}</strong> 的銀行轉帳收據。",
+      "bodyText": "尊敬的 {{name}}，\n請在 24 小時內上傳預訂 {{booking}} 的銀行轉帳收據。\n{{message}}",
+      "defaultMessage": "請上傳清晰顯示轉帳參考號碼和日期的收據。"
+    },
+    "paymentRejected": {
+      "subject": "付款更新 · {{hotel}} {{booking}}",
+      "preheader": "關於您為 {{hotel}} 預訂 {{booking}} 付款的更新。",
+      "heading": "付款未確認",
+      "bodyHtml": "我們無法確認您對預訂 <strong>{{booking}}</strong> 的最近一筆付款。",
+      "bodyText": "尊敬的 {{name}}，\n我們無法確認您對預訂 {{booking}} 的最近一筆付款。\n原因：{{reason}}\n{{action}}\n\n{{seal}}",
+      "payAgainHtml": "您可以使用下方按鈕重新付款。該連結只能使用一次，隨後即失效，請勿分享。",
+      "payAgainText": "您可以使用下方連結重新付款。該連結只能使用一次，隨後即失效，請勿分享。",
+      "contactHtml": "請聯絡飯店，我們將協助您完成此預訂。",
+      "contactText": "請聯絡飯店，我們將協助您完成此預訂。"
+    },
+    "portalBooking": {
+      "pendingSubject": "{{hotel}} 預訂 {{booking}}",
+      "pendingHeading": "預訂已收到",
+      "pendingPreheader": "您的 {{hotel}} 預訂 {{booking}} 正在等待付款。",
+      "pendingIntroHtml": "您的預訂 <strong>{{booking}}</strong> 已收到，正在等待付款。",
+      "pendingIntroText": "您的預訂 {{booking}} 已收到，正在等待付款。",
+      "creditSettledHtml": "您的預訂 <strong>{{booking}}</strong> 已確認，並由免費房晚全額抵扣。",
+      "creditSettledText": "您的預訂 {{booking}} 已確認，並由免費房晚全額抵扣。",
+      "nothingToPay": "無需再支付任何費用。您可以隨時在賓客入口查看此預訂。",
+      "payToConfirm": "請完成付款以確認此住宿。",
+      "payToConfirmOnline": "請完成付款以確認此住宿。您可以透過賓客入口線上付款或進行銀行轉帳。",
+      "viewLater": "如需稍後查看，請使用預訂編號 <strong>{{booking}}</strong> 和此電子郵件地址。",
+      "viewLaterText": "如需稍後查看，請使用預訂編號 {{booking}} 和此電子郵件地址。",
+      "detailsText": "預訂：{{booking}}\n客房：{{room}}\n入住：{{checkIn}}\n退房：{{checkOut}}\n總額：{{total}}"
+    }
+  }
+}

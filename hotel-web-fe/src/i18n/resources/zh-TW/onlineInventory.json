@@ -1,0 +1,135 @@
+{
+  "title": "線上可售量",
+  "kicker": "庫存設定",
+  "subtitle": "一次控制 {{days}} 天的線上庫存 — 點擊儲存格選取，開啟編輯器暫存變更，再一次安全地檢閱並套用。",
+  "loading": "正在載入客房可售量…",
+  "empty": {
+    "title": "沒有可設定的房型",
+    "body": "請先新增房型，再設定其線上可售量。"
+  },
+  "confirm": {
+    "discardTitle": "捨棄未儲存的變更",
+    "discardConfirm": "捨棄變更",
+    "discardMove": "移動視窗並捨棄未儲存的庫存變更？",
+    "discardRefresh": "重新整理可售量並捨棄未儲存的庫存變更？"
+  },
+  "changedBar_other": "已變更 {{count}} 個儲存格",
+  "discard": "捨棄",
+  "reviewApply": "檢閱並套用",
+  "toolbar": {
+    "aria": "庫存視窗控制",
+    "backDays": "往前 {{days}} 天",
+    "prevDay": "前一天",
+    "startDate": "開始日期",
+    "nextDay": "後一天",
+    "forwardDays": "往後 {{days}} 天",
+    "today": "今天",
+    "overridesOnly": "僅顯示覆蓋",
+    "selected": "已選取 {{count}} 項",
+    "controlsAria": "庫存視窗控制",
+    "refresh": "重新整理",
+    "select": "選取"
+  },
+  "grid": {
+    "aria": "按房型與日期的線上庫存",
+    "selectAll": "全選儲存格",
+    "colHeader": "房型 / 日期",
+    "selectColumn": "選取 {{date}} 全部",
+    "today": "今天",
+    "selectRow": "選取 {{name}} 列",
+    "noInventoryAria": "{{date}}：沒有庫存資料",
+    "closed": "已關閉"
+  },
+  "cell": {
+    "closed": "已關閉",
+    "noneLeft": "已售罄",
+    "ariaOnline": "{{count}} 間線上可售，價格 {{price}}",
+    "ariaClosed": "已關閉線上預訂",
+    "ariaNoneLeft": "，已售罄",
+    "ariaModified": "，已修改",
+    "ariaResetPending": "，待重設"
+  },
+  "bulk": {
+    "aria": "批量編輯選取的儲存格",
+    "cellsSelected_other": "已選取 {{count}} 個儲存格",
+    "daysAria": "限定星期",
+    "days": {
+      "mon": "週一",
+      "tue": "週二",
+      "wed": "週三",
+      "thu": "週四",
+      "fri": "週五",
+      "sat": "週六",
+      "sun": "週日"
+    },
+    "inScope": "範圍內 {{active}}/{{total}}",
+    "clearSelection": "清除選取",
+    "openOnline": "開放線上",
+    "closeOnline": "關閉線上",
+    "hold": "保留",
+    "setHold": "設定保留",
+    "price": "價格",
+    "setPrice": "設定價格",
+    "percentLabel": "±%",
+    "adjustPercentAria": "按百分比調整",
+    "applyPercent": "套用 %",
+    "amountLabel": "± 金額",
+    "adjustAmountAria": "按金額調整",
+    "applyAmount": "套用金額",
+    "clearOverrides": "清除覆蓋",
+    "skipped_other": "已跳過 {{count}} 個儲存格 — 此調整會使價格為零或負數。",
+    "selectedCount": "已選取 {{count}} 項",
+    "selectedCount_other": "已選取 {{count}} 項",
+    "editSelected": "編輯選取項",
+    "editSelectedCells": "編輯選取的儲存格"
+  },
+  "editor": {
+    "bookable": "開放線上預訂",
+    "bookableOn": "賓客可預訂此日期",
+    "bookableOff": "對線上預訂隱藏",
+    "holdWalkins": "保留給現場散客",
+    "decrease": "減少現場散客保留",
+    "increase": "增加現場散客保留",
+    "holdAria": "現場散客保留",
+    "ofFree": "共 {{count}} 間空房",
+    "overHeld": "高於此日期的實際可售量。",
+    "customPrice": "自訂線上價格",
+    "priceInvalid": "請輸入大於零的價格。",
+    "standardRate": "此日期的標準房價：{{price}} — 留空即使用此價。",
+    "resetStandard": "重設為標準規則",
+    "resetAria": "重設為標準規則",
+    "reset": "重設"
+  },
+  "summary": {
+    "physical": "實際空房",
+    "held": "現場散客保留",
+    "online": "線上可售",
+    "roomNights": "房晚",
+    "aria": "{{label}} 摘要",
+    "selectedCells": "已選取儲存格",
+    "visibleWindow": "可見視窗"
+  },
+  "review": {
+    "title": "檢閱變更",
+    "atomicNote_other": "全部 {{count}} 項變更會一起套用 — 任一儲存格失敗則全部不儲存。",
+    "saving": "儲存中…",
+    "apply_other": "套用 {{count}} 項變更"
+  },
+  "lines": {
+    "resetStandard": "重設為標準規則",
+    "updated": "已更新",
+    "reopenOnline": "重新開放線上",
+    "closeOnline": "關閉線上",
+    "holdLine": "為現場散客保留 {{count}} 間（原為 {{was}}）",
+    "priceStandard": "價格 → 標準房價",
+    "priceLine": "價格 → {{price}}（標準 {{standard}}）",
+    "roomTypeFallback": "房型 {{id}}"
+  },
+  "errors": {
+    "load": "無法載入線上庫存。",
+    "save": "無法儲存庫存變更。"
+  },
+  "success": {
+    "updated_other": "已更新 {{count}} 個儲存格。"
+  }
+}

@@ -84,8 +84,7 @@ pub fn require_consents(
 /// die as a constraint violation.
 pub fn validate_locales(submitted: &[ConsentAcceptance]) -> Result<(), ApiError> {
     for entry in submitted {
-        if Locale::parse(&entry.locale).map(|locale| locale.as_str())
-            != Some(entry.locale.as_str())
+        if Locale::parse(&entry.locale).map(|locale| locale.as_str()) != Some(entry.locale.as_str())
         {
             return Err(ApiError::BadRequest(format!(
                 "Unsupported consent locale: {}",
@@ -178,7 +177,7 @@ mod tests {
 
     #[test]
     fn accepts_every_supported_locale() {
-        for locale in ["en", "ms", "zh"] {
+        for locale in ["en", "ms", "zh", "zh-TW"] {
             let mut entry = accept(ConsentDocument::TermsOfService, true);
             entry.locale = locale.to_string();
             assert!(
@@ -201,10 +200,11 @@ mod tests {
 
     #[test]
     fn rejects_locale_the_constraint_cannot_store() {
-        // `zh-CN` parses as zh, but the check constraint admits only the
-        // canonical tag — a regional variant must be refused here rather
-        // than die as a constraint violation at insert.
-        for locale in ["zh-CN", "EN"] {
+        // `zh-CN` parses as zh and `zh-Hant` as zh-TW, but the check
+        // constraint admits only the canonical tag — a regional or script
+        // variant must be refused here rather than die as a constraint
+        // violation at insert.
+        for locale in ["zh-CN", "zh-Hant", "EN"] {
             let mut entry = accept(ConsentDocument::TermsOfService, true);
             entry.locale = locale.to_string();
             assert!(

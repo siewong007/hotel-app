@@ -1,0 +1,32 @@
+{
+  "required": "{{field}}為必填欄位。",
+  "email": "請輸入有效的電子郵件地址。",
+  "phone": "請輸入有效的電話號碼。",
+  "minLength": "{{field}}長度至少為 {{min}} 個字元。",
+  "minLength_other": "{{field}}長度至少為 {{min}} 個字元。",
+  "maxLength": "{{field}}長度最多為 {{max}} 個字元。",
+  "maxLength_other": "{{field}}長度最多為 {{max}} 個字元。",
+  "min": "{{field}}必須至少為 {{min}}。",
+  "max": "{{field}}最多為 {{max}}。",
+  "invalidDate": "請輸入有效的日期。",
+  "endBeforeStart": "結束日期必須晚於開始日期。",
+  "invalid": "{{field}}無效。",
+  "mustBePositive": "{{field}}必須大於零。",
+  "mustBeInteger": "{{field}}必須為整數。",
+  "dateInPast": "{{field}}不能是過去的日期。",
+  "passwordTooShort": "密碼長度至少為 {{min}} 個字元。",
+  "passwordMismatch": "兩次輸入的密碼不一致。",
+  "minDigits": "{{field}}至少需要 {{min}} 位數字。",
+  "maxDigits": "{{field}}不能超過 {{max}} 位數字。",
+  "booking": {
+    "checkInInvalid": "入住日期無效",
+    "checkOutInvalid": "退房日期無效",
+    "checkOutOnOrAfterCheckIn": "退房日期必須在入住日期當天或之後",
+    "maxStay": "最長住宿天數為 {{days}} 天",
+    "checkOutBeforeCheckIn": "退房日期不能早於入住日期",
+    "guestIdRequired": "賓客 ID 為必填且必須是數字",
+    "roomIdRequired": "客房 ID 為必填",
+    "guestCountRange": "賓客人數必須在 {{min}} 至 {{max}} 之間",
+    "specialRequestsTooLong": "特殊需求不能超過 {{max}} 個字元"
+  }
+}

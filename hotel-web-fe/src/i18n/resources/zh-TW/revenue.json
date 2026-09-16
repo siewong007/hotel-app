@@ -1,0 +1,71 @@
+{
+  "title": "營收",
+  "overview": {
+    "title": "營收總覽",
+    "subtitle": "以住宿日期計算的績效，並與上一期間比較",
+    "rangeSubtitle": "住宿日期 {{from}} – {{to}} · 比較期間 {{prevFrom}} – {{prevTo}}",
+    "loadError": "營收指標載入失敗。請檢查網路連線後重試。",
+    "emptyTitle": "此範圍內沒有住宿",
+    "emptyDescription": "這些住宿日期沒有任何預訂入住。請擴大範圍或清除篩選條件。",
+    "methodology": "KPI 以住宿日期計算；通路貢獻以預訂建立日期計算。已作廢及未入住的住宿不計入銷售指標。"
+  },
+  "kpi": {
+    "roomRevenue": "客房營收",
+    "occupancy": "住房率",
+    "adr": "平均房價 (ADR)",
+    "revpar": "每間可售房營收 (RevPAR)",
+    "avgStay": "平均住宿天數",
+    "bookingsCreated": "新增預訂",
+    "directShare": "直訂佔比",
+    "roomNightsSold_other": "已售出 {{count}} 個房晚",
+    "adrSubtitle": "每個已售房晚",
+    "revparSubtitle": "每間可售客房",
+    "avgStayValue": "{{value}} 晚",
+    "avgStaySubtitle": "範圍內每筆預訂",
+    "bookingsSubtitle": "作廢 {{voided}}% · 未入住 {{noShow}}%",
+    "directShareSubtitle": "佔淨營收",
+    "vsPrior": "對比上期",
+    "noPrior": "· 無前期資料",
+    "noBaseline": "沒有上一期間的基準"
+  },
+  "chart": {
+    "title": "住房率與房晚",
+    "subtitle": "按住宿日期",
+    "empty": "此範圍內沒有住宿日期",
+    "roomNights": "房晚",
+    "occupancy": "住房率",
+    "roomNightsAria": "各住宿日期的已售房晚",
+    "occupancyAria": "各住宿日期的住房率",
+    "tooltipRoomNights": "房晚：{{value}}",
+    "tooltipRoomRevenue": "客房營收：{{value}}",
+    "tooltipOccupancy": "住房率：{{value}}"
+  },
+  "channels": {
+    "title": "通路貢獻",
+    "subtitle": "按預訂建立日期計算的淨營收",
+    "empty": "此範圍內沒有建立的歸因預訂。",
+    "mobileMeta": "{{count}} 筆預訂 · {{revenue}}",
+    "colChannel": "通路",
+    "colBookings": "預訂",
+    "colNetRevenue": "淨營收",
+    "colShare": "佔比"
+  },
+  "channelTypes": {
+    "direct": "直訂",
+    "ota": "線上旅行社 (OTA)",
+    "corporate": "企業客戶",
+    "walk_in": "現場散客",
+    "phone": "電話",
+    "website": "官網",
+    "channel_manager": "通路管理系統",
+    "other": "其他"
+  },
+  "filters": {
+    "from": "開始（住宿日期）",
+    "to": "結束（最後一晚）",
+    "roomType": "房型",
+    "allRoomTypes": "所有房型",
+    "channel": "通路",
+    "allChannels": "所有通路"
+  }
+}

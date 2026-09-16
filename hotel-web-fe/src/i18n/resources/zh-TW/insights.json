@@ -1,0 +1,259 @@
+{
+  "library": {
+    "allReports": "← 所有報表"
+  },
+  "categories": {
+    "operations": "營運",
+    "financial": "財務",
+    "analytics": "分析",
+    "accounting": "會計"
+  },
+  "dateBasis": {
+    "stay": "住宿日期",
+    "booking": "預訂日期",
+    "accounting": "會計日期"
+  },
+  "filters": {
+    "shift": "班次",
+    "allShifts": "所有班次",
+    "drawer": "收銀抽屜",
+    "company": "公司",
+    "roomType": "房型",
+    "run": "產生報表",
+    "shifts": {
+      "morning": "早班",
+      "evening": "晚班",
+      "night": "夜班"
+    }
+  },
+  "report": {
+    "print": "列印報表",
+    "printTitle": "報表 - {{title}}",
+    "emptySection": "此期間沒有資料列",
+    "noData": "此報表在所選範圍內沒有產生資料。"
+  },
+  "reports": {
+    "daily_operations": {
+      "title": "每日營運",
+      "description": "單一營業日的抵達、退房、在住賓客與客房狀態。"
+    },
+    "occupancy": {
+      "title": "住房率",
+      "description": "住宿日期範圍內的住房率、平均房價與 RevPAR，按房型與日期。"
+    },
+    "rooms_sold": {
+      "title": "客房銷售",
+      "description": "各住宿日期的已售客房，含房價與營收明細。"
+    },
+    "room_performance": {
+      "title": "客房績效",
+      "description": "每間客房與各房型的營收與住房率，含表現不佳項目。"
+    },
+    "revenue": {
+      "title": "營收",
+      "description": "住宿日期範圍內按房型、來源與付款狀態的營收。"
+    },
+    "channel_net_revenue": {
+      "title": "通路淨營收",
+      "description": "各預訂通路扣除佣金後的總額對淨額營收。"
+    },
+    "ota_commission": {
+      "title": "OTA 佣金",
+      "description": "通路淨營收的別名 — 各 OTA 應付佣金。"
+    },
+    "ota_monthly_statement": {
+      "title": "OTA 月結單",
+      "description": "該期間各 OTA 的預訂、佣金與淨付款對帳單。"
+    },
+    "payment_status": {
+      "title": "付款狀態",
+      "description": "付款狀態分佈與逾期餘額。"
+    },
+    "shift_report": {
+      "title": "班次報表",
+      "description": "單日進出項與客房狀態，可選擇限定班次/收銀抽屜。"
+    },
+    "complimentary": {
+      "title": "免費房晚",
+      "description": "免費與部分免費的住宿及所給予的折扣。"
+    },
+    "guest_statistics": {
+      "title": "賓客統計",
+      "description": "不重複/新客/回頭客、國籍組合與消費最高賓客。"
+    },
+    "general_journal": {
+      "title": "總日記帳",
+      "description": "該期間的日記帳分錄。"
+    },
+    "journal_by_type": {
+      "title": "分類日記帳",
+      "description": "按交易類型分組的日記帳分錄。"
+    },
+    "balance_sheet": {
+      "title": "資產負債表",
+      "description": "該期間的資產、負債與權益狀況。"
+    },
+    "company_ledger_statement": {
+      "title": "公司帳冊對帳單",
+      "description": "各公司含帳齡區間的對帳單；未命名時列出公司清單。"
+    }
+  },
+  "fields": {
+    "account": "帳戶",
+    "account_code": "帳戶代碼",
+    "accounts": "帳戶",
+    "actual_amount": "實際金額",
+    "actual_revenue": "實際營收",
+    "address": "地址",
+    "adr": "平均房價",
+    "adult_count": "成人",
+    "aging": "帳齡",
+    "amount": "金額",
+    "arrivals": "抵達",
+    "arrivals_count": "抵達數",
+    "available_room_nights": "可售房晚",
+    "average_stay_nights": "平均住宿（晚）",
+    "balance": "餘額",
+    "balance_due": "應付餘額",
+    "benchmarks": "基準",
+    "booking_number": "預訂編號",
+    "booking_status": "預訂狀態",
+    "bookings": "預訂",
+    "by_nationality": "按國籍",
+    "by_payment_method": "按付款方式",
+    "by_payment_status": "按付款狀態",
+    "by_reason": "按原因",
+    "by_room": "按客房",
+    "by_room_type": "按房型",
+    "by_source": "按來源",
+    "by_status": "按狀態",
+    "by_type": "按類型",
+    "check_in": "入住",
+    "check_in_date": "入住日期",
+    "check_out": "退房",
+    "check_out_date": "退房日期",
+    "child_count": "孩童",
+    "city": "城市",
+    "companies": "公司",
+    "company": "公司",
+    "company_name": "公司名稱",
+    "complimentary_end_date": "免費結束日期",
+    "complimentary_nights": "免費房晚",
+    "complimentary_reason": "免費原因",
+    "complimentary_start_date": "免費開始日期",
+    "contact_email": "聯絡電子郵件",
+    "contact_person": "聯絡人",
+    "contact_phone": "聯絡電話",
+    "contra_account": "對沖帳戶",
+    "contra_amount": "對沖金額",
+    "count": "數量",
+    "country": "國家",
+    "credit": "貸方",
+    "daily": "每日",
+    "date": "日期",
+    "days": "天數",
+    "days_31_60": "31–60 天",
+    "days_61_90": "61–90 天",
+    "days_91_120": "91–120 天",
+    "days_old": "天齡",
+    "debit": "借方",
+    "departures": "退房",
+    "departures_count": "退房數",
+    "deposit_amount": "訂金金額",
+    "deposit_paid": "已付訂金",
+    "description": "說明",
+    "discount_given": "已給折扣",
+    "due_date": "到期日",
+    "end": "結束",
+    "entries": "分錄",
+    "entry_count": "分錄數",
+    "existing_credit": "現有折讓",
+    "finance_charges": "財務費用",
+    "folio": "帳單",
+    "fully_complimentary": "全額免費",
+    "guest_name": "賓客姓名",
+    "id": "ID",
+    "in_house": "在住",
+    "in_house_count": "在住賓客",
+    "infant_count": "嬰幼兒",
+    "insights": "分析洞察",
+    "invoice": "發票",
+    "invoice_date": "發票日期",
+    "is_complimentary": "免費",
+    "last_payment": "最近付款",
+    "line1": "第一行",
+    "method": "方式",
+    "metric": "指標",
+    "month": "月",
+    "name": "名稱",
+    "nationality": "國籍",
+    "net_amount": "淨額",
+    "new_guests": "新賓客",
+    "non_tourists": "非旅客",
+    "occupancy": "住房率",
+    "occupancy_rate": "住房率",
+    "open_amount": "未結金額",
+    "open_balance": "未結餘額",
+    "original_amount": "原始金額",
+    "original_revenue": "原始營收",
+    "outstanding_balance": "未結清餘額",
+    "over_120_days": "超過 120 天",
+    "overdue": "已逾期",
+    "overdue_count": "逾期筆數",
+    "partial_complimentary": "部分免費",
+    "payment_method": "付款方式",
+    "payment_status": "付款狀態",
+    "payments": "付款",
+    "payments_received": "已收款項",
+    "period": "期間",
+    "post_type": "過帳類型",
+    "postal_code": "郵遞區號",
+    "rate_plan": "房價方案",
+    "reason": "原因",
+    "reference": "參考編號",
+    "registration_number": "登記編號",
+    "returning_guests": "回頭客",
+    "revenue": "營收",
+    "revpar": "RevPAR",
+    "room": "客房",
+    "room_count": "客房數",
+    "room_number": "房號",
+    "room_status": "客房狀態",
+    "room_type": "房型",
+    "rooms_sold": "已售客房",
+    "sections": "區段",
+    "source": "來源",
+    "start": "開始",
+    "state": "狀態",
+    "statement_date": "對帳單日期",
+    "status": "狀態",
+    "summary": "摘要",
+    "target": "目標",
+    "tonight_occupied": "今晚已入住",
+    "top_guests": "消費最高賓客",
+    "total_amount": "總金額",
+    "total_balance": "總餘額",
+    "total_bookings": "預訂總數",
+    "total_complimentary_nights": "免費房晚總數",
+    "total_credit": "貸方合計",
+    "total_credits": "貸方總計",
+    "total_debit": "借方合計",
+    "total_debits": "借方總計",
+    "total_deposits": "訂金總額",
+    "total_price": "總價",
+    "total_revenue": "總營收",
+    "total_rooms": "客房總數",
+    "total_spent": "總消費",
+    "totals": "合計",
+    "tourists": "旅客",
+    "transactions": "交易",
+    "type": "類型",
+    "underperforming": "表現不佳",
+    "unique_guests": "不重複賓客",
+    "unit": "單位",
+    "utilization": "利用率",
+    "value": "值",
+    "variance": "差異",
+    "voucher": "優惠券"
+  }
+}

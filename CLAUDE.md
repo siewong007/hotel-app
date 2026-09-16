@@ -61,7 +61,7 @@ Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lin
 empty DB **once**; `make db-seed` loads `staging.sql` demo data (optional, never production);
 `make db-patch` converges an existing V1 database. **There is no second migration file** — the only
 forward path is `hotel-app-be/database/postgres/patches/`, a checksum-verified catalog driven by
-`manifest.tsv` (generation 1, head version 6 as of 2026-09-16 — read the manifest, never a
+`manifest.tsv` (generation 1, head version 7 as of 2026-09-16 — read the manifest, never a
 remembered range), applied by `apply-patches.sh` and `hotel-desktop/src-tauri/src/postgres/patches.rs`. Lifecycle
 details (deprecated `db-setup` alias, legacy rebuild path): `hotel-app-be/database/README.md`.
 
@@ -85,7 +85,7 @@ routeless module — **put new domains there**. The residual flat files are shar
 - `core/middleware.rs` — `require_auth(&headers) -> i64`, `check_permission(pool, user_id, "<resource>:<action>")`, `check_any_permission`, `ensure_super_admin`. `<resource>:manage` implies every action of that resource.
 - `core/db.rs` — `hotel_today(executor)`, `decimal_to_db`, `generate_uuid`. Each connection takes its timezone from `system_settings.timezone`, so SQL `CURRENT_DATE` **is** the business day. Never use `chrono::Local`/`Utc` for business dates.
 - `core/sql_compat.rs` — `param!(N)`, `current_timestamp()`, `current_date()`. Never literal `$1`/`NOW()`.
-- `core/i18n.rs` — `SUPPORTED_LOCALES = ["en","ms","zh"]`, `Accept-Language` negotiation, email catalogs in `core/locales/`. Every mutating handler calls `services/audit.rs`; free text goes through `utils/sanitization.rs::Sanitizer`; request models carry `validator` derives.
+- `core/i18n.rs` — `SUPPORTED_LOCALES = ["en","ms","zh","zh-TW"]`, `Accept-Language` negotiation, email catalogs in `core/locales/`. Every mutating handler calls `services/audit.rs`; free text goes through `utils/sanitization.rs::Sanitizer`; request models carry `validator` derives.
 - `main.rs` spawns: night audit, payment receipts, unpaid-hold release (`unpaid_hold_scheduler.rs`, window `unpaid_hold_release_hours`, 24 default / 0 disables), communications worker + scheduler. Adding/removing **any** route drifts `docs/api/openapi.json` and fails `tests/openapi_drift.rs` — regenerate with `HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift`.
 
 `sqlx` is plain `sqlx::query()`, **not** the checking macros — a type/column mismatch compiles cleanly

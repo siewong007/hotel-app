@@ -1,0 +1,222 @@
+{
+  "title": "通路",
+  "subtitle": "分銷通路、售價與佣金",
+  "tabs": {
+    "channels": "通路",
+    "matrix": "價格矩陣"
+  },
+  "actions": {
+    "newChannel": "新增通路"
+  },
+  "types": {
+    "direct": "直訂",
+    "ota": "線上旅行社 (OTA)",
+    "corporate": "企業客戶",
+    "walk_in": "現場散客",
+    "phone": "電話",
+    "website": "官網",
+    "channel_manager": "通路管理系統",
+    "other": "其他"
+  },
+  "integration": {
+    "manual": "手動",
+    "channel_manager": "通路管理系統",
+    "api": "API"
+  },
+  "status": {
+    "active": "啟用",
+    "inactive": "停用"
+  },
+  "commissionTypes": {
+    "none": "無",
+    "percentage": "百分比",
+    "fixed_amount": "固定金額"
+  },
+  "commissionScopes": {
+    "per_booking": "每筆預訂",
+    "per_night": "每晚"
+  },
+  "ruleTypes": {
+    "markup_percent": "加成 %",
+    "markup_fixed": "加成（固定金額）",
+    "discount_percent": "折扣 %",
+    "fixed_price": "固定價格",
+    "net_rate": "淨價"
+  },
+  "ruleTypeHelp": {
+    "markup_percent": "售價 = 來源房價加上此百分比。",
+    "markup_fixed": "售價 = 來源房價每晚加上此金額。",
+    "discount_percent": "售價 = 來源房價減去此百分比。",
+    "fixed_price": "售價在有效期間內一律為每晚此金額。",
+    "net_rate": "飯店每晚收到此淨額；通路自行決定售價。"
+  },
+  "list": {
+    "loadError": "無法載入通路。",
+    "emptyTitle": "尚無通路",
+    "emptyBody": "建立預訂通路，即可開始按分銷來源定價。",
+    "noCommission": "無佣金",
+    "open": "開啟通路",
+    "edit": "編輯",
+    "deactivate": "停用",
+    "deactivateTitle": "停用通路？",
+    "deactivateMessage": "{{name}} 將停止為新預訂解析價格與佣金。既有預訂保留其已記錄的數值。",
+    "deactivateConfirm": "停用",
+    "columns": {
+      "name": "通路",
+      "type": "類型",
+      "code": "代碼",
+      "commission": "預設佣金",
+      "integration": "整合方式",
+      "status": "狀態",
+      "actions": "操作"
+    }
+  },
+  "matrix": {
+    "dateLabel": "日期",
+    "hint": "所選日期各通路解析後的售價。",
+    "loadError": "無法載入價格矩陣。",
+    "empty": "此日期沒有可顯示的儲存格。",
+    "roomType": "房型",
+    "netTag": "淨額",
+    "cellTooltip": "{{rule}} — 預估淨額 {{net}}"
+  },
+  "detail": {
+    "title": "通路",
+    "back": "所有通路",
+    "inactiveNotice": "此通路已停用 — 其規則不再為新預訂解析。",
+    "tabs": {
+      "rules": "定價規則",
+      "commission": "佣金",
+      "mappings": "對應",
+      "preview": "預覽"
+    }
+  },
+  "dialog": {
+    "newTitle": "新增通路",
+    "editTitle": "編輯通路"
+  },
+  "fields": {
+    "name": "名稱",
+    "channelType": "通路類型",
+    "abbreviation": "縮寫",
+    "abbreviationHelp": "顯示在預訂篩選與報表中的簡短標籤。",
+    "code": "代碼",
+    "codeHelp": "整合使用的穩定識別碼。",
+    "integrationMode": "整合模式",
+    "integrationModeHelp": "此通路的預訂如何送達飯店。",
+    "commissionType": "預設佣金類型",
+    "commissionPercent": "佣金 %",
+    "commissionAmount": "佣金金額",
+    "commissionScope": "佣金範圍",
+    "active": "啟用"
+  },
+  "rules": {
+    "new": "新增規則",
+    "loadError": "無法載入定價規則。",
+    "emptyTitle": "沒有定價規則",
+    "emptyBody": "沒有規則時，此通路以內部房價銷售。",
+    "deleteTitle": "刪除定價規則？",
+    "deleteMessage": "規則立即停止套用；已寫入的預訂保留其快照。",
+    "disable": "停用",
+    "enable": "啟用",
+    "scopeAllRooms": "所有房型",
+    "scopeAnyPlan": "任何房價方案",
+    "openEnded": "無截止",
+    "columns": {
+      "type": "規則",
+      "value": "值",
+      "roomType": "房型",
+      "ratePlan": "房價方案",
+      "window": "生效期間",
+      "bounds": "下限 / 上限",
+      "priority": "優先級",
+      "status": "狀態",
+      "actions": "操作"
+    }
+  },
+  "rulesDialog": {
+    "newTitle": "新增定價規則",
+    "editTitle": "編輯定價規則",
+    "ruleType": "規則類型",
+    "valuePercent": "值 (%)",
+    "valueAmount": "值",
+    "roomType": "房型",
+    "roomTypeHelp": "將規則限定在單一房型，或維持全通路適用。",
+    "ratePlan": "房價方案",
+    "ratePlanHelp": "將規則限定在單一房價方案，或套用至任何方案。",
+    "effectiveFrom": "生效起始",
+    "effectiveTo": "生效截止",
+    "windowError": "期間結束必須在開始當天或之後。",
+    "minPrice": "最低價（選填）",
+    "maxPrice": "最高價（選填）",
+    "boundsHelp": "將解析後的每晚價格限制在此範圍內。",
+    "priority": "優先級",
+    "priorityHelp": "多條規則符合同一晚時，優先級高者生效。",
+    "reason": "原因（選填）",
+    "largeChangeWarning": "提醒：{{value}}% 相對來源房價是大幅變動。"
+  },
+  "commission": {
+    "new": "新增覆蓋",
+    "loadError": "無法載入佣金規則。",
+    "emptyTitle": "沒有指定日期的佣金規則",
+    "emptyBody": "除非有指定日期的規則覆蓋，否則套用通路預設值。",
+    "deleteTitle": "刪除佣金規則？",
+    "deleteMessage": "使用此規則的住宿將改為套用通路預設值。",
+    "defaultChip": "預設：{{type}} {{value}}",
+    "columns": {
+      "type": "類型",
+      "value": "值",
+      "scope": "範圍",
+      "window": "生效期間",
+      "priority": "優先級",
+      "status": "狀態",
+      "actions": "操作"
+    }
+  },
+  "commissionDialog": {
+    "newTitle": "新增佣金規則",
+    "editTitle": "編輯佣金規則",
+    "type": "佣金類型"
+  },
+  "mappings": {
+    "notice": "對應保存通路的外部識別碼，供未來通路管理系統整合使用 — 目前尚無同步。",
+    "roomTypes": "房型對應",
+    "ratePlans": "房價方案對應",
+    "add": "新增對應",
+    "empty": "尚無對應。",
+    "deleteTitle": "刪除對應？",
+    "deleteMessage": "外部識別碼的關聯將被移除。",
+    "roomDialogTitle": "對應房型",
+    "planDialogTitle": "對應房價方案",
+    "columns": {
+      "roomType": "房型",
+      "ratePlan": "房價方案",
+      "externalId": "外部 ID",
+      "externalName": "外部名稱",
+      "enabled": "啟用",
+      "actions": "操作"
+    }
+  },
+  "preview": {
+    "roomType": "房型",
+    "ratePlan": "房價方案",
+    "checkIn": "入住",
+    "checkOut": "退房",
+    "run": "預覽",
+    "windowError": "退房必須晚於入住。",
+    "error": "無法解析該住宿的預覽。",
+    "sellingSubtotal": "售價小計",
+    "channelManaged": "通路管理",
+    "estimatedCommission": "預估佣金",
+    "estimatedNet": "預估淨營收",
+    "disclaimer": "僅為預估值 — 佣金與淨營收在預訂寫入時即固定。",
+    "columns": {
+      "date": "晚",
+      "sourceRate": "來源房價",
+      "sellingPrice": "售價",
+      "rule": "規則"
+    },
+    "hint": "售價 {{selling}} · 預估佣金 {{commission}} · 預估淨額 {{net}}",
+    "hintManaged": "通路管理售價 · 預估淨額 {{net}}"
+  }
+}

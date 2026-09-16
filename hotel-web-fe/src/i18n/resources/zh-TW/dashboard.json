@@ -1,0 +1,219 @@
+{
+  "title": "儀表板",
+  "sections": {
+    "offers": "優惠方案"
+  },
+  "frontDesk": {
+    "title": "前檯",
+    "subtitle": "飯店營運與客房狀態的即時總覽",
+    "ariaRefresh": "重新整理儀表板",
+    "accessDenied": "此儀表板僅限櫃檯接待員與主管使用。",
+    "guestFallback": "賓客",
+    "notAvailable": "不適用",
+    "roomPrefix": "客房 {{number}}",
+    "errors": {
+      "loadFailed": "儀表板資料載入失敗",
+      "loadCheckInFailed": "入住資料載入失敗"
+    },
+    "cards": {
+      "availableRooms": "可售客房",
+      "occupiedRooms": "已入住客房",
+      "reservedRooms": "已預訂客房",
+      "occupancyRate": "住房率"
+    },
+    "activity": {
+      "checkIns": "今日入住",
+      "checkOuts": "今日退房",
+      "viewAllArrivals": "查看全部 {{count}} 筆抵達",
+      "viewAllDepartures": "查看全部 {{count}} 筆退房",
+      "noCheckIns": "沒有排定的入住",
+      "noCheckOuts": "沒有排定的退房",
+      "attentionRequired": "需要注意",
+      "maintenanceRooms": "維修中客房",
+      "viewAllArrivals_other": "查看全部 {{count}} 筆抵達",
+      "viewAllDepartures_other": "查看全部 {{count}} 筆退房"
+    },
+    "legend": {
+      "cleaningAuto": "清潔中（自動）"
+    },
+    "statusOverview": "客房狀態總覽",
+    "tooltip": {
+      "type": "類型：",
+      "guest": "賓客：",
+      "notes": "備註：",
+      "clickDetails": "點擊查看客房詳情"
+    },
+    "tile": {
+      "out": "退房：",
+      "next": "下一個：",
+      "start": "開始：",
+      "end": "結束："
+    }
+  },
+  "reports": {
+    "title": "報表與分析",
+    "subtitle": "營運與財務綜合總覽 · {{property}}",
+    "mainProperty": "主物業",
+    "crumbReports": "報表",
+    "crumbAnalytics": "分析",
+    "restricted": "受限",
+    "financeOnly": "僅限財務",
+    "accessFull": "完整存取",
+    "accessScoped": "限定範圍存取",
+    "viewAll": "查看全部",
+    "settled": "已結清",
+    "roomLabel": "客房 {{room}}",
+    "checkoutAt": "退房 {{time}}",
+    "dueDate": "截止 {{date}}",
+    "kpiTrendAria": "{{label}} 趨勢",
+    "rangeDays": "{{count}} 天",
+    "rangeDays_other": "{{count}} 天",
+    "footNote": "營運圖塊（抵達、退房、在住、房務）反映即時預訂與客房資料。營收、住房趨勢、通路組合、各房型與管道數據來自營收分析 — 趨勢按住宿日期、通路佔比按預訂建立日期計算。未收款齡分析以今日未結清發票為準。",
+    "compare": {
+      "month": "對比上月同期",
+      "year": "對比去年同期",
+      "prev": "對比前 {{count}} 天",
+      "prev_other": "對比前 {{count}} 天",
+      "noPrior": "· 無前期資料"
+    },
+    "filters": {
+      "roomType": "房型",
+      "source": "來源",
+      "compare": "比較",
+      "comparePrev": "上一期間",
+      "compareMonth": "上月",
+      "compareYear": "去年"
+    },
+    "live": {
+      "title": "今日 · 即時",
+      "updated": "更新於 {{time}} · 自動重新整理",
+      "arrivals": "抵達",
+      "departures": "退房",
+      "inHouse": "在住賓客",
+      "occupancyNow": "目前住房率",
+      "toClean": "待清潔客房",
+      "unassigned": "未指派"
+    },
+    "kpi": {
+      "occupancyRate": "住房率",
+      "roomRevenue": "客房營收",
+      "totalRevenue": "總營收",
+      "outstanding": "未結清"
+    },
+    "charts": {
+      "dailyRevenue": "每日營收趨勢",
+      "dailyRevenueSub": "客房 {{room}} · 其他 {{other}} · 最近 {{days}} 天",
+      "dailyRevenueAria": "按住宿日期的每日營收趨勢",
+      "dailyRevenueLocked": "營收分析",
+      "roomRevenue": "客房營收",
+      "otherRevenue": "其他營收",
+      "sourceMix": "預訂來源組合",
+      "sourceMixSub": "按淨營收 · 預訂建立日期",
+      "occupancyTrend": "住房率趨勢",
+      "occupancyTrendSub": "平均 {{avg}} · {{rooms}} 間客房 · 最近 {{days}} 天",
+      "occupancyTrendAria": "按住宿日期的每日住房率",
+      "dailyOccupancy": "每日住房率",
+      "occupancy": "住房率",
+      "roomTypePerf": "各房型表現",
+      "roomTypePerfSub": "按客房營收",
+      "roomTypePerfAria": "各房型客房營收",
+      "ageing": "未收款齡分析",
+      "ageingSub": "點擊深入查看",
+      "ageingEmpty": "沒有未結清發票",
+      "ageingAria": "未結清發票帳齡",
+      "tooltipBookings": "{{count}} 筆預訂",
+      "tooltipBookings_other": "{{count}} 筆預訂",
+      "tooltipOccupancy": "住房率：{{value}}",
+      "tooltipRoomsSold": "已售 {{count}} 間客房",
+      "tooltipRoomsSold_other": "已售 {{count}} 間客房",
+      "tooltipRoomRevenue": "客房營收 {{value}}",
+      "tooltipOccAdr": "住房率 {{occ}} · 平均房價 {{adr}}",
+      "total": "合計"
+    },
+    "flow": {
+      "arrivals": "今日抵達",
+      "departures": "今日退房",
+      "expectedSub": "預計 {{count}} 筆",
+      "expectedSub_other": "預計 {{count}} 筆",
+      "subArrivals": "{{date}} · 預計 {{count}} 筆入住",
+      "subArrivals_other": "{{date}} · 預計 {{count}} 筆入住",
+      "subDepartures": "{{date}} · 預計 {{count}} 筆退房",
+      "subDepartures_other": "{{date}} · 預計 {{count}} 筆退房",
+      "liveNote": "即時營運清單 · 自動重新整理",
+      "openFrontDesk": "開啟前檯"
+    },
+    "occupancy": {
+      "title": "住房率明細",
+      "sub": "客房狀態快照 · 可深入客房時間軸",
+      "openTimeline": "開啟客房時間軸",
+      "byRoomType": "各房型住房率",
+      "byRoomTypeAria": "各房型住房率",
+      "departuresToday": "今日退房",
+      "foot": "已入住 {{pct}} · {{rooms}} 間中的 {{occupied}} 間",
+      "tooltipOccupied": "已入住 {{pct}}",
+      "tooltipRooms": "{{count}} 間客房",
+      "tooltipRooms_other": "{{count}} 間客房"
+    },
+    "outstanding": {
+      "title": "未結清餘額",
+      "sub": "未付的賓客與公司餘額 · 截至 {{date}}",
+      "source": "權威來源：發票總額 − 有效付款",
+      "total": "未結清總額",
+      "buckets": "帳齡區間",
+      "bucketsAria": "未結清發票帳齡區間",
+      "guestBalances": "賓客餘額",
+      "companyBalances": "公司餘額",
+      "guest": "賓客",
+      "company": "公司",
+      "colAgeing": "帳齡",
+      "colBalance": "餘額",
+      "invoiceCount": "{{count}} 張發票",
+      "invoiceCount_other": "{{count}} 張發票",
+      "shareOfTotal": "佔總額 {{pct}}%"
+    },
+    "revenue": {
+      "sub": "各營收狀態是不同的經濟事件 — 不可相加",
+      "earnedNote": "已實現 = 已過帳的客房費用帳目",
+      "viewBookings": "查看預訂",
+      "byRoomType": "按房型"
+    },
+    "pipeline": {
+      "booked": "已預訂",
+      "bookedDesc": "已確認的未來預訂",
+      "earned": "已實現",
+      "earnedDesc": "已完成的房晚",
+      "collected": "已收款",
+      "collectedDesc": "已收到的付款",
+      "outstanding": "未結清",
+      "outstandingDesc": "未付款發票",
+      "info1": "未來的預訂是",
+      "info2": "；已完成的房晚是",
+      "info3": "；已收到的付款是",
+      "info4": "；未付款的發票是",
+      "info5": "。儀表板按住宿日期計算",
+      "info6": "營收。"
+    },
+    "roomStatus": {
+      "occupied": "已入住",
+      "vacantReady": "空房 · 可入住",
+      "vacantClean": "空房 · 已清潔",
+      "arrivingToday": "今日抵達"
+    },
+    "titles": {
+      "roomRev": "客房營收",
+      "totalRev": "總營收",
+      "adr": "平均每日房價",
+      "revpar": "RevPAR",
+      "revenue": "營收"
+    },
+    "colGuest": "賓客",
+    "colRoom": "客房",
+    "colEta": "預計抵達",
+    "colNights": "晚數",
+    "colBalance": "餘額",
+    "colType": "類型",
+    "colOcc": "住房率",
+    "colRevenue": "營收",
+    "roomCheckout": "客房 {{room}} · {{out}}"
+  }
+}

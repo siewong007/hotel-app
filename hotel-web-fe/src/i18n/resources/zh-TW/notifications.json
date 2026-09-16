@@ -1,0 +1,38 @@
+{
+  "title": "通知",
+  "pageTitle": "賓客訊息發送",
+  "pageSubtitle": "發送給賓客的訊息 — 員工提醒位於頂欄鈴鐺圖示",
+  "markAllRead": "全部標記為已讀",
+  "empty": "沒有通知",
+  "toast": {
+    "saved": "已儲存。",
+    "deleted": "已刪除。",
+    "updated": "已更新。",
+    "failed": "操作失敗，請重試。",
+    "copied": "已複製到剪貼簿。",
+    "copyFailed": "複製到剪貼簿失敗。"
+  },
+  "center": {
+    "alerts": "提醒",
+    "system": "系統",
+    "clearAll": "全部清除",
+    "viewAllAria": "查看所有通知",
+    "noSystemAlerts": "沒有系統提醒",
+    "allCaughtUp": "全部已讀完畢",
+    "dismiss": "關閉通知",
+    "unreadAria": "通知（{{count}} 則未讀）"
+  },
+  "priority": {
+    "info": "資訊",
+    "warning": "警告",
+    "critical": "緊急"
+  },
+  "meta": "{{priority}} 優先級 · {{time}}",
+  "tier": {
+    "transactional": "交易通知",
+    "marketing": "行銷推廣"
+  },
+  "tierEmpty": "{{tier}}：暫無內容",
+  "noDeliveries": "沒有符合目前篩選條件的發送紀錄",
+  "forbidden": "您沒有權限查看發送紀錄。"
+}

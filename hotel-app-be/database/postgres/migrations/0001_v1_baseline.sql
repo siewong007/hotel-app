@@ -2118,7 +2118,7 @@ CREATE TABLE public.consent_records (
     withdrawn_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT consent_records_document_type_check CHECK (((document_type)::text = ANY ((ARRAY['terms_of_service'::character varying, 'privacy_notice'::character varying, 'payment_terms'::character varying, 'ekyc_biometric'::character varying])::text[]))),
-    CONSTRAINT consent_records_locale_check CHECK (((locale)::text = ANY ((ARRAY['en'::character varying, 'ms'::character varying, 'zh'::character varying])::text[]))),
+    CONSTRAINT consent_records_locale_check CHECK (((locale)::text = ANY ((ARRAY['en'::character varying, 'ms'::character varying, 'zh'::character varying, 'zh-TW'::character varying])::text[]))),
     CONSTRAINT consent_records_source_check CHECK (((source)::text = ANY ((ARRAY['registration'::character varying, 'online_booking'::character varying, 'payment'::character varying, 'ekyc'::character varying, 'guest_portal'::character varying, 'front_desk'::character varying])::text[]))),
     CONSTRAINT consent_records_subject_present_check CHECK (((user_id IS NOT NULL) OR (guest_id IS NOT NULL) OR (booking_id IS NOT NULL))),
     CONSTRAINT consent_records_subject_type_check CHECK (((subject_type)::text = ANY ((ARRAY['user'::character varying, 'guest'::character varying, 'anonymous'::character varying])::text[])))

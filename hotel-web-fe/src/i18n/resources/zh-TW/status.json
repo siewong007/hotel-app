@@ -1,0 +1,329 @@
+{
+  "booking": {
+    "pending": "待處理",
+    "pending_payment": "待付款",
+    "pending_confirmation": "待確認",
+    "confirmed": "已確認",
+    "checked_in": "已入住",
+    "auto_checked_in": "自動入住",
+    "checked_out": "已退房",
+    "late_checkout": "延遲退房",
+    "no_show": "未入住",
+    "completed": "已完成",
+    "cancelled": "已取消",
+    "comp_void": "免費作廢",
+    "partial_complimentary": "部分免費",
+    "fully_complimentary": "全額免費",
+    "voided": "已作廢",
+    "held": "已保留",
+    "expired": "已過期"
+  },
+  "booking_service": {
+    "pending": "待處理",
+    "in_progress": "進行中",
+    "completed": "已完成",
+    "void": "作廢"
+  },
+  "payment": {
+    "pending": "待處理",
+    "processing": "處理中",
+    "completed": "已完成",
+    "failed": "失敗",
+    "refunded": "已退款",
+    "void": "作廢",
+    "voided": "已作廢",
+    "paid": "已付款",
+    "unpaid": "未付款",
+    "unpaid_deposit": "未付訂金",
+    "paid_rate": "已付房價",
+    "partial": "部分付款",
+    "forfeited": "已沒收",
+    "deposit_forfeited": "訂金已沒收",
+    "approved": "已核准",
+    "rejected": "已拒絕"
+  },
+  "invoice": {
+    "draft": "草稿",
+    "issued": "已開立",
+    "sent": "已寄出",
+    "paid": "已付款",
+    "partial": "部分付款",
+    "overdue": "已逾期",
+    "void": "作廢",
+    "cancelled": "已取消",
+    "refunded": "已退款"
+  },
+  "ledger": {
+    "pending": "待處理",
+    "partial": "部分付款",
+    "paid": "已付款",
+    "overdue": "已逾期",
+    "void": "作廢",
+    "draft": "草稿",
+    "ready_to_invoice": "可開票",
+    "invoiced": "已開票",
+    "partially_paid": "部分付款",
+    "voided": "已作廢",
+    "outstanding": "未結清",
+    "uninvoiced": "未開票",
+    "settled": "已結清"
+  },
+  "room": {
+    "available": "可售",
+    "occupied": "已入住",
+    "reserved": "已預訂",
+    "reserved_dirty": "已預訂（待清潔）",
+    "cleaning": "清潔中",
+    "dirty": "待清潔",
+    "clean": "已清潔",
+    "inspected": "已檢查",
+    "maintenance": "維修中",
+    "out_of_order": "故障停用",
+    "out_of_service": "暫停服務",
+    "booked": "已訂"
+  },
+  "housekeeping": {
+    "pending": "待處理",
+    "assigned": "已指派",
+    "in_progress": "進行中",
+    "completed": "已完成",
+    "inspected": "已檢查",
+    "cancelled": "已取消",
+    "void": "作廢"
+  },
+  "maintenance": {
+    "open": "未處理",
+    "in_progress": "進行中",
+    "on_hold": "暫停",
+    "resolved": "已解決",
+    "closed": "已關閉",
+    "cancelled": "已取消"
+  },
+  "campaign": {
+    "draft": "草稿",
+    "scheduled": "已排程",
+    "running": "執行中",
+    "active": "啟用",
+    "paused": "已暫停",
+    "completed": "已完成",
+    "ended": "已結束",
+    "cancelled": "已取消",
+    "failed": "失敗"
+  },
+  "promotion": {
+    "draft": "草稿",
+    "scheduled": "已排程",
+    "published": "已發佈",
+    "live": "上線中",
+    "paused": "已暫停",
+    "expired": "已過期",
+    "cancelled": "已取消",
+    "archived": "已封存"
+  },
+  "payroll": {
+    "draft": "草稿",
+    "processing": "處理中",
+    "approved": "已核准",
+    "paid": "已發放",
+    "cancelled": "已取消"
+  },
+  "employee": {
+    "active": "在職",
+    "inactive": "停用",
+    "on_leave": "休假中",
+    "terminated": "已離職"
+  },
+  "notification": {
+    "unread": "未讀",
+    "read": "已讀"
+  },
+  "ekyc": {
+    "draft": "草稿",
+    "submitted": "已提交",
+    "automated_review": "自動審核",
+    "pending_manual_review": "待人工審核",
+    "in_review": "審核中",
+    "additional_information_required": "需補充資料",
+    "approved": "已核准",
+    "rejected": "已拒絕",
+    "escalated": "已呈報",
+    "expired": "已過期",
+    "void": "作廢",
+    "on_hold": "暫停",
+    "pending": "待處理",
+    "under_review": "審核中",
+    "verified": "已驗證",
+    "not_started": "未開始",
+    "unverified": "未驗證"
+  },
+  "email_delivery": {
+    "queued": "佇列中",
+    "sending": "發送中",
+    "sent": "已發送",
+    "failed": "失敗",
+    "suppressed": "已拒收",
+    "cancelled": "已取消"
+  },
+  "loyalty": {
+    "active": "啟用",
+    "inactive": "停用",
+    "suspended": "已暫停",
+    "closed": "已關閉"
+  },
+  "loyalty_redemption": {
+    "pending": "待處理",
+    "approved": "已核准",
+    "rejected": "已拒絕",
+    "fulfilled": "已兌現"
+  },
+  "loyalty_tx": {
+    "pending": "待處理",
+    "earned": "已累積",
+    "earn": "已累積",
+    "redeemed": "已兌換",
+    "redeem": "已兌換",
+    "expired": "已過期",
+    "expire": "已過期",
+    "adjusted": "已調整",
+    "adjust": "已調整",
+    "reversed": "已沖銷"
+  },
+  "reward_redemption": {
+    "pending": "待處理",
+    "confirmed": "已確認",
+    "used": "已使用",
+    "void": "作廢",
+    "expired": "已過期"
+  },
+  "support": {
+    "waiting_for_staff": "等待員工回覆",
+    "waiting_for_guest": "等待賓客回覆",
+    "resolved": "已解決",
+    "closed": "已關閉"
+  },
+  "voucher": {
+    "available": "可用",
+    "redeemed": "已兌換",
+    "revoked": "已註銷",
+    "expired": "已過期"
+  },
+  "voucher_redemption": {
+    "applied": "已套用",
+    "reversed": "已沖銷"
+  },
+  "night_audit": {
+    "in_progress": "進行中",
+    "completed": "已完成",
+    "failed": "失敗"
+  },
+  "booking_history": {
+    "checked_out": "已退房",
+    "completed": "已完成",
+    "voided": "已作廢",
+    "comp_void": "免費作廢",
+    "checked_in": "已入住",
+    "auto_checked_in": "已入住",
+    "confirmed": "已預訂",
+    "pending": "待處理"
+  },
+  "booking_source": {
+    "direct": "直訂",
+    "walk_in": "現場散客",
+    "online": "線上",
+    "phone": "電話",
+    "email": "電子郵件",
+    "agent": "代理",
+    "travel_agent": "旅行社",
+    "corporate": "企業客戶",
+    "ota": "線上旅行社 (OTA)",
+    "guest_portal": "賓客入口"
+  },
+  "priority": {
+    "low": "低",
+    "normal": "一般",
+    "medium": "中",
+    "high": "高",
+    "urgent": "緊急",
+    "critical": "重大"
+  },
+  "task_type": {
+    "cleaning": "清潔",
+    "checkout_clean": "退房清潔",
+    "inspection": "檢查",
+    "maintenance_followup": "維修跟進"
+  },
+  "maintenance_category": {
+    "electrical": "電氣",
+    "plumbing": "水管",
+    "hvac": "空調暖通",
+    "furniture": "傢俱",
+    "appliance": "電器設備",
+    "structural": "結構",
+    "other": "其他"
+  },
+  "room_event": {
+    "reserve": "預訂保留",
+    "booking": "預訂",
+    "maintenance": "維修",
+    "inspection": "檢查",
+    "repair": "修理",
+    "status_change": "狀態變更",
+    "reserved": "已預訂"
+  },
+  "generic": {
+    "active": "啟用",
+    "inactive": "停用",
+    "pending": "待處理",
+    "approved": "已核准",
+    "rejected": "已拒絕",
+    "enabled": "已啟用",
+    "disabled": "已停用",
+    "success": "成功",
+    "failed": "失敗",
+    "warning": "警告",
+    "info": "資訊",
+    "error": "錯誤",
+    "unknown": "未知"
+  },
+  "job": {
+    "ok": "正常",
+    "error": "錯誤",
+    "failed": "失敗",
+    "running": "執行中"
+  },
+  "job_run": {
+    "ok": "正常",
+    "error": "錯誤"
+  },
+  "audit": {
+    "login_success": "登入成功",
+    "login_failure": "登入失敗",
+    "logout": "登出",
+    "booking_created": "預訂已建立",
+    "booking_updated": "預訂已更新",
+    "booking_cancelled": "預訂已作廢",
+    "booking_voided": "預訂已作廢",
+    "booking_checkin": "賓客已入住",
+    "booking_checkout": "賓客已退房",
+    "room_status_changed": "客房狀態已變更",
+    "guest_created": "賓客已建立",
+    "guest_updated": "賓客已更新",
+    "guest_deleted": "賓客已刪除",
+    "user_created": "使用者已建立",
+    "role_assigned": "角色已指派",
+    "role_removed": "角色已移除",
+    "settings_changed": "設定已變更",
+    "password_changed": "密碼已變更",
+    "ekyc_approved": "eKYC 已核准",
+    "ekyc_rejected": "eKYC 已拒絕"
+  },
+  "audit_resource": {
+    "user": "使用者",
+    "guest": "賓客",
+    "booking": "預訂",
+    "room": "客房",
+    "user_role": "使用者角色",
+    "system_setting": "設定",
+    "ekyc_verification": "eKYC"
+  }
+}

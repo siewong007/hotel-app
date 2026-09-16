@@ -27,6 +27,7 @@ export type { Namespace };
 const LOADERS: Record<string, () => Promise<{ default: LocaleResources }>> = {
   ms: () => import('./ms'),
   zh: () => import('./zh'),
+  'zh-TW': () => import('./zh-TW'),
 };
 
 /**

@@ -50,6 +50,7 @@ describe('isLocaleCode', () => {
     expect(isLocaleCode('en')).toBe(true);
     expect(isLocaleCode('ms')).toBe(true);
     expect(isLocaleCode('zh')).toBe(true);
+    expect(isLocaleCode('zh-TW')).toBe(true);
     expect(isLocaleCode('fr')).toBe(false);
     expect(isLocaleCode('')).toBe(false);
     expect(isLocaleCode(null)).toBe(false);
@@ -70,19 +71,34 @@ describe('matchLocale', () => {
     expect(matchLocale('en-GB')).toBe('en');
   });
 
-  it('resolves Chinese region and script tags to zh', () => {
-    // Simplified Chinese is the only Chinese bundle, so Traditional-script
-    // tags land on it too rather than falling through to English.
+  it('splits Chinese tags by script: Simplified to zh, Traditional to zh-TW', () => {
+    // Bare `zh` defaults to Simplified (CLDR likely-subtags), as do the
+    // Hans-script and mainland/Singapore regional tags.
+    expect(matchLocale('zh')).toBe('zh');
     expect(matchLocale('zh-CN')).toBe('zh');
+    expect(matchLocale('zh-SG')).toBe('zh');
     expect(matchLocale('zh-Hans')).toBe('zh');
-    expect(matchLocale('zh-TW')).toBe('zh');
-    expect(matchLocale('zh-HK')).toBe('zh');
+    // Traditional script and the TW/HK/MO regions map to zh-TW.
+    expect(matchLocale('zh-TW')).toBe('zh-TW');
+    expect(matchLocale('zh-HK')).toBe('zh-TW');
+    expect(matchLocale('zh-MO')).toBe('zh-TW');
+    expect(matchLocale('zh-Hant')).toBe('zh-TW');
+    expect(matchLocale('zh-Hant-HK')).toBe('zh-TW');
+  });
+
+  it('lets an explicit script tag outrank region inside a zh tag', () => {
+    // `zh-Hans-TW` names Simplified used in Taiwan; the script wins over the
+    // region because it describes the writing the reader actually uses.
+    expect(matchLocale('zh-Hans-TW')).toBe('zh');
+    expect(matchLocale('zh-Hant-CN')).toBe('zh-TW');
   });
 
   it('normalises case and underscore separators', () => {
     expect(matchLocale('EN')).toBe('en');
     expect(matchLocale('ms_MY')).toBe('ms');
     expect(matchLocale('  En-us  ')).toBe('en');
+    expect(matchLocale('zh_TW')).toBe('zh-TW');
+    expect(matchLocale('ZH-hant')).toBe('zh-TW');
   });
 
   it('returns undefined rather than a default for an unsupported tag', () => {

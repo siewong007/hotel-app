@@ -8,6 +8,7 @@ const ARTICLES_BY_LOCALE: Record<LocaleCode, HelpArticle[]> = {
   en: ARTICLES_EN,
   ms: ARTICLES_MS,
   zh: ARTICLES_ZH,
+  'zh-TW': ARTICLES_EN,
 };
 
 /** Articles for a locale, falling back to English for an unknown code or a

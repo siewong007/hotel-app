@@ -1,0 +1,19 @@
+{
+  "documentNotFound": {
+    "title": "找不到文件",
+    "body": "您要查找的文件不存在或已移動。其他法律文件如下。"
+  },
+  "versionLine": "版本 {{version}} · 生效日期 {{date}}",
+  "languageToggle": "文件語言",
+  "contentsAria": "文件目錄",
+  "inThisDocument": "本文件內容",
+  "emphasis": {
+    "requirement": "重要",
+    "info": "須知"
+  },
+  "questionsTitle": "對本文件有疑問嗎？",
+  "consent": {
+    "languageToggle": "法律聲明語言",
+    "requiredToContinue": "您需要同意此內容才能繼續。"
+  }
+}
