@@ -10,13 +10,12 @@ import {
   Grid,
   Divider,
 } from '@mui/material';
-import { format } from 'date-fns';
 import { GuestPortalService } from '../../../api';
 import { LogoLoader } from '../../../components';
 import { Booking, Guest } from '../../../types';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { captureBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
-import { useTranslation } from '../../../i18n';
+import { dateFormatter, useTranslation } from '../../../i18n';
 
 export const GuestCheckInVerify: React.FC = () => {
   const { t } = useTranslation('guestPortal');
@@ -91,12 +90,19 @@ export const GuestCheckInVerify: React.FC = () => {
     );
   }
 
+  // Rendered in the active interface language, not a hardcoded English
+  // locale: a guest reading the portal in Bahasa Melayu or 简体中文 sees the
+  // weekday and month in that language. `dateFormatter` is the app's cached
+  // Intl wrapper (src/i18n/format.ts), the same one formatHotelDate uses.
   const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), 'EEEE, MMMM d, yyyy');
-    } catch {
-      return dateStr;
-    }
+    const parsed = new Date(dateStr);
+    if (Number.isNaN(parsed.getTime())) return dateStr;
+    return dateFormatter({
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(parsed);
   };
 
   const calculateNights = () => {

@@ -21,7 +21,7 @@ import './index.css';
 import { logWebVitals } from './reportWebVitals';
 import { initializeDesktopBackendUrl } from './desktop/runtimeApi';
 import { dismissBootSplash } from './utils/bootSplash';
-import { t } from './i18n';
+import { ensureLocaleLoaded, getActiveLocale, t } from './i18n';
 
 const MODULE_RETRY_PARAM = 'module-retry';
 
@@ -63,6 +63,11 @@ async function bootstrap() {
     import('./features/user/hooks/useSettingsQueries').then(module =>
       module.applyPublicHotelSettings()
     ),
+    // Only English ships in the main bundle; every other locale is its own
+    // chunk. Fetching it alongside the app shell rather than before it means
+    // a non-English user pays no extra round trip, and the first render is
+    // already in their language instead of flashing English.
+    ensureLocaleLoaded(getActiveLocale()),
   ]);
 
   const root = ReactDOM.createRoot(

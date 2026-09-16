@@ -16,7 +16,7 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { getActiveLocale, setActiveLocale, subscribeToLocale } from './localeStore';
 import { getLocaleDefinition, type LocaleCode } from './locales';
 import { DEFAULT_NAMESPACE, type Namespace } from './resources';
-import { translateFor, translateOr } from './translate';
+import { getActiveBundles, translateFor, translateOr } from './translate';
 import type { TranslationVars } from './translator';
 
 export interface UseTranslationResult {
@@ -43,16 +43,24 @@ export const useTranslation = (
   namespace: Namespace | string = DEFAULT_NAMESPACE
 ): UseTranslationResult => {
   const locale = useLocale();
+  // Subscribed to, not just read: every locale but English is a lazy chunk, so
+  // the bundles backing `locale` can be swapped in AFTER the switch that
+  // changed `locale`. That second notification carries an unchanged locale
+  // code, so a snapshot built from the code alone lets `useSyncExternalStore`
+  // bail out and every consumer stays on the English fallback. The bundle
+  // object's identity does change, and passing it into the closures below
+  // makes it a real dependency rather than a phantom one.
+  const bundles = useSyncExternalStore(subscribeToLocale, getActiveBundles, getActiveBundles);
 
   const t = useCallback(
-    (key: string, vars?: TranslationVars) => translateFor(locale, key, vars, namespace),
-    [locale, namespace]
+    (key: string, vars?: TranslationVars) => translateFor(locale, key, vars, namespace, bundles),
+    [locale, namespace, bundles]
   );
 
   const tOr = useCallback(
     (key: string, fallback: string, vars?: TranslationVars) =>
-      translateOr(locale, key, fallback, vars, namespace),
-    [locale, namespace]
+      translateOr(locale, key, fallback, vars, namespace, bundles),
+    [locale, namespace, bundles]
   );
 
   const dir = useMemo(() => getLocaleDefinition(locale).dir, [locale]);

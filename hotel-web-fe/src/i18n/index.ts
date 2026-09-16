@@ -43,6 +43,13 @@ export {
   dateFormatter,
   numberFormatter,
 } from './format';
-export { DEFAULT_NAMESPACE, NAMESPACES, type Namespace } from './resources';
+export {
+  DEFAULT_NAMESPACE,
+  NAMESPACES,
+  ensureLocaleLoaded,
+  isLocaleLoaded,
+  loadAllLocales,
+  type Namespace,
+} from './resources';
 export { statusLabel } from './statusLabel';
 export type { TranslationVars } from './translator';

@@ -57,7 +57,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { NAMESPACES, resources } from './resources';
+import { NAMESPACES } from './resources';
+// English only, and always statically present — the lazily-loaded locales
+// are irrelevant here: this file checks that call sites reference keys the
+// SOURCE locale defines.
+import { enResources } from './resources/en';
 import { lookupKey } from './translator';
 
 /**
@@ -492,7 +496,7 @@ const findCalls = (
 };
 
 const existsIn = (namespace: string, path: string): boolean => {
-  const bundle = resources.en[namespace];
+  const bundle = enResources[namespace as keyof typeof enResources];
   if (!bundle) return false;
   if (lookupKey(bundle, path) !== undefined) return true;
   // `t('count.nights', { count })` resolves `count.nights_other` etc. — the

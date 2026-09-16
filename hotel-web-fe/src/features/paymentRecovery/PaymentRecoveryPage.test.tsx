@@ -1,8 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetLocaleStoreForTests, setActiveLocale } from '../../i18n/localeStore';
+// Non-English bundles are lazy chunks (see src/i18n/resources/index.ts). The app
+// awaits them at boot; a test that asserts translated copy must do the same, or
+// it reads the English fallback and fails on a difference that is not a bug.
+import { ensureLocaleLoaded } from '../../i18n/resources';
 
 const mocks = vi.hoisted(() => ({
   view: vi.fn(),
@@ -94,6 +98,10 @@ beforeEach(() => {
   });
   mocks.uploadReceipt.mockResolvedValue(undefined);
   mocks.scriptRejected.value = false;
+});
+
+beforeAll(async () => {
+  await ensureLocaleLoaded('ms');
 });
 
 describe('PaymentRecoveryPage', () => {

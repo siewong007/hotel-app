@@ -1,7 +1,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { HTTPError } from 'ky';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetLocaleStoreForTests, setActiveLocale } from '../../../i18n/localeStore';
+// Non-English bundles are lazy chunks (see src/i18n/resources/index.ts). The app
+// awaits them at boot; a test that asserts translated copy must do the same, or
+// it reads the English fallback and fails on a difference that is not a bug.
+import { ensureLocaleLoaded } from '../../../i18n/resources';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -131,6 +135,10 @@ function acceptRequiredConsents() {
   );
   fireEvent.click(screen.getByRole('checkbox', { name: /Privacy Notice/ }));
 }
+
+beforeAll(async () => {
+  await ensureLocaleLoaded('ms');
+});
 
 describe('PortalBookingPage anonymous checkout', () => {
   beforeEach(() => {

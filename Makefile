@@ -105,8 +105,12 @@ fmt: fmt-all ## Alias for fmt-all
 test-be: ## Run all backend tests
 	cd hotel-app-be && cargo test --all-features
 
-test-be-pg: ## Run backend PostgreSQL tests (requires DATABASE_URL)
-	cd hotel-app-be && cargo test --features postgres --no-default-features
+# Identical command to test-be; the difference is the enforced precondition.
+# Without DATABASE_URL the PG-backed suites early-return and libtest counts
+# each skip as a PASS, so the run goes GREEN having tested nothing. Failing
+# fast here makes that silent-skip trap impossible via this target.
+test-be-pg: require-database-url ## Run backend PostgreSQL tests (requires DATABASE_URL)
+	cd hotel-app-be && cargo test --all-features
 
 test-fe: ## Run frontend tests
 	cd hotel-web-fe && $(BUN) run test -- --run

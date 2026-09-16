@@ -1,9 +1,17 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { resetLocaleStoreForTests, setActiveLocale } from '../i18n/localeStore';
+// Non-English bundles are lazy chunks (see src/i18n/resources/index.ts). The app
+// awaits them at boot; a test that asserts translated copy must do the same, or
+// it reads the English fallback and fails on a difference that is not a bug.
+import { ensureLocaleLoaded } from '../i18n/resources';
 import { getApiNotificationMessage, getNotificationPriority } from './apiNotifications';
 
 afterEach(() => {
   resetLocaleStoreForTests();
+});
+
+beforeAll(async () => {
+  await ensureLocaleLoaded('zh');
 });
 
 describe('notification priority', () => {

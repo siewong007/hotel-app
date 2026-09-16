@@ -125,7 +125,7 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
           HOTEL_RUN_PG_SCHEMA_SMOKE: "1"
-        run: cargo test --features postgres --no-default-features --test status_vocabulary postgres_smoke::postgres_v1_lifecycle_builds_the_final_schema
+        run: cargo test --all-features --test status_vocabulary postgres_smoke::postgres_v1_lifecycle_builds_the_final_schema
 
       - name: Prepare PostgreSQL workflow database
         run: |
@@ -136,7 +136,7 @@ jobs:
       - name: PostgreSQL booking workflow tests
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/hotel_workflow_test
-        run: cargo test --features postgres --no-default-features --test booking_service postgres_concurrent_reactivation_allows_only_one_success
+        run: cargo test --all-features --test booking_service postgres_concurrent_reactivation_allows_only_one_success
 
       - name: Cargo clippy
         run: cargo clippy --all-features -- -D warnings
@@ -284,7 +284,7 @@ jobs:
           SQL
 
       - name: Run PostgreSQL tests
-        run: cargo test --features postgres --no-default-features
+        run: cargo test --all-features
 
       # Fix-gated characterization tests (tests/*_characterization.rs) assert the
       # DECIDED-CORRECT money behavior for bugs that are not fixed yet, so they are
@@ -294,7 +294,7 @@ jobs:
       # real regression guard. Each #[ignore] reason names the pending fix.
       - name: Report fix-gated tests and catch stale ignores
         run: |
-          cargo test --features postgres --no-default-features -- --ignored > /tmp/ignored.txt 2>&1 || true
+          cargo test --all-features -- --ignored > /tmp/ignored.txt 2>&1 || true
           cat /tmp/ignored.txt
           if grep -qE '^test .+ \.\.\. ok$' /tmp/ignored.txt; then
             echo "::error::A fix-gated #[ignore]d test now PASSES — its fix has landed, so remove the #[ignore] attribute:"

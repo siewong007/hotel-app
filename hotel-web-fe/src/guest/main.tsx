@@ -4,7 +4,7 @@ import '../index.css';
 import { logWebVitals } from '../reportWebVitals';
 import GuestApp from './GuestApp';
 import { dismissBootSplash } from '../utils/bootSplash';
-import { t } from '../i18n';
+import { ensureLocaleLoaded, getActiveLocale, t } from '../i18n';
 
 const MODULE_RETRY_PARAM = 'module-retry';
 
@@ -22,9 +22,15 @@ function retryStaleModule(error: unknown): boolean {
 }
 
 async function bootstrap() {
-  await import('../features/user/hooks/useSettingsQueries').then(module =>
-    module.applyPublicHotelSettings(),
-  );
+  // See src/index.tsx: the active locale's bundles are a lazy chunk, fetched
+  // alongside the settings call so the guest's first render is already in
+  // their language.
+  await Promise.all([
+    import('../features/user/hooks/useSettingsQueries').then(module =>
+      module.applyPublicHotelSettings(),
+    ),
+    ensureLocaleLoaded(getActiveLocale()),
+  ]);
 
   const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
   root.render(<GuestApp />);

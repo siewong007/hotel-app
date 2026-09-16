@@ -112,6 +112,34 @@ describe('setActiveLocale', () => {
   });
 });
 
+describe('lazily-loaded locale bundles', () => {
+  // `useTranslation` subscribes to the ACTIVE BUNDLE OBJECT, not just the
+  // locale code, and this is why: every locale but English is a lazy chunk, so
+  // the bundles can be installed after the switch that changed the code. If
+  // `localeResources` kept answering with the English fallback (or the store
+  // never triggered the load), the identity below would not change, the
+  // `useSyncExternalStore` snapshot would be stable, and every screen would
+  // sit on English after switching language.
+  it('swaps the active bundle identity once the chunk resolves', async () => {
+    const store = await import('./localeStore');
+    const { getActiveBundles } = await import('./translate');
+    const { ensureLocaleLoaded, isLocaleLoaded } = await import('./resources');
+
+    store.resetLocaleStoreForTests('en');
+    expect(isLocaleLoaded('zh')).toBe(false);
+
+    const english = getActiveBundles();
+    store.setActiveLocale('zh');
+
+    await ensureLocaleLoaded('zh');
+    const chinese = getActiveBundles();
+
+    expect(isLocaleLoaded('zh')).toBe(true);
+    expect(chinese).not.toBe(english);
+    expect(chinese.nav).toBeDefined();
+  });
+});
+
 describe('applyDefaultLocale', () => {
   it('applies an inferred default when the user has not chosen', async () => {
     const store = await loadStore();

@@ -1,6 +1,10 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetLocaleStoreForTests } from '../../../i18n/localeStore';
+// Non-English bundles are lazy chunks (see src/i18n/resources/index.ts). The app
+// awaits them at boot; a test that asserts translated copy must do the same, or
+// it reads the English fallback and fails on a difference that is not a bug.
+import { ensureLocaleLoaded } from '../../../i18n/resources';
 import { getHotelSettings, saveHotelSettings } from '../../../utils/hotelSettings';
 
 const mocks = vi.hoisted(() => ({
@@ -26,6 +30,10 @@ vi.mock('../content', async (importOriginal) => {
 import { LegalDocumentPage } from './LegalDocumentPage';
 import { expectNoAxeViolations } from '../../../test/axe';
 import type { LegalDocument } from '../content';
+
+beforeAll(async () => {
+  await ensureLocaleLoaded('ms');
+});
 
 describe('LegalDocumentPage return control', () => {
   beforeEach(() => {

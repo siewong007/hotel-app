@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, type LocaleCode } from './locales';
-import { NAMESPACES, resources } from './resources';
+import { NAMESPACES, loadAllLocales, resources } from './resources';
 import type { TranslationBundle } from './translator';
 
 /**
@@ -37,10 +37,23 @@ const pluralBase = (key: string): string => {
   return key;
 };
 
+/**
+ * Non-English locales are lazy chunks, so every test here loads them first
+ * (see `beforeAll`). Reading through this accessor keeps the "was it loaded?"
+ * question a loud failure rather than a silent fall back to English, which is
+ * precisely the bug this file exists to catch.
+ */
+const bundlesFor = (locale: LocaleCode) => {
+  const bundles = resources[locale];
+  if (!bundles) throw new Error(`no resources registered for "${locale}"`);
+  return bundles;
+};
+
 const flatBundles = (locale: LocaleCode): Record<string, FlatBundle> => {
   const perNamespace: Record<string, FlatBundle> = {};
+  const bundles = bundlesFor(locale);
   for (const namespace of NAMESPACES) {
-    perNamespace[namespace] = flatten(resources[locale][namespace]);
+    perNamespace[namespace] = flatten(bundles[namespace]);
   }
   return perNamespace;
 };
@@ -59,12 +72,17 @@ const placeholdersIn = (value: string): string[] => {
 const nonDefaultLocales = LOCALE_CODES.filter((code) => code !== DEFAULT_LOCALE);
 
 describe('translation resources', () => {
+  beforeAll(async () => {
+    await loadAllLocales();
+  });
+
   it('ships a bundle set for every registered locale', () => {
     for (const locale of LOCALE_CODES) {
       expect(resources[locale], `no resources registered for "${locale}"`).toBeDefined();
+      const bundles = bundlesFor(locale);
       for (const namespace of NAMESPACES) {
         expect(
-          resources[locale][namespace],
+          bundles[namespace],
           `locale "${locale}" is missing the "${namespace}" namespace`
         ).toBeDefined();
       }

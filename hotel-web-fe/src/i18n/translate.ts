@@ -10,8 +10,25 @@
 
 import { getActiveLocale } from './localeStore';
 import { DEFAULT_LOCALE, type LocaleCode } from './locales';
-import { DEFAULT_NAMESPACE, resources, type Namespace } from './resources';
-import { interpolate, resolveRaw, translate, type TranslationVars } from './translator';
+import { DEFAULT_NAMESPACE, localeResources, type Namespace } from './resources';
+import {
+  interpolate,
+  resolveRaw,
+  translate,
+  type LocaleResources,
+  type TranslationVars,
+} from './translator';
+
+/**
+ * The bundles backing the active locale right now.
+ *
+ * Its IDENTITY is the signal that a lazily-loaded locale has arrived: before
+ * the chunk resolves this is the English fallback object, afterwards it is
+ * that locale's own. `useTranslation` subscribes to it so React re-renders on
+ * the swap — a locale code alone cannot express it, because the code already
+ * changed when the user picked the language.
+ */
+export const getActiveBundles = (): LocaleResources => localeResources(getActiveLocale());
 
 /** Keys already reported, so a missing string warns once rather than per render. */
 const reportedMissing = new Set<string>();
@@ -41,14 +58,17 @@ export const translateFor = (
   locale: LocaleCode,
   key: string,
   vars?: TranslationVars,
-  namespace: Namespace | string = DEFAULT_NAMESPACE
+  namespace: Namespace | string = DEFAULT_NAMESPACE,
+  /** Defaults to the registry lookup; passed explicitly by `useTranslation`,
+   *  whose memoised closures must be rebuilt when the bundles change. */
+  bundles: LocaleResources = localeResources(locale)
 ): string =>
   translate(
     key,
     {
       locale,
-      resources: resources[locale] ?? resources[DEFAULT_LOCALE],
-      fallbackResources: locale === DEFAULT_LOCALE ? undefined : resources[DEFAULT_LOCALE],
+      resources: bundles,
+      fallbackResources: locale === DEFAULT_LOCALE ? undefined : localeResources(DEFAULT_LOCALE),
       defaultNamespace: namespace,
       onMissing: reportMissing,
     },
@@ -82,14 +102,16 @@ export const translateOr = (
   key: string,
   fallback: string,
   vars?: TranslationVars,
-  namespace: Namespace | string = DEFAULT_NAMESPACE
+  namespace: Namespace | string = DEFAULT_NAMESPACE,
+  /** See `translateFor`. */
+  bundles: LocaleResources = localeResources(locale)
 ): string => {
   const raw = resolveRaw(
     key,
     {
       locale,
-      resources: resources[locale] ?? resources[DEFAULT_LOCALE],
-      fallbackResources: locale === DEFAULT_LOCALE ? undefined : resources[DEFAULT_LOCALE],
+      resources: bundles,
+      fallbackResources: locale === DEFAULT_LOCALE ? undefined : localeResources(DEFAULT_LOCALE),
       defaultNamespace: namespace,
     },
     vars

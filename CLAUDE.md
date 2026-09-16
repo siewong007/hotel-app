@@ -61,8 +61,8 @@ Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lin
 empty DB **once**; `make db-seed` loads `staging.sql` demo data (optional, never production);
 `make db-patch` converges an existing V1 database. **There is no second migration file** — the only
 forward path is `hotel-app-be/database/postgres/patches/`, a checksum-verified catalog driven by
-`manifest.tsv` (today: generation 1, versions 2 `deposit_forfeited`, 3 `guest_relations_phase2`),
-applied by `apply-patches.sh` and `hotel-desktop/src-tauri/src/postgres/patches.rs`. Lifecycle
+`manifest.tsv` (generation 1, head version 6 as of 2026-09-16 — read the manifest, never a
+remembered range), applied by `apply-patches.sh` and `hotel-desktop/src-tauri/src/postgres/patches.rs`. Lifecycle
 details (deprecated `db-setup` alias, legacy rebuild path): `hotel-app-be/database/README.md`.
 
 - **Nothing discovers loose SQL.** A new `000N_*.sql` is dead until registered in `patches/manifest.tsv`, `deploy/deploy.sh`, `deploy/deploy-staging.sh`, **and both** `.github/workflows/deploy*.yml`. `tests/postgres_patch_catalog.rs` enforces that parity.
@@ -85,7 +85,7 @@ routeless module — **put new domains there**. The residual flat files are shar
 - `core/middleware.rs` — `require_auth(&headers) -> i64`, `check_permission(pool, user_id, "<resource>:<action>")`, `check_any_permission`, `ensure_super_admin`. `<resource>:manage` implies every action of that resource.
 - `core/db.rs` — `hotel_today(executor)`, `decimal_to_db`, `generate_uuid`. Each connection takes its timezone from `system_settings.timezone`, so SQL `CURRENT_DATE` **is** the business day. Never use `chrono::Local`/`Utc` for business dates.
 - `core/sql_compat.rs` — `param!(N)`, `current_timestamp()`, `current_date()`. Never literal `$1`/`NOW()`.
-- `core/i18n.rs` — `SUPPORTED_LOCALES = ["en","ms"]`, `Accept-Language` negotiation, email catalogs in `core/locales/`. Every mutating handler calls `services/audit.rs`; free text goes through `utils/sanitization.rs::Sanitizer`; request models carry `validator` derives.
+- `core/i18n.rs` — `SUPPORTED_LOCALES = ["en","ms","zh"]`, `Accept-Language` negotiation, email catalogs in `core/locales/`. Every mutating handler calls `services/audit.rs`; free text goes through `utils/sanitization.rs::Sanitizer`; request models carry `validator` derives.
 - `main.rs` spawns: night audit, payment receipts, unpaid-hold release (`unpaid_hold_scheduler.rs`, window `unpaid_hold_release_hours`, 24 default / 0 disables), communications worker + scheduler. Adding/removing **any** route drifts `docs/api/openapi.json` and fails `tests/openapi_drift.rs` — regenerate with `HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift`.
 
 `sqlx` is plain `sqlx::query()`, **not** the checking macros — a type/column mismatch compiles cleanly
@@ -94,7 +94,7 @@ live-PostgreSQL test that actually fetches it.
 
 ## Frontend
 
-- `src/features/<domain>/` (30); `src/api/*.service.ts`, one per backend domain (24). Server state is TanStack Query; there is no separate client-state store.
+- `src/features/<domain>/` (26); `src/api/*.service.ts`, one per backend domain (24). Server state is TanStack Query; there is no separate client-state store.
 - **All** HTTP through `src/api/client.ts` (ky: in-memory access token, HttpOnly refresh cookie, one refresh-and-retry on 401). Never call `fetch` directly.
 - New pages go in **both** `src/routes/*.tsx` and the lazy registry `src/navigation/routeRegistry.tsx` (not App.tsx). The sidebar reads that registry; `route_access_policies` only drives the RBAC admin panel.
 - Vite proxies only `PROXY_PREFIXES` (`/api`, `/uploads`, `/health`, `/ws`). A new `/api/...` route needs no edit; a new **top-level** prefix needs one here *and* in the desktop CORS allow-list (`hotel-desktop/src-tauri/src/commands.rs`).
@@ -104,12 +104,12 @@ live-PostgreSQL test that actually fetches it.
 
 ## Testing
 
-Backend: 50 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0,
+Backend: 53 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0,
 and each skip counts as a PASS** — a no-DB run reports *more* (1,317; `payment_characterization`
 44-in-0.01s vs a real 29 passed / 2 ignored), so run count cannot detect it: judge by wall-clock +
 per-suite counts. Patch/drift suites need `psql`. Fix-gated tests carry `#[ignore]`; CI fails when
 one starts passing. Characterization tests must assert *correct* values — one pinning a bug passes
-forever. Frontend: Vitest + Testing Library (235 files); build ky errors with
+forever. Frontend: Vitest + Testing Library (250 files); build ky errors with
 `src/api/testSupport/httpError.ts` (a readable-body fixture lets the bug pass); never run two
 vitest suites concurrently here — they starve each other's timeouts.
 

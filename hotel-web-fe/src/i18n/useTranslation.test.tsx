@@ -1,7 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from './I18nProvider';
 import { resetLocaleStoreForTests, setActiveLocale } from './localeStore';
+// Non-English bundles are lazy chunks (see src/i18n/resources/index.ts). The app
+// awaits them at boot; a test that asserts translated copy must do the same, or
+// it reads the English fallback and fails on a difference that is not a bug.
+import { ensureLocaleLoaded } from './resources';
 import { resetMissingKeyReportsForTests } from './translate';
 import { useTranslation } from './useTranslation';
 
@@ -24,9 +28,16 @@ function Harness({ namespace = 'nav' }: { namespace?: string }) {
       <button type="button" onClick={() => setLocale('ms')}>
         to-malay
       </button>
+      <button type="button" onClick={() => setLocale('zh')}>
+        to-chinese
+      </button>
     </div>
   );
 }
+
+beforeAll(async () => {
+  await ensureLocaleLoaded('ms');
+});
 
 describe('useTranslation', () => {
   it('translates against the bound namespace', () => {
@@ -66,6 +77,27 @@ describe('useTranslation', () => {
     render(<Harness />);
     fireEvent.click(screen.getByText('to-malay'));
     expect(screen.getByTestId('fallback').textContent).toBe('Hardcoded English');
+  });
+
+  // End-to-end cold path: `zh` is deliberately NOT preloaded in this file's
+  // `beforeAll`, so the switch happens before its chunk exists.
+  //
+  // NOTE: this asserts the behaviour but does NOT discriminate the underlying
+  // fix — verified by reverting it, and this still passes, because jsdom + RTL
+  // re-render for their own reasons. The discriminating guard is
+  // 'bumps the revision when a lazily-loaded bundle arrives' in
+  // localeStore.test.ts; keep that one if this ever has to change.
+  it('shows the new locale once its lazily-loaded bundle arrives', async () => {
+    render(<Harness />);
+    expect(screen.getByTestId('label').textContent).toBe('Bookings');
+
+    fireEvent.click(screen.getByText('to-chinese'));
+
+    // Locale flips immediately; the strings follow when the chunk resolves.
+    expect(screen.getByTestId('locale').textContent).toBe('zh');
+    await waitFor(() => {
+      expect(screen.getByTestId('label').textContent).toBe('预订管理');
+    });
   });
 
   it('falls back to English for a key the active locale has not translated', () => {

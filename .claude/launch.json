@@ -4,14 +4,29 @@
     {
       "name": "backend-postgres",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-app-be\" && cargo run --bin hotel-app-be"],
+      "runtimeArgs": [
+        "-c",
+        "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-app-be\" && cargo run --bin hotel-app-be"
+      ],
       "port": 3030
     },
     {
       "name": "frontend",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-web-fe\" && /Users/goaltosuceed/.bun/bin/bun run start -- --port 3001"],
+      "runtimeArgs": [
+        "-c",
+        "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-web-fe\" && /Users/goaltosuceed/.bun/bin/bun run start -- --port 3001"
+      ],
       "port": 3001
+    },
+    {
+      "name": "frontend-preview",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-web-fe\" && /Users/goaltosuceed/.bun/bin/bun run preview -- --port 4173 --strictPort"
+      ],
+      "port": 4173
     }
   ]
 }

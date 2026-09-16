@@ -26,6 +26,7 @@ import {
   negotiateLocale,
   type LocaleCode,
 } from './locales';
+import { ensureLocaleLoaded, isLocaleLoaded } from './resources';
 
 type Listener = () => void;
 
@@ -61,6 +62,21 @@ const emit = (): void => {
   listeners.forEach((listener) => listener());
 };
 
+/**
+ * Every locale but English is a lazily-imported chunk. Switch first, so the
+ * UI reacts immediately, then re-emit once the bundles land — in the window
+ * between the two, lookups fall back to English rather than showing raw keys.
+ * Boot avoids that window entirely by awaiting `ensureLocaleLoaded` before the
+ * first render; this covers a later switch and a hotel-default applied after
+ * settings load.
+ */
+const loadThenEmit = (locale: LocaleCode): void => {
+  if (isLocaleLoaded(locale)) return;
+  void ensureLocaleLoaded(locale).then(() => {
+    if (activeLocale === locale) emit();
+  });
+};
+
 /** Current locale. Safe to call from anywhere, including module scope. */
 export const getActiveLocale = (): LocaleCode => activeLocale;
 
@@ -87,6 +103,7 @@ export const setActiveLocale = (locale: LocaleCode): void => {
   activeLocale = locale;
   storage.setItem('locale', locale);
   emit();
+  loadThenEmit(locale);
 };
 
 /**
@@ -98,6 +115,7 @@ export const applyDefaultLocale = (locale: LocaleCode | undefined): void => {
   if (!locale || hasExplicitChoice || locale === activeLocale) return;
   activeLocale = locale;
   emit();
+  loadThenEmit(locale);
 };
 
 /** True when the active locale came from the user rather than from inference. */
