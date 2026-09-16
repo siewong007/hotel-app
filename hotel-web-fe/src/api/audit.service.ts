@@ -2,7 +2,7 @@ import { api } from './client';
 import { withRetry } from '../utils/retry';
 import { formatHotelDateTime, formatLocalDate } from '../utils/date';
 import { formatStatusLabel } from '../utils/formatters';
-import { t } from '../i18n';
+import { translateFor } from '../i18n';
 import {
   AuditLogResponse,
   AuditLogQuery,
@@ -146,8 +146,12 @@ export class AuditService {
     const autoTable = (await import('jspdf-autotable')).default;
 
     const doc = new jsPDF();
+    // NOTE: document strings stay English on purpose — jsPDF's built-in
+    // helvetica covers Latin-1 only, so zh/ms copy would render as mojibake
+    // until a CJK-capable font is embedded via addFont. Dates are pinned to
+    // 'en' for the same reason (zh-CN month/meridiem names are non-Latin-1).
     const exportT = (key: string, vars?: Record<string, string | number>) =>
-      t(`admin:audit.export.${key}`, vars);
+      translateFor('en', `admin:audit.export.${key}`, vars);
 
     // Title
     doc.setFontSize(16);
@@ -155,11 +159,11 @@ export class AuditService {
 
     // Generated date
     doc.setFontSize(10);
-    doc.text(exportT('generatedAt', { time: formatHotelDateTime(new Date()) }), 14, 28);
+    doc.text(exportT('generatedAt', { time: formatHotelDateTime(new Date(), '-', 'en') }), 14, 28);
 
     // Table data
     const tableData = response.data.map((log) => [
-      formatHotelDateTime(log.created_at),
+      formatHotelDateTime(log.created_at, '-', 'en'),
       log.username || exportT('systemUser'),
       formatStatusLabel(log.action, ''),
       log.category || '-',

@@ -1,5 +1,6 @@
 import { getHotelSetting } from './hotelSettings';
 import { dateFormatter, intlTag } from '../i18n/format';
+import type { LocaleCode } from '../i18n/locales';
 
 export const formatLocalDate = (date: Date = new Date()): string => {
   const year = date.getFullYear();
@@ -123,9 +124,16 @@ export const formatHotelDate = (value: BusinessDateValue, fallback = '-'): strin
 
 // Date + time display: zoned instants render in the hotel timezone; zone-less
 // values keep their literal wall time; date-only values render as a date.
-// All three render in the active interface language (see src/i18n).
-export const formatHotelDateTime = (value: BusinessDateValue, fallback = '-'): string => {
+// All three render in the active interface language (see src/i18n) unless a
+// `locale` is given — e.g. PDF exports pin 'en' because jsPDF's built-in
+// fonts are Latin-1 only.
+export const formatHotelDateTime = (
+  value: BusinessDateValue,
+  fallback = '-',
+  locale?: LocaleCode
+): string => {
   if (!value) return fallback;
+  const tag = intlTag(locale);
   if (typeof value === 'string') {
     const trimmed = value.trim();
     const dateOnly = DATE_ONLY_RE.exec(trimmed);
@@ -134,17 +142,17 @@ export const formatHotelDateTime = (value: BusinessDateValue, fallback = '-'): s
         Number(dateOnly[1]),
         Number(dateOnly[2]) - 1,
         Number(dateOnly[3])
-      ).toLocaleDateString(intlTag());
+      ).toLocaleDateString(tag);
     }
     const parsed = new Date(trimmed);
     if (Number.isNaN(parsed.getTime())) return fallback;
     if (NAIVE_DATETIME_RE.test(trimmed) && !TRAILING_ZONE_RE.test(trimmed)) {
-      return parsed.toLocaleString(intlTag());
+      return parsed.toLocaleString(tag);
     }
-    return parsed.toLocaleString(intlTag(), { timeZone: getHotelTimeZone() });
+    return parsed.toLocaleString(tag, { timeZone: getHotelTimeZone() });
   }
   if (Number.isNaN(value.getTime())) return fallback;
-  return value.toLocaleString(intlTag(), { timeZone: getHotelTimeZone() });
+  return value.toLocaleString(tag, { timeZone: getHotelTimeZone() });
 };
 
 // Inverse of instantToHotelDateString for wall-clock targets: the UTC instant

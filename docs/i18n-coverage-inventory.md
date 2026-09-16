@@ -68,19 +68,22 @@ Flattened leaf keys per bundle (generated: `node` script flattening each
 
 ## Key → file usage map
 
-The full machine-generated map lives in
+The full map lives in
 [i18n-key-usage-map.md](i18n-key-usage-map.md) — every en leaf key with the
 source files that reference it, plus the table of dynamic key prefixes
 (`t(\`nav.${section}\`)`-style lookups that static call-site scans cannot
-expand).
+expand). It is a point-in-time artifact produced for this audit, not the
+output of a checked-in generator — it will drift as keys and call sites
+change (a repeatable generator script is deferred follow-up work).
 
-Generation method (reproducible): a Node script walks `hotel-web-fe/src`,
-resolves each file's bound namespaces (`useTranslation('<ns>')` destructures,
-trailing-namespace arguments of `t`/`tOr`/`translate`/`translateFor`/
-`translateOr`, and `ns:`-prefixed literals anywhere — including constants
-maps such as `TIER_TAB_KEYS`), expands plural bases to their `_one`/`_other`
-leaf variants, and records `statusLabel(t, 'domain', 'value')` calls as
-`status:domain.value`.
+How it was produced: the flattened en leaf-key list (same method as the
+namespace counts above) was cross-referenced against call-site searches over
+`hotel-web-fe/src` — resolving each file's bound namespaces
+(`useTranslation('<ns>')` destructures, trailing-namespace arguments of
+`t`/`tOr`/`translate`/`translateFor`/`translateOr`, and `ns:`-prefixed
+literals anywhere — including constants maps such as `TIER_TAB_KEYS`),
+expanding plural bases to their `_one`/`_other` leaf variants, and recording
+`statusLabel(t, 'domain', 'value')` calls as `status:domain.value`.
 
 **~698 keys carry no literal call site.** Spot checks show these are
 predominantly:
@@ -148,7 +151,7 @@ in review (`communications:campaigns.new/newTitle`, ms
 |---|---|
 | Legal corpus | `features/legal/content/*` stays **en/ms only** (PDPA s.7(2)); zh chrome keys exist for parity but are runtime-unreachable — corpus locale set is en/ms via `LegalLocaleContext`. |
 | Help corpus | `features/help/content/*` authored en/ms; `help` ns chrome is fully translated. |
-| PDF bodies | Night-audit and other jsPDF export documents stay **English** (jsPDF CJK font limitation); CSV exports are translated. |
+| PDF bodies | Night-audit and audit-log jsPDF export documents stay **English** — jsPDF's built-in `helvetica` covers Latin-1 only, so zh/ms copy would render as mojibake until a CJK-capable font is embedded via `addFont`. Translated lookups and dates in those paths are pinned to en (`translateFor('en', …)`, `formatHotelDateTime(…, 'en')`); CSV exports are translated. |
 | DB/server content | Guest names, room names, rate descriptions, remarks, email bodies — backend email copy is covered by `hotel-app-be/src/core/locales/{en,ms,zh}.json`. |
 | `paymentRecovery` in `guestPortal` ns | Public guest-facing route `/booking/recover-payment/$token` shares the portal chrome; documented deviation from the domain→namespace map. |
 | zh guestPortal residual English | **501 prose values** remain byte-identical to en (dashboard 273, checkin 80, support 43, payment/payments 24, notifications 21, book 19, vouchers 19, offers 17, shell 4, account 1). Parity-legal and load-bearing — zh users currently see English on those surfaces; needs a dedicated translation-quality pass. |
