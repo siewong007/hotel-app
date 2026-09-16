@@ -77,6 +77,10 @@ pub struct PaypalConfig {
     /// verify-webhook-signature call that authenticates `/api/webhooks/paypal`
     /// deliveries. When absent, the webhook endpoint refuses events (503).
     pub webhook_id: Option<String>,
+    /// Explicit opt-out for the production sandbox guard. Staging runs with
+    /// ENVIRONMENT=production but deliberately points PayPal at the sandbox to
+    /// exercise checkout end-to-end; production must never set this.
+    pub allow_sandbox: bool,
 }
 
 impl PaypalConfig {
@@ -254,6 +258,7 @@ impl AppConfig {
                     .trim_end_matches('/')
                     .to_string(),
                 webhook_id: env_opt("PAYPAL_WEBHOOK_ID"),
+                allow_sandbox: env_bool("PAYPAL_ALLOW_SANDBOX", false)?,
             },
             bank_details: BankDetails {
                 bank_name: env_or_nonempty("HOTEL_BANK_NAME", "Maybank")?,
@@ -320,11 +325,16 @@ impl AppConfig {
         }
         // PAYPAL_API_BASE defaults to the sandbox host. Enabling a credentialed
         // gateway in production without overriding it would silently charge
-        // nothing and record live bookings against a fake gateway — refuse.
-        if self.paypal.is_configured() && self.paypal.api_base.contains("sandbox.paypal.com") {
+        // nothing and record live bookings against a fake gateway — refuse
+        // unless the deployment explicitly opted into sandbox (staging does).
+        if self.paypal.is_configured()
+            && self.paypal.api_base.contains("sandbox.paypal.com")
+            && !self.paypal.allow_sandbox
+        {
             return Err(
                 "PAYPAL_API_BASE points at the PayPal sandbox in production; set \
-                 https://api-m.paypal.com or disable PAYPAL_ENABLED"
+                 https://api-m.paypal.com, disable PAYPAL_ENABLED, or set \
+                 PAYPAL_ALLOW_SANDBOX=true on a non-live deployment"
                     .to_string(),
             );
         }
@@ -603,6 +613,7 @@ mod tests {
                 client_secret: None,
                 api_base: String::new(),
                 webhook_id: None,
+                allow_sandbox: false,
             },
             bank_details: BankDetails {
                 bank_name: "b".to_string(),
@@ -656,6 +667,12 @@ mod tests {
         assert!(config.validate_security().is_ok());
         config.paypal.client_secret = Some("secret".to_string());
         config.paypal.enabled = false;
+        assert!(config.validate_security().is_ok());
+
+        // An explicit opt-out keeps staging-style deployments bootable while
+        // still refusing the accidental default in production.
+        config.paypal.enabled = true;
+        config.paypal.allow_sandbox = true;
         assert!(config.validate_security().is_ok());
     }
 
