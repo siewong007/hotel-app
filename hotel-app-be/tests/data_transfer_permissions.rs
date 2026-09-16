@@ -1038,24 +1038,35 @@ async fn execute_enforces_file_and_mode_permissions() {
     // Restore is exercised against a MISSING upload: enforcement runs first
     // (fail-closed sensitive -> import_sensitive already held -> restore perm
     // -> step-up), then the job layer 404s — no data is ever touched.
+    // A missing upload also fails closed as SYSTEM tier, so the super-admin
+    // gate runs before the restore-permission check — this leg promotes the
+    // worker, and OTHER_ID (full grants via manage, no flag) proves the gate
+    // still denies non-super-admins.
+    sqlx::query("UPDATE users SET is_super_admin = true WHERE id = $1")
+        .bind(WORKER_ID)
+        .execute(&fixture.pool)
+        .await
+        .unwrap();
+    fixture.grant(OTHER_ID, "data_transfer:manage").await;
     let missing_upload = uuid::Uuid::new_v4().to_string();
     let (status, _) = fixture
-        .execute(WORKER_ID, &missing_upload, "restore", None, None)
+        .execute(OTHER_ID, &missing_upload, "restore", None, None)
         .await;
     assert_eq!(
         status,
         StatusCode::FORBIDDEN,
-        "restore must still require the restore permission"
+        "a missing upload is system-tier: non-super-admins are denied before step-up"
     );
-
-    fixture.grant(WORKER_ID, "data_transfer:restore").await;
+    // On a system-tier file the step-up check runs BEFORE the restore-perm
+    // check: a super-admin worker without a token gets 401 even though the
+    // restore grant is still missing.
     let (status, _) = fixture
         .execute(WORKER_ID, &missing_upload, "restore", None, None)
         .await;
     assert_eq!(
         status,
         StatusCode::UNAUTHORIZED,
-        "restore without a step-up token must be 401"
+        "system-tier files demand step-up before the restore permission is read"
     );
     let wrong_session = fixture.step_up_token(OTHER_ID);
     let (status, _) = fixture
@@ -1072,7 +1083,23 @@ async fn execute_enforces_file_and_mode_permissions() {
         StatusCode::UNAUTHORIZED,
         "a step-up token from another session must be 401"
     );
+    // Past step-up, the restore permission is still required.
     let step_up = fixture.step_up_token(WORKER_ID);
+    let (status, _) = fixture
+        .execute(
+            WORKER_ID,
+            &missing_upload,
+            "restore",
+            None,
+            Some(&step_up),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "restore must still require the restore permission"
+    );
+    fixture.grant(WORKER_ID, "data_transfer:restore").await;
     let (status, _) = fixture
         .execute(
             WORKER_ID,
@@ -1155,7 +1182,14 @@ async fn manage_permission_implies_every_action() {
     );
 
     // Manage implies restore, but never the step-up: without the token the
-    // request is still a 401; with it, the missing upload 404s.
+    // request is still a 401; with it, the missing upload 404s. The missing
+    // upload is system-tier (fail closed), so the super-admin gate runs
+    // first — promote the worker to reach the step-up check.
+    sqlx::query("UPDATE users SET is_super_admin = true WHERE id = $1")
+        .bind(WORKER_ID)
+        .execute(&fixture.pool)
+        .await
+        .unwrap();
     let missing_upload = uuid::Uuid::new_v4().to_string();
     let (status, _) = fixture
         .execute(WORKER_ID, &missing_upload, "restore", None, None)

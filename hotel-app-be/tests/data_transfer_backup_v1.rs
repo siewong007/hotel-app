@@ -1113,12 +1113,17 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
     );
 }
 
-/// A file can carry rows for an EXCLUDED table — `public.users` is in the
-/// catalog but outside the transferable set. Preview warns that it will not
-/// be imported; the job reports it under `unsupportedEntities`; and no forged
-/// `is_super_admin` row ever reaches `users`.
+/// A file carrying `public.users` rows is content-sniffed as a SYSTEM-tier
+/// document no matter what `kind` it declares: the preview warns it is a
+/// full-system backup and the diff lists the protected entity honestly. The
+/// forged `is_super_admin` row never lands, though — the execute route gates
+/// system-tier files on super admin + step-up (data_transfer_permissions.rs),
+/// and once `users` rows are written they can never be deleted again because
+/// `audit_logs` is append-only. The benign half of a mixed file still imports
+/// through the ordinary job path.
 #[tokio::test]
-async fn excluded_entities_in_a_file_are_never_imported() {
+async fn protected_entities_preview_as_system_tier_and_stay_route_gated() {
+    use axum::http::StatusCode;
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
@@ -1128,6 +1133,9 @@ async fn excluded_entities_in_a_file_are_never_imported() {
         return;
     };
     let _fixture = FIXTURE_LOCK.lock().await;
+    let Some(fixture) = AuthFixture::new().await else {
+        return;
+    };
     sqlx::query("DELETE FROM amenities WHERE id = 920945001")
         .execute(&pool)
         .await
@@ -1162,23 +1170,60 @@ async fn excluded_entities_in_a_file_are_never_imported() {
         preview
             .warnings
             .iter()
-            .any(|warning| warning.contains("public.users") && warning.contains("excluded")),
-        "preview must warn that public.users is excluded: {:?}",
+            .any(|warning| warning.contains("full-system backup")),
+        "preview must warn that the file is a credential store: {:?}",
         preview.warnings
     );
     assert!(
         preview
             .entities
             .iter()
-            .all(|entity| entity.name != "public.users"),
-        "excluded entities must not appear in the diff"
+            .any(|entity| entity.name == "public.users"),
+        "a system-tier file previews the protected set it would write: {:?}",
+        preview.entities.iter().map(|e| &e.name).collect::<Vec<_>>()
     );
 
+    // Through the real route, even a super admin without a fresh step-up
+    // token is turned away — the forged row never reaches `users`.
+    let status = fixture
+        .request(
+            "POST",
+            "/api/data-transfer/import/execute",
+            Some(&fixture.admin_auth),
+            format!(
+                "{{\"uploadId\":\"{}\",\"mode\":\"merge\",\"confirm\":true}}",
+                upload.upload_id
+            )
+            .as_bytes(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "a system-tier file demands step-up re-authentication"
+    );
+    let forged: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = 920945999)")
+            .fetch_one(&pool)
+            .await
+            .expect("probe must run");
+    assert!(!forged, "no protected-table row may ever be imported ungated");
+
+    // The same entity list without the protected half is business-tier and
+    // flows through the job path untouched.
+    let benign = v1_document(&[V1Entity {
+        name: "public.amenities",
+        primary_key: &["id"],
+        rows: vec![json!({"id": 920_945_001_i64, "name": "dt-real-row", "category": "ok"})],
+    }]);
+    let benign_upload = data_transfer_jobs::stage_backup_upload(Body::from(benign))
+        .await
+        .expect("the business-tier document must stage");
     let job = data_transfer_jobs::start_import_job(
         &pool,
         any_user_id(&pool).await,
         ImportExecuteRequest {
-            upload_id: upload.upload_id,
+            upload_id: benign_upload.upload_id,
             mode: BackupImportMode::Merge,
             on_conflict: Some(ConflictPolicy::Skip),
             tables: vec![],
@@ -1192,25 +1237,9 @@ async fn excluded_entities_in_a_file_are_never_imported() {
     assert_eq!(
         status.status,
         ImportJobState::Succeeded,
-        "the legitimate half of the file must still import: {:?}",
+        "the business-tier file must still import: {:?}",
         status.error
     );
-    let result = status.result.expect("succeeded job carries a result");
-    assert!(
-        result
-            .report
-            .unsupported_entities
-            .iter()
-            .any(|entity| entity == "public.users"),
-        "the job must report public.users as unsupported: {:?}",
-        result.report.unsupported_entities
-    );
-    let forged: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = 920945999)")
-            .fetch_one(&pool)
-            .await
-            .expect("probe must run");
-    assert!(!forged, "no excluded-table row may ever be imported");
     let applied: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM amenities WHERE id = 920945001)")
             .fetch_one(&pool)
@@ -2060,15 +2089,29 @@ async fn import_endpoints_require_authentication_and_data_transfer_import() {
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 
-    // A malformed execute request gets the real 400, and a well-formed
-    // upload stages then deletes — the full round trip past the gate.
+    // A malformed execute request gets the real 400. The staged file must be
+    // business-tier: an unknown or protected-set upload fails closed into the
+    // system tier, where the step-up gate answers 401 before `confirm` is read.
+    use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
+    let staged = data_transfer_jobs::stage_backup_upload(Body::from(v1_document(&[
+        V1Entity {
+            name: "public.amenities",
+            primary_key: &["id"],
+            rows: vec![json!({"id": 920_945_777_i64, "name": "dt-gate-row", "category": "ok"})],
+        },
+    ])))
+    .await
+    .expect("business-tier upload must stage");
     let status = fixture
         .request(
             "POST",
             "/api/data-transfer/import/execute",
             Some(&fixture.admin_auth),
-            format!("{{\"uploadId\":\"{upload_id}\",\"mode\":\"merge\",\"confirm\":false}}")
-                .as_bytes(),
+            format!(
+                "{{\"uploadId\":\"{}\",\"mode\":\"merge\",\"confirm\":false}}",
+                staged.upload_id
+            )
+            .as_bytes(),
         )
         .await;
     assert_eq!(
