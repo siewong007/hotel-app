@@ -28,8 +28,7 @@
     "createTask": "Failed to create task",
     "updateTask": "Failed to update task",
     "createTicket": "Failed to create ticket",
-    "updateTicket": "Failed to update ticket",
-    "updateRoomStatus": "Failed to update room status"
+    "updateTicket": "Failed to update ticket"
   },
   "success": {
     "taskStarted": "Room {{room}} — task started.",
@@ -60,12 +59,6 @@
     "occupied": "Guest in house",
     "reserved": "Reserved — room ready for arrival",
     "available": "Clean and ready to sell"
-  },
-  "statusTargetHint": {
-    "available": "Mark clean and ready to sell",
-    "dirty": "Flag for cleaning",
-    "maintenance": "Block for maintenance work",
-    "out_of_order": "Take out of service — cannot be sold"
   },
   "board": {
     "floor": "Floor",
@@ -180,7 +173,6 @@
     "updateStatus": "Update status",
     "reportMaintenance": "Report maintenance",
     "openTasks": "Open tasks",
-    "noOpenTasks": "No open tasks",
     "overduePrefix": "Overdue · ",
     "scheduledPrefix": "Scheduled · ",
     "statusDetails": "Status details",
@@ -216,16 +208,6 @@
     "saving": "Saving…",
     "errDateCleared": "A scheduled date cannot be cleared once set — pick a new date instead.",
     "errNotesCleared": "Notes cannot be cleared once set — replace the text instead."
-  },
-  "statusDialog": {
-    "title": "Update status — Room {{room}}",
-    "current": "Current:",
-    "newStatus": "New status",
-    "notes": "Notes (optional)",
-    "notesPlaceholder": "Reason for the status change…",
-    "submit": "Update status",
-    "updating": "Updating…",
-    "errSelectStatus": "Please select a status"
   },
   "newTicket": {
     "title": "New maintenance ticket",

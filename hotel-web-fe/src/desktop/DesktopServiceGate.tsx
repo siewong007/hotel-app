@@ -211,7 +211,9 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
               )}
             </DialogContentText>
           </DialogContent>
-          <DialogActions>
+          {/* Three actions when a backup exists; wrap so longer ms labels
+              cannot overflow a narrow window. */}
+          <DialogActions sx={{ flexWrap: 'wrap', rowGap: 1 }}>
             <Button startIcon={<FolderOpenIcon />} onClick={openDataFolder} disabled={isUpgrading}>
               {t('desktop.openDataFolder')}
             </Button>

@@ -339,7 +339,7 @@ export default function HousekeepingPage() {
               startIcon={<AddIcon />}
               onClick={() => setNewTaskRoom(null)}
             >
-              New task
+              {t('page.newTask')}
             </Button>
           ) : null
         }

@@ -32,6 +32,7 @@ vi.mock('jspdf-autotable', () => ({
 }));
 
 import { AuditService } from './audit.service';
+import { resetLocaleStoreForTests, setActiveLocale } from '../i18n/localeStore';
 import type { AuditLogResponse } from '../types/audit.types';
 
 function mockJsonResponse(payload: unknown) {
@@ -232,6 +233,10 @@ describe('AuditService', () => {
   });
 
   describe('downloadPDF', () => {
+    afterEach(() => {
+      resetLocaleStoreForTests();
+    });
+
     it('fetches up to 10000 logs for the given filter and saves a PDF via jsPDF + autoTable', async () => {
       const response = buildLogResponse({
         data: [
@@ -259,6 +264,62 @@ describe('AuditService', () => {
       expect(get).toHaveBeenCalledWith('audit-logs?search=smith&page=1&page_size=10000');
       expect(autoTableMock).toHaveBeenCalledTimes(1);
       expect(jsPdfSave).toHaveBeenCalledWith(expect.stringMatching(/^audit_logs_\d{4}-\d{2}-\d{2}\.pdf$/));
+    });
+
+    it('keeps the PDF strings in English when the active locale is zh', async () => {
+      // Regression guard: jsPDF's built-in helvetica covers Latin-1 only, so
+      // the export pins translateFor('en', …). A refactor back to the
+      // active-locale t() would emit zh copy here and render as mojibake.
+      setActiveLocale('zh');
+      const response = buildLogResponse({
+        data: [
+          {
+            id: 1,
+            user_id: 1,
+            username: 'admin',
+            action: 'update_booking',
+            resource_type: 'bookings',
+            category: 'bookings',
+            resource_id: 5,
+            has_changes: true,
+            details: null,
+            ip_address: '127.0.0.1',
+            user_agent: 'vitest',
+            created_at: '2026-07-26T00:00:00Z',
+          },
+        ],
+      });
+      get.mockReturnValue(mockJsonResponse(response));
+
+      await AuditService.downloadPDF({ search: 'smith' });
+
+      expect(jsPdfText).toHaveBeenCalledWith('Audit Log Report', 14, 20);
+      expect(jsPdfText).toHaveBeenCalledWith(expect.stringMatching(/^Generated: /), 14, 28);
+      expect(autoTableMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          head: [[
+            'Timestamp',
+            'User',
+            'Action',
+            'Stream',
+            'Resource',
+            'ID',
+            'Change Type',
+            'IP',
+          ]],
+          body: [[
+            expect.any(String),
+            'admin',
+            'Update Booking',
+            'bookings',
+            'Bookings',
+            '5',
+            'Field changes',
+            '127.0.0.1',
+          ]],
+        }),
+      );
     });
   });
 });

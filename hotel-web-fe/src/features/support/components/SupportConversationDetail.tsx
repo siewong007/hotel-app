@@ -281,6 +281,7 @@ export default function SupportConversationDetail({
               <Typography variant="body2" sx={{
                 color: "text.secondary"
               }}>
+                {/* intentional: dynamic key — tOr resolves categories.<category>; out-of-enum values humanize */}
                 {conversation.conversation_number} · {supportCategoryLabel(tOr, conversation.category)}
               </Typography>
             </Box>

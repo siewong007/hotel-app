@@ -2119,7 +2119,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
           </Box>)
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2 }}>
+      {/* Three actions render per step; ms labels run ~25% longer than en, so
+          let the row wrap instead of overflowing a narrow viewport. */}
+      <DialogActions sx={{ px: 3, py: 2, flexWrap: 'wrap', rowGap: 1 }}>
         {readOnly ? (
           <>
             <Button onClick={onClose}>{t('common:actions.close')}</Button>

@@ -8,6 +8,7 @@ import {
 } from '../content';
 import type { ConsentNoticeContent } from '../content/consentNotice';
 import { useLegalLocale } from '../LegalLocaleContext';
+import { translateFor } from '../../../i18n';
 import { renderLabel } from './legalLinks';
 
 export interface ConsentNoticeProps {
@@ -30,6 +31,9 @@ export interface ConsentNoticeProps {
  */
 export const ConsentNotice: React.FC<ConsentNoticeProps> = ({ notice, hideLocaleToggle }) => {
   const { locale, setLocale } = useLegalLocale();
+  // Chrome follows the corpus locale (en/ms) — the language the notice was
+  // read in — not the interface locale.
+  const lt = (key: string) => translateFor(locale, key, undefined, 'legal');
 
   return (
     <Box sx={{ mt: 1.5 }}>
@@ -40,7 +44,7 @@ export const ConsentNotice: React.FC<ConsentNoticeProps> = ({ notice, hideLocale
             exclusive
             value={locale}
             onChange={(_event, next) => next && setLocale(next as LegalLocale)}
-            aria-label={locale === 'ms' ? 'Bahasa notis undang-undang' : 'Legal notice language'}
+            aria-label={lt('consent.languageToggle')}
           >
             {LEGAL_LOCALES.map((option) => (
               <ToggleButton key={option} value={option} sx={{ px: 1.5, py: 0.25, fontSize: '0.7rem' }}>

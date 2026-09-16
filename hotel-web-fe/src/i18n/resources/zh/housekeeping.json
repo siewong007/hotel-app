@@ -28,8 +28,7 @@
     "createTask": "创建任务失败",
     "updateTask": "更新任务失败",
     "createTicket": "创建工单失败",
-    "updateTicket": "更新工单失败",
-    "updateRoomStatus": "更新客房状态失败"
+    "updateTicket": "更新工单失败"
   },
   "success": {
     "taskStarted": "客房 {{room}} — 任务已开始。",
@@ -60,12 +59,6 @@
     "occupied": "客人在住",
     "reserved": "已预订 — 客房已就绪",
     "available": "干净可售"
-  },
-  "statusTargetHint": {
-    "available": "标记为干净并可售",
-    "dirty": "标记为待清洁",
-    "maintenance": "封锁以进行维修",
-    "out_of_order": "停用 — 不可出售"
   },
   "board": {
     "floor": "楼层",
@@ -180,7 +173,6 @@
     "updateStatus": "更新状态",
     "reportMaintenance": "报告维修",
     "openTasks": "未完成任务",
-    "noOpenTasks": "无未完成任务",
     "overduePrefix": "已逾期 · ",
     "scheduledPrefix": "排期 · ",
     "statusDetails": "状态详情",
@@ -216,16 +208,6 @@
     "saving": "保存中…",
     "errDateCleared": "已设置的排期日期不能清除 — 请改选新日期。",
     "errNotesCleared": "已填写的备注不能清空 — 请替换内容。"
-  },
-  "statusDialog": {
-    "title": "更新状态 — 客房 {{room}}",
-    "current": "当前：",
-    "newStatus": "新状态",
-    "notes": "备注（可选）",
-    "notesPlaceholder": "状态变更原因…",
-    "submit": "更新状态",
-    "updating": "更新中…",
-    "errSelectStatus": "请选择状态"
   },
   "newTicket": {
     "title": "新建维修工单",

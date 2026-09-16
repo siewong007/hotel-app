@@ -285,8 +285,8 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                           <MobileCardRow
                             selected={selectedInvoiceLedgers.includes(ledger.id)}
                             title={ledger.description}
-                            subtitle={`${formatDateForDisplay(ledger.created_at)}${ledger.invoice_number ? ` · Already invoiced: ${ledger.invoice_number}` : ''}`}
-                            meta={`${formatCurrency(amount)} · balance ${formatCurrency(balanceDue)}`}
+                            subtitle={`${formatDateForDisplay(ledger.created_at)}${ledger.invoice_number ? ` · ${t('ledger.invoice.alreadyInvoiced', { number: ledger.invoice_number })}` : ''}`}
+                            meta={t('ledger.invoice.entryMeta', { amount: formatCurrency(amount), balance: formatCurrency(balanceDue) })}
                             status={
                               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                                 <LedgerStatusBadge status={getLedgerUiStatus(ledger)} />
@@ -670,7 +670,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
         </Box>
       )}
     </DialogContent>
-    <DialogActions>
+    {/* The preview state shows three icon buttons; let the row wrap on
+        narrow viewports rather than clip the ms labels. */}
+    <DialogActions sx={{ flexWrap: 'wrap', rowGap: 1 }}>
       {!showInvoicePreview ? (
         <>
           <Button onClick={onClose}>

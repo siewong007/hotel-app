@@ -56,7 +56,7 @@
     "deleteRewardAria": "Delete reward {{name}}",
     "subtitlePts": "{{category}} · {{points}} pts",
     "metaStock": "{{tier}}+ tier · {{stock}} in stock",
-    "metaValue": " · {{symbol}}{{amount}}",
+    "metaStockValue": "{{tier}}+ tier · {{stock}} in stock · {{symbol}}{{amount}}",
     "colName": "Name",
     "colCategory": "Category",
     "colPointsCost": "Points Cost",

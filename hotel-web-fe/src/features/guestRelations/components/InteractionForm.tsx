@@ -165,6 +165,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
         >
           {INTERACTION_TYPE_OPTIONS.map((type) => (
             <MenuItem key={type} value={type}>
+              {/* intentional: dynamic key — interaction type is a DB enum value; unknown values humanize */}
               {tOr(`interactions.types.${type}`, formatStatusLabel(type))}
             </MenuItem>
           ))}

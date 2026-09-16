@@ -28,8 +28,7 @@
     "createTask": "Gagal mencipta tugas",
     "updateTask": "Gagal mengemas kini tugas",
     "createTicket": "Gagal mencipta tiket",
-    "updateTicket": "Gagal mengemas kini tiket",
-    "updateRoomStatus": "Gagal mengemas kini status bilik"
+    "updateTicket": "Gagal mengemas kini tiket"
   },
   "success": {
     "taskStarted": "Bilik {{room}} — tugas dimulakan.",
@@ -60,12 +59,6 @@
     "occupied": "Tetamu dalam bilik",
     "reserved": "Disimpan — bilik sedia untuk ketibaan",
     "available": "Bersih dan sedia untuk dijual"
-  },
-  "statusTargetHint": {
-    "available": "Tanda bersih dan sedia untuk dijual",
-    "dirty": "Tandakan untuk pengemasan",
-    "maintenance": "Sekat untuk kerja penyelenggaraan",
-    "out_of_order": "Keluarkan daripada perkhidmatan — tidak boleh dijual"
   },
   "board": {
     "floor": "Tingkat",
@@ -180,7 +173,6 @@
     "updateStatus": "Kemas kini status",
     "reportMaintenance": "Laporkan penyelenggaraan",
     "openTasks": "Tugas terbuka",
-    "noOpenTasks": "Tiada tugas terbuka",
     "overduePrefix": "Lewat · ",
     "scheduledPrefix": "Dijadualkan · ",
     "statusDetails": "Butiran status",
@@ -216,16 +208,6 @@
     "saving": "Menyimpan…",
     "errDateCleared": "Tarikh dijadualkan tidak boleh dikosongkan setelah ditetapkan — pilih tarikh baharu sebaliknya.",
     "errNotesCleared": "Nota tidak boleh dikosongkan setelah ditetapkan — gantikan teks sebaliknya."
-  },
-  "statusDialog": {
-    "title": "Kemas kini status — Bilik {{room}}",
-    "current": "Semasa:",
-    "newStatus": "Status baharu",
-    "notes": "Nota (pilihan)",
-    "notesPlaceholder": "Sebab perubahan status…",
-    "submit": "Kemas kini status",
-    "updating": "Mengemas kini…",
-    "errSelectStatus": "Sila pilih status"
   },
   "newTicket": {
     "title": "Tiket penyelenggaraan baharu",

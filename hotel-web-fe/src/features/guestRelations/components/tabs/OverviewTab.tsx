@@ -249,6 +249,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             value={guest.marketing_opt_in == null ? undefined : guest.marketing_opt_in ? t('overview.details.yes') : t('overview.details.no')}
           />
           <ProfileDetailRow label={t('overview.details.totalBookings')} value={summary.total_bookings} />
+          {/* intentional: dynamic key — tourism_type is a DB enum value; unknown values humanize */}
           <ProfileDetailRow label={t('overview.details.tourismType')} value={guest.tourism_type ? tOr(`tourismType.${guest.tourism_type}`, formatStatusLabel(guest.tourism_type)) : undefined} />
           <ProfileDetailRow
             label={t('overview.details.tags')}
@@ -276,6 +277,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             <Stack spacing={0.75}>
               {(preferencesQuery.data ?? []).slice(0, 6).map((pref) => (
                 <Stack key={pref.id} direction="row" spacing={1} sx={{ alignItems: 'baseline', minWidth: 0 }}>
+                  {/* intentional: dynamic key — pref.category is a DB enum value; unknown values humanize */}
                   <Chip label={tOr(`preferenceCategories.${pref.category}`, formatStatusLabel(pref.category))} size="small" variant="outlined" />
                   <Typography variant="body2" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                     <Box component="span" sx={{ fontWeight: 700 }}>{pref.preference_key}</Box>
@@ -380,6 +382,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             }}
           >
             <ProfileDetailRow label={t('overview.sensitive.dob')} value={sensitive.date_of_birth ? formatGuestProfileDate(sensitive.date_of_birth) : null} />
+            {/* intentional: dynamic key — id_type is a DB enum value; unknown values humanize */}
             <ProfileDetailRow label={t('overview.sensitive.idType')} value={sensitive.id_type ? tOr(`idTypes.${sensitive.id_type}`, formatStatusLabel(sensitive.id_type)) : null} />
             <ProfileDetailRow label={t('overview.sensitive.idNumber')} value={sensitive.id_number} />
             <ProfileDetailRow label={t('overview.sensitive.idExpiry')} value={sensitive.id_expiry ? formatGuestProfileDate(sensitive.id_expiry) : null} />

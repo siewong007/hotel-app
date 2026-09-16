@@ -98,6 +98,12 @@ export const MobileNavBar: React.FC = () => {
               fontWeight: 650,
               mt: 0.25,
               whiteSpace: 'nowrap',
+              // ms labels run ~20-30% longer than en; a fallback-slot route
+              // (e.g. "Kelulusan Pembayaran") can exceed its ~72px slot —
+              // ellipsize rather than bleed into the neighbouring tab.
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
             },
           }}
         >

@@ -1,1 +1,19 @@
-{}
+{
+  "documentNotFound": {
+    "title": "Dokumen tidak dijumpai",
+    "body": "Dokumen yang anda cari tidak wujud atau telah dialihkan. Dokumen undang-undang kami yang lain tersedia di bawah."
+  },
+  "versionLine": "Versi {{version}} · Berkuat kuasa {{date}}",
+  "languageToggle": "Bahasa dokumen",
+  "contentsAria": "Kandungan dokumen",
+  "inThisDocument": "Dalam dokumen ini",
+  "emphasis": {
+    "requirement": "Perkara penting",
+    "info": "Baik untuk diketahui"
+  },
+  "questionsTitle": "Ada soalan tentang dokumen ini?",
+  "consent": {
+    "languageToggle": "Bahasa notis undang-undang",
+    "requiredToContinue": "Anda perlu bersetuju dengan perkara ini untuk meneruskan."
+  }
+}

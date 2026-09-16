@@ -505,6 +505,7 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
               title={t('preview.byChannel')}
               items={preview.booking_channel_breakdown}
               resolveCategory={(category) =>
+                // intentional: dynamic key — channel comes from the booking row; unknown channels humanize
                 tOr(`bookings:channels.${category}`, formatStatusLabel(category))
               }
             />
@@ -528,6 +529,7 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
                 <MobileCardRow
                   title={booking.guest_name}
                   subtitle={t('journal.roomLine', { booking: booking.booking_number, room: booking.room_number })}
+                  // intentional: dynamic key — booking.source is a DB channel value; unknown channels humanize
                   meta={`${formatHotelDate(booking.check_in_date)} → ${formatHotelDate(booking.check_out_date)} · ${formatCurrency(Number(booking.total_amount))}${booking.source ? ` · ${tOr(`bookings:channels.${booking.source}`, formatStatusLabel(booking.source))}` : ''}`}
                   status={getBookingStatusChip(booking.status)}
                 />
@@ -560,6 +562,7 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
                   <TableCell align="right">{formatCurrency(Number(booking.total_amount))}</TableCell>
                   <TableCell>{getBookingStatusChip(booking.status)}</TableCell>
                   <TableCell sx={{ textTransform: 'capitalize' }}>
+                    {/* intentional: dynamic key — booking.source is a DB channel value; unknown channels humanize */}
                     {booking.source ? tOr(`bookings:channels.${booking.source}`, formatStatusLabel(booking.source)) : '-'}
                   </TableCell>
                 </TableRow>

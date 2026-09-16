@@ -4,7 +4,9 @@ How to add a translated string, translate an existing screen, and add a
 language. The design rationale is [ADR 012](../architecture/ADRS.md); this file
 is the working guide.
 
-Supported today: **English (`en`)** and **Bahasa Melayu (`ms`)**.
+Supported today: **English (`en`)**, **Bahasa Melayu (`ms`)**, and
+**简体中文 (`zh`, `Intl` tag `zh-CN`)**. The full coverage audit lives in
+[../i18n-coverage-inventory.md](../i18n-coverage-inventory.md).
 
 ## Where things live
 

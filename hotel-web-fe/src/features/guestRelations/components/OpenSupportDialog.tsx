@@ -120,6 +120,7 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
           >
             {SUPPORT_CATEGORIES.map((value) => (
               <MenuItem key={value} value={value}>
+                {/* intentional: dynamic key — support category is a DB enum value; unknown values humanize */}
                 {tOr(`categories.${value}`, formatStatusLabel(value))}
               </MenuItem>
             ))}

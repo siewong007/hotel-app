@@ -30,6 +30,7 @@ export function supportCategoryLabel(
   tOr: UseTranslationResult['tOr'],
   category?: string | null,
 ): string {
+  // intentional: dynamic key — category is a DB enum value; out-of-enum values humanize
   return category ? tOr(`categories.${category}`, formatStatusLabel(category)) : formatStatusLabel(category);
 }
 

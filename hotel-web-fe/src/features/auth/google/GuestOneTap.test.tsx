@@ -24,6 +24,9 @@ vi.mock('../../../i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
   // ConsentNotice reads the shared legal locale, which is the interface locale.
   useLocale: () => 'en',
+  // ConsentNotice/ConsentBlock resolve legal-namespace chrome through
+  // translateFor against the corpus locale.
+  translateFor: (_locale: string, key: string) => key,
 }));
 
 vi.mock('../../../utils/storage', () => ({

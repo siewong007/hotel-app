@@ -145,5 +145,15 @@
     "checkouts": "退房",
     "occupancy": "入住率",
     "notes": "备注"
+  },
+  "csv": {
+    "summaryStatistics": "汇总统计",
+    "postedBookings": "已过账预订",
+    "occupancyRate": "入住率",
+    "totalBookings": "预订总数",
+    "colRoomType": "房型",
+    "colNights": "晚数",
+    "colPaymentMethod": "支付方式",
+    "colPaymentStatus": "支付状态"
   }
 }

@@ -22,6 +22,7 @@ import {
 // styles of consent draw the same links to the same documents.
 import { plainLabel, renderLabel } from './legalLinks';
 import { useLegalLocale } from '../LegalLocaleContext';
+import { translateFor } from '../../../i18n';
 import type { ConsentState } from '../useConsent';
 
 export interface ConsentBlockProps {
@@ -50,6 +51,10 @@ export const ConsentBlock: React.FC<ConsentBlockProps> = ({
   title,
 }) => {
   const { locale, setLocale } = useLegalLocale();
+  // Chrome keys live in the legal bundle but resolve in the corpus locale the
+  // guest picked — consent chrome has to match the language the notice was
+  // read in, not the interface locale.
+  const lt = (key: string) => translateFor(locale, key, undefined, 'legal');
 
   return (
     <Box sx={{ mt: 3 }}>
@@ -70,7 +75,7 @@ export const ConsentBlock: React.FC<ConsentBlockProps> = ({
             exclusive
             value={locale}
             onChange={(_event, next) => next && setLocale(next as LegalLocale)}
-            aria-label={locale === 'ms' ? 'Bahasa notis undang-undang' : 'Legal notice language'}
+            aria-label={lt('consent.languageToggle')}
           >
             {LEGAL_LOCALES.map((option) => (
               <ToggleButton key={option} value={option} sx={{ px: 1.5, py: 0.25, fontSize: '0.7rem' }}>
@@ -130,9 +135,7 @@ export const ConsentBlock: React.FC<ConsentBlockProps> = ({
               )}
               {isMissing && (
                 <FormHelperText error sx={{ ml: 4 }}>
-                  {locale === 'ms'
-                    ? 'Anda perlu bersetuju dengan perkara ini untuk meneruskan.'
-                    : 'You need to agree to this before you can continue.'}
+                  {lt('consent.requiredToContinue')}
                 </FormHelperText>
               )}
             </Box>

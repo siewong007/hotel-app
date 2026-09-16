@@ -71,6 +71,8 @@ const MORE_VALUE = 'more';
 // `rewards` group under a desktop dropdown and the phone "More" sheet;
 // `account` items live in the avatar menu on web and the "More" sheet on
 // phones.
+// Labels come from `guestPortal:nav.<section>` at render time; every section
+// id below has a key in all three locales.
 const primarySections = [
   { section: 'overview', to: DASHBOARD_LINK, icon: <HomeOutlinedIcon /> },
   { section: 'stays', to: '/guest-portal?section=stays', icon: <HotelOutlinedIcon /> },
@@ -151,7 +153,7 @@ const groupLabelSx = {
 
 /** Guest-only navigation that preserves the existing portal route contract. */
 export function GuestPortalShell({ children, showAccountNav = true }: GuestPortalShellProps) {
-  const { t, tOr } = useTranslation('guestPortal');
+  const { t } = useTranslation('guestPortal');
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();

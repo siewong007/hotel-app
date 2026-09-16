@@ -56,7 +56,7 @@
     "deleteRewardAria": "Padam ganjaran {{name}}",
     "subtitlePts": "{{category}} · {{points}} mata",
     "metaStock": "peringkat {{tier}}+ · {{stock}} dalam stok",
-    "metaValue": " · {{symbol}}{{amount}}",
+    "metaStockValue": "peringkat {{tier}}+ · {{stock}} dalam stok · {{symbol}}{{amount}}",
     "colName": "Nama",
     "colCategory": "Kategori",
     "colPointsCost": "Kos Mata",

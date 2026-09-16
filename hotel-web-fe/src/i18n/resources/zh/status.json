@@ -152,7 +152,9 @@
     "on_hold": "已挂起",
     "pending": "待处理",
     "under_review": "审核中",
-    "verified": "已验证"
+    "verified": "已验证",
+    "not_started": "未开始",
+    "unverified": "未验证"
   },
   "email_delivery": {
     "queued": "排队中",
@@ -173,6 +175,18 @@
     "approved": "已批准",
     "rejected": "已拒绝",
     "fulfilled": "已兑现"
+  },
+  "loyalty_tx": {
+    "pending": "待处理",
+    "earned": "已赚取",
+    "earn": "已赚取",
+    "redeemed": "已兑换",
+    "redeem": "已兑换",
+    "expired": "已过期",
+    "expire": "已过期",
+    "adjusted": "已调整",
+    "adjust": "已调整",
+    "reversed": "已冲销"
   },
   "reward_redemption": {
     "pending": "待处理",
