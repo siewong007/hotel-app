@@ -1,4 +1,5 @@
-import { Alert, Box, Button, CircularProgress, Grid, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Grid, Stack, Typography } from '@mui/material';
+import { LogoLoader } from '../../../components';
 import { useState } from 'react';
 import { useNavigate } from '../../../router';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
@@ -64,11 +65,7 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
   const error = isPortal ? portalQuery.error : publicQuery.error;
 
   if (isLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-        <CircularProgress />
-      </Box>
-    );
+    return <LogoLoader variant="page" />;
   }
 
   if (error) {

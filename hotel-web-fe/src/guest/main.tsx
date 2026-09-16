@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import '../index.css';
 import { logWebVitals } from '../reportWebVitals';
 import GuestApp from './GuestApp';
+import { dismissBootSplash } from '../utils/bootSplash';
 import { t } from '../i18n';
 
 const MODULE_RETRY_PARAM = 'module-retry';
@@ -27,6 +28,7 @@ async function bootstrap() {
 
   const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
   root.render(<GuestApp />);
+  dismissBootSplash();
 
   const currentUrl = new URL(window.location.href);
   if (currentUrl.searchParams.has(MODULE_RETRY_PARAM)) {
@@ -38,6 +40,7 @@ async function bootstrap() {
 bootstrap().catch(error => {
   console.error('Failed to bootstrap guest application:', error);
   if (retryStaleModule(error)) return;
+  dismissBootSplash();
   const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
   root.render(
     <div style={{ padding: 24, fontFamily: 'Inter, Roboto, Helvetica, Arial, sans-serif' }}>

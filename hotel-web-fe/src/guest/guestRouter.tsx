@@ -1,7 +1,6 @@
 import { Suspense, useEffect, type ComponentType } from 'react';
-import { CircularProgress } from '@mui/material';
 import { createRootRoute, createRoute, createRouter, useNavigate } from '@tanstack/react-router';
-import { StatusPage } from '../components';
+import { LogoLoader, StatusPage } from '../components';
 import { lazyRoute } from '../navigation/lazyRoute';
 import { UnauthOnlyRoute } from '../router/RouteGuards';
 import { GuestRootLayout } from './GuestRootLayout';
@@ -29,7 +28,7 @@ function page(
     path,
     component: function GuestPage() {
       const inner = (
-        <Suspense fallback={null}>
+        <Suspense fallback={<LogoLoader variant="page" />}>
           <Page />
         </Suspense>
       );
@@ -48,7 +47,7 @@ const unsubscribeRoute = createRoute({
   component: function UnsubscribeRoute() {
     const { token } = unsubscribeRoute.useParams();
     return (
-      <Suspense fallback={<CircularProgress sx={{ m: 8 }} />}>
+      <Suspense fallback={<LogoLoader variant="page" />}>
         <UnsubscribePage token={token} />
       </Suspense>
     );
@@ -69,7 +68,7 @@ const guestPortalRoute = createRoute({
     const view = new URLSearchParams(window.location.search).get('view');
     const Page = view === 'booking' ? PortalBookingPage : PortalDashboardPage;
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<LogoLoader variant="page" />}>
         <Page />
       </Suspense>
     );

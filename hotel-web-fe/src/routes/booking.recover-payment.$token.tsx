@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
-import { CircularProgress } from '@mui/material';
 import { createFileRoute } from '@tanstack/react-router';
+import { LogoLoader } from '../components';
 import { lazyRoute } from '../navigation/lazyRoute';
 
 // Public, capability-authenticated page reached from a payment-rejected email.
@@ -13,7 +13,7 @@ const PaymentRecoveryPage = lazyRoute(
 function PaymentRecoveryRoute() {
   const { token } = Route.useParams();
   return (
-    <Suspense fallback={<CircularProgress sx={{ m: 8 }} />}>
+    <Suspense fallback={<LogoLoader variant="page" />}>
       <PaymentRecoveryPage token={token} />
     </Suspense>
   );

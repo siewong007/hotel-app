@@ -5,12 +5,12 @@ import {
   Box,
   Card,
   CardContent,
-  CircularProgress,
   Stack,
   Switch,
   Typography,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { LogoLoader } from '../../../components';
 import { PortalCommunicationsApi } from '../api';
 import { type NotificationTopic } from '../types';
 import { portalSessionScope } from '../../promotions/utils';
@@ -78,7 +78,7 @@ export default function PortalNotificationPreferences({ token }: { token: string
     },
   });
 
-  if (prefs.isLoading) return <CircularProgress size={24} aria-label={t('preferences.loadingAria')} />;
+  if (prefs.isLoading) return <LogoLoader variant="page" minHeight={160} />;
   if (prefs.isError) {
     return (
       <Alert severity="error" role="alert" action={<Button color="inherit" size="small" onClick={() => void prefs.refetch()}>{t('common:actions.retry')}</Button>}>

@@ -7,7 +7,6 @@ import {
   Box,
   Chip,
   Alert,
-  CircularProgress,
 } from '@mui/material';
 import {
   VerifiedUser as VerifiedIcon,
@@ -16,6 +15,7 @@ import {
   Add as AddIcon,
   CheckCircle as CheckIcon,
 } from '@mui/icons-material';
+import { LogoLoader } from '../../../components';
 import { useNavigate, useSearchParams } from '../../../router';
 import { useEkycStatus } from '../hooks/useEkycQueries';
 import { useTranslation } from '../../../i18n';
@@ -101,9 +101,7 @@ const EkycStatusCard: React.FC = () => {
     return (
       <Card>
         <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress />
-          </Box>
+          <LogoLoader variant="page" minHeight={120} />
         </CardContent>
       </Card>
     );

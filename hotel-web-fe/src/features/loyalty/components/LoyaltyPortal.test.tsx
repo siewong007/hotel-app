@@ -224,7 +224,7 @@ describe('LoyaltyPortal', () => {
     mocks.membersLoading = true;
 
     render(<LoyaltyPortal />);
-    expect(await screen.findByRole('progressbar')).toBeTruthy();
+    expect(await screen.findByRole('status')).toBeTruthy();
     expect(screen.queryByText('Total members')).toBeNull();
   });
 

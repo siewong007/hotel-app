@@ -4,7 +4,6 @@ import {
   Typography,
   Paper,
   Chip,
-  CircularProgress,
   Alert,
   Stack,
   Avatar,
@@ -20,6 +19,7 @@ import {
   AutoMode as AutoIcon,
   Person as PersonIcon,
 } from '@mui/icons-material';
+import { LogoLoader } from '../../../components';
 import { useRoomHistory } from '../hooks/useRoomQueries';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
@@ -98,14 +98,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          p: 3
-        }}>
-        <CircularProgress size={30} />
-      </Box>
+      <LogoLoader variant="page" minHeight={120} />
     );
   }
 

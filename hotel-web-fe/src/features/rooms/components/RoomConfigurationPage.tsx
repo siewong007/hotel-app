@@ -66,6 +66,7 @@ import {
   useUpdateRoomType,
   useUploadRoomTypeImage,
 } from '../hooks/useRoomQueries';
+import { LogoLoader } from '../../../components';
 import { ActionsMenu } from '../../../components/common/ActionsMenu';
 import type { ActionMenuItem } from '../../../components/common/ActionsMenu';
 import { SearchAndFilters } from '../../../components/common/SearchAndFilters';
@@ -585,15 +586,7 @@ const RoomConfigurationPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "400px"
-        }}>
-        <CircularProgress />
-      </Box>
+      <LogoLoader variant="page" minHeight={400} />
     );
   }
 

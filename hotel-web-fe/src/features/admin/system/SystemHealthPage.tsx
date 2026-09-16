@@ -14,6 +14,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 
 import { useSystemHealth } from './hooks';
 import { JobsTable } from './JobsTable';
+import { LogoLoader } from '../../../components';
 import { useTranslation } from '../../../i18n';
 import { formatNumber } from '../../../i18n/format';
 
@@ -83,9 +84,7 @@ const SystemHealthPage: React.FC = () => {
       )}
 
       {health.isPending ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
+        <LogoLoader variant="page" />
       ) : (
         health.data && (
           <>

@@ -6,11 +6,11 @@ import {
   Paper,
   Typography,
   Alert,
-  CircularProgress,
   Button,
 } from '@mui/material';
 import { CheckCircle as CheckCircleIcon, Error as ErrorIcon, Email as EmailIcon } from '@mui/icons-material';
 import { AuthService } from '../../../api';
+import { LogoLoader } from '../../../components';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
 
@@ -128,7 +128,7 @@ const EmailVerificationPage: React.FC = () => {
 
           {status === 'loading' && (
             <Box sx={{ py: 4 }}>
-              <CircularProgress size={60} sx={{ mb: 2 }} />
+              <LogoLoader variant="inline" size={48} sx={{ mb: 2 }} />
               <Typography variant="h6" gutterBottom>
                 {t('verifyEmail.verifying')}
               </Typography>

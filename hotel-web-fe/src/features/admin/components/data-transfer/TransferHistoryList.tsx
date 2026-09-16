@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Box,
   Chip,
-  CircularProgress,
   Paper,
   Table,
   TableBody,
@@ -23,6 +22,7 @@ import {
 } from '@mui/icons-material';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
 import { useTranslation } from '../../../../i18n';
+import { LogoLoader } from '../../../../components';
 import { MobileCardRow } from '../../../../components/data-table/MobileCardRow';
 import type { TransferHistoryEntry } from './types';
 import { describeHistoryAction, formatNum, formatWhen } from './utils';
@@ -93,7 +93,7 @@ const TransferHistoryList: React.FC<TransferHistoryListProps> = ({ entries, load
       {entries.length === 0 ? (
         <Box sx={{ p: 6, textAlign: 'center', color: 'text.secondary' }}>
           {loading ? (
-            <CircularProgress size={28} aria-label={t('history.loadingAria')} />
+            <LogoLoader variant="inline" />
           ) : (
             <>
               <HistoryIcon sx={{ fontSize: 40, opacity: 0.4, mb: 1 }} />

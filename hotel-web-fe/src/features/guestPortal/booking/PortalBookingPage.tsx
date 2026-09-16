@@ -15,6 +15,7 @@ import { Navigate, useNavigate } from '../../../router';
 import { PortalPromotionsApi } from '../../promotions/api/portalPromotionsApi';
 import type { Voucher } from '../../promotions/types';
 import { usePortalSessionBootstrap } from '../hooks/usePortalSessionBootstrap';
+import { LogoLoader } from '../../../components';
 import { GuestPaymentPanel } from '../components/GuestPaymentPanel';
 import { HTTPError } from 'ky';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
@@ -449,7 +450,7 @@ function SessionGate({ error, status, canRetry, onRetry, onRestart }: { error: s
   return (
     <Container maxWidth="sm" sx={{ mt: 8 }}>{error ? <Alert severity="error" role="alert" action={<Button color="inherit" size="small" onClick={canRetry ? onRetry : onRestart}>{canRetry ? t('book.retry') : t('book.signInAgain')}</Button>}>{error}</Alert> : <Stack direction="row" spacing={2} sx={{
       justifyContent: "center"
-    }}><CircularProgress size={24} /><Typography>{status === 'checking-account' ? t('book.checkingAccount') : t('book.openingPortal')}</Typography></Stack>}</Container>
+    }}><LogoLoader variant="inline" label={status === 'checking-account' ? t('book.checkingAccount') : t('book.openingPortal')} /></Stack>}</Container>
   );
 }
 
@@ -513,7 +514,7 @@ function LoadingQuote() {
     sx={{
       justifyContent: "center",
       alignItems: "center"
-    }}><CircularProgress size={24} /><Typography>{t('book.confirmingPrice')}</Typography></Stack></Paper>
+    }}><LogoLoader variant="inline" label={t('book.confirmingPrice')} /></Stack></Paper>
   );
 }
 

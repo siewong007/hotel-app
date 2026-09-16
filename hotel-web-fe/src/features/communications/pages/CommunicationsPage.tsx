@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -28,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { statusLabel, useTranslation } from '../../../i18n';
 import { formatStatusLabel } from '../../../utils/formatters';
 import { useIsPhone } from '../../../hooks/useIsPhone';
+import { LogoLoader } from '../../../components';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { TableScroll } from '../../../components/data-table/TableScroll';
 import { PromotionsApi } from '../../promotions/api/promotionsApi';
@@ -297,7 +297,7 @@ function CampaignsTab() {
     enabled: deliveriesFor !== null,
   });
 
-  if (campaigns.isLoading) return <CircularProgress sx={{ m: 4 }} />;
+  if (campaigns.isLoading) return <LogoLoader variant="page" />;
 
   return (
     <Box>

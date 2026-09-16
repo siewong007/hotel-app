@@ -14,7 +14,6 @@ import {
   Paper,
   Typography,
   Chip,
-  CircularProgress,
   Alert,
   FormControl,
   Select,
@@ -36,6 +35,7 @@ import {
   Notes,
   AttachMoney,
 } from '@mui/icons-material';
+import { LogoLoader } from '../../../components';
 import { Room, BookingWithDetails } from '../../../types';
 import {
   getLocalizedStatusLabel,
@@ -558,9 +558,7 @@ const RoomReservationTimeline: React.FC = () => {
 
         {/* ── Grid ── */}
         {loading && rooms.length === 0 ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
-            <CircularProgress />
-          </Box>
+          <LogoLoader variant="page" />
         ) : showAgenda ? (
           <Box sx={{ maxHeight: 'calc(100vh - 240px)', overflow: 'auto' }}>
             {(

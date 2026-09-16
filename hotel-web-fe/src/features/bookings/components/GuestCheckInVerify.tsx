@@ -7,12 +7,12 @@ import {
   Button,
   Box,
   Alert,
-  CircularProgress,
   Grid,
   Divider,
 } from '@mui/material';
 import { format } from 'date-fns';
 import { GuestPortalService } from '../../../api';
+import { LogoLoader } from '../../../components';
 import { Booking, Guest } from '../../../types';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { captureBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
@@ -65,9 +65,8 @@ export const GuestCheckInVerify: React.FC = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="sm" sx={{ mt: 8, textAlign: 'center' }}>
-        <CircularProgress />
-        <Typography sx={{ mt: 2 }}>{t('checkin.verify.loading')}</Typography>
+      <Container maxWidth="sm" sx={{ mt: 8 }}>
+        <LogoLoader variant="page" label={t('checkin.verify.loading')} />
       </Container>
     );
   }

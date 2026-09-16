@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -59,6 +58,7 @@ import {
 } from '../hooks/useLoyaltyAdmin';
 import { useLoyaltySocket } from '../hooks/useLoyaltySocket';
 import { useIsPhone } from '../../../hooks/useIsPhone';
+import { LogoLoader } from '../../../components';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { formatNumber, statusLabel, useTranslation } from '../../../i18n';
 import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
@@ -1108,11 +1108,7 @@ const RulesTab: React.FC = () => {
 // Shared
 // ---------------------------------------------------------------------------
 
-const Loading: React.FC = () => (
-  <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-    <CircularProgress />
-  </Box>
-);
+const Loading: React.FC = () => <LogoLoader variant="page" />;
 
 // ---------------------------------------------------------------------------
 // Portal shell

@@ -20,6 +20,7 @@ import '@fontsource/inter/latin-ext-700.css';
 import './index.css';
 import { logWebVitals } from './reportWebVitals';
 import { initializeDesktopBackendUrl } from './desktop/runtimeApi';
+import { dismissBootSplash } from './utils/bootSplash';
 import { t } from './i18n';
 
 const MODULE_RETRY_PARAM = 'module-retry';
@@ -71,6 +72,7 @@ async function bootstrap() {
   root.render(
     <App />
   );
+  dismissBootSplash();
 
   const currentUrl = new URL(window.location.href);
   if (currentUrl.searchParams.has(MODULE_RETRY_PARAM)) {
@@ -86,6 +88,7 @@ bootstrap().catch((error) => {
     return;
   }
 
+  dismissBootSplash();
   const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement
   );

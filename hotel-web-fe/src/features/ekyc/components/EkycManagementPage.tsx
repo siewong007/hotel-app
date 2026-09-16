@@ -70,6 +70,7 @@ import { api } from '../../../api/client';
 import { storage } from '../../../utils/storage';
 import { useAuth } from '../../../auth/AuthContext';
 import { useIsPhone } from '../../../hooks/useIsPhone';
+import { LogoLoader } from '../../../components';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { FilterSheet } from '../../../components/common/FilterSheet';
 import {
@@ -261,7 +262,7 @@ const SecureDocumentImage: React.FC<{
         </Stack>
       </Stack>
       <Box sx={{ height: 260, display: 'grid', placeItems: 'center', bgcolor: 'var(--hotel-surface-sunken)', overflow: 'auto' }}>
-        {loadState === 'loading' && <CircularProgress size={24} />}
+        {loadState === 'loading' && <LogoLoader variant="inline" />}
         {loadState === 'missing' && (
           <Stack
             spacing={0.5}

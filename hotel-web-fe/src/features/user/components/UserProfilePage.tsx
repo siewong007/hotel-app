@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from '../../../router';
-import { Alert, Box, Card, CircularProgress, Tab, Tabs, Typography } from '@mui/material';
+import { Alert, Box, Card, Tab, Tabs, Typography } from '@mui/material';
+import { LogoLoader } from '../../../components';
 import {
   Fingerprint as FingerprintIcon,
   Laptop as LaptopIcon,
@@ -180,7 +181,7 @@ const UserProfilePage: React.FC = () => {
           minHeight: '60vh',
         }}
       >
-        <CircularProgress size={60} />
+        <LogoLoader variant="inline" size={48} />
       </Box>
     );
   }

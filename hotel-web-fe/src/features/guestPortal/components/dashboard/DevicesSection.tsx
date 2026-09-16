@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Divider,
   Paper,
   Stack,
@@ -13,6 +12,7 @@ import DevicesOutlinedIcon from '@mui/icons-material/DevicesOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 
 import { useConfirm } from '../../../../components/common/ConfirmProvider';
+import { LogoLoader } from '../../../../components';
 import type { UserSessionInfo } from '../../../../types';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { guestErrorMessage } from '../../utils/feedback';
@@ -148,10 +148,11 @@ export function DevicesSection() {
       <Divider sx={{ my: 2.5 }} />
 
       {sessionsQuery.isPending ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 3 }}>
-          <CircularProgress size={22} />
-          <Typography sx={{ color: 'text.secondary' }}>{t('dashboard.devices.loading')}</Typography>
-        </Box>
+        <LogoLoader
+          variant="inline"
+          label={t('dashboard.devices.loading')}
+          sx={{ py: 3 }}
+        />
       ) : sessionsQuery.isError ? (
         <ErrorState
           message={t('dashboard.devices.loadFailed')}

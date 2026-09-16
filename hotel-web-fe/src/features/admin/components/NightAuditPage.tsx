@@ -41,6 +41,7 @@ import {
 import { NightAuditRun, JournalSection, AuditDetailsResponse } from '../../../api';
 import { channelAbbreviation, PendingPreviewView, CompletedReportView } from './NightAuditReportViews';
 import { TabPanel, getTabA11yProps } from '../../../components/common/TabPanel';
+import { LogoLoader } from '../../../components';
 import PageHeader from '../../../components/common/PageHeader';
 import { formatLocalDate } from '../../../utils/date';
 import { dateFormatter } from '../../../i18n/format';
@@ -654,9 +655,7 @@ const NightAuditPage: React.FC = () => {
         </Card>
 
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-            <CircularProgress />
-          </Box>
+          <LogoLoader variant="page" />
         ) : preview ? (
           preview.already_run ? (
             (() => {
@@ -761,9 +760,7 @@ const NightAuditPage: React.FC = () => {
         </Box>
 
         {historyLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-            <CircularProgress />
-          </Box>
+          <LogoLoader variant="page" />
         ) : auditHistory.length > 0 ? (
           isPhone ? (
           <Paper variant="outlined">

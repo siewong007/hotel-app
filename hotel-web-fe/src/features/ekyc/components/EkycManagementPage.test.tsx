@@ -68,7 +68,7 @@ describe('EkycManagementPage', () => {
 
   it('reports no critical axe violations', async () => {
     const { container } = render(<EkycManagementPage />);
-    await waitFor(() => expect(container.querySelector('.MuiCircularProgress-root')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
     await expectNoCriticalAxeViolations(container);
   });
 });

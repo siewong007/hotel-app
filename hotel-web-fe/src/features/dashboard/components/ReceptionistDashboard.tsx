@@ -57,6 +57,7 @@ import { Link } from '../../../router';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { getBookingChannelInfo } from '../../bookings/utils/bookingChannel';
 import RoomEventDialog from '../../rooms/components/RoomEventDialog';
+import { LogoLoader } from '../../../components';
 import CollapsibleSection from '../../../components/common/CollapsibleSection';
 import StatusChip from '../../../components/common/StatusChip';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
@@ -555,11 +556,7 @@ const ReceptionistDashboard: React.FC = () => {
   }
 
   if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
-        <CircularProgress />
-      </Box>
-    );
+    return <LogoLoader variant="page" minHeight={400} />;
   }
 
   if (error) {

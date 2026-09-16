@@ -3,7 +3,6 @@ import {
   Alert,
   Box,
   Button,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -15,7 +14,7 @@ import {
 } from '@mui/material';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import StorageIcon from '@mui/icons-material/Storage';
+import BrandMark from '../components/common/BrandMark';
 import { useTranslation, intlTag } from '../i18n';
 import {
   DesktopAppStatus,
@@ -242,9 +241,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
           <Stack direction="row" spacing={2} sx={{
             alignItems: "center"
           }}>
-            <Box sx={{ width: 48, height: 48, borderRadius: 2, bgcolor: 'primary.main', display: 'grid', placeItems: 'center', color: 'primary.contrastText' }}>
-              {status?.backend_starting || isRestarting ? <CircularProgress size={24} color="inherit" /> : <StorageIcon />}
-            </Box>
+            <BrandMark size={48} decorative />
             <Box>
               <Typography variant="h6">{serviceLabel}</Typography>
               <Typography variant="body2" sx={{

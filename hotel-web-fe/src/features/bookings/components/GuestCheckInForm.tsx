@@ -20,7 +20,6 @@ import {
   Button,
   Box,
   Alert,
-  CircularProgress,
   Stack,
   Step,
   StepLabel,
@@ -33,6 +32,7 @@ import {
   GuestEkycStatusSummary,
   GuestPortalAutoCheckinResponse,
 } from '../../../types';
+import { LogoLoader } from '../../../components';
 import { GuestPaymentPanel } from '../../guestPortal/components/GuestPaymentPanel';
 import { IdentitySection } from '../../guestPortal/components/dashboard/IdentitySection';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
@@ -240,9 +240,8 @@ export const GuestCheckInForm: React.FC = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="sm" sx={{ mt: { xs: 3, sm: 8 }, textAlign: 'center' }}>
-        <CircularProgress />
-        <Typography sx={{ mt: 2 }}>{t('checkin.form.loading')}</Typography>
+      <Container maxWidth="sm" sx={{ mt: { xs: 3, sm: 8 } }}>
+        <LogoLoader variant="page" label={t('checkin.form.loading')} />
       </Container>
     );
   }

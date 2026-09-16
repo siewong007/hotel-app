@@ -3,12 +3,12 @@ import {
   Alert,
   Box,
   Button,
-  CircularProgress,
   Drawer,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
+import { LogoLoader } from '../../../../components';
 import type { BookingWithDetails } from '../../../../types';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getErrorMessage } from '../../utils/bookingPageUtils';
@@ -57,9 +57,7 @@ const BookingDetailDrawer: React.FC<BookingDetailDrawerProps> = ({
       aria-label={t('details.ariaLabel')}
     >
       {!bookingId ? null : bookingQuery.isPending ? (
-        <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'center' }}>
-          <CircularProgress size={24} />
-        </Box>
+        <LogoLoader variant="page" minHeight={120} />
       ) : bookingQuery.error || !booking ? (
         <Box sx={{ p: 2.5 }}>
           <Alert severity="warning">{t('details.unavailable')}</Alert>

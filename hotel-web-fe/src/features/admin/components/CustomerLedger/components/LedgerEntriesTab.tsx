@@ -17,7 +17,6 @@ import {
   Chip,
   IconButton,
   Stack,
-  CircularProgress,
   LinearProgress,
 } from '@mui/material';
 import {
@@ -33,6 +32,7 @@ import { formatDateForDisplay, getLedgerUiStatus, isLedgerVoided } from '../help
 import { LedgerStatusBadge } from '../StatusPill';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
+import { LogoLoader } from '../../../../../components';
 import { MobileCardRow } from '../../../../../components/data-table/MobileCardRow';
 import { ActionsMenu } from '../../../../../components/common/ActionsMenu';
 import { useTranslation } from '../../../../../i18n';
@@ -281,9 +281,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
       </Box>
       {loading && <LinearProgress sx={{ height: 2 }} />}
       {entries.length === 0 && loading ? (
-        <Box sx={{ py: 8, px: 4, textAlign: 'center' }}>
-          <CircularProgress size={28} />
-        </Box>
+        <LogoLoader variant="page" minHeight={160} />
       ) : entries.length === 0 ? (
         <Box sx={{ py: 8, px: 4, textAlign: 'center' }}>
           <Typography variant="body2" sx={{

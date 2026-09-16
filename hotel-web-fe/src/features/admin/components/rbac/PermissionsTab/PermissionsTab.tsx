@@ -20,6 +20,7 @@ import {
   Search as SearchIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
+import { LogoLoader } from '../../../../../components';
 import type { Permission, Role, PermissionInput } from '../../../../../types';
 import type { PermissionCategory, RolePermissionMap } from '../types';
 import { getRoleColor, PERMISSION_CATEGORIES } from '../constants';
@@ -189,9 +190,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
       </Box>
       {/* Permission categories */}
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
+        <LogoLoader variant="page" />
       ) : filteredCategories.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography sx={{

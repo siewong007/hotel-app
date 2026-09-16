@@ -4,7 +4,6 @@ import {
   Typography,
   Button,
   TextField,
-  CircularProgress,
   IconButton,
   Collapse,
   Tooltip,
@@ -38,6 +37,7 @@ import {
 } from '../../../types/audit.types';
 import { getActionLabel, getResourceLabel } from '../../../types/audit.types';
 import { emitApiNotification } from '../../../utils/apiNotifications';
+import { LogoLoader } from '../../../components';
 import EmptyState from '../../../components/common/EmptyState';
 import {
   useAuditCategoryCounts,
@@ -602,9 +602,7 @@ const AuditLogPage: React.FC = () => {
         </Box>
 
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
-            <CircularProgress />
-          </Box>
+          <LogoLoader variant="page" />
         ) : grouped.length === 0 ? (
           <EmptyState
             icon={<InboxIcon />}

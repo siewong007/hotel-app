@@ -21,7 +21,6 @@ import {
   TextField,
   MenuItem,
   Alert,
-  CircularProgress,
   IconButton,
   Grid,
   FormControl,
@@ -140,6 +139,7 @@ import LedgerEntriesTab from './components/LedgerEntriesTab';
 import CompanyInfoTab from './components/CompanyInfoTab';
 import { useCustomerLedgerWorkspace } from './hooks/useCustomerLedgerWorkspace';
 import { useCompanyCheckIn, sortRoomsByNumber } from './hooks/useCompanyCheckIn';
+import { LogoLoader } from '../../../../components';
 import { useConfirm } from '../../../../components/common/ConfirmProvider';
 
 const normalizeOptionalPaymentText = (value?: string): string | undefined => {
@@ -1535,15 +1535,7 @@ const CustomerLedgerPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "400px"
-        }}>
-        <CircularProgress />
-      </Box>
+      <LogoLoader variant="page" minHeight={400} />
     );
   }
 

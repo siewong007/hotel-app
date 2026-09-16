@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   Chip,
-  CircularProgress,
   Grid,
   IconButton,
   Table,
@@ -19,6 +18,7 @@ import PrintIcon from '@mui/icons-material/Print';
 import type { KpiFormat, ReportEnvelope, ReportKpi } from '../types';
 import { formatCurrency } from '../../../utils/currency';
 import { printReportEnvelope } from '../utils/reportEnvelopePrint';
+import { LogoLoader } from '../../../components';
 import { TableScroll } from '../../../components/data-table/TableScroll';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { formatNumber, useTranslation, type UseTranslationResult } from '../../../i18n';
@@ -85,11 +85,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
   return (
     <Box>
       {toolbar}
-      {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
-      )}
+      {loading && <LogoLoader variant="page" />}
       {error && !loading && <Alert severity="error">{error}</Alert>}
       {envelope && !loading && (
         <Box>

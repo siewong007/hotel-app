@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { LogoLoader } from '../../../components';
 import { formatStatusLabel } from '../../../utils/formatters';
 import AddCommentOutlinedIcon from '@mui/icons-material/AddCommentOutlined';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
@@ -379,9 +380,7 @@ function ConversationDetail({
     return (
       <Box>
         {mobileNavigation}
-        <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 320 }}>
-          <CircularProgress />
-        </Box>
+        <LogoLoader variant="page" minHeight={320} />
       </Box>
     );
   }
@@ -611,7 +610,7 @@ export function PortalSupportTab({ token }: { token: string }) {
         {t('support.emergencyNotice')}
       </Alert>
       {conversationsQuery.isLoading ? (
-        <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 280 }}><CircularProgress /></Box>
+        <LogoLoader variant="page" minHeight={280} />
       ) : conversationsQuery.error ? (
         <Alert severity="error" role="alert" action={<Button color="inherit" size="small" onClick={() => void conversationsQuery.refetch()}>{t('common:actions.retry')}</Button>}>
           {guestErrorMessage(conversationsQuery.error, t('support.listLoadFailed'))}

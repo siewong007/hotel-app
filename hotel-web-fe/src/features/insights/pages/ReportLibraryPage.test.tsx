@@ -58,7 +58,7 @@ describe('ReportLibraryPage', () => {
   it('shows a spinner while the catalog loads', () => {
     mocks.catalog = { data: undefined, isPending: true, error: null };
     render(<ReportLibraryPage />);
-    expect(screen.getByRole('progressbar')).toBeTruthy();
+    expect(screen.getByRole('status')).toBeTruthy();
   });
 
   it('surfaces a catalog load error', () => {

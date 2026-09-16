@@ -1,17 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-boot-surface="guest">
   <head>
     <meta charset="utf-8" />
     <link id="app-favicon" rel="icon" href="/salim-inn/salim-inn-icon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#123a2e" />
     <meta name="description" content="Salim Inn guest booking and payment" />
     <link rel="apple-touch-icon" href="/salim-inn/salim-inn-icon.svg" />
     <title>Salim Inn</title>
     <script src="/guest-branding.js"></script>
+    <!-- Static boot splash — same monogram handoff as index.html, but on the
+         guest palette (deep forest / warm ivory). -->
+    <style>
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right)
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
+        background: #0b1814;
+        transition: opacity 160ms ease-out;
+      }
+      html[data-boot-theme='light'] #boot-splash {
+        background: #f3efe4;
+      }
+      #boot-splash.boot-splash--exit {
+        opacity: 0;
+        pointer-events: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-splash {
+          transition: none;
+        }
+      }
+      noscript {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483001;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: #0b1814;
+        color: #f2eee3;
+        font-family: system-ui, sans-serif;
+        text-align: center;
+      }
+      html[data-boot-theme='light'] noscript {
+        background: #f3efe4;
+        color: #1c1a14;
+      }
+    </style>
   </head>
   <body>
     <noscript>You need to enable JavaScript to complete this page.</noscript>
+    <div id="boot-splash" role="status" aria-label="Loading">
+      <svg viewBox="0 0 64 64" width="80" height="80" aria-hidden="true">
+        <rect width="64" height="64" rx="15" fill="#0B211A" />
+        <rect x="1.5" y="1.5" width="61" height="61" rx="13.5" fill="none" stroke="#D9B572" stroke-width="3" />
+        <path d="M13 27 32 13l19 14" fill="none" stroke="#D9B572" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M42 28c0-6-20-6-20 1 0 8 20 4 20 13 0 8-20 8-20 1" fill="none" stroke="#FFFDF7" stroke-width="4" stroke-linecap="round" />
+        <path d="M16 51h32" stroke="#D9B572" stroke-width="3" stroke-linecap="round" />
+      </svg>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/guest/main.tsx"></script>
   </body>

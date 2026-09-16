@@ -74,7 +74,7 @@ describe('SystemHealthPage', () => {
     mocks.health.isPending = true;
     mocks.health.data = undefined;
     const { unmount } = render(<SystemHealthPage />);
-    expect(screen.getByRole('progressbar')).toBeTruthy();
+    expect(screen.getByRole('status')).toBeTruthy();
     unmount();
 
     mocks.health.isPending = false;

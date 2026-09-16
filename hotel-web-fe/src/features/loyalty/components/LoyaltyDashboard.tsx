@@ -7,6 +7,7 @@ import {
   Grid,
   LinearProgress,
   Chip,
+  CircularProgress,
   Button,
   Dialog,
   DialogTitle,
@@ -53,7 +54,7 @@ import { EkycService, LoyaltyService } from '../../../api';
 import { HTTPError } from 'ky';
 import { useAuth } from '../../../auth/AuthContext';
 import { LoyaltyReward, RewardUpdateInput } from '../../../types';
-import { LoadingSpinner } from '../../../components';
+import { LogoLoader } from '../../../components';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
@@ -335,11 +336,7 @@ const LoyaltyDashboard: React.FC = () => {
   const categories = Array.from(new Set(rewards.map(r => r.category)));
 
   if (loading && !membership && !isAdmin) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-        <LoadingSpinner size={80} />
-      </Box>
-    );
+    return <LogoLoader variant="page" minHeight="60vh" size={72} />;
   }
 
   // Show eKYC requirement for guests
@@ -1451,7 +1448,7 @@ const LoyaltyDashboard: React.FC = () => {
             onClick={handleRedeemConfirm}
             variant="contained"
             disabled={loading}
-            startIcon={loading ? <LoadingSpinner size={20} /> : <RedeemIcon />}
+            startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <RedeemIcon />}
           >
             {t('dashboard.confirmRedemption')}
           </Button>

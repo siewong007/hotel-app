@@ -32,6 +32,7 @@ import { formatStatusLabel } from '../../../utils/formatters';
 import { useAuth } from '../../../auth/AuthContext';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import { LogoLoader } from '../../../components';
 import PageHeader from '../../../components/common/PageHeader';
 import {
   useApprovePayment,
@@ -276,9 +277,7 @@ const PaymentApprovalsPage: React.FC = () => {
         </Alert>
       )}
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
+        <LogoLoader variant="page" />
       ) : items.length === 0 ? (
         <Alert severity="info">{view === 'pending' ? t('paymentApprovals.empty.pending') : t('paymentApprovals.empty.history')}</Alert>
       ) : isPhone ? (

@@ -1,12 +1,12 @@
 import React from 'react';
 import { Box } from '@mui/material';
-import { HotelSpinner } from 'hotel-web-fe';
+import { BrandMark } from 'hotel-web-fe';
 
-// Branded full-screen loading indicator; `size` sets its diameter in px.
+// The Salim Inn monogram — deep-green tile, champagne roofline, ivory S.
 export function Default() {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-      <HotelSpinner />
+      <BrandMark />
     </Box>
   );
 }
@@ -14,7 +14,7 @@ export function Default() {
 export function Compact() {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-      <HotelSpinner size={64} />
+      <BrandMark size={32} />
     </Box>
   );
 }

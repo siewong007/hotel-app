@@ -3,8 +3,8 @@
 export { default as StatCard } from './src/components/common/StatCard';
 export { default as TabPanel } from './src/components/common/TabPanel';
 export { default as ModernDatePicker } from './src/components/common/ModernDatePicker';
-export { default as HotelSpinner } from './src/components/common/HotelSpinner';
-export { default as LoadingSpinner } from './src/components/common/LoadingSpinner';
+export { default as BrandMark } from './src/components/common/BrandMark';
+export { default as LogoLoader } from './src/components/common/LogoLoader';
 export { DataTable } from './src/components/data-table/DataTable';
 export { AppThemeProvider } from './.ds-provider';
 

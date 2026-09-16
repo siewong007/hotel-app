@@ -3,7 +3,6 @@ import {
   Alert,
   Box,
   Button,
-  CircularProgress,
   Container,
   Paper,
   Snackbar,
@@ -17,6 +16,7 @@ import { useTranslation } from '../../../i18n/useTranslation';
 import { formatLocalDate } from '../../../utils/date';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useIsPhone } from '../../../hooks/useIsPhone';
+import { LogoLoader } from '../../../components';
 import { BottomSheet } from '../../../components/common/BottomSheet';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { StickyActionBar } from '../../../components/common/StickyActionBar';
@@ -211,10 +211,7 @@ const OnlineInventoryPage = () => {
             variant="outlined"
             sx={{ display: 'grid', placeItems: 'center', minHeight: 280, borderRadius: 3 }}
           >
-            <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
-              <CircularProgress size={32} />
-              <Typography sx={{ color: 'text.secondary' }}>{t('loading')}</Typography>
-            </Stack>
+            <LogoLoader variant="inline" size={32} label={t('loading')} />
           </Paper>
         ) : inv.roomTypes.length === 0 ? (
           <Paper variant="outlined" sx={{ p: 5, textAlign: 'center', borderRadius: 3 }}>

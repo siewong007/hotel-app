@@ -3,7 +3,6 @@ import {
   Alert,
   Box,
   Button,
-  CircularProgress,
   Link as MuiLink,
   Paper,
   Tab,
@@ -14,7 +13,7 @@ import type { Guest } from '../../../types';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { errorMessage } from '../../../utils';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
-import { TabPanel, getTabA11yProps } from '../../../components';
+import { LogoLoader, TabPanel, getTabA11yProps } from '../../../components';
 import { useAuth } from '../../../auth/AuthContext';
 import { Link } from '../../../router';
 import { validateEmail } from '../../../utils/validation';
@@ -243,9 +242,7 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
       )}
 
       {profileQuery.isPending ? (
-        <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}>
-          <CircularProgress size={36} />
-        </Box>
+        <LogoLoader variant="page" />
       ) : profileQuery.error || !guest || !summary ? (
         <Alert
           severity="error"

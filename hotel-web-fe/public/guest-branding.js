@@ -11,6 +11,27 @@
   const guestPaths = new Set(['/guest-portal', '/offers', '/register', '/login', '/complete-profile']);
   const isGuestExperience = guestPaths.has(window.location.pathname);
 
+  // Boot-splash theme: pick the surface the app will mount with, before first
+  // paint, so the static splash in index.html/guest.html doesn't flash the
+  // wrong background. Staff reads `themeMode` (dark default); the guest app
+  // reads `guestThemeMode`, accepts 'system', and falls back to legacy
+  // `themeMode` then the OS preference. Mirrors normalizeThemeMode /
+  // normalizeGuestThemePreference — keep in sync.
+  try {
+    const surface = document.documentElement.dataset.bootSurface;
+    const stored =
+      surface === 'guest'
+        ? (localStorage.getItem('guestThemeMode') ?? localStorage.getItem('themeMode'))
+        : localStorage.getItem('themeMode');
+    const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+    const light =
+      stored === 'light' ||
+      (surface === 'guest' && stored !== 'dark' && media !== null && media.matches);
+    document.documentElement.dataset.bootTheme = light ? 'light' : 'dark';
+  } catch {
+    document.documentElement.dataset.bootTheme = 'dark';
+  }
+
   try {
     const cached = localStorage.getItem('hotelSettings');
     const hotelName = cached ? JSON.parse(cached).hotel_name : null;

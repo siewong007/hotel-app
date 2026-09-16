@@ -15,6 +15,7 @@ import {
   IconButton,
   InputAdornment,
   Collapse,
+  CircularProgress,
   Divider,
 } from '@mui/material';
 import {
@@ -28,7 +29,6 @@ import {
 import { useAuth } from '../../../auth/AuthContext';
 import { storage } from '../../../utils/storage';
 import FirstLoginPasskeyPrompt from './FirstLoginPasskeyPrompt';
-import { LoadingSpinner } from '../../../components';
 import { GuestPortalDashboardService } from '../../guestPortal/api/guestPortalDashboard.service';
 import { setPortalToken } from '../../guestPortal/api/portalTokenStore';
 import { GoogleSignInButton, isGoogleSignInAvailable } from './GoogleSignInButton';
@@ -468,7 +468,7 @@ const LoginPage: React.FC = () => {
                     }
                     sx={{ mb: 1.5, py: 1.5 }}
                   >
-                    {loading ? <LoadingSpinner size={24} /> : t('twoFactor.verify')}
+                    {loading ? <CircularProgress size={20} color="inherit" /> : t('twoFactor.verify')}
                   </Button>
 
                   {turnstile.enabled && (
@@ -611,7 +611,7 @@ const LoginPage: React.FC = () => {
                   loading || awaitingTurnstile || !username || username.length < 3 || !password
                 }
               >
-                {loading ? <LoadingSpinner size={24} color="inherit" /> : t('login.submit')}
+                {loading ? <CircularProgress size={20} color="inherit" /> : t('login.submit')}
               </Button>
 
               {turnstile.enabled && (

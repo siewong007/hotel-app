@@ -2,7 +2,6 @@ import {
   Alert,
   Box,
   Button,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -30,6 +29,7 @@ import {
   StickyNote2Outlined as InternalNoteIcon,
 } from '@mui/icons-material';
 import { useMemo, useRef, useState } from 'react';
+import { LogoLoader } from '../../../components';
 import { useTranslation, type UseTranslationResult } from '../../../i18n/useTranslation';
 import { statusLabel } from '../../../i18n/statusLabel';
 import { newSupportClientId } from '../api';
@@ -214,19 +214,7 @@ export default function SupportConversationDetail({
 
   if (isLoading) {
     return (
-      <Stack
-        spacing={1}
-        sx={{
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          minHeight: 360
-        }}>
-        <CircularProgress size={28} />
-        <Typography variant="body2" sx={{
-          color: "text.secondary"
-        }}>{t('detail.loading')}</Typography>
-      </Stack>
+      <LogoLoader variant="page" minHeight={360} sx={{ height: '100%' }} label={t('detail.loading')} />
     );
   }
 

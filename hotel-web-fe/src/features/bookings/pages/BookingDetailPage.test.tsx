@@ -10,7 +10,7 @@ import { resetLocaleStoreForTests } from '../../../i18n/localeStore';
 // ---------------------------------------------------------------------------
 // BookingDetailPage (route /bookings/$bookingId). Kept REAL: useBooking (the
 // fetch-by-id path), useBookingActions + its dialog mounts, BookingDetailsPanel,
-// PageHeader/EmptyState/LoadingSpinner, i18n (no provider needed), utils.
+// PageHeader/EmptyState/LogoLoader, i18n (no provider needed), utils.
 // Mocked: network services (api barrel, LedgerService, ReportsService), auth,
 // router compat (navigate spy + Link anchor), useRooms, useCurrency.
 // ---------------------------------------------------------------------------

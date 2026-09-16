@@ -43,6 +43,7 @@ import {
   RevenueBreakdownItem,
   UnpostedBooking,
 } from '../../../api';
+import { LogoLoader } from '../../../components';
 import { formatCurrency } from '../../../utils/currency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { formatStatusLabel } from '../../../utils/formatters';
@@ -682,10 +683,11 @@ export function CompletedReportView({
 
       {/* Posted journal + ledger sections */}
       {detailsLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-          <CircularProgress size={24} />
-          <Typography variant="body2" sx={{ ml: 1 }}>{t('actions.loadingJournal')}</Typography>
-        </Box>
+        <LogoLoader
+          variant="inline"
+          label={t('actions.loadingJournal')}
+          sx={{ display: 'flex', justifyContent: 'center', py: 2 }}
+        />
       ) : details ? (
         <>
           <JournalSectionsDisplay sections={details.journal_sections} />

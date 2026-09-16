@@ -29,6 +29,7 @@ import {
   History as HistoryIcon,
   SwapHoriz as RoomChangeIcon,
 } from '@mui/icons-material';
+import { LogoLoader } from '../../../components';
 import { BookingsService, RoomsService } from '../../../api';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { invalidateBookingDependencies, invalidateRoomDependencies } from '../../../api/queryInvalidation';
@@ -575,14 +576,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
           {/* Room Details Card */}
           {loadingDetails ? (
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                p: 2
-              }}>
-              <CircularProgress size={30} />
-            </Box>
+            <LogoLoader variant="page" minHeight={100} />
           ) : detailedStatus && (
             <Card elevation={0} sx={{ bgcolor: 'var(--hotel-surface-raised)' }}>
               <CardContent>
