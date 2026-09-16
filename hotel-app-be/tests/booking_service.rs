@@ -1849,6 +1849,20 @@ mod postgres_creation_tests {
         cleanup(&pool, room_id, guest_id, actor_id).await;
         seed_data(&pool, room_id, guest_id, actor_id).await;
 
+        // The seeded catalog owns room_type id=1 (Standard Room @150); this
+        // test needs a deterministic 100/night source rate, so give the room
+        // its own type instead of inheriting whatever id=1 happens to be.
+        sqlx::query("INSERT INTO room_types (id, name, code, base_price) OVERRIDING SYSTEM VALUE VALUES ($1, 'Channel Snapshot', 'CHSNAP', 100.0) ON CONFLICT DO NOTHING")
+            .bind(room_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE rooms SET room_type_id = $1 WHERE id = $1")
+            .bind(room_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
         let channel_id: i64 = sqlx::query_scalar(
             "INSERT INTO booking_channels (name, channel_type, default_commission_type, default_commission_value, default_commission_scope, is_active) \
              VALUES ('Snapshot Test OTA', 'ota', 'percentage', 15.00, 'per_booking', true) RETURNING id",
@@ -1939,12 +1953,17 @@ mod postgres_creation_tests {
             Some(rust_decimal::Decimal::new(34000, 2))
         );
 
+        cleanup(&pool, room_id, guest_id, actor_id).await;
         sqlx::query("DELETE FROM booking_channels WHERE id = $1")
             .bind(channel_id)
             .execute(&pool)
             .await
             .unwrap();
-        cleanup(&pool, room_id, guest_id, actor_id).await;
+        sqlx::query("DELETE FROM room_types WHERE id = $1")
+            .bind(room_id)
+            .execute(&pool)
+            .await
+            .unwrap();
     }
 }
 

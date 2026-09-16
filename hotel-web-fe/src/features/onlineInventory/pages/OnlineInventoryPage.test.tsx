@@ -167,14 +167,14 @@ describe('OnlineInventoryPage on a phone', () => {
     expect(
       screen.getByRole('button', { name: 'Done', pressed: true }),
     ).toBeTruthy();
-    expect(screen.getByText('0 cells selected')).toBeTruthy();
+    expect(screen.getByText('0 selected')).toBeTruthy();
     // "Edit selected" is disabled until something is selected.
     expect(
       screen.getByRole('button', { name: 'Edit selected' }),
     ).toHaveProperty('disabled', true);
 
     fireEvent.click(firstDeluxeDay());
-    expect(screen.getByText('1 cell selected')).toBeTruthy();
+    expect(screen.getByText('1 selected')).toBeTruthy();
 
     // Done exits the mode and clears the selection — the bar goes away.
     fireEvent.click(screen.getByRole('button', { name: 'Done', pressed: true }));
