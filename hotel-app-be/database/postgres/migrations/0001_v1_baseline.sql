@@ -4345,6 +4345,17 @@ ALTER TABLE public.promotions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: rate_limit_buckets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rate_limit_buckets (
+    bucket text NOT NULL,
+    window_start timestamp with time zone NOT NULL,
+    count integer NOT NULL
+);
+
+
+--
 -- Name: rate_plans; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6293,6 +6304,14 @@ ALTER TABLE ONLY public.promotions
 
 ALTER TABLE ONLY public.promotions
     ADD CONSTRAINT promotions_slug_key UNIQUE (slug);
+
+
+--
+-- Name: rate_limit_buckets rate_limit_buckets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rate_limit_buckets
+    ADD CONSTRAINT rate_limit_buckets_pkey PRIMARY KEY (bucket, window_start);
 
 
 --
