@@ -17,7 +17,13 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 const TEST_JWT_SECRET: &str = "hotel-app-be-passkey-challenge-test-secret-32ch";
 
 /// Ids used only by this file. Verified against every other `tests/` fixture id.
-const PASSKEY_USER_ID: i64 = 994_901;
+///
+/// ONE PER TEST, not one shared: cargo runs the test fns in this binary
+/// concurrently, so a shared fixture user means one test's setup runs while
+/// another's teardown is removing the very same row.
+const SINGLE_USE_USER_ID: i64 = 994_901;
+const EXPIRED_USER_ID: i64 = 994_902;
+const CONCURRENT_USER_ID: i64 = 994_903;
 
 fn ensure_test_app_config() {
     static INIT: std::sync::Once = std::sync::Once::new();
@@ -47,7 +53,7 @@ async fn setup_pg_pool() -> Option<PgPool> {
     )
 }
 
-async fn upsert_test_user(pool: &PgPool) {
+async fn upsert_test_user(pool: &PgPool, user_id: i64) {
     let password_hash = hotel_app_be::AuthService::hash_password("PasskeyChallenge!234")
         .await
         .expect("bcrypt hashing must succeed");
@@ -66,9 +72,9 @@ async fn upsert_test_user(pool: &PgPool) {
             is_active = true,
             deleted_at = NULL",
     )
-    .bind(PASSKEY_USER_ID)
-    .bind("passkey_challenge_user")
-    .bind("passkey_challenge_user@example.test")
+    .bind(user_id)
+    .bind(format!("passkey_challenge_user_{user_id}"))
+    .bind(format!("passkey_challenge_user_{user_id}@example.test"))
     .bind(password_hash)
     .bind("Passkey Challenge Test")
     .execute(pool)
@@ -76,30 +82,32 @@ async fn upsert_test_user(pool: &PgPool) {
     .unwrap();
 }
 
-/// Cleans up BEFORE any assertion that can panic, so a failed run does not
-/// poison the next one.
-async fn cleanup(pool: &PgPool) {
+/// Clears this test's challenge state BEFORE any assertion that can panic, so
+/// a failed run does not poison the next one.
+///
+/// The fixture USER deliberately survives: `users` is referenced by
+/// `audit_logs.user_id` with ON DELETE SET NULL, and the append-only guard on
+/// `audit_logs` is a FOR EACH STATEMENT trigger — so the referential action's
+/// UPDATE is rejected even when the user owns no audit rows at all, making
+/// `DELETE FROM users` impossible for ANY id. `upsert_test_user` resets the
+/// row instead, which is what a fixed-id fixture should do anyway.
+async fn cleanup(pool: &PgPool, user_id: i64) {
     sqlx::query("DELETE FROM passkey_challenges WHERE user_id = $1")
-        .bind(PASSKEY_USER_ID)
+        .bind(user_id)
         .execute(pool)
         .await
         .unwrap();
     sqlx::query("DELETE FROM passkeys WHERE user_id = $1")
-        .bind(PASSKEY_USER_ID)
-        .execute(pool)
-        .await
-        .unwrap();
-    sqlx::query("DELETE FROM users WHERE id = $1")
-        .bind(PASSKEY_USER_ID)
+        .bind(user_id)
         .execute(pool)
         .await
         .unwrap();
 }
 
-async fn fresh_challenge(pool: &PgPool, challenge_type: &str, challenge: &[u8]) {
+async fn fresh_challenge(pool: &PgPool, user_id: i64, challenge_type: &str, challenge: &[u8]) {
     PasskeyRepository::insert_challenge(
         pool,
-        PASSKEY_USER_ID,
+        user_id,
         challenge,
         challenge_type,
         Utc::now() + Duration::minutes(5),
@@ -115,35 +123,35 @@ async fn consume_challenge_is_single_use_and_type_scoped() {
     let Some(pool) = setup_pg_pool().await else {
         return;
     };
-    cleanup(&pool).await;
-    upsert_test_user(&pool).await;
+    cleanup(&pool, SINGLE_USE_USER_ID).await;
+    upsert_test_user(&pool, SINGLE_USE_USER_ID).await;
 
     let challenge: [u8; 32] = [0xAA; 32];
-    fresh_challenge(&pool, "authentication", &challenge).await;
+    fresh_challenge(&pool, SINGLE_USE_USER_ID, "authentication", &challenge).await;
 
     let first = PasskeyRepository::consume_challenge(
         &pool,
-        PASSKEY_USER_ID,
+        SINGLE_USE_USER_ID,
         &challenge,
         "authentication",
     )
     .await;
     let replay = PasskeyRepository::consume_challenge(
         &pool,
-        PASSKEY_USER_ID,
+        SINGLE_USE_USER_ID,
         &challenge,
         "authentication",
     )
     .await;
     let wrong_type = PasskeyRepository::consume_challenge(
         &pool,
-        PASSKEY_USER_ID,
+        SINGLE_USE_USER_ID,
         &challenge,
         "registration",
     )
     .await;
 
-    cleanup(&pool).await;
+    cleanup(&pool, SINGLE_USE_USER_ID).await;
 
     assert!(
         first.expect("first consumption errored"),
@@ -165,13 +173,13 @@ async fn consume_challenge_rejects_expired() {
     let Some(pool) = setup_pg_pool().await else {
         return;
     };
-    cleanup(&pool).await;
-    upsert_test_user(&pool).await;
+    cleanup(&pool, EXPIRED_USER_ID).await;
+    upsert_test_user(&pool, EXPIRED_USER_ID).await;
 
     let challenge: [u8; 32] = [0xBB; 32];
     PasskeyRepository::insert_challenge(
         &pool,
-        PASSKEY_USER_ID,
+        EXPIRED_USER_ID,
         &challenge,
         "registration",
         Utc::now() - Duration::minutes(1),
@@ -180,10 +188,10 @@ async fn consume_challenge_rejects_expired() {
     .expect("inserting an expired challenge must succeed");
 
     let result =
-        PasskeyRepository::consume_challenge(&pool, PASSKEY_USER_ID, &challenge, "registration")
+        PasskeyRepository::consume_challenge(&pool, EXPIRED_USER_ID, &challenge, "registration")
             .await;
 
-    cleanup(&pool).await;
+    cleanup(&pool, EXPIRED_USER_ID).await;
 
     assert!(
         !result.expect("expired consumption errored"),
@@ -199,11 +207,11 @@ async fn consume_challenge_allows_exactly_one_concurrent_winner() {
     let Some(pool) = setup_pg_pool().await else {
         return;
     };
-    cleanup(&pool).await;
-    upsert_test_user(&pool).await;
+    cleanup(&pool, CONCURRENT_USER_ID).await;
+    upsert_test_user(&pool, CONCURRENT_USER_ID).await;
 
     let challenge: [u8; 32] = [0xCC; 32];
-    fresh_challenge(&pool, "authentication", &challenge).await;
+    fresh_challenge(&pool, CONCURRENT_USER_ID, "authentication", &challenge).await;
 
     const RACERS: usize = 8;
     let mut handles = Vec::with_capacity(RACERS);
@@ -212,7 +220,7 @@ async fn consume_challenge_allows_exactly_one_concurrent_winner() {
         handles.push(tokio::spawn(async move {
             PasskeyRepository::consume_challenge(
                 &pool,
-                PASSKEY_USER_ID,
+                CONCURRENT_USER_ID,
                 &challenge,
                 "authentication",
             )
@@ -229,7 +237,7 @@ async fn consume_challenge_allows_exactly_one_concurrent_winner() {
         }
     }
 
-    cleanup(&pool).await;
+    cleanup(&pool, CONCURRENT_USER_ID).await;
 
     assert_eq!(winners, 1, "exactly one of {RACERS} racers may consume");
 }
