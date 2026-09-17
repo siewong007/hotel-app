@@ -913,6 +913,19 @@ impl CommunicationsRepository {
         Ok(rows.iter().map(campaign_from_row).collect())
     }
 
+    /// Campaigns stuck `running` past the point any live leader could still
+    /// be expanding them — the leader died mid-expansion. Re-expanding is
+    /// safe: `audience_batch` excludes guests that already have a delivery row.
+    pub async fn stale_running_campaigns(pool: &DbPool) -> Result<Vec<EmailCampaign>, ApiError> {
+        let sql = "SELECT {COLS} FROM email_campaigns WHERE status = 'running' AND started_at < CURRENT_TIMESTAMP - interval '15 minutes' ORDER BY started_at"
+            .replace("{COLS}", CAMPAIGN_COLUMNS);
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(rows.iter().map(campaign_from_row).collect())
+    }
+
     pub async fn mark_campaign_running(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
         let result = query("UPDATE email_campaigns SET status = 'running', started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'scheduled'")
         .bind(id)
@@ -1159,11 +1172,17 @@ impl CommunicationsRepository {
         Ok(count > 0)
     }
 
+    /// Outcome UPDATEs are lease-guarded: `lease_owner` + `status='sending'`
+    /// must still match the claiming worker. A send that outlived its
+    /// 5-minute lease was re-claimed by another worker — the stale outcome
+    /// then affects 0 rows instead of clobbering the successor's result or
+    /// re-queueing an already-sent row.
     pub async fn mark_delivery_sent_tx(
         tx: &mut DbTransaction<'_>,
         id: i64,
+        worker_id: &str,
         provider_message_id: Option<&str>,
-    ) -> Result<(), ApiError> {
+    ) -> Result<u64, ApiError> {
         query(
             r#"
                 UPDATE email_deliveries SET
@@ -1171,24 +1190,26 @@ impl CommunicationsRepository {
                     provider_message_id = $1, last_error = NULL,
                     lease_owner = NULL, lease_expires_at = NULL,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = $2
+                WHERE id = $2 AND lease_owner = $3 AND status = 'sending'
             "#,
         )
         .bind(provider_message_id)
         .bind(id)
+        .bind(worker_id)
         .execute(&mut **tx)
         .await
-        .map_err(ApiError::from)?;
-        Ok(())
+        .map(|result| result.rows_affected())
+        .map_err(ApiError::from)
     }
 
     /// `retry_at = Some(..)` requeues for retry; `None` marks terminally failed.
     pub async fn mark_delivery_failed_tx(
         tx: &mut DbTransaction<'_>,
         id: i64,
+        worker_id: &str,
         error: &str,
         retry_at: Option<DateTime<Utc>>,
-    ) -> Result<(), ApiError> {
+    ) -> Result<u64, ApiError> {
         match retry_at {
             Some(retry_at) => query(
                 r#"
@@ -1196,15 +1217,16 @@ impl CommunicationsRepository {
                         status = 'queued', next_attempt_at = $1, last_error = $2,
                         lease_owner = NULL, lease_expires_at = NULL,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE id = $3
+                    WHERE id = $3 AND lease_owner = $4 AND status = 'sending'
                 "#,
             )
             .bind(retry_at)
             .bind(error)
             .bind(id)
+            .bind(worker_id)
             .execute(&mut **tx)
             .await
-            .map(|_| ())
+            .map(|result| result.rows_affected())
             .map_err(ApiError::from),
             None => query(
                 r#"
@@ -1212,14 +1234,15 @@ impl CommunicationsRepository {
                         status = 'failed', last_error = $1,
                         lease_owner = NULL, lease_expires_at = NULL,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE id = $2
+                    WHERE id = $2 AND lease_owner = $3 AND status = 'sending'
                 "#,
             )
             .bind(error)
             .bind(id)
+            .bind(worker_id)
             .execute(&mut **tx)
             .await
-            .map(|_| ())
+            .map(|result| result.rows_affected())
             .map_err(ApiError::from),
         }
     }
@@ -1229,25 +1252,27 @@ impl CommunicationsRepository {
     pub async fn mark_delivery_skipped_tx(
         tx: &mut DbTransaction<'_>,
         id: i64,
+        worker_id: &str,
         status: &str,
         reason: &str,
-    ) -> Result<(), ApiError> {
+    ) -> Result<u64, ApiError> {
         query(
             r#"
                 UPDATE email_deliveries SET
                     status = $1, last_error = $2,
                     lease_owner = NULL, lease_expires_at = NULL,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = $3
+                WHERE id = $3 AND lease_owner = $4 AND status = 'sending'
             "#,
         )
         .bind(status)
         .bind(reason)
         .bind(id)
+        .bind(worker_id)
         .execute(&mut **tx)
         .await
-        .map_err(ApiError::from)?;
-        Ok(())
+        .map(|result| result.rows_affected())
+        .map_err(ApiError::from)
     }
 
     /// Completes a running campaign once no deliveries remain in flight.

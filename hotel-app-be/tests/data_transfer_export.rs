@@ -265,7 +265,7 @@ async fn export_emits_the_v1_document() {
         .expect("manifest.exclusions must be an array");
     assert_eq!(
         exclusions.len(),
-        29,
+        30,
         "every excluded schema table must be declared"
     );
     for exclusion in exclusions {

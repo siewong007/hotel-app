@@ -1,24 +1,29 @@
-//! In-memory rate limiter for API endpoints
+//! Rate limiter for API endpoints
 //!
-//! Uses a sliding window counter approach keyed by IP address.
-//! Suitable for single-instance deployments (hotel PMS).
+//! Fixed-window counters stored in PostgreSQL (`rate_limit_buckets`), so all
+//! replicas share one budget and one clock. Buckets are namespaced
+//! `{category}:{key}`; the check is a single atomic
+//! `INSERT … ON CONFLICT … DO UPDATE … RETURNING count` — allowed when the
+//! returned count is within `max_requests`, with `Retry-After` computed from
+//! the shared window end.
 //!
-//! Deployment boundary (SEC-05): counters live in process memory, so a restart
-//! resets all buckets and N replicas multiply every limit by N. The current
-//! single-node deploy behind Caddy makes this exact; if the backend ever
-//! scales out, move this to a shared store rather than dividing the limits.
+//! Deployment boundary (SEC-05): a process restart no longer resets counters
+//! and N replicas no longer multiply limits. Stale bucket rows are pruned by
+//! the leader-gated maintenance loop in `main.rs`.
 //!
-//! Categories:
-//! - `auth`: Login attempts (strict)
-//! - `register`: Account creation (strict)
-//! - `sensitive`: Password changes, 2FA ops, token refresh (moderate)
-//! - `api`: General authenticated API requests (lenient)
+//! Categories (see [`RateLimiters::new`]):
+//! - `auth`, `register`: login and account creation (strict)
+//! - `sensitive`: password changes, 2FA ops, token refresh (moderate)
+//! - `guest_portal_*`, `public_booking_*`: public portal and booking endpoints
+//! - `webhook`: inbound payment webhooks
 
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
+
+use crate::core::db::DbPool;
 
 /// Configuration for a rate limit rule
 #[derive(Clone)]
@@ -38,7 +43,7 @@ impl RateLimitConfig {
     }
 }
 
-/// Entry tracking requests from a single IP
+/// Entry tracking requests from a single key (memory backend only)
 struct RateLimitEntry {
     /// Timestamps of recent requests within the window
     timestamps: Vec<Instant>,
@@ -55,7 +60,10 @@ impl RateLimitEntry {
     /// Returns (allowed, seconds_until_next_slot) so callers can set Retry-After.
     fn check_and_record(&mut self, config: &RateLimitConfig) -> (bool, u64) {
         let now = Instant::now();
-        let cutoff = now - config.window;
+        // `Instant - Duration` panics on underflow — a host up for less than
+        // `window` would crash the request path instead of simply keeping
+        // every timestamp.
+        let cutoff = now.checked_sub(config.window).unwrap_or(now);
 
         // Remove expired entries
         self.timestamps.retain(|t| *t > cutoff);
@@ -80,53 +88,116 @@ impl RateLimitEntry {
     }
 }
 
+/// Where a limiter keeps its counters.
+#[derive(Clone)]
+enum Backend {
+    /// Process-local buckets — the `new` constructors, kept for unit tests
+    /// that run without DATABASE_URL. Only tests construct it; the bin
+    /// always uses Postgres.
+    #[allow(dead_code)]
+    Memory(Arc<Mutex<HashMap<String, RateLimitEntry>>>),
+    /// Shared fixed-window counters in `rate_limit_buckets`.
+    Postgres {
+        pool: DbPool,
+        category: &'static str,
+    },
+}
+
+/// One atomic upsert against `rate_limit_buckets`. The window is computed in
+/// the database (`date_bin`) so replicas share one clock. Fails open on a
+/// database error: a dead database already fails authenticated work, and the
+/// limiter must not make the outage worse.
+async fn check_postgres(pool: &DbPool, bucket: &str, config: &RateLimitConfig) -> (bool, u64) {
+    let window_secs = config.window.as_secs().max(1) as f64;
+    let result = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO rate_limit_buckets (bucket, window_start, count) \
+         VALUES ({p1}, date_bin(make_interval(secs => {p2}), {now}, 'epoch'), 1) \
+         ON CONFLICT (bucket, window_start) DO UPDATE \
+         SET count = rate_limit_buckets.count + 1 \
+         RETURNING count, window_start",
+        p1 = crate::param!(1),
+        p2 = crate::param!(2),
+        now = crate::core::sql_compat::current_timestamp(),
+    )))
+    .bind(bucket)
+    .bind(window_secs)
+    .fetch_one(pool)
+    .await;
+
+    match result {
+        Ok(row) => {
+            use sqlx::Row;
+            let count: i32 = row.get("count");
+            let window_start: chrono::DateTime<chrono::Utc> = row.get("window_start");
+            if (count as u32) <= config.max_requests {
+                (true, 0)
+            } else {
+                let window_end =
+                    window_start + chrono::Duration::from_std(config.window).unwrap_or_default();
+                let secs = (window_end - chrono::Utc::now()).num_seconds().max(1) as u64;
+                (false, secs)
+            }
+        }
+        Err(error) => {
+            log::warn!("rate limit check failed, allowing request: {error}");
+            (true, 0)
+        }
+    }
+}
+
 /// Thread-safe rate limiter
 #[derive(Clone)]
 pub struct RateLimiter {
-    entries: Arc<Mutex<HashMap<IpAddr, RateLimitEntry>>>,
+    backend: Backend,
     config: RateLimitConfig,
 }
 
 impl RateLimiter {
+    /// In-memory backend — for unit tests without a database.
+    #[allow(dead_code)] // constructed only by tests; the bin uses `postgres`
     pub fn new(config: RateLimitConfig) -> Self {
-        let limiter = Self {
-            entries: Arc::new(Mutex::new(HashMap::new())),
+        Self {
+            backend: Backend::Memory(Arc::new(Mutex::new(HashMap::new()))),
             config,
-        };
-
-        // Spawn cleanup task every 5 minutes
-        let entries = limiter.entries.clone();
-        let window = limiter.config.window;
-        tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(Duration::from_secs(300)).await;
-                let mut map = entries.lock().await;
-                let now = Instant::now();
-                map.retain(|_, entry| {
-                    entry.timestamps.retain(|t| now.duration_since(*t) < window);
-                    !entry.timestamps.is_empty()
-                });
-            }
-        });
-
-        limiter
+        }
     }
 
-    #[allow(dead_code)] // used by tests/rate_limiter_tests.rs
+    /// Postgres backend — the production constructor. `category` namespaces
+    /// this limiter's buckets inside `rate_limit_buckets`.
+    pub fn postgres(category: &'static str, config: RateLimitConfig, pool: DbPool) -> Self {
+        Self {
+            backend: Backend::Postgres { pool, category },
+            config,
+        }
+    }
+
     /// Check if a request from this IP is allowed. Returns true if allowed.
+    /// Production callers that only need the boolean use this (e.g. the
+    /// guest-portal guards); unit tests use it too.
+    #[allow(dead_code)]
     pub async fn check(&self, ip: IpAddr) -> bool {
-        let mut entries = self.entries.lock().await;
-        let entry = entries.entry(ip).or_insert_with(RateLimitEntry::new);
-        entry.check_and_record(&self.config).0
+        self.check_inner(ip.to_string()).await.0
     }
 
     /// Check if a request is allowed, returning (allowed, retry_after_secs).
     pub async fn check_with_retry(&self, ip: IpAddr) -> (bool, u64) {
-        let mut entries = self.entries.lock().await;
-        let entry = entries.entry(ip).or_insert_with(RateLimitEntry::new);
-        let outcome = entry.check_and_record(&self.config);
-        // Instrumented here rather than at the ~43 call sites: every per-IP
-        // limiter funnels through this method, so one increment covers them all.
+        self.check_inner(ip.to_string()).await
+    }
+
+    async fn check_inner(&self, key: String) -> (bool, u64) {
+        // Instrumented here rather than at the ~45 call sites: every per-IP
+        // limiter funnels through this method, so one increment covers them
+        // all — including the boolean-only `check()` callers.
+        let outcome = match &self.backend {
+            Backend::Memory(entries) => {
+                let mut entries = entries.lock().await;
+                let entry = entries.entry(key).or_insert_with(RateLimitEntry::new);
+                entry.check_and_record(&self.config)
+            }
+            Backend::Postgres { pool, category } => {
+                check_postgres(pool, &format!("{category}:{key}"), &self.config).await
+            }
+        };
         if !outcome.0 {
             crate::core::metrics::incr(&crate::core::metrics::RATE_LIMIT_REJECTIONS);
         }
@@ -137,41 +208,41 @@ impl RateLimiter {
 /// Thread-safe rate limiter keyed by caller-provided text identifiers.
 #[derive(Clone)]
 pub struct KeyedRateLimiter {
-    entries: Arc<Mutex<HashMap<String, RateLimitEntry>>>,
+    backend: Backend,
     config: RateLimitConfig,
 }
 
 impl KeyedRateLimiter {
+    /// In-memory backend — for unit tests without a database.
+    #[allow(dead_code)] // constructed only by tests; the bin uses `postgres`
     pub fn new(config: RateLimitConfig) -> Self {
-        let limiter = Self {
-            entries: Arc::new(Mutex::new(HashMap::new())),
+        Self {
+            backend: Backend::Memory(Arc::new(Mutex::new(HashMap::new()))),
             config,
-        };
+        }
+    }
 
-        let entries = limiter.entries.clone();
-        let window = limiter.config.window;
-        tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(Duration::from_secs(300)).await;
-                let mut map = entries.lock().await;
-                let now = Instant::now();
-                map.retain(|_, entry| {
-                    entry.timestamps.retain(|t| now.duration_since(*t) < window);
-                    !entry.timestamps.is_empty()
-                });
-            }
-        });
-
-        limiter
+    /// Postgres backend — the production constructor.
+    pub fn postgres(category: &'static str, config: RateLimitConfig, pool: DbPool) -> Self {
+        Self {
+            backend: Backend::Postgres { pool, category },
+            config,
+        }
     }
 
     /// Check if a request for this key is allowed, returning (allowed, retry_after_secs).
     pub async fn check_with_retry(&self, key: impl Into<String>) -> (bool, u64) {
-        let mut entries = self.entries.lock().await;
-        let entry = entries
-            .entry(key.into())
-            .or_insert_with(RateLimitEntry::new);
-        let outcome = entry.check_and_record(&self.config);
+        let key = key.into();
+        let outcome = match &self.backend {
+            Backend::Memory(entries) => {
+                let mut entries = entries.lock().await;
+                let entry = entries.entry(key).or_insert_with(RateLimitEntry::new);
+                entry.check_and_record(&self.config)
+            }
+            Backend::Postgres { pool, category } => {
+                check_postgres(pool, &format!("{category}:{key}"), &self.config).await
+            }
+        };
         if !outcome.0 {
             crate::core::metrics::incr(&crate::core::metrics::RATE_LIMIT_REJECTIONS);
         }
@@ -253,34 +324,96 @@ pub struct RateLimiters {
     pub webhook: RateLimiter,
 }
 
-impl Default for RateLimiters {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RateLimiters {
-    pub fn new() -> Self {
+    pub fn new(pool: DbPool) -> Self {
         Self {
-            auth: RateLimiter::new(RateLimitConfig::new(5, 60)),
-            register: RateLimiter::new(RateLimitConfig::new(10, 600)),
-            sensitive: RateLimiter::new(RateLimitConfig::new(10, 300)),
-            guest_portal_verify: RateLimiter::new(RateLimitConfig::new(10, 300)),
-            guest_portal_token_ip: RateLimiter::new(RateLimitConfig::new(240, 900)),
-            public_booking_read_ip: RateLimiter::new(RateLimitConfig::new(120, 900)),
-            public_booking_create_ip: RateLimiter::new(RateLimitConfig::new(10, 900)),
-            guest_portal_booking: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
-            guest_portal_token: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
-            guest_portal_token_payment: KeyedRateLimiter::new(RateLimitConfig::new(100, 600)),
-            guest_portal_payment: KeyedRateLimiter::new(RateLimitConfig::new(100, 600)),
-            guest_portal_token_read: KeyedRateLimiter::new(RateLimitConfig::new(120, 900)),
-            guest_portal_support_mutation: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
-            guest_portal_support_mutation_ip: RateLimiter::new(RateLimitConfig::new(120, 900)),
-            guest_portal_booking_create: KeyedRateLimiter::new(RateLimitConfig::new(10, 900)),
-            guest_portal_booking_create_ip: RateLimiter::new(RateLimitConfig::new(30, 900)),
-            guest_portal_ekyc: KeyedRateLimiter::new(RateLimitConfig::new(20, 900)),
-            guest_portal_ekyc_ip: RateLimiter::new(RateLimitConfig::new(60, 900)),
-            webhook: RateLimiter::new(RateLimitConfig::new(60, 60)),
+            auth: RateLimiter::postgres("auth", RateLimitConfig::new(5, 60), pool.clone()),
+            register: RateLimiter::postgres(
+                "register",
+                RateLimitConfig::new(10, 600),
+                pool.clone(),
+            ),
+            sensitive: RateLimiter::postgres(
+                "sensitive",
+                RateLimitConfig::new(10, 300),
+                pool.clone(),
+            ),
+            guest_portal_verify: RateLimiter::postgres(
+                "guest_portal_verify",
+                RateLimitConfig::new(10, 300),
+                pool.clone(),
+            ),
+            guest_portal_token_ip: RateLimiter::postgres(
+                "guest_portal_token_ip",
+                RateLimitConfig::new(240, 900),
+                pool.clone(),
+            ),
+            public_booking_read_ip: RateLimiter::postgres(
+                "public_booking_read_ip",
+                RateLimitConfig::new(120, 900),
+                pool.clone(),
+            ),
+            public_booking_create_ip: RateLimiter::postgres(
+                "public_booking_create_ip",
+                RateLimitConfig::new(10, 900),
+                pool.clone(),
+            ),
+            guest_portal_booking: KeyedRateLimiter::postgres(
+                "guest_portal_booking",
+                RateLimitConfig::new(5, 900),
+                pool.clone(),
+            ),
+            guest_portal_token: KeyedRateLimiter::postgres(
+                "guest_portal_token",
+                RateLimitConfig::new(5, 900),
+                pool.clone(),
+            ),
+            guest_portal_token_payment: KeyedRateLimiter::postgres(
+                "guest_portal_token_payment",
+                RateLimitConfig::new(100, 600),
+                pool.clone(),
+            ),
+            guest_portal_payment: KeyedRateLimiter::postgres(
+                "guest_portal_payment",
+                RateLimitConfig::new(100, 600),
+                pool.clone(),
+            ),
+            guest_portal_token_read: KeyedRateLimiter::postgres(
+                "guest_portal_token_read",
+                RateLimitConfig::new(120, 900),
+                pool.clone(),
+            ),
+            guest_portal_support_mutation: KeyedRateLimiter::postgres(
+                "guest_portal_support_mutation",
+                RateLimitConfig::new(30, 900),
+                pool.clone(),
+            ),
+            guest_portal_support_mutation_ip: RateLimiter::postgres(
+                "guest_portal_support_mutation_ip",
+                RateLimitConfig::new(120, 900),
+                pool.clone(),
+            ),
+            guest_portal_booking_create: KeyedRateLimiter::postgres(
+                "guest_portal_booking_create",
+                RateLimitConfig::new(10, 900),
+                pool.clone(),
+            ),
+            guest_portal_booking_create_ip: RateLimiter::postgres(
+                "guest_portal_booking_create_ip",
+                RateLimitConfig::new(30, 900),
+                pool.clone(),
+            ),
+            guest_portal_ekyc: KeyedRateLimiter::postgres(
+                "guest_portal_ekyc",
+                RateLimitConfig::new(20, 900),
+                pool.clone(),
+            ),
+            guest_portal_ekyc_ip: RateLimiter::postgres(
+                "guest_portal_ekyc_ip",
+                RateLimitConfig::new(60, 900),
+                pool.clone(),
+            ),
+            webhook: RateLimiter::postgres("webhook", RateLimitConfig::new(60, 60), pool),
         }
     }
 }
@@ -348,13 +481,14 @@ mod tests {
 
     #[tokio::test]
     async fn registration_limiter_allows_ten_attempts_per_window() {
-        let limiters = RateLimiters::new();
+        // Same rule the `register` field carries in production.
+        let limiter = RateLimiter::new(RateLimitConfig::new(10, 600));
 
         for _ in 0..10 {
-            assert_eq!(limiters.register.check_with_retry(ip(1)).await, (true, 0));
+            assert_eq!(limiter.check_with_retry(ip(1)).await, (true, 0));
         }
 
-        let (allowed, retry_after) = limiters.register.check_with_retry(ip(1)).await;
+        let (allowed, retry_after) = limiter.check_with_retry(ip(1)).await;
         assert!(!allowed);
         assert!(retry_after > 0);
     }

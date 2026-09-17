@@ -152,7 +152,7 @@ async fn ensure_admin_actor(pool: &PgPool, actor_id: i64) {
     .execute(pool)
     .await
     .unwrap();
-    hotel_app_be::core::rbac_cache::invalidate_all();
+    hotel_app_be::core::rbac_cache::clear_all();
 }
 
 /// Fixture ids for one booking (plus its room/room_type/guest). `company_name`

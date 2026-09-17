@@ -155,7 +155,7 @@ pub async fn assign_role_to_user(
         role_name.as_deref(),
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
 }
 
@@ -180,7 +180,7 @@ pub async fn remove_role_from_user(
         role_name.as_deref(),
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
 }
 
@@ -202,7 +202,7 @@ pub async fn assign_permission_to_role(
         serde_json::json!({ "permission_id": input.permission_id }),
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
 }
 
@@ -224,7 +224,7 @@ pub async fn remove_permission_from_role(
         serde_json::json!({ "permission_id": permission_id }),
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
 }
 
@@ -261,7 +261,7 @@ pub async fn replace_role_permissions(
         }),
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(permission_ids.len())
 }
 
@@ -311,7 +311,7 @@ pub async fn replace_user_roles(
         .await;
     }
 
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(role_ids.len())
 }
 
@@ -355,7 +355,7 @@ pub async fn update_role(
                 serde_json::json!({ "name": role.name }),
             )
             .await;
-            crate::core::rbac_cache::invalidate_all();
+            crate::core::rbac_cache::invalidate_all(pool).await;
             Ok(role)
         }
     }
@@ -391,7 +391,7 @@ pub async fn delete_role(pool: &DbPool, actor_user_id: i64, role_id: i64) -> Res
         serde_json::Value::Null,
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
 }
 
@@ -425,7 +425,7 @@ pub async fn update_permission(
                 serde_json::json!({ "name": permission.name }),
             )
             .await;
-            crate::core::rbac_cache::invalidate_all();
+            crate::core::rbac_cache::invalidate_all(pool).await;
             Ok(permission)
         }
     }
@@ -464,7 +464,7 @@ pub async fn delete_permission(
         serde_json::Value::Null,
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
 }
 

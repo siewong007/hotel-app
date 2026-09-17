@@ -155,7 +155,7 @@ impl Fixture {
             .execute(&pool)
             .await
             .expect("password fixture must apply");
-        hotel_app_be::core::rbac_cache::invalidate_all();
+        hotel_app_be::core::rbac_cache::clear_all();
 
         let mut sessions = HashMap::new();
         for (id, username, role) in [
@@ -247,7 +247,7 @@ impl Fixture {
         .execute(&self.pool)
         .await
         .expect("permission grant must insert");
-        hotel_app_be::core::rbac_cache::invalidate_all();
+        hotel_app_be::core::rbac_cache::clear_all();
     }
 
     fn fixture_role(user_id: i64) -> Option<&'static str> {
@@ -270,7 +270,7 @@ impl Fixture {
         .execute(&self.pool)
         .await
         .expect("permission revoke must run");
-        hotel_app_be::core::rbac_cache::invalidate_all();
+        hotel_app_be::core::rbac_cache::clear_all();
     }
 
     /// A step-up token as `POST /step-up` would mint it — used to exercise the
@@ -444,7 +444,7 @@ impl Fixture {
             .execute(pool)
             .await
             .expect("actor cleanup must run");
-        hotel_app_be::core::rbac_cache::invalidate_all();
+        hotel_app_be::core::rbac_cache::clear_all();
     }
 }
 

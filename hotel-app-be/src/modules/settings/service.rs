@@ -67,7 +67,7 @@ pub async fn update_system_setting(
     let setting = SettingsRepository::update_value_by_user(pool, key, &input.value, user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
-    settings_cache::invalidate_key(key);
+    settings_cache::invalidate_key(pool, key).await;
 
     AuditLog::log_event(
         pool,
@@ -110,7 +110,7 @@ pub async fn reset_system_setting(
     let setting = SettingsRepository::reset_to_default(pool, key, user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
-    settings_cache::invalidate_key(key);
+    settings_cache::invalidate_key(pool, key).await;
 
     AuditLog::log_event(
         pool,

@@ -12,9 +12,11 @@
 //! immediately. The TTL (`RBAC_CACHE_TTL_SECS`, default 30s) only bounds drift
 //! from out-of-band database edits.
 //!
-//! Single-process design (mirrors [`crate::core::rate_limiter`]): a
-//! process-global cache keeps the `AuthService::check_permission` /
-//! `check_role` signatures unchanged at their many call sites.
+//! The cache itself stays process-global (keeps the
+//! `AuthService::check_permission` / `check_role` signatures unchanged at
+//! their many call sites); [`invalidate_all`] fans the clear out to every
+//! replica over `pg_notify` via [`crate::core::cache_bus`], so a revocation on
+//! one replica converges the others without waiting out the TTL.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex};
@@ -207,8 +209,16 @@ pub async fn has_role(pool: &DbPool, user_id: i64, role_name: &str) -> Result<bo
 }
 
 /// Drop all cached entries. Call after any RBAC mutation so changes apply
-/// immediately rather than after the TTL.
-pub fn invalidate_all() {
+/// immediately rather than after the TTL — on every replica, via NOTIFY.
+pub async fn invalidate_all(pool: &DbPool) {
+    clear_all();
+    crate::core::cache_bus::publish(pool, "rbac").await;
+}
+
+/// Local-process clear. Mutation handlers call [`invalidate_all`] so every
+/// replica converges; the cache-bus listener calls this on remote
+/// notifications, and tests use it to reset fixtures locally.
+pub fn clear_all() {
     CACHE.entries.lock().unwrap().clear();
 }
 

@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use sqlx::Row;
 
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{Booking, Guest, GuestUpdateInput};
@@ -141,12 +141,37 @@ impl GuestPortalRepository {
             param!(3)
         );
         sqlx::query(sqlx::AssertSqlSafe(&*sql))
-            .bind(super::service::persist_booking_access_token(
-                token,
-            ))
+            .bind(super::service::persist_booking_access_token(token))
             .bind(expires_at)
             .bind(booking_id)
             .execute(pool)
+            .await
+            .map_err(|e| ApiError::Database(format!("Failed to update token: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Same token rotation inside a caller's transaction — the
+    /// pre-arrival reminder writes it alongside the deduplicated delivery
+    /// row so the emailed link can never be orphaned by an overlapping
+    /// scheduler's later rotation.
+    pub async fn update_precheckin_token_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+        token: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), ApiError> {
+        let sql = format!(
+            "UPDATE bookings SET pre_checkin_token = {}, pre_checkin_token_expires_at = {} WHERE id = {}",
+            param!(1),
+            param!(2),
+            param!(3)
+        );
+        sqlx::query(sqlx::AssertSqlSafe(&*sql))
+            .bind(super::service::persist_booking_access_token(token))
+            .bind(expires_at)
+            .bind(booking_id)
+            .execute(&mut **tx)
             .await
             .map_err(|e| ApiError::Database(format!("Failed to update token: {}", e)))?;
 

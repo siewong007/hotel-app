@@ -215,6 +215,60 @@ For Kubernetes, create the following resources:
 - `Service` for frontend (LoadBalancer or Ingress)
 - `StatefulSet` for PostgreSQL (with persistent volume)
 
+#### Running multiple backend replicas
+
+The backend is multi-instance ready: replicas share rate limits, cache
+invalidation, scheduler leadership, and staff-websocket fan-out through the
+one PostgreSQL they all connect to. No extra infrastructure is required.
+
+Shared across replicas:
+
+- **Rate limits** — fixed-window counters in `rate_limit_buckets`, so N
+  replicas enforce one global budget (not N×). Buckets are
+  `{category}:{key}`; stale rows are pruned by a leader-gated loop.
+- **Cache invalidation** — RBAC and settings caches stay local (30s TTL) but
+  every mutation `pg_notify`s `hotel_cache`; a listener in `main.rs` clears
+  the matching entry on every replica immediately. TTL is the correctness
+  floor if a notification is missed.
+- **Scheduler leadership** — night audit, payment receipts, unpaid-hold
+  release, the email worker, the communications scheduler, and the bucket
+  prune each run under a `pg_advisory_lock` (`core::leader::spawn_exclusive`).
+  Exactly one replica drives each loop; if it dies the lock releases with the
+  session and another replica takes over within ~30s.
+- **Staff realtime** — `DataChangeHub` publishes `hotel_data_changed`
+  notifications so a mutation on replica A reaches websockets connected to
+  replica B.
+
+Still per-replica by design — **sticky sessions required**:
+
+- Staged import uploads live on local disk (`private_uploads/`) and the
+  `IMPORT_JOBS` registry is in-process: an import must upload, poll, and
+  confirm through the same replica.
+- WebSocket connections terminate on one replica; loyalty/support hub events
+  only reach co-located connections.
+- `/metrics`, the PayPal token cache, the Google JWKS cache, and the uptime
+  probe are per-instance (scrape every replica for metrics).
+
+With Caddy in front of several upstreams, pin by client IP so the
+local-disk pieces above keep working:
+
+```caddy
+reverse_proxy backend1:3030 backend2:3030 {
+    lb_policy ip_hash
+}
+```
+
+Scale-out checklist:
+
+- [ ] Point every replica at the same `DATABASE_URL` (same cluster).
+- [ ] Enable sticky sessions (`lb_policy ip_hash` or equivalent) — required
+      for imports and expected for websockets.
+- [ ] Keep `TRUST_PROXY_HEADERS=true` so rate limits key on the real client
+      IP, not the load balancer's.
+- [ ] Scrape `/metrics` per replica — there is no aggregated view.
+- [ ] Rolling restarts are safe: the worst case is a ~30s scheduler hand-off
+      while the dead replica's advisory locks drain.
+
 ---
 
 ## Desktop App Distribution
@@ -324,7 +378,7 @@ is the canonical reference for how it works.
 **The catalog was reset, then reopened.** The original 22-patch lineage
 (revisions 1.2–1.23) was folded into the V1 baseline and `manifest.tsv` was
 reset to empty; generation 1 then reopened at version 2 — the catalog
-currently publishes six converge-style patches, versions 2–7 (the
+currently publishes seven converge-style patches, versions 2–8 (the
 `data_transfer:*` permission patch among them widens the `valid_action`
 check constraint, so it must run before any code that checks the new
 permissions; see `patches/manifest.tsv` for the full entry list — it is the
@@ -382,7 +436,7 @@ psql "$DATABASE_URL" -X -At -v ON_ERROR_STOP=1 -c \
 ```
 
 Expect `1.1` (the baseline) through the highest version in the manifest —
-currently `1.1`–`1.7`.
+currently `1.1`–`1.8`.
 
 #### One-time reset: stale pre-fold patch lineage
 

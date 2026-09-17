@@ -35,9 +35,12 @@ fn backoff_minutes(attempts: i32) -> i64 {
     (2_i64.saturating_pow(attempts)).min(MAX_BACKOFF_MINUTES)
 }
 
-/// Spawn the delivery worker. Inert (never spawns the loop) when SMTP is not
-/// configured — queued rows simply wait until a configured process starts.
-pub fn spawn(pool: DbPool) {
+/// The worker loop. Returns immediately when SMTP is unconfigured rather
+/// than parking while holding the leader lock — an unconfigured winner would
+/// otherwise block a configured replica's failover forever. The
+/// `spawn_exclusive` wrapper re-acquires on a delay, so an unconfigured
+/// replica costs one lock probe per cycle instead of the lock.
+pub async fn run(pool: DbPool) {
     let transport = match Transport::from_env() {
         Ok(Some(t)) => t,
         Ok(None) => {
@@ -55,31 +58,29 @@ pub fn spawn(pool: DbPool) {
         Duration::from_secs(env_u64("EMAIL_WORKER_INTERVAL_SECS", DEFAULT_INTERVAL_SECS));
     let batch = env_u64("EMAIL_WORKER_BATCH", DEFAULT_BATCH as u64) as i64;
     let worker_id = format!("worker-{}", generate_uuid());
-    tokio::spawn(async move {
-        log::info!(
-            "Email delivery worker started ({worker_id}, every {}s, batch {batch})",
-            interval.as_secs()
-        );
-        loop {
-            tokio::time::sleep(interval).await;
-            let started = std::time::Instant::now();
-            let outcome = tick(&pool, &transport, &worker_id, batch).await;
-            crate::core::job_runs::record(
-                &pool,
-                "email_delivery_worker",
-                outcome
-                    .as_ref()
-                    .ok()
-                    .map(|n| serde_json::json!({ "claimed": n })),
-                outcome.as_ref().err().map(|e| e.to_string()),
-                started.elapsed(),
-            )
-            .await;
-            if let Err(e) = &outcome {
-                log::warn!("Email delivery worker tick failed: {e}");
-            }
+    log::info!(
+        "Email delivery worker started ({worker_id}, every {}s, batch {batch})",
+        interval.as_secs()
+    );
+    loop {
+        tokio::time::sleep(interval).await;
+        let started = std::time::Instant::now();
+        let outcome = tick(&pool, &transport, &worker_id, batch).await;
+        crate::core::job_runs::record(
+            &pool,
+            "email_delivery_worker",
+            outcome
+                .as_ref()
+                .ok()
+                .map(|n| serde_json::json!({ "claimed": n })),
+            outcome.as_ref().err().map(|e| e.to_string()),
+            started.elapsed(),
+        )
+        .await;
+        if let Err(e) = &outcome {
+            log::warn!("Email delivery worker tick failed: {e}");
         }
-    });
+    }
 }
 
 /// One worker iteration. Also directly callable from tests with a fake
@@ -102,13 +103,26 @@ pub async fn tick(
         {
             campaigns_touched.push(campaign_id);
         }
-        if let Err(e) = process_delivery(pool, transport, &delivery).await {
+        if let Err(e) = process_delivery(pool, transport, &delivery, worker_id).await {
             // Persisting the outcome failed; the lease will expire and the
             // row will be reclaimed. Log without recipient details.
             log::warn!("Delivery {} outcome persistence failed: {e}", delivery.id);
         }
     }
     for campaign_id in campaigns_touched {
+        // Don't finalize a campaign whose expansion is incomplete — a leader
+        // that died mid-expansion leaves un-expanded audience with no
+        // delivery rows, which the scheduler's stale-running resume picks up.
+        if let Some(campaign) = Repo::get_campaign(pool, campaign_id).await? {
+            let scope =
+                crate::modules::segments::service::audience_scope_for(pool, campaign.segment_id)
+                    .await?;
+            let remaining =
+                Repo::audience_batch(pool, &campaign.topic, campaign_id, &scope, 1).await?;
+            if !remaining.is_empty() {
+                continue;
+            }
+        }
         if Repo::complete_campaign_if_done(pool, campaign_id).await? {
             log::info!("Campaign {campaign_id} completed");
         }
@@ -120,6 +134,7 @@ async fn process_delivery(
     pool: &DbPool,
     transport: &Transport,
     delivery: &super::models::EmailDelivery,
+    worker_id: &str,
 ) -> Result<(), ApiError> {
     // Campaign cancelled after enqueue → drop the remaining sends.
     if let Some(campaign_id) = delivery.campaign_id
@@ -127,8 +142,14 @@ async fn process_delivery(
         && campaign.status == "cancelled"
     {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        Repo::mark_delivery_skipped_tx(&mut tx, delivery.id, "cancelled", "campaign cancelled")
-            .await?;
+        Repo::mark_delivery_skipped_tx(
+            &mut tx,
+            delivery.id,
+            worker_id,
+            "cancelled",
+            "campaign cancelled",
+        )
+        .await?;
         tx.commit().await.map_err(ApiError::from)?;
         return Ok(());
     }
@@ -153,7 +174,8 @@ async fn process_delivery(
             "subscription revoked or guest inactive"
         };
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        Repo::mark_delivery_skipped_tx(&mut tx, delivery.id, "suppressed", reason).await?;
+        Repo::mark_delivery_skipped_tx(&mut tx, delivery.id, worker_id, "suppressed", reason)
+            .await?;
         tx.commit().await.map_err(ApiError::from)?;
         return Ok(());
     }
@@ -170,8 +192,17 @@ async fn process_delivery(
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     match outcome {
         Ok(provider_message_id) => {
-            Repo::mark_delivery_sent_tx(&mut tx, delivery.id, provider_message_id.as_deref())
-                .await?;
+            if Repo::mark_delivery_sent_tx(
+                &mut tx,
+                delivery.id,
+                worker_id,
+                provider_message_id.as_deref(),
+            )
+            .await?
+                == 0
+            {
+                return Ok(()); // lease lost — the new owner persists the outcome
+            }
             if let Some(campaign_id) = delivery.campaign_id {
                 Repo::add_campaign_counts_tx(&mut tx, campaign_id, 1, 0).await?;
             }
@@ -179,7 +210,12 @@ async fn process_delivery(
         Err(error) => {
             let error = error.chars().take(500).collect::<String>();
             if delivery.attempts >= delivery.max_attempts {
-                Repo::mark_delivery_failed_tx(&mut tx, delivery.id, &error, None).await?;
+                if Repo::mark_delivery_failed_tx(&mut tx, delivery.id, worker_id, &error, None)
+                    .await?
+                    == 0
+                {
+                    return Ok(()); // lease lost — the new owner persists the outcome
+                }
                 if let Some(campaign_id) = delivery.campaign_id {
                     Repo::add_campaign_counts_tx(&mut tx, campaign_id, 0, 1).await?;
                 }
@@ -191,7 +227,14 @@ async fn process_delivery(
             } else {
                 let retry_at =
                     Utc::now() + chrono::Duration::minutes(backoff_minutes(delivery.attempts));
-                Repo::mark_delivery_failed_tx(&mut tx, delivery.id, &error, Some(retry_at)).await?;
+                Repo::mark_delivery_failed_tx(
+                    &mut tx,
+                    delivery.id,
+                    worker_id,
+                    &error,
+                    Some(retry_at),
+                )
+                .await?;
             }
         }
     }

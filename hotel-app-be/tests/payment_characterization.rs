@@ -112,7 +112,7 @@ async fn grant_role(pool: &PgPool, user_id: i64, role_name: &str) {
     .execute(pool)
     .await
     .unwrap();
-    hotel_app_be::core::rbac_cache::invalidate_all();
+    hotel_app_be::core::rbac_cache::clear_all();
 }
 
 async fn seed_room_type(pool: &PgPool, room_type_id: i64, base_price: Decimal) {

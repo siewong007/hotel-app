@@ -382,6 +382,19 @@ impl AuditRepository {
         )
         .execute(pool)
         .await
+        .or_else(|e| {
+            // Two overlapping leaders can both pass the function's
+            // IF NOT EXISTS check; the loser's CREATE raises 42P07 —
+            // the partition exists either way, so the race is benign.
+            let raced = e
+                .as_database_error()
+                .is_some_and(|d| d.code().as_deref() == Some("42P07"));
+            if raced {
+                Ok(sqlx::postgres::PgQueryResult::default())
+            } else {
+                Err(e)
+            }
+        })
         .map_err(|e| ApiError::Database(e.to_string()))?;
         Ok(())
     }

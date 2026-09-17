@@ -264,7 +264,7 @@ Grouped by domain:
 - **Support & teams:** `support_conversations`, `support_messages`,
   `support_events`, `teams`, `team_members`, `team_roles`
 
-29 tables are **protected**. They are excluded from `standard`, `full` and
+30 tables are **protected**. They are excluded from `standard`, `full` and
 `backup` documents and emitted in those files' `manifest.exclusions` with one
 of five reason codes. A `system` export carries them instead, and its manifest
 lists only what it genuinely left out — the exclusions list always describes
@@ -279,7 +279,7 @@ admin, step-up and encryption rather than available at `full`.
 | `session_or_token_material` | `public.refresh_tokens`, `public.user_sessions`, `public.passkeys`, `public.passkey_challenges`, `public.two_factor_challenges`, `public.guest_portal_sessions`, `public.payment_retry_capabilities` | Live sessions and token/challenge state |
 | `sensitive_ekyc_pii` | `public.ekyc_verifications`, `public.ekyc_decision_history`, `public.ekyc_access_events`, `public.ekyc_sensitive_reveals`, `public.ekyc_idempotency_keys`, `public.ekyc_notes`, `public.ekyc_reason_codes` | Identity documents and biometric evidence |
 | `ephemeral_queue_state` | `public.email_deliveries`, `public.support_action_idempotency_keys`, `public.support_guest_request_idempotency_keys` | Live send/request queues — re-importing would replay sends |
-| `internal_system_table` | `public.job_runs`, `public.hotel_schema_revisions`, `app.invalid_data_quarantine`, `public.audit_logs`, `public.audit_logs_default` | Platform bookkeeping, not business data |
+| `internal_system_table` | `public.job_runs`, `public.hotel_schema_revisions`, `app.invalid_data_quarantine`, `public.audit_logs`, `public.audit_logs_default`, `public.rate_limit_buckets` | Platform bookkeeping and shared runtime state, not business data |
 
 Two entries behave specially inside a `system` export:
 

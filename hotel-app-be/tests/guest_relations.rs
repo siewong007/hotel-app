@@ -170,7 +170,7 @@ impl Fixture {
         Self::seed_guests(&pool).await;
         Self::seed_rooms_and_bookings(&pool).await;
         let review_id = Self::seed_domain_rows(&pool).await;
-        core::rbac_cache::invalidate_all();
+        core::rbac_cache::clear_all();
 
         let token = |user_id: i64, username: &'static str, role: &'static str| {
             let pool = pool.clone();

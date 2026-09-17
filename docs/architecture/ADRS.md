@@ -86,7 +86,9 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 - ✅ Stateless auth scales horizontally
 - ✅ Fine-grained permission model
 - ✅ Auto-grant via `manage` permission reduces boilerplate
-- ❌ In-memory caches limit multi-instance deployment
+- ❌ In-memory caches limit multi-instance deployment — superseded 2026-09-17:
+  caches stay process-local but `core::cache_bus` converges them across
+  replicas via `pg_notify` invalidation; the TTL remains the convergence floor
 - ✅ Refresh tokens ARE revocable: `refresh_tokens` table (`is_revoked`,
   `revoked_at`, `revoked_by`) backs `AuthService::revoke_refresh_token` /
   `revoke_all_user_tokens`, called on logout and password-change. Short-lived
@@ -97,7 +99,10 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 
 ## ADR 005: In-Memory Rate Limiting
 
-**Status:** Accepted (2025)
+**Status:** Superseded (2026-09-17) — rate limits now share fixed-window
+counters in the `rate_limit_buckets` table, still with no external dependency
+(the existing PostgreSQL is the store). The in-memory backend remains only as
+a test constructor; the original decision record stays for history.
 
 **Context:** Rate limiting was needed to protect the API. External dependencies were to be minimized.
 

@@ -112,12 +112,15 @@ Cross-cutting machinery:
   implies all actions on that resource.
 - `core/db.rs` — pool creation, per-connection hotel timezone, `hotel_today()`
   business-day helper, decimal/UUID helpers.
-- `core/rate_limiter.rs` — in-memory token-bucket limiter (single-instance
-  deployment trade-off, see ADR 005).
+- `core/rate_limiter.rs` — shared fixed-window limiter over the
+  `rate_limit_buckets` table (multi-replica safe; supersedes ADR 005).
 - `services/audit.rs` — append-only audit log called from mutating handlers.
-- Background loops spawned in `main.rs`: night audit, payment receipts,
-  unpaid online-hold release, communications delivery worker and campaign
-  scheduler.
+- Background loops spawned in `main.rs` through `core::leader::spawn_exclusive`
+  (Postgres advisory locks — one runner per loop across replicas): night audit,
+  payment receipts, unpaid online-hold release, communications delivery worker
+  and campaign scheduler, and the rate-limit bucket prune. A
+  `core::cache_bus` LISTEN task applies cross-replica cache invalidation and
+  data-change fan-out.
 
 Error handling: handlers return `ApiError` variants mapped to HTTP status +
 JSON error body; internal detail is logged server-side, client-facing messages

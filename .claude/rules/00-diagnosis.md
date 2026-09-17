@@ -78,8 +78,14 @@ symptom is "it compiles but the endpoint 404s in dev" or "lint fails on CI only"
    See the patch paragraph in CLAUDE.md. Both patch tests read the committed manifest
    (`postgres_patch_catalog.rs` enforces manifest↔deploy parity, `postgres_patch_lifecycle.rs`
    builds synthetic catalogs), so no test bounds need hand-editing when the head moves.
-10. Schema change → mirror it into the desktop bundle with `bun run sync:resources`, or
-   desktop ships a stale baseline and an empty patch manifest. Nothing in CI catches this.
+10. New cross-request state (rate limits, caches, job registries, schedulers) → give it a
+    Postgres home (`rate_limit_buckets`-style table, `pg_notify` invalidation, or a
+    `core::leader::spawn_exclusive` lock) or write down why it is intentionally
+    per-replica — process-local `HashMap`/`OnceLock` state silently multiplies across
+    replicas.
+11. Schema change → mirror it into the desktop bundle with `bun run sync:resources`, or
+   desktop ships a stale baseline and an empty patch manifest. The `db-mirror` CI job
+   catches it — a skipped sync lands as a red build, not a silent bug.
 
 - ✅ Good: after adding `POST /api/bookings/{id}/release`, the diff also shows the regenerated
   `docs/api/openapi.json` entry — item 8 done.

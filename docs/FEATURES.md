@@ -68,8 +68,9 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 - **No client-state library** — server state is TanStack Query; see ADR 006.
 - **No sqlx migration runner** — schema lifecycle is baseline + seed +
   checksum-verified patch catalog; see ADR 010.
-- **No external rate-limit store** — in-memory limiter bounds deployment to a
-  single backend instance; see ADR 005.
+- **No external rate-limit store** — counters live in the existing PostgreSQL
+  database (`rate_limit_buckets`), so replicas share one budget without adding
+  Redis; see ADR 005 (superseded).
 - **No payroll/HR module** — staff management stops at `teams`/`team_members`;
   `staging.sql` deliberately seeds no payroll tables. (Re-verified 2026-09-15:
   zero `payroll` matches in `src/`, zero payroll tables in the baseline.)

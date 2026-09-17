@@ -243,7 +243,7 @@ pub async fn update_user(
         },
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
 
     Ok(user.into())
 }
@@ -284,7 +284,7 @@ pub async fn delete_user(pool: &DbPool, admin_user_id: i64, user_id: i64) -> Res
         },
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
 
     Ok(())
 }
@@ -361,7 +361,7 @@ pub async fn suspend_user(
         },
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(user.into())
 }
 
@@ -387,7 +387,7 @@ pub async fn reactivate_user(
         },
     )
     .await;
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(user.into())
 }
 

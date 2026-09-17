@@ -61,7 +61,7 @@ Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lin
 empty DB **once**; `make db-seed` loads `staging.sql` demo data (optional, never production);
 `make db-patch` converges an existing V1 database. **There is no second migration file** — the only
 forward path is `hotel-app-be/database/postgres/patches/`, a checksum-verified catalog driven by
-`manifest.tsv` (generation 1, head version 7 as of 2026-09-16 — read the manifest, never a
+`manifest.tsv` (generation 1, head version 8 — read the manifest, never a
 remembered range), applied by `apply-patches.sh` and `hotel-desktop/src-tauri/src/postgres/patches.rs`. Lifecycle
 details (deprecated `db-setup` alias, legacy rebuild path): `hotel-app-be/database/README.md`.
 
@@ -86,7 +86,7 @@ routeless module — **put new domains there**. The residual flat files are shar
 - `core/db.rs` — `hotel_today(executor)`, `decimal_to_db`, `generate_uuid`. Each connection takes its timezone from `system_settings.timezone`, so SQL `CURRENT_DATE` **is** the business day. Never use `chrono::Local`/`Utc` for business dates.
 - `core/sql_compat.rs` — `param!(N)`, `current_timestamp()`, `current_date()`. Never literal `$1`/`NOW()`.
 - `core/i18n.rs` — `SUPPORTED_LOCALES = ["en","ms","zh","zh-TW"]`, `Accept-Language` negotiation, email catalogs in `core/locales/`. Every mutating handler calls `services/audit.rs`; free text goes through `utils/sanitization.rs::Sanitizer`; request models carry `validator` derives.
-- `main.rs` spawns: night audit, payment receipts, unpaid-hold release (`unpaid_hold_scheduler.rs`, window `unpaid_hold_release_hours`, 24 default / 0 disables), communications worker + scheduler. Adding/removing **any** route drifts `docs/api/openapi.json` and fails `tests/openapi_drift.rs` — regenerate with `HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift`.
+- `main.rs` spawns every background loop through `core::leader::spawn_exclusive` (night audit, payment receipts, unpaid-hold release — window `unpaid_hold_release_hours`, 24 default / 0 disables — communications worker + scheduler, rate-limit bucket prune): a `pg_advisory_lock` on a pinned connection makes exactly one replica drive each loop, and `core::cache_bus::spawn_listener` LISTENs for cross-replica cache invalidation + data-change fan-out. Rate limits live in `rate_limit_buckets` (Postgres fixed windows, fail-open on DB error) — `RateLimiters::new(pool)`; `RateLimiter::new(config)` is the memory-only test constructor. Adding/removing **any** route drifts `docs/api/openapi.json` and fails `tests/openapi_drift.rs` — regenerate with `HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift`.
 
 `sqlx` is plain `sqlx::query()`, **not** the checking macros — a type/column mismatch compiles cleanly
 and fails in production. Any new `FromRow` over date/timestamp/numeric/array columns needs a
@@ -104,7 +104,7 @@ live-PostgreSQL test that actually fetches it.
 
 ## Testing
 
-Backend: 53 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0,
+Backend: 54 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0,
 and each skip counts as a PASS** — a no-DB run reports *more* (1,317; `payment_characterization`
 44-in-0.01s vs a real 29 passed / 2 ignored), so run count cannot detect it: judge by wall-clock +
 per-suite counts. Patch/drift suites need `psql`. Fix-gated tests carry `#[ignore]`; CI fails when

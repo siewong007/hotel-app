@@ -1854,7 +1854,7 @@ impl AuthFixture {
         .execute(&pool)
         .await
         .expect("permission grant must insert");
-        core::rbac_cache::invalidate_all();
+        core::rbac_cache::clear_all();
 
         let admin_auth = Self::bearer(&pool, ADMIN_ACTOR_ID, "dt_backup_admin", "admin").await;
         let privileged_auth =
@@ -1970,7 +1970,7 @@ impl AuthFixture {
             .execute(pool)
             .await
             .expect("actor cleanup must run");
-        hotel_app_be::core::rbac_cache::invalidate_all();
+        hotel_app_be::core::rbac_cache::clear_all();
     }
 }
 

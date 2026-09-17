@@ -68,10 +68,10 @@ external validations in §14 are done.
 | Email verification | Existing | hashed, expiring, single-use tokens; `resend_verification` rate-limited |
 | Rate limiting | Existing | per-IP ceilings on all unauthenticated auth routes; X-Forwarded-For parsed right-to-left **and** Caddy overwrites the header (`header_up X-Forwarded-For {remote_host}`) |
 
-Residual auth risks: in-memory rate limiter is single-instance only
-(documented); bcrypt runs on worker threads (acceptable at hotel login volume);
-refresh-cookie restoration does not work in desktop webview (accepted
-limitation, documented).
+Residual auth risks: bcrypt runs on worker threads (acceptable at hotel login
+volume); refresh-cookie restoration does not work in desktop webview (accepted
+limitation, documented). Rate limits are shared across replicas via
+`rate_limit_buckets` (fixed windows, fail-open on database error).
 
 ### Authorization — strong
 
@@ -217,7 +217,7 @@ Gaps and notes:
 
 ## 9. Testing and quality gates
 
-- 53 backend test files incl. live-PG suites in CI (auth sessions, consent
+- 54 backend test files incl. live-PG suites in CI (auth sessions, consent
   gates, guest-portal IDOR, payment characterization, rate limiter, security
   headers, patch catalog/lifecycle, eKYC review queue). Skip-without-DB
   semantics are documented.
