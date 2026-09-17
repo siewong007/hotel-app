@@ -60,7 +60,10 @@ impl RateLimitEntry {
     /// Returns (allowed, seconds_until_next_slot) so callers can set Retry-After.
     fn check_and_record(&mut self, config: &RateLimitConfig) -> (bool, u64) {
         let now = Instant::now();
-        let cutoff = now - config.window;
+        // `Instant - Duration` panics on underflow — a host up for less than
+        // `window` would crash the request path instead of simply keeping
+        // every timestamp.
+        let cutoff = now.checked_sub(config.window).unwrap_or(now);
 
         // Remove expired entries
         self.timestamps.retain(|t| *t > cutoff);
@@ -168,25 +171,24 @@ impl RateLimiter {
         }
     }
 
-    #[allow(dead_code)] // used by tests/rate_limiter_tests.rs
     /// Check if a request from this IP is allowed. Returns true if allowed.
+    /// Production callers that only need the boolean use this (e.g. the
+    /// guest-portal guards); unit tests use it too.
+    #[allow(dead_code)]
     pub async fn check(&self, ip: IpAddr) -> bool {
         self.check_inner(ip.to_string()).await.0
     }
 
     /// Check if a request is allowed, returning (allowed, retry_after_secs).
     pub async fn check_with_retry(&self, ip: IpAddr) -> (bool, u64) {
-        // Instrumented here rather than at the ~43 call sites: every per-IP
-        // limiter funnels through this method, so one increment covers them all.
-        let outcome = self.check_inner(ip.to_string()).await;
-        if !outcome.0 {
-            crate::core::metrics::incr(&crate::core::metrics::RATE_LIMIT_REJECTIONS);
-        }
-        outcome
+        self.check_inner(ip.to_string()).await
     }
 
     async fn check_inner(&self, key: String) -> (bool, u64) {
-        match &self.backend {
+        // Instrumented here rather than at the ~45 call sites: every per-IP
+        // limiter funnels through this method, so one increment covers them
+        // all — including the boolean-only `check()` callers.
+        let outcome = match &self.backend {
             Backend::Memory(entries) => {
                 let mut entries = entries.lock().await;
                 let entry = entries.entry(key).or_insert_with(RateLimitEntry::new);
@@ -195,7 +197,11 @@ impl RateLimiter {
             Backend::Postgres { pool, category } => {
                 check_postgres(pool, &format!("{category}:{key}"), &self.config).await
             }
+        };
+        if !outcome.0 {
+            crate::core::metrics::incr(&crate::core::metrics::RATE_LIMIT_REJECTIONS);
         }
+        outcome
     }
 }
 

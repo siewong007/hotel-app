@@ -52,6 +52,17 @@ impl DataChangeHub {
         }
     }
 
+    /// A hub over the registered fan-out sender, for publishers outside the
+    /// router (e.g. a data-transfer restore) that must reach this replica's
+    /// connected sockets as well as remote ones. `None` before router
+    /// construction — `new()` would publish into a channel nobody listens to.
+    pub fn for_fanout(pool: DbPool) -> Option<Self> {
+        Some(Self {
+            sender: fanout_sender()?,
+            pool: Some(pool),
+        })
+    }
+
     /// Notify this replica's sockets and — when a pool is attached — every
     /// other replica via `hotel_data_changed`, stamped with this instance's
     /// id so the echo is dropped on arrival.

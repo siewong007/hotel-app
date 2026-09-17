@@ -169,19 +169,17 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
         // number and name — the reminder exists to remove that friction. The
         // token is minted for guests WITH an account too: the wizard reads the
         // booking through the booking token, not a portal session, so an
-        // account holder without one cannot use it either.
-        let checkin = match crate::modules::guest_portal::service::issue_booking_access_token(
-            pool,
-            booking.id,
-            booking.check_in_date,
-        )
-        .await
-        {
-            Some(token) => {
-                email_layout::absolute_url(&format!("/guest-checkin/form?token={token}"))
-            }
-            None => email_layout::absolute_url("/guest-checkin"),
-        };
+        // account holder without one cannot use it either. The token is
+        // minted here but only persisted inside the dedup transaction below:
+        // writing it earlier would let an overlapping leader rotate the token
+        // after this email was already queued, orphaning the emailed link.
+        let token = crate::modules::guest_portal::service::generate_session_token();
+        let token_expires_at =
+            crate::modules::guest_booking::service::anonymous_access_token_expiry(
+                Utc::now(),
+                booking.check_in_date,
+            );
+        let checkin = email_layout::absolute_url(&format!("/guest-checkin/form?token={token}"));
         let stay_in = locale.format_date(booking.check_in_date);
         let stay_out = locale.format_date(booking.check_out_date);
         let room = format!(
@@ -190,7 +188,10 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
             booking.room_type_name.as_deref().unwrap_or("-"),
         );
         let details = email_layout::details_table(&[
-            (locale.message("email.labels.booking"), &booking.booking_number),
+            (
+                locale.message("email.labels.booking"),
+                &booking.booking_number,
+            ),
             (locale.message("email.labels.room"), &room),
             (locale.message("email.labels.checkIn"), &stay_in),
             (locale.message("email.labels.checkOut"), &stay_out),
@@ -225,7 +226,11 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
             locale,
             preheader: &locale.format(
                 "email.preArrival.preheader",
-                &[("hotel", &hotel), ("booking", &booking.booking_number), ("checkIn", &stay_in)],
+                &[
+                    ("hotel", &hotel),
+                    ("booking", &booking.booking_number),
+                    ("checkIn", &stay_in),
+                ],
             ),
             heading: locale.message("email.preArrival.heading"),
             inner_html: &inner_html,
@@ -240,7 +245,7 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
         let body_text = rendered.text;
 
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        Repo::insert_delivery_tx(
+        let Some(_delivery_id) = Repo::insert_delivery_tx(
             &mut tx,
             DeliveryValues {
                 campaign_id: None,
@@ -254,6 +259,19 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
                 voucher_id: None,
                 idempotency_key: &format!("pre-arrival:{}", booking.id),
             },
+        )
+        .await?
+        else {
+            // Another leader already queued this reminder — rolling back also
+            // abandons our token write, so the token embedded in the queued
+            // email stays the live one.
+            continue;
+        };
+        crate::modules::guest_portal::repository::GuestPortalRepository::update_precheckin_token_tx(
+            &mut tx,
+            booking.id,
+            &token,
+            token_expires_at,
         )
         .await?;
         tx.commit().await.map_err(ApiError::from)?;
@@ -502,7 +520,10 @@ async fn issue_birthday_voucher(
          {details}\
          <p>{}</p>\
          <p>{}<br>{}</p>",
-        locale.format("email.greeting", &[("name", &html_escape(&guest.first_name))]),
+        locale.format(
+            "email.greeting",
+            &[("name", &html_escape(&guest.first_name))]
+        ),
         locale.message("email.birthday.bodyHtml"),
         locale.message("email.birthday.walletNote"),
         locale.message("email.birthday.signoff"),
@@ -529,7 +550,11 @@ async fn issue_birthday_voucher(
             url: &portal,
         }),
     });
-    let body_html = format!("{}{}", rendered.html, unsubscribe_footer_html(guest.id, locale));
+    let body_html = format!(
+        "{}{}",
+        rendered.html,
+        unsubscribe_footer_html(guest.id, locale)
+    );
     let body_text = rendered.text;
 
     AuditLog::log_event_tx(

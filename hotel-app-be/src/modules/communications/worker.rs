@@ -35,9 +35,11 @@ fn backoff_minutes(attempts: i32) -> i64 {
     (2_i64.saturating_pow(attempts)).min(MAX_BACKOFF_MINUTES)
 }
 
-/// The worker loop. Never returns: an unconfigured worker parks forever so a
-/// `core::leader::spawn_exclusive` winner does not churn the lock — and there
-/// is no work to fail over while SMTP is absent anyway.
+/// The worker loop. Returns immediately when SMTP is unconfigured rather
+/// than parking while holding the leader lock — an unconfigured winner would
+/// otherwise block a configured replica's failover forever. The
+/// `spawn_exclusive` wrapper re-acquires on a delay, so an unconfigured
+/// replica costs one lock probe per cycle instead of the lock.
 pub async fn run(pool: DbPool) {
     let transport = match Transport::from_env() {
         Ok(Some(t)) => t,
@@ -45,13 +47,11 @@ pub async fn run(pool: DbPool) {
             log::info!(
                 "Email delivery worker idle: SMTP not configured (set SMTP_HOST / SMTP_FROM_EMAIL)"
             );
-            std::future::pending::<()>().await;
-            unreachable!();
+            return;
         }
         Err(e) => {
             log::error!("Email delivery worker disabled: {e}");
-            std::future::pending::<()>().await;
-            unreachable!();
+            return;
         }
     };
     let interval =
@@ -103,7 +103,7 @@ pub async fn tick(
         {
             campaigns_touched.push(campaign_id);
         }
-        if let Err(e) = process_delivery(pool, transport, &delivery).await {
+        if let Err(e) = process_delivery(pool, transport, &delivery, worker_id).await {
             // Persisting the outcome failed; the lease will expire and the
             // row will be reclaimed. Log without recipient details.
             log::warn!("Delivery {} outcome persistence failed: {e}", delivery.id);
@@ -121,6 +121,7 @@ async fn process_delivery(
     pool: &DbPool,
     transport: &Transport,
     delivery: &super::models::EmailDelivery,
+    worker_id: &str,
 ) -> Result<(), ApiError> {
     // Campaign cancelled after enqueue → drop the remaining sends.
     if let Some(campaign_id) = delivery.campaign_id
@@ -128,8 +129,14 @@ async fn process_delivery(
         && campaign.status == "cancelled"
     {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        Repo::mark_delivery_skipped_tx(&mut tx, delivery.id, "cancelled", "campaign cancelled")
-            .await?;
+        Repo::mark_delivery_skipped_tx(
+            &mut tx,
+            delivery.id,
+            worker_id,
+            "cancelled",
+            "campaign cancelled",
+        )
+        .await?;
         tx.commit().await.map_err(ApiError::from)?;
         return Ok(());
     }
@@ -154,7 +161,8 @@ async fn process_delivery(
             "subscription revoked or guest inactive"
         };
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        Repo::mark_delivery_skipped_tx(&mut tx, delivery.id, "suppressed", reason).await?;
+        Repo::mark_delivery_skipped_tx(&mut tx, delivery.id, worker_id, "suppressed", reason)
+            .await?;
         tx.commit().await.map_err(ApiError::from)?;
         return Ok(());
     }
@@ -171,8 +179,17 @@ async fn process_delivery(
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     match outcome {
         Ok(provider_message_id) => {
-            Repo::mark_delivery_sent_tx(&mut tx, delivery.id, provider_message_id.as_deref())
-                .await?;
+            if Repo::mark_delivery_sent_tx(
+                &mut tx,
+                delivery.id,
+                worker_id,
+                provider_message_id.as_deref(),
+            )
+            .await?
+                == 0
+            {
+                return Ok(()); // lease lost — the new owner persists the outcome
+            }
             if let Some(campaign_id) = delivery.campaign_id {
                 Repo::add_campaign_counts_tx(&mut tx, campaign_id, 1, 0).await?;
             }
@@ -180,7 +197,12 @@ async fn process_delivery(
         Err(error) => {
             let error = error.chars().take(500).collect::<String>();
             if delivery.attempts >= delivery.max_attempts {
-                Repo::mark_delivery_failed_tx(&mut tx, delivery.id, &error, None).await?;
+                if Repo::mark_delivery_failed_tx(&mut tx, delivery.id, worker_id, &error, None)
+                    .await?
+                    == 0
+                {
+                    return Ok(()); // lease lost — the new owner persists the outcome
+                }
                 if let Some(campaign_id) = delivery.campaign_id {
                     Repo::add_campaign_counts_tx(&mut tx, campaign_id, 0, 1).await?;
                 }
@@ -192,7 +214,14 @@ async fn process_delivery(
             } else {
                 let retry_at =
                     Utc::now() + chrono::Duration::minutes(backoff_minutes(delivery.attempts));
-                Repo::mark_delivery_failed_tx(&mut tx, delivery.id, &error, Some(retry_at)).await?;
+                Repo::mark_delivery_failed_tx(
+                    &mut tx,
+                    delivery.id,
+                    worker_id,
+                    &error,
+                    Some(retry_at),
+                )
+                .await?;
             }
         }
     }

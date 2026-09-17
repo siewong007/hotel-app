@@ -67,6 +67,35 @@ async fn postgres_limiter_namespaces_categories() {
     assert_eq!(webhook.check_with_retry(ip).await.0, false);
 }
 
+/// The production `RateLimiters` construction itself is exercised so a
+/// silent config drift (e.g. the guest-payment budget shrinking) fails here
+/// rather than reaching guests.
+#[tokio::test]
+async fn postgres_production_limiters_enforce_payment_budget() {
+    let Some(pool) = pool().await else { return };
+    sqlx::query("DELETE FROM rate_limit_buckets WHERE bucket = 'guest_portal_payment:dstest-key'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let limiters = hotel_app_be::core::rate_limiter::RateLimiters::new(pool.clone());
+    for _ in 0..100 {
+        assert!(
+            limiters
+                .guest_portal_payment
+                .check_with_retry("dstest-key")
+                .await
+                .0
+        );
+    }
+    assert!(
+        !limiters
+            .guest_portal_payment
+            .check_with_retry("dstest-key")
+            .await
+            .0
+    );
+}
+
 #[tokio::test]
 async fn exclusive_scheduler_runs_on_one_instance_only() {
     let Some(pool) = pool().await else { return };

@@ -1955,6 +1955,21 @@ async fn import_structured_backup(
     // every replica's caches now rather than leaving them stale for the TTL.
     crate::core::rbac_cache::invalidate_all(pool).await;
     crate::core::settings_cache::invalidate_all(pool).await;
+    // Same for staff UI: the restore bypasses domain_for_path (no per-route
+    // mutation fired), so fan every domain out or other replicas' clients
+    // keep stale TanStack views until some unrelated mutation lands.
+    if let Some(hub) = crate::modules::realtime::hub::DataChangeHub::for_fanout(pool.clone()) {
+        for domain in [
+            "bookings",
+            "guests",
+            "rooms",
+            "ledgers",
+            "housekeeping",
+            "night-audit",
+        ] {
+            hub.publish_data_changed(domain);
+        }
+    }
 
     report.relationship_problems = problems
         .into_iter()

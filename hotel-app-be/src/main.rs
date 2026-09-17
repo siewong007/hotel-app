@@ -161,6 +161,18 @@ async fn main() {
     }
 
     // Initialize database pool
+    // Six leader-locked schedulers and the cache-bus LISTENER each pin a
+    // pooled connection for life. Below ~10 connections the remainder cannot
+    // serve requests — every acquire hits the timeout, healthcheck included.
+    if config.database.max_connections < 10 {
+        log::warn!(
+            "DATABASE_MAX_CONNECTIONS={} leaves under 3 connections for \
+             requests after 7 are pinned by schedulers and the cache-bus \
+             listener — expect acquire timeouts under load",
+            config.database.max_connections
+        );
+    }
+
     let pool = match create_pool(&config.database).await {
         Ok(pool) => {
             log::info!("✓ Database connection established");
@@ -295,11 +307,14 @@ async fn main() {
         pool.clone(),
         |p| async move {
             loop {
-                let _ = sqlx::query(
+                if let Err(e) = sqlx::query(
                     "DELETE FROM rate_limit_buckets WHERE window_start < CURRENT_TIMESTAMP - interval '2 hours'",
                 )
                 .execute(&p)
-                .await;
+                .await
+                {
+                    log::warn!("rate-limit bucket prune failed: {e}");
+                }
                 tokio::time::sleep(std::time::Duration::from_secs(600)).await;
             }
         },
