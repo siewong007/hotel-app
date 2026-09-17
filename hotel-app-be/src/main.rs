@@ -312,13 +312,16 @@ async fn main() {
         &modules::data_transfer::jobs::staged_upload_dir(),
     );
 
+    // Create router with all routes and middleware — this also constructs the
+    // DataChangeHub, which registers the fan-out sender the cache-bus
+    // listener rebroadcasts remote events through.
+    let app = create_router(pool.clone());
+
     // LISTEN for cross-replica cache invalidation and data-change fan-out so
     // a mutation served by another replica converges this one's local caches
-    // and staff websockets immediately.
-    core::cache_bus::spawn_listener(pool.clone());
-
-    // Create router with all routes and middleware
-    let app = create_router(pool);
+    // and staff websockets immediately. Spawned after router construction so
+    // no remote notification arrives before the fan-out sender exists.
+    core::cache_bus::spawn_listener(pool);
 
     // Determine bind address and port
     let preferred_port: u16 = config.backend_port;

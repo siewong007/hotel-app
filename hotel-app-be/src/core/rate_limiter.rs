@@ -11,11 +11,11 @@
 //! and N replicas no longer multiply limits. Stale bucket rows are pruned by
 //! the leader-gated maintenance loop in `main.rs`.
 //!
-//! Categories:
-//! - `auth`: Login attempts (strict)
-//! - `register`: Account creation (strict)
-//! - `sensitive`: Password changes, 2FA ops, token refresh (moderate)
-//! - `api`: General authenticated API requests (lenient)
+//! Categories (see [`RateLimiters::new`]):
+//! - `auth`, `register`: login and account creation (strict)
+//! - `sensitive`: password changes, 2FA ops, token refresh (moderate)
+//! - `guest_portal_*`, `public_booking_*`: public portal and booking endpoints
+//! - `webhook`: inbound payment webhooks
 
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -94,7 +94,10 @@ enum Backend {
     #[allow(dead_code)]
     Memory(Arc<Mutex<HashMap<String, RateLimitEntry>>>),
     /// Shared fixed-window counters in `rate_limit_buckets`.
-    Postgres { pool: DbPool, category: &'static str },
+    Postgres {
+        pool: DbPool,
+        category: &'static str,
+    },
 }
 
 /// One atomic upsert against `rate_limit_buckets`. The window is computed in
@@ -105,7 +108,7 @@ async fn check_postgres(pool: &DbPool, bucket: &str, config: &RateLimitConfig) -
     let window_secs = config.window.as_secs().max(1) as f64;
     let result = sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO rate_limit_buckets (bucket, window_start, count) \
-         VALUES ({p1}, date_bin(make_interval(secs => {p2}), {now}, '1970-01-01'), 1) \
+         VALUES ({p1}, date_bin(make_interval(secs => {p2}), {now}, 'epoch'), 1) \
          ON CONFLICT (bucket, window_start) DO UPDATE \
          SET count = rate_limit_buckets.count + 1 \
          RETURNING count, window_start",

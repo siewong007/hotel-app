@@ -25,23 +25,23 @@ use serde_json::{Map, Value};
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
-use crate::core::db::DbPool;
-use crate::core::error::ApiError;
-use crate::models::{
-    AuditEvent, BackupFile, BackupImportMode, ConflictPolicy, ImportEntityOutcome,
-    ImportExecuteRequest, ImportExecuteResponse, ImportJobReport, ImportJobResult,
-    ImportJobState, ImportJobStatus, ImportPreview, ImportPreviewEntity,
-    ImportRelationshipProblem, JobProgress, UploadResponse,
-};
+use super::crypto::{DecryptingReader, is_encrypted_backup};
 use super::repository::{
     DataTransferRepository, ForeignKeyRef, InsertRowOutcome, PkLookup, QualifiedTable,
     TransferTable, transfer_order,
 };
-use super::crypto::{DecryptingReader, is_encrypted_backup};
 use super::service::{
     AUDIT_USER_FK_COLUMNS, EXCLUDED_TABLES, TransferTier, backup_environment,
-    expand_full_overwrite_tables, is_never_imported_key, is_transferable_key,
-    protected_table_keys, table_is_sensitive,
+    expand_full_overwrite_tables, is_never_imported_key, is_transferable_key, protected_table_keys,
+    table_is_sensitive,
+};
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::models::{
+    AuditEvent, BackupFile, BackupImportMode, ConflictPolicy, ImportEntityOutcome,
+    ImportExecuteRequest, ImportExecuteResponse, ImportJobReport, ImportJobResult, ImportJobState,
+    ImportJobStatus, ImportPreview, ImportPreviewEntity, ImportRelationshipProblem, JobProgress,
+    UploadResponse,
 };
 
 /// Staging root for in-flight backup uploads — `private_uploads` resolves
@@ -1433,11 +1433,9 @@ async fn staged_file_is_sensitive(upload_id: Uuid, passphrase: Option<String>) -
         // Missing uploads fail closed; execute reports NotFound separately.
         return true;
     }
-    tokio::task::spawn_blocking(move || {
-        staged_file_is_sensitive_sync(&path, passphrase.as_deref())
-    })
-    .await
-    .unwrap_or(true)
+    tokio::task::spawn_blocking(move || staged_file_is_sensitive_sync(&path, passphrase.as_deref()))
+        .await
+        .unwrap_or(true)
 }
 
 /// The staged document as plaintext bytes, decrypting first when the file is
@@ -1576,7 +1574,15 @@ pub async fn start_import_job(
     let job_path = path.clone();
     let job_request = request;
     tokio::spawn(async move {
-        run_import_job(job_pool, job_id, job_path, job_request, import_user_id, tier).await;
+        run_import_job(
+            job_pool,
+            job_id,
+            job_path,
+            job_request,
+            import_user_id,
+            tier,
+        )
+        .await;
     });
 
     Ok(ImportExecuteResponse { job_id })
@@ -1596,8 +1602,7 @@ async fn run_import_job(
     let started = Instant::now();
     audit_import_event(&pool, import_user_id, job_id, &request, "start", None, None).await;
 
-    let outcome =
-        execute_staged_import(&pool, job_id, &path, &request, import_user_id, tier).await;
+    let outcome = execute_staged_import(&pool, job_id, &path, &request, import_user_id, tier).await;
 
     if let Err(error) = tokio::fs::remove_file(&path).await {
         log::warn!("import job {job_id}: could not remove staged file: {error}");
@@ -1723,12 +1728,11 @@ async fn execute_staged_import(
 ) -> Result<ImportJobResult, ApiError> {
     let file_path = path.to_path_buf();
     let passphrase = request.passphrase.clone();
-    let file = tokio::task::spawn_blocking(move || {
-        parse_staged_file(&file_path, passphrase.as_deref())
-    })
-    .await
-        .map_err(|error| ApiError::Internal(format!("backup parse task failed: {error}")))?
-        .map_err(ApiError::BadRequest)?;
+    let file =
+        tokio::task::spawn_blocking(move || parse_staged_file(&file_path, passphrase.as_deref()))
+            .await
+            .map_err(|error| ApiError::Internal(format!("backup parse task failed: {error}")))?
+            .map_err(ApiError::BadRequest)?;
 
     if file.format != "hotel-backup" {
         return Err(ApiError::BadRequest(format!(
@@ -1946,6 +1950,11 @@ async fn import_structured_backup(
     DataTransferRepository::restore_foreign_keys(&mut tx, &relaxed).await?;
     DataTransferRepository::reset_transfer_sequences(&mut tx, &ordered_tables).await?;
     tx.commit().await.map_err(ApiError::from)?;
+
+    // A restore can rewrite RBAC grants and settings rows wholesale; converge
+    // every replica's caches now rather than leaving them stale for the TTL.
+    crate::core::rbac_cache::invalidate_all(pool).await;
+    crate::core::settings_cache::invalidate_all(pool).await;
 
     report.relationship_problems = problems
         .into_iter()

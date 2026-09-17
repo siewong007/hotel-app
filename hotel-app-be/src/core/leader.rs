@@ -34,6 +34,15 @@ pub const LOCK_RATE_LIMIT_PRUNE: i64 = 820_006;
 /// time. `run` receives the pool and is expected to never return (a
 /// scheduler loop); if it does, or the lock connection dies, the acquisition
 /// loop starts over.
+///
+/// **Contract: `run` must be idempotent under a ≤`WATCHDOG_INTERVAL` overlap
+/// with a successor leader.** When the lock-holding connection dies,
+/// PostgreSQL releases the advisory lock immediately and another replica can
+/// win it while this replica's `run` is still executing — up to one watchdog
+/// tick (~15s) of overlap. Guard with DB constraints, row leases, or
+/// idempotency keys (as the current schedulers do: `night_audit_runs`
+/// audit-date unique key, delivery leases, campaign idempotency keys); an
+/// in-memory "already ran" flag does not survive the overlap.
 pub fn spawn_exclusive<F, Fut>(name: &'static str, lock_key: i64, pool: DbPool, run: F)
 where
     F: Fn(DbPool) -> Fut + Send + Sync + 'static,

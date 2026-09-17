@@ -83,7 +83,7 @@ symptom is "it compiles but the endpoint 404s in dev" or "lint fails on CI only"
     `core::leader::spawn_exclusive` lock) or write down why it is intentionally
     per-replica — process-local `HashMap`/`OnceLock` state silently multiplies across
     replicas.
-10. Schema change → mirror it into the desktop bundle with `bun run sync:resources`, or
+11. Schema change → mirror it into the desktop bundle with `bun run sync:resources`, or
    desktop ships a stale baseline and an empty patch manifest. Nothing in CI catches this.
 
 - ✅ Good: after adding `POST /api/bookings/{id}/release`, the diff also shows the regenerated

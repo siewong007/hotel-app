@@ -16,16 +16,23 @@ async fn pool() -> Option<sqlx::PgPool> {
     sqlx::PgPool::connect(&url).await.ok()
 }
 
+/// Scoped cleanup: each test owns a `test_*` category prefix so concurrent
+/// tests in this binary never touch each other's buckets.
+async fn clear_bucket_prefix(pool: &sqlx::PgPool, prefix: &str) {
+    sqlx::query("DELETE FROM rate_limit_buckets WHERE bucket LIKE $1")
+        .bind(format!("{prefix}:%"))
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn postgres_limiter_shares_bucket_across_instances() {
     let Some(pool) = pool().await else { return };
-    sqlx::query("DELETE FROM rate_limit_buckets")
-        .execute(&pool)
-        .await
-        .unwrap();
+    clear_bucket_prefix(&pool, "test_shared").await;
     // Two limiter objects on one pool behave as one limiter (two replicas).
-    let a = RateLimiter::postgres("auth", RateLimitConfig::new(2, 60), pool.clone());
-    let b = RateLimiter::postgres("auth", RateLimitConfig::new(2, 60), pool.clone());
+    let a = RateLimiter::postgres("test_shared", RateLimitConfig::new(2, 60), pool.clone());
+    let b = RateLimiter::postgres("test_shared", RateLimitConfig::new(2, 60), pool.clone());
     let ip = "203.0.113.9".parse().unwrap();
     assert_eq!(a.check_with_retry(ip).await.0, true);
     assert_eq!(b.check_with_retry(ip).await.0, true);
@@ -35,11 +42,8 @@ async fn postgres_limiter_shares_bucket_across_instances() {
 #[tokio::test]
 async fn postgres_limiter_reports_bounded_retry_after() {
     let Some(pool) = pool().await else { return };
-    sqlx::query("DELETE FROM rate_limit_buckets")
-        .execute(&pool)
-        .await
-        .unwrap();
-    let limiter = RateLimiter::postgres("auth", RateLimitConfig::new(1, 60), pool.clone());
+    clear_bucket_prefix(&pool, "test_retry").await;
+    let limiter = RateLimiter::postgres("test_retry", RateLimitConfig::new(1, 60), pool.clone());
     let ip = "203.0.113.10".parse().unwrap();
     assert_eq!(limiter.check_with_retry(ip).await.0, true);
     let (allowed, retry_after) = limiter.check_with_retry(ip).await;
@@ -50,14 +54,13 @@ async fn postgres_limiter_reports_bounded_retry_after() {
 #[tokio::test]
 async fn postgres_limiter_namespaces_categories() {
     let Some(pool) = pool().await else { return };
-    sqlx::query("DELETE FROM rate_limit_buckets")
-        .execute(&pool)
-        .await
-        .unwrap();
+    clear_bucket_prefix(&pool, "test_ns_auth").await;
+    clear_bucket_prefix(&pool, "test_ns_webhook").await;
     let ip = "203.0.113.11".parse().unwrap();
     // Same IP, different categories — each gets its own budget.
-    let auth = RateLimiter::postgres("auth", RateLimitConfig::new(1, 60), pool.clone());
-    let webhook = RateLimiter::postgres("webhook", RateLimitConfig::new(1, 60), pool.clone());
+    let auth = RateLimiter::postgres("test_ns_auth", RateLimitConfig::new(1, 60), pool.clone());
+    let webhook =
+        RateLimiter::postgres("test_ns_webhook", RateLimitConfig::new(1, 60), pool.clone());
     assert_eq!(auth.check_with_retry(ip).await.0, true);
     assert_eq!(webhook.check_with_retry(ip).await.0, true);
     assert_eq!(auth.check_with_retry(ip).await.0, false);
@@ -124,6 +127,9 @@ async fn data_change_publish_fans_out_with_origin() {
         .unwrap();
     let payload = note.payload();
     let (origin, domain) = payload.split_once(':').unwrap();
-    assert_eq!(origin, hotel_app_be::core::cache_bus::instance_id().to_string());
+    assert_eq!(
+        origin,
+        hotel_app_be::core::cache_bus::instance_id().to_string()
+    );
     assert_eq!(domain, "bookings");
 }

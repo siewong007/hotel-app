@@ -139,3 +139,17 @@ pub async fn invalidate_key(pool: &DbPool, key: &str) {
 pub fn clear_key(key: &str) {
     CACHE.entries.lock().unwrap().remove(key);
 }
+
+/// Drop every cached key locally and on every replica, via NOTIFY. Bulk
+/// writers (data-transfer restore) use this when the touched key set is
+/// unknowable.
+pub async fn invalidate_all(pool: &DbPool) {
+    clear_all();
+    crate::core::cache_bus::publish(pool, "settings:*").await;
+}
+
+/// Local-process clear of the whole cache. Callers broadcast via
+/// [`invalidate_all`]; the listener calls this on a `settings:*` payload.
+pub fn clear_all() {
+    CACHE.entries.lock().unwrap().clear();
+}

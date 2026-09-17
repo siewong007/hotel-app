@@ -12,9 +12,11 @@
 //! immediately. The TTL (`RBAC_CACHE_TTL_SECS`, default 30s) only bounds drift
 //! from out-of-band database edits.
 //!
-//! Single-process design (mirrors [`crate::core::rate_limiter`]): a
-//! process-global cache keeps the `AuthService::check_permission` /
-//! `check_role` signatures unchanged at their many call sites.
+//! The cache itself stays process-global (keeps the
+//! `AuthService::check_permission` / `check_role` signatures unchanged at
+//! their many call sites); [`invalidate_all`] fans the clear out to every
+//! replica over `pg_notify` via [`crate::core::cache_bus`], so a revocation on
+//! one replica converges the others without waiting out the TTL.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex};

@@ -67,7 +67,11 @@ fn dispatch(channel: &str, payload: &str) {
             if payload == "rbac" {
                 crate::core::rbac_cache::clear_all();
             } else if let Some(key) = payload.strip_prefix("settings:") {
-                crate::core::settings_cache::clear_key(key);
+                if key == "*" {
+                    crate::core::settings_cache::clear_all();
+                } else {
+                    crate::core::settings_cache::clear_key(key);
+                }
             }
         }
         DATA_CHANNEL => {

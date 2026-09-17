@@ -61,7 +61,7 @@ Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lin
 empty DB **once**; `make db-seed` loads `staging.sql` demo data (optional, never production);
 `make db-patch` converges an existing V1 database. **There is no second migration file** — the only
 forward path is `hotel-app-be/database/postgres/patches/`, a checksum-verified catalog driven by
-`manifest.tsv` (generation 1, head version 7 as of 2026-09-16 — read the manifest, never a
+`manifest.tsv` (generation 1, head version 8 — read the manifest, never a
 remembered range), applied by `apply-patches.sh` and `hotel-desktop/src-tauri/src/postgres/patches.rs`. Lifecycle
 details (deprecated `db-setup` alias, legacy rebuild path): `hotel-app-be/database/README.md`.
 
