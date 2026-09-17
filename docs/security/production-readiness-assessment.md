@@ -217,7 +217,7 @@ Gaps and notes:
 
 ## 9. Testing and quality gates
 
-- 53 backend test files incl. live-PG suites in CI (auth sessions, consent
+- 54 backend test files incl. live-PG suites in CI (auth sessions, consent
   gates, guest-portal IDOR, payment characterization, rate limiter, security
   headers, patch catalog/lifecycle, eKYC review queue). Skip-without-DB
   semantics are documented.

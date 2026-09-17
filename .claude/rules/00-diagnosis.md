@@ -84,7 +84,8 @@ symptom is "it compiles but the endpoint 404s in dev" or "lint fails on CI only"
     per-replica — process-local `HashMap`/`OnceLock` state silently multiplies across
     replicas.
 11. Schema change → mirror it into the desktop bundle with `bun run sync:resources`, or
-   desktop ships a stale baseline and an empty patch manifest. Nothing in CI catches this.
+   desktop ships a stale baseline and an empty patch manifest. The `db-mirror` CI job
+   catches it — a skipped sync lands as a red build, not a silent bug.
 
 - ✅ Good: after adding `POST /api/bookings/{id}/release`, the diff also shows the regenerated
   `docs/api/openapi.json` entry — item 8 done.

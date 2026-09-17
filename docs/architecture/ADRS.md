@@ -86,7 +86,9 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 - ✅ Stateless auth scales horizontally
 - ✅ Fine-grained permission model
 - ✅ Auto-grant via `manage` permission reduces boilerplate
-- ❌ In-memory caches limit multi-instance deployment
+- ❌ In-memory caches limit multi-instance deployment — superseded 2026-09-17:
+  caches stay process-local but `core::cache_bus` converges them across
+  replicas via `pg_notify` invalidation; the TTL remains the convergence floor
 - ✅ Refresh tokens ARE revocable: `refresh_tokens` table (`is_revoked`,
   `revoked_at`, `revoked_by`) backs `AuthService::revoke_refresh_token` /
   `revoke_all_user_tokens`, called on logout and password-change. Short-lived

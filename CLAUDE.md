@@ -104,7 +104,7 @@ live-PostgreSQL test that actually fetches it.
 
 ## Testing
 
-Backend: 53 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0,
+Backend: 54 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0,
 and each skip counts as a PASS** — a no-DB run reports *more* (1,317; `payment_characterization`
 44-in-0.01s vs a real 29 passed / 2 ignored), so run count cannot detect it: judge by wall-clock +
 per-suite counts. Patch/drift suites need `psql`. Fix-gated tests carry `#[ignore]`; CI fails when

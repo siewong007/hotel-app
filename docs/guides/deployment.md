@@ -378,7 +378,7 @@ is the canonical reference for how it works.
 **The catalog was reset, then reopened.** The original 22-patch lineage
 (revisions 1.2–1.23) was folded into the V1 baseline and `manifest.tsv` was
 reset to empty; generation 1 then reopened at version 2 — the catalog
-currently publishes six converge-style patches, versions 2–7 (the
+currently publishes seven converge-style patches, versions 2–8 (the
 `data_transfer:*` permission patch among them widens the `valid_action`
 check constraint, so it must run before any code that checks the new
 permissions; see `patches/manifest.tsv` for the full entry list — it is the
@@ -436,7 +436,7 @@ psql "$DATABASE_URL" -X -At -v ON_ERROR_STOP=1 -c \
 ```
 
 Expect `1.1` (the baseline) through the highest version in the manifest —
-currently `1.1`–`1.7`.
+currently `1.1`–`1.8`.
 
 #### One-time reset: stale pre-fold patch lineage
 
