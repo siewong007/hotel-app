@@ -35,51 +35,52 @@ fn backoff_minutes(attempts: i32) -> i64 {
     (2_i64.saturating_pow(attempts)).min(MAX_BACKOFF_MINUTES)
 }
 
-/// Spawn the delivery worker. Inert (never spawns the loop) when SMTP is not
-/// configured — queued rows simply wait until a configured process starts.
-pub fn spawn(pool: DbPool) {
+/// The worker loop. Never returns: an unconfigured worker parks forever so a
+/// `core::leader::spawn_exclusive` winner does not churn the lock — and there
+/// is no work to fail over while SMTP is absent anyway.
+pub async fn run(pool: DbPool) {
     let transport = match Transport::from_env() {
         Ok(Some(t)) => t,
         Ok(None) => {
             log::info!(
                 "Email delivery worker idle: SMTP not configured (set SMTP_HOST / SMTP_FROM_EMAIL)"
             );
-            return;
+            std::future::pending::<()>().await;
+            unreachable!();
         }
         Err(e) => {
             log::error!("Email delivery worker disabled: {e}");
-            return;
+            std::future::pending::<()>().await;
+            unreachable!();
         }
     };
     let interval =
         Duration::from_secs(env_u64("EMAIL_WORKER_INTERVAL_SECS", DEFAULT_INTERVAL_SECS));
     let batch = env_u64("EMAIL_WORKER_BATCH", DEFAULT_BATCH as u64) as i64;
     let worker_id = format!("worker-{}", generate_uuid());
-    tokio::spawn(async move {
-        log::info!(
-            "Email delivery worker started ({worker_id}, every {}s, batch {batch})",
-            interval.as_secs()
-        );
-        loop {
-            tokio::time::sleep(interval).await;
-            let started = std::time::Instant::now();
-            let outcome = tick(&pool, &transport, &worker_id, batch).await;
-            crate::core::job_runs::record(
-                &pool,
-                "email_delivery_worker",
-                outcome
-                    .as_ref()
-                    .ok()
-                    .map(|n| serde_json::json!({ "claimed": n })),
-                outcome.as_ref().err().map(|e| e.to_string()),
-                started.elapsed(),
-            )
-            .await;
-            if let Err(e) = &outcome {
-                log::warn!("Email delivery worker tick failed: {e}");
-            }
+    log::info!(
+        "Email delivery worker started ({worker_id}, every {}s, batch {batch})",
+        interval.as_secs()
+    );
+    loop {
+        tokio::time::sleep(interval).await;
+        let started = std::time::Instant::now();
+        let outcome = tick(&pool, &transport, &worker_id, batch).await;
+        crate::core::job_runs::record(
+            &pool,
+            "email_delivery_worker",
+            outcome
+                .as_ref()
+                .ok()
+                .map(|n| serde_json::json!({ "claimed": n })),
+            outcome.as_ref().err().map(|e| e.to_string()),
+            started.elapsed(),
+        )
+        .await;
+        if let Err(e) = &outcome {
+            log::warn!("Email delivery worker tick failed: {e}");
         }
-    });
+    }
 }
 
 /// One worker iteration. Also directly callable from tests with a fake

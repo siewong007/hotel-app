@@ -4,6 +4,11 @@
 //! Requires DATABASE_URL like the other PG suites; each test returns early
 //! without it so a no-DB run still exits 0.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+
+use hotel_app_be::core::leader;
 use hotel_app_be::core::rate_limiter::{RateLimitConfig, RateLimiter};
 
 async fn pool() -> Option<sqlx::PgPool> {
@@ -57,4 +62,24 @@ async fn postgres_limiter_namespaces_categories() {
     assert_eq!(webhook.check_with_retry(ip).await.0, true);
     assert_eq!(auth.check_with_retry(ip).await.0, false);
     assert_eq!(webhook.check_with_retry(ip).await.0, false);
+}
+
+#[tokio::test]
+async fn exclusive_scheduler_runs_on_one_instance_only() {
+    let Some(pool) = pool().await else { return };
+    let runs = Arc::new(AtomicUsize::new(0));
+    for _ in 0..2 {
+        let runs = runs.clone();
+        leader::spawn_exclusive("test", 999_999, pool.clone(), move |_pool| {
+            let runs = runs.clone();
+            async move {
+                runs.fetch_add(1, Ordering::SeqCst);
+                // Hold the "scheduler" open like a real loop so the loser
+                // doesn't win the lock after the winner's run ends.
+                std::future::pending::<()>().await;
+            }
+        });
+    }
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(runs.load(Ordering::SeqCst), 1);
 }

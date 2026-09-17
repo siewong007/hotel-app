@@ -27,32 +27,30 @@ const POLL_INTERVAL: Duration = Duration::from_secs(60);
 const DEFAULT_SHIFT_TIME: &str = "23:00";
 const DEFAULT_CATCHUP_DAYS: i32 = 7;
 
-/// Spawn the night-audit scheduler. Returns immediately; the task runs for the
-/// lifetime of the process and never propagates a panic/error to the caller.
-pub fn spawn(pool: DbPool) {
-    tokio::spawn(async move {
-        log::info!(
-            "Night audit scheduler started (polling every {}s; enable via 'night_audit_auto_enabled')",
-            POLL_INTERVAL.as_secs()
-        );
-        loop {
-            tokio::time::sleep(POLL_INTERVAL).await;
-            let started = std::time::Instant::now();
-            let outcome = tick(&pool).await;
-            crate::core::job_runs::record_outcome(
-                &pool,
-                "night_audit",
-                &outcome,
-                started.elapsed(),
-            )
-            .await;
-            if let Err(e) = &outcome {
-                // Log and keep looping — a transient DB error must not kill the
-                // scheduler; the next tick retries.
-                log::warn!("Night audit scheduler tick failed: {}", e);
-            }
+/// The scheduler loop: poll every `POLL_INTERVAL` and post due business dates.
+/// Never returns under normal operation.
+pub async fn run(pool: DbPool) {
+    log::info!(
+        "Night audit scheduler started (polling every {}s; enable via 'night_audit_auto_enabled')",
+        POLL_INTERVAL.as_secs()
+    );
+    loop {
+        tokio::time::sleep(POLL_INTERVAL).await;
+        let started = std::time::Instant::now();
+        let outcome = tick(&pool).await;
+        crate::core::job_runs::record_outcome(
+            &pool,
+            "night_audit",
+            &outcome,
+            started.elapsed(),
+        )
+        .await;
+        if let Err(e) = &outcome {
+            // Log and keep looping — a transient DB error must not kill the
+            // scheduler; the next tick retries.
+            log::warn!("Night audit scheduler tick failed: {}", e);
         }
-    });
+    }
 }
 
 /// One scheduler iteration: if automation is enabled, post any business dates

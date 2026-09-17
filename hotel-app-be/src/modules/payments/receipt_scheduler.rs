@@ -7,28 +7,28 @@ use super::service;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(60);
 
-pub fn spawn(pool: DbPool) {
-    tokio::spawn(async move {
-        log::info!(
-            "Payment receipt scheduler started (polling every {}s)",
-            POLL_INTERVAL.as_secs()
-        );
-        loop {
-            let started = std::time::Instant::now();
-            let outcome = tick(&pool).await;
-            crate::core::job_runs::record_outcome(
-                &pool,
-                "payment_receipts",
-                &outcome,
-                started.elapsed(),
-            )
-            .await;
-            if let Err(error) = &outcome {
-                log::warn!("Payment receipt scheduler tick failed: {error}");
-            }
-            tokio::time::sleep(POLL_INTERVAL).await;
+/// The scheduler loop. Never returns under normal operation; multi-replica
+/// deployments drive it under `core::leader::spawn_exclusive`.
+pub async fn run(pool: DbPool) {
+    log::info!(
+        "Payment receipt scheduler started (polling every {}s)",
+        POLL_INTERVAL.as_secs()
+    );
+    loop {
+        let started = std::time::Instant::now();
+        let outcome = tick(&pool).await;
+        crate::core::job_runs::record_outcome(
+            &pool,
+            "payment_receipts",
+            &outcome,
+            started.elapsed(),
+        )
+        .await;
+        if let Err(error) = &outcome {
+            log::warn!("Payment receipt scheduler tick failed: {error}");
         }
-    });
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
 }
 
 async fn tick(pool: &DbPool) -> Result<serde_json::Value, crate::core::error::ApiError> {

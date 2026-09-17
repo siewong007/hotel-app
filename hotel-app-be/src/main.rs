@@ -236,25 +236,74 @@ async fn main() {
         Err(e) => log::warn!("Ledger due_date backfill failed: {}", e),
     }
 
+    // Background schedulers run under Postgres advisory locks so exactly one
+    // replica drives each loop; session death releases the lock and the next
+    // replica takes over. Single-instance deployments get the same behavior
+    // (the one process always wins its locks).
+
     // Start the background night-audit scheduler. Inert unless the
     // `night_audit_auto_enabled` setting is turned on; runs for the process
     // lifetime and never blocks startup.
-    modules::night_audit::scheduler::spawn(pool.clone());
+    core::leader::spawn_exclusive(
+        "night_audit",
+        core::leader::LOCK_NIGHT_AUDIT,
+        pool.clone(),
+        |p| async move { modules::night_audit::scheduler::run(p).await },
+    );
 
     // Automatically expire receipt requests that remain unanswered for 24 hours.
-    modules::payments::receipt_scheduler::spawn(pool.clone());
+    core::leader::spawn_exclusive(
+        "receipts",
+        core::leader::LOCK_RECEIPTS,
+        pool.clone(),
+        |p| async move { modules::payments::receipt_scheduler::run(p).await },
+    );
 
     // Releases stale unpaid ONLINE holds after `unpaid_hold_release_hours`
     // (ships at 24; 0 switches it off). Front-desk holds are never touched.
-    modules::bookings::unpaid_hold_scheduler::spawn(pool.clone());
+    core::leader::spawn_exclusive(
+        "unpaid_hold",
+        core::leader::LOCK_UNPAID_HOLD,
+        pool.clone(),
+        |p| async move { modules::bookings::unpaid_hold_scheduler::run(p).await },
+    );
 
     // Start the durable email delivery worker. Inert when SMTP_* env vars are
     // absent; otherwise leases due outbox rows and sends with retry/backoff.
-    modules::communications::worker::spawn(pool.clone());
+    core::leader::spawn_exclusive(
+        "comms_worker",
+        core::leader::LOCK_COMMS_WORKER,
+        pool.clone(),
+        |p| async move { modules::communications::worker::run(p).await },
+    );
 
     // Start the communications scheduler: due-campaign fan-out into the
     // outbox and the daily birthday-voucher job (opt-in via settings).
-    modules::communications::scheduler::spawn(pool.clone());
+    core::leader::spawn_exclusive(
+        "comms_scheduler",
+        core::leader::LOCK_COMMS_SCHED,
+        pool.clone(),
+        |p| async move { modules::communications::scheduler::run(p).await },
+    );
+
+    // Prune stale rate-limit buckets. Fixed windows leave one row per bucket
+    // per window; two hours of retention covers the longest configured window
+    // (15 min) with headroom.
+    core::leader::spawn_exclusive(
+        "rate_limit_prune",
+        core::leader::LOCK_RATE_LIMIT_PRUNE,
+        pool.clone(),
+        |p| async move {
+            loop {
+                let _ = sqlx::query(
+                    "DELETE FROM rate_limit_buckets WHERE window_start < CURRENT_TIMESTAMP - interval '2 hours'",
+                )
+                .execute(&p)
+                .await;
+                tokio::time::sleep(std::time::Duration::from_secs(600)).await;
+            }
+        },
+    );
 
     // Drop staged backup uploads abandoned for >24h — crashed uploads and
     // files whose owner never ran the import. Finished jobs already delete
