@@ -110,6 +110,19 @@ pub async fn tick(
         }
     }
     for campaign_id in campaigns_touched {
+        // Don't finalize a campaign whose expansion is incomplete — a leader
+        // that died mid-expansion leaves un-expanded audience with no
+        // delivery rows, which the scheduler's stale-running resume picks up.
+        if let Some(campaign) = Repo::get_campaign(pool, campaign_id).await? {
+            let scope =
+                crate::modules::segments::service::audience_scope_for(pool, campaign.segment_id)
+                    .await?;
+            let remaining =
+                Repo::audience_batch(pool, &campaign.topic, campaign_id, &scope, 1).await?;
+            if !remaining.is_empty() {
+                continue;
+            }
+        }
         if Repo::complete_campaign_if_done(pool, campaign_id).await? {
             log::info!("Campaign {campaign_id} completed");
         }

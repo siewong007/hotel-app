@@ -285,12 +285,17 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
 // ----------------------------------------------------------------------
 
 pub async fn tick_campaigns(pool: &DbPool) -> Result<usize, ApiError> {
-    let due = Repo::due_scheduled_campaigns(pool).await?;
     let mut expanded = 0;
-    for campaign in due {
+    for campaign in Repo::due_scheduled_campaigns(pool).await? {
         if !Repo::mark_campaign_running(pool, campaign.id).await? {
             continue; // another instance won the transition
         }
+        expanded += expand_campaign(pool, &campaign).await?;
+    }
+    // A leader that died mid-expansion leaves the campaign 'running' with a
+    // partial audience. Re-expansion is idempotent — audience_batch skips
+    // guests that already have a delivery row.
+    for campaign in Repo::stale_running_campaigns(pool).await? {
         expanded += expand_campaign(pool, &campaign).await?;
     }
     Ok(expanded)

@@ -913,6 +913,19 @@ impl CommunicationsRepository {
         Ok(rows.iter().map(campaign_from_row).collect())
     }
 
+    /// Campaigns stuck `running` past the point any live leader could still
+    /// be expanding them — the leader died mid-expansion. Re-expanding is
+    /// safe: `audience_batch` excludes guests that already have a delivery row.
+    pub async fn stale_running_campaigns(pool: &DbPool) -> Result<Vec<EmailCampaign>, ApiError> {
+        let sql = "SELECT {COLS} FROM email_campaigns WHERE status = 'running' AND started_at < CURRENT_TIMESTAMP - interval '15 minutes' ORDER BY started_at"
+            .replace("{COLS}", CAMPAIGN_COLUMNS);
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(rows.iter().map(campaign_from_row).collect())
+    }
+
     pub async fn mark_campaign_running(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
         let result = query("UPDATE email_campaigns SET status = 'running', started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'scheduled'")
         .bind(id)
