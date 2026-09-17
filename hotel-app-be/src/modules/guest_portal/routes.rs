@@ -2,12 +2,12 @@
 //!
 //! Guest self-service routes.
 
-use crate::routes::extract_client_ip as extract_client_ip;
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
-use super::handlers as handlers;
 use crate::models;
+use crate::routes::extract_client_ip;
 use axum::{
     Router,
     extract::DefaultBodyLimit,
@@ -69,14 +69,8 @@ pub fn routes() -> Router<DbPool> {
             "/guest-portal/me/membership",
             get(handlers::get_my_membership),
         )
-        .route(
-            "/guest-portal/me/benefits",
-            get(handlers::get_my_benefits),
-        )
-        .route(
-            "/guest-portal/me/credits",
-            get(handlers::get_my_credits),
-        )
+        .route("/guest-portal/me/benefits", get(handlers::get_my_benefits))
+        .route("/guest-portal/me/credits", get(handlers::get_my_credits))
         // Payment configuration (PayPal client id + bank details). Requires a
         // booking access token or a guest portal session so bank account
         // numbers are not a fully public scrape target.
@@ -228,12 +222,7 @@ async fn token_upload_payment_receipt_header(
     multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, None).await?;
-    handlers::token_upload_payment_receipt(
-        State(pool),
-        Path((token, payment_id)),
-        multipart,
-    )
-    .await
+    handlers::token_upload_payment_receipt(State(pool), Path((token, payment_id)), multipart).await
 }
 
 async fn token_upload_payment_receipt(
@@ -244,12 +233,7 @@ async fn token_upload_payment_receipt(
     multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, Some(&path_token)).await?;
-    handlers::token_upload_payment_receipt(
-        State(pool),
-        Path((token, payment_id)),
-        multipart,
-    )
-    .await
+    handlers::token_upload_payment_receipt(State(pool), Path((token, payment_id)), multipart).await
 }
 
 async fn token_paypal_create_order_header(
@@ -381,10 +365,7 @@ async fn payment_config(
             super::service::get_booking_by_token(&pool, &token).await?;
         }
         PaymentConfigCredential::GuestSession => {
-            super::service::require_guest_session_for_read(
-                &headers, &pool, &limiters,
-            )
-            .await?;
+            super::service::require_guest_session_for_read(&headers, &pool, &limiters).await?;
         }
     }
     handlers::get_payment_config().await
@@ -523,10 +504,11 @@ async fn require_booking_token_for_read(
 ) -> Result<String, ApiError> {
     let token = resolve_booking_access_token(headers, path_token)?;
     let ip = extract_client_ip(headers, peer_addr);
-    if !limiters.guest_portal_token_ip.check(ip).await {
+    let (allowed, retry_after) = limiters.guest_portal_token_ip.check_with_retry(ip).await;
+    if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            "Too many requests. Please try again later.".to_string(),
-            900,
+            format!("Too many requests. Please try again in {retry_after} seconds."),
+            retry_after,
         ));
     }
     let (allowed, retry_after) = limiters
@@ -553,10 +535,11 @@ async fn require_booking_token_for_write(
 ) -> Result<String, ApiError> {
     let token = resolve_booking_access_token(headers, path_token)?;
     let ip = extract_client_ip(headers, peer_addr);
-    if !limiters.guest_portal_token_ip.check(ip).await {
+    let (allowed, retry_after) = limiters.guest_portal_token_ip.check_with_retry(ip).await;
+    if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            "Too many requests. Please try again later.".to_string(),
-            900,
+            format!("Too many requests. Please try again in {retry_after} seconds."),
+            retry_after,
         ));
     }
     let (allowed, retry_after) = limiters
