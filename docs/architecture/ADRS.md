@@ -97,7 +97,10 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 
 ## ADR 005: In-Memory Rate Limiting
 
-**Status:** Accepted (2025)
+**Status:** Superseded (2026-09-17) — rate limits now share fixed-window
+counters in the `rate_limit_buckets` table, still with no external dependency
+(the existing PostgreSQL is the store). The in-memory backend remains only as
+a test constructor; the original decision record stays for history.
 
 **Context:** Rate limiting was needed to protect the API. External dependencies were to be minimized.
 

@@ -346,10 +346,9 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 - ✅ **Contributing guide** — Guidelines, conventions, and testing instructions
 - ✅ **Security documentation** — Deployment checklist, production runbook, and backup/restore drill
 - ✅ **Desktop CI packaging** — macOS installer built and verified from a workflow artifact; Windows (NSIS/MSI + portable) and Linux (deb/AppImage + portable) jobs exist in `desktop-build.yml` with install smoke tests
+- ✅ **Multi-instance ready** — Shared `rate_limit_buckets` rate limiting, `LISTEN`/`NOTIFY` cache invalidation, advisory-lock scheduler leadership, and cross-replica data-change fan-out; see the deployment guide's multi-replica section
 
 ### Planned
-
-- **Distributed caching** — Replace in-memory RBAC/settings caches for multi-instance deployment
 - **Frontend component tests** — Expand depth: every page has smoke + axe coverage; workflow-level assertions remain for the largest pages
 - **Desktop backup/restore** — Complete managed backup solution with recovery procedures
 - **Desktop packaging hardening** — Windows/Linux jobs exist in `desktop-build.yml`; remaining: end-to-end verification, RPM evaluation, signing/notarization, and arming the updater (`hotel-desktop/UPDATER.md`)
@@ -363,7 +362,7 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 - Some desktop operational commands are still limited; for example, database backup behavior is not a complete managed backup solution.
 - Desktop packaging is built and verified for macOS; Windows and Linux installers are produced by `desktop-build.yml` CI jobs but have not yet been verified end-to-end, and signing/notarization plus the updater remain unconfigured.
 - eKYC document handling is implemented as an application workflow, not a certified identity verification service.
-- Rate limiting and caching are in-memory only, which limits to single-instance deployments.
+- Multi-replica deployments still need sticky sessions for staged import uploads, in-process import-job polling, and websocket connections (see [deployment.md](docs/guides/deployment.md#running-multiple-backend-replicas)).
 
 ## Contributing
 

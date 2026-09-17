@@ -77,9 +77,10 @@ rejects requests without a User-Agent and returns nothing useful).
 | qrcode + image | TOTP QR images | |
 | clap 4 | Helper binaries | `hash_password`, `fix_password` |
 
-Deliberately absent: an ORM (repositories hold explicit SQL), a rate-limit
-store (in-memory by design, ADR 005), webauthn-rs (commented out — OpenSSL
-conflict on Windows builds), `lazy_static` (replaced by `std::sync::LazyLock`).
+Deliberately absent: an ORM (repositories hold explicit SQL), a dedicated
+rate-limit store (shared `rate_limit_buckets` table in the existing database —
+supersedes ADR 005), webauthn-rs (commented out — OpenSSL conflict on Windows
+builds), `lazy_static` (replaced by `std::sync::LazyLock`).
 
 ## Desktop (`hotel-desktop/src-tauri`)
 

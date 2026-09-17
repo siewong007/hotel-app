@@ -121,7 +121,7 @@ using APIs newer than `lib: ES2024` passes tests and fails typecheck.
 - Avoid unnecessary new dependencies; prefer the standard library or an existing crate/package.
 - Add one only when it removes substantial complexity, improves safety, or implements a nontrivial domain well.
 - Do not add overlapping libraries for state, HTTP, validation, dates, UI, or charts without a strong reason.
-- Keep backend rate limiting in the existing in-memory implementation unless a separate task approves a different design.
+- Backend rate limiting uses the shared `rate_limit_buckets` table (Postgres fixed windows) — keep new cross-request state in Postgres too, or justify per-replica scope explicitly.
 - Frontend HTTP stays on `ky` through `src/api/client.ts`; frontend UI prefers MUI and existing shared components.
 - If you add a dependency, explain why, scope it to the project that needs it, and verify the lockfile diff. `bun update <name>` on a *transitive* dependency silently promotes it to a direct dependency — fix transitives by removing their `bun.lock` entries and reinstalling.
 

@@ -42,6 +42,13 @@ for the current state. Highlights so far:
   verified macOS build.
 - **Backend structure** — domain-module migration completed: all 39 domains
   live under `modules/<domain>/` (38 routed).
+- **Multi-instance ready** — the backend now runs correctly behind N replicas:
+  rate limits share fixed-window counters in `rate_limit_buckets`, RBAC and
+  settings caches invalidate across replicas over `LISTEN`/`NOTIFY`, background
+  schedulers run under `pg_advisory_lock` single-runner leadership, and staff
+  data-change events fan out to every replica's websockets. Sticky sessions are
+  still required for staged import uploads, in-process import-job polling, and
+  websocket connections (see the deployment guide's multi-replica section).
 
 ## v0.2.0 — 2026-07-27
 

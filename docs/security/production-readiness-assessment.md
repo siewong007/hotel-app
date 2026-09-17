@@ -68,10 +68,10 @@ external validations in §14 are done.
 | Email verification | Existing | hashed, expiring, single-use tokens; `resend_verification` rate-limited |
 | Rate limiting | Existing | per-IP ceilings on all unauthenticated auth routes; X-Forwarded-For parsed right-to-left **and** Caddy overwrites the header (`header_up X-Forwarded-For {remote_host}`) |
 
-Residual auth risks: in-memory rate limiter is single-instance only
-(documented); bcrypt runs on worker threads (acceptable at hotel login volume);
-refresh-cookie restoration does not work in desktop webview (accepted
-limitation, documented).
+Residual auth risks: bcrypt runs on worker threads (acceptable at hotel login
+volume); refresh-cookie restoration does not work in desktop webview (accepted
+limitation, documented). Rate limits are shared across replicas via
+`rate_limit_buckets` (fixed windows, fail-open on database error).
 
 ### Authorization — strong
 
