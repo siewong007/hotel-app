@@ -86,6 +86,7 @@ impl AuditRepository {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn list_logs(
         pool: &DbPool,
         params: &AuditLogQuery,
