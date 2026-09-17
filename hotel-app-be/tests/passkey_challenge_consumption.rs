@@ -47,6 +47,20 @@ async fn setup_pg_pool() -> Option<PgPool> {
     Some(
         PgPoolOptions::new()
             .max_connections(8)
+            // The baseline's append-only trigger on audit_logs forbids the
+            // fixture cleanup below; test pools opt out session-locally, the
+            // same way every other PostgreSQL suite in tests/ does. Without
+            // it, deleting the fixture user is rejected by the referential
+            // action on audit_logs.user_id even when the user owns no audit
+            // rows, because that trigger is FOR EACH STATEMENT.
+            .after_connect(|conn, _| {
+                Box::pin(async move {
+                    sqlx::query("SET app.allow_audit_mutation = 'on'")
+                        .execute(conn)
+                        .await
+                        .map(|_| ())
+                })
+            })
             .connect(&database_url)
             .await
             .expect("failed to connect to PostgreSQL test database"),
@@ -82,15 +96,9 @@ async fn upsert_test_user(pool: &PgPool, user_id: i64) {
     .unwrap();
 }
 
-/// Clears this test's challenge state BEFORE any assertion that can panic, so
-/// a failed run does not poison the next one.
-///
-/// The fixture USER deliberately survives: `users` is referenced by
-/// `audit_logs.user_id` with ON DELETE SET NULL, and the append-only guard on
-/// `audit_logs` is a FOR EACH STATEMENT trigger — so the referential action's
-/// UPDATE is rejected even when the user owns no audit rows at all, making
-/// `DELETE FROM users` impossible for ANY id. `upsert_test_user` resets the
-/// row instead, which is what a fixed-id fixture should do anyway.
+/// Cleans up BEFORE any assertion that can panic, so a failed run does not
+/// poison the next one. Needs the `app.allow_audit_mutation` opt-out the pool
+/// sets — see `setup_pg_pool`.
 async fn cleanup(pool: &PgPool, user_id: i64) {
     sqlx::query("DELETE FROM passkey_challenges WHERE user_id = $1")
         .bind(user_id)
@@ -98,6 +106,11 @@ async fn cleanup(pool: &PgPool, user_id: i64) {
         .await
         .unwrap();
     sqlx::query("DELETE FROM passkeys WHERE user_id = $1")
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM users WHERE id = $1")
         .bind(user_id)
         .execute(pool)
         .await
