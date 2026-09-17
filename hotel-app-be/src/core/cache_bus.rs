@@ -58,7 +58,12 @@ pub fn spawn_listener(pool: DbPool) {
                         loop {
                             match timeout(Duration::from_secs(60), listener.recv()).await {
                                 Ok(Ok(note)) => dispatch(note.channel(), note.payload()),
-                                Ok(Err(_)) => break,
+                                Ok(Err(_)) => {
+                                    // Release the LISTEN registrations before
+                                    // the connection returns to the pool.
+                                    let _ = listener.execute("UNLISTEN *").await;
+                                    break;
+                                }
                                 Err(_) => {
                                     let alive = timeout(
                                         Duration::from_secs(5),
@@ -68,6 +73,7 @@ pub fn spawn_listener(pool: DbPool) {
                                     .map(|result| result.is_ok())
                                     .unwrap_or(false);
                                     if !alive {
+                                        let _ = listener.execute("UNLISTEN *").await;
                                         log::warn!("cache listener connection dead; reconnecting");
                                         break;
                                     }
