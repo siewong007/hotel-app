@@ -1,6 +1,6 @@
 import { api } from './client';
 import { withRetry } from '../utils/retry';
-import { formatHotelDateTime, formatLocalDate } from '../utils/date';
+import { formatHotelDateTime, formatLocalDate, getHotelTimeZone } from '../utils/date';
 import { formatStatusLabel } from '../utils/formatters';
 import { translateFor } from '../i18n';
 import {
@@ -185,8 +185,11 @@ export class AuditService {
     doc.setFontSize(10);
     doc.text(exportT('generatedAt', { time: formatHotelDateTime(exported.exported_at, '-', 'en') }), 14, 28);
     doc.text(exportT('exportedBy', { user: exported.exported_by }), 14, 33);
+    // Row times are hotel-local like the screen — the label makes that
+    // explicit so the export cannot be read as UTC.
+    doc.text(exportT('timezone', { zone: getHotelTimeZone() }), 14, 38);
     if (exported.truncated) {
-      doc.text(exportT('truncated', { count: exported.row_count }), 14, 38);
+      doc.text(exportT('truncated', { count: exported.row_count }), 14, 43);
     }
 
     // Table data
@@ -205,7 +208,7 @@ export class AuditService {
 
     // Add table (jspdf-autotable v5 functional API)
     autoTable(doc, {
-      startY: exported.truncated ? 44 : 40,
+      startY: exported.truncated ? 49 : 45,
       head: [[
         exportT('col.timestamp'),
         exportT('col.user'),

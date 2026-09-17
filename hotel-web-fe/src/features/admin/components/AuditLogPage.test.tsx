@@ -47,6 +47,7 @@ vi.mock('../hooks/useAuditQueries', () => ({
   }),
   useAuditUsers: () => ({ data: [{ id: 7, username: 'receptionist.one' }] }),
   useAuditActions: () => ({ data: ['booking_updated', 'report_exported'] }),
+  useAuditResourceTypes: () => ({ data: ['booking', 'report'] }),
   useExportAuditCsv: () => ({ mutateAsync: exportCsv, isPending: false }),
   useExportAuditPdf: () => ({ mutateAsync: exportPdf, isPending: false }),
 }));

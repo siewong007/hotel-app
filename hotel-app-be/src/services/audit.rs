@@ -210,18 +210,23 @@ impl AuditLog {
         .await
     }
 
-    /// Log role assignment
+    /// Log role assignment. `role_name` is captured at write time so the event
+    /// stays readable after the role is renamed or deleted.
     pub async fn log_role_assignment(
         pool: &DbPool,
         admin_id: i64,
         user_id: i64,
         role_id: i64,
+        role_name: Option<&str>,
     ) -> Result<(), ApiError> {
-        let details = serde_json::json!({
+        let mut details = serde_json::json!({
             "user_id": user_id,
             "role_id": role_id,
             "assigned_by": admin_id
         });
+        if let Some(name) = role_name {
+            details["role_name"] = serde_json::json!(name);
+        }
 
         Self::log_event(
             pool,
@@ -237,18 +242,23 @@ impl AuditLog {
         .await
     }
 
-    /// Log role removal
+    /// Log role removal. `role_name` is captured at write time so the event
+    /// stays readable after the role is renamed or deleted.
     pub async fn log_role_removal(
         pool: &DbPool,
         admin_id: i64,
         user_id: i64,
         role_id: i64,
+        role_name: Option<&str>,
     ) -> Result<(), ApiError> {
-        let details = serde_json::json!({
+        let mut details = serde_json::json!({
             "user_id": user_id,
             "role_id": role_id,
             "removed_by": admin_id
         });
+        if let Some(name) = role_name {
+            details["role_name"] = serde_json::json!(name);
+        }
 
         Self::log_event(
             pool,
@@ -525,8 +535,10 @@ pub async fn export_audit_logs_csv(
         "exported_by": exported_by,
     });
 
+    // `Timestamp (UTC)` cells are RFC3339 — labeled because the screen shows
+    // hotel-local time and the two must not be read as the same clock.
     let mut csv_content = format!(
-        "# Exported by {exported_by} (user_id={user_id}) at {}\n# Filters: user_id={:?} action={:?} resource_type={:?} resource_id={:?} category={:?} start_date={:?} end_date={:?} search={:?}\n# Rows: {row_count}; truncated={truncated}\n",
+        "# Exported by {exported_by} (user_id={user_id}) at {}\n# Times: UTC\n# Filters: user_id={:?} action={:?} resource_type={:?} resource_id={:?} category={:?} start_date={:?} end_date={:?} search={:?}\n# Rows: {row_count}; truncated={truncated}\n",
         exported_at.to_rfc3339(),
         params.user_id,
         params.action,
@@ -538,7 +550,7 @@ pub async fn export_audit_logs_csv(
         params.search,
     );
     csv_content.push_str(
-        "ID,Timestamp,User ID,Username,Action,Category,Resource Type,Resource ID,Display Ref,Change Kind,IP Address,User Agent,Details\n",
+        "ID,Timestamp (UTC),User ID,Username,Action,Category,Resource Type,Resource ID,Display Ref,Change Kind,IP Address,User Agent,Details\n",
     );
 
     for row in rows.into_iter().map(row_to_entry) {
@@ -772,6 +784,13 @@ fn object_has_changes(map: &serde_json::Map<String, Value>) -> bool {
             .get("changes")
             .map(changes_value_has_meaningful_change)
             .unwrap_or(false)
+        // `changed_fields` is a list of field names (no values) emitted when a
+        // caller knows what changed but cannot safely store the values — a
+        // non-empty list means a field change happened.
+        || map
+            .get("changed_fields")
+            .map(changes_value_has_meaningful_change)
+            .unwrap_or(false)
 }
 
 fn has_pair_change(map: &serde_json::Map<String, Value>, old_key: &str, new_key: &str) -> bool {
@@ -951,6 +970,16 @@ mod tests {
                 "room_id": 12,
                 "status": null
             }
+        }))));
+    }
+
+    #[test]
+    fn classifies_changed_fields_lists_by_content() {
+        assert!(details_has_changes(Some(&json!({
+            "changed_fields": ["is_active", "email"]
+        }))));
+        assert!(!details_has_changes(Some(&json!({
+            "changed_fields": []
         }))));
     }
 

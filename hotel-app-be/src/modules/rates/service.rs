@@ -136,6 +136,18 @@ pub async fn bulk_upsert_room_rates(
     let values = room_rate_bulk_values(input)?;
     RateRepository::find_rate_plan(pool, values.rate_plan_id).await?;
 
+    // Snapshot current band prices for the audit diff before the upsert
+    // rewrites them — enrichment only, never fail the write for it.
+    let prior_bands = RateRepository::room_rate_band_prices(
+        pool,
+        values.rate_plan_id,
+        &values.room_type_ids,
+        values.effective_from,
+        Some(values.effective_to),
+    )
+    .await
+    .unwrap_or_default();
+
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     let mut upserted = Vec::with_capacity(values.room_type_ids.len());
     for room_type_id in &values.room_type_ids {
@@ -154,6 +166,19 @@ pub async fn bulk_upsert_room_rates(
     }
     tx.commit().await.map_err(ApiError::from)?;
 
+    // Per-band diff the audit UI renders as field changes: before carries the
+    // prior price only where a band existed; after carries every written band.
+    let new_price = values.price.to_string();
+    let mut before = serde_json::Map::new();
+    let mut after = serde_json::Map::new();
+    for (_room_type_id, room_type_name, prior_price) in &prior_bands {
+        let key = format!("{room_type_name} price");
+        if let Some(price) = prior_price {
+            before.insert(key.clone(), json!(price.to_string()));
+        }
+        after.insert(key, json!(new_price));
+    }
+
     let _ = AuditLog::log_event(
         pool,
         AuditEvent {
@@ -167,6 +192,8 @@ pub async fn bulk_upsert_room_rates(
                 "effective_to": values.effective_to,
                 "price": values.price.to_string(),
                 "bands_written": upserted.len(),
+                "before": before,
+                "after": after,
             })),
             ..Default::default()
         },

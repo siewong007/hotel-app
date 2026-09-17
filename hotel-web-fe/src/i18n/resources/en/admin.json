@@ -219,7 +219,8 @@
       "body": "Money moved at PayPal but did not match the local payment record. Do not charge the guest again — review each entry below before taking action.",
       "eventLine": "{{at}} — payment #{{id}}",
       "bookingRef": "booking #{{id}}",
-      "showing": "Showing {{shown}} of {{total}}. See the Audit Log for the full history."
+      "showing": "Showing {{shown}} of {{total}}.",
+      "viewAuditLog": "See the Audit Log for the full history."
     },
     "receiptDialog": {
       "title": "Request payment receipt",
@@ -300,7 +301,12 @@
     "timezoneLabel": "Times shown in hotel timezone ({{zone}})",
     "actorFilter": "Actor",
     "actionFilter": "Action",
+    "resourceTypeFilter": "Type",
     "allUsers": "All users",
+    "allResourceTypes": "All types",
+    "filteredTo": "Filtered to {{label}}",
+    "clearResourceFilter": "Clear resource filter",
+    "changedMarker": "changed",
     "expandEvent": "Show event details",
     "collapseEvent": "Hide event details",
     "openResource": "Open {{ref}}",
@@ -530,6 +536,7 @@
       "reportTitle": "Audit Log Report",
       "generatedAt": "Generated: {{time}}",
       "exportedBy": "Exported by: {{user}}",
+      "timezone": "Times shown in hotel timezone ({{zone}})",
       "truncated": "Showing the first {{count}} matching rows.",
       "systemUser": "System",
       "actionOnly": "Action only",

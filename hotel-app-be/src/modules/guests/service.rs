@@ -221,6 +221,9 @@ pub async fn update_guest(
     let existing = GuestRepository::update_state(pool, guest_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
+    // Snapshot for the audit diff — `existing` is consumed field-by-field
+    // while resolving the update below.
+    let previous = existing.clone();
 
     let first_name = input.first_name.unwrap_or(existing.first_name);
     let last_name = input.last_name.unwrap_or(existing.last_name);
@@ -366,6 +369,7 @@ pub async fn update_guest(
         id_country,
     };
 
+    let changed_fields = changed_guest_fields(&previous, &values);
     let updated_guest = GuestRepository::update_detailed(pool, guest_id, &values).await?;
     ensure_loyalty_member_for_guest_type(pool, &updated_guest).await?;
 
@@ -376,7 +380,45 @@ pub async fn update_guest(
             action: "guest_updated",
             resource_type: "guest",
             resource_id: Some(guest_id),
-            details: Some(serde_json::json!({"guest_id": guest_id})),
+            // before/after covers operational fields only; PII and identifier
+            // columns are reported by name via changed_fields (the scrubber
+            // redacts some of them anyway — values stay out either way).
+            details: Some(serde_json::json!({
+                "guest_id": guest_id,
+                "changed_fields": changed_fields,
+                "before": {
+                    "guest_type": previous.guest_type,
+                    "tourism_type": previous.tourism_type,
+                    "discount_percentage": previous.discount_percentage,
+                    "company_name": previous.company_name,
+                    "vip_status": previous.vip_status,
+                    "tags": previous.tags,
+                    "job_title": previous.job_title,
+                    "notes": previous.notes,
+                    "special_requests": previous.special_requests,
+                    "marketing_opt_in": previous.marketing_opt_in,
+                    "communication_preference": previous.communication_preference,
+                    "language_preference": previous.language_preference,
+                    "is_blacklisted": previous.is_blacklisted,
+                    "blacklist_reason": previous.blacklist_reason,
+                },
+                "after": {
+                    "guest_type": values.guest_type,
+                    "tourism_type": values.tourism_type,
+                    "discount_percentage": values.discount_percentage,
+                    "company_name": values.company_name,
+                    "vip_status": values.vip_status,
+                    "tags": values.tags,
+                    "job_title": values.job_title,
+                    "notes": values.notes,
+                    "special_requests": values.special_requests,
+                    "marketing_opt_in": values.marketing_opt_in,
+                    "communication_preference": values.communication_preference,
+                    "language_preference": values.language_preference,
+                    "is_blacklisted": values.is_blacklisted,
+                    "blacklist_reason": values.blacklist_reason,
+                },
+            })),
             ..Default::default()
         },
     )
@@ -755,6 +797,89 @@ fn normalize_guest_text(value: Option<String>) -> Option<String> {
 fn optional_guest_text(value: &str) -> Option<String> {
     let sanitized = Sanitizer::sanitize_text(value.trim()).trim().to_string();
     (!sanitized.is_empty()).then_some(sanitized)
+}
+
+/// Field names whose stored values differ between the pre-update snapshot and
+/// the resolved write — the audit event's "what changed" list. Names only, no
+/// values: several of these columns are PII or identifiers.
+fn changed_guest_fields(
+    previous: &GuestUpdateState,
+    values: &GuestUpdateValues,
+) -> Vec<&'static str> {
+    let checks = [
+        ("first_name", values.first_name != previous.first_name),
+        ("last_name", values.last_name != previous.last_name),
+        ("email", values.email != previous.email),
+        ("phone", values.phone != previous.phone),
+        ("ic_number", values.ic_number != previous.ic_number),
+        ("nationality", values.nationality != previous.nationality),
+        (
+            "address_line1",
+            values.address_line1 != previous.address_line1,
+        ),
+        ("city", values.city != previous.city),
+        (
+            "state_province",
+            values.state_province != previous.state_province,
+        ),
+        ("postal_code", values.postal_code != previous.postal_code),
+        ("country", values.country != previous.country),
+        ("title", values.title != previous.title),
+        ("alt_phone", values.alt_phone != previous.alt_phone),
+        ("guest_type", values.guest_type != previous.guest_type),
+        (
+            "tourism_type",
+            values.tourism_type != previous.tourism_type,
+        ),
+        (
+            "discount_percentage",
+            values.discount_percentage != previous.discount_percentage,
+        ),
+        (
+            "company_name",
+            values.company_name != previous.company_name,
+        ),
+        ("vip_status", values.vip_status != previous.vip_status),
+        ("tags", values.tags != previous.tags),
+        ("job_title", values.job_title != previous.job_title),
+        ("notes", values.notes != previous.notes),
+        (
+            "special_requests",
+            values.special_requests != previous.special_requests,
+        ),
+        (
+            "marketing_opt_in",
+            values.marketing_opt_in != previous.marketing_opt_in,
+        ),
+        (
+            "communication_preference",
+            values.communication_preference != previous.communication_preference,
+        ),
+        (
+            "language_preference",
+            values.language_preference != previous.language_preference,
+        ),
+        (
+            "is_blacklisted",
+            values.is_blacklisted != previous.is_blacklisted,
+        ),
+        (
+            "blacklist_reason",
+            values.blacklist_reason != previous.blacklist_reason,
+        ),
+        (
+            "date_of_birth",
+            values.date_of_birth != previous.date_of_birth,
+        ),
+        ("id_type", values.id_type != previous.id_type),
+        ("id_number", values.id_number != previous.id_number),
+        ("id_expiry", values.id_expiry != previous.id_expiry),
+        ("id_country", values.id_country != previous.id_country),
+    ];
+    checks
+        .into_iter()
+        .filter_map(|(name, changed)| changed.then_some(name))
+        .collect()
 }
 
 /// `optional_guest_text` plus a column-width bound on the sanitized value.
@@ -1150,6 +1275,101 @@ mod tests {
             Some("guest@example.com".to_string())
         );
         assert!(normalize_guest_email(Some("not-an-email".to_string())).is_err());
+    }
+
+    fn update_state() -> GuestUpdateState {
+        GuestUpdateState {
+            first_name: "Davina".to_string(),
+            last_name: "Wong".to_string(),
+            email: Some("davina@example.com".to_string()),
+            phone: Some("+60123456789".to_string()),
+            ic_number: None,
+            nationality: None,
+            address_line1: None,
+            city: None,
+            state_province: None,
+            postal_code: None,
+            country: None,
+            title: None,
+            alt_phone: None,
+            company_name: None,
+            guest_type: GuestType::NonMember,
+            tourism_type: None,
+            discount_percentage: 0,
+            vip_status: None,
+            tags: None,
+            job_title: None,
+            notes: None,
+            special_requests: None,
+            marketing_opt_in: None,
+            communication_preference: None,
+            language_preference: None,
+            is_blacklisted: None,
+            blacklist_reason: None,
+            date_of_birth: None,
+            id_type: None,
+            id_number: None,
+            id_expiry: None,
+            id_country: None,
+        }
+    }
+
+    fn update_values(state: &GuestUpdateState) -> GuestUpdateValues {
+        GuestUpdateValues {
+            nick_name: format!("{} {}", state.first_name, state.last_name),
+            first_name: state.first_name.clone(),
+            last_name: state.last_name.clone(),
+            email: state.email.clone(),
+            phone: state.phone.clone(),
+            ic_number: state.ic_number.clone(),
+            nationality: state.nationality.clone(),
+            address_line1: state.address_line1.clone(),
+            city: state.city.clone(),
+            state_province: state.state_province.clone(),
+            postal_code: state.postal_code.clone(),
+            country: state.country.clone(),
+            title: state.title.clone(),
+            alt_phone: state.alt_phone.clone(),
+            guest_type: state.guest_type.clone(),
+            tourism_type: state.tourism_type.clone(),
+            discount_percentage: state.discount_percentage,
+            company_name: state.company_name.clone(),
+            vip_status: state.vip_status.clone(),
+            tags: state.tags.clone(),
+            job_title: state.job_title.clone(),
+            notes: state.notes.clone(),
+            special_requests: state.special_requests.clone(),
+            marketing_opt_in: state.marketing_opt_in,
+            communication_preference: state.communication_preference.clone(),
+            language_preference: state.language_preference.clone(),
+            is_blacklisted: state.is_blacklisted,
+            blacklist_reason: state.blacklist_reason.clone(),
+            date_of_birth: state.date_of_birth,
+            id_type: state.id_type.clone(),
+            id_number: state.id_number.clone(),
+            id_expiry: state.id_expiry,
+            id_country: state.id_country.clone(),
+        }
+    }
+
+    #[test]
+    fn changed_guest_fields_names_only_differing_columns() {
+        let previous = update_state();
+
+        // Identical resolved values → no fields reported.
+        let same = update_values(&previous);
+        assert!(changed_guest_fields(&previous, &same).is_empty());
+
+        // A blacklist flag plus an email rewrite must both surface by name.
+        let mut changed = update_values(&previous);
+        changed.is_blacklisted = Some(true);
+        changed.blacklist_reason = Some("chargebacks".to_string());
+        changed.email = Some("new@example.com".to_string());
+        let fields = changed_guest_fields(&previous, &changed);
+        assert_eq!(
+            fields,
+            vec!["email", "is_blacklisted", "blacklist_reason"]
+        );
     }
 
     #[test]

@@ -283,8 +283,10 @@ impl AuditRepository {
         category_types: Option<&[String]>,
         invert_category: bool,
     ) -> Result<Vec<AuditLogRow>, ApiError> {
+        // search_details=true: export must return the same rows the screen
+        // shows for the same search term — list_logs searches details too.
         let (where_clause, _) =
-            build_log_where_clause(params, category_types, invert_category, false);
+            build_log_where_clause(params, category_types, invert_category, true);
 
         let query = format!(
             r#"

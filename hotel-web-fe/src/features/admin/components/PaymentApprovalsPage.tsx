@@ -45,6 +45,7 @@ import {
 import { receiptAsPdf } from '../utils/paymentReceiptPdf';
 import { useTranslation, statusLabel } from '../../../i18n';
 import { formatHotelDateTime } from '../../../utils/date';
+import { Link } from '../../../router';
 
 const CONFLICT_EVENTS_SHOWN = 10;
 
@@ -91,6 +92,9 @@ const PaymentApprovalsPage: React.FC = () => {
   // see conflicts — previously the banner was invisible to exactly the staff
   // it exists for.
   const canViewConflicts = hasPermission('payments:read');
+  // Approvers hold payments:read without audit:read — the link renders only
+  // for those who can actually open the log.
+  const canReadAudit = hasPermission('audit:read');
   const conflictQuery = usePaypalConflictEvents(canViewConflicts);
   const conflictEvents = conflictQuery.data?.events ?? [];
   const conflictTotal = conflictQuery.data?.total ?? 0;
@@ -257,7 +261,12 @@ const PaymentApprovalsPage: React.FC = () => {
             <Typography variant="caption" sx={{
               color: "text.secondary"
             }}>
-              {t('paymentApprovals.conflicts.showing', { shown: Math.min(conflictEvents.length, CONFLICT_EVENTS_SHOWN), total: conflictTotal })}
+              {t('paymentApprovals.conflicts.showing', { shown: Math.min(conflictEvents.length, CONFLICT_EVENTS_SHOWN), total: conflictTotal })}{' '}
+              {canReadAudit ? (
+                <Link to="/audit-log?q=paypal">{t('paymentApprovals.conflicts.viewAuditLog')}</Link>
+              ) : (
+                t('paymentApprovals.conflicts.viewAuditLog')
+              )}
             </Typography>
           )}
         </Alert>

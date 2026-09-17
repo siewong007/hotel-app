@@ -218,7 +218,8 @@
       "body": "Wang bergerak di PayPal tetapi tidak sepadan dengan rekod bayaran tempatan. Jangan caj tetamu sekali lagi — semak setiap entri di bawah sebelum mengambil tindakan.",
       "eventLine": "{{at}} — bayaran #{{id}}",
       "bookingRef": "tempahan #{{id}}",
-      "showing": "Menunjukkan {{shown}} daripada {{total}}. Lihat Log Audit untuk sejarah penuh."
+      "showing": "Menunjukkan {{shown}} daripada {{total}}.",
+      "viewAuditLog": "Lihat Log Audit untuk sejarah penuh."
     },
     "receiptDialog": {
       "title": "Minta resit bayaran",
@@ -298,7 +299,12 @@
     "timezoneLabel": "Masa dipaparkan dalam zon hotel ({{zone}})",
     "actorFilter": "Pelaku",
     "actionFilter": "Tindakan",
+    "resourceTypeFilter": "Jenis",
     "allUsers": "Semua pengguna",
+    "allResourceTypes": "Semua jenis",
+    "filteredTo": "Ditapis kepada {{label}}",
+    "clearResourceFilter": "Kosongkan penapis sumber",
+    "changedMarker": "diubah",
     "expandEvent": "Tunjuk butiran peristiwa",
     "collapseEvent": "Sembunyikan butiran peristiwa",
     "openResource": "Buka {{ref}}",
@@ -524,6 +530,7 @@
       "reportTitle": "Laporan Log Audit",
       "generatedAt": "Dijana: {{time}}",
       "exportedBy": "Dieksport oleh: {{user}}",
+      "timezone": "Masa ditunjukkan dalam zon waktu hotel ({{zone}})",
       "truncated": "Menunjukkan {{count}} baris pertama yang sepadan.",
       "systemUser": "Sistem",
       "actionOnly": "Tindakan sahaja",

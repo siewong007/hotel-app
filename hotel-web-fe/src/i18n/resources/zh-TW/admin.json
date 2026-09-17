@@ -218,7 +218,8 @@
       "body": "PayPal 端款項已移動，但與本機付款紀錄不符。請勿再次向賓客收費 — 採取行動前請檢閱下方每筆項目。",
       "eventLine": "{{at}} — 付款 #{{id}}",
       "bookingRef": "預訂 #{{id}}",
-      "showing": "顯示 {{total}} 中的 {{shown}} 筆。完整歷史請見稽核紀錄。"
+      "showing": "顯示 {{total}} 中的 {{shown}} 筆。",
+      "viewAuditLog": "完整歷史請見稽核紀錄。"
     },
     "receiptDialog": {
       "title": "要求付款收據",
@@ -298,7 +299,12 @@
     "timezoneLabel": "時間以酒店時區顯示（{{zone}}）",
     "actorFilter": "操作者",
     "actionFilter": "操作",
+    "resourceTypeFilter": "類型",
     "allUsers": "所有使用者",
+    "allResourceTypes": "全部類型",
+    "filteredTo": "已篩選：{{label}}",
+    "clearResourceFilter": "清除資源篩選",
+    "changedMarker": "已變更",
     "expandEvent": "顯示事件詳情",
     "collapseEvent": "隱藏事件詳情",
     "openResource": "開啟 {{ref}}",
@@ -524,6 +530,7 @@
       "reportTitle": "稽核紀錄報表",
       "generatedAt": "產生於：{{time}}",
       "exportedBy": "匯出者：{{user}}",
+      "timezone": "時間以飯店時區顯示（{{zone}}）",
       "truncated": "僅顯示前 {{count}} 筆符合的列。",
       "systemUser": "系統",
       "actionOnly": "僅操作",

@@ -322,6 +322,38 @@ impl RateRepository {
         .map_err(ApiError::from)
     }
 
+    /// Snapshot of the bands a bulk upsert is about to write: one row per
+    /// requested room type with its current price (NULL when no band exists —
+    /// the upsert will insert it). Mirrors the exact-bounds match in
+    /// `upsert_room_rate_band_tx`; used to build the audit before/after.
+    pub async fn room_rate_band_prices(
+        pool: &DbPool,
+        rate_plan_id: i64,
+        room_type_ids: &[i64],
+        effective_from: NaiveDate,
+        effective_to: Option<NaiveDate>,
+    ) -> Result<Vec<(i64, String, Option<rust_decimal::Decimal>)>, ApiError> {
+        sqlx::query_as::<_, (i64, String, Option<rust_decimal::Decimal>)>(
+            r#"
+            SELECT rt.id, rt.name, rr.price
+            FROM room_types rt
+            LEFT JOIN room_rates rr
+              ON rr.rate_plan_id = $1 AND rr.room_type_id = rt.id
+             AND rr.effective_from = $3
+             AND rr.effective_to IS NOT DISTINCT FROM $4
+            WHERE rt.id = ANY($2)
+            ORDER BY rt.name
+            "#,
+        )
+        .bind(rate_plan_id)
+        .bind(room_type_ids)
+        .bind(effective_from)
+        .bind(effective_to)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)
+    }
+
     pub async fn list_room_rates(pool: &DbPool) -> Result<Vec<RoomRateWithDetails>, ApiError> {
         let query = room_rate_details_query(None);
         let rows = sqlx::query(sqlx::AssertSqlSafe(&*query))

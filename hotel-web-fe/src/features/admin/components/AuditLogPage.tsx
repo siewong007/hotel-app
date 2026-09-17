@@ -46,6 +46,7 @@ import {
   useAuditActions,
   useAuditCategoryCounts,
   useAuditLogs,
+  useAuditResourceTypes,
   useAuditUsers,
   useExportAuditCsv,
   useExportAuditPdf,
@@ -191,6 +192,13 @@ const resourceHref = (type: string, id: number | null, details: Record<string, u
   if ((type === 'payment' || type === 'invoice' || type === 'customer_ledger') && (typeof bookingId === 'number' || typeof bookingId === 'string')) {
     return `/bookings/${bookingId}`;
   }
+  if (type === 'user' || type === 'user_role' || type === 'role' || type === 'permission') return '/rbac';
+  if (type === 'room' || type === 'room_type' || type === 'maintenance') return '/room-management';
+  if (type === 'rate_plan' || type === 'room_rate') return '/rates';
+  if (type === 'system_setting') return '/settings';
+  if (type === 'ekyc_verification') return '/ekyc-admin';
+  if (type === 'promotion') return '/campaigns';
+  if (type === 'data_transfer' || type === 'data_export' || type === 'data_import') return '/data-transfer';
   return null;
 };
 
@@ -308,7 +316,7 @@ function buildChangeRowsFromValue(value: unknown): ChangeRow[] {
     .map(([key, entry]) => ({ k: key, from: '—', to: fmtValue(entry) }));
 }
 
-function analyzeDetails(details: DetailRecord | null): { changes: ChangeRow[]; metadata: MetadataRow[] } {
+function analyzeDetails(details: DetailRecord | null, changedMarker = 'changed'): { changes: ChangeRow[]; metadata: MetadataRow[] } {
   if (!isRecord(details)) return { changes: [], metadata: [] };
 
   const changes: ChangeRow[] = [];
@@ -324,6 +332,22 @@ function analyzeDetails(details: DetailRecord | null): { changes: ChangeRow[]; m
   if ('changes' in details) {
     consumed.add('changes');
     changes.push(...buildChangeRowsFromValue(details['changes']));
+  }
+
+  // `changed_fields` lists field names whose stored values differed (the
+  // backend omits values for sensitive columns). Skip names already covered
+  // by a real before/after row so a field never appears twice.
+  if ('changed_fields' in details) {
+    consumed.add('changed_fields');
+    const fields = details['changed_fields'];
+    if (Array.isArray(fields)) {
+      const shown = new Set(changes.map((c) => c.k));
+      fields.forEach((field) => {
+        if (typeof field === 'string' && field && !shown.has(field)) {
+          changes.push({ k: field, from: '—', to: changedMarker });
+        }
+      });
+    }
   }
 
   const metadata = Object.entries(details)
@@ -352,7 +376,7 @@ const AuditLogPage: React.FC = () => {
       if (value == null || value === '') next.delete(key);
       else next.set(key, value);
     });
-    if (patch.category !== undefined || patch.q !== undefined || patch.from !== undefined || patch.to !== undefined || patch.user_id !== undefined || patch.action !== undefined || patch.resource_id !== undefined) {
+    if (patch.category !== undefined || patch.q !== undefined || patch.from !== undefined || patch.to !== undefined || patch.user_id !== undefined || patch.action !== undefined || patch.resource_id !== undefined || patch.resource_type !== undefined) {
       next.delete('page');
     }
     setSearchParams(next, { replace: true });
@@ -374,6 +398,7 @@ const AuditLogPage: React.FC = () => {
       action: searchParams.get('action') || undefined,
       user_id: userId ? Number(userId) : undefined,
       resource_id: resourceId ? Number(resourceId) : undefined,
+      resource_type: searchParams.get('resource_type') || undefined,
       start_date: searchParams.get('from') || undefined,
       end_date: searchParams.get('to') || undefined,
       category: activeCat === 'all' ? undefined : activeCat,
@@ -396,6 +421,7 @@ const AuditLogPage: React.FC = () => {
   const countsQuery = useAuditCategoryCounts(countQuery);
   const usersQuery = useAuditUsers();
   const actionsQuery = useAuditActions();
+  const resourceTypesQuery = useAuditResourceTypes();
   const exportCsvMutation = useExportAuditCsv();
   const exportPdfMutation = useExportAuditPdf();
   const logs = useMemo(() => auditLogsQuery.data?.data ?? [], [auditLogsQuery.data]);
@@ -448,7 +474,18 @@ const AuditLogPage: React.FC = () => {
   const dateLabel = hasDateRange
     ? t('audit.range', { start: isoToHotelInput(query.start_date) || '…', end: isoToHotelInput(query.end_date) || t('audit.rangeNow') })
     : t('audit.allDates');
-  const hasFilters = !!(query.search || query.action || query.user_id || query.resource_id || hasDateRange || activeCat !== 'all');
+  const hasFilters = !!(query.search || query.action || query.user_id || query.resource_id || query.resource_type || hasDateRange || activeCat !== 'all');
+  // Label for the visible resource filter chip: prefer the deep-link's
+  // resource_type; fall back to whatever the matching rows carry.
+  const resourceFilterLabel = useMemo(() => {
+    if (query.resource_id == null) return null;
+    const match = logs.find((r) => r.resource_id === query.resource_id);
+    const type = query.resource_type || match?.resource_type;
+    const ref = match?.display_ref || `#${query.resource_id}`;
+    if (!type) return ref;
+    const meta = getResourceLabel(type);
+    return `${meta.labelKey ? t(meta.labelKey) : meta.label} ${ref}`;
+  }, [logs, query.resource_id, query.resource_type, t]);
 
   const openDateMenu = (e: React.MouseEvent<HTMLElement>) => {
     setDraftStart(isoToHotelInput(query.start_date));
@@ -636,6 +673,21 @@ const AuditLogPage: React.FC = () => {
             ))}
           </Select>
         </FormControl>
+        <FormControl size="small" sx={{ minWidth: 150, bgcolor: T.surface }}>
+          <InputLabel id="audit-type-label">{t('audit.resourceTypeFilter')}</InputLabel>
+          <Select
+            labelId="audit-type-label"
+            label={t('audit.resourceTypeFilter')}
+            value={query.resource_type ?? ''}
+            onChange={(e) => patchParams({ resource_type: e.target.value === '' ? undefined : String(e.target.value) })}
+          >
+            <MenuItem value="">{t('audit.allResourceTypes')}</MenuItem>
+            {(resourceTypesQuery.data ?? []).map((type) => {
+              const meta = getResourceLabel(type);
+              return <MenuItem key={type} value={type}>{meta.labelKey ? t(meta.labelKey) : meta.label}</MenuItem>;
+            })}
+          </Select>
+        </FormControl>
         <Box
           component="button"
           onClick={openDateMenu}
@@ -702,6 +754,23 @@ const AuditLogPage: React.FC = () => {
             </Button>
           </Box>
         </Menu>
+        {resourceFilterLabel && (
+          <Box
+            component="button"
+            onClick={() => patchParams({ resource_id: undefined, resource_type: undefined })}
+            aria-label={t('audit.clearResourceFilter')}
+            title={t('audit.clearResourceFilter')}
+            sx={{
+              display: 'inline-flex', alignItems: 'center', gap: 0.625, cursor: 'pointer', minHeight: 40,
+              bgcolor: T.ink, color: 'var(--hotel-bg)',
+              border: `1px solid ${T.ink}`, borderRadius: 999,
+              px: 1.5, py: 0.75, fontSize: 12, fontWeight: 600,
+              '&:hover': { borderColor: T.ink },
+            }}
+          >
+            {t('audit.filteredTo', { label: resourceFilterLabel })} ×
+          </Box>
+        )}
       </Box>
       {/* Log panel */}
       <Box sx={{ bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '14px', overflow: 'hidden' }}>
@@ -750,7 +819,7 @@ const AuditLogPage: React.FC = () => {
                 const actionLabel = actionMeta.labelKey ? t(actionMeta.labelKey) : actionMeta.label;
                 const resMeta = getResourceLabel(r.resource_type);
                 const resLabel = resMeta.labelKey ? t(resMeta.labelKey) : resMeta.label;
-                const detailAnalysis = analyzeDetails(r.details);
+                const detailAnalysis = analyzeDetails(r.details, t('audit.changedMarker'));
                 const hasFieldChanges = r.has_changes ?? detailAnalysis.changes.length > 0;
                 const changeSummary = hasFieldChanges
                   ? detailAnalysis.changes.length > 0

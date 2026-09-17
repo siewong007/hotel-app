@@ -312,7 +312,7 @@ pub struct GuestUpdateInput {
 }
 
 /// Existing values needed to resolve partial guest updates.
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct GuestUpdateState {
     pub first_name: String,
     pub last_name: String,

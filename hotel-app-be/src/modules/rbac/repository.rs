@@ -539,6 +539,26 @@ impl RbacRepository {
         Ok(names.into_iter().collect())
     }
 
+    /// Role names keyed by id for a set of role ids. Used to snapshot names
+    /// into audit events so they stay readable after renames/deletes.
+    pub async fn role_names_for_ids(
+        pool: &DbPool,
+        role_ids: &[i64],
+    ) -> Result<std::collections::HashMap<i64, String>, ApiError> {
+        if role_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        let rows: Vec<(i64, String)> =
+            sqlx::query_as("SELECT id, name FROM roles WHERE id = ANY($1)")
+                .bind(role_ids)
+                .fetch_all(pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(rows.into_iter().collect())
+    }
+
     /// Permission names for a set of permission ids, as a set. Used when the
     /// grant names permissions directly rather than through a role.
     pub async fn permission_names_for_ids(

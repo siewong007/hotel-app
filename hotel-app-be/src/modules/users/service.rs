@@ -219,7 +219,26 @@ pub async fn update_user(
             action: "user_updated",
             resource_type: "user",
             resource_id: Some(user_id),
-            details: Some(serde_json::json!({"changed_fields": changed_fields})),
+            // PII-valued fields are listed so the diff shows "what" — the
+            // audit scrubber redacts email/phone/full_name values before
+            // persist, leaving `changed_fields` as the signal they changed.
+            details: Some(serde_json::json!({
+                "changed_fields": changed_fields,
+                "before": {
+                    "username": existing.username,
+                    "email": existing.email,
+                    "full_name": existing.full_name,
+                    "phone": existing.phone,
+                    "is_active": existing.is_active,
+                },
+                "after": {
+                    "username": user.username,
+                    "email": user.email,
+                    "full_name": user.full_name,
+                    "phone": user.phone,
+                    "is_active": user.is_active,
+                },
+            })),
             ..Default::default()
         },
     )

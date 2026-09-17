@@ -218,7 +218,8 @@
       "body": "款项已在 PayPal 变动，但与本地付款记录不匹配。请勿再次向客人收费——请先核对以下每条记录再采取行动。",
       "eventLine": "{{at}} — 付款 #{{id}}",
       "bookingRef": "预订 #{{id}}",
-      "showing": "显示 {{total}} 条中的 {{shown}} 条。完整历史请查看审计日志。"
+      "showing": "显示 {{total}} 条中的 {{shown}} 条。",
+      "viewAuditLog": "完整历史请查看审计日志。"
     },
     "receiptDialog": {
       "title": "请求付款收据",
@@ -298,7 +299,12 @@
     "timezoneLabel": "时间按酒店时区显示（{{zone}}）",
     "actorFilter": "操作者",
     "actionFilter": "操作",
+    "resourceTypeFilter": "类型",
     "allUsers": "全部用户",
+    "allResourceTypes": "全部类型",
+    "filteredTo": "已筛选：{{label}}",
+    "clearResourceFilter": "清除资源筛选",
+    "changedMarker": "已更改",
     "expandEvent": "显示事件详情",
     "collapseEvent": "隐藏事件详情",
     "openResource": "打开 {{ref}}",
@@ -524,6 +530,7 @@
       "reportTitle": "审计日志报告",
       "generatedAt": "生成时间：{{time}}",
       "exportedBy": "导出人：{{user}}",
+      "timezone": "时间以酒店时区显示（{{zone}}）",
       "truncated": "仅显示前 {{count}} 条匹配记录。",
       "systemUser": "系统",
       "actionOnly": "仅操作",

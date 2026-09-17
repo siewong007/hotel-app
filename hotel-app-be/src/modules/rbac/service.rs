@@ -141,7 +141,20 @@ pub async fn assign_role_to_user(
 ) -> Result<(), ApiError> {
     ensure_actor_can_manage_roles(pool, actor_user_id, &[input.role_id]).await?;
     RbacRepository::assign_role_to_user(pool, input.user_id, input.role_id).await?;
-    let _ = AuditLog::log_role_assignment(pool, actor_user_id, input.user_id, input.role_id).await;
+    // Name lookup is audit enrichment only — never fail the assignment for it.
+    let role_name = RbacRepository::find_role_by_id(pool, input.role_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|role| role.name);
+    let _ = AuditLog::log_role_assignment(
+        pool,
+        actor_user_id,
+        input.user_id,
+        input.role_id,
+        role_name.as_deref(),
+    )
+    .await;
     crate::core::rbac_cache::invalidate_all();
     Ok(())
 }
@@ -154,7 +167,19 @@ pub async fn remove_role_from_user(
 ) -> Result<(), ApiError> {
     ensure_actor_can_manage_roles(pool, actor_user_id, &[role_id]).await?;
     RbacRepository::remove_role_from_user(pool, user_id, role_id).await?;
-    let _ = AuditLog::log_role_removal(pool, actor_user_id, user_id, role_id).await;
+    let role_name = RbacRepository::find_role_by_id(pool, role_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|role| role.name);
+    let _ = AuditLog::log_role_removal(
+        pool,
+        actor_user_id,
+        user_id,
+        role_id,
+        role_name.as_deref(),
+    )
+    .await;
     crate::core::rbac_cache::invalidate_all();
     Ok(())
 }
@@ -259,11 +284,31 @@ pub async fn replace_user_roles(
     let current: HashSet<i64> = current_role_ids.into_iter().collect();
     let next: HashSet<i64> = role_ids.iter().copied().collect();
 
+    // One bulk name lookup for the changed roles — audit enrichment only.
+    let changed: Vec<i64> = next.symmetric_difference(&current).copied().collect();
+    let role_names = RbacRepository::role_names_for_ids(pool, &changed)
+        .await
+        .unwrap_or_default();
+
     for role_id in next.difference(&current) {
-        let _ = AuditLog::log_role_assignment(pool, admin_user_id, user_id, *role_id).await;
+        let _ = AuditLog::log_role_assignment(
+            pool,
+            admin_user_id,
+            user_id,
+            *role_id,
+            role_names.get(role_id).map(String::as_str),
+        )
+        .await;
     }
     for role_id in current.difference(&next) {
-        let _ = AuditLog::log_role_removal(pool, admin_user_id, user_id, *role_id).await;
+        let _ = AuditLog::log_role_removal(
+            pool,
+            admin_user_id,
+            user_id,
+            *role_id,
+            role_names.get(role_id).map(String::as_str),
+        )
+        .await;
     }
 
     crate::core::rbac_cache::invalidate_all();

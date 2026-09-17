@@ -284,7 +284,7 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
         {booking?.id != null && (
           <Button
             component={Link}
-            to={`/audit-log?category=bookings&resource_id=${booking.id}`}
+            to={`/audit-log?category=bookings&resource_type=booking&resource_id=${booking.id}`}
             onClick={onClose}
           >
             {t('workflow.openAuditLog')}
