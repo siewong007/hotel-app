@@ -138,8 +138,8 @@ docker exec saliminn-db psql -U hotel_admin -d hotel_management \
   -X -v ON_ERROR_STOP=1 -c \
   "DELETE FROM public.hotel_schema_revisions WHERE generation = 1 AND version > 1;"
 
-# 4. Re-run the deploy. 5. Re-check the SELECT — expect 1.1 plus
-#    1.2 deposit-forfeited / 1.3 guest-relations-phase2.
+# 4. Re-run the deploy. 5. Re-check the SELECT — expect 1.1 plus every
+#    entry in patches/manifest.tsv (versions 2–7 today).
 ```
 
 The full runbook — including the post-deploy export smoke test and the desktop

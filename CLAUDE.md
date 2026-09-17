@@ -109,7 +109,7 @@ and each skip counts as a PASS** — a no-DB run reports *more* (1,317; `payment
 44-in-0.01s vs a real 29 passed / 2 ignored), so run count cannot detect it: judge by wall-clock +
 per-suite counts. Patch/drift suites need `psql`. Fix-gated tests carry `#[ignore]`; CI fails when
 one starts passing. Characterization tests must assert *correct* values — one pinning a bug passes
-forever. Frontend: Vitest + Testing Library (250 files); build ky errors with
+forever. Frontend: Vitest + Testing Library (253 files); build ky errors with
 `src/api/testSupport/httpError.ts` (a readable-body fixture lets the bug pass); never run two
 vitest suites concurrently here — they starve each other's timeouts.
 
@@ -145,7 +145,7 @@ change route paths, methods, status codes, response fields, permission names, st
 column meanings in a refactor. Money, tax, auth, RBAC, passkey, 2FA, eKYC, booking state, ledger,
 and night-audit changes need targeted tests or approval — where the spec is ambiguous there, **ask;
 never guess financial policy**. Before "fixing" a rule that rejects valid-looking input, grep the
-test tree for the invariant behind it. `hotel-backup` v3 JSON carries **business data only** — never
+test tree for the invariant behind it. `hotel-backup` v1 JSON carries **business data only** — never
 password hashes, sessions, tokens, or eKYC evidence; it is not a `pg_dump` replacement, and import
 ordering is FK-sensitive (verify with an end-to-end round trip). **Concurrent sessions share this
 tree:** run `git status --short --branch` before editing — an already-dirty path is someone else's

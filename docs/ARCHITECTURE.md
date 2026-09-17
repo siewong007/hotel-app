@@ -215,13 +215,13 @@ See [FEATURES.md](FEATURES.md) for the status registry. Delivered domains:
 | Rooms & housekeeping | `modules/{rooms,housekeeping,maintenance}` | `features/{rooms,housekeeping}` |
 | Bookings & rates | `modules/{bookings,rates,booking_channels,guest_booking}` | `features/{bookings,rates,onlineInventory}` |
 | Guests, companies, relations | `modules/{guests,companies,guest_relations}` | `features/{guests,guestRelations}` |
-| Payments & ledgers | `modules/{payments,ledgers,payment_retry,webhooks}` | `features/{customer-ledger,invoices,paymentRecovery}`, `features/admin/components/{CustomerLedger,PaymentApprovalsPage}` |
-| Night audit, analytics, insights | `modules/{night_audit,analytics,audit,insights}` | `features/{night-audit,insights,audit-log,dashboard}`, `features/admin/components/{AuditLogPage,NightAuditPage}` |
+| Payments & ledgers | `modules/{payments,ledgers,payment_retry,webhooks}` | `features/{invoices,paymentRecovery}`, `features/admin/components/{CustomerLedger,PaymentApprovalsPage}` |
+| Night audit, analytics, insights | `modules/{night_audit,analytics,audit,insights}` | `features/{insights,dashboard}`, `features/admin/components/{AuditLogPage,NightAuditPage}` |
 | Revenue, promotions, segments | `modules/{revenue,promotions,segments}` | `features/{revenue,promotions,segments}`, `features/communications` |
 | Loyalty | `modules/loyalty` | `features/loyalty` |
 | eKYC | `modules/ekyc` | `features/ekyc` |
 | Communications & support | `modules/{communications,support}` | `features/{communications,support,notifications,help}` |
-| Settings, system, data transfer | `modules/{settings,system,data_transfer}` | `features/{user,data-transfer}`, `features/admin/system`, `features/admin/components/DataTransferPage` |
+| Settings, system, data transfer | `modules/{settings,system,data_transfer}` | `features/user`, `features/admin/system`, `features/admin/components/DataTransferPage` |
 | Realtime | `modules/realtime` (`/api/updates/socket`), hub sockets under loyalty/support | `hooks/useDataChangeSocket`, socket hooks per feature |
 | Guest portal | `modules/{guest_portal,guest_booking,consent}` | `guest/` entry + `features/guestPortal` |
 | Legal & misc public pages | — (static content) | `features/legal`, `/offers`, `/unsubscribe/$token` |

@@ -13,7 +13,35 @@ users, administrators, deployment or security. Published releases and downloads:
 
 Development has continued on `master` since v0.2.0 without a tagged release.
 See the [compare view](https://github.com/siewong007/hotel-app/compare/v0.2.0...master)
-for the current state.
+for the current state. Highlights so far:
+
+- **Internationalization** — the full staff UI and guest portal now ship in
+  English, Bahasa Melayu, Simplified Chinese, and Traditional Chinese
+  (`zh-TW`; `zh-Hant*` tags resolve there), including backend email catalogs,
+  with parity tests on both sides.
+- **Booking channels** — channel pricing rules (markup/discount/fixed/net-rate)
+  and dated commission rules with a preview/matrix; commission and net revenue
+  are snapshotted onto each booking at write time (`bookings.booking_channel_id`
+  remains the canonical attribution).
+- **Guest relations phase 2** — follow-up queue, interactions, preferences,
+  and reviews in the staff CRM workspace.
+- **Data transfer hardening** — dedicated `data_transfer:*` RBAC permissions
+  replace `settings:manage`/super-admin gates; tiered export scopes
+  (standard/full/backup) plus an encrypted, passphrase-protected `system`
+  scope; step-up re-authentication and a transfer history log.
+- **Deposits** — `deposit_forfeited` payment type and a deposit-resolution
+  flow in the checkout workspace.
+- **Audit log** — usability overhaul: filtering, CSV/PDF export, and a
+  redesigned viewer.
+- **Help centre** — public `/help` catalogue with searchable, localized
+  articles (zh-TW reads the zh set).
+- **Brand loading** — `BrandMark`/`LogoLoader` loading system replaces
+  spinner-centric UX (static pre-React splash, staged draw-on loader).
+- **Desktop packaging** — Windows (NSIS/MSI + portable) and Linux
+  (deb/AppImage + portable) CI jobs with install smoke tests, alongside the
+  verified macOS build.
+- **Backend structure** — domain-module migration completed: all 39 domains
+  live under `modules/<domain>/` (38 routed).
 
 ## v0.2.0 — 2026-07-27
 

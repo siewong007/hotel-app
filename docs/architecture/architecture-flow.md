@@ -33,8 +33,8 @@ port through Tauri IPC. The sidecar receives an explicit `ALLOWED_ORIGINS` list.
 
 A new empty database is initialized exactly once; an ordered patch catalog
 carries any later schema changes (the original 1.2–1.23 lineage was folded
-into the baseline; the republished catalog currently ships `1.2
-deposit-forfeited` and `1.3 guest-relations-phase2`):
+into the baseline and the catalog republished from empty — see
+`patches/manifest.tsv` for the current entries):
 
 ```text
 database/postgres/migrations/0001_v1_baseline.sql

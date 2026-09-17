@@ -15,10 +15,7 @@ active work only.** When a plan merges:
 
 ## Active
 
-| Item | Status |
-|---|---|
-| `plans/2026-09-14-i18n-zh.md` (+ `specs/2026-09-14-i18n-zh-design.md`) | **In progress** — Simplified Chinese as a third locale + 16-namespace split. Executing in worktree `.worktrees/i18n-zh` (branch `feat/i18n-zh`); ledger `.superpowers/sdd/2026-09-14-i18n-zh/`. Master remains `en` + `ms` — do not document zh as shipped until the branch lands. ⚠️ The branch is far behind master and its DB patch **must be renumbered 0003 → 0004** before merge — see the plan's Global Constraints. |
-| `plans/2026-09-15-data-transfer-privileged-permissions.md` | **Not started** — `data_transfer:*` RBAC replacing `settings:manage`/`is_super_admin`, three export tiers, step-up auth. Verified 2026-09-15: `routes/data_transfer.rs` still uses `ensure_super_admin`, so none of it has landed. |
+(none — this directory is currently empty; everything below is history)
 
 Removed 2026-09-15 (deliverables verified merged on master; recover from
 `git log -- docs/superpowers/`): `2026-09-14-deposit-resolution` + spec,
@@ -27,3 +24,28 @@ Removed 2026-09-15 (deliverables verified merged on master; recover from
 [`../ongoing-dev.md`](../ongoing-dev.md) (P2) rather than lost; its
 `.superpowers/sdd/2026-09-14-mobile-ux-density/` ledger is untracked and was
 left in place for whoever owns that directory to clear.
+
+Removed 2026-09-17 (deliverables verified merged on master; recover from
+`git log -- docs/superpowers/`):
+
+- `2026-09-14-i18n-zh` plan + spec — zh shipped (`resources/zh/`, patch
+  `0004 consent-locale-zh`, `SUPPORTED_LOCALES`); zh-TW followed in patch
+  `0007`. Rationale: ADR 012 + `guides/internationalization.md`.
+- `2026-09-15-backend-domain-module-migration` — complete: 39 domain
+  directories, 38 merged routers (`consent` routeless). Rationale:
+  `../ARCHITECTURE.md` + `../../AGENTS.md`.
+- `2026-09-15-cross-platform-desktop-packaging` — Windows/Linux jobs in
+  `desktop-build.yml`; `../guides/PACKAGING.md` is the owner. Remaining
+  work (signing, updater, end-to-end verification) tracked in
+  [`../ongoing-dev.md`](../ongoing-dev.md).
+- `2026-09-15-data-transfer-privileged-permissions` — `data_transfer:*`
+  RBAC, tiered scopes, step-up shipped (patch `0005`,
+  `modules/data_transfer/routes.rs`). Rationale:
+  `../guides/data-transfer.md` + `../API.md`.
+- `2026-09-15-i18n-coverage` plan + spec — full-UI coverage shipped;
+  `../i18n-coverage-inventory.md` is the record.
+- `2026-09-16-channel-pricing` plan + spec — pricing rules + commission
+  snapshots shipped (patch `0006`, `modules/booking_channels/pricing.rs`).
+  Rationale: ADR 013.
+- `2026-09-16-logo-loader` plan + spec — `BrandMark`/`LogoLoader` shipped.
+  Rationale: `../DESIGN_SYSTEM.md` §Loading.

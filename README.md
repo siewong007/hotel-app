@@ -54,11 +54,15 @@ This project addresses that problem by implementing a centralized administrative
 | Payments and invoices | Payment summaries, payment recording (PayPal + staff-recorded), deposit refund workflow, invoice preview, and invoice generation endpoints |
 | Ledgers | Customer/company ledger records, ledger payments, summaries, voids, and reversals |
 | Revenue and marketing | Revenue overview (ADR/RevPAR/channel mix), rate plans and rate calendar, campaigns/promotions, vouchers, and guest segments |
+| Booking channels | Channel records with pricing rules (markup/discount/fixed/net-rate), dated commission rules, preview matrix, and per-booking commission/net-revenue snapshots |
+| Guest relations | CRM workspace: interactions, preferences, reviews, follow-up queue, and complimentary-credit records |
 | Reports and insights | Report catalog (`/insights`), occupancy and booking analytics, dashboard metrics, and generated report endpoints |
 | Loyalty | Loyalty programs, memberships, points, rewards, redemptions, and member-facing reward views |
-| Communications | Email campaigns via SMTP, per-guest notification preferences, transactional booking/payment emails, and unsubscribe tokens |
+| Communications | Email campaigns via SMTP, per-guest notification preferences, transactional booking/payment emails, unsubscribe tokens, staff notifications, and WebSocket realtime updates |
 | eKYC and guest portal | Document upload, eKYC status/review endpoints, self check-in, and public pre-check-in guest portal routes |
-| Administration | Settings, audit log browsing/export, night audit, complimentary stays, system health/jobs, and `hotel-backup` v3 data import/export |
+| Help centre | Public `/help` article catalogue with searchable localized content (zh-TW reads the zh set) |
+| Internationalization | English, Bahasa Melayu, Simplified Chinese, and Traditional Chinese across the staff UI, guest portal, and backend emails (in-house `Intl` engine, ADR 012) |
+| Administration | Settings, audit log browsing/export, night audit, complimentary stays, system health/jobs, and `hotel-backup` v1 data import/export behind dedicated `data_transfer:*` permissions + step-up re-auth |
 | Desktop | Tauri shell, backend sidecar startup, bundled PostgreSQL lifecycle code, logs, and service status commands |
 
 ## Tech Stack
@@ -77,7 +81,7 @@ frontend package is on its latest stable release**, with one deliberate pin
 | Database | PostgreSQL 19 — `19beta3` on the server/CI stack, `19beta2` still bundled in the desktop app; V1 baseline + seed + checksum-verified patch catalog, parameterized SQLx queries |
 | Security | JWT, refresh tokens, RBAC, TOTP 2FA, passkey endpoints, rate limiting, CORS, and security headers |
 | Reporting | Nivo charts, jsPDF, jsPDF AutoTable, backend analytics endpoints |
-| CI/CD | GitHub Actions — six CI jobs: secret scan + `cargo audit`, Markdown link check, frontend typecheck/lint/test/build, backend check/test/clippy/release, PostgreSQL schema and workflow smoke, and a desktop compile check. Separate workflows for security (CodeQL, dependency review), a real desktop Tauri build, the legacy Docker publisher, and staging/production deploy |
+| CI/CD | GitHub Actions — eight CI jobs: secret scan + `cargo audit`, Markdown link check, desktop DB mirror, frontend typecheck/lint/test/build, backend check/test/clippy/release, PostgreSQL schema and workflow smoke, and desktop compile checks (Linux + Windows). Separate workflows for security (CodeQL, dependency review), a real desktop Tauri build for macOS/Windows/Linux, the legacy Docker publisher, and staging/production deploy |
 
 > **Why TypeScript is held at 6.** TypeScript 7.0.2 is published, but no
 > released `@typescript-eslint` supports it: the current parser (8.70.0) and even
@@ -117,7 +121,7 @@ flowchart LR
 The preferred backend flow is:
 
 ```text
-routes/<domain>.rs -> handlers/<domain>/ -> services/<domain>/ -> repositories/<domain>/ -> models/<domain>/
+modules/<domain>/routes.rs -> handlers.rs -> service.rs -> repository.rs -> models.rs
 ```
 
 The preferred frontend flow is:
@@ -221,12 +225,11 @@ hotel-app/
 ├── hotel-app-be/                 # Rust backend API
 │   ├── src/
 │   │   ├── core/                 # Auth, database pool, errors, middleware, rate limiting, metrics
-│   │   ├── handlers/             # HTTP handler functions
-│   │   ├── models/               # DTOs and domain data models
-│   │   ├── modules/              # Newer self-contained domain modules
-│   │   ├── repositories/         # SQL persistence modules
-│   │   ├── routes/               # Axum route registration by domain
-│   │   ├── services/             # Business workflow logic
+│   │   ├── modules/              # All domain modules: <domain>/{routes,handlers,service,repository,models}.rs
+│   │   ├── models/               # Cross-domain DTOs only (audit, common, row_mappers)
+│   │   ├── repositories/         # Cross-domain persistence only (audit, invoice_numbers)
+│   │   ├── routes/               # Router composition — every module merged in routes/mod.rs
+│   │   ├── services/             # Cross-domain services only (audit, account_emails, google_identity, invoice_numbers)
 │   │   └── utils/                # Sanitization and validation helpers
 │   ├── database/
 │   │   └── postgres/
@@ -254,7 +257,7 @@ hotel-app/
 │   ├── architecture/             # ADRs, request/data flows, domain boundaries
 │   ├── guides/                   # Deployment, data transfer, i18n, VPS access
 │   ├── security/                 # Production ops + backup/restore runbooks
-│   └── superpowers/              # Active implementation plans only (shipped ones are removed)
+│   └── superpowers/              # Active implementation plans only — none today; shipped ones are removed
 ├── deploy/                       # Production/staging deploy scripts, Caddyfile, backups
 ├── infra/terraform/oci/          # Oracle Cloud Always Free development infrastructure
 ├── .github/workflows/            # CI, security, Docker, deploy, desktop-build workflows
@@ -314,7 +317,7 @@ renamed, or removed without updating the spec (and vice versa). All domain endpo
 prefixed with `/api` — for example, the login endpoint is `POST /api/auth/login`; root
 infrastructure paths such as `/health` appear in full. Operation-level detail (summaries,
 request/response shapes) is documented in the route modules and DTOs under
-`hotel-app-be/src/models/`. Health-check request examples are in the
+`hotel-app-be/src/modules/<domain>/`. Health-check request examples are in the
 [Deployment Guide](docs/guides/deployment.md).
 
 Most operational endpoints require a bearer token and, in many cases, a specific RBAC permission.
@@ -327,33 +330,38 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 - ✅ **OCI Always Free Terraform** — Ampere A1 development VM, networking, Vault access, and Compose bootstrap
 - ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts (`optimization/pg19_beta2*.sql`; guards accept 19beta2/19beta3, but the values were benchmarked on beta2 only — re-run the benchmark script before trusting them on beta3)
 - ✅ **Project Makefile** — Convenience commands for all development workflows
-- ✅ **Frontend test suite** — Vitest + Testing Library: 235 test files / 1,902 tests green (`bun run test`, 2026-09-15)
-- ✅ **Backend integration tests** — 50 test files covering auth/RBAC, bookings, payments, ledgers, rooms, night audit, data transfer, and portal flows
+- ✅ **Frontend test suite** — Vitest + Testing Library: 253 test files green (`bun run test`, 2026-09-17)
+- ✅ **Backend integration tests** — 53 test files covering auth/RBAC, bookings, payments, ledgers, rooms, night audit, data transfer, and portal flows
 - ✅ **Security CI gate** — Committed-secret scan, `cargo audit`, CodeQL, and dependency review
 - ✅ **Generated OpenAPI spec** — `docs/api/openapi.json`, regenerated from the router and enforced by the `openapi_drift` CI test
-- ✅ **Architecture Decision Records (ADRs)** — 12 documented architectural decisions
+- ✅ **Architecture Decision Records (ADRs)** — 13 documented architectural decisions
+- ✅ **Backend domain module migration** — all 39 domain directories live in `modules/<domain>/`; 38 merged into the router (`consent` is internal, routeless)
+- ✅ **Internationalization** — English, Bahasa Melayu, Simplified Chinese (zh), and Traditional Chinese (zh-TW) on the in-house `Intl` engine (ADR 012)
+- ✅ **Booking channels** — Channel pricing rules and dated commission rules with preview matrix; commission and net revenue snapshotted onto bookings at write time
+- ✅ **Guest relations phase 2** — Follow-up queue, interactions, preferences, and reviews in the staff CRM workspace
+- ✅ **Data-transfer hardening** — Dedicated `data_transfer:*` RBAC, tiered export scopes incl. passphrase-encrypted `system` scope, step-up re-authentication, and transfer history
+- ✅ **Help centre** — Public `/help` catalogue with searchable localized articles
+- ✅ **Audit-log overhaul** — Filtering, CSV/PDF export, and a redesigned viewer
 - ✅ **Deployment guide** — Comprehensive production deployment documentation
 - ✅ **Contributing guide** — Guidelines, conventions, and testing instructions
 - ✅ **Security documentation** — Deployment checklist, production runbook, and backup/restore drill
-- ✅ **Desktop CI packaging** — macOS installer built and verified from a workflow artifact
+- ✅ **Desktop CI packaging** — macOS installer built and verified from a workflow artifact; Windows (NSIS/MSI + portable) and Linux (deb/AppImage + portable) jobs exist in `desktop-build.yml` with install smoke tests
 
 ### Planned
 
-- **Simplified Chinese locale** — In progress on `feat/i18n-zh` (worktree); English + Bahasa Melayu are shipped today
 - **Distributed caching** — Replace in-memory RBAC/settings caches for multi-instance deployment
-- **Backend domain module migration** — Continue moving flat-by-layer domains into `modules/<domain>/` (fifteen module directories so far, fourteen routed plus the internal `consent` module)
 - **Frontend component tests** — Expand depth: every page has smoke + axe coverage; workflow-level assertions remain for the largest pages
 - **Desktop backup/restore** — Complete managed backup solution with recovery procedures
-- **Windows and Linux desktop packaging** — Extend the desktop build workflow beyond macOS
+- **Desktop packaging hardening** — Windows/Linux jobs exist in `desktop-build.yml`; remaining: end-to-end verification, RPM evaluation, signing/notarization, and arming the updater (`hotel-desktop/UPDATER.md`)
 - **SMS channel** — Communications module is email-only today
 
 ## Limitations
 
 - The project is not presented as production-ready; security, compliance, deployment hardening, and operational procedures require additional validation.
-- Automated test coverage is uneven — core money, booking, and auth paths are covered, but several feature pages and portal flows are not.
+- Automated test coverage is broad at the render level — every page has smoke + axe coverage — but thin on workflow depth for the largest pages (see [ongoing-dev.md](docs/ongoing-dev.md)).
 - Backend integration tests skip silently unless `DATABASE_URL` is set, and because a skipped test early-returns (which libtest counts as a pass) the run count goes *up*, not down — a green `cargo test` is only meaningful alongside wall-clock time and per-suite counts. See [DEVELOPMENT.md](docs/DEVELOPMENT.md#validate).
 - Some desktop operational commands are still limited; for example, database backup behavior is not a complete managed backup solution.
-- Desktop packaging is built and verified for macOS only; Windows and Linux are built manually.
+- Desktop packaging is built and verified for macOS; Windows and Linux installers are produced by `desktop-build.yml` CI jobs but have not yet been verified end-to-end, and signing/notarization plus the updater remain unconfigured.
 - eKYC document handling is implemented as an application workflow, not a certified identity verification service.
 - Rate limiting and caching are in-memory only, which limits to single-instance deployments.
 
@@ -388,11 +396,16 @@ environment is for development and benchmarking only.
 - [Architecture Flow](docs/architecture/architecture-flow.md) — Request flow through backend and frontend layers
 - [Architecture Decision Records](docs/architecture/ADRS.md) — Documented architectural decisions
 - [Deployment Guide](docs/guides/deployment.md) — Production deployment instructions
+- [Data Transfer Guide](docs/guides/data-transfer.md) — `hotel-backup` export/import format, scopes, and permissions
+- [Internationalization Guide](docs/guides/internationalization.md) — Locale model, bundles, and parity tests
+- [Ongoing Development](docs/ongoing-dev.md) — Single live tracker for open work
+- [Design System](docs/DESIGN_SYSTEM.md) — Semantic tokens, loading system, and UI conventions
 - [Database Lifecycle](hotel-app-be/database/README.md) — Schema, migrations, and seed data workflow
 - [Production Security Operations](docs/security/production-operations.md) — Release controls, access reviews, incident response
 - [Backup and Restore Drill](docs/security/backup-restore.md) — Off-host backup and quarterly restore procedure
 - [VPS Access Guide](docs/guides/vps-access.md) — Production host access and database maintenance
 - [PostgreSQL 19beta3 Cutover](docs/guides/postgres-beta3-cutover.md) — Dump-and-restore runbook for the production database engine bump
+- [Desktop Packaging Guide](docs/guides/PACKAGING.md) — macOS/Windows/Linux build and packaging pipeline
 - [Desktop Build Guide](hotel-desktop/BUILD_SPEED.md) — Desktop build pipeline and caching
 - [OCI Always Free Terraform](infra/terraform/oci/README.md) — Free-tier-shaped development environment
 - [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) — Coding-agent routing index and repository conventions

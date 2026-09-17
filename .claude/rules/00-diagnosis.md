@@ -5,15 +5,16 @@ Every rule here is executable — no judgment required.
 
 ## Leak #1: Reading large files whole (biggest token leak)
 
-The hot files are huge (measured 2026-09-15): the V1 baseline SQL 10.3k lines,
-`repositories/bookings/lifecycle.rs` ~3.4k, `services/payments.rs` ~3.0k,
-`repositories/analytics.rs` ~2.5k, `repositories/payment.rs` ~2.3k,
-`invoices/components/CheckoutInvoiceModal.tsx` ~2.2k, `src-tauri/src/postgres.rs` ~2.2k,
+The hot files are huge (measured 2026-09-17, all under `hotel-app-be/src/modules/`
+since the domain-module migration): the V1 baseline SQL 10.7k lines,
+`modules/bookings/lifecycle.rs` ~3.7k, `modules/payments/service.rs` ~3.1k,
+`modules/analytics/repository.rs` ~2.5k, `modules/payments/repository.rs` ~2.3k,
+`features/invoices/components/CheckoutInvoiceModal.tsx` ~2.2k, `src-tauri/src/postgres.rs` ~2.2k,
 `features/admin/components/CustomerLedger/CustomerLedgerPage.tsx` ~2.2k,
-`repositories/ledger.rs` ~2.1k, `staging.sql` ~1.7k,
-`seed.sql` ~1.6k. Reading one whole can burn 30–60k tokens in a single call. Handlers are
-thin wrappers now — `handlers/bookings.rs` is 262 lines, and `BookingsPage.tsx` was split
-down to ~490, so neither is worth avoiding any more.
+`modules/ledgers/repository.rs` ~2.1k, `staging.sql` ~1.7k,
+`seed.sql` ~1.7k. Reading one whole can burn 30–60k tokens in a single call. Handlers are
+thin wrappers now — `modules/bookings/handlers.rs` is 268 lines, and `BookingsPage.tsx` was split
+down to ~450, so neither is worth avoiding any more.
 
 **Fix (mandatory procedure):**
 1. For architecture, dependency, caller, or change-impact questions, start with
@@ -23,14 +24,14 @@ down to ~490, so neither is worth avoiding any more.
 3. If the file is >400 lines, NEVER Read it without `offset`/`limit`. Grep for the
    function name first to get a line number, then Read ±80 lines around it.
 4. CLAUDE.md and `.claude/refs/*.md` already list known line anchors
-   (e.g. `create_booking_handler` at repositories/bookings/lifecycle.rs:1003 — that name also
-   exists in `handlers/bookings.rs` and `modules/guest_booking/handlers.rs`, so grep the
+   (e.g. `create_booking_handler` at modules/bookings/lifecycle.rs:1063 — that name also
+   exists in `modules/bookings/handlers.rs` and `modules/guest_booking/handlers.rs`, so grep the
    qualified path). Start from those, but always verify — anchors rot as code moves.
 5. If you need a broad sweep ("where is X handled across the repo"), delegate to an
    Explore subagent (see `model-dispatch.md`) instead of reading files yourself.
 
-- ✅ Good: `grep -n "fn create_booking_handler" repositories/bookings/lifecycle.rs` → Read offset 1003, limit 160.
-- ❌ Bad: `Read repositories/bookings/lifecycle.rs` with no limit "to get context" (3.4k lines).
+- ✅ Good: `grep -n "fn create_booking_handler" modules/bookings/lifecycle.rs` → Read offset 1063, limit 160.
+- ❌ Bad: `Read modules/bookings/lifecycle.rs` with no limit "to get context" (3.7k lines).
 
 ## Leak #2: Dual-database contract violations (most common CI failure)
 

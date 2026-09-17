@@ -47,19 +47,18 @@ There are two tiers of file, and the difference is the whole security story:
 
 ## Architecture
 
-The domain follows the flat-by-layer layout —
-`src/{routes,handlers,services,repositories,models}/data_transfer.rs` — plus
-one extra service file for the staged-import pipeline:
+The domain follows the standard module layout — `src/modules/data_transfer/`:
 
 | Layer | File | Role |
 |---|---|---|
-| Routes | `src/routes/data_transfer.rs` | Path registration, `data_transfer:*` permission guards, the 256 MB `DefaultBodyLimit` on the upload route, the sensitive rate limiter on `/step-up` |
-| Handlers | `src/handlers/data_transfer.rs` | Thin HTTP translation; maps `StageUploadError::PayloadTooLarge` to 413 (the `ApiError` enum has no such variant) |
-| Service | `src/services/data_transfer.rs` | Entity catalog (`TABLE_INSERT_ORDER`, `EXCLUDED_TABLES`, `EXCLUDED_EXPORT_COLUMNS`), the `SENSITIVE_TABLES` registry, the streaming v1 export writer |
-| Service | `src/services/data_transfer_jobs.rs` | Staged uploads, format detection, import preview, conditional permission enforcement, the process-local job registry, and the background import runner |
-| Service | `src/services/data_transfer_step_up.rs` | Step-up re-authentication: password (+TOTP) verification, the 120 s `X-Step-Up` token check, step-up audit events |
-| Repository | `src/repositories/data_transfer.rs` | All SQL: catalog introspection (`pg_class`/`pg_constraint`/`information_schema`), the export cursor, `insert_transfer_row`, FK relax/restore, sequence resets |
-| Models | `src/models/data_transfer.rs` | The v1 document structs (`BackupFile` et al.) and every request/response DTO |
+| Routes | `src/modules/data_transfer/routes.rs` | Path registration, `data_transfer:*` permission guards, the 256 MB `DefaultBodyLimit` on the upload route, the sensitive rate limiter on `/step-up`, the super-admin check on `system`-scope export/preview |
+| Handlers | `src/modules/data_transfer/handlers.rs` | Thin HTTP translation; maps `StageUploadError::PayloadTooLarge` to 413 (the `ApiError` enum has no such variant) |
+| Service | `src/modules/data_transfer/service.rs` | Entity catalog (`TABLE_INSERT_ORDER`, `EXCLUDED_TABLES`, `EXCLUDED_EXPORT_COLUMNS`), the `SENSITIVE_TABLES`/`PROTECTED_TABLE_ORDER` registries, the streaming v1 export writer |
+| Service | `src/modules/data_transfer/jobs.rs` | Staged uploads, format detection, import preview, conditional permission enforcement, the process-local job registry, and the background import runner |
+| Service | `src/modules/data_transfer/step_up.rs` | Step-up re-authentication: password (+TOTP) verification, the 120 s `X-Step-Up` token check, step-up audit events |
+| Crypto | `src/modules/data_transfer/crypto.rs` | The framed AEAD stream that encrypts `system`-scope exports under the `X-Backup-Passphrase` |
+| Repository | `src/modules/data_transfer/repository.rs` | All SQL: catalog introspection (`pg_class`/`pg_constraint`/`information_schema`), the export cursor, `insert_transfer_row`, FK relax/restore, sequence resets |
+| Models | `src/modules/data_transfer/models.rs` | The v1 document structs (`BackupFile` et al.) and every request/response DTO |
 
 Request flow for an export: route guard (`data_transfer:export` for
 `?scope=standard`, `data_transfer:export_sensitive` + `X-Step-Up` for

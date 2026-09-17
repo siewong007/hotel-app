@@ -40,7 +40,8 @@ limits before raising either) running the existing Docker Compose stack, so
 there is no paid managed PostgreSQL service. This is a development/preview
 topology only: VM, database, and app share one failure domain; Always Free
 capacity has no production SLA and can be unavailable or reclaimed; PostgreSQL
-19 Beta 2 is not supported for production data.
+19 is a pre-release engine (`19beta3` today) and is not supported for
+production data until it reaches GA.
 
 Create an OCI Vault secret for each required application secret, then:
 
@@ -61,7 +62,8 @@ Oracle references: [Always Free resources](https://docs.oracle.com/en-us/iaas/Co
 ## Production Deployment
 
 > **PostgreSQL 19 status:** the repository currently targets PostgreSQL 19
-> Beta 2 for development. PostgreSQL identifies version 19 as a development
+> (`postgres:19beta3` on every server/CI/compose surface; the desktop bundle
+> still provisions 19beta2). PostgreSQL identifies version 19 as a development
 > release. Do not use this deployment path for production hotel data until 19
 > reaches general availability and backup/restore plus load tests pass.
 
@@ -72,7 +74,7 @@ Oracle references: [Always Free resources](https://docs.oracle.com/en-us/iaas/Co
 | CPU | 2 cores | 4+ cores |
 | RAM | 4 GB | 8+ GB |
 | Disk | 20 GB | 50+ GB (SSD) |
-| PostgreSQL | 19 Beta 2 | 19 GA after validation |
+| PostgreSQL | 19 (`19beta3` image) | 19 GA after validation |
 | Reverse Proxy | — | Nginx or Caddy |
 | TLS Certificate | — | Let's Encrypt |
 
@@ -321,14 +323,13 @@ is the canonical reference for how it works.
 
 **The catalog was reset, then reopened.** The original 22-patch lineage
 (revisions 1.2–1.23) was folded into the V1 baseline and `manifest.tsv` was
-reset to empty; generation 1 then reopened at version 2 — the catalog currently
-publishes `1.2 deposit-forfeited`, `1.3 guest-relations-phase2`, and
-`1.5 data-transfer-permissions` (the `data_transfer:*` permission set plus the
-route-policy repoint — it also widens the `valid_action` check constraint, so
-it must run before any code that checks the new permissions), all
-converge-style (idempotent over a database that already carries the baseline
-objects). A fresh install needs no convergence step, and a database that
-recorded the post-reset lineage skips them as already applied.
+reset to empty; generation 1 then reopened at version 2 — the catalog
+currently publishes six converge-style patches, versions 2–7 (the
+`data_transfer:*` permission patch among them widens the `valid_action`
+check constraint, so it must run before any code that checks the new
+permissions; see `patches/manifest.tsv` for the full entry list — it is the
+catalog of record). A fresh install needs no convergence step, and a database
+that recorded the post-reset lineage skips them as already applied.
 
 A database that recorded **pre-reset** revisions (`1.2`/`1.3` under the old
 names and checksums, e.g. `1.2 google-subject`) no longer converges silently —
@@ -381,7 +382,7 @@ psql "$DATABASE_URL" -X -At -v ON_ERROR_STOP=1 -c \
 ```
 
 Expect `1.1` (the baseline) through the highest version in the manifest —
-currently `1.1`–`1.5`.
+currently `1.1`–`1.7`.
 
 #### One-time reset: stale pre-fold patch lineage
 
@@ -432,12 +433,11 @@ Production commands (for staging, substitute `saliminn-staging-db` and
    patch run checks first.
 
 4. **Deploy** (`deploy/deploy.sh`, or for a local database
-   `make db-patch DATABASE_URL=…`). Patches 0002/0003 apply converge-style and
-   record their rows.
+   `make db-patch DATABASE_URL=…`). The catalog's patches apply converge-style
+   and record their rows.
 
 5. **Verify the new lineage** — re-run the SELECT from step 1 and expect
-   `1.1`, `1.2 deposit-forfeited`, `1.3 guest-relations-phase2` with checksums
-   matching `patches/manifest.tsv`.
+   `1.1` plus every entry in `patches/manifest.tsv` with matching checksums.
 
 6. **Smoke the public path.** The failure this reset unblocks surfaced through
    Cloudflare as 502s on `GET /api/data-transfer/export`, so that endpoint is
@@ -445,7 +445,7 @@ Production commands (for staging, substitute `saliminn-staging-db` and
 
    ```bash
    curl -fsS -o /dev/null -w '%{http_code}\n' https://saliminn.my/health
-   # With a bearer token for a settings:manage account:
+   # With a bearer token for an account holding data_transfer:export:
    curl -fsS -H "Authorization: Bearer $TOKEN" \
      -o /tmp/export.json -w '%{http_code} %{size_download}\n' \
      https://saliminn.my/api/data-transfer/export
@@ -477,7 +477,7 @@ at startup, surfaced as `Failed to run database setup: …`. Two ways out:
 
   (macOS path shown; `postgres-password.txt` sits in the platform's
   `HotelApp` data-local directory.) Restart the app — the catalog then applies
-  1.2/1.3 normally.
+  normally from version 2 onward.
 - **Rebuild.** The app's doctrine for a database the catalog cannot converge —
   also the only path for one it classifies as *unversioned* — is to export the
   data (a `hotel-backup` export, or the app's `pg_dump` backup), delete or

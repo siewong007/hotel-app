@@ -44,9 +44,13 @@ cargo fmt
 integration test after a signature change — run `cargo test`, or at least
 `cargo check --tests`.
 
-45 of the 50 files under `tests/` return early when `DATABASE_URL` is unset, and the
-suite still exits 0. Export `DATABASE_URL` and check the reported run count: a full run
-reports ~1,300 tests; ~479 means only the library unit tests ran. The patch-lifecycle
+49 of the 53 files under `tests/` return early when `DATABASE_URL` is unset, and the
+suite still exits 0 — and each early return counts as a *pass*, so a no-database run
+reports **more** tests (~1,317), not fewer. Do not judge by run count or exit code:
+judge by wall-clock and per-suite counts (e.g. `payment_characterization` is
+44 passed in ~0.01s without a database vs ~29 passed / 2 ignored with one).
+See [../docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md#validate) for the full heuristic.
+The patch-lifecycle
 and schema-drift suites additionally shell out to `psql` — on macOS add libpq to PATH
 (`/opt/homebrew/opt/libpq/bin`) or they fail with `psql: command not found`.
 

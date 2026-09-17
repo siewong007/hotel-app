@@ -117,7 +117,7 @@ Guest PII, IC/passport numbers, eKYC images, payment records and audit logs
 are handled with: private filesystem storage for identity documents,
 `ekyc_document_downloaded` audit events, soft-delete + `PII_REDACTED`
 scrubbing on guest deletion, hashed tokens everywhere tokens exist, and a
-business-data-only `hotel-backup` v3 format that excludes credentials,
+business-data-only `hotel-backup` v1 format that excludes credentials,
 sessions and eKYC evidence.
 
 ## 4. Compliance and privacy readiness
@@ -217,11 +217,11 @@ Gaps and notes:
 
 ## 9. Testing and quality gates
 
-- 50 backend test files incl. live-PG suites in CI (auth sessions, consent
+- 53 backend test files incl. live-PG suites in CI (auth sessions, consent
   gates, guest-portal IDOR, payment characterization, rate limiter, security
   headers, patch catalog/lifecycle, eKYC review queue). Skip-without-DB
   semantics are documented.
-- 235 frontend Vitest files; four independent gates (typecheck /
+- 253 frontend Vitest files; four independent gates (typecheck /
   lint:strict / test / build). `openapi_drift` keeps the spec honest.
 - Security workflow: gitleaks, CodeQL, cargo-audit, dependency review.
 - **Gaps:** no browser E2E suite, no load/performance tests, no automated

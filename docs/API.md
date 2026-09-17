@@ -11,7 +11,7 @@ cd hotel-app-be
 HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift
 ```
 
-The OpenAPI document is a method+path index (424 operations across 352
+The OpenAPI document is a method+path index (443 operations across 367
 paths). This page documents the cross-cutting contract every endpoint shares;
 for per-endpoint request/response shapes read the handler and model files —
 `src/modules/<domain>/handlers.rs` and `src/modules/<domain>/models.rs` are
@@ -72,14 +72,14 @@ different fields → `409`.
 
 ## Endpoint domains
 
-Grouped by path prefix (counts from `openapi.json`, 424 ops total):
+Grouped by path prefix (counts from `openapi.json`, 443 ops total):
 
 | Prefix | Ops | Domain |
 |---|---|---|
 | `/api/admin/*` | 66 | Back-office: communications, loyalty, promotions, payments, segments, vouchers, online-inventory |
 | `/api/guest-portal/*` | 51 | Guest self-service: auth, bookings, pre-check-in, eKYC, payments, vouchers, support, preferences |
 | `/api/guests*` | 31 | Guest records + guest-relations interactions/preferences/reviews |
-| `/api/bookings*`, `/api/booking*` | 32 | Booking lifecycle |
+| `/api/bookings*`, `/api/booking*` | 44 | Booking lifecycle + channel attribution |
 | `/api/rooms*`, `/api/room-types`, `/api/room-rates` | 35 | Inventory and pricing |
 | `/api/auth/*` | 20 | Login/refresh/logout, password, passkey, 2FA, Google |
 | `/api/users*` | 17 | Staff user management |
@@ -88,25 +88,42 @@ Grouped by path prefix (counts from `openapi.json`, 424 ops total):
 | `/api/ledgers*`, `/api/payments*`, `/api/invoices*` | 29 | Money |
 | `/api/profile/*` | 14 | Self-service profile/settings |
 | `/api/teams*` | 8 | Team management |
-| `/api/data-transfer/*` | 7 | `hotel-backup` JSON export + staged import pipeline — see below |
-| `/api/night-audit*`, `/api/audit-logs*`, `/api/analytics*`, `/api/insights*`, `/api/reports*` | ~20 | Ops intelligence |
-| `/api/{housekeeping,maintenance,support,communications,settings,booking-channels,companies,search,rate-plans,market-codes,rate-codes,rate-management,complimentary,revenue,promotions,loyalty,guest-relations,system,updates}*` | rest | Assorted domains |
+| `/api/data-transfer/*` | 9 | `hotel-backup` JSON export + staged import pipeline — see below |
+| `/api/night-audit*`, `/api/audit-logs*`, `/api/analytics*`, `/api/insights*`, `/api/reports*` | 21 | Ops intelligence |
+| `/api/{housekeeping,maintenance,support,communications,settings,booking-channels,companies,search,rate-plans,market-codes,rate-codes,rate-management,complimentary,revenue,promotions,loyalty,guest-relations,system,updates,channel-*}*` | rest | Assorted domains |
 | `/api/webhooks/paypal` | 1 | PayPal signature-verified events |
 | `/health`, `/ws/status` | 2 | Infrastructure probes (root level) |
 
 ### Data transfer
 
-`GET /api/data-transfer/export` and `GET /api/data-transfer/export/preview` run
-under `settings:manage`; the five import endpoints are super-admin only
-(`users.is_super_admin`):
+Every endpoint runs on the grantable `data_transfer:*` permission set —
+neither `settings:manage` nor the super-admin flag opens the surface on its
+own. Conditional permissions (`export_sensitive`, `import_sensitive`,
+`override`, `restore`) and a 120-second `X-Step-Up` token are enforced deeper,
+where the file and request mode are known:
 
-- `POST /api/data-transfer/import/uploads` — stream the backup file (≤256 MB)
-  to a staged upload; returns `{uploadId, bytes, detectedFormat}`.
-- `POST /api/data-transfer/import/preview` — `{uploadId}` → pre-flight diff.
-- `POST /api/data-transfer/import/execute` — `{uploadId, mode, onConflict?,
-  tables?, confirm: true}` → `202 {jobId}`.
-- `GET /api/data-transfer/import/jobs/{jobId}` — poll job status/result.
-- `DELETE /api/data-transfer/import/uploads/{uploadId}` — discard a staged file.
+- `GET /api/data-transfer/export/preview` — `data_transfer:view`
+  (`export_sensitive` when the scope is sensitive); super-admin for the
+  protected `system` scope.
+- `GET /api/data-transfer/export` — `data_transfer:export` (`standard`) or
+  `export_sensitive` + step-up (`full`, `backup`); `system` adds the
+  super-admin flag and a required `X-Backup-Passphrase` header.
+- `POST /api/data-transfer/step-up` — re-authentication (password + TOTP)
+  minting the `X-Step-Up` token; auth + IP rate limit only.
+- `GET /api/data-transfer/history` — `data_transfer:view`.
+- `POST /api/data-transfer/import/uploads` — `data_transfer:import`; streams
+  the backup file (≤256 MB) to a staged upload; returns
+  `{uploadId, bytes, detectedFormat}`.
+- `POST /api/data-transfer/import/preview` — `data_transfer:import`;
+  `{uploadId}` → pre-flight diff.
+- `POST /api/data-transfer/import/execute` — `data_transfer:import` plus
+  conditional `import_sensitive` / `override` / `restore` (+ step-up on
+  restore) depending on the file and request;
+  `{uploadId, mode, onConflict?, tables?, confirm: true}` → `202 {jobId}`.
+- `GET /api/data-transfer/import/jobs/{jobId}` — `data_transfer:import`;
+  poll job status/result.
+- `DELETE /api/data-transfer/import/uploads/{uploadId}` —
+  `data_transfer:import`; discard a staged file.
 
 The file format, entity coverage, and semantics are documented in
 [`guides/data-transfer.md`](guides/data-transfer.md).

@@ -1,31 +1,36 @@
 # i18n coverage inventory
 
 Full-coverage audit for `hotel-web-fe`, produced at the close of the
-`feat/i18n-coverage` branch (2026-09-15). Design contract:
-[2026-09-15-i18n-coverage-design.md](superpowers/specs/2026-09-15-i18n-coverage-design.md);
-usage guide: [guides/internationalization.md](guides/internationalization.md).
+`feat/i18n-coverage` branch (2026-09-15) and refreshed 2026-09-17 for the
+`zh-TW` locale and the namespaces added since. The design spec was removed
+with the shipped-plan cleanup (repo rule: plans delete on merge — git
+history has it); usage guide:
+[guides/internationalization.md](guides/internationalization.md).
 
-- Locales: **en** (source of truth), **ms**, **zh** (`Intl` tag `zh-CN`)
-- Namespaces: **28** bundles per locale under
+- Locales: **en** (source of truth), **ms**, **zh** (`Intl` tag `zh-CN`),
+  **zh-TW** (`Intl` tag `zh-TW`; `zh-Hant*` tags resolve here, `zh-Hans*`
+  and bare `zh` resolve to `zh`)
+- Namespaces: **30** bundles per locale under
   `hotel-web-fe/src/i18n/resources/<locale>/`
-- Flattened leaf keys: **en 6,595 · ms 6,535 · zh 6,516** — ms/zh counts are
-  lower *by design*: `Intl.PluralRules` gives Malay and Chinese only the
-  `other` category, so `_one`/`_zero` variants legitimately do not exist
-  there. The parity suite accounts for this.
+- Flattened leaf keys: **en 7,652 · ms 7,596 · zh 7,584 · zh-TW 7,532** —
+  ms/zh/zh-TW counts are lower *by design*: `Intl.PluralRules` gives Malay
+  and both Chinese locales only the `other` category, so `_one`/`_zero`
+  variants legitimately do not exist there. The parity suite accounts for
+  this.
 
 ## Locale coverage matrix
 
-| Assertion | en | ms | zh | Enforced by |
-|---|---|---|---|---|
-| Every en key exists | — | ✅ | ✅ | `resources.test.ts` (`hotel-web-fe/src/i18n/resources.test.ts`) |
-| No extra keys | — | ✅ | ✅ | same |
-| Plural categories render for every count the language produces | ✅ | ✅ | ✅ | same |
-| Placeholder agreement (no `{{var}}` en does not declare) | ✅ | ✅ | ✅ | same |
-| No blank values | ✅ | ✅ | ✅ | same |
-| Every bundle on disk is registered | ✅ | ✅ | ✅ | same |
-| Every literal `t('…')`/`tOr('…')`/`translate*()`/`statusLabel()` key exists in en | ✅ | — | — | `keyUsage.test.ts` (`hotel-web-fe/src/i18n/keyUsage.test.ts`) |
-| No un-allowlisted hardcoded JSX text / props | ✅ | — | — | `hardcoded.test.ts` (`hotel-web-fe/src/i18n/hardcoded.test.ts`) |
-| Server email catalogs | ✅ | ✅ | ✅ | `core::i18n` tests (`hotel-app-be/src/core/i18n.rs`) |
+| Assertion | en | ms | zh | zh-TW | Enforced by |
+|---|---|---|---|---|---|
+| Every en key exists | — | ✅ | ✅ | ✅ | `resources.test.ts` (`hotel-web-fe/src/i18n/resources.test.ts`) |
+| No extra keys | — | ✅ | ✅ | ✅ | same |
+| Plural categories render for every count the language produces | ✅ | ✅ | ✅ | ✅ | same |
+| Placeholder agreement (no `{{var}}` en does not declare) | ✅ | ✅ | ✅ | ✅ | same |
+| No blank values | ✅ | ✅ | ✅ | ✅ | same |
+| Every bundle on disk is registered | ✅ | ✅ | ✅ | ✅ | same |
+| Every literal `t('…')`/`tOr('…')`/`translate*()`/`statusLabel()` key exists in en | ✅ | — | — | — | `keyUsage.test.ts` (`hotel-web-fe/src/i18n/keyUsage.test.ts`) |
+| No un-allowlisted hardcoded JSX text / props | ✅ | — | — | — | `hardcoded.test.ts` (`hotel-web-fe/src/i18n/hardcoded.test.ts`) |
+| Server email catalogs | ✅ | ✅ | ✅ | ✅ | `core::i18n` tests (`hotel-app-be/src/core/i18n.rs`) |
 
 The durable gates are the test files — the dev helper
 `hotel-web-fe/scripts/i18n-scan.mjs` is advisory (see "Scanner blind spots").
@@ -35,36 +40,38 @@ The durable gates are the test files — the dev helper
 Flattened leaf keys per bundle (generated: `node` script flattening each
 `resources/<locale>/<ns>.json` and counting leaves):
 
-| Namespace | en | ms | zh | Primary consumers |
-|---|---|---|---|---|
-| `admin` | 497 | 483 | 483 | features/admin, features/user |
-| `auth` | 276 | 272 | 272 | features/auth, features/user |
-| `bookings` | 495 | 492 | 492 | features/bookings (+ admin/rooms/dashboard) |
-| `common` | 170 | 166 | 166 | shared chrome, src/components, src/desktop |
-| `communications` | 73 | 70 | 70 | features/communications |
-| `dashboard` | 185 | 177 | 177 | features/dashboard, features/insights |
-| `dataTransfer` | 162 | 162 | 156 | features/admin/data-transfer |
-| `ekyc` | 254 | 254 | 254 | features/ekyc |
-| `errors` | 144 | 144 | 144 | src/api, shared error surfaces |
-| `finance` | 507 | 497 | 497 | features/admin (CustomerLedger), features/invoices |
-| `guestPortal` | 815 | 807 | 815 | features/guestPortal, features/bookings, features/paymentRecovery |
-| `guests` | 527 | 527 | 527 | features/guestRelations |
-| `help` | 85 | 85 | 85 | features/help |
-| `housekeeping` | 202 | 202 | 202 | features/housekeeping |
-| `legal` | 11 | 11 | 11 | features/legal (chrome only — corpus exempt) |
-| `loyalty` | 223 | 223 | 223 | features/loyalty |
-| `nav` | 137 | 137 | 137 | src/navigation, src/components/layout |
-| `nightAudit` | 127 | 127 | 125 | features/admin (night audit) |
-| `notifications` | 28 | 28 | 28 | src/components/layout, features/notifications |
-| `onlineInventory` | 107 | 107 | 101 | features/onlineInventory |
-| `promotions` | 269 | 269 | 269 | features/promotions |
-| `rates` | 113 | 113 | 113 | features/rates |
-| `revenue` | 53 | 51 | 51 | features/revenue |
-| `rooms` | 665 | 663 | 650 | features/rooms (+ housekeeping consumers) |
-| `segments` | 72 | 72 | 72 | features/segments |
-| `status` | 253 | 253 | 253 | status chip/label helpers, enum coverage |
-| `support` | 115 | 115 | 115 | features/support, features/guestRelations |
-| `validation` | 30 | 28 | 28 | src/utils, form validation |
+| Namespace | en | ms | zh | zh-TW | Primary consumers |
+|---|---|---|---|---|---|
+| `admin` | 800 | 779 | 779 | 780 | features/admin, features/user |
+| `auth` | 276 | 272 | 272 | 272 | features/auth, features/user |
+| `bookings` | 518 | 515 | 515 | 514 | features/bookings (+ admin/rooms/dashboard) |
+| `channels` | 168 | 168 | 168 | 168 | features/channels, channel surfaces in bookings/rates |
+| `common` | 179 | 175 | 175 | 175 | shared chrome, src/components, src/desktop |
+| `communications` | 86 | 86 | 86 | 85 | features/communications |
+| `dashboard` | 186 | 186 | 186 | 175 | features/dashboard, features/insights |
+| `dataTransfer` | 185 | 185 | 185 | 181 | features/admin/data-transfer |
+| `ekyc` | 261 | 261 | 261 | 261 | features/ekyc |
+| `errors` | 144 | 144 | 144 | 144 | src/api, shared error surfaces |
+| `finance` | 523 | 513 | 513 | 513 | features/admin (CustomerLedger), features/invoices |
+| `guestPortal` | 978 | 969 | 978 | 966 | features/guestPortal, features/bookings, features/paymentRecovery |
+| `guests` | 580 | 580 | 580 | 568 | features/guestRelations |
+| `help` | 85 | 85 | 85 | 85 | features/help |
+| `housekeeping` | 204 | 204 | 204 | 204 | features/housekeeping |
+| `insights` | 209 | 209 | 209 | 209 | features/insights, report catalog |
+| `legal` | 11 | 11 | 11 | 11 | features/legal (chrome only — corpus exempt) |
+| `loyalty` | 236 | 236 | 236 | 236 | features/loyalty |
+| `nav` | 139 | 139 | 139 | 139 | src/navigation, src/components/layout |
+| `nightAudit` | 127 | 127 | 125 | 125 | features/admin (night audit) |
+| `notifications` | 28 | 28 | 28 | 28 | src/components/layout, features/notifications |
+| `onlineInventory` | 114 | 114 | 108 | 107 | features/onlineInventory |
+| `promotions` | 271 | 271 | 271 | 263 | features/promotions |
+| `rates` | 113 | 113 | 113 | 113 | features/rates |
+| `revenue` | 58 | 57 | 57 | 57 | features/revenue |
+| `rooms` | 670 | 668 | 655 | 655 | features/rooms (+ housekeeping consumers) |
+| `segments` | 99 | 99 | 99 | 97 | features/segments |
+| `status` | 259 | 259 | 259 | 259 | status chip/label helpers, enum coverage |
+| `support` | 115 | 115 | 115 | 114 | features/support, features/guestRelations |
+| `validation` | 30 | 28 | 28 | 28 | src/utils, form validation |
 
 ## Key → file usage map
 
@@ -104,7 +111,8 @@ predominantly:
 
 `tOr` survives at **24 sites, all dynamic-key lookups** marked
 `// intentional:` — the key embeds a runtime DB/enum/registry value, so no
-static key can retire it. (Detail: `.superpowers` task-16 report.)
+static key can retire it. (Per-site detail: git history of this file and the
+i18n-coverage work it records.)
 
 | File | Lookup |
 |---|---|
@@ -149,12 +157,12 @@ in review (`communications:campaigns.new/newTitle`, ms
 
 | Exception | Detail |
 |---|---|
-| Legal corpus | `features/legal/content/*` stays **en/ms only** (PDPA s.7(2)); zh chrome keys exist for parity but are runtime-unreachable — corpus locale set is en/ms via `LegalLocaleContext`. |
-| Help corpus | `features/help/content/*` authored en/ms; `help` ns chrome is fully translated. |
+| Legal corpus | `features/legal/content/*` stays **en/ms only** (PDPA s.7(2)); zh/zh-TW chrome keys exist for parity but are runtime-unreachable — corpus locale set is en/ms via `LegalLocaleContext` (zh and zh-TW both resolve to en). |
+| Help corpus | `features/help/content/*` authored en/ms/zh; zh-TW reads the zh article set (`READS_FROM` in `features/help/content/index.ts`); `help` ns chrome is fully translated. |
 | PDF bodies | Night-audit and audit-log jsPDF export documents stay **English** — jsPDF's built-in `helvetica` covers Latin-1 only, so zh/ms copy would render as mojibake until a CJK-capable font is embedded via `addFont`. Translated lookups and dates in those paths are pinned to en (`translateFor('en', …)`, `formatHotelDateTime(…, 'en')`); CSV exports are translated. |
-| DB/server content | Guest names, room names, rate descriptions, remarks, email bodies — backend email copy is covered by `hotel-app-be/src/core/locales/{en,ms,zh}.json`. |
+| DB/server content | Guest names, room names, rate descriptions, remarks, email bodies — backend email copy is covered by `hotel-app-be/src/core/locales/{en,ms,zh,zh-TW}.json`. |
 | `paymentRecovery` in `guestPortal` ns | Public guest-facing route `/booking/recover-payment/$token` shares the portal chrome; documented deviation from the domain→namespace map. |
-| zh guestPortal residual English | **501 prose values** remain byte-identical to en (dashboard 273, checkin 80, support 43, payment/payments 24, notifications 21, book 19, vouchers 19, offers 17, shell 4, account 1). Parity-legal and load-bearing — zh users currently see English on those surfaces; needs a dedicated translation-quality pass. |
+| zh guestPortal residual English | **699 prose values** remain byte-identical to en (dashboard 376, checkin 112, support 53, offers 27, vouchers 25, payment 24, notifications 23, book 21, preferences 18, smaller groups 20). zh-TW is fully translated (2 residuals). Parity-legal and load-bearing — zh users currently see English on those surfaces; needs a dedicated translation-quality pass. |
 | `tOr` survivors | 24 dynamic-key sites, all `// intentional:` — see retirement list above. |
 | Scanner blind spots | `i18n-scan.mjs` misses assignment-RHS literals, template-literal values, and call-arg strings beyond `hardcoded.test.ts`'s attribute set; `hardcoded.test.ts` is the durable gate. Its embedded ALLOWLIST is a superset of the scanner's FILE_ALLOWLIST (wider `>` lookbehind catches `⌘K`); both headers carry keep-in-sync notes. |
 
@@ -218,15 +226,15 @@ eKYC registration review card.
 
 ## Terminology choices (canonical per locale)
 
-| Concept | en | ms | zh |
-|---|---|---|---|
-| Night audit | Night Audit | Audit Malam | 夜审 |
-| Housekeeping | Housekeeping | Pengemasan | 客房服务 |
-| Rate plan | Rate plan | Pelan kadar | 房价计划 |
-| Walk-in | Walk-in | Walk-in | 上门客 |
-| No-show | No-show | Tidak hadir | 预订未到 |
-| Deposit | Deposit | Deposit | 押金 |
-| (Company) ledger | Company Ledger | Lejar Syarikat | 公司账本 |
-| Folio | Folio | Folio | 账单 |
-| eKYC | eKYC | eKYC | eKYC |
-| OTA channel | OTA / channel names | kept in `bookings:channels.*` | 直接预订 / 上门客 etc. |
+| Concept | en | ms | zh | zh-TW |
+|---|---|---|---|---|
+| Night audit | Night Audit | Audit Malam | 夜审 | 夜間稽核 |
+| Housekeeping | Housekeeping | Pengemasan | 客房服务 | 房務 |
+| Rate plan | Rate plan | Pelan kadar | 房价计划 | 房價方案 |
+| Walk-in | Walk-in | Walk-in | 上门客 | 散客 / 現場散客 |
+| No-show | No-show | Tidak hadir | 预订未到 | 未入住 |
+| Deposit | Deposit | Deposit | 押金 | 押金 |
+| (Company) ledger | Company Ledger | Lejar Syarikat | 公司账本 | 公司帳冊 |
+| Folio | Folio | Folio | 账单 | 帳單 |
+| eKYC | eKYC | eKYC | eKYC | eKYC / 身分驗證 |
+| OTA channel | OTA / channel names | kept in `bookings:channels.*` | 直接预订 / 上门客 etc. | kept in `bookings:channels.*` |

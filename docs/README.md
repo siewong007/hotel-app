@@ -26,9 +26,12 @@ files > tests > docs. Documentation never overrides the implementation.
 | Deployment, patching, backup/restore | [`guides/deployment.md`](guides/deployment.md) |
 | Data transfer (hotel-backup v1) | [`guides/data-transfer.md`](guides/data-transfer.md) |
 | i18n engine and adding languages | [`guides/internationalization.md`](guides/internationalization.md) |
+| i18n terminology + coverage audit | [`guides/i18n-glossary.md`](guides/i18n-glossary.md), [`i18n-coverage-inventory.md`](i18n-coverage-inventory.md); [`i18n-key-usage-map.md`](i18n-key-usage-map.md) is generated |
 | VPS/production host access | [`guides/vps-access.md`](guides/vps-access.md) |
 | Staging environment | [`staging.md`](staging.md) |
+| Desktop packaging (all OSes) | [`guides/PACKAGING.md`](guides/PACKAGING.md) |
 | Production security operations | [`security/production-operations.md`](security/production-operations.md) |
+| Production readiness assessment | [`security/production-readiness-assessment.md`](security/production-readiness-assessment.md) |
 | Backup/restore drill | [`security/backup-restore.md`](security/backup-restore.md) |
 | Database lifecycle (baseline/seed/patches) | [`../hotel-app-be/database/README.md`](../hotel-app-be/database/README.md) |
 | Backend quick start | [`../hotel-app-be/README.md`](../hotel-app-be/README.md) |
@@ -57,6 +60,8 @@ claim in these.
 - `claude-design-page-sync.md` — reconciliation snapshot (component sync
   findings accurate; route manifest is a 2026-07-10 snapshot and predates the
   insights/revenue/campaigns routes).
+- `security/data-retention-policy-draft.md` — proposed retention periods,
+  not yet decided policy (requires legal review).
 - `../.claude/reports/` — past evaluation/rework reports.
 
 ## Maintenance rules

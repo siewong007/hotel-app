@@ -1,8 +1,8 @@
 //! Operational-health routes (System Health + Jobs admin surfaces).
 //!
-//! Gated on `settings:manage` — the same grant that guards data transfer and
-//! security settings — rather than inventing a `system:read` permission for a
-//! read-only surface.
+//! Gated on `settings:manage` — the same grant that guards security settings —
+//! rather than inventing a `system:read` permission for a read-only surface.
+//! (Data transfer moved to dedicated `data_transfer:*` grants.)
 
 use axum::{
     Router,

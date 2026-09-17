@@ -76,10 +76,10 @@ The compose service auto-initializes `hotel_management` on first boot.
 Schema rules: additive changes go in the baseline **and** a new catalog patch
 registered in `patches/manifest.tsv` + `deploy/deploy.sh` +
 `deploy/deploy-staging.sh` + both deploy workflows — a loose `000N_*.sql`
-file is never executed. The catalog currently publishes two converge-style
-patches, `1.2 deposit-forfeited` and `1.3 guest-relations-phase2` (the original
-1.2–1.23 lineage was folded into the baseline and the catalog republished from
-empty). A database that still records the pre-fold 1.2+ names/checksums aborts
+file is never executed. The catalog publishes converge-style patches
+registered in `patches/manifest.tsv` (the original 1.2–1.23 lineage was
+folded into the baseline and the catalog republished from empty — read the
+manifest for the current entries). A database that still records the pre-fold 1.2+ names/checksums aborts
 on `patch 1.N checksum mismatch` — the one-time lineage reset runbook is in
 `docs/guides/deployment.md`.
 
