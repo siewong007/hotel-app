@@ -245,6 +245,7 @@ pub const EXCLUDED_TABLES: &[(&str, &str)] = &[
     ),
     ("public.job_runs", "internal_system_table"),
     ("public.hotel_schema_revisions", "internal_system_table"),
+    ("public.rate_limit_buckets", "internal_system_table"),
     ("app.invalid_data_quarantine", "internal_system_table"),
     ("public.audit_logs", "internal_system_table"),
     ("public.audit_logs_default", "internal_system_table"),
@@ -274,6 +275,7 @@ pub const PROTECTED_TABLE_ORDER: &[&str] = &[
     // standalone system bookkeeping
     "job_runs",
     "hotel_schema_revisions",
+    "rate_limit_buckets",
     "audit_logs",
     "invalid_data_quarantine",
     // identity, then everything keyed by it
@@ -967,8 +969,8 @@ mod tests {
                 "'{name}' is both transferable and excluded"
             );
         }
-        // The 29 tables outside the business-data set.
-        assert_eq!(EXCLUDED_TABLES.len(), 29);
+        // The 30 tables outside the business-data set.
+        assert_eq!(EXCLUDED_TABLES.len(), 30);
     }
 
     #[test]
