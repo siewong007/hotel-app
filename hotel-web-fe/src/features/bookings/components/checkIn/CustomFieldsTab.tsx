@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 import { multiplyMoney, toMoneyNumber } from '../../../../utils/money';
-import { useTranslation } from '../../../../i18n';
+import { LOCALE_CODES, LOCALES, isLocaleCode, useTranslation } from '../../../../i18n';
 import type { Booking, BookingWithDetails } from '../../../../types';
 
 export interface CustomFieldsTabProps {
@@ -28,14 +28,14 @@ export interface CustomFieldsTabProps {
   extraBedCount: number;
   formatCurrency: (amount: number) => string;
   groupCode: string;
-  language: string;
+  languagePreference: string;
   setCarPlateNo: React.Dispatch<React.SetStateAction<string>>;
   setDriversInfo: React.Dispatch<React.SetStateAction<string>>;
   setEta: React.Dispatch<React.SetStateAction<string>>;
   setExtraBedCharge: React.Dispatch<React.SetStateAction<number>>;
   setExtraBedCount: React.Dispatch<React.SetStateAction<number>>;
   setGroupCode: React.Dispatch<React.SetStateAction<string>>;
-  setLanguage: React.Dispatch<React.SetStateAction<string>>;
+  onLanguagePreferenceChange: (value: string) => void;
   setTravelAgent1: React.Dispatch<React.SetStateAction<string>>;
   setTravelAgent2: React.Dispatch<React.SetStateAction<string>>;
   travelAgent1: string;
@@ -55,14 +55,14 @@ export function CustomFieldsTab({
   extraBedCount,
   formatCurrency,
   groupCode,
-  language,
+  languagePreference,
   setCarPlateNo,
   setDriversInfo,
   setEta,
   setExtraBedCharge,
   setExtraBedCount,
   setGroupCode,
-  setLanguage,
+  onLanguagePreferenceChange,
   setTravelAgent1,
   setTravelAgent2,
   travelAgent1,
@@ -122,14 +122,19 @@ export function CustomFieldsTab({
           <FormControl fullWidth>
             <InputLabel>{t('checkInForm.custom.language')}</InputLabel>
             <Select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              value={languagePreference}
+              onChange={(e) => onLanguagePreferenceChange(e.target.value)}
               label={t('checkInForm.custom.language')}
             >
-              <MenuItem value="Default Language (English)">{t('checkInForm.custom.langDefault')}</MenuItem>
-              <MenuItem value="Bahasa Malaysia">{t('checkInForm.custom.langMalay')}</MenuItem>
-              <MenuItem value="Mandarin">{t('checkInForm.custom.langMandarin')}</MenuItem>
-              <MenuItem value="Tamil">{t('checkInForm.custom.langTamil')}</MenuItem>
+              <MenuItem value="">{t('checkInForm.custom.langNotSpecified')}</MenuItem>
+              {LOCALE_CODES.map((code) => (
+                <MenuItem key={code} value={code}>{LOCALES[code].nativeName}</MenuItem>
+              ))}
+              {/* A stored value outside the locale registry (legacy free text)
+                  stays selectable so it round-trips instead of showing blank. */}
+              {languagePreference && !isLocaleCode(languagePreference) && (
+                <MenuItem value={languagePreference}>{languagePreference}</MenuItem>
+              )}
             </Select>
           </FormControl>
         </Grid>

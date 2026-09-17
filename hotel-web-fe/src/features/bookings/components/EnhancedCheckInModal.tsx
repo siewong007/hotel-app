@@ -214,7 +214,6 @@ export default function EnhancedCheckInModal({
   const [depositMethod, setDepositMethod] = useState('Cash');
   const [waiveReason, setWaiveReason] = useState('');
   const [groupCode, setGroupCode] = useState('');
-  const [language, setLanguage] = useState('Default Language (English)');
   const [travelAgent1, setTravelAgent1] = useState('');
   const [travelAgent2, setTravelAgent2] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
@@ -278,6 +277,9 @@ export default function EnhancedCheckInModal({
       country: guest.country,
       title: guest.title,
       alt_phone: guest.alt_phone,
+      // Echoed back on submit only when already stored — an absent value stays
+      // undefined, is dropped from the payload, and leaves the column alone.
+      language_preference: guest.language_preference,
     });
 
     const initialPaymentMethod = booking.payment_method || 'Cash';
@@ -1004,14 +1006,14 @@ export default function EnhancedCheckInModal({
             extraBedCount={extraBedCount}
             formatCurrency={formatCurrency}
             groupCode={groupCode}
-            language={language}
+            languagePreference={guestData.language_preference ?? ''}
             setCarPlateNo={setCarPlateNo}
             setDriversInfo={setDriversInfo}
             setEta={setEta}
             setExtraBedCharge={setExtraBedCharge}
             setExtraBedCount={setExtraBedCount}
             setGroupCode={setGroupCode}
-            setLanguage={setLanguage}
+            onLanguagePreferenceChange={(value) => handleGuestChange('language_preference', value)}
             setTravelAgent1={setTravelAgent1}
             setTravelAgent2={setTravelAgent2}
             travelAgent1={travelAgent1}

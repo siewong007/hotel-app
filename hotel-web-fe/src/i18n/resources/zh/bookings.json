@@ -463,7 +463,7 @@
       "travelInfo": "行程信息",
       "groupCode": "团队代码",
       "language": "语言",
-      "langDefault": "默认语言（英语）",
+      "langNotSpecified": "未指定",
       "travelAgent1": "旅行社 1",
       "travelAgent2": "旅行社 2",
       "driversInfo": "司机信息",
@@ -473,9 +473,6 @@
       "extraBedCharge": "加床费用",
       "perExtraBed": "每张加床 {{rate}}（最多 {{max}} 张）",
       "noExtraBeds": "该房型不支持加床",
-      "langMalay": "马来语",
-      "langMandarin": "中文（华语）",
-      "langTamil": "泰米尔语",
       "extraBedChargeHelper": "自动计算，也可手动调整"
     },
     "notes": {

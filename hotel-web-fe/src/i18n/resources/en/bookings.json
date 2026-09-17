@@ -464,7 +464,7 @@
       "travelInfo": "Travel Information",
       "groupCode": "Group Code",
       "language": "Language",
-      "langDefault": "Default Language (English)",
+      "langNotSpecified": "Not specified",
       "travelAgent1": "Travel Agent 1",
       "travelAgent2": "Travel Agent 2",
       "driversInfo": "Drivers Info",
@@ -474,9 +474,6 @@
       "extraBedCharge": "Extra Bed Charge",
       "perExtraBed": "{{rate}} per extra bed (max {{max}})",
       "noExtraBeds": "This room type does not allow extra beds",
-      "langMalay": "Bahasa Malaysia",
-      "langMandarin": "Mandarin",
-      "langTamil": "Tamil",
       "extraBedChargeHelper": "Auto-calculated or manually adjust"
     },
     "notes": {

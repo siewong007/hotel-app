@@ -285,8 +285,10 @@ pub struct GuestUpdateInput {
     pub company_name: Option<String>,
     // CRM profile fields (guest relations). Other consumers share this input
     // type — check-in `apply_guest_update_tx` and portal
-    // `update_guest_precheckin` — but both write a fixed field whitelist, so
+    // `update_guest_precheckin` — and both write a fixed field whitelist, so
     // these are accepted there yet deliberately IGNORED, same as `is_active`.
+    // The exception is `language_preference`: the staff check-in modal edits
+    // it, so `apply_guest_update_tx` applies it.
     pub vip_status: Option<String>,
     pub tags: Option<Vec<String>>,
     pub job_title: Option<String>,

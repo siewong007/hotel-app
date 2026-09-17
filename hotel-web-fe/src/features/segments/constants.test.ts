@@ -56,6 +56,28 @@ describe('segment field metadata', () => {
     expect(opNeedsValue('is_not_set')).toBe(false);
     expect(NO_VALUE_OPS.has('eq')).toBe(false);
   });
+
+  it('language_preference offers every supported locale, not just stored values', () => {
+    // The distinct-values feed only contains languages already on guest rows —
+    // a locale nobody stores yet (e.g. zh-TW) must still be selectable.
+    const meta = segmentFieldMeta('language_preference');
+    const options = meta?.options?.({
+      loyalty_tiers: [],
+      guest_types: [],
+      distinct_values: {
+        countries: [],
+        nationalities: [],
+        languages: ['en', 'zh', 'Mandarin'],
+        communication_preferences: [],
+        vip_statuses: [],
+      },
+    });
+    const values = options?.map((o) => o.value);
+    expect(values).toEqual(
+      expect.arrayContaining(['en', 'ms', 'zh', 'zh-TW', 'Mandarin']),
+    );
+    expect(values?.filter((v) => v === 'zh')).toHaveLength(1);
+  });
 });
 
 describe('hasUsableRules', () => {

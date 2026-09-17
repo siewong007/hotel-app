@@ -3061,6 +3061,20 @@ pub async fn apply_guest_update_tx(
         updates.push(format!("country = ${}", params.len() + 1));
         params.push(v.clone());
     }
+    if let Some(ref v) = guest_update.language_preference {
+        // Same POLICY as email above: an optional profile field must not abort
+        // an arrival. Empty clears to NULL; values that fit the varchar(10)
+        // column are stored verbatim — locale canonicalisation happens at read
+        // time through `Locale::parse`, and overlong input is ignored rather
+        // than failing the whole check-in.
+        let trimmed = v.trim();
+        if trimmed.is_empty() {
+            updates.push("language_preference = NULL".to_string());
+        } else if trimmed.chars().count() <= 10 {
+            updates.push(format!("language_preference = ${}", params.len() + 1));
+            params.push(trimmed.to_string());
+        }
+    }
 
     // Only the timestamp bump means no real field change was requested.
     if params.is_empty() {

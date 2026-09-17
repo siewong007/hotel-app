@@ -463,7 +463,7 @@
       "travelInfo": "Maklumat Perjalanan",
       "groupCode": "Kod Kumpulan",
       "language": "Bahasa",
-      "langDefault": "Bahasa Lalai (Inggeris)",
+      "langNotSpecified": "Tidak dinyatakan",
       "travelAgent1": "Ejen Pelancongan 1",
       "travelAgent2": "Ejen Pelancongan 2",
       "driversInfo": "Maklumat Pemandu",
@@ -473,9 +473,6 @@
       "extraBedCharge": "Caj Katil Tambahan",
       "perExtraBed": "{{rate}} setiap katil tambahan (maks {{max}})",
       "noExtraBeds": "Jenis bilik ini tidak membenarkan katil tambahan",
-      "langMalay": "Bahasa Malaysia",
-      "langMandarin": "Mandarin",
-      "langTamil": "Tamil",
       "extraBedChargeHelper": "Dikira secara automatik atau laraskan secara manual"
     },
     "notes": {

@@ -1,5 +1,5 @@
 import { formatStatusLabel } from '../../utils/formatters';
-import type { UseTranslationResult } from '../../i18n';
+import { LOCALE_CODES, LOCALES, isLocaleCode, type UseTranslationResult } from '../../i18n';
 import type { SegmentFieldOptions, SegmentRules } from './types';
 
 /** How the rule builder renders a field's value input. */
@@ -79,7 +79,16 @@ export const SEGMENT_FIELDS: SegmentFieldMeta[] = [
     kind: 'choice',
     ops: TEXT_OPS,
     listCapable: true,
-    options: textChoice((o) => o.distinct_values.languages),
+    // Every supported locale is targetable — a guestless locale must still be
+    // selectable or staff can never write a rule for it. Stored values outside
+    // the registry (legacy free text like "Mandarin") stay listed so existing
+    // data remains matchable.
+    options: (o) => [
+      ...LOCALE_CODES.map((code) => ({ value: code, label: LOCALES[code].nativeName })),
+      ...o.distinct_values.languages
+        .filter((value) => !isLocaleCode(value))
+        .map((value) => ({ value, label: value })),
+    ],
   },
   {
     field: 'communication_preference',

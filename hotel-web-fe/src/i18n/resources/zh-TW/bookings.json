@@ -462,7 +462,7 @@
       "travelInfo": "旅遊資訊",
       "groupCode": "團體代碼",
       "language": "語言",
-      "langDefault": "預設語言（英文）",
+      "langNotSpecified": "未指定",
       "travelAgent1": "旅行社 1",
       "travelAgent2": "旅行社 2",
       "driversInfo": "司機資訊",
@@ -472,9 +472,6 @@
       "extraBedCharge": "加床費",
       "perExtraBed": "每張加床 {{rate}}（上限 {{max}}）",
       "noExtraBeds": "此房型不允許加床",
-      "langMalay": "馬來語",
-      "langMandarin": "中文",
-      "langTamil": "坦米爾語",
       "extraBedChargeHelper": "自動計算或手動調整"
     },
     "notes": {

@@ -903,10 +903,7 @@ candidates — see `i18n-coverage-inventory.md`.
 - `bookings:checkInForm.custom.extraBedCount` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
 - `bookings:checkInForm.custom.groupCode` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
 - `bookings:checkInForm.custom.guestVehicles` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
-- `bookings:checkInForm.custom.langDefault` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
-- `bookings:checkInForm.custom.langMalay` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
-- `bookings:checkInForm.custom.langMandarin` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
-- `bookings:checkInForm.custom.langTamil` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
+- `bookings:checkInForm.custom.langNotSpecified` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
 - `bookings:checkInForm.custom.language` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
 - `bookings:checkInForm.custom.noExtraBeds` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
 - `bookings:checkInForm.custom.perExtraBed` — `src/features/bookings/components/checkIn/CustomFieldsTab.tsx`
