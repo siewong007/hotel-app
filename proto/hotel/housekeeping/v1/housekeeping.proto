@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+// Housekeeping bounded context — task and board resources.
+// Ported from hotel-app-be/src/modules/housekeeping/models.rs. Status
+// transition rules (pending→in_progress|void, in_progress→completed|void)
+// live in the service layer and are unchanged.
+package hotel.housekeeping.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "hotel/rooms/v1/room.proto";
+
+// VALID_TASK_TYPES in housekeeping/service.rs.
+enum HousekeepingTaskType {
+  HOUSEKEEPING_TASK_TYPE_UNSPECIFIED = 0;
+  HOUSEKEEPING_TASK_TYPE_CLEANING = 1;
+  HOUSEKEEPING_TASK_TYPE_CHECKOUT_CLEAN = 2;
+  HOUSEKEEPING_TASK_TYPE_INSPECTION = 3;
+  HOUSEKEEPING_TASK_TYPE_MAINTENANCE_FOLLOWUP = 4;
+}
+
+// Task lifecycle. VALID transitions are enforced server-side.
+enum HousekeepingTaskStatus {
+  HOUSEKEEPING_TASK_STATUS_UNSPECIFIED = 0;
+  HOUSEKEEPING_TASK_STATUS_PENDING = 1;
+  HOUSEKEEPING_TASK_STATUS_IN_PROGRESS = 2;
+  HOUSEKEEPING_TASK_STATUS_COMPLETED = 3;
+  HOUSEKEEPING_TASK_STATUS_VOID = 4;
+}
+
+// VALID_PRIORITIES in housekeeping/service.rs. Note: the maintenance
+// domain has a different priority vocabulary (MaintenancePriority).
+enum HousekeepingPriority {
+  HOUSEKEEPING_PRIORITY_UNSPECIFIED = 0;
+  HOUSEKEEPING_PRIORITY_LOW = 1;
+  HOUSEKEEPING_PRIORITY_NORMAL = 2;
+  HOUSEKEEPING_PRIORITY_HIGH = 3;
+  HOUSEKEEPING_PRIORITY_URGENT = 4;
+}
+
+// Which permission set ListAssignableStaff resolves (REST `scope` query).
+enum AssignableStaffScope {
+  ASSIGNABLE_STAFF_SCOPE_UNSPECIFIED = 0;
+  ASSIGNABLE_STAFF_SCOPE_HOUSEKEEPING = 1;
+  ASSIGNABLE_STAFF_SCOPE_MAINTENANCE = 2;
+}
+
+message HousekeepingTask {
+  // Format: "housekeepingTasks/{task}".
+  string name = 1;
+  // "rooms/{room}".
+  string room = 2;
+  string room_number = 3;
+  // Room-type display name.
+  string room_type = 4;
+  HousekeepingTaskType task_type = 5;
+  HousekeepingPriority priority = 6;
+  HousekeepingTaskStatus status = 7;
+  // "users/{user}" — assignee. Cleared only via the explicit
+  // clear_assignee flag on UpdateHousekeepingTaskRequest.
+  string assigned_to = 8;
+  string assigned_to_name = 9;
+  // Business dates, not instants.
+  google.type.Date scheduled_date = 10;
+  google.type.Date task_date = 11;
+  google.protobuf.Timestamp started_at = 12;
+  google.protobuf.Timestamp completed_at = 13;
+  string notes = 14;
+  string inspection_notes = 15;
+  // Free-form JSON today (supplies consumed); Struct preserves the shape.
+  google.protobuf.Struct items_used = 16;
+  google.protobuf.Timestamp created_at = 17;
+  // "users/{user}".
+  string created_by = 18;
+  google.protobuf.Timestamp updated_at = 19;
+}
+
+// One row on the housekeeping board: a room plus its open task, if any.
+message HousekeepingBoardRoom {
+  // "rooms/{room}".
+  string room = 1;
+  string room_number = 2;
+  string room_type = 3;
+  optional int32 floor = 4;
+  hotel.rooms.v1.RoomStatus status = 5;
+  HousekeepingTask open_task = 6;
+}
+
+// Minimal staff identity for assignment pickers — deliberately no email or
+// other PII (mirrors AssignableStaffMember).
+message AssignableStaffMember {
+  // "users/{user}".
+  string user = 1;
+  string full_name = 2;
+  string username = 3;
+}

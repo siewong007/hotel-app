@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+// Maintenance tickets — part of the housekeeping bounded context (the
+// assignable-staff scope already spans housekeeping + maintenance and the
+// work queues share staff). Distinct vocabularies are namespaced so they
+// never collide with HousekeepingPriority/TaskStatus.
+package hotel.housekeeping.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/decimal.proto";
+import "hotel/common/v1/types.proto";
+
+// VALID_STATUSES in maintenance/service.rs. Transitions are enforced
+// server-side (open→in_progress|on_hold|closed, etc.) and unchanged.
+enum MaintenanceStatus {
+  MAINTENANCE_STATUS_UNSPECIFIED = 0;
+  MAINTENANCE_STATUS_OPEN = 1;
+  MAINTENANCE_STATUS_IN_PROGRESS = 2;
+  MAINTENANCE_STATUS_ON_HOLD = 3;
+  MAINTENANCE_STATUS_RESOLVED = 4;
+  MAINTENANCE_STATUS_CLOSED = 5;
+}
+
+// VALID_CATEGORIES in maintenance/service.rs.
+enum MaintenanceCategory {
+  MAINTENANCE_CATEGORY_UNSPECIFIED = 0;
+  MAINTENANCE_CATEGORY_ELECTRICAL = 1;
+  MAINTENANCE_CATEGORY_PLUMBING = 2;
+  MAINTENANCE_CATEGORY_HVAC = 3;
+  MAINTENANCE_CATEGORY_FURNITURE = 4;
+  MAINTENANCE_CATEGORY_APPLIANCE = 5;
+  MAINTENANCE_CATEGORY_STRUCTURAL = 6;
+  MAINTENANCE_CATEGORY_OTHER = 7;
+}
+
+// VALID_PRIORITIES in maintenance/service.rs — different vocabulary from
+// HousekeepingPriority (medium/critical vs normal/urgent).
+enum MaintenancePriority {
+  MAINTENANCE_PRIORITY_UNSPECIFIED = 0;
+  MAINTENANCE_PRIORITY_LOW = 1;
+  MAINTENANCE_PRIORITY_MEDIUM = 2;
+  MAINTENANCE_PRIORITY_HIGH = 3;
+  MAINTENANCE_PRIORITY_CRITICAL = 4;
+}
+
+message MaintenanceTicket {
+  // Format: "maintenanceTickets/{ticket}".
+  string name = 1;
+  // "rooms/{room}" — optional; tickets can be property-wide.
+  string room = 2;
+  string room_number = 3;
+  string ticket_number = 4;
+  string title = 5;
+  string description = 6;
+  MaintenanceCategory category = 7;
+  MaintenancePriority priority = 8;
+  MaintenanceStatus status = 9;
+  // "users/{user}".
+  string assigned_to = 10;
+  string assigned_to_name = 11;
+  // "users/{user}".
+  string reported_by = 12;
+  hotel.common.v1.Money estimated_cost = 13;
+  hotel.common.v1.Money actual_cost = 14;
+  // Hours are exact numerics but not money → Decimal.
+  google.type.Decimal estimated_hours = 15;
+  google.type.Decimal actual_hours = 16;
+  // Stored as timestamptz in the model (DateTime<Utc>, not a bare date).
+  google.protobuf.Timestamp scheduled_date = 17;
+  google.protobuf.Timestamp started_at = 18;
+  google.protobuf.Timestamp resolved_at = 19;
+  string resolution_notes = 20;
+  // Free-form JSON array today; Struct preserves the shape.
+  google.protobuf.Struct images = 21;
+  google.protobuf.Timestamp created_at = 22;
+  google.protobuf.Timestamp updated_at = 23;
+}

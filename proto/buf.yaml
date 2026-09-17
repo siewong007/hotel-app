@@ -1,0 +1,15 @@
+# Buf workspace for the hotel PMS gRPC contract.
+# Docs: https://buf.build/docs/configuration/v2/buf-yaml
+version: v2
+modules:
+  - path: .
+deps:
+  # google.type.Date / google.type.Decimal / google.api.field_behavior /
+  # google.protobuf.* well-known types
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

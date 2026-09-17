@@ -43,6 +43,34 @@ jobs:
       - name: Check Markdown links resolve
         run: python3 scripts/check-doc-links.py
 
+  proto:
+    name: Proto — buf lint & breaking
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Breaking-change check diffs against the base branch ref.
+          fetch-depth: 0
+
+      - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
+
+      - name: Check proto formatting
+        run: buf format --diff --exit-code proto
+
+      - name: Lint protos
+        run: buf lint proto
+
+      # No proto/ baseline exists on master until the first contract lands;
+      # the check activates itself once one does.
+      - name: Check for breaking proto changes
+        if: github.event_name == 'pull_request'
+        run: |
+          if git cat-file -e "origin/${{ github.base_ref }}:proto/buf.yaml" 2>/dev/null; then
+            buf breaking proto --against ".git#branch=origin/${{ github.base_ref }},subdir=proto"
+          else
+            echo "No proto module on ${{ github.base_ref }}; skipping breaking check"
+          fi
+
   db-mirror:
     name: Repo — Desktop DB mirror
     runs-on: ubuntu-latest

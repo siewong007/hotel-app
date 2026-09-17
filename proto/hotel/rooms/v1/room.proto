@@ -1,0 +1,304 @@
+syntax = "proto3";
+
+// Rooms bounded context — resources and enums.
+// Ported 1:1 from hotel-app-be/src/modules/rooms/models.rs. Field comments
+// call out every place where the REST shape and the proto shape differ
+// deliberately (float→Money, string dates→Date/Timestamp, id→resource name).
+package hotel.rooms.v1;
+
+import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "google/type/decimal.proto";
+import "hotel/common/v1/types.proto";
+
+// Stored room statuses plus the legacy write-only alias accepted on input.
+// The server-side transition table is data-driven (room_status_transitions
+// in the DB); this enum is only the vocabulary of stored values.
+enum RoomStatus {
+  ROOM_STATUS_UNSPECIFIED = 0;
+  ROOM_STATUS_AVAILABLE = 1;
+  ROOM_STATUS_OCCUPIED = 2;
+  ROOM_STATUS_MAINTENANCE = 3;
+  ROOM_STATUS_RESERVED = 4;
+  ROOM_STATUS_RESERVED_DIRTY = 5;
+  ROOM_STATUS_DIRTY = 6;
+  ROOM_STATUS_CLEANING = 7;
+  // Write-only alias for ROOM_STATUS_AVAILABLE ("clean" in the REST API).
+  // Never a stored value; the service layer maps it on input.
+  ROOM_STATUS_CLEAN = 8;
+}
+
+// Room resource. Merges the REST `Room` and `RoomWithRating` shapes: the
+// rating/status-window fields are populated on list and search responses.
+message Room {
+  // Format: "rooms/{room}" where {room} is the base-10 int64 id.
+  string name = 1;
+  string room_number = 2;
+  // Display name of the room type (REST `room_type` is a name, not an id).
+  string room_type = 3;
+  string room_type_code = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // REST stores/returns major-unit numeric; input was f64. Now minor-units
+  // Money in the property currency.
+  hotel.common.v1.Money price_per_night = 5;
+  bool available = 6;
+  RoomStatus status = 7;
+  string description = 8;
+  int32 max_occupancy = 9;
+  string notes = 10;
+  optional bool is_smoking = 11;
+
+  google.protobuf.Timestamp created_at = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.protobuf.Timestamp updated_at = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // List/search view extras (REST RoomWithRating).
+  google.type.Decimal average_rating = 14 [(google.api.field_behavior) = OUTPUT_ONLY];
+  optional int64 review_count = 15 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Status windows. Stored as timestamptz (business dates at UTC midnight);
+  // written via UpdateRoomStatus, read on list/detail responses.
+  google.protobuf.Timestamp reserved_start_date = 16;
+  google.protobuf.Timestamp reserved_end_date = 17;
+  google.protobuf.Timestamp maintenance_start_date = 18;
+  google.protobuf.Timestamp maintenance_end_date = 19;
+  google.protobuf.Timestamp cleaning_start_date = 20;
+  google.protobuf.Timestamp cleaning_end_date = 21;
+
+  // Create-only inputs (REST RoomCreateInput fields that have no output
+  // column in the Room response).
+  optional int32 floor = 22 [(google.api.field_behavior) = INPUT_ONLY];
+  string building = 23 [(google.api.field_behavior) = INPUT_ONLY];
+  optional bool is_accessible = 24 [(google.api.field_behavior) = INPUT_ONLY];
+  // "roomTypes/{roomType}" — explicit type link override on create
+  // (REST room_type_id).
+  string room_type_link = 25 [(google.api.field_behavior) = INPUT_ONLY];
+  hotel.common.v1.Money custom_price = 26 [(google.api.field_behavior) = INPUT_ONLY];
+}
+
+// Room type configuration. Multipart image upload stays REST.
+message RoomType {
+  // Format: "roomTypes/{roomType}".
+  string name = 1;
+  // REST field `name` — the human-readable type name ("Deluxe King").
+  string display_name = 2;
+  string code = 3;
+  string description = 4;
+  hotel.common.v1.Money base_price = 5;
+  hotel.common.v1.Money weekday_rate = 6;
+  hotel.common.v1.Money weekend_rate = 7;
+  int32 max_occupancy = 8;
+  string bed_type = 9;
+  optional int32 bed_count = 10;
+  bool allows_extra_bed = 11;
+  int32 max_extra_beds = 12;
+  hotel.common.v1.Money extra_bed_charge = 13;
+  bool is_active = 14;
+  int32 sort_order = 15;
+  // Public URLs under /uploads/room-types/; first is the cover.
+  repeated string images = 16;
+  google.protobuf.Timestamp created_at = 17 [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.protobuf.Timestamp updated_at = 18 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Room event (maintenance/cleaning note). event_type/status/priority stay
+// strings: the REST API does not constrain their vocabularies.
+message RoomEvent {
+  // Format: "rooms/{room}/events/{event}".
+  string name = 1;
+  // "rooms/{room}".
+  string room = 2;
+  string event_type = 3;
+  string status = 4;
+  string priority = 5;
+  string notes = 6;
+  // Stored as timestamptz in the DB (REST accepts a date string).
+  google.protobuf.Timestamp scheduled_date = 7;
+  // "users/{user}".
+  string created_by = 8;
+  google.protobuf.Timestamp created_at = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.protobuf.Timestamp updated_at = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Trimmed BookingWithDetails for room-detail views. The full Booking
+// resource is owned by hotel.reservations.v1; this carries what the room
+// screens render (identity, stay dates, status, party size, rate, total).
+message RoomBookingSummary {
+  // Format: "bookings/{booking}".
+  string name = 1;
+  string booking_number = 2;
+  // "guests/{guest}".
+  string guest = 3;
+  string guest_name = 4;
+  // "rooms/{room}".
+  string room = 5;
+  google.type.Date check_in_date = 6;
+  google.type.Date check_out_date = 7;
+  // Booking status stays a string here; the bookings-status enum is defined
+  // by hotel.reservations.v1 when that package lands.
+  string status = 8;
+  optional int32 adults = 9;
+  optional int32 children = 10;
+  hotel.common.v1.Money room_rate = 11;
+  hotel.common.v1.Money total_amount = 12;
+  string payment_status = 13;
+}
+
+// GET /rooms/{id}/detailed — Room plus live status context.
+message RoomDetailedStatus {
+  Room room = 1;
+  RoomBookingSummary current_booking = 2;
+  RoomBookingSummary next_booking = 3;
+  repeated RoomEvent recent_events = 4;
+  string maintenance_notes = 5;
+  google.protobuf.Timestamp last_maintenance_date = 6;
+  google.protobuf.Timestamp next_maintenance_date = 7;
+  google.protobuf.Timestamp reserved_start_date = 8;
+  google.protobuf.Timestamp reserved_end_date = 9;
+  google.protobuf.Timestamp maintenance_start_date = 10;
+  google.protobuf.Timestamp maintenance_end_date = 11;
+  google.protobuf.Timestamp cleaning_start_date = 12;
+  google.protobuf.Timestamp cleaning_end_date = 13;
+  // "rooms/{room}" — redirect target while a room change is pending.
+  string target_room = 14;
+  string status_notes = 15;
+}
+
+// One row of the room_status history audit trail (GET /rooms/{id}/history).
+message RoomStatusChange {
+  // Format: "roomStatusChanges/{change}".
+  string name = 1;
+  // "rooms/{room}".
+  string room = 2;
+  RoomStatus from_status = 3;
+  RoomStatus to_status = 4;
+  google.protobuf.Timestamp start_date = 5;
+  google.protobuf.Timestamp end_date = 6;
+  // "users/{user}".
+  string changed_by = 7;
+  string changed_by_name = 8;
+  google.protobuf.Timestamp created_at = 9;
+  string notes = 10;
+  bool is_auto_generated = 11;
+}
+
+// Audit record of a booking moving between rooms (GET /rooms/change-history).
+message RoomChangeRecord {
+  // Format: "roomChangeRecords/{record}".
+  string name = 1;
+  // "bookings/{booking}".
+  string booking = 2;
+  string booking_number = 3;
+  // "rooms/{room}".
+  string from_room = 4;
+  string from_room_number = 5;
+  string from_room_type = 6;
+  // "rooms/{room}".
+  string to_room = 7;
+  string to_room_number = 8;
+  string to_room_type = 9;
+  // "guests/{guest}".
+  string guest = 10;
+  string guest_name = 11;
+  string reason = 12;
+  // "users/{user}".
+  string changed_by = 13;
+  string changed_by_name = 14;
+  google.protobuf.Timestamp changed_at = 15;
+}
+
+// Guest review of a room type (GET /rooms/{room_type}/reviews). The reviews
+// resource itself belongs to the guest-relations domain; this is the
+// read-only projection the rooms API returns.
+message RoomReview {
+  // Format: "reviews/{review}".
+  string name = 1;
+  // "guests/{guest}".
+  string guest = 2;
+  string guest_name = 3;
+  // "roomTypes/{roomType}".
+  string room_type = 4;
+  google.type.Decimal overall_rating = 5;
+  google.type.Decimal cleanliness_rating = 6;
+  google.type.Decimal staff_rating = 7;
+  google.type.Decimal facilities_rating = 8;
+  google.type.Decimal value_rating = 9;
+  google.type.Decimal location_rating = 10;
+  string title = 11;
+  string review_text = 12;
+  string pros = 13;
+  string cons = 14;
+  optional bool recommend = 15;
+  string stay_type = 16;
+  bool is_verified = 17;
+  int32 helpful_count = 18;
+  google.protobuf.Timestamp created_at = 19;
+}
+
+// ── Occupancy (derived from active bookings, never manually input) ──────
+
+// Per-room occupancy (REST RoomCurrentOccupancy).
+message RoomOccupancy {
+  // "rooms/{room}".
+  string room = 1;
+  string room_number = 2;
+  // "roomTypes/{roomType}".
+  string room_type = 3;
+  string room_type_name = 4;
+  optional int32 max_occupancy = 5;
+  RoomStatus room_status = 6;
+  int32 current_adults = 7;
+  int32 current_children = 8;
+  int32 current_infants = 9;
+  int32 current_total_guests = 10;
+  // 0–100, not money → Decimal.
+  google.type.Decimal occupancy_percentage = 11;
+  // "bookings/{booking}".
+  string current_booking = 12;
+  string current_booking_number = 13;
+  // "guests/{guest}".
+  string current_guest = 14;
+  google.type.Date check_in_date = 15;
+  google.type.Date check_out_date = 16;
+  bool is_occupied = 17;
+}
+
+// Hotel-wide occupancy summary (REST HotelOccupancySummary).
+message OccupancySummary {
+  int64 total_rooms = 1;
+  int64 occupied_rooms = 2;
+  int64 available_rooms = 3;
+  google.type.Decimal occupancy_rate = 4;
+  int64 total_adults = 5;
+  int64 total_children = 6;
+  int64 total_infants = 7;
+  int64 total_guests = 8;
+  int64 total_capacity = 9;
+  google.type.Decimal guest_occupancy_rate = 10;
+}
+
+// Occupancy grouped by room type (REST OccupancyByRoomType).
+message RoomTypeOccupancy {
+  // "roomTypes/{roomType}".
+  string room_type = 1;
+  string room_type_name = 2;
+  optional int32 capacity_per_room = 3;
+  int64 total_rooms = 4;
+  int64 occupied_rooms = 5;
+  google.type.Decimal room_occupancy_rate = 6;
+  int64 total_guests = 7;
+  int64 total_capacity = 8;
+  google.type.Decimal guest_occupancy_rate = 9;
+}
+
+// Room plus its live occupancy counters (REST RoomWithOccupancy).
+message RoomWithOccupancy {
+  Room room = 1;
+  int32 current_adults = 2;
+  int32 current_children = 3;
+  int32 current_infants = 4;
+  int32 current_total_guests = 5;
+  bool is_occupied = 6;
+  // "bookings/{booking}".
+  string current_booking = 7;
+  // "guests/{guest}".
+  string current_guest = 8;
+}

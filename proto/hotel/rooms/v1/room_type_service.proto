@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+// RoomTypeService — CRUD over room type configuration.
+// POST /room-types/{id}/images (multipart) intentionally stays REST; it is
+// not representable as unary gRPC and is out of this contract's scope.
+package hotel.rooms.v1;
+
+import "google/protobuf/field_mask.proto";
+import "hotel/rooms/v1/room.proto";
+
+service RoomTypeService {
+  // GET /room-types (active only) and GET /room-types/all — one RPC with an
+  // include_inactive flag covering both REST routes.  (room-types read is
+  // public-shaped; permission matches REST at implementation time.)
+  rpc ListRoomTypes(ListRoomTypesRequest) returns (ListRoomTypesResponse);
+
+  // GET /room-types/{id}
+  rpc GetRoomType(GetRoomTypeRequest) returns (GetRoomTypeResponse);
+
+  // POST /room-types
+  rpc CreateRoomType(CreateRoomTypeRequest) returns (CreateRoomTypeResponse);
+
+  // PATCH /room-types/{id}
+  rpc UpdateRoomType(UpdateRoomTypeRequest) returns (UpdateRoomTypeResponse);
+
+  // DELETE /room-types/{id}
+  rpc DeleteRoomType(DeleteRoomTypeRequest) returns (DeleteRoomTypeResponse);
+}
+
+message ListRoomTypesRequest {
+  // false = active types only (REST GET /room-types);
+  // true  = all types (REST GET /room-types/all).
+  bool include_inactive = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListRoomTypesResponse {
+  repeated RoomType room_types = 1;
+  string next_page_token = 2;
+  int64 total_size = 3;
+}
+
+message GetRoomTypeRequest {
+  // "roomTypes/{roomType}".
+  string name = 1;
+}
+
+message CreateRoomTypeRequest {
+  RoomType room_type = 1;
+  string request_id = 2;
+}
+
+message UpdateRoomTypeRequest {
+  RoomType room_type = 1;
+  google.protobuf.FieldMask update_mask = 2;
+  string request_id = 3;
+}
+
+message DeleteRoomTypeRequest {
+  // "roomTypes/{roomType}".
+  string name = 1;
+  string request_id = 2;
+}
+
+// ── Resource-returning RPCs: unique response wrappers (buf STANDARD). ────
+
+message GetRoomTypeResponse {
+  RoomType room_type = 1;
+}
+
+message CreateRoomTypeResponse {
+  RoomType room_type = 1;
+}
+
+message UpdateRoomTypeResponse {
+  RoomType room_type = 1;
+}
+
+message DeleteRoomTypeResponse {}

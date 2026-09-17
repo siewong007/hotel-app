@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+// MaintenanceService — unary RPCs covering the maintenance REST surface.
+package hotel.housekeeping.v1;
+
+import "google/protobuf/field_mask.proto";
+import "hotel/housekeeping/v1/maintenance.proto";
+
+service MaintenanceService {
+  // GET /maintenance → paged list  (maintenance:read)
+  rpc ListMaintenanceTickets(ListMaintenanceTicketsRequest) returns (ListMaintenanceTicketsResponse);
+
+  // GET /maintenance/{id}  (maintenance:read)
+  rpc GetMaintenanceTicket(GetMaintenanceTicketRequest) returns (GetMaintenanceTicketResponse);
+
+  // POST /maintenance  (maintenance:create)
+  rpc CreateMaintenanceTicket(CreateMaintenanceTicketRequest) returns (CreateMaintenanceTicketResponse);
+
+  // PATCH /maintenance/{id}  (maintenance:update)
+  rpc UpdateMaintenanceTicket(UpdateMaintenanceTicketRequest) returns (UpdateMaintenanceTicketResponse);
+}
+
+// REST ListMaintenanceTicketsQuery — enum UNSPECIFIED or empty field = no
+// filter, same as REST.
+message ListMaintenanceTicketsRequest {
+  MaintenanceStatus status = 1;
+  // "rooms/{room}".
+  string room = 2;
+  // "users/{user}".
+  string assigned_to = 3;
+  MaintenanceCategory category = 4;
+  MaintenancePriority priority = 5;
+  int32 page_size = 6;
+  string page_token = 7;
+}
+
+// REST {items, total, page, page_size} → token + total_size.
+message ListMaintenanceTicketsResponse {
+  repeated MaintenanceTicket tickets = 1;
+  string next_page_token = 2;
+  int64 total_size = 3;
+}
+
+message GetMaintenanceTicketRequest {
+  // "maintenanceTickets/{ticket}".
+  string name = 1;
+}
+
+message CreateMaintenanceTicketRequest {
+  MaintenanceTicket ticket = 1;
+  string request_id = 2;
+}
+
+// update_mask names the fields to patch; clear_assignee is the explicit
+// unassign path (assigned_to is a COALESCE patch and cannot clear itself).
+message UpdateMaintenanceTicketRequest {
+  MaintenanceTicket ticket = 1;
+  google.protobuf.FieldMask update_mask = 2;
+  bool clear_assignee = 3;
+  string request_id = 4;
+}
+
+// ── Resource-returning RPCs: unique response wrappers (buf STANDARD). ────
+
+message GetMaintenanceTicketResponse {
+  MaintenanceTicket ticket = 1;
+}
+
+message CreateMaintenanceTicketResponse {
+  MaintenanceTicket ticket = 1;
+}
+
+message UpdateMaintenanceTicketResponse {
+  MaintenanceTicket ticket = 1;
+}

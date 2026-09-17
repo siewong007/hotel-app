@@ -1,0 +1,21 @@
+# Code generation config — Phase 2 (Rust server) and Phase 3 (TS client).
+# Nothing is generated in Phase 1; this file is reviewed with the contract.
+version: v2
+plugins:
+  # ── TypeScript (Phase 3) ──────────────────────────────────────────────
+  # protoc-gen-es v2 generates message types AND Connect-ES v2 service
+  # clients in a single pass; protoc-gen-connect-es is obsolete under v2.
+  - remote: buf.build/bufbuild/es:v2.12.1
+    out: ../hotel-web-fe/src/gen
+    opt:
+      - target=ts
+
+  # ── Rust (Phase 2) ────────────────────────────────────────────────────
+  # Local plugins: cargo install protoc-gen-prost protoc-gen-tonic.
+  # Alternative sanctioned by the brief: tonic-build in build.rs (no buf).
+  # Exact prost/tonic options (extern_path, well-known-type mapping) are
+  # finalized when the server integration lands.
+  - local: protoc-gen-prost
+    out: ../hotel-app-be/src/gen
+  - local: protoc-gen-tonic
+    out: ../hotel-app-be/src/gen
