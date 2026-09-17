@@ -61,7 +61,9 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
             WHEN COALESCE(bk_charge.paid_amount, COALESCE(bk_pay.completed_paid, 0)) >= COALESCE(bk_charge.amount, b.total_amount + COALESCE(b.tourism_tax_amount, 0) + COALESCE(b.extra_bed_charge, 0)) THEN 'paid'
             WHEN COALESCE(bk_charge.paid_amount, COALESCE(bk_pay.completed_paid, 0)) > 0 THEN 'partial'
             ELSE 'unpaid'
-        END AS payment_status, b.payment_method, b.source, b.booking_channel_id, b.ota_reference, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        END AS payment_status, b.payment_method, b.source, b.booking_channel_id,
+        bc.name AS booking_channel_name, bc.channel_type AS booking_channel_type,
+        b.ota_reference, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE(bk_charge.paid_amount, COALESCE(bk_pay.completed_paid, 0)) AS total_paid,
@@ -78,6 +80,7 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
     INNER JOIN room_types rt ON r.room_type_id = rt.id
+    LEFT JOIN booking_channels bc ON bc.id = b.booking_channel_id
     LEFT JOIN LATERAL (
         SELECT cl.amount, cl.paid_amount
         FROM customer_ledgers cl
@@ -146,7 +149,9 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
             WHEN COALESCE((SELECT cl.paid_amount FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.post_type = 'room_charge' AND COALESCE(cl.is_reversal, FALSE) = FALSE ORDER BY cl.created_at DESC LIMIT 1), COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0)) >= COALESCE((SELECT cl.amount FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.post_type = 'room_charge' AND COALESCE(cl.is_reversal, FALSE) = FALSE ORDER BY cl.created_at DESC LIMIT 1), b.total_amount + COALESCE(b.tourism_tax_amount, 0) + COALESCE(b.extra_bed_charge, 0)) THEN 'paid'
             WHEN COALESCE((SELECT cl.paid_amount FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.post_type = 'room_charge' AND COALESCE(cl.is_reversal, FALSE) = FALSE ORDER BY cl.created_at DESC LIMIT 1), COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0)) > 0 THEN 'partial'
             ELSE 'unpaid'
-        END AS payment_status, b.payment_method, b.source, b.booking_channel_id, b.ota_reference, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        END AS payment_status, b.payment_method, b.source, b.booking_channel_id,
+        bc.name AS booking_channel_name, bc.channel_type AS booking_channel_type,
+        b.ota_reference, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT cl.paid_amount FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.post_type = 'room_charge' AND COALESCE(cl.is_reversal, FALSE) = FALSE ORDER BY cl.created_at DESC LIMIT 1), COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0)) AS total_paid,
@@ -166,6 +171,7 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
     INNER JOIN room_types rt ON r.room_type_id = rt.id
+    LEFT JOIN booking_channels bc ON bc.id = b.booking_channel_id
     WHERE b.id = $1
 "#;
 

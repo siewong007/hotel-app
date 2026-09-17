@@ -71,6 +71,10 @@ export interface Booking {
   remarks?: string;
   source?: string;
   booking_channel_id?: number | string | null;
+  // Resolved server-side from booking_channel_id; authoritative for channel
+  // display. Absent on bookings created before the link was written.
+  booking_channel_name?: string | null;
+  booking_channel_type?: string | null;
   ota_reference?: string | null;
   daily_rates?: Record<string, number>;
   // Guest daily-cleaning preference (true = wants it, false = declined, null/undefined = not set)

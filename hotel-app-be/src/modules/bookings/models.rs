@@ -389,6 +389,13 @@ pub struct BookingWithDetails {
     pub payment_method: Option<String>,
     pub source: Option<String>,
     pub booking_channel_id: Option<i64>,
+    /// Channel name resolved from `booking_channel_id`. The structured link is
+    /// authoritative for display; callers fall back to parsing `remarks` only
+    /// for historical rows created before the link was written.
+    pub booking_channel_name: Option<String>,
+    /// `booking_channels.channel_type` for the linked channel, so callers can
+    /// tell an OTA apart from a direct/walk-in link without matching names.
+    pub booking_channel_type: Option<String>,
     pub ota_reference: Option<String>,
     pub remarks: Option<String>,
     pub special_requests: Option<String>,
@@ -536,6 +543,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
             guest_type: row.try_get("guest_type")?,
             guest_tourism_type: row.try_get("guest_tourism_type")?,
             booking_channel_id: row.try_get("booking_channel_id").ok().flatten(),
+            booking_channel_name: row.try_get("booking_channel_name").ok().flatten(),
+            booking_channel_type: row.try_get("booking_channel_type").ok().flatten(),
             ota_reference: row.try_get("ota_reference").ok().flatten(),
             room_id: row.try_get("room_id")?,
             room_number: row.try_get("room_number")?,

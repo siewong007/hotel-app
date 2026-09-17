@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Box, Dialog, Alert, AlertTitle, Button } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Room, Guest, Booking, BookingCreateRequest, RoomType, CheckInAdvisory } from '../../../../types';
-import { BookingsService, GuestsService } from '../../../../api';
+import { BookingsService, GuestsService, ReportsService } from '../../../../api';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useRoomAvailabilityCheck } from '../../../../hooks/useRoomAvailabilityCheck';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
@@ -128,7 +128,13 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Memoize hotel settings to prevent unnecessary re-renders
   const hotelSettings = useMemo(() => getHotelSettings(), []);
-  const BOOKING_CHANNELS = hotelSettings.booking_channels;
+  // `booking_channels` rows are the source of truth: their ids are what a
+  // booking's structured channel link stores, so the picker has to read the
+  // table rather than the name-only Settings mirror. The mirror stays as the
+  // initial value so the picker still works if the lookup fails.
+  const [otaChannels, setOtaChannels] = useState<Array<{ id?: number; name: string; abbreviation?: string }>>(
+    () => hotelSettings.booking_channels,
+  );
 
   // Determine if we need room selection (when room is not pre-selected)
   const needsRoomSelection = !roomProp;
@@ -169,6 +175,40 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [isHourlyBooking, setIsHourlyBooking] = useState(false);
   const [bookingChannel, setBookingChannel] = useState('');
   const [bookingReference, setBookingReference] = useState('');
+
+  // Only OTA channels are offered here; the other channel types describe
+  // direct sales, which this screen models as walk-in or complimentary.
+  // Trim the list by deactivating a channel in channel admin, not in code.
+  useEffect(() => {
+    if (!open) return undefined;
+    let cancelled = false;
+    ReportsService.listBookingChannels()
+      .then((channels) => {
+        if (cancelled) return;
+        const otas = channels
+          .filter((channel) => channel.is_active && channel.channel_type === 'ota')
+          .map((channel) => ({
+            id: channel.id,
+            name: channel.name,
+            abbreviation: channel.abbreviation ?? undefined,
+          }));
+        if (otas.length > 0) setOtaChannels(otas);
+      })
+      .catch(() => {
+        // Keep the Settings mirror. Bookings still save; they just fall back to
+        // the remarks trail because no id is available to link.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  // The id behind the picked channel name — what makes the booking point at
+  // the channel row instead of only naming it in remarks.
+  const selectedChannelId = useMemo(
+    () => otaChannels.find((channel) => channel.name === bookingChannel)?.id,
+    [otaChannels, bookingChannel],
+  );
 
   // Booking notes
   const [bookingNotes, setBookingNotes] = useState('');
@@ -811,6 +851,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             number_of_guests: 1,
             post_type: (isHourlyBooking ? 'hourly' : 'normal_stay') as 'normal_stay' | 'same_day' | 'hourly',
             source: 'online' as const,
+            // The structured link. Display and channel reporting read this in
+            // preference to parsing `onlineRemarks`, so correcting a channel
+            // later is a matter of repointing the link, not rewriting text.
+            booking_channel_id: selectedChannelId,
+            ota_reference: bookingReference.trim() || undefined,
             booking_remarks: onlineRemarks,
             special_requests: bookingNotes.trim() || undefined,
             room_rate_override: useCustomRate && isPositiveMoney(customRate) ? customRate : undefined,
@@ -1185,7 +1230,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               glyph={step(2)}
               reservationType={reservationType}
               onSelectType={handleReservationTypeSelect}
-              bookingChannels={BOOKING_CHANNELS}
+              bookingChannels={otaChannels}
               bookingChannel={bookingChannel}
               onChannelSelect={setBookingChannel}
               bookingReference={bookingReference}

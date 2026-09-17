@@ -12,6 +12,20 @@ export type BookingChannelInfo = {
 
 type BookingChannelStyle = Pick<BookingChannelInfo, 'background' | 'color'> & { patterns: RegExp[] };
 
+/** Everything the channel resolver reads off a booking. `booking_channel_name`
+ *  and `booking_channel_type` are resolved server-side from the structured
+ *  `bookings.booking_channel_id` link; the remaining three are the legacy
+ *  free-text trail kept for bookings created before that link was written. */
+type ChannelSourceFields = Pick<
+  BookingWithDetails,
+  'source' | 'remarks' | 'booking_remarks' | 'booking_channel_name' | 'booking_channel_type'
+>;
+
+/** Channel types that describe a direct sale rather than a bookable online
+ *  channel. A booking linked to one of these carries no channel badge, which
+ *  is how walk-in and phone bookings have always rendered. */
+const NON_ONLINE_CHANNEL_TYPES = new Set(['direct', 'walk_in', 'phone', 'corporate']);
+
 const KNOWN_ONLINE_CHANNEL_STYLES: BookingChannelStyle[] = [
   { background: '#e81f45', color: '#fff', patterns: [/agoda/i] },
   { background: '#003b95', color: '#fff', patterns: [/booking\.com/i] },
@@ -75,8 +89,23 @@ const findConfiguredChannel = (sourceKey: string, haystack: string, parsedName: 
 };
 
 export const getBookingChannelInfo = (
-  booking: Pick<BookingWithDetails, 'source' | 'remarks' | 'booking_remarks'>,
+  booking: ChannelSourceFields,
 ): BookingChannelInfo | null => {
+  // The structured link wins outright when it is set. Everything below this
+  // block infers the channel from free text, and that inference is
+  // order-dependent: it returns the first configured channel whose name
+  // appears anywhere in the remarks, so a stale "Booking.com" note outranked a
+  // corrected "Traveloka" one. Bookings that carry the link are immune.
+  const linkedName = String(booking.booking_channel_name || '').trim();
+  if (linkedName) {
+    const linkedType = String(booking.booking_channel_type || '').trim().toLowerCase();
+    if (NON_ONLINE_CHANNEL_TYPES.has(linkedType)) return null;
+    const configured = getHotelSettings().booking_channels.find(
+      (channel) => normalizeChannelToken(channel.name) === normalizeChannelToken(linkedName),
+    );
+    return buildChannelInfo(linkedName, configured?.abbreviation);
+  }
+
   const source = String(booking.source || '').trim();
   const sourceKey = source.toLowerCase();
   const remarks = [booking.booking_remarks, booking.remarks]
@@ -109,7 +138,7 @@ export const getBookingChannelInfo = (
 };
 
 export const getBookedViaText = (
-  booking: Pick<BookingWithDetails, 'source' | 'remarks' | 'booking_remarks'>,
+  booking: ChannelSourceFields,
   t: (key: string) => string,
 ) => {
   const channel = getBookingChannelInfo(booking);

@@ -94,6 +94,8 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         payment_method: row.try_get("payment_method").ok(),
         source: row.try_get("source").ok(),
         booking_channel_id: row.try_get("booking_channel_id").ok(),
+        booking_channel_name: row.try_get("booking_channel_name").ok(),
+        booking_channel_type: row.try_get("booking_channel_type").ok(),
         ota_reference: row.try_get("ota_reference").ok(),
         remarks: row.try_get("remarks").ok(),
         special_requests: row.try_get("special_requests").ok(),
