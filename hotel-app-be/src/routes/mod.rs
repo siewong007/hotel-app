@@ -401,7 +401,7 @@ pub fn create_router(pool: DbPool) -> Router {
     };
 
     // Initialize rate limiters
-    let rate_limiters = RateLimiters::new();
+    let rate_limiters = RateLimiters::new(pool.clone());
     let availability_hub = crate::modules::guest_booking::availability::AvailabilityHub::default();
     let support_hub = crate::modules::support::hub::SupportHub::default();
     let loyalty_hub = crate::modules::loyalty::hub::LoyaltyHub::default();
