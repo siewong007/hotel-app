@@ -96,7 +96,7 @@ impl HttpFixture {
         .execute(&pool)
         .await
         .expect("staff actor role fixture must be inserted");
-        core::rbac_cache::invalidate_all();
+        core::rbac_cache::clear_all();
 
         let refresh_token = AuthService::generate_refresh_token();
         let session_id = AuthService::store_refresh_token(
@@ -212,7 +212,7 @@ impl HttpFixture {
         .execute(&self.pool)
         .await
         .expect("create-only actor role fixture must be inserted");
-        core::rbac_cache::invalidate_all();
+        core::rbac_cache::clear_all();
 
         let refresh_token = AuthService::generate_refresh_token();
         let session_id = AuthService::store_refresh_token(
@@ -268,7 +268,7 @@ impl HttpFixture {
             .execute(pool)
             .await
             .expect("create-only role cleanup must succeed");
-        core::rbac_cache::invalidate_all();
+        core::rbac_cache::clear_all();
     }
 
     async fn seed_legacy_booking(&self) {
@@ -389,7 +389,7 @@ impl HttpFixture {
             .execute(&self.pool)
             .await
             .expect("actor fixture cleanup must succeed");
-        core::rbac_cache::invalidate_all();
+        core::rbac_cache::clear_all();
     }
 }
 

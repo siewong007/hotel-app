@@ -247,7 +247,7 @@ mod postgres_tests {
         grant_permissions(&pool, ACTOR_ID, &["communications:read"]).await;
         // The deny-check above resolved the actor through the TTL-cached
         // permission reader; drop the cache so the fresh grant is visible.
-        hotel_app_be::core::rbac_cache::invalidate_all();
+        hotel_app_be::core::rbac_cache::clear_all();
 
         // Seed a guest plus a mixed-status spread across both tiers.
         sqlx::query(

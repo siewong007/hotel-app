@@ -91,7 +91,7 @@ impl Fixture {
         .await;
         Self::assign_role(&pool, GUEST_ACTOR_ID, "guest").await;
         Self::assign_role(&pool, STAFF_ACTOR_ID, "receptionist").await;
-        core::rbac_cache::invalidate_all();
+        core::rbac_cache::clear_all();
 
         let guest_authorization = format!(
             "Bearer {}",

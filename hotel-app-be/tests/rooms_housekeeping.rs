@@ -1329,7 +1329,7 @@ mod postgres_tests {
         // cache must be invalidated or the denial above stays cached.
         grant_permission(&pool, actor_id, "rooms:read").await;
         grant_permission(&pool, actor_id, "bookings:read").await;
-        hotel_app_be::core::rbac_cache::invalidate_all();
+        hotel_app_be::core::rbac_cache::clear_all();
 
         rooms::get_hotel_occupancy_summary_handler(State(pool.clone()), headers.clone())
             .await
@@ -1418,7 +1418,7 @@ mod postgres_tests {
         )
         .await;
         grant_scoped_permission(&pool, front_desk_id, front_desk_role, &["bookings:read"]).await;
-        hotel_app_be::core::rbac_cache::invalidate_all();
+        hotel_app_be::core::rbac_cache::clear_all();
 
         let housekeeper_headers = auth_headers(housekeeper_id);
         let front_desk_headers = auth_headers(front_desk_id);

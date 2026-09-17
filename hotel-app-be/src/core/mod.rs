@@ -10,6 +10,7 @@
 //! - `sql_compat`: PostgreSQL SQL helpers
 
 pub mod auth;
+pub mod cache_bus;
 pub mod config;
 pub mod db;
 pub mod error;

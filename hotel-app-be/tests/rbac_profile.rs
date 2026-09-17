@@ -264,7 +264,7 @@ async fn postgres_check_permission_grants_exact_match_and_denies_missing_permiss
     let read_perm = permission_id(&pool, "housekeeping:read").await;
     set_role_permission_fixture(&pool, role_id, read_perm).await;
     assign_user_role_fixture(&pool, user_id, role_id).await;
-    rbac_cache::invalidate_all();
+    rbac_cache::clear_all();
 
     let granted = middleware::check_permission(&pool, user_id, "housekeeping:read").await;
     assert!(
@@ -306,7 +306,7 @@ async fn postgres_manage_permission_implies_resource_actions() {
     let manage_perm = permission_id(&pool, "housekeeping:manage").await;
     set_role_permission_fixture(&pool, role_id, manage_perm).await;
     assign_user_role_fixture(&pool, user_id, role_id).await;
-    rbac_cache::invalidate_all();
+    rbac_cache::clear_all();
 
     let read_via_manage = middleware::check_permission(&pool, user_id, "housekeeping:read").await;
     assert!(
@@ -379,7 +379,7 @@ async fn postgres_role_and_permission_management_reflects_in_permission_checks()
 
     upsert_custom_role(&pool, role_id, "rbac920_role_c", 10).await;
     assign_user_role_fixture(&pool, target_id, role_id).await;
-    rbac_cache::invalidate_all();
+    rbac_cache::clear_all();
 
     let hk_create = permission_id(&pool, "housekeeping:create").await;
     let hk_read = permission_id(&pool, "housekeeping:read").await;
@@ -530,7 +530,7 @@ async fn postgres_user_role_assignment_changes_effective_permissions() {
     let hk_manage = permission_id(&pool, "housekeeping:manage").await;
     set_role_permission_fixture(&pool, role_read_id, hk_read).await;
     set_role_permission_fixture(&pool, role_manage_id, hk_manage).await;
-    rbac_cache::invalidate_all();
+    rbac_cache::clear_all();
 
     // Target begins with no roles at all.
     let before = middleware::check_permission(&pool, target_id, "housekeeping:read").await;
@@ -1524,7 +1524,7 @@ async fn postgres_actor_cannot_grant_a_role_conferring_permissions_they_lack() {
     set_role_permission_fixture(&pool, foreign_role, rooms_update).await;
 
     assign_user_role_fixture(&pool, actor_id, actor_role).await;
-    rbac_cache::invalidate_all();
+    rbac_cache::clear_all();
 
     // (a) The exploit. Priority passes (75 < 80) but the role confers
     // `rooms:update`, which the actor does not hold. Must be refused.
@@ -1595,7 +1595,7 @@ async fn postgres_non_super_admin_cannot_rewrite_a_system_role_permission_set() 
     let housekeeping_update = permission_id(&pool, "housekeeping:update").await;
     set_role_permission_fixture(&pool, actor_role, housekeeping_update).await;
     assign_user_role_fixture(&pool, actor_id, actor_role).await;
-    rbac_cache::invalidate_all();
+    rbac_cache::clear_all();
 
     let guest_role = role_id_by_name(&pool, "guest").await;
     let before: i64 =

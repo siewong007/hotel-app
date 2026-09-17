@@ -83,3 +83,47 @@ async fn exclusive_scheduler_runs_on_one_instance_only() {
     tokio::time::sleep(Duration::from_millis(500)).await;
     assert_eq!(runs.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn cache_invalidate_notifies_other_replicas() {
+    let Some(pool) = pool().await else { return };
+    let mut listener = sqlx::postgres::PgListener::connect_with(&pool)
+        .await
+        .unwrap();
+    listener.listen("hotel_cache").await.unwrap();
+
+    hotel_app_be::core::rbac_cache::invalidate_all(&pool).await;
+    let note = tokio::time::timeout(Duration::from_secs(5), listener.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(note.payload(), "rbac");
+
+    hotel_app_be::core::settings_cache::invalidate_key(&pool, "timezone").await;
+    let note = tokio::time::timeout(Duration::from_secs(5), listener.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(note.payload(), "settings:timezone");
+}
+
+#[tokio::test]
+async fn data_change_publish_fans_out_with_origin() {
+    let Some(pool) = pool().await else { return };
+    let mut listener = sqlx::postgres::PgListener::connect_with(&pool)
+        .await
+        .unwrap();
+    listener.listen("hotel_data_changed").await.unwrap();
+
+    let hub = hotel_app_be::modules::realtime::hub::DataChangeHub::new(pool.clone());
+    hub.publish_data_changed("bookings");
+
+    let note = tokio::time::timeout(Duration::from_secs(5), listener.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let payload = note.payload();
+    let (origin, domain) = payload.split_once(':').unwrap();
+    assert_eq!(origin, hotel_app_be::core::cache_bus::instance_id().to_string());
+    assert_eq!(domain, "bookings");
+}

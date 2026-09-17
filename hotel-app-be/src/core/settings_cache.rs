@@ -127,6 +127,15 @@ pub async fn get_positive_decimal(pool: &DbPool, key: &str, default: Decimal) ->
     }
 }
 
-pub fn invalidate_key(key: &str) {
+/// Drop a cached key locally and on every replica, via NOTIFY.
+pub async fn invalidate_key(pool: &DbPool, key: &str) {
+    clear_key(key);
+    crate::core::cache_bus::publish(pool, &format!("settings:{key}")).await;
+}
+
+/// Local-process clear. Mutation handlers call [`invalidate_key`] so every
+/// replica converges; the cache-bus listener calls this on remote
+/// notifications, and tests use it to reset fixtures locally.
+pub fn clear_key(key: &str) {
     CACHE.entries.lock().unwrap().remove(key);
 }

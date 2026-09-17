@@ -405,7 +405,7 @@ pub fn create_router(pool: DbPool) -> Router {
     let availability_hub = crate::modules::guest_booking::availability::AvailabilityHub::default();
     let support_hub = crate::modules::support::hub::SupportHub::default();
     let loyalty_hub = crate::modules::loyalty::hub::LoyaltyHub::default();
-    let data_change_hub = crate::modules::realtime::hub::DataChangeHub::default();
+    let data_change_hub = crate::modules::realtime::hub::DataChangeHub::new(pool.clone());
 
     // All domain routes live under the `/api` prefix so that frontend
     // navigation paths (e.g. `/bookings/123`) never collide with the API and

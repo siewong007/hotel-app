@@ -207,8 +207,16 @@ pub async fn has_role(pool: &DbPool, user_id: i64, role_name: &str) -> Result<bo
 }
 
 /// Drop all cached entries. Call after any RBAC mutation so changes apply
-/// immediately rather than after the TTL.
-pub fn invalidate_all() {
+/// immediately rather than after the TTL — on every replica, via NOTIFY.
+pub async fn invalidate_all(pool: &DbPool) {
+    clear_all();
+    crate::core::cache_bus::publish(pool, "rbac").await;
+}
+
+/// Local-process clear. Mutation handlers call [`invalidate_all`] so every
+/// replica converges; the cache-bus listener calls this on remote
+/// notifications, and tests use it to reset fixtures locally.
+pub fn clear_all() {
     CACHE.entries.lock().unwrap().clear();
 }
 

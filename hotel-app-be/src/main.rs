@@ -312,6 +312,11 @@ async fn main() {
         &modules::data_transfer::jobs::staged_upload_dir(),
     );
 
+    // LISTEN for cross-replica cache invalidation and data-change fan-out so
+    // a mutation served by another replica converges this one's local caches
+    // and staff websockets immediately.
+    core::cache_bus::spawn_listener(pool.clone());
+
     // Create router with all routes and middleware
     let app = create_router(pool);
 

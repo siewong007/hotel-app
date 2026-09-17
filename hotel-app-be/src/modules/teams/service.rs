@@ -99,7 +99,7 @@ pub async fn update_team(
     .await?;
 
     // Deactivating a team withdraws every role it conferred.
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(team)
 }
 
@@ -125,7 +125,7 @@ pub async fn delete_team(pool: &DbPool, actor_user_id: i64, team_id: i64) -> Res
     )
     .await?;
 
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
 }
 
@@ -194,7 +194,7 @@ pub async fn add_member(
     )
     .await?;
 
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
 }
 
@@ -225,7 +225,7 @@ pub async fn remove_member(
     )
     .await?;
 
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
 }
 
@@ -268,6 +268,6 @@ pub async fn replace_team_roles(
     )
     .await?;
 
-    crate::core::rbac_cache::invalidate_all();
+    crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(next.len())
 }
