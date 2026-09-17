@@ -19,7 +19,7 @@ export TARGET_DATABASE_URL
         db-baseline db-seed db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
         db-schema-drift require-schema-drift-urls \
         db-repack db-repack-full \
-        prepare-desktop docs \
+        prepare-desktop docs docs-check db-mirror-check \
         fmt fmt-all \
         clean clean-all
 
@@ -197,6 +197,12 @@ docs: ## Generate documentation (backend)
 
 docs-check: ## Check Markdown links resolve to real files
 	python3 scripts/check-doc-links.py
+
+# Same gate CI runs. The desktop database bundle is a hand-run copy
+# (`bun run sync:resources` from hotel-desktop/); nothing else compares the two
+# trees, because the desktop CI job builds against placeholder resources.
+db-mirror-check: ## Check the desktop DB bundle matches the backend's
+	scripts/check-desktop-db-mirror.sh
 
 # ─── Clean ────────────────────────────────────────────────────────────────────
 

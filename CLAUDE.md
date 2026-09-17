@@ -2,7 +2,7 @@
 
 Routing index for coding agents. Hard budget: **≤150 lines**, index/routing only — detail goes to
 `.claude/refs/` (on demand), `.claude/rules/` (auto-loaded, keep lean), or `docs/`. Do not add
-here without removing something. Facts verified 2026-09-15 against `origin/master` (`7ce3211b2`).
+here without removing something. Facts verified 2026-09-17 against `origin/master` (`925fff188`).
 **What deploys is `origin/master`, not this tree** — confirm with `git show origin/master:<path>`.
 Line anchors rot; Grep first. This volume path has a trailing space — quote paths in shell.
 
@@ -115,10 +115,11 @@ vitest suites concurrently here — they starve each other's timeouts.
 
 ## CI, deployment, environment
 
-`.github/workflows/ci.yml` (push/PR to master) runs **six** jobs: secret scan + `cargo audit`;
-**Markdown link check** (`python3 scripts/check-doc-links.py` — a broken relative link in any `.md`
-fails CI); FE typecheck/lint:strict/test/build; BE check/test/clippy/release + schema and booking
-smoke; a full PostgreSQL suite with a stale-`#[ignore]` check; and a desktop `cargo check` against
+`.github/workflows/ci.yml` (push/PR to master) runs **eight** jobs: secret scan + `cargo audit`;
+**Markdown link check** (`scripts/check-doc-links.py` — a broken relative link in any `.md` fails
+CI); **desktop DB mirror** (`make db-mirror-check`); FE typecheck/lint:strict/test/build; BE
+check/test/clippy/release + schema/booking smoke; a full PostgreSQL suite with a stale-`#[ignore]`
+check; and a desktop `cargo check` against
 placeholder resources — **so a broken `tauri build` is not caught by CI**. Deploy triggers only on a
 successful CI run on master (no `workflow_dispatch` by design). A green "Deploy production" run may
 still have deployed nothing — read the job conclusion. Never hand-provision secrets on the host; CI

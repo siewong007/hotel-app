@@ -1,12 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { ARTICLES_EN } from './articles.en';
 import { ARTICLES_MS } from './articles.ms';
 import { ARTICLES_ZH } from './articles.zh';
 import { HELP_CATEGORY_IDS } from '../constants';
-import { getArticles } from './index';
+import { getArticles, loadAllArticles } from './index';
 import type { HelpArticle, HelpBlock } from '../types';
 
 const blockSignature = (blocks: HelpBlock[]) => blocks.map((b) => b.type).join(',');
+
+// Only English ships in the app shell; ms and zh are dynamic chunks (see
+// ./index.ts). Tests asserting a specific locale's catalogue must load them
+// first, or they read the English fallback.
+beforeAll(async () => {
+  await loadAllArticles();
+});
 
 describe('help article catalogue', () => {
   it('has unique slugs in every locale', () => {
@@ -77,5 +84,15 @@ describe('help article catalogue', () => {
   it('serves English and Malay catalogues by locale', () => {
     expect(getArticles('en')).toBe(ARTICLES_EN);
     expect(getArticles('ms')).toBe(ARTICLES_MS);
+  });
+
+  // zh-TW ships no articles of its own, so it must land on the Simplified
+  // Chinese set rather than English — a Traditional reader can follow
+  // Simplified, and cannot follow English. Guards the BCP-47 walk
+  // (zh-TW -> zh -> en) against a silent regression to ARTICLES_EN.
+  it('falls back from Traditional to Simplified Chinese, not to English', () => {
+    expect(getArticles('zh')).toBe(ARTICLES_ZH);
+    expect(getArticles('zh-TW')).toBe(ARTICLES_ZH);
+    expect(getArticles('zh-TW')).not.toBe(ARTICLES_EN);
   });
 });

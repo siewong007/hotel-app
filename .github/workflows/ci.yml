@@ -43,6 +43,20 @@ jobs:
       - name: Check Markdown links resolve
         run: python3 scripts/check-doc-links.py
 
+  db-mirror:
+    name: Repo — Desktop DB mirror
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # hotel-desktop/src-tauri/database/ is a hand-run copy of the backend's
+      # (`bun run sync:resources`), and the desktop job below compiles against
+      # PLACEHOLDER resources — so nothing else in CI compares the two trees. A
+      # schema change that is never mirrored ships a desktop build with a stale
+      # baseline, and a CRLF checkout fails every manifest checksum and silently
+      # disables the whole patch catalog. Shell only, so it fails in seconds.
+      - name: Check desktop DB bundle matches the backend
+        run: scripts/check-desktop-db-mirror.sh
+
   frontend:
     name: Frontend — Typecheck, Lint & Build
     runs-on: ubuntu-latest
