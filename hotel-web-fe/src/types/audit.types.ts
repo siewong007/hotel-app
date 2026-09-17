@@ -11,6 +11,8 @@ export interface AuditLogEntry {
   /** Activity stream derived from resource_type: rooms|guests|bookings|system|reports|other */
   category: string;
   resource_id: number | null;
+  /** Confirmation / room / folio number when the event payload carried one. */
+  display_ref?: string | null;
   /** True when the backend detected field-level change markers in the payload. */
   has_changes?: boolean;
   /** Derived display/export classification: field_change or action_only. */
@@ -39,12 +41,13 @@ export interface AuditCategoryCounts {
   total: number;
 }
 
-export type AuditCategoryId = 'rooms' | 'guests' | 'bookings' | 'system' | 'reports';
+export type AuditCategoryId = 'all' | 'rooms' | 'guests' | 'bookings' | 'system' | 'reports' | 'other';
 
 export interface AuditLogQuery {
   user_id?: number;
   action?: string;
   resource_type?: string;
+  resource_id?: number;
   category?: string;
   start_date?: string;
   end_date?: string;
@@ -64,7 +67,7 @@ export interface AuditUser {
 export function getActionLabel(action: string): { labelKey: string | null; label: string; color: string } {
   return AUDIT_ACTION_LABELS[action]
     ? { ...AUDIT_ACTION_LABELS[action], label: formatStatusLabel(action) }
-    : { labelKey: null, label: formatStatusLabel(action), color: 'var(--hotel-neutral)' };
+    : { labelKey: null, label: formatStatusLabel(action.replace(/\./g, '_')), color: 'var(--hotel-neutral)' };
 }
 
 // Helper function to get resource label

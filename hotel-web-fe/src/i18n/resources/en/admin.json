@@ -296,6 +296,18 @@
   "audit": {
     "title": "Audit Log",
     "subtitle": "A chronological record of every action across the property — separated by activity stream.",
+    "immutableNote": "Read-only append-only log. Events cannot be edited or deleted.",
+    "timezoneLabel": "Times shown in hotel timezone ({{zone}})",
+    "actorFilter": "Actor",
+    "actionFilter": "Action",
+    "allUsers": "All users",
+    "expandEvent": "Show event details",
+    "collapseEvent": "Hide event details",
+    "openResource": "Open {{ref}}",
+    "loadError": "The audit log could not be loaded",
+    "loadErrorHint": "Check your connection and try again.",
+    "emptyTitleNone": "No events recorded yet",
+    "emptyDescriptionNone": "Mutating actions across the property will appear here.",
     "crumbs": {
       "settings": "Settings",
       "security": "Security"
@@ -309,6 +321,9 @@
     "filterByTimestamp": "Filter by timestamp",
     "presets": {
       "today": "Today",
+      "thisShift": "This shift",
+      "lastNightAudit": "Last night audit",
+      "thisMonth": "This month",
       "lastNDays_other": "Last {{count}} days",
       "allTime": "All time"
     },
@@ -344,6 +359,9 @@
       "user": "User",
       "guest": "Guest",
       "booking": "Booking",
+      "payment": "Payment",
+      "customer_ledger": "Folio",
+      "invoice": "Invoice",
       "room": "Room",
       "user_role": "User Role",
       "system_setting": "Settings",
@@ -369,6 +387,14 @@
       "check": "Checked"
     },
     "cat": {
+      "all": {
+        "name": "All activity",
+        "sub": "Every stream"
+      },
+      "other": {
+        "name": "Other",
+        "sub": "Unmapped events"
+      },
       "rooms": {
         "name": "Room Activity",
         "sub": "Inventory & status"
@@ -400,6 +426,13 @@
       "booking_voided": "Booking Voided",
       "booking_checkin": "Guest Checked In",
       "booking_checkout": "Guest Checked Out",
+      "payment_created": "Payment Created",
+      "payment_recorded": "Payment Recorded",
+      "payment_voided": "Payment Voided",
+      "payment_refunded": "Payment Refunded",
+      "customer_ledger_voided": "Folio Voided",
+      "customer_ledger_reversed": "Folio Reversed",
+      "night_audit_run": "Night Audit Run",
       "room_status_changed": "Room Status Changed",
       "guest_created": "Guest Created",
       "guest_updated": "Guest Updated",
@@ -483,9 +516,21 @@
         "check": "Checked"
       }
     },
+    "field": {
+      "roomId": "Room",
+      "status": "Status",
+      "checkIn": "Check-in",
+      "checkOut": "Check-out",
+      "paymentStatus": "Payment status",
+      "roomRate": "Rate",
+      "roomNumber": "Room number",
+      "bookingNumber": "Reservation"
+    },
     "pdf": {
       "reportTitle": "Audit Log Report",
       "generatedAt": "Generated: {{time}}",
+      "exportedBy": "Exported by: {{user}}",
+      "truncated": "Showing the first {{count}} matching rows.",
       "systemUser": "System",
       "actionOnly": "Action only",
       "fieldChanges": "Field changes",

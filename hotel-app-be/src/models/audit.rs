@@ -14,7 +14,9 @@ pub struct AuditLogQuery {
     pub user_id: Option<i64>,
     pub action: Option<String>,
     pub resource_type: Option<String>,
-    /// Activity stream: rooms | guests | bookings | system | reports
+    /// Numeric id of the affected entity (booking id, guest id, …).
+    pub resource_id: Option<i64>,
+    /// Activity stream: all | rooms | guests | bookings | system | reports | other
     pub category: Option<String>,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
@@ -52,6 +54,8 @@ pub struct AuditLogEntryWithUser {
     /// Activity stream this entry belongs to (derived from `resource_type`).
     pub category: String,
     pub resource_id: Option<i64>,
+    /// Confirmation / room / folio number pulled from `details` when present.
+    pub display_ref: Option<String>,
     /// True when the audit payload contains field-level change markers.
     pub has_changes: bool,
     /// Derived classification for display/export: `field_change` or `action_only`.
@@ -109,6 +113,16 @@ pub struct AuditLogResponse {
     pub page: i64,
     pub page_size: i64,
     pub total_pages: i64,
+}
+
+/// JSON export of the filtered audit trail (capped, same rows as CSV).
+#[derive(Debug, Serialize)]
+pub struct AuditLogExportJson {
+    pub exported_by: String,
+    pub exported_at: DateTime<Utc>,
+    pub truncated: bool,
+    pub row_count: i64,
+    pub data: Vec<AuditLogEntryWithUser>,
 }
 
 /// Query parameters for the DB statements diagnostics endpoint.

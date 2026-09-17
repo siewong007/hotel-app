@@ -28,6 +28,7 @@ pub fn routes() -> Router<DbPool> {
             get(get_audit_category_counts),
         )
         .route("/audit-logs/export/csv", get(export_audit_logs_csv))
+        .route("/audit-logs/export/json", get(export_audit_logs_json))
         .route("/audit-logs/db-statements", get(get_db_statements))
 }
 
@@ -80,6 +81,15 @@ async fn export_audit_logs_csv(
 ) -> Result<axum::response::Response, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "audit:export").await?;
     handlers::export_audit_logs_csv(State(pool), Extension(user_id), query).await
+}
+
+async fn export_audit_logs_json(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    query: Query<models::AuditLogQuery>,
+) -> Result<Json<models::AuditLogExportJson>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "audit:export").await?;
+    handlers::export_audit_logs_json(State(pool), Extension(user_id), query).await
 }
 
 async fn get_db_statements(

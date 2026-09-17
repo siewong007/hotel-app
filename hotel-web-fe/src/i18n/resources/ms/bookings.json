@@ -312,7 +312,10 @@
       "checkout": "Daftar keluar",
       "checkoutVoid": "Daftar keluar / Batal"
     },
-    "loadFailed": "Gagal memuatkan aliran kerja tempahan"
+    "loadFailed": "Gagal memuatkan aliran kerja tempahan",
+    "actor": "Oleh {{name}}",
+    "systemActor": "Sistem",
+    "openAuditLog": "Buka dalam log audit"
   },
   "enhancedCheckIn": {
     "title": "Tetamu Walk-in - Folio: {{folio}}",

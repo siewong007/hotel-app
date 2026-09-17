@@ -294,6 +294,18 @@
   "audit": {
     "title": "稽核紀錄",
     "subtitle": "酒店每一項操作的時間序紀錄 — 依活動串分流。",
+    "immutableNote": "唯讀、僅附加。事件無法編輯或刪除。",
+    "timezoneLabel": "時間以酒店時區顯示（{{zone}}）",
+    "actorFilter": "操作者",
+    "actionFilter": "操作",
+    "allUsers": "所有使用者",
+    "expandEvent": "顯示事件詳情",
+    "collapseEvent": "隱藏事件詳情",
+    "openResource": "開啟 {{ref}}",
+    "loadError": "無法載入稽核紀錄",
+    "loadErrorHint": "請檢查連線後再試。",
+    "emptyTitleNone": "尚無事件",
+    "emptyDescriptionNone": "物業中的變更操作會顯示在這裡。",
     "crumbs": {
       "settings": "設定",
       "security": "安全性"
@@ -306,6 +318,9 @@
     "filterByTimestamp": "依時間戳篩選",
     "presets": {
       "today": "今日",
+      "thisShift": "本班次",
+      "lastNightAudit": "上次夜審",
+      "thisMonth": "本月",
       "lastNDays_other": "過去 {{count}} 天",
       "allTime": "全部時間"
     },
@@ -340,6 +355,9 @@
       "user": "使用者",
       "guest": "賓客",
       "booking": "預訂",
+      "payment": "付款",
+      "customer_ledger": "帳單",
+      "invoice": "發票",
       "room": "客房",
       "user_role": "使用者角色",
       "system_setting": "設定",
@@ -365,6 +383,14 @@
       "check": "已檢查"
     },
     "cat": {
+      "all": {
+        "name": "全部活動",
+        "sub": "所有活動串"
+      },
+      "other": {
+        "name": "其他",
+        "sub": "未分類事件"
+      },
       "rooms": {
         "name": "客房活動",
         "sub": "庫存與狀態"
@@ -396,6 +422,13 @@
       "booking_voided": "預訂已作廢",
       "booking_checkin": "賓客已入住",
       "booking_checkout": "賓客已退房",
+      "payment_created": "已建立付款",
+      "payment_recorded": "已記錄付款",
+      "payment_voided": "已作廢付款",
+      "payment_refunded": "已退款",
+      "customer_ledger_voided": "已作廢帳單",
+      "customer_ledger_reversed": "已沖正帳單",
+      "night_audit_run": "已執行夜審",
       "room_status_changed": "客房狀態已變更",
       "guest_created": "賓客已建立",
       "guest_updated": "賓客已更新",
@@ -477,9 +510,21 @@
         "check": "已檢查"
       }
     },
+    "field": {
+      "roomId": "客房",
+      "status": "狀態",
+      "checkIn": "入住",
+      "checkOut": "退房",
+      "paymentStatus": "付款狀態",
+      "roomRate": "房價",
+      "roomNumber": "房號",
+      "bookingNumber": "預訂號"
+    },
     "pdf": {
       "reportTitle": "稽核紀錄報表",
       "generatedAt": "產生於：{{time}}",
+      "exportedBy": "匯出者：{{user}}",
+      "truncated": "僅顯示前 {{count}} 筆符合的列。",
       "systemUser": "系統",
       "actionOnly": "僅操作",
       "fieldChanges": "欄位變更",

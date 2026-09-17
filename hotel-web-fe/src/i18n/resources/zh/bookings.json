@@ -312,7 +312,10 @@
       "checkout": "退房",
       "checkoutVoid": "退房 / 作废"
     },
-    "loadFailed": "加载预订工作流失败"
+    "loadFailed": "加载预订工作流失败",
+    "actor": "{{name}} 操作",
+    "systemActor": "系统",
+    "openAuditLog": "在审计日志中打开"
   },
   "enhancedCheckIn": {
     "title": "上门客 - 账单：{{folio}}",

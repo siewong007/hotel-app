@@ -301,6 +301,7 @@ export interface BookingTimelineEntry {
   status_to?: string;
   amount?: string;
   actor_id?: number;
+  actor_username?: string | null;
   metadata?: Record<string, any>;
   created_at: string;
 }

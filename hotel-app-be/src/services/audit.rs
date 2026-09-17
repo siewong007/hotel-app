@@ -2,13 +2,39 @@ use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::models::{
-    AuditCategoryCounts, AuditLogEntryWithUser, AuditLogQuery, AuditLogResponse, AuditLogRow,
-    DbStatementsQuery,
+    AuditCategoryCounts, AuditLogEntryWithUser, AuditLogExportJson, AuditLogQuery,
+    AuditLogResponse, AuditLogRow, DbStatementsQuery,
 };
 use crate::repositories::audit::AuditRepository;
 use crate::utils::pagination::normalize_pagination;
 use chrono::Utc;
 use serde_json::Value;
+
+/// Client identity captured by the request middleware and copied onto audit
+/// rows that omit `ip_address` / `user_agent` (most staff CRUD).
+#[derive(Clone, Debug, Default)]
+pub struct RequestAuditMeta {
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+tokio::task_local! {
+    pub static REQUEST_AUDIT: RequestAuditMeta;
+}
+
+fn apply_request_meta(event: &mut AuditEvent<'_>) {
+    if event.ip_address.is_some() && event.user_agent.is_some() {
+        return;
+    }
+    let _ = REQUEST_AUDIT.try_with(|meta| {
+        if event.ip_address.is_none() {
+            event.ip_address = meta.ip_address.clone();
+        }
+        if event.user_agent.is_none() {
+            event.user_agent = meta.user_agent.clone();
+        }
+    });
+}
 
 /// Audit logging service for tracking sensitive operations
 pub struct AuditLog;
@@ -35,6 +61,13 @@ const SENSITIVE_DETAIL_MARKERS: &[&str] = &[
     "card_number",
     "bearer",
     "signature",
+    "email",
+    "id_number",
+    "ic_number",
+    "passport",
+    "phone",
+    "nick_name",
+    "full_name",
 ];
 
 fn is_sensitive_detail_key(key: &str) -> bool {
@@ -84,6 +117,7 @@ impl AuditLog {
         let action = event.action;
         let resource_type = event.resource_type;
 
+        apply_request_meta(&mut event);
         if let Some(details) = &mut event.details {
             scrub_details(details);
         }
@@ -110,6 +144,7 @@ impl AuditLog {
         tx: &mut DbTransaction<'_>,
         mut event: AuditEvent<'_>,
     ) -> Result<(), ApiError> {
+        apply_request_meta(&mut event);
         if let Some(details) = &mut event.details {
             scrub_details(details);
         }
@@ -306,11 +341,39 @@ const CATEGORY_MAP: &[(&str, &[&str])] = &[
             "room_types",
             "rate",
             "rate_plan",
+            "room_rate",
             "housekeeping",
+            "maintenance",
+            "online_inventory",
         ],
     ),
-    ("guests", &["guest", "guests", "ekyc_verification", "ekyc"]),
-    ("bookings", &["booking", "bookings"]),
+    (
+        "guests",
+        &[
+            "guest",
+            "guests",
+            "ekyc_verification",
+            "ekyc",
+            "loyalty_member",
+            "consent",
+            "guest_segment",
+        ],
+    ),
+    (
+        "bookings",
+        &[
+            "booking",
+            "bookings",
+            "payment",
+            "invoice",
+            "customer_ledger",
+            "voucher",
+            "promotion",
+            "booking_channel",
+            "channel_pricing_rule",
+            "channel_commission_rule",
+        ],
+    ),
     (
         "system",
         &[
@@ -325,6 +388,14 @@ const CATEGORY_MAP: &[(&str, &[&str])] = &[
             "system_settings",
             "settings",
             "system",
+            "team",
+            "route_access_policy",
+            "data_transfer",
+            "support_conversation",
+            "email_campaign",
+            "email_template",
+            "email_suppression",
+            "company",
         ],
     ),
     (
@@ -339,6 +410,33 @@ const CATEGORY_MAP: &[(&str, &[&str])] = &[
     ),
 ];
 
+fn all_mapped_resource_types() -> Vec<String> {
+    CATEGORY_MAP
+        .iter()
+        .flat_map(|(_, list)| list.iter().map(|value| (*value).to_string()))
+        .collect()
+}
+
+/// Include-list for a named stream, or the mapped types to *exclude* for `other`.
+struct CategoryBind {
+    types: Vec<String>,
+    invert: bool,
+}
+
+fn category_bind(category: Option<&str>) -> Option<CategoryBind> {
+    match category.map(str::trim) {
+        None | Some("") | Some("all") => None,
+        Some("other") => Some(CategoryBind {
+            types: all_mapped_resource_types(),
+            invert: true,
+        }),
+        Some(name) => resource_types_for_category(name).map(|types| CategoryBind {
+            types,
+            invert: false,
+        }),
+    }
+}
+
 pub async fn get_audit_logs(
     pool: &DbPool,
     params: AuditLogQuery,
@@ -346,15 +444,13 @@ pub async fn get_audit_logs(
     let pagination = normalize_pagination(params.page, params.page_size, 25, 100);
     let sort_column = valid_sort_column(params.sort_by.as_deref());
     let sort_direction = sort_direction(params.sort_order.as_deref());
-    let category_types = params
-        .category
-        .as_deref()
-        .and_then(resource_types_for_category);
+    let category = category_bind(params.category.as_deref());
 
     let (total, rows) = AuditRepository::list_logs(
         pool,
         &params,
-        category_types.as_ref(),
+        category.as_ref().map(|bind| bind.types.as_slice()),
+        category.as_ref().is_some_and(|bind| bind.invert),
         sort_column,
         sort_direction,
         pagination.page_size,
@@ -401,26 +497,48 @@ pub async fn export_audit_logs_csv(
     user_id: i64,
     params: AuditLogQuery,
 ) -> Result<(String, String), ApiError> {
-    let category_types = params
-        .category
-        .as_deref()
-        .and_then(resource_types_for_category);
-    let rows =
-        AuditRepository::list_logs_for_export(pool, &params, category_types.as_ref()).await?;
+    let category = category_bind(params.category.as_deref());
+    let rows = AuditRepository::list_logs_for_export(
+        pool,
+        &params,
+        category.as_ref().map(|bind| bind.types.as_slice()),
+        category.as_ref().is_some_and(|bind| bind.invert),
+    )
+    .await?;
+    let truncated = rows.len() as i64 >= 10_000;
     let row_count = rows.len();
+    let exported_by = AuditRepository::username_by_id(pool, user_id)
+        .await?
+        .unwrap_or_else(|| format!("user:{user_id}"));
+    let exported_at = Utc::now();
     let details = serde_json::json!({
         "user_id": params.user_id,
         "action": params.action,
         "resource_type": params.resource_type,
+        "resource_id": params.resource_id,
         "category": params.category,
         "start_date": params.start_date,
         "end_date": params.end_date,
         "search": params.search,
         "row_count": row_count,
+        "truncated": truncated,
+        "exported_by": exported_by,
     });
 
-    let mut csv_content = String::from(
-        "ID,Timestamp,User ID,Username,Action,Category,Resource Type,Resource ID,Change Kind,IP Address,User Agent,Details\n",
+    let mut csv_content = format!(
+        "# Exported by {exported_by} (user_id={user_id}) at {}\n# Filters: user_id={:?} action={:?} resource_type={:?} resource_id={:?} category={:?} start_date={:?} end_date={:?} search={:?}\n# Rows: {row_count}; truncated={truncated}\n",
+        exported_at.to_rfc3339(),
+        params.user_id,
+        params.action,
+        params.resource_type,
+        params.resource_id,
+        params.category,
+        params.start_date,
+        params.end_date,
+        params.search,
+    );
+    csv_content.push_str(
+        "ID,Timestamp,User ID,Username,Action,Category,Resource Type,Resource ID,Display Ref,Change Kind,IP Address,User Agent,Details\n",
     );
 
     for row in rows.into_iter().map(row_to_entry) {
@@ -442,6 +560,7 @@ pub async fn export_audit_logs_csv(
             row.category,
             row.resource_type,
             row.resource_id.map(|id| id.to_string()).unwrap_or_default(),
+            row.display_ref.clone().unwrap_or_default(),
             row.change_kind,
             row.ip_address.unwrap_or_default(),
             row.user_agent.unwrap_or_default(),
@@ -473,6 +592,62 @@ pub async fn export_audit_logs_csv(
     .await;
 
     Ok((filename, csv_content))
+}
+
+pub async fn export_audit_logs_json(
+    pool: &DbPool,
+    user_id: i64,
+    params: AuditLogQuery,
+) -> Result<AuditLogExportJson, ApiError> {
+    let category = category_bind(params.category.as_deref());
+    let rows = AuditRepository::list_logs_for_export(
+        pool,
+        &params,
+        category.as_ref().map(|bind| bind.types.as_slice()),
+        category.as_ref().is_some_and(|bind| bind.invert),
+    )
+    .await?;
+    let truncated = rows.len() as i64 >= 10_000;
+    let exported_by = AuditRepository::username_by_id(pool, user_id)
+        .await?
+        .unwrap_or_else(|| format!("user:{user_id}"));
+    let exported_at = Utc::now();
+    let data: Vec<AuditLogEntryWithUser> = rows.into_iter().map(row_to_entry).collect();
+    let row_count = data.len() as i64;
+    let details = serde_json::json!({
+        "format": "json",
+        "user_id": params.user_id,
+        "action": params.action,
+        "resource_type": params.resource_type,
+        "resource_id": params.resource_id,
+        "category": params.category,
+        "start_date": params.start_date,
+        "end_date": params.end_date,
+        "search": params.search,
+        "row_count": row_count,
+        "truncated": truncated,
+        "exported_by": exported_by,
+    });
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "audit_logs_exported",
+            resource_type: "export",
+            resource_id: None,
+            details: Some(details),
+            ..Default::default()
+        },
+    )
+    .await;
+
+    Ok(AuditLogExportJson {
+        exported_by,
+        exported_at,
+        truncated,
+        row_count,
+        data,
+    })
 }
 
 pub async fn get_audit_users(pool: &DbPool) -> Result<Vec<Value>, ApiError> {
@@ -530,7 +705,12 @@ pub async fn get_db_statements(
 }
 
 fn row_to_entry(row: AuditLogRow) -> AuditLogEntryWithUser {
-    let has_changes = details_has_changes(row.details.as_ref());
+    let mut details = row.details;
+    if let Some(value) = details.as_mut() {
+        scrub_details(value);
+    }
+    let has_changes = details_has_changes(details.as_ref());
+    let display_ref = display_ref_from(details.as_ref());
 
     AuditLogEntryWithUser {
         id: row.id,
@@ -540,6 +720,7 @@ fn row_to_entry(row: AuditLogRow) -> AuditLogEntryWithUser {
         category: category_for_resource(&row.resource_type),
         resource_type: row.resource_type,
         resource_id: row.resource_id,
+        display_ref,
         has_changes,
         change_kind: if has_changes {
             "field_change"
@@ -547,11 +728,30 @@ fn row_to_entry(row: AuditLogRow) -> AuditLogEntryWithUser {
             "action_only"
         }
         .to_string(),
-        details: row.details,
+        details,
         ip_address: row.ip_address,
         user_agent: row.user_agent,
         created_at: row.created_at,
     }
+}
+
+fn display_ref_from(details: Option<&Value>) -> Option<String> {
+    let Value::Object(map) = details? else {
+        return None;
+    };
+    for key in [
+        "booking_number",
+        "room_number",
+        "folio_number",
+        "invoice_number",
+    ] {
+        match map.get(key) {
+            Some(Value::String(value)) if !value.is_empty() => return Some(value.clone()),
+            Some(Value::Number(value)) => return Some(value.to_string()),
+            _ => {}
+        }
+    }
+    None
 }
 
 fn details_has_changes(details: Option<&Value>) -> bool {
@@ -662,6 +862,7 @@ fn sort_direction(sort_order: Option<&str>) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::details_has_changes;
+    use super::display_ref_from;
     use super::scrub_details;
     use super::{category_for_resource, resource_types_for_category};
     use serde_json::json;
@@ -681,6 +882,11 @@ mod tests {
         scrub_details(&mut details);
         assert_eq!(details["username"], "jdoe");
         assert_eq!(details["password"], "[redacted]");
+        let mut pii = json!({"email": "a@b.c", "id_number": "990101-01-1234", "note": "ok"});
+        scrub_details(&mut pii);
+        assert_eq!(pii["email"], "[redacted]");
+        assert_eq!(pii["id_number"], "[redacted]");
+        assert_eq!(pii["note"], "ok");
         assert_eq!(details["nested"]["client_secret"], "[redacted]");
         assert_eq!(details["nested"]["apiKey"], "[redacted]");
         assert_eq!(details["nested"]["note"], "safe");
@@ -758,5 +964,47 @@ mod tests {
         assert!(report_types.contains(&"report".to_string()));
         assert!(report_types.contains(&"night_audit".to_string()));
         assert!(report_types.contains(&"export".to_string()));
+    }
+
+    #[test]
+    fn maps_money_and_ops_resources_out_of_other() {
+        assert_eq!(category_for_resource("payment"), "bookings");
+        assert_eq!(category_for_resource("customer_ledger"), "bookings");
+        assert_eq!(category_for_resource("invoice"), "bookings");
+        assert_eq!(category_for_resource("maintenance"), "rooms");
+        assert_eq!(category_for_resource("room_rate"), "rooms");
+        assert_eq!(category_for_resource("data_transfer"), "system");
+        assert_eq!(category_for_resource("unknown_widget"), "other");
+    }
+
+    #[test]
+    fn display_ref_prefers_confirmation_numbers() {
+        assert_eq!(
+            display_ref_from(Some(&json!({"booking_number": "BK-4471", "room_id": 9}))),
+            Some("BK-4471".to_string())
+        );
+        assert_eq!(display_ref_from(Some(&json!({"room_id": 9}))), None);
+    }
+
+    #[tokio::test]
+    async fn request_scope_fills_missing_ip_and_user_agent() {
+        super::REQUEST_AUDIT
+            .scope(
+                super::RequestAuditMeta {
+                    ip_address: Some("203.0.113.9".to_string()),
+                    user_agent: Some("front-desk-tablet".to_string()),
+                },
+                async {
+                    let mut event = crate::models::AuditEvent {
+                        action: "ping",
+                        resource_type: "system",
+                        ..Default::default()
+                    };
+                    super::apply_request_meta(&mut event);
+                    assert_eq!(event.ip_address.as_deref(), Some("203.0.113.9"));
+                    assert_eq!(event.user_agent.as_deref(), Some("front-desk-tablet"));
+                },
+            )
+            .await;
     }
 }

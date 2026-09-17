@@ -294,6 +294,18 @@
   "audit": {
     "title": "Log Audit",
     "subtitle": "Rekod kronologi setiap tindakan di seluruh hartanah — diasingkan mengikut strim aktiviti.",
+    "immutableNote": "Log tambah-sahaja, baca sahaja. Peristiwa tidak boleh disunting atau dipadam.",
+    "timezoneLabel": "Masa dipaparkan dalam zon hotel ({{zone}})",
+    "actorFilter": "Pelaku",
+    "actionFilter": "Tindakan",
+    "allUsers": "Semua pengguna",
+    "expandEvent": "Tunjuk butiran peristiwa",
+    "collapseEvent": "Sembunyikan butiran peristiwa",
+    "openResource": "Buka {{ref}}",
+    "loadError": "Log audit tidak dapat dimuatkan",
+    "loadErrorHint": "Periksa sambungan anda dan cuba lagi.",
+    "emptyTitleNone": "Belum ada peristiwa direkodkan",
+    "emptyDescriptionNone": "Tindakan yang mengubah data hartanah akan muncul di sini.",
     "crumbs": {
       "settings": "Tetapan",
       "security": "Keselamatan"
@@ -306,6 +318,9 @@
     "filterByTimestamp": "Tapis mengikut masa",
     "presets": {
       "today": "Hari ini",
+      "thisShift": "Syif ini",
+      "lastNightAudit": "Audit malam lepas",
+      "thisMonth": "Bulan ini",
       "lastNDays_other": "{{count}} hari lalu",
       "allTime": "Sepanjang masa"
     },
@@ -340,6 +355,9 @@
       "user": "Pengguna",
       "guest": "Tetamu",
       "booking": "Tempahan",
+      "payment": "Bayaran",
+      "customer_ledger": "Folio",
+      "invoice": "Invois",
       "room": "Bilik",
       "user_role": "Peranan Pengguna",
       "system_setting": "Tetapan",
@@ -365,6 +383,14 @@
       "check": "Disemak"
     },
     "cat": {
+      "all": {
+        "name": "Semua aktiviti",
+        "sub": "Setiap strim"
+      },
+      "other": {
+        "name": "Lain-lain",
+        "sub": "Peristiwa tidak dipetakan"
+      },
       "rooms": {
         "name": "Aktiviti Bilik",
         "sub": "Inventori & status"
@@ -396,6 +422,13 @@
       "booking_voided": "Tempahan Dibatalkan",
       "booking_checkin": "Tetamu Daftar Masuk",
       "booking_checkout": "Tetamu Daftar Keluar",
+      "payment_created": "Bayaran Dicipta",
+      "payment_recorded": "Bayaran Direkod",
+      "payment_voided": "Bayaran Dibatalkan",
+      "payment_refunded": "Bayaran Dipulangkan",
+      "customer_ledger_voided": "Folio Dibatalkan",
+      "customer_ledger_reversed": "Folio Dibalikkan",
+      "night_audit_run": "Audit Malam Dijalankan",
       "room_status_changed": "Status Bilik Diubah",
       "guest_created": "Tetamu Dicipta",
       "guest_updated": "Tetamu Dikemas Kini",
@@ -477,9 +510,21 @@
         "check": "Disemak"
       }
     },
+    "field": {
+      "roomId": "Bilik",
+      "status": "Status",
+      "checkIn": "Daftar masuk",
+      "checkOut": "Daftar keluar",
+      "paymentStatus": "Status bayaran",
+      "roomRate": "Kadar",
+      "roomNumber": "Nombor bilik",
+      "bookingNumber": "Tempahan"
+    },
     "pdf": {
       "reportTitle": "Laporan Log Audit",
       "generatedAt": "Dijana: {{time}}",
+      "exportedBy": "Dieksport oleh: {{user}}",
+      "truncated": "Menunjukkan {{count}} baris pertama yang sepadan.",
       "systemUser": "Sistem",
       "actionOnly": "Tindakan sahaja",
       "fieldChanges": "Perubahan medan",

@@ -25,6 +25,7 @@ import { useCurrency } from '../../../../../hooks/useCurrency';
 import { statusLabel, useTranslation } from '../../../../../i18n';
 import { formatHotelDateTime } from '../../../../../utils/date';
 import { compareMoney, isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
+import { Link } from '../../../../../router';
 
 interface WorkflowDialogProps {
   open: boolean;
@@ -255,6 +256,8 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                             color: "text.secondary"
                           }}>
                             {formatHotelDateTime(event.created_at)}
+                            {' · '}
+                            {t('workflow.actor', { name: event.actor_username || t('workflow.systemActor') })}
                             {event.status_from && event.status_to ? ` / ${statusLabel(t, 'booking', event.status_from)} → ${statusLabel(t, 'booking', event.status_to)}` : ''}
                           </Typography>
                           {event.description && (
@@ -278,6 +281,15 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
         )}
       </DialogContent>
       <DialogActions>
+        {booking?.id != null && (
+          <Button
+            component={Link}
+            to={`/audit-log?category=bookings&resource_id=${booking.id}`}
+            onClick={onClose}
+          >
+            {t('workflow.openAuditLog')}
+          </Button>
+        )}
         <Button onClick={onClose}>{t('common:actions.close')}</Button>
       </DialogActions>
     </Dialog>

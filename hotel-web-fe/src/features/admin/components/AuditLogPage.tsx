@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -12,6 +12,9 @@ import {
   Menu,
   InputAdornment,
   Divider,
+  LinearProgress,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -25,7 +28,6 @@ import {
   MenuBook as BookingIcon,
   Settings as SystemIcon,
   Assessment as ReportIcon,
-  Person as PersonIcon,
   Computer as CronIcon,
   CalendarToday as CalIcon,
   FlagOutlined as ActionOnlyIcon,
@@ -36,18 +38,25 @@ import {
   AuditCategoryId,
 } from '../../../types/audit.types';
 import { getActionLabel, getResourceLabel } from '../../../types/audit.types';
+import { formatStatusLabel } from '../../../utils/formatters';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { LogoLoader } from '../../../components';
 import EmptyState from '../../../components/common/EmptyState';
 import {
+  useAuditActions,
   useAuditCategoryCounts,
   useAuditLogs,
+  useAuditUsers,
   useExportAuditCsv,
   useExportAuditPdf,
 } from '../hooks/useAuditQueries';
 import { errorMessage } from '../../../utils/errorMessage';
 import { useTranslation } from '../../../i18n';
 import { dateFormatter } from '../../../i18n/format';
+import { useAuth } from '../../../auth/AuthContext';
+import { Link, useSearchParams } from '../../../router';
+import { formatHotelDateTime, getHotelTimeZone, toHotelDateString, toHotelInstantIso } from '../../../utils/date';
+import { getHotelSetting } from '../../../utils/hotelSettings';
 
 /* ---------- Design tokens — aliases onto the global --hotel-* vars ---------- */
 const T = {
@@ -90,12 +99,16 @@ interface CatDef {
 }
 
 const CATEGORIES: CatDef[] = [
+  { id: 'all', nameKey: 'admin:audit.cat.all.name', subKey: 'admin:audit.cat.all.sub', Icon: InboxIcon, acc: T.ink, accDeep: T.ink, accSoft: T.slateSoft },
   { id: 'rooms', nameKey: 'admin:audit.cat.rooms.name', subKey: 'admin:audit.cat.rooms.sub', Icon: RoomIcon, acc: T.emerald, accDeep: T.emerald, accSoft: T.emeraldSoft },
   { id: 'guests', nameKey: 'admin:audit.cat.guests.name', subKey: 'admin:audit.cat.guests.sub', Icon: GuestIcon, acc: T.blue, accDeep: T.blue, accSoft: T.blueSoft },
   { id: 'bookings', nameKey: 'admin:audit.cat.bookings.name', subKey: 'admin:audit.cat.bookings.sub', Icon: BookingIcon, acc: T.violet, accDeep: T.violet, accSoft: T.violetSoft },
   { id: 'system', nameKey: 'admin:audit.cat.system.name', subKey: 'admin:audit.cat.system.sub', Icon: SystemIcon, acc: T.amber, accDeep: T.amber, accSoft: T.amberSoft },
   { id: 'reports', nameKey: 'admin:audit.cat.reports.name', subKey: 'admin:audit.cat.reports.sub', Icon: ReportIcon, acc: T.teal, accDeep: T.teal, accSoft: T.tealSoft },
+  { id: 'other', nameKey: 'admin:audit.cat.other.name', subKey: 'admin:audit.cat.other.sub', Icon: InboxIcon, acc: T.ink3, accDeep: T.ink2, accSoft: T.slateSoft },
 ];
+
+const CATEGORY_IDS: AuditCategoryId[] = CATEGORIES.map((c) => c.id);
 
 type Verb = 'create' | 'update' | 'delete' | 'view' | 'run' | 'export' | 'check';
 
@@ -132,31 +145,65 @@ function deriveVerb(action: string): Verb {
 }
 
 const PAD = (n: number) => String(n).padStart(2, '0');
-const TIME_FMT: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
-const DATE_FMT: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
 const DAY_FMT: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' };
 const DAY_YEAR_FMT: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
-const STAMP_FMT: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false };
-const fmtTime = (iso: string) => dateFormatter(TIME_FMT).format(new Date(iso));
-const fmtDate = (iso: string) => dateFormatter(DATE_FMT).format(new Date(iso));
-const dayDiff = (d: Date) => {
-  const today = new Date();
-  const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const td = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  return Math.round((td.getTime() - dd.getTime()) / 86400000);
-};
 const initials = (nm: string) =>
   nm.split(/[\s._-]+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
-/** Format a Date as a value for <input type="datetime-local"> (local time). */
-const toLocalInput = (d: Date) =>
-  `${d.getFullYear()}-${PAD(d.getMonth() + 1)}-${PAD(d.getDate())}T${PAD(d.getHours())}:${PAD(d.getMinutes())}`;
-/** Compact label for a chosen timestamp bound. */
-const shortStamp = (v?: string) => (v ? dateFormatter(STAMP_FMT).format(new Date(v)) : '');
+const isoToHotelInput = (iso?: string) => {
+  if (!iso) return '';
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(iso)) return iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: getHotelTimeZone(),
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(d).map((p) => [p.type, p.value]),
+  );
+  const hour = parts.hour === '24' ? '00' : parts.hour;
+  return `${parts.year}-${parts.month}-${parts.day}T${hour}:${parts.minute}`;
+};
 
-// Deterministic sparkline bars per category (visual only)
-const sparkBars = (seed: number) =>
-  Array.from({ length: 12 }, (_, k) => 0.3 + 0.7 * Math.abs(Math.sin((seed + 1) * 0.7 + k * 0.55)));
+const hotelInputToIso = (value?: string) => {
+  if (!value) return undefined;
+  const [date, time] = value.split('T');
+  if (!date) return undefined;
+  const [h, m] = (time || '00:00').split(':').map(Number);
+  return toHotelInstantIso(date, h || 0, m || 0) ?? undefined;
+};
+
+const addCalendarDays = (dateStr: string, days: number) => {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, mo - 1, d + days);
+  return `${dt.getFullYear()}-${PAD(dt.getMonth() + 1)}-${PAD(dt.getDate())}`;
+};
+
+const resourceHref = (type: string, id: number | null, details: Record<string, unknown> | null) => {
+  if ((type === 'booking' || type === 'bookings') && id != null) return `/bookings/${id}`;
+  if ((type === 'guest' || type === 'guests') && id != null) return `/guest-relations/guests/${id}`;
+  const bookingId = details?.booking_id;
+  if ((type === 'payment' || type === 'invoice' || type === 'customer_ledger') && (typeof bookingId === 'number' || typeof bookingId === 'string')) {
+    return `/bookings/${bookingId}`;
+  }
+  return null;
+};
+
+const FIELD_LABEL_KEYS: Record<string, string> = {
+  room_id: 'admin:audit.field.roomId',
+  status: 'admin:audit.field.status',
+  check_in_date: 'admin:audit.field.checkIn',
+  check_out_date: 'admin:audit.field.checkOut',
+  payment_status: 'admin:audit.field.paymentStatus',
+  room_rate: 'admin:audit.field.roomRate',
+  room_number: 'admin:audit.field.roomNumber',
+  booking_number: 'admin:audit.field.bookingNumber',
+};
 
 type DetailRecord = Record<string, unknown>;
 type ChangeRow = { k: string; from: string; to: string };
@@ -289,23 +336,49 @@ function analyzeDetails(details: DetailRecord | null): { changes: ChangeRow[]; m
 
 
 const AuditLogPage: React.FC = () => {
-  const { t } = useTranslation('admin');
-  const [activeCat, setActiveCat] = useState<AuditCategoryId>('rooms');
-  const [verbFilter, setVerbFilter] = useState<Verb | 'all'>('all');
-  const [searchInput, setSearchInput] = useState('');
+  const { t, tOr } = useTranslation('admin');
+  const { hasPermission } = useAuth();
+  const canExport = hasPermission('audit:export');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchInput, setSearchInput] = useState(searchParams.get('q') || '');
   const [openIds, setOpenIds] = useState<Record<number, boolean>>({});
-
-  // Timestamp-range picker
   const [dateAnchor, setDateAnchor] = useState<null | HTMLElement>(null);
   const [draftStart, setDraftStart] = useState('');
   const [draftEnd, setDraftEnd] = useState('');
 
-  const [query, setQuery] = useState<AuditLogQuery>({
-    page: 1,
-    page_size: 25,
-    sort_by: 'created_at',
-    sort_order: 'desc',
-  });
+  const patchParams = useCallback((patch: Record<string, string | undefined>) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(patch).forEach(([key, value]) => {
+      if (value == null || value === '') next.delete(key);
+      else next.set(key, value);
+    });
+    if (patch.category !== undefined || patch.q !== undefined || patch.from !== undefined || patch.to !== undefined || patch.user_id !== undefined || patch.action !== undefined || patch.resource_id !== undefined) {
+      next.delete('page');
+    }
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const rawCat = searchParams.get('category') as AuditCategoryId | null;
+  const activeCat: AuditCategoryId = rawCat && CATEGORY_IDS.includes(rawCat) ? rawCat : 'all';
+  const query: AuditLogQuery = useMemo(() => {
+    const userId = searchParams.get('user_id');
+    const resourceId = searchParams.get('resource_id');
+    const page = Number(searchParams.get('page') || '1');
+    const pageSize = Number(searchParams.get('page_size') || '25');
+    return {
+      page: Number.isFinite(page) && page > 0 ? page : 1,
+      page_size: [25, 50, 100].includes(pageSize) ? pageSize : 25,
+      sort_by: 'created_at',
+      sort_order: 'desc',
+      search: searchParams.get('q') || undefined,
+      action: searchParams.get('action') || undefined,
+      user_id: userId ? Number(userId) : undefined,
+      resource_id: resourceId ? Number(resourceId) : undefined,
+      start_date: searchParams.get('from') || undefined,
+      end_date: searchParams.get('to') || undefined,
+      category: activeCat === 'all' ? undefined : activeCat,
+    };
+  }, [searchParams, activeCat]);
 
   const logQuery = useMemo(
     () => ({ ...query, category: activeCat }),
@@ -321,57 +394,47 @@ const AuditLogPage: React.FC = () => {
   );
   const auditLogsQuery = useAuditLogs(logQuery);
   const countsQuery = useAuditCategoryCounts(countQuery);
+  const usersQuery = useAuditUsers();
+  const actionsQuery = useAuditActions();
   const exportCsvMutation = useExportAuditCsv();
   const exportPdfMutation = useExportAuditPdf();
   const logs = useMemo(() => auditLogsQuery.data?.data ?? [], [auditLogsQuery.data]);
   const total = auditLogsQuery.data?.total ?? 0;
   const counts = countsQuery.data ?? null;
   const loading = auditLogsQuery.isPending;
+  const fetching = auditLogsQuery.isFetching;
+  const loadError = auditLogsQuery.isError;
   const exporting = exportCsvMutation.isPending || exportPdfMutation.isPending;
 
-  // debounce search into the query
   useEffect(() => {
-    const t = setTimeout(() => {
+    const handle = setTimeout(() => {
       if (searchInput !== (query.search || '')) {
-        setQuery((p) => ({ ...p, search: searchInput || undefined, page: 1 }));
+        patchParams({ q: searchInput || undefined });
       }
     }, 500);
-    return () => clearTimeout(t);
-  }, [searchInput, query.search]);
+    return () => clearTimeout(handle);
+  }, [searchInput, query.search, patchParams]);
 
-  // reset verb + expansion when switching streams
   useEffect(() => {
-    setVerbFilter('all');
     setOpenIds({});
-    setQuery((p) => ({ ...p, page: 1 }));
   }, [activeCat]);
 
-  // verb filter is a client-side refinement of the fetched page
-  const pageRows = useMemo(
-    () => (verbFilter === 'all' ? logs : logs.filter((l) => deriveVerb(l.action) === verbFilter)),
-    [logs, verbFilter]
-  );
-
-  const availableVerbs = useMemo(() => {
-    const set = new Set<Verb>();
-    logs.forEach((l) => set.add(deriveVerb(l.action)));
-    return ['all', ...Array.from(set)] as ('all' | Verb)[];
-  }, [logs]);
+  const pageRows = logs;
 
   const grouped = useMemo(() => {
     const byDay: Record<string, AuditLogEntry[]> = {};
     pageRows.forEach((e) => {
-      const k = e.created_at.slice(0, 10);
+      const k = toHotelDateString(e.created_at) || e.created_at.slice(0, 10);
       (byDay[k] ||= []).push(e);
     });
     return Object.entries(byDay).sort((a, b) => b[0].localeCompare(a[0]));
   }, [pageRows]);
 
   const fmtDayLabel = (key: string): string => {
-    const d = new Date(key + 'T00:00:00');
-    const diff = dayDiff(d);
-    if (diff === 0) return t('audit.todayLine', { date: dateFormatter(DAY_FMT).format(d) });
-    if (diff === 1) return t('audit.yesterdayLine', { date: dateFormatter(DAY_FMT).format(d) });
+    const hotelToday = toHotelDateString(new Date());
+    const d = new Date(`${key}T00:00:00`);
+    if (key === hotelToday) return t('audit.todayLine', { date: dateFormatter(DAY_FMT).format(d) });
+    if (key === addCalendarDays(hotelToday, -1)) return t('audit.yesterdayLine', { date: dateFormatter(DAY_FMT).format(d) });
     return dateFormatter(DAY_YEAR_FMT).format(d);
   };
 
@@ -379,29 +442,54 @@ const AuditLogPage: React.FC = () => {
   const pageSize = query.page_size || 25;
   const curPage = query.page || 1;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hotelZone = getHotelTimeZone();
 
   const hasDateRange = !!(query.start_date || query.end_date);
   const dateLabel = hasDateRange
-    ? t('audit.range', { start: shortStamp(query.start_date) || '…', end: shortStamp(query.end_date) || t('audit.rangeNow') })
+    ? t('audit.range', { start: isoToHotelInput(query.start_date) || '…', end: isoToHotelInput(query.end_date) || t('audit.rangeNow') })
     : t('audit.allDates');
+  const hasFilters = !!(query.search || query.action || query.user_id || query.resource_id || hasDateRange || activeCat !== 'all');
 
   const openDateMenu = (e: React.MouseEvent<HTMLElement>) => {
-    setDraftStart(query.start_date || '');
-    setDraftEnd(query.end_date || '');
+    setDraftStart(isoToHotelInput(query.start_date));
+    setDraftEnd(isoToHotelInput(query.end_date));
     setDateAnchor(e.currentTarget);
   };
   const applyRange = (start?: string, end?: string) => {
-    setQuery((p) => ({ ...p, start_date: start || undefined, end_date: end || undefined, page: 1 }));
+    patchParams({ from: hotelInputToIso(start), to: hotelInputToIso(end) });
     setDateAnchor(null);
   };
   const applyPreset = (days: number) => {
-    const now = new Date();
-    const from = new Date(now.getTime() - days * 86400000);
-    applyRange(toLocalInput(from), toLocalInput(now));
+    const nowInput = isoToHotelInput(new Date().toISOString());
+    const [today] = nowInput.split('T');
+    applyRange(`${addCalendarDays(today, -days)}T00:00`, nowInput);
   };
   const applyToday = () => {
-    const now = new Date();
-    applyRange(toLocalInput(new Date(now.getFullYear(), now.getMonth(), now.getDate())), toLocalInput(now));
+    const nowInput = isoToHotelInput(new Date().toISOString());
+    const [today] = nowInput.split('T');
+    applyRange(`${today}T00:00`, nowInput);
+  };
+  const applyThisMonth = () => {
+    const nowInput = isoToHotelInput(new Date().toISOString());
+    const [today] = nowInput.split('T');
+    applyRange(`${today.slice(0, 8)}01T00:00`, nowInput);
+  };
+  const applyShiftWindow = (kind: 'current' | 'lastAudit') => {
+    const nowInput = isoToHotelInput(new Date().toISOString());
+    const [today, time] = nowInput.split('T');
+    const [nh, nm] = String(getHotelSetting('night_shift_time') || '23:00').split(':').map(Number);
+    const shift = `${PAD(nh || 23)}:${PAD(nm || 0)}`;
+    const nowMins = (() => {
+      const [h, m] = (time || '00:00').split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    })();
+    const shiftMins = (nh || 23) * 60 + (nm || 0);
+    const lastShiftDate = nowMins >= shiftMins ? today : addCalendarDays(today, -1);
+    if (kind === 'current') {
+      applyRange(`${lastShiftDate}T${shift}`, nowInput);
+      return;
+    }
+    applyRange(`${addCalendarDays(lastShiftDate, -1)}T${shift}`, `${lastShiftDate}T${shift}`);
   };
 
   const handleExportCSV = async () => {
@@ -420,6 +508,12 @@ const AuditLogPage: React.FC = () => {
       emitApiNotification({ message: errorMessage(e, t('audit.errors.exportPdf')), severity: 'error' });
     }
   };
+  const countFor = (id: AuditCategoryId) => {
+    if (!counts) return 0;
+    if (id === 'all') return counts.total;
+    return counts[id] ?? 0;
+  };
+  const fieldLabel = (key: string) => (FIELD_LABEL_KEYS[key] ? t(FIELD_LABEL_KEYS[key]) : tOr(`audit.field.${key}`, formatStatusLabel(key)));
 
   return (
     <Box sx={{ p: 3, maxWidth: 1480, mx: 'auto', bgcolor: 'var(--hotel-bg)', minHeight: '100%' }}>
@@ -435,32 +529,40 @@ const AuditLogPage: React.FC = () => {
           <Typography sx={{ fontSize: 13, color: T.ink3, mt: 0.5 }}>
             {t('audit.subtitle')}
           </Typography>
+          <Typography sx={{ fontSize: 12, color: T.ink3, mt: 0.5 }}>
+            {t('audit.immutableNote')} · {t('audit.timezoneLabel', { zone: hotelZone })}
+          </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { auditLogsQuery.refetch(); countsQuery.refetch(); }} disabled={loading}
             sx={{ textTransform: 'none', borderColor: T.border, color: T.ink }}>
             {t('common:actions.refresh')}
           </Button>
-          <Button variant="outlined" startIcon={<PdfIcon />} onClick={handleExportPDF} disabled={exporting || loading}
-            sx={{ textTransform: 'none', borderColor: T.border, color: T.ink }}>
-            {t('audit.exportPdf')}
-          </Button>
-          <Button variant="contained" startIcon={<DownloadIcon />} onClick={handleExportCSV} disabled={exporting || loading}
-            sx={{ textTransform: 'none', bgcolor: 'var(--hotel-primary)', '&:hover': { bgcolor: 'var(--hotel-primary-hover)' } }}>
-            {t('audit.export')}
-          </Button>
+          {canExport && (
+            <>
+              <Button variant="outlined" startIcon={<PdfIcon />} onClick={handleExportPDF} disabled={exporting || loading}
+                sx={{ textTransform: 'none', borderColor: T.border, color: T.ink }}>
+                {t('audit.exportPdf')}
+              </Button>
+              <Button variant="contained" startIcon={<DownloadIcon />} onClick={handleExportCSV} disabled={exporting || loading}
+                sx={{ textTransform: 'none', bgcolor: 'var(--hotel-primary)', '&:hover': { bgcolor: 'var(--hotel-primary-hover)' } }}>
+                {t('audit.export')}
+              </Button>
+            </>
+          )}
         </Box>
       </Box>
       {/* Category rail */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(5,1fr)' }, gap: 1.25, mb: 2 }}>
-        {CATEGORIES.map((cat, i) => {
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(4,1fr)', lg: 'repeat(7,1fr)' }, gap: 1.25, mb: 2 }}>
+        {CATEGORIES.map((cat) => {
           const on = cat.id === activeCat;
-          const n = counts ? counts[cat.id] ?? 0 : 0;
+          const n = countFor(cat.id);
           return (
             <Box
               key={cat.id}
               component="button"
-              onClick={() => setActiveCat(cat.id)}
+              aria-pressed={on}
+              onClick={() => patchParams({ category: cat.id === 'all' ? undefined : cat.id })}
               sx={{
                 position: 'relative', textAlign: 'left', cursor: 'pointer',
                 bgcolor: T.surface, border: `1px solid ${on ? T.ink : T.border}`,
@@ -487,11 +589,6 @@ const AuditLogPage: React.FC = () => {
                 <Box sx={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{n}</Box>
                 <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' }}>{t('audit.events')}</Box>
               </Box>
-              <Box sx={{ mt: 1.125, display: 'flex', alignItems: 'flex-end', gap: '2px', height: 22 }}>
-                {sparkBars(i).map((h, k) => (
-                  <Box key={k} sx={{ flex: 1, minHeight: 3, height: `${4 + h * 18}px`, borderRadius: '2px', bgcolor: on ? cat.acc : cat.accSoft, opacity: on ? 0.85 : 1 }} />
-                ))}
-              </Box>
             </Box>
           );
         })}
@@ -505,29 +602,45 @@ const AuditLogPage: React.FC = () => {
           placeholder={t('audit.searchPlaceholder')}
           sx={{ flex: { xs: '1 1 100%', sm: 1 }, minWidth: { xs: 0, sm: 280 }, bgcolor: T.surface, '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
           slotProps={{
-            input: { startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>) }
+            htmlInput: { 'aria-label': t('audit.searchPlaceholder') },
+            input: {
+              startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>),
+            }
           }}
         />
-        <Box sx={{ display: 'inline-flex', maxWidth: '100%', overflowX: 'auto', scrollbarWidth: 'none', bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '9px', p: '3px', '&::-webkit-scrollbar': { display: 'none' } }}>
-          {availableVerbs.map((v) => {
-            const sel = verbFilter === v;
-            return (
-              <Box key={v} component="button" onClick={() => setVerbFilter(v as Verb | 'all')}
-                sx={{
-                  px: 1.25, py: 0.75, fontSize: 12, fontWeight: 600, borderRadius: '6px', cursor: 'pointer',
-                  border: 'none', color: sel ? 'var(--hotel-bg)' : T.ink3, bgcolor: sel ? T.ink : 'transparent',
-                  '&:hover': { color: sel ? 'var(--hotel-bg)' : T.ink },
-                }}>
-                {v === 'all' ? t('audit.allActions') : t(VERB_LABEL_KEYS[v as Verb])}
-              </Box>
-            );
-          })}
-        </Box>
+        <FormControl size="small" sx={{ minWidth: 160, bgcolor: T.surface }}>
+          <InputLabel id="audit-actor-label">{t('audit.actorFilter')}</InputLabel>
+          <Select
+            labelId="audit-actor-label"
+            label={t('audit.actorFilter')}
+            value={query.user_id != null ? String(query.user_id) : ''}
+            onChange={(e) => patchParams({ user_id: e.target.value === '' ? undefined : String(e.target.value) })}
+          >
+            <MenuItem value="">{t('audit.allUsers')}</MenuItem>
+            {(usersQuery.data ?? []).map((user) => (
+              <MenuItem key={user.id} value={String(user.id)}>{user.username}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 180, bgcolor: T.surface }}>
+          <InputLabel id="audit-action-label">{t('audit.actionFilter')}</InputLabel>
+          <Select
+            labelId="audit-action-label"
+            label={t('audit.actionFilter')}
+            value={query.action ?? ''}
+            onChange={(e) => patchParams({ action: e.target.value === '' ? undefined : String(e.target.value) })}
+          >
+            <MenuItem value="">{t('audit.allActions')}</MenuItem>
+            {(actionsQuery.data ?? []).map((action) => (
+              <MenuItem key={action} value={action}>{getActionLabel(action).labelKey ? t(getActionLabel(action).labelKey as string) : getActionLabel(action).label}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
         <Box
           component="button"
           onClick={openDateMenu}
           sx={{
-            display: 'inline-flex', alignItems: 'center', gap: 0.625, cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 0.625, cursor: 'pointer', minHeight: 40,
             bgcolor: hasDateRange ? T.ink : T.surface, color: hasDateRange ? 'var(--hotel-bg)' : T.ink2,
             border: `1px solid ${hasDateRange ? T.ink : T.border}`, borderRadius: 999,
             px: 1.5, py: 0.75, fontSize: 12, fontWeight: 600,
@@ -548,6 +661,9 @@ const AuditLogPage: React.FC = () => {
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
             {[
               { lb: t('audit.presets.today'), fn: applyToday },
+              { lb: t('audit.presets.thisShift'), fn: () => applyShiftWindow('current') },
+              { lb: t('audit.presets.lastNightAudit'), fn: () => applyShiftWindow('lastAudit') },
+              { lb: t('audit.presets.thisMonth'), fn: applyThisMonth },
               { lb: t('audit.presets.lastNDays', { count: 7 }), fn: () => applyPreset(7) },
               { lb: t('audit.presets.lastNDays', { count: 30 }), fn: () => applyPreset(30) },
               { lb: t('audit.presets.allTime'), fn: () => applyRange(undefined, undefined) },
@@ -601,13 +717,21 @@ const AuditLogPage: React.FC = () => {
           </Box>
         </Box>
 
+        {fetching && !loading && <LinearProgress sx={{ height: 2 }} />}
         {loading ? (
           <LogoLoader variant="page" />
+        ) : loadError ? (
+          <EmptyState
+            icon={<InboxIcon />}
+            title={t('audit.loadError')}
+            description={errorMessage(auditLogsQuery.error, t('audit.loadErrorHint'))}
+            action={<Button onClick={() => auditLogsQuery.refetch()}>{t('common:actions.retry')}</Button>}
+          />
         ) : grouped.length === 0 ? (
           <EmptyState
             icon={<InboxIcon />}
-            title={t('audit.emptyTitle')}
-            description={t('audit.emptyDescription')}
+            title={hasFilters ? t('audit.emptyTitle') : t('audit.emptyTitleNone')}
+            description={hasFilters ? t('audit.emptyDescription') : t('audit.emptyDescriptionNone')}
           />
         ) : (
           grouped.map(([day, rows]) => (
@@ -636,7 +760,17 @@ const AuditLogPage: React.FC = () => {
                 return (
                   <Box key={r.id}>
                     <Box
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={open}
+                      aria-label={open ? t('audit.collapseEvent') : t('audit.expandEvent')}
                       onClick={() => setOpenIds((s) => ({ ...s, [r.id]: !s[r.id] }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setOpenIds((s) => ({ ...s, [r.id]: !s[r.id] }));
+                        }
+                      }}
                       sx={{
                         display: 'grid',
                         // xs previously read '16px 90px 1fr 110px': 216px of fixed
@@ -660,8 +794,7 @@ const AuditLogPage: React.FC = () => {
                     >
                       <ChevronRightIcon sx={{ fontSize: 16, color: T.ink3, mt: '3px', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 180ms' }} />
                       <Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: T.ink2, fontWeight: 600 }}>
-                        {fmtTime(r.created_at)}
-                        <Box sx={{ color: T.ink3, fontSize: 10.5, mt: '2px', fontWeight: 500 }}>{fmtDate(r.created_at)}</Box>
+                        {formatHotelDateTime(r.created_at)}
                       </Box>
                       <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, minWidth: 0 }}>
                         <Box sx={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: 10.5, fontWeight: 700, ...(isSys ? { bgcolor: T.slateSoft, color: T.ink2 } : { background: 'var(--hotel-success-bg)', color: 'var(--hotel-success)' }) }}>
@@ -693,11 +826,18 @@ const AuditLogPage: React.FC = () => {
                           </Box>
                           <br />
                           <Box component="span" sx={{ color: T.ink2 }}>{resLabel}</Box>
-                          {r.resource_id != null && (
-                            <Box component="span" sx={{ display: 'inline-block', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 700, bgcolor: T.surface3, color: T.ink2, px: 0.75, py: '1px', borderRadius: '5px', ml: 0.5 }}>
-                              #{r.resource_id}
-                            </Box>
-                          )}
+                          {(r.display_ref || r.resource_id != null) && (() => {
+                            const href = resourceHref(r.resource_type, r.resource_id, r.details);
+                            const label = r.display_ref || `#${r.resource_id}`;
+                            const chipSx = { display: 'inline-block', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 700, bgcolor: T.surface3, color: T.ink2, px: 0.75, py: '1px', borderRadius: '5px', ml: 0.5, textDecoration: 'none' } as const;
+                            return href ? (
+                              <Box component={Link} to={href} onClick={(e: React.MouseEvent) => e.stopPropagation()} sx={chipSx} aria-label={t('audit.openResource', { ref: label })}>
+                                {label}
+                              </Box>
+                            ) : (
+                              <Box component="span" sx={chipSx}>{label}</Box>
+                            );
+                          })()}
                         </Box>
                       </Box>
                       <Box sx={{ display: { xs: 'none', md: 'block' }, fontSize: 12, color: T.ink3, fontWeight: 500 }}>
@@ -718,12 +858,12 @@ const AuditLogPage: React.FC = () => {
                           <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>{t('audit.eventDetails')}</Box>
                           <Box sx={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '6px 12px', fontSize: 12.5 }}>
                             <Box sx={{ color: T.ink3 }}>{t('audit.eventId')}</Box><Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>#{r.id}</Box>
-                            <Box sx={{ color: T.ink3 }}>{t('audit.timestamp')}</Box><Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>{fmtDate(r.created_at)} · {fmtTime(r.created_at)}</Box>
+                            <Box sx={{ color: T.ink3 }}>{t('audit.timestamp')}</Box><Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>{formatHotelDateTime(r.created_at)} ({hotelZone})</Box>
                             <Box sx={{ color: T.ink3 }}>{t('audit.actor')}</Box><Box sx={{ fontWeight: 600 }}>{r.username || t('audit.system')} <Box component="span" sx={{ color: T.ink3, fontWeight: 500 }}>{r.user_id != null ? t('audit.userIdParen', { id: r.user_id }) : t('audit.automatedParen')}</Box></Box>
                             <Box sx={{ color: T.ink3 }}>{t('audit.stream')}</Box><Box sx={{ fontWeight: 600, textTransform: 'capitalize' }}>{r.category || activeCat}</Box>
                             <Box sx={{ color: T.ink3 }}>{t('audit.ip')}</Box><Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>{r.ip_address || '—'}</Box>
                             <Box sx={{ color: T.ink3 }}>{t('audit.source')}</Box><Box sx={{ fontWeight: 600, wordBreak: 'break-word' }}>{r.user_agent || t('audit.server')}</Box>
-                            <Box sx={{ color: T.ink3 }}>{t('audit.resourceLabel')}</Box><Box sx={{ fontWeight: 600 }}>{resLabel}{r.resource_id != null ? ` #${r.resource_id}` : ''}</Box>
+                            <Box sx={{ color: T.ink3 }}>{t('audit.resourceLabel')}</Box><Box sx={{ fontWeight: 600 }}>{resLabel}{r.display_ref ? ` ${r.display_ref}` : r.resource_id != null ? ` #${r.resource_id}` : ''}</Box>
                           </Box>
                         </Box>
                         <Box>
@@ -732,7 +872,7 @@ const AuditLogPage: React.FC = () => {
                             <Box sx={{ bgcolor: T.surface2, border: `1px solid ${T.border}`, borderRadius: '9px', overflow: 'hidden', fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5 }}>
                               {detailAnalysis.changes.map((d, i) => (
                                 <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr', gap: 1.25, p: '6px 10px', borderBottom: i < detailAnalysis.changes.length - 1 ? `1px solid ${T.border}` : 'none' }}>
-                                  <Box sx={{ color: T.ink3, fontWeight: 600 }}>{d.k}</Box>
+                                  <Box sx={{ color: T.ink3, fontWeight: 600 }}>{fieldLabel(d.k)}</Box>
                                   <Box sx={{ color: T.rose, textDecoration: 'line-through', textDecorationColor: 'var(--hotel-danger-border)' }}>{d.from}</Box>
                                   <Box sx={{ color: 'var(--hotel-success)', fontWeight: 700 }}><Box component="span" sx={{ color: T.ink4, px: 0.5 }}>→</Box>{d.to}</Box>
                                 </Box>
@@ -750,7 +890,7 @@ const AuditLogPage: React.FC = () => {
                               <Box sx={{ bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '9px', overflow: 'hidden', fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5 }}>
                                 {detailAnalysis.metadata.map((d, i) => (
                                   <Box key={d.k} sx={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 1.25, p: '6px 10px', borderBottom: i < detailAnalysis.metadata.length - 1 ? `1px solid ${T.border}` : 'none' }}>
-                                    <Box sx={{ color: T.ink3, fontWeight: 600 }}>{d.k}</Box>
+                                    <Box sx={{ color: T.ink3, fontWeight: 600 }}>{fieldLabel(d.k)}</Box>
                                     <Box sx={{ color: T.ink2, fontWeight: 600, wordBreak: 'break-word' }}>{d.v}</Box>
                                   </Box>
                                 ))}
@@ -777,15 +917,15 @@ const AuditLogPage: React.FC = () => {
           <Select
             size="small"
             value={pageSize}
-            onChange={(e) => setQuery((p) => ({ ...p, page_size: Number(e.target.value), page: 1 }))}
+            onChange={(e) => patchParams({ page_size: String(e.target.value), page: undefined })}
             sx={{ fontSize: 12, fontWeight: 600, '& .MuiSelect-select': { py: 0.5 } }}
           >
             {[25, 50, 100].map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
           </Select>
           <Box sx={{ display: 'inline-flex', gap: '2px', ml: 1.5 }}>
-            <IconButton size="small" disabled={curPage <= 1} onClick={() => setQuery((p) => ({ ...p, page: curPage - 1 }))} aria-label={t('common:pagination.previous')}>‹</IconButton>
+            <IconButton size="small" sx={{ width: 40, height: 40 }} disabled={curPage <= 1} onClick={() => patchParams({ page: String(curPage - 1) })} aria-label={t('common:pagination.previous')}>‹</IconButton>
             <Box sx={{ minWidth: 28, height: 28, borderRadius: '7px', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, bgcolor: T.ink, color: 'var(--hotel-bg)' }}>{curPage}</Box>
-            <IconButton size="small" disabled={curPage >= totalPages} onClick={() => setQuery((p) => ({ ...p, page: curPage + 1 }))} aria-label={t('common:pagination.next')}>›</IconButton>
+            <IconButton size="small" sx={{ width: 40, height: 40 }} disabled={curPage >= totalPages} onClick={() => patchParams({ page: String(curPage + 1) })} aria-label={t('common:pagination.next')}>›</IconButton>
           </Box>
         </Box>
       </Box>

@@ -464,6 +464,7 @@ pub struct BookingTimelineEntry {
     pub status_to: Option<String>,
     pub amount: Option<String>,
     pub actor_id: Option<i64>,
+    pub actor_username: Option<String>,
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }

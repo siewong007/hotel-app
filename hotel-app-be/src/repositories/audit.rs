@@ -89,13 +89,15 @@ impl AuditRepository {
     pub async fn list_logs(
         pool: &DbPool,
         params: &AuditLogQuery,
-        category_types: Option<&Vec<String>>,
+        category_types: Option<&[String]>,
+        invert_category: bool,
         sort_column: &str,
         sort_direction: &str,
         page_size: i64,
         offset: i64,
     ) -> Result<(i64, Vec<AuditLogRow>), ApiError> {
-        let (where_clause, bind_index) = build_log_where_clause(params, category_types, true);
+        let (where_clause, bind_index) =
+            build_log_where_clause(params, category_types, invert_category, true);
 
         let count_query = format!(
             r#"
@@ -134,6 +136,9 @@ impl AuditRepository {
         if let Some(ref resource_type) = params.resource_type {
             count_sqlx = count_sqlx.bind(resource_type.clone());
         }
+        if let Some(resource_id) = params.resource_id {
+            count_sqlx = count_sqlx.bind(resource_id);
+        }
         if let Some(ref start_date) = params.start_date {
             count_sqlx = count_sqlx.bind(start_date.clone());
         }
@@ -142,11 +147,12 @@ impl AuditRepository {
         }
         if let Some(ref search) = params.search {
             count_sqlx = count_sqlx.bind(format!("%{}%", search));
+            if let Ok(id) = search.parse::<i64>() {
+                count_sqlx = count_sqlx.bind(id);
+            }
         }
         if let Some(types) = category_types {
-            {
-                count_sqlx = count_sqlx.bind(types.clone());
-            }
+            count_sqlx = count_sqlx.bind(types.to_vec());
         }
 
         let total = count_sqlx
@@ -158,6 +164,7 @@ impl AuditRepository {
             sqlx::query_as::<_, AuditLogRow>(sqlx::AssertSqlSafe(&*data_query)),
             params,
             category_types,
+            invert_category,
         );
         data_sqlx = data_sqlx.bind(page_size);
         data_sqlx = data_sqlx.bind(offset);
@@ -249,15 +256,21 @@ impl AuditRepository {
     }
 
     pub async fn list_actions(pool: &DbPool) -> Result<Vec<String>, ApiError> {
-        sqlx::query_scalar::<_, String>("SELECT DISTINCT action FROM audit_logs ORDER BY action")
-            .fetch_all(pool)
-            .await
-            .map_err(|e| ApiError::Database(format!("Failed to fetch actions: {}", e)))
+        sqlx::query_scalar::<_, String>(
+            "SELECT DISTINCT action FROM audit_logs \
+             WHERE created_at >= CURRENT_TIMESTAMP - interval '180 days' \
+             ORDER BY action",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::Database(format!("Failed to fetch actions: {}", e)))
     }
 
     pub async fn list_resource_types(pool: &DbPool) -> Result<Vec<String>, ApiError> {
         sqlx::query_scalar::<_, String>(
-            "SELECT DISTINCT resource_type FROM audit_logs ORDER BY resource_type",
+            "SELECT DISTINCT resource_type FROM audit_logs \
+             WHERE created_at >= CURRENT_TIMESTAMP - interval '180 days' \
+             ORDER BY resource_type",
         )
         .fetch_all(pool)
         .await
@@ -267,9 +280,11 @@ impl AuditRepository {
     pub async fn list_logs_for_export(
         pool: &DbPool,
         params: &AuditLogQuery,
-        category_types: Option<&Vec<String>>,
+        category_types: Option<&[String]>,
+        invert_category: bool,
     ) -> Result<Vec<AuditLogRow>, ApiError> {
-        let (where_clause, _) = build_log_where_clause(params, category_types, false);
+        let (where_clause, _) =
+            build_log_where_clause(params, category_types, invert_category, false);
 
         let query = format!(
             r#"
@@ -288,10 +303,19 @@ impl AuditRepository {
             sqlx::query_as::<_, AuditLogRow>(sqlx::AssertSqlSafe(&*query)),
             params,
             category_types,
+            invert_category,
         )
         .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(format!("Failed to fetch audit logs: {}", e)))
+    }
+
+    pub async fn username_by_id(pool: &DbPool, user_id: i64) -> Result<Option<String>, ApiError> {
+        sqlx::query_scalar::<_, String>("SELECT username FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(format!("Failed to read exporter username: {}", e)))
     }
 
     pub async fn list_users(pool: &DbPool) -> Result<Vec<AuditUserOption>, ApiError> {
@@ -389,7 +413,8 @@ impl AuditRepository {
 
 fn build_log_where_clause(
     params: &AuditLogQuery,
-    category_types: Option<&Vec<String>>,
+    category_types: Option<&[String]>,
+    invert_category: bool,
     search_details: bool,
 ) -> (String, i32) {
     let mut where_clauses = Vec::new();
@@ -407,6 +432,10 @@ fn build_log_where_clause(
         where_clauses.push(format!("a.resource_type = ${}", bind_index));
         bind_index += 1;
     }
+    if params.resource_id.is_some() {
+        where_clauses.push(format!("a.resource_id = ${}", bind_index));
+        bind_index += 1;
+    }
     if params.start_date.is_some() {
         where_clauses.push(format!("a.created_at >= ${}::timestamptz", bind_index));
         bind_index += 1;
@@ -415,26 +444,35 @@ fn build_log_where_clause(
         where_clauses.push(format!("a.created_at <= ${}::timestamptz", bind_index));
         bind_index += 1;
     }
-    if params.search.is_some() {
+    if let Some(search) = params.search.as_deref() {
         let details_filter = if search_details {
             format!(" OR a.details::text ILIKE ${}", bind_index)
         } else {
             String::new()
         };
+        let id_filter = if search.parse::<i64>().is_ok() {
+            format!(" OR a.resource_id = ${}", bind_index + 1)
+        } else {
+            String::new()
+        };
         where_clauses.push(format!(
-            "(a.action ILIKE ${0} OR a.resource_type ILIKE ${0} OR u.username ILIKE ${0}{1})",
-            bind_index, details_filter
+            "(a.action ILIKE ${0} OR a.resource_type ILIKE ${0} OR u.username ILIKE ${0}{1}{2})",
+            bind_index, details_filter, id_filter
         ));
         bind_index += 1;
+        if search.parse::<i64>().is_ok() {
+            bind_index += 1;
+        }
     }
     if let Some(types) = category_types {
         if types.is_empty() {
             where_clauses.push("1 = 0".to_string());
+        } else if invert_category {
+            where_clauses.push(format!("NOT (a.resource_type = ANY(${}))", bind_index));
+            bind_index += 1;
         } else {
-            {
-                where_clauses.push(format!("a.resource_type = ANY(${})", bind_index));
-                bind_index += 1;
-            }
+            where_clauses.push(format!("a.resource_type = ANY(${})", bind_index));
+            bind_index += 1;
         }
     }
 
@@ -478,7 +516,8 @@ fn build_category_count_where_clause(params: &AuditLogQuery) -> (String, i32) {
 fn bind_log_filters<'q, O>(
     mut query: AuditQueryAs<'q, O>,
     params: &AuditLogQuery,
-    category_types: Option<&Vec<String>>,
+    category_types: Option<&[String]>,
+    _invert_category: bool,
 ) -> AuditQueryAs<'q, O> {
     if let Some(user_id) = params.user_id {
         query = query.bind(user_id);
@@ -489,6 +528,9 @@ fn bind_log_filters<'q, O>(
     if let Some(ref resource_type) = params.resource_type {
         query = query.bind(resource_type.clone());
     }
+    if let Some(resource_id) = params.resource_id {
+        query = query.bind(resource_id);
+    }
     if let Some(ref start_date) = params.start_date {
         query = query.bind(start_date.clone());
     }
@@ -497,11 +539,12 @@ fn bind_log_filters<'q, O>(
     }
     if let Some(ref search) = params.search {
         query = query.bind(format!("%{}%", search));
+        if let Ok(id) = search.parse::<i64>() {
+            query = query.bind(id);
+        }
     }
     if let Some(types) = category_types {
-        {
-            query = query.bind(types.clone());
-        }
+        query = query.bind(types.to_vec());
     }
 
     query

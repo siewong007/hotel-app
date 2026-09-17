@@ -1,13 +1,13 @@
 //! Guest business workflows.
 
+use super::repository::GuestRepository;
 use crate::constants::{GuestType, TourismType};
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::repository::GuestRepository;
+use crate::modules::bookings::auto_checkin;
 use crate::services::audit::AuditLog;
-use crate::modules::bookings::auto_checkin as auto_checkin;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 use regex::Regex;
@@ -163,7 +163,7 @@ pub async fn create_guest(
             action: "guest_created",
             resource_type: "guest",
             resource_id: Some(guest.id),
-            details: Some(serde_json::json!({"name": &guest.nick_name, "email": &guest.email})),
+            details: Some(serde_json::json!({"guest_id": guest.id})),
             ..Default::default()
         },
     )
@@ -191,8 +191,7 @@ const MAX_ID_COUNTRY_LEN: usize = 100;
 const MAX_GUEST_TAGS: usize = 20;
 const MAX_GUEST_TAG_LEN: usize = 50;
 /// Labels of the `public.identificationtype` enum backing `guests.id_type`.
-const VALID_GUEST_ID_TYPES: [&str; 4] =
-    ["passport", "drivers_license", "national_id", "other"];
+const VALID_GUEST_ID_TYPES: [&str; 4] = ["passport", "drivers_license", "national_id", "other"];
 
 pub async fn update_guest(
     pool: &DbPool,
@@ -377,7 +376,7 @@ pub async fn update_guest(
             action: "guest_updated",
             resource_type: "guest",
             resource_id: Some(guest_id),
-            details: Some(serde_json::json!({"name": &updated_guest.nick_name})),
+            details: Some(serde_json::json!({"guest_id": guest_id})),
             ..Default::default()
         },
     )

@@ -4,15 +4,15 @@ pub use super::*;
 
 use chrono::{DateTime, Utc};
 
+use super::helpers as booking_service;
 use crate::core::auth::AuthService;
 use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::models::{Booking, CheckInRequest};
 use crate::modules::bookings as booking_repo;
-use crate::services::audit::AuditLog;
-use super::helpers as booking_service;
 use crate::modules::payments::service as payments;
+use crate::services::audit::AuditLog;
 use crate::utils::sanitization::Sanitizer;
 use rust_decimal::Decimal;
 
@@ -110,7 +110,8 @@ pub async fn cancel_pending_booking_by_guest(
     booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
     booking_repo::void_uncompleted_booking_payments_tx(&mut tx, booking_id).await?;
     let change_reason = reason.as_deref().unwrap_or("Booking cancelled by guest");
-    booking_repo::void_booking_ledgers_tx(&mut tx, booking_id, Some(user_id), change_reason).await?;
+    booking_repo::void_booking_ledgers_tx(&mut tx, booking_id, Some(user_id), change_reason)
+        .await?;
     payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
 
     booking_repo::record_booking_history_tx(
@@ -749,6 +750,7 @@ async fn checkin_booking_flow_for_booking(
             resource_type: "booking",
             resource_id: Some(booking_id),
             details: Some(serde_json::json!({
+                "booking_number": booking.booking_number,
                 "guest_id": booking.guest_id,
                 "room_id": booking.room_id,
                 "source": context.source,
@@ -791,9 +793,10 @@ async fn checkin_booking_flow_for_booking(
     // failure is surfaced through structured logging (booking id + error) rather
     // than rolling back a completed check-in. If a stronger guarantee is ever
     // required, move it behind a transactional outbox instead of an inline call.
-    if let Err(e) =
-        crate::modules::night_audit::service::backfill_booking_posted_nights(pool, booking_id, user_id)
-            .await
+    if let Err(e) = crate::modules::night_audit::service::backfill_booking_posted_nights(
+        pool, booking_id, user_id,
+    )
+    .await
     {
         log::warn!(
             "Failed to backfill posted nights for booking {}: {}",

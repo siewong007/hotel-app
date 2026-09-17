@@ -238,7 +238,11 @@ describe('AuditService', () => {
     });
 
     it('fetches up to 10000 logs for the given filter and saves a PDF via jsPDF + autoTable', async () => {
-      const response = buildLogResponse({
+      const response = {
+        exported_by: 'admin',
+        exported_at: '2026-07-26T00:00:00Z',
+        truncated: false,
+        row_count: 1,
         data: [
           {
             id: 1,
@@ -255,13 +259,12 @@ describe('AuditService', () => {
             created_at: '2026-07-26T00:00:00Z',
           },
         ],
-      });
+      };
       get.mockReturnValue(mockJsonResponse(response));
 
       await AuditService.downloadPDF({ search: 'smith' });
 
-      // getAuditLogs is called internally with page=1, page_size=10000, merged with params.
-      expect(get).toHaveBeenCalledWith('audit-logs?search=smith&page=1&page_size=10000');
+      expect(get).toHaveBeenCalledWith('audit-logs/export/json?search=smith');
       expect(autoTableMock).toHaveBeenCalledTimes(1);
       expect(jsPdfSave).toHaveBeenCalledWith(expect.stringMatching(/^audit_logs_\d{4}-\d{2}-\d{2}\.pdf$/));
     });
@@ -271,7 +274,11 @@ describe('AuditService', () => {
       // the export pins translateFor('en', …). A refactor back to the
       // active-locale t() would emit zh copy here and render as mojibake.
       setActiveLocale('zh');
-      const response = buildLogResponse({
+      const response = {
+        exported_by: 'admin',
+        exported_at: '2026-07-26T00:00:00Z',
+        truncated: false,
+        row_count: 1,
         data: [
           {
             id: 1,
@@ -288,7 +295,7 @@ describe('AuditService', () => {
             created_at: '2026-07-26T00:00:00Z',
           },
         ],
-      });
+      };
       get.mockReturnValue(mockJsonResponse(response));
 
       await AuditService.downloadPDF({ search: 'smith' });

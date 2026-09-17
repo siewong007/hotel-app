@@ -294,6 +294,18 @@
   "audit": {
     "title": "审计日志",
     "subtitle": "按活动流分类的、覆盖整个酒店的操作时间线记录。",
+    "immutableNote": "只读、仅追加。事件无法编辑或删除。",
+    "timezoneLabel": "时间按酒店时区显示（{{zone}}）",
+    "actorFilter": "操作者",
+    "actionFilter": "操作",
+    "allUsers": "全部用户",
+    "expandEvent": "显示事件详情",
+    "collapseEvent": "隐藏事件详情",
+    "openResource": "打开 {{ref}}",
+    "loadError": "无法加载审计日志",
+    "loadErrorHint": "请检查网络后重试。",
+    "emptyTitleNone": "尚无事件",
+    "emptyDescriptionNone": "物业中的变更操作会显示在这里。",
     "crumbs": {
       "settings": "设置",
       "security": "安全"
@@ -306,6 +318,9 @@
     "filterByTimestamp": "按时间筛选",
     "presets": {
       "today": "今天",
+      "thisShift": "本班次",
+      "lastNightAudit": "上次夜审",
+      "thisMonth": "本月",
       "lastNDays_other": "最近 {{count}} 天",
       "allTime": "全部时间"
     },
@@ -340,6 +355,9 @@
       "user": "用户",
       "guest": "客人",
       "booking": "预订",
+      "payment": "付款",
+      "customer_ledger": "账单",
+      "invoice": "发票",
       "room": "客房",
       "user_role": "用户角色",
       "system_setting": "设置",
@@ -365,6 +383,14 @@
       "check": "已核对"
     },
     "cat": {
+      "all": {
+        "name": "全部活动",
+        "sub": "所有活动流"
+      },
+      "other": {
+        "name": "其他",
+        "sub": "未分类事件"
+      },
       "rooms": {
         "name": "客房活动",
         "sub": "库存与状态"
@@ -396,6 +422,13 @@
       "booking_voided": "预订已作废",
       "booking_checkin": "客人已入住",
       "booking_checkout": "客人已退房",
+      "payment_created": "已创建付款",
+      "payment_recorded": "已记录付款",
+      "payment_voided": "已作废付款",
+      "payment_refunded": "已退款",
+      "customer_ledger_voided": "已作废账单",
+      "customer_ledger_reversed": "已冲正账单",
+      "night_audit_run": "已运行夜审",
       "room_status_changed": "客房状态已变更",
       "guest_created": "客人已创建",
       "guest_updated": "客人已更新",
@@ -477,9 +510,21 @@
         "check": "已核对"
       }
     },
+    "field": {
+      "roomId": "客房",
+      "status": "状态",
+      "checkIn": "入住",
+      "checkOut": "退房",
+      "paymentStatus": "付款状态",
+      "roomRate": "房价",
+      "roomNumber": "房号",
+      "bookingNumber": "预订号"
+    },
     "pdf": {
       "reportTitle": "审计日志报告",
       "generatedAt": "生成时间：{{time}}",
+      "exportedBy": "导出人：{{user}}",
+      "truncated": "仅显示前 {{count}} 条匹配记录。",
       "systemUser": "系统",
       "actionOnly": "仅操作",
       "fieldChanges": "字段变更",

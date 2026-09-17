@@ -311,7 +311,10 @@
       "checkout": "退房",
       "checkoutVoid": "退房 / 作廢"
     },
-    "loadFailed": "預訂工作流程載入失敗"
+    "loadFailed": "預訂工作流程載入失敗",
+    "actor": "由 {{name}}",
+    "systemActor": "系統",
+    "openAuditLog": "在稽核紀錄中開啟"
   },
   "enhancedCheckIn": {
     "title": "散客 - 帳單：{{folio}}",

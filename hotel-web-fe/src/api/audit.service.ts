@@ -21,7 +21,8 @@ export class AuditService {
       if (params.user_id) searchParams.set('user_id', params.user_id.toString());
       if (params.action) searchParams.set('action', params.action);
       if (params.resource_type) searchParams.set('resource_type', params.resource_type);
-      if (params.category) searchParams.set('category', params.category);
+      if (params.resource_id) searchParams.set('resource_id', params.resource_id.toString());
+      if (params.category && params.category !== 'all') searchParams.set('category', params.category);
       if (params.start_date) searchParams.set('start_date', params.start_date);
       if (params.end_date) searchParams.set('end_date', params.end_date);
       if (params.search) searchParams.set('search', params.search);
@@ -101,7 +102,8 @@ export class AuditService {
       if (params.user_id) searchParams.set('user_id', params.user_id.toString());
       if (params.action) searchParams.set('action', params.action);
       if (params.resource_type) searchParams.set('resource_type', params.resource_type);
-      if (params.category) searchParams.set('category', params.category);
+      if (params.resource_id) searchParams.set('resource_id', params.resource_id.toString());
+      if (params.category && params.category !== 'all') searchParams.set('category', params.category);
       if (params.start_date) searchParams.set('start_date', params.start_date);
       if (params.end_date) searchParams.set('end_date', params.end_date);
       if (params.search) searchParams.set('search', params.search);
@@ -129,15 +131,37 @@ export class AuditService {
   }
 
   /**
+   * Rows for PDF/print — same cap and permission as CSV (`audit:export`).
+   */
+  static async exportRows(params?: AuditLogQuery): Promise<{
+    exported_by: string;
+    exported_at: string;
+    truncated: boolean;
+    row_count: number;
+    data: AuditLogResponse['data'];
+  }> {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      if (params.user_id) searchParams.set('user_id', params.user_id.toString());
+      if (params.action) searchParams.set('action', params.action);
+      if (params.resource_type) searchParams.set('resource_type', params.resource_type);
+      if (params.resource_id) searchParams.set('resource_id', params.resource_id.toString());
+      if (params.category && params.category !== 'all') searchParams.set('category', params.category);
+      if (params.start_date) searchParams.set('start_date', params.start_date);
+      if (params.end_date) searchParams.set('end_date', params.end_date);
+      if (params.search) searchParams.set('search', params.search);
+    }
+    const queryString = searchParams.toString();
+    const url = queryString ? `audit-logs/export/json?${queryString}` : 'audit-logs/export/json';
+    return await api.get(url).json();
+  }
+
+  /**
    * Generate PDF from current filter (client-side using jspdf)
    */
   static async downloadPDF(params?: AuditLogQuery): Promise<void> {
-    // Get all logs (up to 10000) for PDF export
-    const response = await this.getAuditLogs({
-      ...params,
-      page: 1,
-      page_size: 10000,
-    });
+    const exported = await this.exportRows(params);
+    const response = { data: exported.data };
 
     // Dynamic import of jspdf and jspdf-autotable.
     // jspdf-autotable v5 no longer augments the jsPDF prototype — it must be
@@ -159,7 +183,11 @@ export class AuditService {
 
     // Generated date
     doc.setFontSize(10);
-    doc.text(exportT('generatedAt', { time: formatHotelDateTime(new Date(), '-', 'en') }), 14, 28);
+    doc.text(exportT('generatedAt', { time: formatHotelDateTime(exported.exported_at, '-', 'en') }), 14, 28);
+    doc.text(exportT('exportedBy', { user: exported.exported_by }), 14, 33);
+    if (exported.truncated) {
+      doc.text(exportT('truncated', { count: exported.row_count }), 14, 38);
+    }
 
     // Table data
     const tableData = response.data.map((log) => [
@@ -177,7 +205,7 @@ export class AuditService {
 
     // Add table (jspdf-autotable v5 functional API)
     autoTable(doc, {
-      startY: 35,
+      startY: exported.truncated ? 44 : 40,
       head: [[
         exportT('col.timestamp'),
         exportT('col.user'),

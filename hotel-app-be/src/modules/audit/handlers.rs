@@ -9,7 +9,9 @@ use axum::{
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{AuditCategoryCounts, AuditLogQuery, AuditLogResponse, DbStatementsQuery};
+use crate::models::{
+    AuditCategoryCounts, AuditLogExportJson, AuditLogQuery, AuditLogResponse, DbStatementsQuery,
+};
 use crate::services::audit as audit_service;
 
 /// GET /audit-logs
@@ -50,6 +52,17 @@ pub async fn export_audit_logs_csv(
         )
         .body(axum::body::Body::from(csv_content))
         .unwrap())
+}
+
+/// GET /audit-logs/export/json
+pub async fn export_audit_logs_json(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Query(params): Query<AuditLogQuery>,
+) -> Result<Json<AuditLogExportJson>, ApiError> {
+    Ok(Json(
+        audit_service::export_audit_logs_json(&pool, user_id, params).await?,
+    ))
 }
 
 /// GET /audit-logs/users

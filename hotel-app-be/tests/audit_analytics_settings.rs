@@ -224,7 +224,7 @@ mod postgres_tests {
 
         // The list path: this is what `GET /api/audit-logs` runs.
         let (total, rows) =
-            AuditRepository::list_logs(&pool, &params, None, "created_at", "DESC", 50, 0)
+            AuditRepository::list_logs(&pool, &params, None, false, "created_at", "DESC", 50, 0)
                 .await
                 .expect("listing audit logs with a non-null inet row must not fail to decode");
         assert!(total >= 1, "the seeded row must be counted, got {total}");
@@ -239,7 +239,7 @@ mod postgres_tests {
         );
 
         // The export path: same SELECT, separate function, same bug class.
-        let exported = AuditRepository::list_logs_for_export(&pool, &params, None)
+        let exported = AuditRepository::list_logs_for_export(&pool, &params, None, false)
             .await
             .expect("exporting audit logs with a non-null inet row must not fail to decode");
         assert!(
@@ -409,6 +409,7 @@ mod postgres_tests {
                 action: None,
                 resource_type: Some(resource_type.to_string()),
                 category: None,
+                resource_id: None,
                 start_date: Some(start_date),
                 end_date: Some(end_date),
                 search: None,

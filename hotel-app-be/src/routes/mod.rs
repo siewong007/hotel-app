@@ -37,7 +37,7 @@ use crate::core::rate_limiter::RateLimiters;
 use crate::core::{AuthService, middleware};
 use axum::{
     Router,
-    extract::{Request, State},
+    extract::{ConnectInfo, Request, State},
     http::{Method, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -269,9 +269,25 @@ async fn record_request_metrics(request: Request, next: Next) -> Response {
     let method = request.method().clone();
     let path = request.uri().path().to_string();
     let started = std::time::Instant::now();
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|info| info.0)
+        .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 0)));
+    let audit_meta = crate::services::audit::RequestAuditMeta {
+        ip_address: Some(extract_client_ip(request.headers(), peer).to_string()),
+        user_agent: request
+            .headers()
+            .get(axum::http::header::USER_AGENT)
+            .and_then(|value| value.to_str().ok())
+            .map(|value| value.chars().take(512).collect()),
+    };
 
     let mut response = crate::core::error::REQUEST_ID
-        .scope(request_id.clone(), next.run(request))
+        .scope(
+            request_id.clone(),
+            crate::services::audit::REQUEST_AUDIT.scope(audit_meta, next.run(request)),
+        )
         .await;
     if let Ok(value) = axum::http::HeaderValue::from_str(&request_id) {
         response.headers_mut().insert("x-request-id", value);

@@ -313,7 +313,10 @@
       "checkout": "Checkout",
       "checkoutVoid": "Checkout / Void"
     },
-    "loadFailed": "Failed to load booking workflow"
+    "loadFailed": "Failed to load booking workflow",
+    "actor": "By {{name}}",
+    "systemActor": "System",
+    "openAuditLog": "Open in audit log"
   },
   "enhancedCheckIn": {
     "title": "Walk-in Guest - Folio: {{folio}}",

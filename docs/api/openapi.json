@@ -205,6 +205,9 @@
     "/api/audit-logs/export/csv": {
       "GET": {}
     },
+    "/api/audit-logs/export/json": {
+      "GET": {}
+    },
     "/api/audit-logs/resource-types": {
       "GET": {}
     },

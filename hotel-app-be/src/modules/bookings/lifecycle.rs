@@ -343,45 +343,51 @@ pub async fn get_booking_timeline_handler(
     }
 
     let timeline_sql = r#"
-        SELECT id::text AS id, 'booking_history' AS source, 'status_change' AS event_type,
-               'Status changed to ' || new_status AS title,
-               change_reason AS description, previous_status AS status_from, new_status AS status_to,
-               NULL::text AS amount, changed_by AS actor_id, NULL::jsonb AS old_metadata, metadata, created_at
-        FROM booking_history
-        WHERE booking_id = $1
-        UNION ALL
-        SELECT id::text AS id, 'booking_modifications' AS source, modification_type AS event_type,
-               CASE modification_type
-                   WHEN 'rate_change' THEN 'Rate updated'
-                   WHEN 'date_change' THEN 'Dates updated'
-                   WHEN 'room_change' THEN 'Room changed'
-                   WHEN 'check_in' THEN 'Guest checked in'
-                   WHEN 'voided' THEN 'Booking voided'
-                   ELSE 'Booking updated'
-               END AS title,
-               reason AS description, NULL::text AS status_from, NULL::text AS status_to,
-               price_adjustment::text AS amount, modified_by AS actor_id, old_value AS old_metadata, new_value AS metadata, modified_at AS created_at
-        FROM booking_modifications
-        WHERE booking_id = $1
-        UNION ALL
-        SELECT id::text AS id, 'payments' AS source, COALESCE(payment_type, 'booking') AS event_type,
-               CASE
-                   WHEN COALESCE(payment_type, '') = 'refund' THEN 'Refund recorded'
-                   WHEN status = 'failed' THEN 'Payment failed'
-                   ELSE 'Payment recorded'
-               END AS title,
-               notes AS description, NULL::text AS status_from, status AS status_to,
-               amount::text AS amount, created_by AS actor_id, NULL::jsonb AS old_metadata, metadata, created_at
-        FROM payments
-        WHERE booking_id = $1
-        UNION ALL
-        SELECT id::text AS id, 'invoices' AS source, 'invoice' AS event_type,
-               'Invoice ' || invoice_number AS title,
-               notes AS description, NULL::text AS status_from, status AS status_to,
-               total_amount::text AS amount, created_by AS actor_id, NULL::jsonb AS old_metadata, NULL::jsonb AS metadata, created_at
-        FROM invoices
-        WHERE booking_id = $1
-        ORDER BY created_at ASC
+        SELECT t.id, t.source, t.event_type, t.title, t.description, t.status_from, t.status_to,
+               t.amount, t.actor_id, t.old_metadata, t.metadata, t.created_at,
+               u.username AS actor_username
+        FROM (
+            SELECT id::text AS id, 'booking_history' AS source, 'status_change' AS event_type,
+                   'Status changed to ' || new_status AS title,
+                   change_reason AS description, previous_status AS status_from, new_status AS status_to,
+                   NULL::text AS amount, changed_by AS actor_id, NULL::jsonb AS old_metadata, metadata, created_at
+            FROM booking_history
+            WHERE booking_id = $1
+            UNION ALL
+            SELECT id::text AS id, 'booking_modifications' AS source, modification_type AS event_type,
+                   CASE modification_type
+                       WHEN 'rate_change' THEN 'Rate updated'
+                       WHEN 'date_change' THEN 'Dates updated'
+                       WHEN 'room_change' THEN 'Room changed'
+                       WHEN 'check_in' THEN 'Guest checked in'
+                       WHEN 'voided' THEN 'Booking voided'
+                       ELSE 'Booking updated'
+                   END AS title,
+                   reason AS description, NULL::text AS status_from, NULL::text AS status_to,
+                   price_adjustment::text AS amount, modified_by AS actor_id, old_value AS old_metadata, new_value AS metadata, modified_at AS created_at
+            FROM booking_modifications
+            WHERE booking_id = $1
+            UNION ALL
+            SELECT id::text AS id, 'payments' AS source, COALESCE(payment_type, 'booking') AS event_type,
+                   CASE
+                       WHEN COALESCE(payment_type, '') = 'refund' THEN 'Refund recorded'
+                       WHEN status = 'failed' THEN 'Payment failed'
+                       ELSE 'Payment recorded'
+                   END AS title,
+                   notes AS description, NULL::text AS status_from, status AS status_to,
+                   amount::text AS amount, created_by AS actor_id, NULL::jsonb AS old_metadata, metadata, created_at
+            FROM payments
+            WHERE booking_id = $1
+            UNION ALL
+            SELECT id::text AS id, 'invoices' AS source, 'invoice' AS event_type,
+                   'Invoice ' || invoice_number AS title,
+                   notes AS description, NULL::text AS status_from, status AS status_to,
+                   total_amount::text AS amount, created_by AS actor_id, NULL::jsonb AS old_metadata, NULL::jsonb AS metadata, created_at
+            FROM invoices
+            WHERE booking_id = $1
+        ) t
+        LEFT JOIN users u ON u.id = t.actor_id
+        ORDER BY t.created_at ASC
     "#;
 
     let rows = sqlx::query(timeline_sql)
@@ -425,6 +431,7 @@ pub async fn get_booking_timeline_handler(
                 status_to: row.try_get("status_to").ok(),
                 amount: row.try_get("amount").ok(),
                 actor_id: row.try_get("actor_id").ok(),
+                actor_username: row.try_get("actor_username").ok(),
                 metadata,
                 created_at: row
                     .try_get("created_at")
@@ -2190,18 +2197,36 @@ pub async fn update_booking_handler(
     // Log booking update. Runs on `tx` so the audit row commits atomically
     // with the mutation it describes (a rejected/rolled-back mutation must
     // not leave an audit row behind).
+    let action =
+        if old_status != updated_status && matches!(updated_status, "checked_out" | "completed") {
+            "booking_checkout"
+        } else {
+            "booking_updated"
+        };
     let changes = serde_json::json!({
-        "room_id": if new_room_id != existing_booking.room_id { Some(new_room_id) } else { None },
-        "status": if old_status != updated_status { Some(&new_status) } else { None },
-        "check_in_date": &input.check_in_date,
-        "check_out_date": &input.check_out_date,
-        "payment_status": &input.payment_status,
+        "booking_number": existing_booking.booking_number,
+        "before": {
+            "room_id": existing_booking.room_id,
+            "status": old_status,
+            "check_in_date": existing_booking.check_in_date,
+            "check_out_date": existing_booking.check_out_date,
+            "payment_status": existing_booking.payment_status,
+            "room_rate": existing_booking.room_rate.to_string(),
+        },
+        "after": {
+            "room_id": booking.room_id,
+            "status": updated_status,
+            "check_in_date": booking.check_in_date,
+            "check_out_date": booking.check_out_date,
+            "payment_status": booking.payment_status,
+            "room_rate": booking.room_rate.to_string(),
+        },
     });
     AuditLog::log_event_tx(
         &mut tx,
         AuditEvent {
             user_id: Some(user_id),
-            action: "booking_updated",
+            action,
             resource_type: "booking",
             resource_id: Some(booking.id),
             details: Some(changes),
