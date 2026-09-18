@@ -40,13 +40,29 @@ opened folder — arbitrary destination paths are refused by design
 ### Same-version restore (corruption, bad data day)
 
 In-app: Local backups card → Restore → confirm → the app restarts itself.
-CLI equivalent (postgres stopped or running — pg_restore handles it):
+CLI equivalent — `pg_restore` is a client, so the bundled postgres must be
+running (whether the app itself is open or you started the cluster
+manually); `--clean --if-exists` drops existing objects, so no pre-drop is
+needed. The cluster enforces `scram-sha-256`, so `pg_restore` needs the
+generated password in `<data dir>/postgres-password.txt` — pass it via
+`PGPASSWORD` or it stops at a `Password:` prompt:
 
-    pg_restore -h localhost -p 5433 -U hotel_admin -d hotel_management \
-      --clean --if-exists --no-owner --no-privileges \
-      ~/Library/Application\ Support/HotelApp/backups/hotel-backup-<ts>.dump
-    tar -xzf ~/Library/Application\ Support/HotelApp/backups/hotel-backup-<ts>-uploads.tar.gz \
-      -C ~/Library/Application\ Support/HotelApp/
+```bash
+PGPASSWORD=$(cat ~/Library/Application\ Support/HotelApp/postgres-password.txt) \
+  pg_restore -h localhost -p 5433 -U hotel_admin -d hotel_management \
+  --clean --if-exists --no-owner --no-privileges \
+  ~/Library/Application\ Support/HotelApp/backups/hotel-backup-<ts>.dump
+
+# Move the current upload trees aside before extracting — the in-app
+# restore does the same — so files written since the backup cannot
+# silently merge into the restored tree.
+cd ~/Library/Application\ Support/HotelApp
+stamp=$(date +%Y%m%dT%H%M%SZ)
+[ -d uploads ] && mv uploads "uploads.prerestore-$stamp"
+[ -d private_uploads ] && mv private_uploads "private_uploads.prerestore-$stamp"
+tar -xzf backups/hotel-backup-<ts>-uploads.tar.gz
+# verify the restored trees, then delete the *.prerestore-* asides
+```
 
 The bundled binaries live under the app's `pgsql/bin` resource dir; any
 matching-version `pg_restore` works. Every in-app restore first writes a
