@@ -559,6 +559,51 @@ function bundleExternalLibs(treeRoot, libDir) {
   return [...bundled];
 }
 
+// Absolute symlinks cannot ship in the bundle: they bake in a path from the
+// provisioning machine. They still show up here — a from-source install can
+// carry absolute links of its own, and tree copies that resolved relative
+// link text to absolute source-prefix paths (the bun cpSync preserveTimestamps
+// behavior verbatimSymlinks now guards against) produced them too. Re-point
+// each one at its in-tree counterpart: the resolved target when it lands
+// inside the tree, otherwise the same-named sibling entry (soname links sit
+// next to their targets). A link with no in-tree counterpart stays absolute
+// and is rejected by the caller below.
+function relativizeTreeSymlinks(treeRoot) {
+  const dirEntries = new Map();
+  // Presence check by directory listing, not existsSync — a sibling that is
+  // itself a not-yet-rewritten symlink must still count as an in-tree entry.
+  const hasDirEntry = (dir, name) => {
+    if (!dirEntries.has(dir)) {
+      dirEntries.set(dir, new Set(readdirSync(dir)));
+    }
+    return dirEntries.get(dir).has(name);
+  };
+
+  let rewritten = 0;
+  for (const linkPath of walkTree(treeRoot).symlinks) {
+    const target = readlinkSync(linkPath);
+    if (!target.startsWith('/')) {
+      continue;
+    }
+    const resolvedTarget = resolve(target);
+    let newTarget;
+    if (resolvedTarget === treeRoot || resolvedTarget.startsWith(treeRoot + sep)) {
+      newTarget = relative(dirname(linkPath), resolvedTarget) || '.';
+    } else if (
+      basename(target) !== basename(linkPath) &&
+      hasDirEntry(dirname(linkPath), basename(target))
+    ) {
+      newTarget = basename(target);
+    } else {
+      continue;
+    }
+    unlinkSync(linkPath);
+    symlinkSync(newTarget, linkPath);
+    rewritten += 1;
+  }
+  return rewritten;
+}
+
 function relinkLinuxTree(treeRoot) {
   const libDir = join(treeRoot, 'lib');
   try {
@@ -571,6 +616,17 @@ function relinkLinuxTree(treeRoot) {
   }
 
   const bundledLibs = bundleExternalLibs(treeRoot, libDir);
+
+  const rewrittenLinks = relativizeTreeSymlinks(treeRoot);
+  const strayLinks = walkTree(treeRoot)
+    .symlinks.filter((linkPath) => readlinkSync(linkPath).startsWith('/'))
+    .map((linkPath) => `${linkPath} -> ${readlinkSync(linkPath)}`);
+  if (strayLinks.length > 0) {
+    throw new Error(
+      `tree is not self-contained: absolute symlinks with no in-tree counterpart ` +
+        `(${strayLinks.slice(0, 5).join('; ')}${strayLinks.length > 5 ? '; …' : ''})`,
+    );
+  }
 
   const allFiles = walkTree(treeRoot).files;
   const libDirs = new Set([libDir]);
@@ -590,7 +646,7 @@ function relinkLinuxTree(treeRoot) {
     });
     rewritten += 1;
   }
-  return { rewrittenFiles: rewritten, bundledLibs };
+  return { rewrittenFiles: rewritten, bundledLibs, rewrittenLinks };
 }
 
 // ---------------------------------------------------------------------------
@@ -652,6 +708,11 @@ function copyPortablePrefixTree(postgresPrefix) {
       cpSync(join(sourceLibDir, entry), join(pgsqlTmpDir, 'lib', entry), {
         recursive: true,
         preserveTimestamps: true,
+        // cpSync + preserveTimestamps resolves relative link text into an
+        // absolute path into the SOURCE prefix (observed under bun on Linux:
+        // libpq.so -> <prefix>/lib/postgresql@19/libpq.so.5) — verbatim keeps
+        // the source's relative soname links relative inside the bundle.
+        verbatimSymlinks: true,
       });
     }
   }
@@ -670,6 +731,7 @@ function copyPortablePrefixTree(postgresPrefix) {
     cpSync(join(sourceShareDir, entry), join(pgsqlTmpDir, 'share', entry), {
       recursive: true,
       preserveTimestamps: true,
+      verbatimSymlinks: true,
     });
   }
 }
@@ -748,7 +810,8 @@ function provisionPortableFromPrefix(expected, failExitCode = 1) {
     }
     console.log(
       `Rewrote rpaths on ${relink.rewrittenFiles} ELF files, bundled ${relink.bundledLibs.length} external libs` +
-        `${relink.bundledLibs.length ? ` (${relink.bundledLibs.join(', ')})` : ''}.`,
+        `${relink.bundledLibs.length ? ` (${relink.bundledLibs.join(', ')})` : ''}, ` +
+        `re-pointed ${relink.rewrittenLinks} absolute symlinks.`,
     );
   }
 

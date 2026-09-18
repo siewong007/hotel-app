@@ -131,10 +131,12 @@ jobs:
           ln -s postgresql "share/postgresql@19"
           mv "lib/postgresql@19" "lib/postgresql"
           ln -s postgresql "lib/postgresql@19"
+          # Job-wide, not just the provision step: tauri's beforeBuildCommand
+          # (bun run desktop:prepare) re-runs provision:pgsql inside the build
+          # steps and needs the same prefix if the tree must be re-provisioned.
+          echo "POSTGRES_PREFIX=${PG_PREFIX}" >> "$GITHUB_ENV"
 
       - name: Provision embedded PostgreSQL tree
-        env:
-          POSTGRES_PREFIX: ${{ runner.temp }}/postgresql-19beta2
         run: bun run provision:pgsql
 
       - name: Build desktop app (binary only)
@@ -242,10 +244,12 @@ jobs:
             --with-openssl --with-lz4
           make -j"$(nproc)" world-bin
           make install-world-bin
+          # Job-wide, not just the provision step: tauri's beforeBuildCommand
+          # (bun run desktop:prepare) re-runs provision:pgsql inside the build
+          # steps and needs the same prefix if the tree must be re-provisioned.
+          echo "POSTGRES_PREFIX=${PG_PREFIX}" >> "$GITHUB_ENV"
 
       - name: Provision embedded PostgreSQL tree
-        env:
-          POSTGRES_PREFIX: ${{ runner.temp }}/postgresql-19beta2
         run: bun run provision:pgsql
 
       - name: Build desktop app (binary only)
@@ -310,6 +314,12 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows' }}
     runs-on: windows-latest
     timeout-minutes: 120
+
+    # Job-level, not just the provision step: tauri's beforeBuildCommand
+    # (bun run desktop:prepare) re-runs provision:pgsql inside the build steps
+    # and needs the same prefix if the tree must be re-provisioned.
+    env:
+      POSTGRES_PREFIX: C:\hotel-pg19
 
     defaults:
       run:
@@ -391,6 +401,11 @@ jobs:
       # scripts were removed). vcvars64 is located via vswhere so the recipe
       # survives runner image changes. -Dicu=auto: ICU collations come along
       # when vcpkg's pkgconfig resolves; the build does not hinge on it.
+      # vswhere output is captured through a temp file, not `for /f` command
+      # substitution: its path lives under "Program Files (x86)", and the ')'
+      # inside a for-command's parenthesized list ends the command early
+      # (cmd expands %vars% before matching parens) -> "\Microsoft was
+      # unexpected at this time." (run 35354808394).
       - name: Build PostgreSQL 19 Beta 2 (Meson + MSVC)
         working-directory: ${{ runner.temp }}
         shell: cmd
@@ -398,7 +413,8 @@ jobs:
           POSTGRES_VERSION: 19beta2
           PG_PREFIX: C:\hotel-pg19
         run: |
-          for /f "usebackq tokens=*" %%i in (`""%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath"`) do set "VSINSTALL=%%i"
+          "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > "%TEMP%\vsinstall.txt"
+          for /f "usebackq delims=" %%i in ("%TEMP%\vsinstall.txt") do set "VSINSTALL=%%i"
           if not defined VSINSTALL (echo "vswhere could not locate a Visual Studio C++ toolchain" && exit /b 1)
           call "%VSINSTALL%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
           meson setup pgbuild "postgresql-%POSTGRES_VERSION%" --prefix "%PG_PREFIX%" --buildtype release -Dssl=openssl -Dlz4=enabled -Dzlib=enabled -Dicu=auto -Dnls=disabled -Dplperl=disabled -Dplpython=disabled -Dpltcl=disabled -Dtap_tests=disabled -Ddocs=disabled || exit /b 1
@@ -413,8 +429,6 @@ jobs:
           Get-ChildItem "C:\hotel-pg19\bin" | Measure-Object | Out-Default
 
       - name: Provision embedded PostgreSQL tree
-        env:
-          POSTGRES_PREFIX: C:\hotel-pg19
         run: bun run provision:pgsql
 
       - name: Build desktop app (binary only)
