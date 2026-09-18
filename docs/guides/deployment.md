@@ -657,10 +657,10 @@ psql -h localhost -U hotel_admin hotel_management < /backups/hotel_20250101.sql 
 
 ### Desktop Data Backup
 
-
-```bash
-cp -r /path/to/pgsql/data /backups/pgsql_data_$(date +%Y%m%d)   # PostgreSQL (desktop mode)
-```
+Desktop builds manage their own verified backup pairs (`pg_dump` + uploads
+tarball, newest 14 kept) under the app data dir — see
+[desktop-backup-restore.md](desktop-backup-restore.md). There is no manual
+copy step; `pgdata` is not portable across bundled versions.
 
 ### Backup via Docker
 
