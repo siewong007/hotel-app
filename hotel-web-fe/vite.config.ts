@@ -16,7 +16,10 @@ const DEFAULT_BACKEND_TARGET = 'http://127.0.0.1:3030';
 // hotel-desktop/src-tauri/src/commands.rs (ALLOWED_ORIGINS env assembly). New
 // top-level API prefixes must also be merged in
 // hotel-app-be/src/routes/mod.rs::create_router. See .claude/rules/00-diagnosis.md Leak #3.
-const PROXY_PREFIXES = ['/api', '/uploads', '/health', '/ws'];
+// '/hotel.' covers the Connect/gRPC-Web service paths (e.g.
+// /hotel.rooms.v1.RoomService/ListRooms) — gRPC lives at the router root, not
+// under /api. The trailing dot keeps it from swallowing /hotel-doc pages etc.
+const PROXY_PREFIXES = ['/api', '/uploads', '/health', '/ws', '/hotel.'];
 
 function guestHtmlFallback(): Plugin {
   const rewrite = (url: string | undefined): string | undefined => {

@@ -20,9 +20,14 @@ import {
   RoomWithOccupancy,
 } from '../types';
 import { withRetry } from '../utils/retry';
+import { grpcEnabled } from './grpc/flags';
+import * as grpcRooms from './grpc/rooms';
 
 export class RoomsService {
   static async getAllRooms(): Promise<Room[]> {
+    if (grpcEnabled('rooms')) {
+      return await grpcRooms.getAllRooms();
+    }
     return await withRetry(
       () => api.get('rooms').json<Room[]>(),
       { maxAttempts: 3, initialDelay: 1000 }
@@ -30,6 +35,9 @@ export class RoomsService {
   }
 
   static async searchRooms(roomType?: string, maxPrice?: number): Promise<Room[]> {
+    if (grpcEnabled('rooms')) {
+      return await grpcRooms.searchRooms(roomType, maxPrice);
+    }
     const params: SearchQuery = {};
     if (roomType) params.room_type = roomType;
     if (maxPrice) params.max_price = maxPrice;
@@ -41,6 +49,9 @@ export class RoomsService {
   }
 
   static async getAvailableRoomsForDates(checkInDate: string, checkOutDate: string, excludeBookingId?: number): Promise<Room[]> {
+    if (grpcEnabled('rooms')) {
+      return await grpcRooms.getAvailableRoomsForDates(checkInDate, checkOutDate, excludeBookingId);
+    }
     const params: SearchQuery = {
       check_in_date: checkInDate,
       check_out_date: checkOutDate,
@@ -57,6 +68,9 @@ export class RoomsService {
 
   static async updateRoom(id: string | number, data: Partial<Room>): Promise<Room> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.updateRoom(id, data);
+      }
       return await api.patch(`rooms/${id}`, { json: data }).json<Room>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -65,6 +79,9 @@ export class RoomsService {
 
   static async updateRoomStatus(id: string | number, data: RoomStatusUpdateInput): Promise<Room> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.updateRoomStatus(id, data);
+      }
       return await api.put(`rooms/${id}/status`, { json: data }).json<Room>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -73,6 +90,9 @@ export class RoomsService {
 
   static async endMaintenance(roomId: string | number): Promise<Room> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.endMaintenance(roomId);
+      }
       return await api.post(`rooms/${roomId}/end-maintenance`).json<Room>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -81,6 +101,9 @@ export class RoomsService {
 
   static async syncRoomStatuses(): Promise<RoomStatusSyncResult> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.syncRoomStatuses();
+      }
       return await api.post('rooms/sync-statuses').json<RoomStatusSyncResult>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -95,6 +118,9 @@ export class RoomsService {
     options?: { roomRateOverride?: number; reason?: string },
   ): Promise<any> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.executeRoomChange(roomId, targetRoomId, options);
+      }
       return await api.post(`rooms/${roomId}/execute-change`, {
         json: {
           target_room_id: parseInt(targetRoomId, 10),
@@ -109,6 +135,9 @@ export class RoomsService {
 
   static async createRoomEvent(roomId: string | number, event: RoomEventInput): Promise<RoomEvent> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.createRoomEvent(roomId, event);
+      }
       return await api.post(`rooms/${roomId}/events`, { json: event }).json<RoomEvent>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -117,6 +146,9 @@ export class RoomsService {
 
   static async getRoomDetailedStatus(roomId: string | number): Promise<RoomDetailedStatus> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.getRoomDetailedStatus(roomId);
+      }
       return await api.get(`rooms/${roomId}/detailed`).json<RoomDetailedStatus>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -124,6 +156,9 @@ export class RoomsService {
   }
 
   static async getRoomHistory(roomId: string | number): Promise<RoomHistory[]> {
+    if (grpcEnabled('rooms')) {
+      return await grpcRooms.getRoomHistory(roomId);
+    }
     const url = `rooms/${roomId}/history`;
     try {
       const response = await api.get(url, {
@@ -164,6 +199,9 @@ export class RoomsService {
     is_smoking?: boolean;
   }): Promise<Room> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.createRoom(roomData);
+      }
       return await api.post('rooms', { json: roomData }).json<Room>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -172,6 +210,9 @@ export class RoomsService {
 
   static async deleteRoom(roomId: number): Promise<{ success: boolean; message: string }> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.deleteRoom(roomId);
+      }
       return await api.delete(`rooms/${roomId}`).json<{ success: boolean; message: string }>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -180,6 +221,9 @@ export class RoomsService {
 
   static async getRoomTypes(): Promise<RoomType[]> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.getRoomTypes();
+      }
       return await api.get('room-types').json<RoomType[]>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -188,6 +232,9 @@ export class RoomsService {
 
   static async getAllRoomTypes(): Promise<RoomType[]> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.getAllRoomTypes();
+      }
       return await api.get('room-types/all').json<RoomType[]>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -196,6 +243,9 @@ export class RoomsService {
 
   static async getRoomType(id: number): Promise<RoomType> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.getRoomType(id);
+      }
       return await api.get(`room-types/${id}`).json<RoomType>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -204,6 +254,9 @@ export class RoomsService {
 
   static async createRoomType(data: RoomTypeCreateInput): Promise<RoomType> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.createRoomType(data);
+      }
       return await api.post('room-types', { json: data }).json<RoomType>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -212,6 +265,9 @@ export class RoomsService {
 
   static async updateRoomType(id: number, data: RoomTypeUpdateInput): Promise<RoomType> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.updateRoomType(id, data);
+      }
       return await api.patch(`room-types/${id}`, { json: data }).json<RoomType>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -231,6 +287,9 @@ export class RoomsService {
 
   static async deleteRoomType(id: number): Promise<{ success: boolean; message: string }> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.deleteRoomType(id);
+      }
       return await api.delete(`room-types/${id}`).json<{ success: boolean; message: string }>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -238,6 +297,9 @@ export class RoomsService {
   }
 
   static async getRoomReviews(roomType: string): Promise<any[]> {
+    if (grpcEnabled('rooms')) {
+      return await grpcRooms.getRoomReviews(roomType);
+    }
     return await api.get(`rooms/${encodeURIComponent(roomType)}/reviews`).json<any[]>();
   }
 
@@ -255,6 +317,9 @@ export class RoomsService {
   /** Get all rooms with their current occupancy status */
   static async getAllRoomOccupancy(): Promise<RoomCurrentOccupancy[]> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.getAllRoomOccupancy();
+      }
       return await api.get('rooms/occupancy').json<RoomCurrentOccupancy[]>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -264,6 +329,9 @@ export class RoomsService {
   /** Get occupancy for a specific room */
   static async getRoomOccupancy(roomId: string | number): Promise<RoomCurrentOccupancy> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.getRoomOccupancy(roomId);
+      }
       return await api.get(`rooms/${roomId}/occupancy`).json<RoomCurrentOccupancy>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -273,6 +341,9 @@ export class RoomsService {
   /** Get hotel-wide occupancy summary */
   static async getHotelOccupancySummary(): Promise<HotelOccupancySummary> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.getHotelOccupancySummary();
+      }
       return await api.get('rooms/occupancy/summary').json<HotelOccupancySummary>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -282,6 +353,9 @@ export class RoomsService {
   /** Get occupancy breakdown by room type */
   static async getOccupancyByRoomType(): Promise<OccupancyByRoomType[]> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.getOccupancyByRoomType();
+      }
       return await api.get('rooms/occupancy/by-type').json<OccupancyByRoomType[]>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -291,6 +365,9 @@ export class RoomsService {
   /** Get rooms with their occupancy combined */
   static async getRoomsWithOccupancy(): Promise<RoomWithOccupancy[]> {
     try {
+      if (grpcEnabled('rooms')) {
+        return await grpcRooms.getRoomsWithOccupancy();
+      }
       return await api.get('rooms/with-occupancy').json<RoomWithOccupancy[]>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));

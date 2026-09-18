@@ -1,5 +1,6 @@
 // Base API client configuration
 import ky, { isHTTPError, type HTTPError } from 'ky';
+import { Code, ConnectError } from '@connectrpc/connect';
 import { storage } from '../utils/storage';
 import { getActiveLocale } from '../i18n/localeStore';
 import { getAccessToken, setAccessToken, clearAccessToken } from '../auth/tokenStore';
@@ -424,10 +425,34 @@ export const api = ky.create({
  * payload wins; transport failures (timeout, offline, socket close) collapse
  * to the caller's user-safe fallback — the service tests codify that contract.
  */
+const CONNECT_CODE_TO_HTTP: Partial<Record<Code, number>> = {
+  [Code.Unauthenticated]: 401,
+  [Code.PermissionDenied]: 403,
+  [Code.NotFound]: 404,
+  [Code.InvalidArgument]: 400,
+  [Code.FailedPrecondition]: 400,
+  [Code.OutOfRange]: 400,
+  [Code.AlreadyExists]: 409,
+  [Code.Aborted]: 409,
+  [Code.ResourceExhausted]: 429,
+  [Code.Unimplemented]: 501,
+  [Code.Unavailable]: 503,
+  [Code.DeadlineExceeded]: 504,
+};
+
 export function toApiError(error: unknown, fallback: string): APIError {
   // Already wrapped — pass through so an outer catch can't downgrade it to
   // the generic fallback or lose statusCode/details.
   if (error instanceof APIError) return error;
+  if (error instanceof ConnectError) {
+    // gRPC-Web twin of the HTTPError branch: surface the server's message and
+    // map the Connect code to the HTTP status the REST path would have
+    // produced, so notification handling sees no transport difference.
+    return new APIError(
+      error.rawMessage || error.message || fallback,
+      CONNECT_CODE_TO_HTTP[error.code],
+    );
+  }
   if (isHTTPError(error)) {
     const details = readErrorData(error);
     return new APIError(

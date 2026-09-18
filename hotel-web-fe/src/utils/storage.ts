@@ -19,7 +19,8 @@ type StorageKey =
   | 'dataTransferHistory'
   | 'helpRecentSearches'
   | 'helpArticleFeedback'
-  | 'navCollapsed';
+  | 'navCollapsed'
+  | 'grpcContexts';
 
 interface StorageCache {
   [key: string]: unknown;

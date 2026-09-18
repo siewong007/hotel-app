@@ -10,7 +10,7 @@ export default [
     // which trips "unused eslint-disable directive" under --max-warnings=0).
     // Same story for build/coverage output: vendored reporter assets (e.g.
     // coverage/block-navigation.js) ship their own eslint-disable directives.
-    ignores: ["src/routeTree.gen.ts", "coverage/**", "dist/**"]
+    ignores: ["src/routeTree.gen.ts", "src/gen/**", "coverage/**", "dist/**"]
   },
   {
     files: ["src/**/*.{js,mjs,cjs,jsx,ts,tsx}"],

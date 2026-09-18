@@ -3,6 +3,8 @@ import { api, APIError, readErrorData, toApiError } from './client';
 import { Guest, GuestCreateRequest, GuestListSegment, GuestProfile, GuestTourismConversionResponse, GuestType, TourismType } from '../types';
 import { withRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
+import { grpcEnabled } from './grpc/flags';
+import * as grpcGuests from './grpc/guests';
 import { t } from '../i18n';
 
 const notifyUnauthorized = () => {
@@ -29,6 +31,9 @@ const GUEST_PAGE_CONCURRENCY = 2;
 export class GuestsService {
   static async getAllGuests(params?: { search?: string }): Promise<Guest[]> {
     try {
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.getAllGuests(params);
+      }
       const pageSize = 500;
       const baseParams: Record<string, any> = toPaginationSearchParams({ page: 1, pageSize });
       if (params?.search) baseParams.search = params.search;
@@ -113,6 +118,9 @@ export class GuestsService {
     has_open_support?: boolean;
     segment?: GuestListSegment;
   } = {}): Promise<{ data: Guest[]; total: number; page: number; page_size: number }> {
+    if (grpcEnabled('guests')) {
+      return await grpcGuests.getGuestsPage(params);
+    }
     const searchParams: Record<string, any> = {
       ...toPaginationSearchParams({ page: params.page, pageSize: params.page_size }),
     };
@@ -144,6 +152,9 @@ export class GuestsService {
   }
 
   static async getGuest(guestId: number | string): Promise<Guest> {
+    if (grpcEnabled('guests')) {
+      return await grpcGuests.getGuest(guestId);
+    }
     return await withRetry(
       () => api.get(`guests/${guestId}`).json<Guest>(),
       { maxAttempts: 3, initialDelay: 1000 }
@@ -152,6 +163,9 @@ export class GuestsService {
 
   static async getGuestProfile(guestId: number | string): Promise<GuestProfile> {
     try {
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.getGuestProfile(guestId);
+      }
       return await withRetry(
         () => api.get(`guests/${guestId}/profile`).json<GuestProfile>(),
         { maxAttempts: 3, initialDelay: 1000 }
@@ -168,6 +182,10 @@ export class GuestsService {
         tourism_type: guestData.tourism_type || 'local',
       };
 
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.createGuest(payload);
+      }
+
       return await withRetry(
         () => api.post('guests', { json: payload }).json<Guest>(),
         { maxAttempts: 2, initialDelay: 1000 }
@@ -179,6 +197,9 @@ export class GuestsService {
 
   static async updateGuest(guestId: number, guestData: Partial<GuestCreateRequest>): Promise<Guest> {
     try {
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.updateGuest(guestId, guestData);
+      }
       return await api.patch(`guests/${guestId}`, { json: guestData }).json<Guest>();
     } catch (error) {
       throw await toGuestApiError(error, t('generic', undefined, 'errors'));
@@ -187,6 +208,9 @@ export class GuestsService {
 
   static async applyTourismTypeFromLastCheckIn(guestId: number): Promise<GuestTourismConversionResponse> {
     try {
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.applyTourismTypeFromLastCheckIn(guestId);
+      }
       return await api.post(`guests/${guestId}/tourism-from-last-check-in`).json<GuestTourismConversionResponse>();
     } catch (error) {
       throw await toGuestApiError(error, t('generic', undefined, 'errors'));
@@ -195,6 +219,9 @@ export class GuestsService {
 
   static async transferPortalAccount(guestId: number, username: string): Promise<void> {
     try {
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.transferPortalAccount(guestId, username);
+      }
       await api.post(`guests/${guestId}/portal-account`, { json: { username } });
     } catch (error) {
       throw await toGuestApiError(error, t('generic', undefined, 'errors'));
@@ -203,6 +230,9 @@ export class GuestsService {
 
   static async deleteGuest(guestId: number): Promise<{ success: boolean; message: string }> {
     try {
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.deleteGuest(guestId);
+      }
       return await api.delete(`guests/${guestId}`).json<{ success: boolean; message: string }>();
     } catch (error) {
       throw await toGuestApiError(error, t('generic', undefined, 'errors'));
@@ -211,6 +241,9 @@ export class GuestsService {
 
   static async getGuestBookings(guestId: number): Promise<any[]> {
     try {
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.getGuestBookings(guestId);
+      }
       return await api.get(`guests/${guestId}/bookings`).json<any[]>();
     } catch (error) {
       throw await toGuestApiError(error, t('generic', undefined, 'errors'));
@@ -219,6 +252,9 @@ export class GuestsService {
 
   static async getMyGuests(): Promise<Guest[]> {
     try {
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.getMyGuests();
+      }
       return await withRetry(
         () => api.get('guests/my-guests').json<Guest[]>(),
         { maxAttempts: 3, initialDelay: 1000 }
@@ -241,6 +277,9 @@ export class GuestsService {
     }[];
   }[]> {
     try {
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.getMyGuestsWithCredits();
+      }
       return await withRetry(
         () => api.get('guests/my-guests-with-credits').json(),
         { maxAttempts: 3, initialDelay: 1000 }
@@ -266,6 +305,9 @@ export class GuestsService {
     }[];
   }> {
     try {
+      if (grpcEnabled('guests')) {
+        return await grpcGuests.getGuestCredits(guestId);
+      }
       return await api.get(`guests/${guestId}/credits`).json();
     } catch (error) {
       throw await toGuestApiError(error, t('generic', undefined, 'errors'));
