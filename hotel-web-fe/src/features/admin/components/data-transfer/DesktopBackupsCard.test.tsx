@@ -10,7 +10,15 @@ const api = vi.hoisted(() => ({
   shouldUseDesktopRuntime: vi.fn(() => true),
 }));
 
+const auth = vi.hoisted(() => ({
+  hasPermission: vi.fn((permission: string) => permission === 'data_transfer:import'),
+}));
+
 vi.mock('../../../../desktop/runtimeApi', () => ({ ...api }));
+
+vi.mock('../../../../auth/AuthContext', () => ({
+  useAuth: () => ({ hasPermission: auth.hasPermission }),
+}));
 
 import DesktopBackupsCard from './DesktopBackupsCard';
 
@@ -37,6 +45,9 @@ describe('DesktopBackupsCard', () => {
     api.shouldUseDesktopRuntime.mockReturnValue(true);
     api.listBackups.mockResolvedValue([]);
     api.openBackupsFolder.mockResolvedValue(undefined);
+    auth.hasPermission
+      .mockReset()
+      .mockImplementation((permission: string) => permission === 'data_transfer:import');
   });
 
   afterEach(cleanup);
@@ -45,6 +56,14 @@ describe('DesktopBackupsCard', () => {
     api.shouldUseDesktopRuntime.mockReturnValue(false);
     const { container } = renderCard();
     expect(container.firstChild).toBeNull();
+    expect(api.listBackups).not.toHaveBeenCalled();
+  });
+
+  it('renders nothing without data_transfer:import and issues no IPC', () => {
+    auth.hasPermission.mockReturnValue(false);
+    const { container } = renderCard();
+    expect(container.firstChild).toBeNull();
+    expect(auth.hasPermission).toHaveBeenCalledWith('data_transfer:import');
     expect(api.listBackups).not.toHaveBeenCalled();
   });
 

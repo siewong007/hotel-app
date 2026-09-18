@@ -163,8 +163,10 @@ const DataTransferPage: React.FC = () => {
         <TransferHistoryList entries={historyEntries} loading={historyQuery.isLoading} />
       )}
 
-      {/* Desktop-only managed backups; the card double-gates on the same check. */}
-      {shouldUseDesktopRuntime() && <DesktopBackupsCard notify={notify} />}
+      {/* Desktop-only managed backups; restore overwrites the same data the
+          import flow does, so it carries the same permission — the card
+          double-gates on both checks. */}
+      {canImport && shouldUseDesktopRuntime() && <DesktopBackupsCard notify={notify} />}
 
       <Snackbar
         open={toast.open}

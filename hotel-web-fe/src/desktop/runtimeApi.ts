@@ -32,6 +32,10 @@ export interface DesktopLatestBackup {
   filename: string;
   /** RFC3339 UTC timestamp; render in local time via `new Date(...)`. */
   timestamp: string;
+  /** Uploads tarball filename paired with the dump, when present. */
+  uploads_filename: string | null;
+  /** Combined size of the dump plus its uploads tarball, in bytes. */
+  size_bytes: number;
 }
 
 export interface DesktopAppStatus {

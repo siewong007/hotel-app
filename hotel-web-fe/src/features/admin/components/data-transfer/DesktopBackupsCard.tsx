@@ -31,6 +31,7 @@ import {
   Restore as RestoreIcon,
 } from '@mui/icons-material';
 import { dateFormatter, useTranslation } from '../../../../i18n';
+import { useAuth } from '../../../../auth/AuthContext';
 import { LogoLoader } from '../../../../components';
 import {
   backupNow,
@@ -67,9 +68,14 @@ const formatLocalDateTime = (rfc3339: string): string => {
 const DesktopBackupsCard: React.FC<DesktopBackupsCardProps> = ({ notify }) => {
   const theme = useTheme();
   const { t, tOr } = useTranslation('common');
+  const { hasPermission } = useAuth();
   // Double-gate: the page gates on this too, so the card renders nothing and
   // issues no IPC in browser builds.
   const [isDesktop] = useState(() => shouldUseDesktopRuntime());
+  // Restore overwrites the live database and upload trees — the same data the
+  // web import flow gates behind data_transfer:import (plus step-up), so a
+  // role with page access but no transfer permission never sees the card.
+  const canTransfer = hasPermission('data_transfer:import');
   const [backups, setBackups] = useState<DesktopBackupInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [backingUp, setBackingUp] = useState(false);
@@ -87,9 +93,9 @@ const DesktopBackupsCard: React.FC<DesktopBackupsCardProps> = ({ notify }) => {
   // Mount (and every remount after the service gate's restart screen) refetches
   // the list — a finished restore surfaces its fresh safety backup at the top.
   useEffect(() => {
-    if (!isDesktop) return;
+    if (!isDesktop || !canTransfer) return;
     void refresh();
-  }, [isDesktop, refresh]);
+  }, [isDesktop, canTransfer, refresh]);
 
   const handleBackupNow = async () => {
     setError(null);
@@ -139,7 +145,7 @@ const DesktopBackupsCard: React.FC<DesktopBackupsCardProps> = ({ notify }) => {
     }
   };
 
-  if (!isDesktop) return null;
+  if (!isDesktop || !canTransfer) return null;
 
   const busy = backingUp || restoring;
 
