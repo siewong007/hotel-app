@@ -92,6 +92,13 @@ written outside the data dir, and anything the user never backed up before a
 disk failure. Off-app copies are the real disaster-recovery story — the backups
 folder is one filesystem.
 
+`pg_restore --clean` is also **not transactional**: if the app (or the machine)
+is killed mid-restore there is no resume and no automatic rollback — the next
+boot simply serves whatever partial state the restore reached. The
+`hotel-backup-<ts>.dump` safety backup written at the start of every in-app
+restore is the manual rollback point: restore it from the Local backups card
+(or with the CLI form above) to return to the pre-restore state.
+
 Developer note: dev builds that ran before the sidecar's working directory
 moved into the data dir may have left stray `uploads/`/`private_uploads/`
 trees wherever the app was launched from. Those orphans belong to no backup

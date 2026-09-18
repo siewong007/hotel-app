@@ -347,25 +347,39 @@ pub async fn upgrade_database_from_backup(
 }
 
 /// Restore a managed backup (dump + uploads pair) into the live database.
-/// Stops the sidecar first, restarts it after — the webview sees the normal
-/// service-restart flow while this runs.
+/// Validates the selection first, then stops the sidecar, restores, and
+/// restarts — the webview sees the normal service-restart flow while this
+/// runs.
 #[tauri::command]
 pub async fn restore_database(
     app_handle: AppHandle,
     filename: String,
 ) -> Result<crate::postgres::RestoreSummary, String> {
     log::info!("Database restore requested from {}", filename);
+    // Resolve + verify BEFORE stopping the backend: an invalid filename or
+    // unreadable dump must not bounce the app for nothing.
+    let prepared = crate::postgres::prepare_restore(&app_handle, &filename)
+        .await
+        .map_err(|err| err.to_string())?;
+    // Backups and restores are mutually exclusive for the whole
+    // stop → restore → restart window — a scheduled dump taken mid-restore
+    // would capture a half-restored database, and its pruning could delete
+    // the restore source. Checked before the sidecar stops so a busy reply
+    // doesn't bounce the backend either.
+    let guard = crate::postgres::try_begin_backup_or_restore()
+        .ok_or_else(|| crate::postgres::PostgresError::OperationInProgress.to_string())?;
     stop_backend_sidecar().await?;
-    let result = crate::postgres::restore_database(&app_handle, &filename).await;
+    let result = crate::postgres::restore_prepared(&app_handle, prepared, guard).await;
     // Always try to bring the app back — even on failure the pre-restore
     // state (rolled back or not) is the database the app should serve.
     if let Err(err) = start_backend_sidecar(&app_handle).await {
         return Err(format!(
-            "{} (additionally, backend restart failed: {})",
-            result
-                .map(|_| "Restore finished".to_string())
-                .unwrap_or_else(|e| e.to_string()),
-            err
+            "Backend restart failed: {}. {}",
+            err,
+            match &result {
+                Ok(_) => "The restore itself had finished".to_string(),
+                Err(restore_err) => format!("The restore also failed: {}", restore_err),
+            }
         ));
     }
     result.map_err(|e| e.to_string())

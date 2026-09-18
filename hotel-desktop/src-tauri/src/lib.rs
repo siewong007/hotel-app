@@ -148,7 +148,12 @@ fn spawn_scheduled_backups(app_handle: tauri::AppHandle) {
         loop {
             log::info!("Running scheduled database backup...");
             match postgres::run_scheduled_backup(&app_handle).await {
-                Ok(path) => log::info!("Scheduled backup written to {:?}", path),
+                Ok(Some(path)) => log::info!("Scheduled backup written to {:?}", path),
+                // A manual backup or a restore is in flight — skip this
+                // cycle rather than dump a half-restored database.
+                Ok(None) => {
+                    log::info!("Scheduled backup skipped: another backup or restore is in progress")
+                }
                 Err(e) => log::error!("Scheduled backup failed (continuing): {}", e),
             }
 
