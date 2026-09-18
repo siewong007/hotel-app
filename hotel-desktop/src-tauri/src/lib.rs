@@ -91,6 +91,8 @@ fn init_data_directories() -> Result<(), std::io::Error> {
     // Create subdirectories
     std::fs::create_dir_all(data_dir.join("logs"))?;
     std::fs::create_dir_all(data_dir.join("backups"))?;
+    std::fs::create_dir_all(data_dir.join("uploads"))?;
+    std::fs::create_dir_all(data_dir.join("private_uploads"))?;
 
     log::info!("Data directories initialized at: {:?}", data_dir);
     Ok(())

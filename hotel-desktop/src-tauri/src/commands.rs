@@ -103,6 +103,11 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
     let sidecar_command = shell
         .sidecar("hotel-app-be")
         .map_err(|e| format!("Failed to create sidecar command: {}", e))?
+        // The backend resolves uploads/, private_uploads/ and other relative
+        // paths against its CWD — pin it to the data dir so user files land in
+        // managed storage (and therefore in backups) instead of wherever the
+        // app happened to be launched from.
+        .current_dir(get_data_directory())
         .env("DATABASE_URL", &database_url)
         .env("BACKEND_PORT", backend_port.to_string())
         .env("JWT_SECRET", jwt_secret)
