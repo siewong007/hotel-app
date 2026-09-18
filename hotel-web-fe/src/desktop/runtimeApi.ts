@@ -56,6 +56,7 @@ export interface DesktopAppStatus {
 
 export interface DesktopUpgradeSummary {
   restored_backup: string;
+  restored_uploads?: string | null;
   retired_data_dir: string;
   from_version: string;
   to_version: string;

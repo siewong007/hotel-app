@@ -1683,6 +1683,9 @@ pub async fn run_scheduled_backup(app_handle: &AppHandle) -> Result<PathBuf, Pos
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct UpgradeSummary {
     pub restored_backup: String,
+    /// Uploads tarball filename restored alongside the dump, when the pair
+    /// had one.
+    pub restored_uploads: Option<String>,
     pub retired_data_dir: String,
     pub from_version: String,
     pub to_version: String,
@@ -2073,6 +2076,17 @@ pub async fn upgrade_database_from_backup(
         )));
     }
 
+    // (e2) Restore uploaded files when the backup pair carries them.
+    if let Some(tarball) = &latest.uploads_path {
+        if let Err(err) = restore_uploads_tarball(tarball).await {
+            let _ = stop_postgres(app_handle).await;
+            return Err(rollback(format!(
+                "uploads restore from {:?} failed: {}",
+                tarball, err
+            )));
+        }
+    }
+
     // (f) Run the migrations / schema bootstrap step (idempotent).
     if let Err(err) = run_database_setup(app_handle).await {
         let _ = stop_postgres(app_handle).await;
@@ -2096,6 +2110,10 @@ pub async fn upgrade_database_from_backup(
             .unwrap_or_default()
             .to_string_lossy()
             .to_string(),
+        restored_uploads: latest.uploads_path.and_then(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().to_string())
+        }),
         retired_data_dir: retired_dir.to_string_lossy().to_string(),
         from_version: found_version,
         to_version: bundled_version.build_identity,
