@@ -1368,14 +1368,94 @@ pub async fn backup_database(
         )));
     }
 
+    // A dump that pg_restore can't even enumerate is worthless — verify now,
+    // at creation time, rather than discovering it during a recovery.
+    verify_backup_dump(app_handle, &backup_path).await?;
+
+    // Uploads are user data the dump cannot cover (eKYC images, receipts,
+    // room photos) — archive them alongside, sharing the timestamp stem.
+    let stem = backup_path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    backup_uploads(&stem)?;
+
     log::info!("Database backup written to {:?}", backup_path);
     Ok(backup_path)
 }
 
-/// Prefix + suffix identifying a backup dump produced by this app.
-/// Filenames look like `hotel-backup-YYYYMMDD-HHMMSS.dump`.
+/// `pg_restore --list` exits non-zero on a corrupt/unreadable dump.
+async fn verify_backup_dump(app_handle: &AppHandle, dump_path: &Path) -> Result<(), PostgresError> {
+    let pg_restore_path = get_pgsql_bin_dir(app_handle).join(format!("pg_restore{}", EXE_SUFFIX));
+    if !pg_restore_path.exists() {
+        return Err(PostgresError::BinaryNotFound(
+            pg_restore_path.to_string_lossy().to_string(),
+        ));
+    }
+
+    let mut cmd = tokio::process::Command::new(&pg_restore_path);
+    cmd.args(["--list", &dump_path.to_string_lossy()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
+    if !output.status.success() {
+        let details = command_output_details("pg_restore --list backup verification", &output);
+        // Don't leave a corrupt artifact on disk pretending to be a backup.
+        let _ = std::fs::remove_file(dump_path);
+        return Err(PostgresError::MigrationFailed(format!(
+            "Backup verification failed: {}",
+            details
+        )));
+    }
+
+    Ok(())
+}
+
+/// Archive `uploads/` + `private_uploads/` into `<stem>-uploads.tar.gz` inside
+/// the backups dir. Returns `None` when there is nothing worth archiving —
+/// restore treats a missing tarball as "no files to restore", not an error.
+fn backup_uploads(stem: &str) -> Result<Option<PathBuf>, PostgresError> {
+    let data_dir = get_data_directory();
+    let roots = ["uploads", "private_uploads"]
+        .iter()
+        .map(|name| data_dir.join(name))
+        .filter(|dir| {
+            dir.is_dir()
+                && dir
+                    .read_dir()
+                    .map(|mut d| d.next().is_some())
+                    .unwrap_or(false)
+        })
+        .collect::<Vec<_>>();
+    if roots.is_empty() {
+        return Ok(None);
+    }
+
+    let out_path = backups_directory().join(format!("{}{}", stem, UPLOADS_FILE_SUFFIX));
+    let file = std::fs::File::create(&out_path)?;
+    let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+    let mut builder = tar::Builder::new(encoder);
+    for dir in roots {
+        // Top-level entry name is the dir itself ("uploads", "private_uploads")
+        // so extraction restores the layout verbatim.
+        builder.append_dir_all(dir.file_name().unwrap_or_default(), &dir)?;
+    }
+    builder.into_inner()?.finish()?;
+    Ok(Some(out_path))
+}
+
+/// Prefix + suffixes identifying backup artifacts produced by this app.
+/// A managed backup is a pair sharing the stem `hotel-backup-YYYYMMDD-HHMMSS`:
+/// `<stem>.dump` plus `<stem>-uploads.tar.gz` when uploads existed at backup
+/// time.
 const BACKUP_FILE_PREFIX: &str = "hotel-backup-";
 const BACKUP_FILE_SUFFIX: &str = ".dump";
+const UPLOADS_FILE_SUFFIX: &str = "-uploads.tar.gz";
 
 /// Number of most-recent backups to retain when pruning.
 const BACKUP_RETENTION_COUNT: usize = 14;
@@ -1384,20 +1464,52 @@ fn backups_directory() -> PathBuf {
     get_data_directory().join("backups")
 }
 
+fn is_managed_backup_name(name: &str) -> bool {
+    name.starts_with(BACKUP_FILE_PREFIX) && name.ends_with(BACKUP_FILE_SUFFIX)
+}
+
+fn is_managed_uploads_name(name: &str) -> bool {
+    name.starts_with(BACKUP_FILE_PREFIX) && name.ends_with(UPLOADS_FILE_SUFFIX)
+}
+
 fn is_managed_backup_file(path: &Path) -> bool {
     if !path.is_file() {
         return false;
     }
     match path.file_name().and_then(|name| name.to_str()) {
-        Some(name) => name.starts_with(BACKUP_FILE_PREFIX) && name.ends_with(BACKUP_FILE_SUFFIX),
+        Some(name) => is_managed_backup_name(name),
         None => false,
     }
 }
 
-/// List managed backup dumps in the backups directory, newest first (by mtime).
-fn list_managed_backups() -> Vec<PathBuf> {
+fn is_managed_uploads_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    match path.file_name().and_then(|name| name.to_str()) {
+        Some(name) => is_managed_uploads_name(name),
+        None => false,
+    }
+}
+
+/// One managed backup: a verified pg_dump plus its uploads tarball (when any
+/// uploaded files existed at backup time). The pair shares the timestamp stem
+/// `hotel-backup-YYYYMMDD-HHMMSS`.
+pub struct ManagedBackup {
+    pub dump_path: PathBuf,
+    pub uploads_path: Option<PathBuf>,
+    /// RFC3339, from dump mtime.
+    pub timestamp: String,
+    /// Dump + uploads bytes.
+    pub size_bytes: u64,
+}
+
+/// List managed backups (dump+uploads pairs) newest first by dump mtime.
+/// A stray `-uploads.tar.gz` with no matching `.dump` is ignored — it cannot
+/// be restored without its database half.
+fn list_managed_backups() -> Vec<ManagedBackup> {
     let dir = backups_directory();
-    let mut entries: Vec<(PathBuf, std::time::SystemTime)> = match std::fs::read_dir(&dir) {
+    let mut dumps: Vec<(PathBuf, std::time::SystemTime)> = match std::fs::read_dir(&dir) {
         Ok(read_dir) => read_dir
             .filter_map(|entry| entry.ok())
             .map(|entry| entry.path())
@@ -1414,8 +1526,39 @@ fn list_managed_backups() -> Vec<PathBuf> {
     };
 
     // Newest first.
-    entries.sort_by_key(|entry| std::cmp::Reverse(entry.1));
-    entries.into_iter().map(|(path, _)| path).collect()
+    dumps.sort_by_key(|entry| std::cmp::Reverse(entry.1));
+    dumps
+        .into_iter()
+        .map(|(dump_path, mtime)| {
+            let stem = dump_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .trim_end_matches(BACKUP_FILE_SUFFIX)
+                .to_string();
+            let uploads_path = {
+                let candidate = dir.join(format!("{}{}", stem, UPLOADS_FILE_SUFFIX));
+                is_managed_uploads_file(&candidate).then_some(candidate)
+            };
+            let size_bytes = [&dump_path]
+                .into_iter()
+                .chain(uploads_path.iter())
+                .filter_map(|p| p.metadata().ok().map(|m| m.len()))
+                .sum();
+            let timestamp: chrono::DateTime<chrono::Utc> = mtime.into();
+            ManagedBackup {
+                dump_path,
+                uploads_path,
+                timestamp: timestamp.to_rfc3339(),
+                size_bytes,
+            }
+        })
+        .collect()
+}
+
+/// The newest managed backup pair, for the status and upgrade/restore paths.
+fn latest_backup_pair() -> Option<ManagedBackup> {
+    list_managed_backups().into_iter().next()
 }
 
 /// Metadata about the most recent managed backup, surfaced to the frontend.
@@ -1426,22 +1569,36 @@ pub struct LatestBackup {
     /// Backup timestamp as RFC3339 (from file mtime), local-agnostic; the FE
     /// renders it in local time.
     pub timestamp: String,
+    /// Filename of the paired uploads tarball, when uploads existed at backup
+    /// time.
+    pub uploads_filename: Option<String>,
+    /// Combined size of the dump plus its uploads tarball, in bytes.
+    pub size_bytes: u64,
 }
 
-fn latest_managed_backup() -> Option<LatestBackup> {
-    let path = list_managed_backups().into_iter().next()?;
-    let filename = path.file_name()?.to_string_lossy().to_string();
-    let mtime = path.metadata().ok()?.modified().ok()?;
-    let timestamp: chrono::DateTime<chrono::Utc> = mtime.into();
-    Some(LatestBackup {
-        path: path.to_string_lossy().to_string(),
-        filename,
-        timestamp: timestamp.to_rfc3339(),
-    })
+impl From<&ManagedBackup> for LatestBackup {
+    fn from(backup: &ManagedBackup) -> Self {
+        LatestBackup {
+            path: backup.dump_path.to_string_lossy().to_string(),
+            filename: backup
+                .dump_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            timestamp: backup.timestamp.clone(),
+            uploads_filename: backup
+                .uploads_path
+                .as_ref()
+                .and_then(|path| path.file_name().map(|n| n.to_string_lossy().to_string())),
+            size_bytes: backup.size_bytes,
+        }
+    }
 }
 
-/// Delete all but the newest `BACKUP_RETENTION_COUNT` managed backup dumps.
-/// Only files matching the managed backup pattern are ever removed.
+/// Delete all but the newest `BACKUP_RETENTION_COUNT` managed backups — both
+/// the dump and its uploads partner. Only files matching the managed backup
+/// patterns are ever removed.
 fn prune_old_backups() {
     let backups = list_managed_backups();
     if backups.len() <= BACKUP_RETENTION_COUNT {
@@ -1449,13 +1606,16 @@ fn prune_old_backups() {
     }
 
     for stale in backups.into_iter().skip(BACKUP_RETENTION_COUNT) {
-        // Extra safety: never remove anything that is not a managed dump.
-        if !is_managed_backup_file(&stale) {
-            continue;
-        }
-        match std::fs::remove_file(&stale) {
-            Ok(()) => log::info!("Pruned old database backup {:?}", stale),
-            Err(err) => log::warn!("Failed to prune old database backup {:?}: {}", stale, err),
+        for path in [stale.dump_path].into_iter().chain(stale.uploads_path) {
+            // Extra safety: never remove anything that is not a managed
+            // artifact.
+            if !(is_managed_backup_file(&path) || is_managed_uploads_file(&path)) {
+                continue;
+            }
+            match std::fs::remove_file(&path) {
+                Ok(()) => log::info!("Pruned old backup artifact {:?}", path),
+                Err(err) => log::warn!("Failed to prune backup {:?}: {}", path, err),
+            }
         }
     }
 }
@@ -1577,13 +1737,13 @@ pub async fn upgrade_database_from_backup(
     };
 
     // Require a backup before doing anything destructive.
-    let Some(latest) = latest_managed_backup() else {
+    let Some(latest) = latest_backup_pair() else {
         return Err(PostgresError::MigrationFailed(format!(
             "No backup available to restore. The existing PostgreSQL {} data directory has been left untouched. To recover, install a desktop build matching PostgreSQL {} to read the existing data and create a logical backup before upgrading.",
             found_version, found_version
         )));
     };
-    let backup_path = PathBuf::from(&latest.path);
+    let backup_path = latest.dump_path;
 
     let pgdata = get_pgdata_dir();
     let retired_version_label: String = found_version
@@ -1695,7 +1855,11 @@ pub async fn upgrade_database_from_backup(
         retired_dir
     );
     Ok(UpgradeSummary {
-        restored_backup: latest.filename,
+        restored_backup: backup_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string(),
         retired_data_dir: retired_dir.to_string_lossy().to_string(),
         from_version: found_version,
         to_version: bundled_version.build_identity,
@@ -2025,7 +2189,7 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
     // state so the webview can offer a guided restore-from-backup upgrade.
     let needs_upgrade = data_version.is_some() && !version_compatible;
     let latest_backup = if needs_upgrade {
-        latest_managed_backup()
+        latest_backup_pair().map(|pair| LatestBackup::from(&pair))
     } else {
         None
     };
@@ -2159,5 +2323,23 @@ mod tests {
                 found: "19beta1".to_string()
             }
         );
+    }
+
+    #[test]
+    fn managed_file_predicates_split_dumps_from_uploads() {
+        assert!(is_managed_backup_name("hotel-backup-20260918-120000.dump"));
+        assert!(!is_managed_backup_name(
+            "hotel-backup-20260918-120000-uploads.tar.gz"
+        ));
+        assert!(is_managed_uploads_name(
+            "hotel-backup-20260918-120000-uploads.tar.gz"
+        ));
+        assert!(!is_managed_uploads_name(
+            "hotel-backup-20260918-120000.dump"
+        ));
+        assert!(!is_managed_uploads_name("random.tar.gz"));
+        // A dump without our prefix must never be treated as a managed
+        // artifact (pruning only ever removes managed files).
+        assert!(!is_managed_backup_name("someone-elses.dump"));
     }
 }
