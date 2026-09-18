@@ -15,7 +15,15 @@ active work only.** When a plan merges:
 
 ## Active
 
-(none — this directory is currently empty; everything below is history)
+- `2026-09-18-frontend-test-depth` — workflow-level assertions for the four
+  largest admin pages (RBAC, eKYC management, room management, data transfer),
+  SettingsPage card extraction, manifest content-check for workflow tests.
+- `2026-09-18-desktop-backup-restore` — managed backup pairs (verified dump +
+  uploads tarball), same-version restore command, in-app backup card, recovery
+  runbook.
+- `2026-09-18-desktop-packaging-hardening` — end-to-end build verification,
+  updater armed via GitHub Releases, secret-gated signing/notarize wiring, RPM
+  evaluation, origin/proxy parity test.
 
 Removed 2026-09-15 (deliverables verified merged on master; recover from
 `git log -- docs/superpowers/`): `2026-09-14-deposit-resolution` + spec,
