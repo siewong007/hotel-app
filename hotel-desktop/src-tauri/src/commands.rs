@@ -114,10 +114,12 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
         .env("JWT_SECRET", jwt_secret)
         .env("HOTEL_DESKTOP_MODE", "1")
         // KEEP IN SYNC: dev proxy prefixes in hotel-web-fe/vite.config.ts;
-        // router merge in hotel-app-be/src/routes/mod.rs
+        // router merge in hotel-app-be/src/routes/mod.rs; dev http origins in
+        // src-tauri/capabilities/default.json remote.urls — parity enforced by
+        // hotel-desktop/scripts/origin-parity.test.mjs.
         .env(
             "ALLOWED_ORIGINS",
-            "tauri://localhost,http://tauri.localhost,http://localhost:3000,http://localhost:5173",
+            "tauri://localhost,http://tauri.localhost,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173",
         )
         .env("SKIP_EMAIL_VERIFICATION", "true")
         .env("TRUST_PROXY_HEADERS", "false")
