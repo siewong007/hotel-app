@@ -198,6 +198,22 @@
     "restartServices": "Restart services",
     "versionOlder": "an older version",
     "versionCurrent": "the current version",
+    "backups": {
+      "title": "Local backups",
+      "subtitle": "Automatic database + file backups kept on this computer. Newest {{count}} kept.",
+      "backUpNow": "Back up now",
+      "openFolder": "Open backups folder",
+      "includesFiles": "includes uploaded files",
+      "restore": "Restore",
+      "restoreConfirmTitle": "Restore this backup?",
+      "restoreConfirmBody": "The app restores {{filename}} ({{date}}). Data changed after that point is lost — a fresh safety backup is taken first so you can roll back. The app restarts during the restore.",
+      "restoreConfirm": "Restore and restart",
+      "restoring": "Restoring… the app will restart when it finishes.",
+      "restored": "Restored {{filename}}",
+      "restoreFailed": "Restore failed",
+      "empty": "No backups yet — the first one is created automatically about two minutes after startup.",
+      "backedUp": "Backup created: {{filename}}"
+    },
     "errors": {
       "statusRead": "Unable to read desktop service status",
       "backendStopped": "Backend service stopped",

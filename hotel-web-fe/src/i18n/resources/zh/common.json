@@ -194,6 +194,22 @@
     "restartServices": "重启服务",
     "versionOlder": "旧版本",
     "versionCurrent": "当前版本",
+    "backups": {
+      "title": "本地备份",
+      "subtitle": "自动的数据库和文件备份保存在此电脑上。保留最新 {{count}} 份。",
+      "backUpNow": "立即备份",
+      "openFolder": "打开备份文件夹",
+      "includesFiles": "包含已上传的文件",
+      "restore": "恢复",
+      "restoreConfirmTitle": "恢复此备份？",
+      "restoreConfirmBody": "应用将恢复 {{filename}}（{{date}}）。该时间点之后更改的数据将会丢失——系统会先创建一份新的安全备份，以便您回滚。恢复期间应用会重启。",
+      "restoreConfirm": "恢复并重启",
+      "restoring": "正在恢复……完成后应用将重启。",
+      "restored": "已恢复 {{filename}}",
+      "restoreFailed": "恢复失败",
+      "empty": "暂无备份——首个备份会在启动后约两分钟自动创建。",
+      "backedUp": "已创建备份：{{filename}}"
+    },
     "errors": {
       "statusRead": "无法读取桌面服务状态",
       "backendStopped": "后端服务已停止",

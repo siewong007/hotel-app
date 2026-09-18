@@ -17,6 +17,8 @@ import {
 import { useAuth } from '../../../auth/AuthContext';
 import { useTranslation } from '../../../i18n';
 import PageHeader from '../../../components/common/PageHeader';
+import { shouldUseDesktopRuntime } from '../../../desktop/runtimeApi';
+import DesktopBackupsCard from './data-transfer/DesktopBackupsCard';
 import ExportPanel from './data-transfer/ExportPanel';
 import ImportWizard from './data-transfer/ImportWizard';
 import TransferHistoryList from './data-transfer/TransferHistoryList';
@@ -160,6 +162,9 @@ const DataTransferPage: React.FC = () => {
       {activeTab === 'history' && (
         <TransferHistoryList entries={historyEntries} loading={historyQuery.isLoading} />
       )}
+
+      {/* Desktop-only managed backups; the card double-gates on the same check. */}
+      {shouldUseDesktopRuntime() && <DesktopBackupsCard notify={notify} />}
 
       <Snackbar
         open={toast.open}

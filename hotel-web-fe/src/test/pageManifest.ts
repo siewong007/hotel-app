@@ -605,6 +605,7 @@ export const PAGE_MANIFEST: PageManifestEntry[] = [
       'features/admin/components/DataTransferPage.test.tsx',
       'features/admin/components/data-transfer/ImportWizard.test.tsx',
       'features/admin/components/data-transfer/ExportPanel.test.tsx',
+      'features/admin/components/data-transfer/DesktopBackupsCard.test.tsx',
     ],
   },
   {

@@ -67,6 +67,53 @@ export async function upgradeDatabaseFromBackup(): Promise<DesktopUpgradeSummary
   return invoke<DesktopUpgradeSummary>('upgrade_database_from_backup');
 }
 
+/** One managed backup pair as returned by the `list_backups` command —
+ * mirrors `postgres::BackupInfo` (filenames only; paths stay internal). */
+export interface DesktopBackupInfo {
+  filename: string;
+  /** RFC3339 UTC timestamp; render in local time via `new Date(...)`. */
+  timestamp: string;
+  /** Combined size of the dump plus its uploads tarball, in bytes. */
+  size_bytes: number;
+  /** Uploads tarball filename restored alongside the dump, when paired. */
+  uploads_filename: string | null;
+}
+
+/** Mirrors `postgres::RestoreSummary` — returned by `restore_database`. */
+export interface DesktopRestoreSummary {
+  restored_backup: string;
+  restored_uploads: string | null;
+  /** Pre-restore safety dump filename — appears in the backups list. */
+  safety_backup: string;
+}
+
+export async function listBackups(): Promise<DesktopBackupInfo[]> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<DesktopBackupInfo[]>('list_backups');
+}
+
+/** Run a managed backup into the default backups dir; resolves to its path. */
+export async function backupNow(): Promise<string> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<string>('backup_database', { destination: null });
+}
+
+/**
+ * Restore a managed backup into the live database. The command stops the
+ * backend sidecar first, so the app drops into the `DesktopServiceGate`
+ * restart screen while this is in flight — the promise usually settles after
+ * the calling component has already unmounted.
+ */
+export async function restoreDatabase(filename: string): Promise<DesktopRestoreSummary> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<DesktopRestoreSummary>('restore_database', { filename });
+}
+
+export async function openBackupsFolder(): Promise<void> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<void>('open_backups_folder');
+}
+
 export function isTauriBuildTarget(): boolean {
   const target = import.meta.env.VITE_APP_TARGET || import.meta.env.MODE;
   return TAURI_MODES.has(String(target).toLowerCase());
