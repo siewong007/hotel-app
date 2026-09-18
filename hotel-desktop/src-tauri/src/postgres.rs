@@ -1460,7 +1460,7 @@ const UPLOADS_FILE_SUFFIX: &str = "-uploads.tar.gz";
 /// Number of most-recent backups to retain when pruning.
 const BACKUP_RETENTION_COUNT: usize = 14;
 
-fn backups_directory() -> PathBuf {
+pub(crate) fn backups_directory() -> PathBuf {
     get_data_directory().join("backups")
 }
 
@@ -1594,6 +1594,42 @@ impl From<&ManagedBackup> for LatestBackup {
             size_bytes: backup.size_bytes,
         }
     }
+}
+
+/// Metadata about one managed backup, surfaced to the frontend by the
+/// `list_backups` command. Filenames only — full paths stay internal.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BackupInfo {
+    pub filename: String,
+    /// Backup timestamp as RFC3339 (from file mtime), local-agnostic; the FE
+    /// renders it in local time.
+    pub timestamp: String,
+    /// Combined size of the dump plus its uploads tarball, in bytes.
+    pub size_bytes: u64,
+    /// Filename of the paired uploads tarball, when uploads existed at backup
+    /// time.
+    pub uploads_filename: Option<String>,
+}
+
+/// All managed backups (dump+uploads pairs) newest first, for the
+/// backup/restore UI. Thin mapping over `list_managed_backups`.
+pub fn managed_backup_infos() -> Vec<BackupInfo> {
+    list_managed_backups()
+        .into_iter()
+        .map(|backup| BackupInfo {
+            filename: backup
+                .dump_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            timestamp: backup.timestamp,
+            size_bytes: backup.size_bytes,
+            uploads_filename: backup
+                .uploads_path
+                .and_then(|path| path.file_name().map(|n| n.to_string_lossy().to_string())),
+        })
+        .collect()
 }
 
 /// Delete all but the newest `BACKUP_RETENTION_COUNT` managed backups — both

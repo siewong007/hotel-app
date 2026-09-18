@@ -55,8 +55,10 @@ pub fn run() {
             commands::restart_backend,
             commands::backup_database,
             commands::upgrade_database_from_backup,
+            commands::list_backups,
             commands::get_logs,
             commands::open_data_folder,
+            commands::open_backups_folder,
             commands::shutdown_app,
             commands::check_for_updates,
         ])

@@ -4,6 +4,7 @@
 
 use rand::RngExt;
 use std::net::TcpListener;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, LazyLock};
 use tauri::{AppHandle, Emitter, Manager};
@@ -345,6 +346,12 @@ pub async fn upgrade_database_from_backup(
     Ok(summary)
 }
 
+/// List managed database backups (newest first) for the backup/restore UI.
+#[tauri::command]
+pub async fn list_backups() -> Result<Vec<crate::postgres::BackupInfo>, String> {
+    Ok(crate::postgres::managed_backup_infos())
+}
+
 /// Get recent log entries
 #[tauri::command]
 pub async fn get_logs(lines: Option<usize>) -> Result<Vec<String>, String> {
@@ -387,15 +394,14 @@ pub async fn get_logs(lines: Option<usize>) -> Result<Vec<String>, String> {
     }
 }
 
-/// Open the data folder in the file explorer
-#[tauri::command]
-pub async fn open_data_folder() -> Result<(), String> {
-    let data_dir = get_data_directory();
-
+/// Open `path` in the OS file explorer (macOS `open`, Windows `explorer`,
+/// Linux `xdg-open`). Fire-and-forget: the spawned child keeps running after
+/// its handle is dropped.
+fn open_in_file_manager(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         tokio::process::Command::new("open")
-            .arg(&data_dir)
+            .arg(path)
             .spawn()
             .map_err(|e| e.to_string())?;
     }
@@ -403,7 +409,7 @@ pub async fn open_data_folder() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         tokio::process::Command::new("explorer")
-            .arg(&data_dir)
+            .arg(path)
             .spawn()
             .map_err(|e| e.to_string())?;
     }
@@ -411,12 +417,28 @@ pub async fn open_data_folder() -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         tokio::process::Command::new("xdg-open")
-            .arg(&data_dir)
+            .arg(path)
             .spawn()
             .map_err(|e| e.to_string())?;
     }
 
     Ok(())
+}
+
+/// Open the data folder in the file explorer
+#[tauri::command]
+pub async fn open_data_folder() -> Result<(), String> {
+    open_in_file_manager(&get_data_directory())
+}
+
+/// Open the managed backups folder in the OS file explorer so the user can
+/// copy dumps off-app. Deliberately folder-only: arbitrary destination paths
+/// stay refused (see ensure_within_data_dir).
+#[tauri::command]
+pub async fn open_backups_folder() -> Result<(), String> {
+    let dir = crate::postgres::backups_directory();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    open_in_file_manager(&dir)
 }
 
 /// Shutdown the application gracefully
