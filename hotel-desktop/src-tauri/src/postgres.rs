@@ -1405,11 +1405,17 @@ async fn verify_backup_dump(app_handle: &AppHandle, dump_path: &Path) -> Result<
     let output = cmd.output().await?;
     if !output.status.success() {
         let details = command_output_details("pg_restore --list backup verification", &output);
-        // Don't leave a corrupt artifact on disk pretending to be a backup.
-        let _ = std::fs::remove_file(dump_path);
+        // Don't leave a corrupt artifact on disk pretending to be a backup —
+        // and say so: during a user-chosen restore this deletes the file they
+        // selected, which the error must disclose.
+        let removal_note = if std::fs::remove_file(dump_path).is_ok() {
+            "the unreadable dump was removed"
+        } else {
+            "the unreadable dump could not be removed; delete it manually"
+        };
         return Err(PostgresError::MigrationFailed(format!(
-            "Backup verification failed: {}",
-            details
+            "Backup verification failed: {}; {}",
+            details, removal_note
         )));
     }
 
@@ -1837,14 +1843,31 @@ async fn restore_uploads_tarball(tarball_path: &Path) -> Result<(), PostgresErro
             Ok(())
         }
         Err(err) => {
-            // Roll the renamed dirs back.
+            // Roll the renamed dirs back; name any that could not be moved
+            // back so their pre-restore contents stay findable at the aside
+            // path for manual recovery.
+            let mut stranded: Vec<PathBuf> = Vec::new();
             for (aside, original) in retired {
                 let _ = std::fs::remove_dir_all(&original);
-                let _ = std::fs::rename(&aside, &original);
+                if std::fs::rename(&aside, &original).is_err() && aside.exists() {
+                    stranded.push(aside);
+                }
             }
+            let rollback_note = if stranded.is_empty() {
+                "the previous uploads directories were restored in place".to_string()
+            } else {
+                format!(
+                    "the previous uploads directories could not be moved back; they are preserved at {}",
+                    stranded
+                        .iter()
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
             Err(PostgresError::MigrationFailed(format!(
-                "uploads restore failed: {}",
-                err
+                "uploads restore failed: {}. {}",
+                err, rollback_note
             )))
         }
     }
@@ -1881,7 +1904,10 @@ pub async fn restore_database(
     if let Err(err) = restore_backup_dump(app_handle, &dump_path).await {
         // Best-effort auto-rollback to the pre-restore state.
         let rollback_note = match restore_backup_dump(app_handle, &safety_path).await {
-            Ok(()) => "The pre-restore state was rolled back automatically.".to_string(),
+            Ok(()) => format!(
+                "The pre-restore state was rolled back automatically (safety backup: {}).",
+                safety_name
+            ),
             Err(rb) => format!(
                 "Automatic rollback also failed ({}); restore {} manually to recover the pre-restore state.",
                 rb, safety_name
