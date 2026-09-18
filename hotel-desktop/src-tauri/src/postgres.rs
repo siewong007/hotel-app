@@ -1437,15 +1437,23 @@ fn backup_uploads(stem: &str) -> Result<Option<PathBuf>, PostgresError> {
     }
 
     let out_path = backups_directory().join(format!("{}{}", stem, UPLOADS_FILE_SUFFIX));
-    let file = std::fs::File::create(&out_path)?;
-    let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::default());
-    let mut builder = tar::Builder::new(encoder);
-    for dir in roots {
-        // Top-level entry name is the dir itself ("uploads", "private_uploads")
-        // so extraction restores the layout verbatim.
-        builder.append_dir_all(dir.file_name().unwrap_or_default(), &dir)?;
+    let written = (|| -> std::io::Result<()> {
+        let file = std::fs::File::create(&out_path)?;
+        let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+        let mut builder = tar::Builder::new(encoder);
+        for dir in &roots {
+            // Top-level entry name is the dir itself ("uploads", "private_uploads")
+            // so extraction restores the layout verbatim.
+            builder.append_dir_all(dir.file_name().unwrap_or_default(), dir)?;
+        }
+        builder.into_inner()?.finish()?;
+        Ok(())
+    })();
+    if let Err(err) = written {
+        // A truncated tarball must not stay behind pretending to be a backup.
+        let _ = std::fs::remove_file(&out_path);
+        return Err(err.into());
     }
-    builder.into_inner()?.finish()?;
     Ok(Some(out_path))
 }
 
@@ -1674,6 +1682,18 @@ pub struct UpgradeSummary {
     pub to_version: String,
 }
 
+/// Summary returned to the frontend after a same-version restore.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RestoreSummary {
+    /// Managed dump filename that was restored.
+    pub restored_backup: String,
+    /// Uploads tarball filename restored alongside it, when the pair had one.
+    pub restored_uploads: Option<String>,
+    /// Filename of the safety dump taken immediately before the restore — the
+    /// pre-restore state the user can roll back to from the backups list.
+    pub safety_backup: String,
+}
+
 /// Restore a custom-format (`pg_dump -F c`) backup into the freshly-created
 /// database using the bundled `pg_restore`.
 async fn restore_backup_dump(
@@ -1734,6 +1754,160 @@ async fn restore_backup_dump(
     }
 
     Ok(())
+}
+
+/// Pure half of `resolve_managed_dump`: untrusted input must be a bare
+/// `hotel-backup-*.dump` filename — no separators, no parent components.
+/// `file_name()` returning the input unchanged proves the path is a single
+/// component; anything with separators fails that check, and `..`/`/`
+/// produce no file name at all.
+fn is_valid_restore_filename(filename: &str) -> bool {
+    Path::new(filename)
+        .file_name()
+        .filter(|name| *name == std::ffi::OsStr::new(filename))
+        .and_then(|name| name.to_str())
+        .map(is_managed_backup_name)
+        .unwrap_or(false)
+}
+
+/// Resolve a user-supplied backup filename to a managed dump inside the
+/// backups dir. Bare filename only — no separators, must match the managed
+/// pattern, must exist in the managed list (a file dropped there by hand
+/// with a matching name is fine; anything else is refused).
+fn resolve_managed_dump(filename: &str) -> Result<PathBuf, PostgresError> {
+    let reject = || PostgresError::InvalidBackupDestination(filename.to_string());
+    if !is_valid_restore_filename(filename) {
+        return Err(reject());
+    }
+    let candidate = backups_directory().join(filename);
+    if !is_managed_backup_file(&candidate) {
+        return Err(reject());
+    }
+    Ok(candidate)
+}
+
+/// Extract a `-uploads.tar.gz` into the data dir. Current uploads/ and
+/// private_uploads/ are renamed aside FIRST and only deleted after a clean
+/// extract — a corrupt tarball can never leave the app without its files.
+/// Tar entries are validated: absolute paths and `..` components abort.
+async fn restore_uploads_tarball(tarball_path: &Path) -> Result<(), PostgresError> {
+    let data_dir = get_data_directory();
+    let file = std::fs::File::open(tarball_path)?;
+    let decoder = flate2::read::GzDecoder::new(file);
+    let mut archive = tar::Archive::new(decoder);
+
+    // Pre-validate every entry path before touching the filesystem.
+    for entry in archive.entries()? {
+        let entry = entry?;
+        let path = entry.path()?;
+        if path.components().any(|c| {
+            matches!(
+                c,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        }) {
+            return Err(PostgresError::MigrationFailed(format!(
+                "Refusing uploads archive with unsafe path {:?}",
+                path
+            )));
+        }
+    }
+
+    let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let mut retired: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for name in ["uploads", "private_uploads"] {
+        let dir = data_dir.join(name);
+        if dir.exists() {
+            let aside = data_dir.join(format!("{}.prerestore-{}", name, stamp));
+            std::fs::rename(&dir, &aside)?;
+            retired.push((aside, dir));
+        }
+    }
+
+    // Re-open (entries() consumed the archive) and extract.
+    let file = std::fs::File::open(tarball_path)?;
+    let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(file));
+    match archive.unpack(&data_dir) {
+        Ok(()) => {
+            for (aside, _) in retired {
+                let _ = std::fs::remove_dir_all(&aside);
+            }
+            Ok(())
+        }
+        Err(err) => {
+            // Roll the renamed dirs back.
+            for (aside, original) in retired {
+                let _ = std::fs::remove_dir_all(&original);
+                let _ = std::fs::rename(&aside, &original);
+            }
+            Err(PostgresError::MigrationFailed(format!(
+                "uploads restore failed: {}",
+                err
+            )))
+        }
+    }
+}
+
+/// Same-version restore: replace the live database (and uploads) with a
+/// managed backup. A fresh safety dump is taken first — if the restore fails,
+/// the safety dump is restored back automatically (best effort) and named in
+/// the error either way. `pg_restore --clean` is not transactional, so a
+/// mid-restore failure can leave a half-restored database; the safety dump is
+/// the mitigation, which is why rollback is attempted immediately rather than
+/// left to the user.
+pub async fn restore_database(
+    app_handle: &AppHandle,
+    filename: &str,
+) -> Result<RestoreSummary, PostgresError> {
+    let dump_path = resolve_managed_dump(filename)?;
+    verify_backup_dump(app_handle, &dump_path).await?;
+    let uploads_path = {
+        let stem = filename.trim_end_matches(BACKUP_FILE_SUFFIX);
+        let candidate = backups_directory().join(format!("{}{}", stem, UPLOADS_FILE_SUFFIX));
+        is_managed_uploads_file(&candidate).then_some(candidate)
+    };
+
+    // Safety net: a pre-restore dump the user can roll back to. Uses the same
+    // managed naming so it lands in the list and prunes naturally.
+    let safety_path = backup_database(app_handle, None).await?;
+    let safety_name = safety_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    if let Err(err) = restore_backup_dump(app_handle, &dump_path).await {
+        // Best-effort auto-rollback to the pre-restore state.
+        let rollback_note = match restore_backup_dump(app_handle, &safety_path).await {
+            Ok(()) => "The pre-restore state was rolled back automatically.".to_string(),
+            Err(rb) => format!(
+                "Automatic rollback also failed ({}); restore {} manually to recover the pre-restore state.",
+                rb, safety_name
+            ),
+        };
+        return Err(PostgresError::MigrationFailed(format!(
+            "Restore of {} failed: {}. {}",
+            filename, err, rollback_note
+        )));
+    }
+
+    if let Some(tarball) = &uploads_path {
+        restore_uploads_tarball(tarball).await.map_err(|err| {
+            PostgresError::MigrationFailed(format!(
+                "Database restored but uploads restore failed: {}. Database state is from {}; uploaded files may be inconsistent.",
+                err, filename
+            ))
+        })?;
+    }
+
+    Ok(RestoreSummary {
+        restored_backup: filename.to_string(),
+        restored_uploads: uploads_path
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string())),
+        safety_backup: safety_name,
+    })
 }
 
 /// Guided PostgreSQL build upgrade: retire the incompatible data directory, create
@@ -2377,5 +2551,23 @@ mod tests {
         // A dump without our prefix must never be treated as a managed
         // artifact (pruning only ever removes managed files).
         assert!(!is_managed_backup_name("someone-elses.dump"));
+    }
+
+    #[test]
+    fn restore_rejects_non_managed_filenames() {
+        for bad in [
+            "../etc/passwd",
+            "foo/bar.dump",
+            "hotel-backup-x.sql",
+            "..",
+            "backups/hotel-backup-1.dump",
+        ] {
+            assert!(!is_valid_restore_filename(bad), "{bad} should be refused");
+        }
+        // A bare managed filename passes the pure check; resolve_managed_dump
+        // additionally requires the file to exist inside the backups dir.
+        assert!(is_valid_restore_filename(
+            "hotel-backup-20260918-120000.dump"
+        ));
     }
 }

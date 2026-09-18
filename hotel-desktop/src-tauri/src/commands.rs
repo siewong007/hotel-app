@@ -346,6 +346,31 @@ pub async fn upgrade_database_from_backup(
     Ok(summary)
 }
 
+/// Restore a managed backup (dump + uploads pair) into the live database.
+/// Stops the sidecar first, restarts it after — the webview sees the normal
+/// service-restart flow while this runs.
+#[tauri::command]
+pub async fn restore_database(
+    app_handle: AppHandle,
+    filename: String,
+) -> Result<crate::postgres::RestoreSummary, String> {
+    log::info!("Database restore requested from {}", filename);
+    stop_backend_sidecar().await?;
+    let result = crate::postgres::restore_database(&app_handle, &filename).await;
+    // Always try to bring the app back — even on failure the pre-restore
+    // state (rolled back or not) is the database the app should serve.
+    if let Err(err) = start_backend_sidecar(&app_handle).await {
+        return Err(format!(
+            "{} (additionally, backend restart failed: {})",
+            result
+                .map(|_| "Restore finished".to_string())
+                .unwrap_or_else(|e| e.to_string()),
+            err
+        ));
+    }
+    result.map_err(|e| e.to_string())
+}
+
 /// List managed database backups (newest first) for the backup/restore UI.
 #[tauri::command]
 pub async fn list_backups() -> Result<Vec<crate::postgres::BackupInfo>, String> {
