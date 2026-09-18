@@ -12,17 +12,22 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (rel) => readFileSync(join(repoRoot, rel), 'utf8');
 
 // Extracts the items of a flat single-quoted array literal, e.g.
-// `const NAME = ['a', 'b'];`. Throws when the literal is absent so a moved or
-// renamed constant fails loudly instead of passing on an empty list.
+// `const NAME = ['a', 'b'];`. Throws when the literal is absent or yields no
+// items, so a moved/renamed constant — or a reformat to double quotes — fails
+// loudly instead of passing on two empty lists.
 const listLiteral = (source, name) => {
   const match = source.match(new RegExp(`${name}\\s*=\\s*\\[([^\\]]+)\\]`));
   if (!match) throw new Error(`${name} array literal not found`);
-  return [...match[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  const items = [...match[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  if (items.length === 0) {
+    throw new Error(`${name} literal found but no single-quoted items extracted`);
+  }
+  return items;
 };
 
 const allowedOrigins = () => {
   const commands = read('hotel-desktop/src-tauri/src/commands.rs');
-  const match = commands.match(/"ALLOWED_ORIGINS",\s*\n?\s*"([^"]+)"/);
+  const match = commands.match(/"ALLOWED_ORIGINS",\s*"([^"]+)"/);
   if (!match) throw new Error('ALLOWED_ORIGINS env literal not found in commands.rs');
   return match[1].split(',').map((s) => s.trim());
 };
@@ -33,10 +38,18 @@ const capabilityRemoteOrigins = () => {
   return caps.remote.urls.map((u) => u.replace(/\/\*$/, ''));
 };
 
-// Dev-server origins are http(s) loopback URLs. The tauri webview origins are
-// http-shaped on some platforms but are app-internal, not remote urls the
-// capability grants access to — exclude them from the symmetric comparison.
-const isDevHttpOrigin = (origin) => /^https?:\/\//.test(origin) && !origin.includes('tauri');
+// The origin `tauri dev` actually loads in the webview — the single most
+// important entry in both lists.
+const devUrlOrigin = () => {
+  const conf = JSON.parse(read('hotel-desktop/src-tauri/tauri.conf.json'));
+  if (!conf.build?.devUrl) throw new Error('build.devUrl not found in tauri.conf.json');
+  return new URL(conf.build.devUrl).origin;
+};
+
+// Scope is every http(s) origin — remote.urls may legitimately carry
+// non-loopback urls too. Only the tauri webview origins are excluded: they are
+// http-shaped on some platforms but app-internal, never capability remote urls.
+const isRemoteHttpOrigin = (origin) => /^https?:\/\//.test(origin) && !origin.includes('tauri');
 
 describe('origin/proxy parity', () => {
   test('runtimeApi ROOT_API_PREFIXES == vite PROXY_PREFIXES (sans leading /)', () => {
@@ -56,12 +69,18 @@ describe('origin/proxy parity', () => {
     expect(origins).toContain('http://tauri.localhost');
   });
 
-  test('dev http origins in ALLOWED_ORIGINS == capability remote.urls (sans /*)', () => {
-    const origins = allowedOrigins().filter(isDevHttpOrigin).sort();
-    const remote = capabilityRemoteOrigins().filter(isDevHttpOrigin).sort();
-    // Symmetric: a dev origin allowed by CORS but absent from remote.urls (or
-    // vice versa) means the webview either cannot reach the backend or is
-    // granted a capability for an origin that never occurs.
+  test('http origins in ALLOWED_ORIGINS == capability remote.urls (sans /*)', () => {
+    const origins = allowedOrigins().filter(isRemoteHttpOrigin).sort();
+    const remote = capabilityRemoteOrigins().filter(isRemoteHttpOrigin).sort();
+    // Anchor first: the equality below is symmetric, so a devUrl origin missing
+    // from BOTH lists would pass unnoticed. The origin `tauri dev` loads must
+    // be CORS-allowed *and* capability-granted.
+    const devOrigin = devUrlOrigin();
+    expect(origins).toContain(devOrigin);
+    expect(remote).toContain(devOrigin);
+    // Symmetric: an origin allowed by CORS but absent from remote.urls (or vice
+    // versa) means the webview either cannot reach the backend or is granted a
+    // capability for an origin that never occurs.
     expect(origins).toEqual(remote);
   });
 });
