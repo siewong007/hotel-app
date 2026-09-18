@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -72,6 +72,16 @@ describe('CommunicationsPage', () => {
   it('loads campaigns for the default tab', async () => {
     renderPage();
     await waitFor(() => expect(mocks.listCampaigns).toHaveBeenCalled());
+  });
+
+  it('loads templates only after the Templates tab is selected', async () => {
+    renderPage();
+    await waitFor(() => expect(mocks.listCampaigns).toHaveBeenCalled());
+    expect(mocks.listTemplates).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Templates' }));
+
+    await waitFor(() => expect(mocks.listTemplates).toHaveBeenCalled());
   });
 
   it('reports no critical axe violations', async () => {

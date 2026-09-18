@@ -34,21 +34,15 @@ coverage, and the GitHub Action SHA-pinning sweep.
 
 ## P2 — later
 
-- FE test deserts (2026-09-14 update): loyalty and user settings suites are
-  covered, and every `*Page` now has at least smoke + axe coverage —
-  AuditLogPage, NightAuditPage, SystemHealthPage, JobsPage,
-  ReportLibraryPage, RevenueOverviewPage, SegmentsPage, DataTransferPage,
-  ComplimentaryManagementPage, CommunicationsPage, OffersPage,
-  PromotionManagementPage, RatesPage, UserProfilePage, EkycManagementPage,
-  EkycRegistrationPage, RoomManagementPage, RoomConfigurationPage,
-  RBACManagementPage, EnrollTwoFactorPage, EmailVerificationPage all gained
-  focused test files this session (the axe runs also surfaced and fixed ~57
-  unlabeled form controls/buttons). Still thin by depth rather than coverage:
-  the big workflow pages (RoomManagementPage, EkycManagementPage,
-  RBACManagementPage, DataTransferPage) only have render-level smoke — real
-  workflow assertions remain follow-ups. Remaining SettingsPage cards
-  (hotel info, times, charges, support workflow, security, appearance) not
-  yet split into sibling components.
+- FE test deserts (2026-09-18 update): loyalty and user settings suites are
+  covered, every `*Page` has at least smoke + axe coverage, and the four big
+  workflow pages (RoomManagementPage, EkycManagementPage, RBACManagementPage,
+  DataTransferPage) now carry real interaction assertions —
+  `pageManifest.workflowTests` is content-checked so a listed file must
+  simulate user interaction or fail CI. Still thin by depth — next tier by
+  component/test ratio stays as follow-ups: EkycRegistrationPage,
+  CommunicationsPage, NightAuditPage, RoomConfigurationPage, LoyaltyPortal.
+  SettingsPage cards are split into sibling components.
 - Phone/tablet density backlog (migrated 2026-09-15 from the deleted
   `superpowers/reports/2026-09-14-mobile-ux-report.md` as that plan's artifacts
   were pruned; priority order preserved). Item 4 of the original five —

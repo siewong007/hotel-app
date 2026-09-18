@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const mocks = vi.hoisted(() => ({
   pendingItems: [] as Array<Record<string, unknown>>,
@@ -79,6 +79,18 @@ describe('PaymentApprovalsPage payment actions', () => {
 
     expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reject' })).toBeTruthy();
+  });
+
+  it('approves a pending bank transfer when Approve is clicked', async () => {
+    mocks.pendingItems = [pendingPayment('bank_transfer')];
+    mocks.approve.mockResolvedValue(undefined);
+
+    render(<PaymentApprovalsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+
+    await waitFor(() => expect(mocks.approve).toHaveBeenCalledWith(42));
+    expect(await screen.findByText(/booking confirmed/)).toBeTruthy();
   });
 
   it('has no axe violations on the populated approvals list', async () => {
