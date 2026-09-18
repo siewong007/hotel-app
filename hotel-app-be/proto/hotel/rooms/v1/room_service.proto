@@ -1,0 +1,363 @@
+syntax = "proto3";
+
+// RoomService — unary RPCs covering the rooms REST surface.
+// REST mapping is documented per RPC. Auth is unchanged: the interceptor
+// validates the staff JWT + active session; each RPC's permission matches
+// the REST route's (noted in comments — enforcement stays in the service
+// layer exactly as today).
+package hotel.rooms.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/type/date.proto";
+import "hotel/common/v1/types.proto";
+import "hotel/rooms/v1/room.proto";
+
+service RoomService {
+  // GET /rooms → RoomWithRating[]  (rooms:read)
+  rpc ListRooms(ListRoomsRequest) returns (ListRoomsResponse);
+
+  // GET /rooms/available → RoomWithRating[]  (rooms:read)
+  rpc SearchRooms(SearchRoomsRequest) returns (SearchRoomsResponse);
+
+  // No direct REST counterpart (REST only lists or returns /detailed);
+  // included for AIP completeness — returns the Room resource by name.
+  rpc GetRoom(GetRoomRequest) returns (GetRoomResponse);
+
+  // POST /rooms  (rooms:create)
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+
+  // PATCH /rooms/{id}  (rooms:update)
+  rpc UpdateRoom(UpdateRoomRequest) returns (UpdateRoomResponse);
+
+  // DELETE /rooms/{id}  (rooms:delete)
+  rpc DeleteRoom(DeleteRoomRequest) returns (DeleteRoomResponse);
+
+  // PUT /rooms/{id}/status  (rooms:update + data-driven transition permission)
+  rpc UpdateRoomStatus(UpdateRoomStatusRequest) returns (UpdateRoomStatusResponse);
+
+  // POST /rooms/{id}/end-maintenance  (rooms:update)
+  rpc EndRoomMaintenance(EndRoomMaintenanceRequest) returns (EndRoomMaintenanceResponse);
+
+  // POST /rooms/{id}/end-cleaning  (housekeeping-scoped transition permission)
+  rpc EndRoomCleaning(EndRoomCleaningRequest) returns (EndRoomCleaningResponse);
+
+  // POST /rooms/sync-statuses  (rooms:update)
+  rpc SyncRoomStatuses(SyncRoomStatusesRequest) returns (SyncRoomStatusesResponse);
+
+  // GET /rooms/{id}/detailed  (rooms:read)
+  rpc GetRoomDetailedStatus(GetRoomDetailedStatusRequest) returns (GetRoomDetailedStatusResponse);
+
+  // GET /rooms/{id}/history  (ROOM_OPERATIONS_READ: rooms or housekeeping read)
+  rpc ListRoomStatusHistory(ListRoomStatusHistoryRequest) returns (ListRoomStatusHistoryResponse);
+
+  // POST /rooms/{id}/events  (rooms:update)
+  rpc CreateRoomEvent(CreateRoomEventRequest) returns (CreateRoomEventResponse);
+
+  // GET /rooms/{room_type}/reviews  (public-read shape kept behind rooms:read)
+  rpc ListRoomReviews(ListRoomReviewsRequest) returns (ListRoomReviewsResponse);
+
+  // POST /rooms/{id}/execute-change  (bookings:update)
+  rpc ExecuteRoomChange(ExecuteRoomChangeRequest) returns (ExecuteRoomChangeResponse);
+
+  // GET /rooms/change-history  (bookings:read)
+  rpc ListRoomChangeHistory(ListRoomChangeHistoryRequest) returns (ListRoomChangeHistoryResponse);
+
+  // GET /rooms/occupancy  (rooms:read)
+  rpc ListRoomOccupancy(ListRoomOccupancyRequest) returns (ListRoomOccupancyResponse);
+
+  // GET /rooms/occupancy/summary  (rooms:read)
+  rpc GetOccupancySummary(GetOccupancySummaryRequest) returns (GetOccupancySummaryResponse);
+
+  // GET /rooms/occupancy/by-type  (rooms:read)
+  rpc ListRoomTypeOccupancy(ListRoomTypeOccupancyRequest) returns (ListRoomTypeOccupancyResponse);
+
+  // GET /rooms/with-occupancy  (rooms:read)
+  rpc ListRoomsWithOccupancy(ListRoomsWithOccupancyRequest) returns (ListRoomsWithOccupancyResponse);
+
+  // GET /rooms/{id}/occupancy  (rooms:read)
+  rpc GetRoomOccupancy(GetRoomOccupancyRequest) returns (GetRoomOccupancyResponse);
+}
+
+message ListRoomsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListRoomsResponse {
+  repeated Room rooms = 1;
+  string next_page_token = 2;
+  int64 total_size = 3;
+}
+
+// REST SearchQuery. Dates were "YYYY-MM-DD" strings → google.type.Date.
+message SearchRoomsRequest {
+  // Room-type display name (REST room_type), not a resource name.
+  string room_type = 1;
+  // Price ceiling; empty currency_code = property currency.
+  hotel.common.v1.Money max_price = 2;
+  google.type.Date check_in_date = 3;
+  google.type.Date check_out_date = 4;
+  // "bookings/{booking}" — exclude the room held by this booking
+  // (REST exclude_booking_id, used by the room-change flow).
+  string exclude_booking = 5;
+  int32 page_size = 6;
+  string page_token = 7;
+}
+
+message SearchRoomsResponse {
+  repeated Room rooms = 1;
+  string next_page_token = 2;
+  int64 total_size = 3;
+}
+
+message GetRoomRequest {
+  // "rooms/{room}".
+  string name = 1;
+}
+
+// AIP-136 custom methods keep the resource-first shape; the create-only
+// fields ride on `room` marked INPUT_ONLY (floor, building, is_accessible,
+// room_type_link, custom_price, status).
+message CreateRoomRequest {
+  Room room = 1;
+  string request_id = 2;
+}
+
+message UpdateRoomRequest {
+  Room room = 1;
+  // REST PATCH semantics = update only the listed fields.
+  google.protobuf.FieldMask update_mask = 2;
+  string request_id = 3;
+}
+
+message DeleteRoomRequest {
+  // "rooms/{room}".
+  string name = 1;
+  string request_id = 2;
+}
+
+// REST RoomStatusUpdateInput. The six *_date fields were "YYYY-MM-DD"
+// strings → google.type.Date (service converts to UTC-midnight timestamps,
+// same as today).
+message UpdateRoomStatusRequest {
+  // "rooms/{room}".
+  string name = 1;
+  RoomStatus status = 2;
+  string reason = 3;
+  string notes = 4;
+  google.type.Date reserved_start_date = 5;
+  google.type.Date reserved_end_date = 6;
+  google.type.Date maintenance_start_date = 7;
+  google.type.Date maintenance_end_date = 8;
+  google.type.Date cleaning_start_date = 9;
+  google.type.Date cleaning_end_date = 10;
+  // "rooms/{room}" — redirect target for room changes.
+  string target_room = 11;
+  // "bookings/{booking}".
+  string booking = 12;
+  // "guests/{guest}".
+  string guest = 13;
+  // "rewards/{reward}" — loyalty reward redemption driving the status change.
+  string reward = 14;
+  string request_id = 15;
+}
+
+message EndRoomMaintenanceRequest {
+  // "rooms/{room}".
+  string name = 1;
+  string request_id = 2;
+}
+
+message EndRoomCleaningRequest {
+  // "rooms/{room}".
+  string name = 1;
+  string request_id = 2;
+}
+
+// REST returns {success, room_id, previous_status, new_status, message};
+// gRPC success is implicit in OK status.
+message EndRoomCleaningResponse {
+  Room room = 1;
+  RoomStatus previous_status = 2;
+  RoomStatus new_status = 3;
+  string message = 4;
+}
+
+message SyncRoomStatusesRequest {
+  string request_id = 1;
+}
+
+// REST returns {success, synced_count, changes[], message}.
+message SyncRoomStatusesResponse {
+  int64 synced_count = 1;
+  repeated RoomStatusSyncChange changes = 2;
+  string message = 3;
+}
+
+message RoomStatusSyncChange {
+  // "rooms/{room}".
+  string room = 1;
+  string room_number = 2;
+  RoomStatus old_status = 3;
+  RoomStatus new_status = 4;
+}
+
+message GetRoomDetailedStatusRequest {
+  // "rooms/{room}".
+  string name = 1;
+}
+
+message ListRoomStatusHistoryRequest {
+  // "rooms/{room}".
+  string name = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListRoomStatusHistoryResponse {
+  repeated RoomStatusChange changes = 1;
+  string next_page_token = 2;
+  int64 total_size = 3;
+}
+
+message CreateRoomEventRequest {
+  // "rooms/{room}" — the room the event belongs to.
+  string parent = 1;
+  RoomEvent event = 2;
+  string request_id = 3;
+}
+
+// REST path parameter is the room-type display name (e.g. "Deluxe"), not an
+// id — the contract keeps that exact semantic rather than inventing a
+// lookup the REST API does not have.
+message ListRoomReviewsRequest {
+  string room_type_name = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListRoomReviewsResponse {
+  repeated RoomReview reviews = 1;
+  string next_page_token = 2;
+  int64 total_size = 3;
+}
+
+// REST POST /rooms/{id}/execute-change {target_room_id, reason,
+// room_rate_override?} — moves the room's active booking to a new room.
+message ExecuteRoomChangeRequest {
+  // "rooms/{room}" — the room the booking leaves.
+  string name = 1;
+  // "rooms/{room}" — must be active and in 'available' status.
+  string target_room = 2;
+  string reason = 3;
+  hotel.common.v1.Money room_rate_override = 4;
+  string request_id = 5;
+}
+
+// REST returns {success, message, from/to room ids+numbers, booking_id,
+// reason}; gRPC success is implicit in OK status.
+message ExecuteRoomChangeResponse {
+  // "rooms/{room}".
+  string from_room = 1;
+  string from_room_number = 2;
+  // "rooms/{room}".
+  string to_room = 3;
+  string to_room_number = 4;
+  // "bookings/{booking}".
+  string booking = 5;
+  string reason = 6;
+  string message = 7;
+}
+
+// REST query params booking_id/guest_id/room_id/limit (default 50).
+message ListRoomChangeHistoryRequest {
+  // "bookings/{booking}" — optional filter.
+  string booking = 1;
+  // "guests/{guest}" — optional filter.
+  string guest = 2;
+  // "rooms/{room}" — optional filter (matches either side of the change).
+  string room = 3;
+  int32 page_size = 4;
+  string page_token = 5;
+}
+
+message ListRoomChangeHistoryResponse {
+  repeated RoomChangeRecord records = 1;
+  string next_page_token = 2;
+  int64 total_size = 3;
+}
+
+message ListRoomOccupancyRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListRoomOccupancyResponse {
+  repeated RoomOccupancy occupancy = 1;
+  string next_page_token = 2;
+  int64 total_size = 3;
+}
+
+message GetOccupancySummaryRequest {}
+
+message ListRoomTypeOccupancyRequest {}
+
+message ListRoomTypeOccupancyResponse {
+  repeated RoomTypeOccupancy occupancy = 1;
+}
+
+message ListRoomsWithOccupancyRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListRoomsWithOccupancyResponse {
+  repeated RoomWithOccupancy rooms = 1;
+  string next_page_token = 2;
+  int64 total_size = 3;
+}
+
+message GetRoomOccupancyRequest {
+  // "rooms/{room}".
+  string name = 1;
+}
+
+// ── Resource-returning RPCs: unique response wrappers (buf STANDARD). ────
+
+message GetRoomResponse {
+  Room room = 1;
+}
+
+message CreateRoomResponse {
+  Room room = 1;
+}
+
+message UpdateRoomResponse {
+  Room room = 1;
+}
+
+message DeleteRoomResponse {}
+
+message UpdateRoomStatusResponse {
+  Room room = 1;
+}
+
+message EndRoomMaintenanceResponse {
+  Room room = 1;
+}
+
+message GetRoomDetailedStatusResponse {
+  RoomDetailedStatus detailed_status = 1;
+}
+
+message CreateRoomEventResponse {
+  RoomEvent event = 1;
+}
+
+message GetOccupancySummaryResponse {
+  OccupancySummary summary = 1;
+}
+
+message GetRoomOccupancyResponse {
+  RoomOccupancy occupancy = 1;
+}

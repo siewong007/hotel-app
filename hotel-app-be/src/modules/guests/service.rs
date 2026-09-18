@@ -532,28 +532,14 @@ pub async fn delete_guest(pool: &DbPool, guest_id: i64) -> Result<(), ApiError> 
     Ok(())
 }
 
+// Returns typed rows: the REST handler renders them as the historical JSON
+// shape and the gRPC adapter maps them to protobuf — one query, two
+// presentations.
 pub async fn guest_bookings(
     pool: &DbPool,
     guest_id: i64,
-) -> Result<Vec<serde_json::Value>, ApiError> {
-    Ok(GuestRepository::guest_bookings(pool, guest_id)
-        .await?
-        .into_iter()
-        .map(|row| {
-            serde_json::json!({
-                "id": row.id.to_string(),
-                "booking_number": row.booking_number,
-                "check_in_date": row.check_in_date,
-                "check_out_date": row.check_out_date,
-                "nights": row.nights,
-                "status": row.status,
-                "total_amount": row.total_amount.to_string(),
-                "created_at": row.created_at,
-                "room_number": row.room_number,
-                "room_type": row.room_type
-            })
-        })
-        .collect())
+) -> Result<Vec<GuestBookingRow>, ApiError> {
+    GuestRepository::guest_bookings(pool, guest_id).await
 }
 
 pub async fn link_guest(
@@ -651,11 +637,13 @@ pub async fn transfer_guest_portal_account(
     Ok(())
 }
 
+// Returns the typed response: the REST handler serializes it to the same
+// wire shape the hand-built json! produced, and the gRPC adapter maps it.
 pub async fn guest_credits(
     pool: &DbPool,
     user_id: i64,
     guest_id: i64,
-) -> Result<serde_json::Value, ApiError> {
+) -> Result<GuestCreditsResponse, ApiError> {
     let has_access = GuestRepository::has_link(pool, user_id, guest_id).await?;
     let has_guest_permission = AuthService::check_permission(pool, user_id, "guests:read")
         .await
@@ -671,43 +659,28 @@ pub async fn guest_credits(
         .await?
         .ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
 
-    let credits_by_room_type: Vec<serde_json::Value> =
-        GuestRepository::guest_credits(pool, guest_id)
-            .await
-            .into_iter()
-            .map(|credit| {
-                serde_json::json!({
-                    "id": credit.id,
-                    "guest_id": credit.guest_id,
-                    "room_type_id": credit.room_type_id,
-                    "room_type_name": credit.room_type_name,
-                    "room_type_code": credit.room_type_code,
-                    "nights_available": credit.nights_available,
-                    "created_at": credit.created_at,
-                    "updated_at": credit.updated_at
-                })
-            })
-            .collect();
+    let credits_by_room_type = GuestRepository::guest_credits(pool, guest_id).await;
 
     let total_nights: i32 = credits_by_room_type
         .iter()
-        .map(|credit| credit["nights_available"].as_i64().unwrap_or(0) as i32)
+        .map(|credit| credit.nights_available)
         .sum();
     let legacy_total = GuestRepository::legacy_credit_total(pool, guest_id).await;
 
-    Ok(serde_json::json!({
-        "guest_id": guest_id,
-        "guest_name": guest_name,
-        "total_nights": total_nights,
-        "legacy_total_nights": legacy_total,
-        "credits_by_room_type": credits_by_room_type
-    }))
+    Ok(GuestCreditsResponse {
+        guest_id,
+        guest_name,
+        total_nights,
+        legacy_total_nights: legacy_total,
+        credits_by_room_type,
+    })
 }
 
+// Returns typed rows — same data, presented by each transport's adapter.
 pub async fn my_guests_with_credits(
     pool: &DbPool,
     user_id: i64,
-) -> Result<Vec<serde_json::Value>, ApiError> {
+) -> Result<Vec<LinkedGuestCredits>, ApiError> {
     let has_guest_access = AuthService::check_permission(pool, user_id, "guests:read")
         .await
         .unwrap_or(false)
@@ -723,33 +696,22 @@ pub async fn my_guests_with_credits(
     let mut result = Vec::new();
 
     for guest in guests {
-        let credits_by_room_type: Vec<serde_json::Value> =
-            GuestRepository::room_credits_by_guest(pool, guest.id)
-                .await
-                .into_iter()
-                .map(|credit| {
-                    serde_json::json!({
-                        "room_type_id": credit.room_type_id,
-                        "room_type_name": credit.room_type_name,
-                        "room_type_code": credit.room_type_code,
-                        "nights_available": credit.nights_available
-                    })
-                })
-                .collect();
+        let credits_by_room_type =
+            GuestRepository::room_credits_by_guest(pool, guest.id).await;
 
         let total_credits: i32 = credits_by_room_type
             .iter()
-            .map(|credit| credit["nights_available"].as_i64().unwrap_or(0) as i32)
+            .map(|credit| credit.nights_available)
             .sum();
 
-        result.push(serde_json::json!({
-            "id": guest.id,
-            "nick_name": guest.nick_name,
-            "email": guest.email,
-            "legacy_complimentary_nights_credit": guest.legacy_credits,
-            "total_complimentary_credits": total_credits,
-            "credits_by_room_type": credits_by_room_type
-        }));
+        result.push(LinkedGuestCredits {
+            id: guest.id,
+            nick_name: guest.nick_name,
+            email: guest.email,
+            legacy_complimentary_nights_credit: guest.legacy_credits,
+            total_complimentary_credits: total_credits,
+            credits_by_room_type,
+        });
     }
 
     Ok(result)
@@ -827,18 +789,12 @@ fn changed_guest_fields(
         ("title", values.title != previous.title),
         ("alt_phone", values.alt_phone != previous.alt_phone),
         ("guest_type", values.guest_type != previous.guest_type),
-        (
-            "tourism_type",
-            values.tourism_type != previous.tourism_type,
-        ),
+        ("tourism_type", values.tourism_type != previous.tourism_type),
         (
             "discount_percentage",
             values.discount_percentage != previous.discount_percentage,
         ),
-        (
-            "company_name",
-            values.company_name != previous.company_name,
-        ),
+        ("company_name", values.company_name != previous.company_name),
         ("vip_status", values.vip_status != previous.vip_status),
         ("tags", values.tags != previous.tags),
         ("job_title", values.job_title != previous.job_title),
@@ -1366,10 +1322,7 @@ mod tests {
         changed.blacklist_reason = Some("chargebacks".to_string());
         changed.email = Some("new@example.com".to_string());
         let fields = changed_guest_fields(&previous, &changed);
-        assert_eq!(
-            fields,
-            vec!["email", "is_blacklisted", "blacklist_reason"]
-        );
+        assert_eq!(fields, vec!["email", "is_blacklisted", "blacklist_reason"]);
     }
 
     #[test]

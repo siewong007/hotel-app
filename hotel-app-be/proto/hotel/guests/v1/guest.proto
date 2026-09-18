@@ -1,0 +1,257 @@
+syntax = "proto3";
+
+// Guests bounded context — resources and enums.
+// Ported 1:1 from hotel-app-be/src/modules/guests/models.rs. Field comments
+// call out every place where the REST shape and the proto shape differ
+// deliberately (int64 id→resource name, Decimal→Money, NaiveDate→Date).
+package hotel.guests.v1;
+
+import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "hotel/common/v1/types.proto";
+
+// Stored guest membership types (REST guest_type enum, snake_case JSON).
+enum GuestType {
+  GUEST_TYPE_UNSPECIFIED = 0;
+  GUEST_TYPE_MEMBER = 1;
+  GUEST_TYPE_NON_MEMBER = 2;
+}
+
+// Tourism classification driving tourism-tax calculation.
+enum TourismType {
+  TOURISM_TYPE_UNSPECIFIED = 0;
+  TOURISM_TYPE_LOCAL = 1;
+  TOURISM_TYPE_FOREIGN = 2;
+}
+
+// Derived guest-list segments (REST ?segment=). Computed server-side from
+// booking history; unknown values are ignored there, so only the four
+// documented values exist.
+enum GuestSegment {
+  GUEST_SEGMENT_UNSPECIFIED = 0;
+  GUEST_SEGMENT_RETURNING = 1;
+  GUEST_SEGMENT_IN_HOUSE = 2;
+  GUEST_SEGMENT_UPCOMING = 3;
+  GUEST_SEGMENT_INACTIVE = 4;
+}
+
+// Guest resource. Merges the REST `Guest` shape (CRM fields are
+// skip_serializing_if → proto `optional` preserves "not loaded" vs "null")
+// with the update-only sensitive identifier fields REST accepts on PATCH but
+// never serializes (they surface via GuestProfile.sensitive instead).
+message Guest {
+  // Format: "guests/{guest}" where {guest} is the base-10 int64 id.
+  string name = 1;
+  string nick_name = 2;
+  // Legal name, collected at check-in rather than at booking — REST emits
+  // `null` until then, so both fields keep presence semantics.
+  optional string first_name = 3;
+  optional string last_name = 4;
+  optional string email = 5;
+  optional string phone = 6;
+  optional string ic_number = 7;
+  optional string nationality = 8;
+  optional string address_line1 = 9;
+  optional string city = 10;
+  optional string state_province = 11;
+  optional string postal_code = 12;
+  optional string country = 13;
+  optional string title = 14;
+  optional string alt_phone = 15;
+  bool is_active = 16;
+  GuestType guest_type = 17;
+  optional TourismType tourism_type = 18;
+  // Optional for input parity: REST GuestInput.discount_percentage is Option
+  // — on update, absent means "keep existing", 0 means "zero it".
+  optional int32 discount_percentage = 19;
+  optional string company_name = 20;
+  int32 complimentary_nights_credit = 21;
+  google.protobuf.Timestamp created_at = 22 [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.protobuf.Timestamp updated_at = 23 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // CRM profile fields — all optional in REST (omitted when NULL or when the
+  // list SELECT didn't populate them), so all are `optional` here too.
+  optional string vip_status = 24;
+  repeated string tags = 25;
+  optional string job_title = 26;
+  optional string notes = 27;
+  optional string special_requests = 28;
+  optional bool marketing_opt_in = 29;
+  optional string communication_preference = 30;
+  optional string language_preference = 31;
+  optional bool is_blacklisted = 32;
+  optional string blacklist_reason = 33;
+
+  // Read-only linked guest-portal account state.
+  optional string account_username = 34 [(google.api.field_behavior) = OUTPUT_ONLY];
+  optional bool account_is_active = 35 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // List-endpoint aggregates — populated only by ListGuests.
+  optional int64 bookings_count = 36 [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.type.Date last_stay_date = 37 [(google.api.field_behavior) = OUTPUT_ONLY];
+  optional bool has_open_support = 38 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Computed eKYC rollup; REST always emits it (serde default). Numeric ids
+  // inside stay numeric — eKYC is an un-migrated context.
+  GuestEkycStatusSummary ekyc_summary = 39 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Sensitive identifier fields. REST accepts them on PATCH (additionally
+  // gated by guests:reveal in the service layer) but never serializes them on
+  // Guest — they appear on GuestProfile.sensitive instead.
+  google.type.Date date_of_birth = 40 [(google.api.field_behavior) = INPUT_ONLY];
+  optional string id_type = 41 [(google.api.field_behavior) = INPUT_ONLY];
+  optional string id_number = 42 [(google.api.field_behavior) = INPUT_ONLY];
+  google.type.Date id_expiry = 43 [(google.api.field_behavior) = INPUT_ONLY];
+  optional string id_country = 44 [(google.api.field_behavior) = INPUT_ONLY];
+}
+
+// Computed guest eKYC status (REST GuestEkycStatusSummary). ekyc ids stay
+// numeric: no ekyc.* package exists yet, so there is no resource name to
+// reference.
+message GuestEkycStatusSummary {
+  // "guests/{guest}".
+  string guest = 1;
+  // ekyc_verifications row id, when a submission exists (REST emits null).
+  optional int64 ekyc_verification_id = 2;
+  // Free-form status string ("not_submitted", "approved", …) — the REST
+  // vocabulary is not an enum server-side.
+  string status = 3;
+  bool self_checkin_enabled = 4;
+  google.protobuf.Timestamp verified_at = 5;
+  bool can_auto_checkin = 6;
+  optional string auto_checkin_block_reason = 7;
+  optional string auto_checkin_block_code = 8;
+}
+
+// Guest 360 metrics (REST GuestSummary). Decimals become Money in the
+// property currency.
+message GuestSummary {
+  int64 completed_stays = 1;
+  int64 total_nights = 2;
+  hotel.common.v1.Money total_room_revenue = 3;
+  google.type.Date last_stay_at = 4;
+  google.type.Date next_stay_at = 5;
+  hotel.common.v1.Money outstanding_balance = 6;
+  int64 total_bookings = 7;
+  // "bookings/{booking}" — REST emits the raw active_booking_id.
+  string active_booking = 8;
+  optional string active_booking_number = 9;
+}
+
+// Reservation row on the Guest 360 profile (REST GuestProfileBooking).
+message GuestProfileBooking {
+  // "bookings/{booking}" — REST emits the raw numeric id.
+  string name = 1;
+  optional string booking_number = 2;
+  google.type.Date check_in_date = 3;
+  google.type.Date check_out_date = 4;
+  int64 nights = 5;
+  string status = 6;
+  optional string payment_status = 7;
+  hotel.common.v1.Money total_amount = 8;
+  hotel.common.v1.Money total_paid = 9;
+  hotel.common.v1.Money balance_due = 10;
+  google.protobuf.Timestamp created_at = 11;
+  string room_number = 12;
+  string room_type = 13;
+  optional string special_requests = 14;
+  optional string source = 15;
+}
+
+// Duplicate-match candidate (REST GuestDuplicateCandidate).
+message GuestDuplicateCandidate {
+  Guest guest = 1;
+  int32 score = 2;
+  repeated string match_reasons = 3;
+  repeated string blocking_reasons = 4;
+  string recommended_action = 5;
+}
+
+// Government-issued identifier details, returned only to callers holding
+// guests:reveal (REST GuestSensitiveProfile).
+message GuestSensitiveProfile {
+  google.type.Date date_of_birth = 1;
+  // Stored enum label as text ("passport", "national_id", …), same as REST.
+  optional string id_type = 2;
+  optional string id_number = 3;
+  google.type.Date id_expiry = 4;
+  optional string id_country = 5;
+}
+
+// Guest 360 profile (REST GuestProfile).
+message GuestProfile {
+  Guest guest = 1;
+  GuestSummary summary = 2;
+  GuestEkycStatusSummary ekyc_summary = 3;
+  repeated GuestProfileBooking reservations = 4;
+  repeated GuestDuplicateCandidate duplicate_candidates = 5;
+  // Absent (not empty) unless the caller holds guests:reveal — same
+  // distinction REST draws by omitting the key.
+  optional GuestSensitiveProfile sensitive = 6;
+}
+
+// REST GuestTourismConversionResponse.
+message GuestTourismConversion {
+  Guest guest = 1;
+  // "bookings/{booking}" — REST emits the raw booking_id.
+  string booking = 2;
+  optional string booking_number = 3;
+  google.type.Date check_in_date = 4;
+  google.type.Date check_out_date = 5;
+  hotel.common.v1.Money tourism_tax_amount = 6;
+  hotel.common.v1.Money net_paid_amount = 7;
+  bool paid_tourism_tax = 8;
+  TourismType inferred_tourism_type = 9;
+}
+
+// Guest booking row (REST GET /guests/{id}/bookings row).
+message GuestBooking {
+  // "bookings/{booking}" — REST emits the id as a string.
+  string name = 1;
+  optional string booking_number = 2;
+  google.type.Date check_in_date = 3;
+  google.type.Date check_out_date = 4;
+  optional int32 nights = 5;
+  string status = 6;
+  hotel.common.v1.Money total_amount = 7;
+  google.protobuf.Timestamp created_at = 8;
+  string room_number = 9;
+  string room_type = 10;
+}
+
+// Complimentary-nights credit row (REST guest_credits credits_by_room_type).
+message GuestRoomTypeCredit {
+  // complimentary_credits row id — internal row key, not a resource.
+  int64 id = 1;
+  // "guests/{guest}".
+  string guest = 2;
+  // "roomTypes/{roomType}".
+  string room_type = 3;
+  string room_type_name = 4;
+  string room_type_code = 5;
+  int32 nights_available = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+// REST GET /guests/{id}/credits response.
+message GuestCredits {
+  // "guests/{guest}".
+  string guest = 1;
+  string guest_name = 2;
+  int32 total_nights = 3;
+  int32 legacy_total_nights = 4;
+  repeated GuestRoomTypeCredit credits_by_room_type = 5;
+}
+
+// Per-guest row of GET /guests/my-guests-with-credits.
+message GuestCreditSummary {
+  // "guests/{guest}" — REST emits the guest id as `id`.
+  string guest = 1;
+  string nick_name = 2;
+  optional string email = 3;
+  int32 legacy_complimentary_nights_credit = 4;
+  int32 total_complimentary_credits = 5;
+  repeated GuestRoomTypeCredit credits_by_room_type = 6;
+}

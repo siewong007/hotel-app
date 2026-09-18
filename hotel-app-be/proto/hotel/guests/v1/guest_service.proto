@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+// GuestService — unary RPCs covering the guest REST surface that has real
+// callers. link/unlink/upgrade stay REST: they are unreferenced by the
+// frontend and return untyped `any` payloads (see audit §3.12/§5).
+package hotel.guests.v1;
+
+import "google/protobuf/field_mask.proto";
+import "hotel/guests/v1/guest.proto";
+
+service GuestService {
+  // GET /guests?page=&page_size=&search=&guest_type=&tourism_type=
+  //   &missing_tourism=&missing_info=&vip=&blacklisted=&has_open_support=
+  //   &segment=  (bearer auth; the service itself gates guests:read —
+  //   callers without it receive an empty page, same as REST)
+  rpc ListGuests(ListGuestsRequest) returns (ListGuestsResponse);
+
+  // GET /guests/{id}  (guests:read)
+  rpc GetGuest(GetGuestRequest) returns (GetGuestResponse);
+
+  // GET /guests/{id}/profile  (guests:read; sensitive only with guests:reveal)
+  rpc GetGuestProfile(GetGuestProfileRequest) returns (GetGuestProfileResponse);
+
+  // GET /guests/{id}/bookings  (guests:read)
+  rpc ListGuestBookings(ListGuestBookingsRequest) returns (ListGuestBookingsResponse);
+
+  // GET /guests/{id}/credits  (bearer auth; the service checks the
+  // caller↔guest link or guests:read itself — same as REST)
+  rpc GetGuestCredits(GetGuestCreditsRequest) returns (GetGuestCreditsResponse);
+
+  // GET /guests/my-guests  (bearer auth — the caller's linked guests)
+  rpc ListMyGuests(ListMyGuestsRequest) returns (ListMyGuestsResponse);
+
+  // GET /guests/my-guests-with-credits  (bearer auth; service widens to all
+  // guests for guests:read/manage holders — same as REST)
+  rpc ListMyGuestsWithCredits(ListMyGuestsWithCreditsRequest)
+      returns (ListMyGuestsWithCreditsResponse);
+
+  // POST /guests  (guests:create)
+  rpc CreateGuest(CreateGuestRequest) returns (CreateGuestResponse);
+
+  // PATCH /guests/{id}  (guests:update)
+  rpc UpdateGuest(UpdateGuestRequest) returns (UpdateGuestResponse);
+
+  // DELETE /guests/{id}  (guests:delete)
+  rpc DeleteGuest(DeleteGuestRequest) returns (DeleteGuestResponse);
+
+  // POST /guests/{id}/tourism-from-last-check-in  (guests:update)
+  rpc ApplyTourismTypeFromLastCheckIn(ApplyTourismTypeFromLastCheckInRequest)
+      returns (ApplyTourismTypeFromLastCheckInResponse);
+
+  // POST /guests/{id}/portal-account  (guests:update)
+  rpc TransferGuestPortalAccount(TransferGuestPortalAccountRequest)
+      returns (TransferGuestPortalAccountResponse);
+}
+
+// REST GuestPaginationParams. Pagination stays page-numbered — the REST
+// endpoint paginates at the DB level by page, so the contract mirrors it
+// exactly rather than pretending a token exists.
+message ListGuestsRequest {
+  int64 page = 1;
+  int64 page_size = 2;
+  // Search by guest ID, name, email, phone, IC/passport number, or company.
+  string search = 3;
+  GuestType guest_type = 4;
+  TourismType tourism_type = 5;
+  // REST tri-state filters (unset/true/false) — `optional` preserves them.
+  optional bool missing_tourism = 6;
+  optional bool missing_info = 7;
+  optional bool vip = 8;
+  optional bool blacklisted = 9;
+  optional bool has_open_support = 10;
+  GuestSegment segment = 11;
+}
+
+// REST GuestPaginatedResponse, verbatim.
+message ListGuestsResponse {
+  repeated Guest guests = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message GetGuestRequest {
+  // "guests/{guest}".
+  string name = 1;
+}
+
+message GetGuestResponse {
+  Guest guest = 1;
+}
+
+message GetGuestProfileRequest {
+  // "guests/{guest}".
+  string name = 1;
+}
+
+message GetGuestProfileResponse {
+  GuestProfile profile = 1;
+}
+
+message ListGuestBookingsRequest {
+  // "guests/{guest}".
+  string name = 1;
+}
+
+message ListGuestBookingsResponse {
+  repeated GuestBooking bookings = 1;
+}
+
+message GetGuestCreditsRequest {
+  // "guests/{guest}".
+  string name = 1;
+}
+
+message GetGuestCreditsResponse {
+  GuestCredits credits = 1;
+}
+
+message ListMyGuestsRequest {}
+
+message ListMyGuestsResponse {
+  repeated Guest guests = 1;
+}
+
+message ListMyGuestsWithCreditsRequest {}
+
+message ListMyGuestsWithCreditsResponse {
+  repeated GuestCreditSummary summaries = 1;
+}
+
+// REST GuestInput — all fields live on Guest; required-ness stays
+// service-side (REST GuestInput.first_name/last_name are plain strings, so
+// empty means invalid exactly as an empty JSON string does).
+message CreateGuestRequest {
+  Guest guest = 1;
+  string request_id = 2;
+}
+
+message CreateGuestResponse {
+  Guest guest = 1;
+}
+
+// REST GuestUpdateInput. update_mask names the fields to patch; the target
+// is guest.name. The accepted-but-ignored fields REST documents (is_active,
+// CRM fields for check-in/portal callers) are valid mask paths and pass
+// through to the service untouched, same as REST.
+message UpdateGuestRequest {
+  Guest guest = 1;
+  google.protobuf.FieldMask update_mask = 2;
+  string request_id = 3;
+}
+
+message UpdateGuestResponse {
+  Guest guest = 1;
+}
+
+message DeleteGuestRequest {
+  // "guests/{guest}".
+  string name = 1;
+  string request_id = 2;
+}
+
+message DeleteGuestResponse {}
+
+message ApplyTourismTypeFromLastCheckInRequest {
+  // "guests/{guest}".
+  string name = 1;
+  string request_id = 2;
+}
+
+message ApplyTourismTypeFromLastCheckInResponse {
+  GuestTourismConversion conversion = 1;
+}
+
+message TransferGuestPortalAccountRequest {
+  // "guests/{guest}".
+  string name = 1;
+  string username = 2;
+  string request_id = 3;
+}
+
+message TransferGuestPortalAccountResponse {}

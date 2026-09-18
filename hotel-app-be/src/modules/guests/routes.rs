@@ -2,10 +2,10 @@
 //!
 //! Routes for guest CRUD and management.
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
-use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -122,8 +122,7 @@ async fn upgrade_guest(
     // Creates a login account on the target guest profile — staff only. The
     // can_modify link check inside the service stays as a second layer.
     let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
-    handlers::upgrade_guest_to_user_handler(State(pool), Extension(user_id), Json(input))
-        .await
+    handlers::upgrade_guest_to_user_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn transfer_guest_portal_account(
@@ -149,8 +148,7 @@ async fn update_guest(
     Json(input): Json<models::GuestUpdateInput>,
 ) -> Result<Json<models::Guest>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
-    handlers::update_guest_handler(State(pool), Extension(user_id), path, Json(input))
-        .await
+    handlers::update_guest_handler(State(pool), Extension(user_id), path, Json(input)).await
 }
 
 async fn apply_tourism_type_from_last_check_in(
@@ -159,12 +157,8 @@ async fn apply_tourism_type_from_last_check_in(
     path: Path<i64>,
 ) -> Result<Json<models::GuestTourismConversionResponse>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
-    handlers::apply_tourism_type_from_last_check_in_handler(
-        State(pool),
-        Extension(user_id),
-        path,
-    )
-    .await
+    handlers::apply_tourism_type_from_last_check_in_handler(State(pool), Extension(user_id), path)
+        .await
 }
 
 async fn delete_guest(
@@ -189,7 +183,7 @@ async fn get_guest_credits(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<Json<models::GuestCreditsResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
     handlers::get_guest_credits_handler(State(pool), Extension(user_id), path).await
 }
@@ -197,7 +191,7 @@ async fn get_guest_credits(
 async fn get_my_guests_with_credits(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+) -> Result<Json<Vec<models::LinkedGuestCredits>>, ApiError> {
     let user_id = require_auth(&headers).await?;
     handlers::get_my_guests_with_credits_handler(State(pool), Extension(user_id)).await
 }

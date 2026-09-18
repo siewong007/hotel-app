@@ -3,18 +3,22 @@
 FROM rust:1.95.0-bookworm AS builder
 
 # Install build dependencies
+# protobuf-compiler: build.rs compiles the gRPC contract in ./proto via protoc
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     libpq-dev \
     musl-tools \
+    protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /app
 
 # Copy Cargo files first for better layer caching
-COPY Cargo.toml Cargo.lock ./
+# build.rs + proto/: the build script runs protoc codegen on first build
+COPY Cargo.toml Cargo.lock build.rs ./
+COPY proto ./proto
 
 # Create a dummy main.rs and lib.rs to build dependencies
 RUN mkdir src && \

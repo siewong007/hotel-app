@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+// HousekeepingService — unary RPCs covering the housekeeping REST surface.
+package hotel.housekeeping.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/type/date.proto";
+import "hotel/housekeeping/v1/housekeeping.proto";
+
+service HousekeepingService {
+  // GET /housekeeping/tasks → paged list  (housekeeping:read)
+  rpc ListHousekeepingTasks(ListHousekeepingTasksRequest) returns (ListHousekeepingTasksResponse);
+
+  // POST /housekeeping/tasks  (housekeeping:create)
+  rpc CreateHousekeepingTask(CreateHousekeepingTaskRequest) returns (CreateHousekeepingTaskResponse);
+
+  // PATCH /housekeeping/tasks/{id}  (housekeeping:update; completing a task
+  // also drives the room-status transition exactly as REST does)
+  rpc UpdateHousekeepingTask(UpdateHousekeepingTaskRequest) returns (UpdateHousekeepingTaskResponse);
+
+  // GET /housekeeping/board  (housekeeping:read)
+  rpc GetHousekeepingBoard(GetHousekeepingBoardRequest) returns (GetHousekeepingBoardResponse);
+
+  // GET /housekeeping/assignable-staff?scope=  (housekeeping:read)
+  rpc ListAssignableStaff(ListAssignableStaffRequest) returns (ListAssignableStaffResponse);
+}
+
+// REST ListHousekeepingTasksQuery. Filters are optional; an UNSPECIFIED
+// enum or empty field means "no filter" — matching the REST behavior.
+message ListHousekeepingTasksRequest {
+  HousekeepingTaskStatus status = 1;
+  HousekeepingTaskType task_type = 2;
+  // "rooms/{room}".
+  string room = 3;
+  // "users/{user}".
+  string assigned_to = 4;
+  // true = only unassigned tasks, false = only assigned; unset = no filter.
+  optional bool unassigned = 5;
+  google.type.Date scheduled_date = 6;
+  int32 page_size = 7;
+  string page_token = 8;
+}
+
+// REST returns {items, total, page, page_size} — page/page_size collapse
+// into the standard token+total_size shape.
+message ListHousekeepingTasksResponse {
+  repeated HousekeepingTask tasks = 1;
+  string next_page_token = 2;
+  int64 total_size = 3;
+}
+
+// REST CreateHousekeepingTaskRequest.
+message CreateHousekeepingTaskRequest {
+  HousekeepingTask task = 1;
+  string request_id = 2;
+}
+
+// REST UpdateHousekeepingTaskRequest. update_mask names the task fields to
+// patch; clear_assignee is the explicit unassign path (assigned_to is a
+// COALESCE patch and cannot clear itself).
+message UpdateHousekeepingTaskRequest {
+  HousekeepingTask task = 1;
+  google.protobuf.FieldMask update_mask = 2;
+  bool clear_assignee = 3;
+  string request_id = 4;
+}
+
+message GetHousekeepingBoardRequest {}
+
+// REST HousekeepingBoardResponse {rooms}.
+message GetHousekeepingBoardResponse {
+  repeated HousekeepingBoardRoom rooms = 1;
+}
+
+message ListAssignableStaffRequest {
+  AssignableStaffScope scope = 1;
+}
+
+message ListAssignableStaffResponse {
+  repeated AssignableStaffMember staff = 1;
+}
+
+// ── Resource-returning RPCs: unique response wrappers (buf STANDARD). ────
+
+message CreateHousekeepingTaskResponse {
+  HousekeepingTask task = 1;
+}
+
+message UpdateHousekeepingTaskResponse {
+  HousekeepingTask task = 1;
+}

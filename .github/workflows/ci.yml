@@ -85,6 +85,11 @@ jobs:
       - name: Check desktop DB bundle matches the backend
         run: scripts/check-desktop-db-mirror.sh
 
+      # hotel-app-be/proto/hotel/ is a copy of proto/hotel/ the backend
+      # build.rs compiles (the Docker context is the crate dir only).
+      - name: Check backend proto mirror matches the contract
+        run: scripts/check-proto-mirror.sh
+
   frontend:
     name: Frontend — Typecheck, Lint & Build
     runs-on: ubuntu-latest
@@ -155,7 +160,7 @@ jobs:
           workspaces: hotel-app-be
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libpq-dev postgresql-client pkg-config libssl-dev
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev postgresql-client pkg-config libssl-dev protobuf-compiler
 
       - name: Cargo check
         run: cargo check --all-features
@@ -227,7 +232,7 @@ jobs:
           workspaces: hotel-app-be
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libpq-dev pkg-config libssl-dev postgresql-client curl
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev pkg-config libssl-dev postgresql-client curl protobuf-compiler
 
       - name: Apply PostgreSQL schema and seed data
         run: |

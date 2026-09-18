@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+// Shared contract types used by every hotel.* package. Not a bounded context;
+// holds only primitives that would otherwise be duplicated across packages.
+package hotel.common.v1;
+
+// ── Resource-name convention ────────────────────────────────────────────
+// Resource identifiers are AIP-122 resource names: "{collection}/{id}" where
+// {id} is the base-10 form of the database's int64 primary key. Examples:
+//   rooms/42          roomTypes/3        housekeepingTasks/17
+//   maintenanceTickets/9   bookings/100234   guests/55   users/7
+// Collections are lowerCamelCase plural. Resource names referencing packages
+// that do not exist yet (bookings, guests, users, rewards) are forward
+// declarations — the string format is fixed now, the owning service lands
+// with its package later.
+
+// Money is an amount in minor units of an ISO-4217 currency (e.g. cents).
+// Never float/double. The database stores major-unit numeric(…,2) columns;
+// the service layer converts at the boundary (×100 / ÷100, exact for the
+// 2-decimal values the schema permits).
+//
+// currency_code is the ISO-4217 code the amount is denominated in. Prices
+// that carry no column of their own (room prices, room-type rates) are
+// denominated in the property currency from system_settings.currency and
+// the server populates the code on output. On input, an empty currency_code
+// means "the property currency".
+message Money {
+  int64 amount_minor = 1;
+  string currency_code = 2;
+}
+
+// Non-money exact numerics (ratings, occupancy percentages, labor hours)
+// use google.type.Decimal — a string-encoded decimal that preserves
+// arbitrary precision (the schema has numeric(10,4) columns that cannot be
+// expressed as minor-unit int64).

@@ -387,6 +387,23 @@ pub fn create_router(pool: DbPool) -> Router {
                     axum::http::HeaderName::from_static(
                         crate::modules::data_transfer::routes::BACKUP_PASSPHRASE_HEADER,
                     ),
+                    // Connect/gRPC-Web request headers — needed for cross-origin
+                    // browser calls to the tonic services (dev mode's Any
+                    // branch already permits them).
+                    axum::http::HeaderName::from_static("x-grpc-web"),
+                    axum::http::HeaderName::from_static("x-user-agent"),
+                    axum::http::HeaderName::from_static("grpc-timeout"),
+                    axum::http::HeaderName::from_static("grpc-encoding"),
+                    axum::http::HeaderName::from_static("grpc-accept-encoding"),
+                    axum::http::HeaderName::from_static("connect-protocol-version"),
+                ])
+                .expose_headers([
+                    // gRPC-Web carries status in trailer headers the browser
+                    // can only read when exposed.
+                    axum::http::HeaderName::from_static("grpc-status"),
+                    axum::http::HeaderName::from_static("grpc-message"),
+                    axum::http::HeaderName::from_static("grpc-encoding"),
+                    axum::http::HeaderName::from_static("grpc-accept-encoding"),
                 ])
                 .allow_methods([
                     Method::GET,
@@ -460,6 +477,12 @@ pub fn create_router(pool: DbPool) -> Router {
             enforce_active_session,
         ));
 
+    // gRPC services (hotel.*.v1.*) at root paths — same port, same process,
+    // canonical `/{package}.{Service}/{Method}` URLs. Built before `app`
+    // because the pool moves into `with_state` below; the tonic router is
+    // Router<()> and merges into the completed Router<()> afterwards.
+    let grpc_router = crate::grpc::grpc_router(pool.clone());
+
     // Build all routes
     let app = Router::new()
         // Public routes
@@ -470,6 +493,7 @@ pub fn create_router(pool: DbPool) -> Router {
         // Merge all domain routes under /api
         .nest("/api", api_routes)
         .with_state(pool)
+        .merge(grpc_router)
         .layer(axum::Extension(rate_limiters))
         .layer(axum::Extension(loyalty_hub))
         .layer(axum::Extension(availability_hub))

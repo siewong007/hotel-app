@@ -457,7 +457,9 @@ pub struct GuestBookingRow {
 }
 
 /// Complimentary credit row joined to room type details.
-#[derive(Debug, sqlx::FromRow)]
+/// Field names are the REST wire keys — Serialize emits the same shape the
+/// service used to hand-build with `json!`.
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct GuestCreditRow {
     pub id: i32,
     pub guest_id: i64,
@@ -479,12 +481,33 @@ pub struct LinkedGuestCreditRow {
 }
 
 /// Room-type credit row for linked guest summaries.
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct GuestRoomCreditRow {
     pub room_type_id: i64,
     pub room_type_name: String,
     pub room_type_code: String,
     pub nights_available: i32,
+}
+
+/// GET /guests/{id}/credits response — field names are the REST wire keys.
+#[derive(Debug, Serialize)]
+pub struct GuestCreditsResponse {
+    pub guest_id: i64,
+    pub guest_name: String,
+    pub total_nights: i32,
+    pub legacy_total_nights: i32,
+    pub credits_by_room_type: Vec<GuestCreditRow>,
+}
+
+/// One row of GET /guests/my-guests-with-credits.
+#[derive(Debug, Serialize)]
+pub struct LinkedGuestCredits {
+    pub id: i64,
+    pub nick_name: String,
+    pub email: Option<String>,
+    pub legacy_complimentary_nights_credit: i32,
+    pub total_complimentary_credits: i32,
+    pub credits_by_room_type: Vec<GuestRoomCreditRow>,
 }
 
 /// Input for linking a guest to a user

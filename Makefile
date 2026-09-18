@@ -20,6 +20,7 @@ export TARGET_DATABASE_URL
         db-schema-drift require-schema-drift-urls \
         db-repack db-repack-full \
         prepare-desktop docs docs-check db-mirror-check \
+        sync-proto proto-mirror-check \
         fmt fmt-all \
         clean clean-all
 
@@ -203,6 +204,14 @@ docs-check: ## Check Markdown links resolve to real files
 # trees, because the desktop CI job builds against placeholder resources.
 db-mirror-check: ## Check the desktop DB bundle matches the backend's
 	scripts/check-desktop-db-mirror.sh
+
+# proto/hotel/ is the contract of record; hotel-app-be/proto/hotel/ is the
+# copy build.rs compiles (the Docker context is the crate dir only).
+sync-proto: ## Refresh the backend's proto mirror from proto/hotel/
+	rsync -a --delete proto/hotel/ hotel-app-be/proto/hotel/
+
+proto-mirror-check: ## Check the backend proto mirror matches proto/hotel/
+	scripts/check-proto-mirror.sh
 
 # ─── Clean ────────────────────────────────────────────────────────────────────
 

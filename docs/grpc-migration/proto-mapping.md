@@ -5,8 +5,10 @@ Status: **for review**. Nothing is generated from these protos yet; `buf build`,
 this contract is approved.
 
 Scope: `hotel.rooms.v1` (22 REST routes) + `hotel.housekeeping.v1`
-(housekeeping 5 routes + maintenance 4 routes). Lowest-risk context first, per
-the rollout plan. Remaining bounded contexts (reservations, rates, guests,
+(housekeeping 5 routes + maintenance 4 routes) + `hotel.guests.v1` (12 RPCs
+covering the 13 FE-called `/api/guests` endpoints; link/unlink/upgrade and the
+untyped credit-mutation routes stay REST-only for now). Lowest-risk contexts
+first, per the rollout plan. Remaining bounded contexts (reservations, rates,
 billing, iam, guestportal, ops) follow the same pattern after this review.
 
 ## Package layout
@@ -28,6 +30,11 @@ proto/
     housekeeping_service.proto HousekeepingService (5 RPCs)
     maintenance.proto         MaintenanceTicket; status/category/priority enums
     maintenance_service.proto  MaintenanceService (4 RPCs)
+  hotel/guests/v1/
+    guest.proto               Guest (+ ekyc summary, sensitive profile, profile,
+                              summary/booking rows, credit rows, tourism
+                              conversion); GuestType/TourismType/GuestSegment
+    guest_service.proto       GuestService (12 RPCs)
 ```
 
 `hotel.common.v1` was added beyond the brief's six packages: `Money` is needed
@@ -139,7 +146,8 @@ high/urgent vs `MaintenancePriority` low/medium/high/critical).
   display name, not an id; kept exactly.
 - `RoomBookingSummary` — trimmed `BookingWithDetails` (13 fields the room
   screens use) instead of dragging the full bookings type into this package.
-- `items_used`, `images` — `google.protobuf.Struct` (free-form JSON today).
+- `items_used`, `images` — `google.protobuf.Value` (free-form JSON today;
+  `Struct` cannot represent the bare arrays REST accepts).
 - `success`/`synced_count`-style REST JSON flags dropped where gRPC status
   already conveys them; `message` fields kept where the FE displays them.
 - `GetRoom` has no REST counterpart (REST only lists + detailed) — flagged.

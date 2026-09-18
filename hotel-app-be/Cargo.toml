@@ -67,7 +67,24 @@ image = "0.25"
 qrcode = "0.14"
 async-stream = "0.3"
 futures-core = "0.3"
+# gRPC (Phase 2 strangler migration): tonic serves alongside axum on the same
+# port via Routes::into_axum_router; tonic-web exposes the services to the
+# browser (Connect/gRPC-Web) without an envoy sidecar. prost is the codec.
+tonic = { version = "0.14", default-features = false, features = ["server", "codegen", "router"] }
+tonic-prost = "0.14"
+tonic-web = "0.14"
+tonic-reflection = { version = "0.14", features = ["server"] }
+tonic-health = "0.14"
+tonic-types = "0.14"
+prost = "0.14"
+prost-types = "0.14"
 # Rate limiting is implemented in-memory (core/rate_limiter.rs) - no external dependency needed
+
+[build-dependencies]
+# Rust codegen from the buf-managed contract in ../proto (googleapis imports
+# are vendored in ./proto_vendor). Requires `protoc` on PATH — CI installs
+# protobuf-compiler; local dev uses the system/brew protoc.
+tonic-prost-build = "0.14"
 
 [dev-dependencies]
 tokio = { version = "1.51", features = ["rt-multi-thread", "macros"] }

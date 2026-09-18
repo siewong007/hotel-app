@@ -4,6 +4,7 @@
 
 mod constants;
 mod core;
+mod grpc;
 mod models;
 mod modules;
 mod repositories;

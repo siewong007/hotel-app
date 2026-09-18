@@ -2,10 +2,10 @@
 //!
 //! Handles guest CRUD and user-guest relationships.
 
+use super::service as svc;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::service as svc;
 use axum::{
     extract::{Extension, Path, Query, State},
     response::Json,
@@ -48,7 +48,9 @@ pub async fn update_guest_handler(
     Path(guest_id): Path<i64>,
     Json(input): Json<GuestUpdateInput>,
 ) -> Result<Json<Guest>, ApiError> {
-    Ok(Json(svc::update_guest(&pool, user_id, guest_id, input).await?))
+    Ok(Json(
+        svc::update_guest(&pool, user_id, guest_id, input).await?,
+    ))
 }
 
 pub async fn apply_tourism_type_from_last_check_in_handler(
@@ -77,7 +79,27 @@ pub async fn get_guest_bookings_handler(
     State(pool): State<DbPool>,
     Path(guest_id): Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    Ok(Json(svc::guest_bookings(&pool, guest_id).await?))
+    // The service returns typed rows (shared with the gRPC adapter); this
+    // json! map is the historical REST wire shape — id/total as strings.
+    let rows = svc::guest_bookings(&pool, guest_id)
+        .await?
+        .into_iter()
+        .map(|row| {
+            serde_json::json!({
+                "id": row.id.to_string(),
+                "booking_number": row.booking_number,
+                "check_in_date": row.check_in_date,
+                "check_out_date": row.check_out_date,
+                "nights": row.nights,
+                "status": row.status,
+                "total_amount": row.total_amount.to_string(),
+                "created_at": row.created_at,
+                "room_number": row.room_number,
+                "room_type": row.room_type
+            })
+        })
+        .collect();
+    Ok(Json(rows))
 }
 
 pub async fn link_guest_handler(
@@ -150,13 +172,13 @@ pub async fn get_guest_credits_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Path(guest_id): Path<i64>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<Json<GuestCreditsResponse>, ApiError> {
     Ok(Json(svc::guest_credits(&pool, user_id, guest_id).await?))
 }
 
 pub async fn get_my_guests_with_credits_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
-) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+) -> Result<Json<Vec<LinkedGuestCredits>>, ApiError> {
     Ok(Json(svc::my_guests_with_credits(&pool, user_id).await?))
 }
