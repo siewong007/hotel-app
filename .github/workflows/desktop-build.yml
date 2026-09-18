@@ -387,10 +387,24 @@ jobs:
           if ($actual -ne $expected) { throw "sha256 mismatch for ${tarball}: $actual != $expected" }
           tar -xjf $tarball
 
+      # vcvars64 is located via vswhere so the recipe survives runner image
+      # changes. This must NOT run under cmd: expanding %ProgramFiles(x86)%
+      # inside a `for /f (...)` clause injects a literal ")" into the group and
+      # cmd aborts with "\Microsoft was unexpected at this time." — pwsh has no
+      # such parsing quirk, so it resolves the path into GITHUB_ENV instead.
+      - name: Locate MSVC toolchain (vswhere)
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw "vswhere could not locate a Visual Studio C++ toolchain" }
+          "VSINSTALL=$vs" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       # Meson is the only supported Windows build for PG19 (the old MSVC perl
-      # scripts were removed). vcvars64 is located via vswhere so the recipe
-      # survives runner image changes. -Dicu=auto: ICU collations come along
-      # when vcpkg's pkgconfig resolves; the build does not hinge on it.
+      # scripts were removed). vcvars64 must run inside cmd so its environment
+      # persists for the meson invocations below. -Dicu=auto: ICU collations
+      # come along when vcpkg's pkgconfig resolves; the build does not hinge
+      # on it.
       - name: Build PostgreSQL 19 Beta 2 (Meson + MSVC)
         working-directory: ${{ runner.temp }}
         shell: cmd
@@ -398,8 +412,6 @@ jobs:
           POSTGRES_VERSION: 19beta2
           PG_PREFIX: C:\hotel-pg19
         run: |
-          for /f "usebackq tokens=*" %%i in (`""%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath"`) do set "VSINSTALL=%%i"
-          if not defined VSINSTALL (echo "vswhere could not locate a Visual Studio C++ toolchain" && exit /b 1)
           call "%VSINSTALL%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
           meson setup pgbuild "postgresql-%POSTGRES_VERSION%" --prefix "%PG_PREFIX%" --buildtype release -Dssl=openssl -Dlz4=enabled -Dzlib=enabled -Dicu=auto -Dnls=disabled -Dplperl=disabled -Dplpython=disabled -Dpltcl=disabled -Dtap_tests=disabled -Ddocs=disabled || exit /b 1
           meson compile -C pgbuild || exit /b 1

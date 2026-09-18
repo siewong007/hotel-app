@@ -2,8 +2,11 @@
 // (or `bun test scripts/`). These do NOT provision anything — the script's main
 // body is guarded behind argv[1] so importing it here is side-effect free.
 import { describe, expect, test } from 'bun:test';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import {
+  absoluteSymlinkIssues,
   bundleRpath,
   extractBuildIdentity,
   extractMajorVersion,
@@ -132,6 +135,27 @@ describe('Linux system-library allow-list', () => {
       'libedit.so.0',
     ]) {
       expect(LINUX_SYSTEM_LIB.test(soname), soname).toBe(false);
+    }
+  });
+});
+
+describe('absoluteSymlinkIssues', () => {
+  // Regression: cpSync's default resolves each symlink target against the
+  // source dir, baking absolute build-machine paths into the bundled tree —
+  // the portable copy now sets verbatimSymlinks and provisioning itself runs
+  // this check, so a bad tree can no longer pass provision and fail the next
+  // invocation instead.
+  test('flags absolute targets, ignores relative ones', () => {
+    const tree = mkdtempSync(join(tmpdir(), 'pgsql-links-'));
+    try {
+      writeFileSync(join(tree, 'libpq.so.5'), 'x');
+      symlinkSync('libpq.so.5', join(tree, 'libpq.so'));
+      symlinkSync(join(tree, 'libpq.so.5'), join(tree, 'libecpg_compat.so.3'));
+      const issues = absoluteSymlinkIssues(tree);
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toContain('libecpg_compat.so.3');
+    } finally {
+      rmSync(tree, { recursive: true, force: true });
     }
   });
 });

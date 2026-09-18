@@ -171,14 +171,7 @@ function checkExistingInstall(expected) {
     } else if (PLATFORM === 'linux') {
       issues.push(...linuxTreeIssues(pgsqlDir));
     }
-    issues.push(
-      ...walkTree(pgsqlDir)
-        .symlinks.filter((linkPath) => {
-          const target = readlinkSync(linkPath);
-          return target.startsWith('/') || /^[A-Za-z]:[\\/]/.test(target);
-        })
-        .map((linkPath) => `absolute symlink ${linkPath}`),
-    );
+    issues.push(...absoluteSymlinkIssues(pgsqlDir));
     if (issues.length > 0) {
       return {
         ok: false,
@@ -191,6 +184,17 @@ function checkExistingInstall(expected) {
   }
 
   return { ok: true, foundMajor, foundBuildIdentity, manifest };
+}
+
+// Absolute symlink targets (e.g. libpq.so -> /build/prefix/lib/libpq.so.5)
+// die on the end-user machine; only relative links survive relocation.
+function absoluteSymlinkIssues(treeRoot) {
+  return walkTree(treeRoot)
+    .symlinks.filter((linkPath) => {
+      const target = readlinkSync(linkPath);
+      return target.startsWith('/') || /^[A-Za-z]:[\\/]/.test(target);
+    })
+    .map((linkPath) => `absolute symlink ${linkPath} -> ${readlinkSync(linkPath)}`);
 }
 
 // macOS self-containment: bundled Mach-O files must not reference dylibs
@@ -649,9 +653,14 @@ function copyPortablePrefixTree(postgresPrefix) {
       if (PORTABLE_SKIP_LIB_ENTRIES.has(entry)) {
         continue;
       }
+      // verbatimSymlinks: cpSync's default resolves each link target against
+      // the SOURCE dir and bakes that absolute path into the copy — a libpq.so
+      // -> libpq.so.5 link would silently become libpq.so -> <prefix>/... and
+      // the tree would fail self-containment on the next provisioning check.
       cpSync(join(sourceLibDir, entry), join(pgsqlTmpDir, 'lib', entry), {
         recursive: true,
         preserveTimestamps: true,
+        verbatimSymlinks: true,
       });
     }
   }
@@ -670,6 +679,7 @@ function copyPortablePrefixTree(postgresPrefix) {
     cpSync(join(sourceShareDir, entry), join(pgsqlTmpDir, 'share', entry), {
       recursive: true,
       preserveTimestamps: true,
+      verbatimSymlinks: true,
     });
   }
 }
@@ -737,7 +747,7 @@ function provisionPortableFromPrefix(expected, failExitCode = 1) {
   if (PLATFORM === 'linux') {
     try {
       relink = relinkLinuxTree(pgsqlTmpDir);
-      const issues = linuxTreeIssues(pgsqlTmpDir);
+      const issues = [...linuxTreeIssues(pgsqlTmpDir), ...absoluteSymlinkIssues(pgsqlTmpDir)];
       if (issues.length > 0) {
         throw new Error(`tree is not self-contained:\n${issues.slice(0, 10).join('\n')}`);
       }
@@ -918,6 +928,7 @@ function provisionFromPrefix(expected, failExitCode = 1) {
 // provisioning main body below stays guarded so importing this module does
 // not execute it.
 export {
+  absoluteSymlinkIssues,
   bundleRpath,
   extractBuildIdentity,
   extractMajorVersion,
