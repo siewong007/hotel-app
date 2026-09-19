@@ -29,6 +29,32 @@ mod postgres_tests {
         )
     }
 
+    /// A fixture suffix that is unique per test, independent of clock resolution.
+    ///
+    /// cargo runs these tests concurrently in one binary and every identifier
+    /// built from this value is unique-indexed — `idx_guests_nick_name_unique`,
+    /// `bookings_booking_number_key` and `idx_payment_retry_capabilities_token`.
+    ///
+    /// Each test used to read `timestamp_nanos_opt()` and add its own small
+    /// offset (+1, +2, ...) to break same-tick ties. That breaks the opposite
+    /// case: the offsets are the same magnitude as real clock deltas, so a test
+    /// reading tick X with offset 0 collides with one reading X-1 with offset 1.
+    /// CI hit exactly that on 2026-09-19 — 23505 on `nick_name`.
+    ///
+    /// Instead, truncate the clock to whole microseconds and stamp the caller's
+    /// unique `slot` into the freed low digits. Two tests then differ either by
+    /// slot (same microsecond) or by at least 1000 (different microsecond),
+    /// which no 0..=800 slot offset can bridge. The 100-wide band per slot also
+    /// keeps the one caller that derives a second value as `suffix + 1` inside
+    /// its own band: no suffix is ever congruent to 1 modulo 100.
+    fn unique_suffix(slot: i64) -> u64 {
+        let nanos = Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .unsigned_abs();
+        (nanos / 1_000) * 1_000 + (slot as u64) * 100
+    }
+
     /// Minimal booking to hang capabilities off. Returns (guest_id, booking_id).
     ///
     /// `slot` must be unique per test: cargo runs these concurrently in one
@@ -94,10 +120,7 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now()
-            .timestamp_nanos_opt()
-            .unwrap_or_default()
-            .unsigned_abs();
+        let suffix = unique_suffix(0);
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 0).await;
 
         let expires_at = Utc::now() + Duration::minutes(60);
@@ -142,11 +165,7 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now()
-            .timestamp_nanos_opt()
-            .unwrap_or_default()
-            .unsigned_abs()
-            + 1;
+        let suffix = unique_suffix(1);
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 1).await;
         let hash = format!("sha256:{suffix:064x}");
 
@@ -183,11 +202,7 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now()
-            .timestamp_nanos_opt()
-            .unwrap_or_default()
-            .unsigned_abs()
-            + 2;
+        let suffix = unique_suffix(2);
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 2).await;
         let hash = format!("sha256:{suffix:064x}");
 
@@ -243,11 +258,7 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now()
-            .timestamp_nanos_opt()
-            .unwrap_or_default()
-            .unsigned_abs()
-            + 3;
+        let suffix = unique_suffix(3);
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 3).await;
 
         let capability = PaymentRetryRepository::create(
@@ -284,11 +295,7 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now()
-            .timestamp_nanos_opt()
-            .unwrap_or_default()
-            .unsigned_abs()
-            + 4;
+        let suffix = unique_suffix(4);
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 4).await;
 
         let live = PaymentRetryRepository::create(
@@ -333,11 +340,7 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now()
-            .timestamp_nanos_opt()
-            .unwrap_or_default()
-            .unsigned_abs()
-            + 5;
+        let suffix = unique_suffix(5);
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 5).await;
         let hash = format!("sha256:{suffix:064x}");
 
@@ -391,11 +394,7 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now()
-            .timestamp_nanos_opt()
-            .unwrap_or_default()
-            .unsigned_abs()
-            + 6;
+        let suffix = unique_suffix(6);
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 6).await;
         let token = format!("{suffix:064x}");
 
@@ -450,11 +449,7 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now()
-            .timestamp_nanos_opt()
-            .unwrap_or_default()
-            .unsigned_abs()
-            + 7;
+        let suffix = unique_suffix(7);
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 7).await;
         let token = format!("{suffix:064x}");
 
@@ -501,11 +496,7 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now()
-            .timestamp_nanos_opt()
-            .unwrap_or_default()
-            .unsigned_abs()
-            + 8;
+        let suffix = unique_suffix(8);
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 8).await;
         let token = format!("{suffix:064x}");
 
