@@ -62,6 +62,8 @@ pub fn run() {
             commands::open_backups_folder,
             commands::shutdown_app,
             commands::check_for_updates,
+            commands::install_update,
+            commands::restart_app,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

@@ -541,3 +541,50 @@ pub async fn check_for_updates(app_handle: AppHandle) -> Result<UpdateInfo, Stri
         }
     }
 }
+
+/// Outcome of an `install_update` call, returned to the frontend.
+#[derive(serde::Serialize)]
+pub struct InstallOutcome {
+    pub installed: bool,
+    pub version: String,
+}
+
+/// Download, verify (against `plugins.updater.pubkey` in `tauri.conf.json`),
+/// and install the pending update. Restart is a separate command so the UI can
+/// confirm with the user first — the install alone does not relaunch the app.
+#[tauri::command]
+pub async fn install_update(app_handle: AppHandle) -> Result<InstallOutcome, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let updater = app_handle.updater().map_err(|e| e.to_string())?;
+    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
+        return Ok(InstallOutcome {
+            installed: false,
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        });
+    };
+    let version = update.version.clone();
+    let mut downloaded: usize = 0;
+    update
+        .download_and_install(
+            |chunk_length, content_length| {
+                downloaded += chunk_length;
+                log::info!("update: {}/{}", downloaded, content_length.unwrap_or(0));
+            },
+            || log::info!("update download finished; installing"),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(InstallOutcome {
+        installed: true,
+        version,
+    })
+}
+
+/// Relaunch the app (e.g. after `install_update`). Kept separate from install
+/// so the user can finish what they're doing before the restart. Never returns:
+/// the process exits and the OS relaunches it.
+#[tauri::command]
+pub fn restart_app(app_handle: AppHandle) {
+    tauri::process::restart(&app_handle.env())
+}
