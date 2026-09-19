@@ -1,6 +1,6 @@
 {
   "name": "hotel-web-fe",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Hotel Management System web application: front desk, billing, and administration.",
   "private": true,
   "type": "module",

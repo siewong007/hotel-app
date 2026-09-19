@@ -160,7 +160,7 @@ One JSON object, emitted in a fixed key order. Downloaded as
   "includesSecrets": false,
   "exportId": "3f8a2c1e-7b9d-4e5f-9a1c-0d2e4f6a8b0c",
   "exportedAt": "2026-09-14T09:25:30.123456+00:00",
-  "applicationVersion": "0.2.0",
+  "applicationVersion": "0.3.0",
   "source": {"environment": "production", "databaseProvider": "postgresql"},
   "manifest": {
     "entities": [
@@ -350,7 +350,7 @@ executes additionally require a fresh `X-Step-Up` token — see
   "requiresPermissions": ["data_transfer:import_sensitive"],
   "exportedAt": "2026-09-14T09:25:30.123456+00:00",
   "sourceEnvironment": "production",
-  "applicationVersion": "0.2.0",
+  "applicationVersion": "0.3.0",
   "entities": [
     {"name": "public.guests", "rows": 120, "new": 110, "existing": 10, "skipped": 0}
   ],
