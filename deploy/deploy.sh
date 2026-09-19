@@ -122,6 +122,13 @@ ensure_host_runtime() {
 }
 
 ensure_capacity() {
+  # Dangling image layers accumulate with every release and stale upload
+  # fragments outlive failed transfers; reclaim both before measuring so a
+  # slowly filling disk does not block a deploy that would fit. The age
+  # guard keeps a parallel staging/prod upload in flight safe.
+  docker image prune -f >/dev/null 2>&1 || true
+  find /tmp -maxdepth 1 -name 'saliminn-*.tar.gz*' -mmin +60 -delete 2>/dev/null || true
+
   local available_kib
   available_kib=$(df --output=avail -k "$APP_DIR" | tail -n 1 | tr -d ' ')
   [[ "$available_kib" =~ ^[0-9]+$ ]] || die "could not determine free disk space"
