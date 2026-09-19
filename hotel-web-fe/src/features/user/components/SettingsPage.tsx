@@ -23,6 +23,7 @@ import SecurityCard from "./settings/SecurityCard";
 import AppearanceCard from "./settings/AppearanceCard";
 import { useAuth } from "../../../auth/AuthContext";
 import { useThemeMode } from "../../../router/ThemeModeContext";
+import { useGlassBlur } from "../../../router/GlassBlurContext";
 import { setCurrentCurrency } from "../../../utils/currency";
 import { useCurrency } from "../../../hooks/useCurrency";
 import {
@@ -108,6 +109,7 @@ const SettingsPage: React.FC = () => {
   const { t } = useTranslation('admin');
   const { hasPermission } = useAuth();
   const { themeMode, onThemeModeChange } = useThemeMode();
+  const { glassBlur, onGlassBlurChange } = useGlassBlur();
   const isAdmin =
     hasPermission("settings:update") || hasPermission("settings:manage");
   const { symbol: currencySymbol } = useCurrency();
@@ -623,6 +625,8 @@ const SettingsPage: React.FC = () => {
           <AppearanceCard
             themeMode={themeMode}
             onThemeModeChange={onThemeModeChange}
+            glassBlur={glassBlur}
+            onGlassBlurChange={onGlassBlurChange}
           />
         </>
       )}

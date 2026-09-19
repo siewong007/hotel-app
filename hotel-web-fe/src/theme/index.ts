@@ -1,8 +1,10 @@
 import { createTheme, type Shadows, type Theme, type ThemeOptions } from '@mui/material/styles';
+import { DEFAULT_GLASS_BLUR_CSS, GLASS_FILL_ALPHA } from './glassBlur';
 import {
   darkTokens,
   lightTokens,
   normalizeThemeMode,
+  paperTokens,
   statusToneVars,
   tokensFor,
   type DesignTokens,
@@ -14,6 +16,7 @@ export {
   darkTokens,
   lightTokens,
   normalizeThemeMode,
+  paperTokens,
   statusToneVars,
   tokensFor,
 };
@@ -158,6 +161,11 @@ export const cssVarDeclarations = (t: DesignTokens): Record<string, string> => (
   '--hotel-shadow-sm': t.shadow.sm,
   '--hotel-shadow-md': t.shadow.md,
   '--hotel-shadow-lg': t.shadow.lg,
+  // Frosted-glass defaults — the user's blur preference overrides these via
+  // inline style on :root (see theme/glassBlur.ts), these keep un-set sessions
+  // and scoped islands consistent.
+  '--hotel-glass-blur': DEFAULT_GLASS_BLUR_CSS,
+  '--hotel-glass-alpha': GLASS_FILL_ALPHA,
 });
 
 const componentOverrides = (t: DesignTokens): ThemeOptions['components'] => ({
@@ -637,6 +645,10 @@ const componentOverrides = (t: DesignTokens): ThemeOptions['components'] => ({
     styleOverrides: {
       root: {
         backgroundColor: t.scrim,
+        // Frosted scrim at half the user's glass-blur value — full strength
+        // behind every dialog would smear the page more than a scrim should.
+        backdropFilter: `blur(calc(var(--hotel-glass-blur, ${DEFAULT_GLASS_BLUR_CSS}) * 0.5))`,
+        WebkitBackdropFilter: `blur(calc(var(--hotel-glass-blur, ${DEFAULT_GLASS_BLUR_CSS}) * 0.5))`,
         transition: 'opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       },
     },
@@ -679,6 +691,35 @@ const componentOverrides = (t: DesignTokens): ThemeOptions['components'] => ({
           backgroundColor: t.status.info.bg,
           borderColor: t.status.info.border,
           '& .MuiAlert-icon': { color: t.status.info.fg },
+        },
+        // Filled alerts are floating surfaces (toasts), not inline banners:
+        // the flat 13% badge tint let page content bleed through and read as
+        // "blurry". Frost the fill over the overlay surface at the user's
+        // glass-blur preference; the per-tone gradient keeps the status tint.
+        '&.MuiAlert-filled': {
+          backdropFilter: `blur(var(--hotel-glass-blur, ${DEFAULT_GLASS_BLUR_CSS}))`,
+          WebkitBackdropFilter: `blur(var(--hotel-glass-blur, ${DEFAULT_GLASS_BLUR_CSS}))`,
+          backgroundColor: `color-mix(in srgb, ${t.surfaces.overlay} var(--hotel-glass-alpha, ${GLASS_FILL_ALPHA}), transparent)`,
+          // Filled variants ship getContrastText(accent) — white or near-black —
+          // which is unreadable on the tinted glass fill; pin readable text.
+          color: t.text.primary,
+          boxShadow: t.shadow.md,
+        },
+        '&.MuiAlert-filledSuccess': {
+          backgroundImage: `linear-gradient(${t.status.success.bg}, ${t.status.success.bg})`,
+          borderColor: t.status.success.border,
+        },
+        '&.MuiAlert-filledWarning': {
+          backgroundImage: `linear-gradient(${t.status.warning.bg}, ${t.status.warning.bg})`,
+          borderColor: t.status.warning.border,
+        },
+        '&.MuiAlert-filledError': {
+          backgroundImage: `linear-gradient(${t.status.danger.bg}, ${t.status.danger.bg})`,
+          borderColor: t.status.danger.border,
+        },
+        '&.MuiAlert-filledInfo': {
+          backgroundImage: `linear-gradient(${t.status.info.bg}, ${t.status.info.bg})`,
+          borderColor: t.status.info.border,
         },
       },
     },

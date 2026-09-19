@@ -12,6 +12,7 @@ type StorageKey =
   | 'routePolicies'
   | 'themeMode'
   | 'guestThemeMode'
+  | 'glassBlur'
   | 'locale'
   | 'cmdRecents'
   | 'notificationHistory'

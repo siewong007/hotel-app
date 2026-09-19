@@ -4,6 +4,7 @@ import {
   Card,
   CardContent,
   Divider,
+  Slider,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
@@ -16,21 +17,31 @@ import {
 } from "@mui/icons-material";
 
 import type { ThemeMode } from "../../../../theme";
+import {
+  DEFAULT_GLASS_BLUR_PX,
+  MAX_GLASS_BLUR_PX,
+  MIN_GLASS_BLUR_PX,
+} from "../../../../theme/glassBlur";
 import { useTranslation } from "../../../../i18n";
 
 interface AppearanceCardProps {
   themeMode: ThemeMode;
   onThemeModeChange: (mode: ThemeMode) => void;
+  glassBlur: number;
+  onGlassBlurChange: (px: number) => void;
 }
 
 /**
- * "Appearance" card of SettingsPage (light/dark theme-mode toggle). This is a
- * local device preference, not a system setting — the values come from the
- * page's theme context rather than the hotel settings form.
+ * "Appearance" card of SettingsPage (light/dark theme-mode toggle + backdrop
+ * blur). Both are local device preferences, not system settings — the values
+ * come from the page's theme/blur contexts rather than the hotel settings
+ * form.
  */
 export function AppearanceCard({
   themeMode,
   onThemeModeChange,
+  glassBlur,
+  onGlassBlurChange,
 }: AppearanceCardProps) {
   const { t } = useTranslation('admin');
 
@@ -80,6 +91,36 @@ export function AppearanceCard({
             </Box>
           </ToggleButton>
         </ToggleButtonGroup>
+
+        <Typography variant="subtitle1" component="h3" gutterBottom sx={{
+          fontWeight: "medium",
+          mt: 4
+        }}>
+          {t('settings.glassBlur')}
+        </Typography>
+        <Typography variant="body2" gutterBottom sx={{
+          color: "text.secondary"
+        }}>
+          {t('settings.glassBlurHint')}
+        </Typography>
+
+        <Box sx={{ px: 1, mt: 1 }}>
+          <Slider
+            value={glassBlur}
+            onChange={(_, value) => onGlassBlurChange(value as number)}
+            min={MIN_GLASS_BLUR_PX}
+            max={MAX_GLASS_BLUR_PX}
+            step={1}
+            marks={[
+              { value: MIN_GLASS_BLUR_PX, label: '0' },
+              { value: DEFAULT_GLASS_BLUR_PX, label: `${DEFAULT_GLASS_BLUR_PX}px` },
+              { value: MAX_GLASS_BLUR_PX, label: `${MAX_GLASS_BLUR_PX}px` },
+            ]}
+            valueLabelDisplay="auto"
+            valueLabelFormat={(value) => `${value}px`}
+            aria-label={t('settings.glassBlur')}
+          />
+        </Box>
       </CardContent>
     </Card>
   );

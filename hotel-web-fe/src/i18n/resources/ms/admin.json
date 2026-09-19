@@ -128,6 +128,8 @@
       "lightMode": "Mod cerah",
       "darkMode": "Mod gelap"
     },
+    "glassBlur": "Kabur latar",
+    "glassBlurHint": "Kesan kaca kabur di belakang pemberitahuan, dialog dan tindihan. Tetapkan kepada 0 untuk permukaan padat sepenuhnya. Disimpan secara tempatan dan digunakan serta-merta.",
     "reportsTitle": "Tetapan Laporan",
     "fontPreset": "Praset Fon Laporan",
     "fontPresetCustom": "Tersuai",

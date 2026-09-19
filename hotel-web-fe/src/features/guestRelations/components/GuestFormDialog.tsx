@@ -142,7 +142,7 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
       fullWidth
       slotProps={{
         backdrop: {
-          sx: { bgcolor: 'var(--hotel-scrim)', backdropFilter: 'blur(4px)' },
+          sx: { bgcolor: 'var(--hotel-scrim)', backdropFilter: 'blur(calc(var(--hotel-glass-blur, 10px) * 0.5))', WebkitBackdropFilter: 'blur(calc(var(--hotel-glass-blur, 10px) * 0.5))' },
         },
 
         paper: {

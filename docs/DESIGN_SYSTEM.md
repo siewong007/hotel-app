@@ -109,6 +109,7 @@ with a spinner when the skeleton communicates the page structure better.
 - **`${color}NN` hex-alpha suffixes are invalid on var()** — same fix.
 - `grey.NN` MUI palette values are absolute shades (near-white in dark) — use surface/border/text tokens instead.
 - Guest-facing portal keeps Georgia serif display headings on the same tokens.
-- **Print/PDF output (invoices, ledgers) intentionally stays paper-light** — it's a printed document, not app UI. On-screen invoice previews are wrapped in paper surfaces so they read correctly inside the dark shell.
+- **Print/PDF output (invoices, ledgers) intentionally stays paper-light** — it's a printed document, not app UI. On-screen invoice previews render inside `PaperIsland` (nested light `ThemeProvider` + republished `--hotel-*` vars on the wrapper), so the sheet, its text, and token-driven children (deposit card, inputs, chips) all read the warm-paper palette inside the dark shell. Print iframes can't see the vars — the print styles interpolate `paperTokens` literals for the same palette.
+- **Frosted glass is user-tunable** — `--hotel-glass-blur` (0–20px, default 10) and `--hotel-glass-alpha` on `:root` drive every blurred surface (filled toasts, `MuiBackdrop` scrims at ×0.5, portal nav). At 0 the alpha goes 100% so surfaces render solid instead of translucent. Set via Settings → Appearance → Background blur (`glassBlur` localStorage key, `GlassBlurContext`).
 - OTA channel badges (Agoda/Booking/Expedia/Airbnb) keep their brand colors — external identities, not app palette.
 - Loyalty tier colors (bronze/silver/gold/platinum metals) are tier identities — kept as hues, rendered as tints.

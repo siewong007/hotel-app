@@ -13,7 +13,8 @@
  * scatter one-off hex values through components.
  *
  * Print/PDF output is the one documented exception: paper output keeps its own
- * literal palette (see `PRINT_*` constants in the invoice/ledger print files).
+ * literal palette (the `paperTokens` export below — iframe documents can't see
+ * the `--hotel-*` CSS vars).
  */
 
 export type ThemeMode = 'light' | 'dark';
@@ -257,6 +258,39 @@ export const lightTokens: DesignTokens = {
 
 export const tokensFor = (mode: ThemeMode): DesignTokens =>
   mode === 'light' ? lightTokens : darkTokens;
+
+/**
+ * Paper-document palette — literal values for contexts CSS custom properties
+ * cannot reach: the hidden invoice markup cloned into the print iframe and
+ * the print stylesheet string itself. On-screen previews consume the same
+ * roles through `--hotel-*` vars republished by `PaperIsland`, so preview and
+ * printed output share one palette. Roles map onto `lightTokens` — never
+ * invent a separate paper color.
+ */
+export const paperTokens = {
+  /** Sheet background — warm off-white, not stark #FFF. */
+  surface: lightTokens.surfaces.base,
+  /** Recessed fills: subtotal rows, collateral headers, payment form wells. */
+  surfaceSunken: lightTokens.surfaces.sunken,
+  text: lightTokens.text.primary,
+  textSecondary: lightTokens.text.secondary,
+  /** Accent bands (table headers, title bars) and accent text on paper. */
+  accent: lightTokens.primary.main,
+  accentText: lightTokens.primary.onSurface,
+  /** Text/icons sitting on `accent` bands. */
+  onAccent: lightTokens.primary.contrastText,
+  border: lightTokens.border.base,
+  borderSubtle: lightTokens.border.subtle,
+  success: lightTokens.status.success.fg,
+  successBg: lightTokens.status.success.bg,
+  warning: lightTokens.status.warning.fg,
+  warningBg: lightTokens.status.warning.bg,
+  orange: lightTokens.status.orange.fg,
+  info: lightTokens.status.info.fg,
+  infoBg: lightTokens.status.info.bg,
+  danger: lightTokens.status.danger.fg,
+  dangerBg: lightTokens.status.danger.bg,
+} as const;
 
 /** Normalize a persisted/unknown value to a supported mode. Legacy 'night'
  *  folds into 'dark'; dark is the product default. */

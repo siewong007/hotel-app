@@ -265,7 +265,9 @@
 
 /* ---------- DRAWER ---------- */
 .salim-reports-scrim {
-  position: fixed; inset: 0; background: var(--hotel-scrim); backdrop-filter: blur(3px);
+  position: fixed; inset: 0; background: var(--hotel-scrim);
+  backdrop-filter: blur(calc(var(--hotel-glass-blur, 10px) * 0.5));
+  -webkit-backdrop-filter: blur(calc(var(--hotel-glass-blur, 10px) * 0.5));
   z-index: 1300; opacity: 0; pointer-events: none; transition: opacity 180ms;
 }
 .salim-reports-scrim.is-on { opacity: 1; pointer-events: auto; }

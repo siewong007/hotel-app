@@ -25,6 +25,13 @@ vi.mock('../../../router/ThemeModeContext', () => ({
   }),
 }));
 
+vi.mock('../../../router/GlassBlurContext', () => ({
+  useGlassBlur: () => ({
+    glassBlur: 10,
+    onGlassBlurChange: vi.fn(),
+  }),
+}));
+
 // Style-A mocking (HousekeepingPage precedent): replace the query hooks module
 // and render bare — no providers needed.
 vi.mock('../hooks/useSettingsQueries', () => ({

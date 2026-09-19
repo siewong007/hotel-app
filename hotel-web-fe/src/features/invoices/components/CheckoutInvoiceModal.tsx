@@ -55,6 +55,8 @@ import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/i
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useTranslation, statusLabel } from '../../../i18n';
 import CollapsibleSection, { type CollapsibleSectionProps } from '../../../components/common/CollapsibleSection';
+import PaperIsland from '../../../components/common/PaperIsland';
+import { paperTokens } from '../../../theme';
 import StatusChip from '../../../components/common/StatusChip';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { useAuth } from '../../../auth/AuthContext';
@@ -595,21 +597,21 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             body {
               font-family: Arial, sans-serif;
               padding: 20px;
-              color: #333;
+              color: ${paperTokens.text};
             }
             .invoice-header {
               text-align: center;
               margin-bottom: 30px;
-              border-bottom: 2px solid #1976d2;
+              border-bottom: 2px solid ${paperTokens.accent};
               padding-bottom: 20px;
             }
             .invoice-header h1 {
-              color: #1976d2;
+              color: ${paperTokens.accentText};
               font-size: 28px;
               margin-bottom: 5px;
             }
             .invoice-header p {
-              color: #666;
+              color: ${paperTokens.textSecondary};
               font-size: 14px;
             }
             .invoice-meta {
@@ -622,7 +624,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             }
             .invoice-meta h3 {
               font-size: 14px;
-              color: #1976d2;
+              color: ${paperTokens.accentText};
               margin-bottom: 10px;
               text-transform: uppercase;
             }
@@ -632,13 +634,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               line-height: 1.6;
             }
             .invoice-meta .label {
-              color: #666;
+              color: ${paperTokens.textSecondary};
               display: inline-block;
               min-width: 120px;
             }
             .invoice-meta .value {
               font-weight: 600;
-              color: #333;
+              color: ${paperTokens.text};
             }
             table {
               width: 100%;
@@ -646,8 +648,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               margin: 20px 0;
             }
             th {
-              background-color: #1976d2;
-              color: white;
+              background-color: ${paperTokens.accent};
+              color: ${paperTokens.onAccent};
               padding: 12px;
               text-align: left;
               font-size: 13px;
@@ -655,7 +657,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             }
             td {
               padding: 12px;
-              border-bottom: 1px solid #ddd;
+              border-bottom: 1px solid ${paperTokens.border};
               font-size: 13px;
             }
             .amount {
@@ -663,58 +665,58 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               font-weight: 600;
             }
             .subtotal-row td {
-              border-top: 2px solid #ddd;
+              border-top: 2px solid ${paperTokens.border};
               font-weight: 600;
               padding-top: 15px;
             }
             .refund-row td {
-              color: #2e7d32;
+              color: ${paperTokens.success};
             }
             .penalty-row td {
-              color: #d32f2f;
+              color: ${paperTokens.danger};
             }
             .total-row {
-              background-color: #f5f5f5;
+              background-color: ${paperTokens.surfaceSunken};
             }
             .total-row td {
-              border-top: 3px double #1976d2;
+              border-top: 3px double ${paperTokens.accent};
               font-size: 16px;
               font-weight: 700;
               padding: 15px 12px;
-              color: #1976d2;
+              color: ${paperTokens.accentText};
             }
             .notes {
               margin-top: 30px;
               padding: 15px;
-              background-color: #fff3cd;
-              border-left: 4px solid #ffc107;
+              background-color: ${paperTokens.warningBg};
+              border-left: 4px solid ${paperTokens.warning};
               font-size: 12px;
               line-height: 1.6;
             }
             .notes strong {
               display: block;
               margin-bottom: 5px;
-              color: #856404;
+              color: ${paperTokens.warning};
             }
             .success-note {
-              background-color: #d4edda;
-              border-left-color: #28a745;
+              background-color: ${paperTokens.successBg};
+              border-left-color: ${paperTokens.success};
             }
             .success-note strong {
-              color: #155724;
+              color: ${paperTokens.success};
             }
             .footer {
               margin-top: 40px;
               text-align: center;
               padding-top: 20px;
-              border-top: 1px solid #ddd;
+              border-top: 1px solid ${paperTokens.border};
               font-size: 12px;
-              color: #666;
+              color: ${paperTokens.textSecondary};
             }
             .footer strong {
               display: block;
               font-size: 14px;
-              color: #1976d2;
+              color: ${paperTokens.accentText};
               margin-bottom: 5px;
             }
             @media print {
@@ -879,7 +881,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         {(readOnly || checkoutStep === 'preview') ? (
           // STEP 1: Invoice Preview — the paper document on a paper surface
           // (print identity is intentionally light; see docs/DESIGN_SYSTEM.md).
-          (<Box sx={{ fontFamily: 'Arial, sans-serif', color: '#333', bgcolor: '#FFFFFF', p: 3, borderRadius: 1 }}>
+          // PaperIsland re-themes everything inside to the warm-paper palette.
+          (<PaperIsland sx={{ fontFamily: 'Arial, sans-serif', color: 'var(--hotel-text)', bgcolor: 'var(--hotel-surface)', p: 3, borderRadius: 1 }}>
             {error && (
               <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3 }}>
                 {error}
@@ -911,8 +914,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Alert>
             )}
             {/* Invoice Header */}
-            <Box sx={{ textAlign: 'center', mb: 4, borderBottom: '2px solid #1976d2', pb: 2 }}>
-              <Typography variant="h4" sx={{ color: '#1976d2', fontWeight: 700, mb: 0.5 }}>
+            <Box sx={{ textAlign: 'center', mb: 4, borderBottom: '2px solid var(--hotel-primary)', pb: 2 }}>
+              <Typography variant="h4" sx={{ color: 'var(--hotel-primary-text)', fontWeight: 700, mb: 0.5 }}>
                 {hotelSettings.hotel_name}
               </Typography>
               <Typography variant="body2" sx={{
@@ -929,15 +932,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             {/* Invoice Meta */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
               <Grid size={{ xs: 12, md: 4 }}>
-                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>{t('checkout.invoiceDetails')}</Typography>
+                <Typography variant="subtitle2" sx={{ color: 'var(--hotel-primary-text)', mb: 1, textTransform: 'uppercase' }}>{t('checkout.invoiceDetails')}</Typography>
                 <Typography variant="body2" sx={{ mb: 0.5 }}>
-                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '120px' }}>{t('checkout.field.invoiceNumber')}:</Box>
+                  <Box component="span" sx={{ color: 'var(--hotel-text-secondary)', display: 'inline-block', minWidth: '120px' }}>{t('checkout.field.invoiceNumber')}:</Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
                     {booking?.invoice_number || booking?.folio_number || `#${booking?.id}`}
                   </Box>
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 0.5 }}>
-                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '120px' }}>
+                  <Box component="span" sx={{ color: 'var(--hotel-text-secondary)', display: 'inline-block', minWidth: '120px' }}>
                     {t('common:field.date')}:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
@@ -945,7 +948,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   </Box>
                 </Typography>
                 <Typography variant="body2">
-                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '120px' }}>
+                  <Box component="span" sx={{ color: 'var(--hotel-text-secondary)', display: 'inline-block', minWidth: '120px' }}>
                     {t('common:field.status')}:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
@@ -955,7 +958,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Grid>
 
               <Grid size={{ xs: 12, md: 4 }}>
-                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1.5, textTransform: 'uppercase' }}>
+                <Typography variant="subtitle2" sx={{ color: 'var(--hotel-primary-text)', mb: 1.5, textTransform: 'uppercase' }}>
                   {t('checkout.guestInfo')}
                 </Typography>
                 {([
@@ -969,7 +972,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   .filter((item): item is { label: string; value: React.ReactNode } => item !== null)
                   .map((item) => (
                   <Box key={item.label} sx={{ display: 'flex', gap: 1, mb: 0.75 }}>
-                    <Typography variant="body2" sx={{ color: '#666', minWidth: '72px', flexShrink: 0 }}>
+                    <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)', minWidth: '72px', flexShrink: 0 }}>
                       {item.label}:
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
@@ -980,9 +983,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Grid>
 
               <Grid size={{ xs: 12, md: 4 }}>
-                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>{t('checkout.stayDetails')}</Typography>
+                <Typography variant="subtitle2" sx={{ color: 'var(--hotel-primary-text)', mb: 1, textTransform: 'uppercase' }}>{t('checkout.stayDetails')}</Typography>
                 <Typography variant="body2" sx={{ mb: 0.5 }}>
-                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                  <Box component="span" sx={{ color: 'var(--hotel-text-secondary)', display: 'inline-block', minWidth: '80px' }}>
                     {t('checkout.checkIn')}:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
@@ -990,7 +993,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   </Box>
                 </Typography>
                 <Typography variant="body2" component="div" sx={{ mb: 0.5 }}>
-                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                  <Box component="span" sx={{ color: 'var(--hotel-text-secondary)', display: 'inline-block', minWidth: '80px' }}>
                     {t('checkout.checkOut')}:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
@@ -1005,7 +1008,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Typography>
                 {getCheckoutVariance() && (
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                    <Box component="span" sx={{ color: 'var(--hotel-text-secondary)', display: 'inline-block', minWidth: '80px' }}>
                       {t('checkout.scheduled')}:
                     </Box>
                     <Box component="span" sx={{ fontWeight: 600, color: 'text.secondary' }}>
@@ -1014,7 +1017,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   </Typography>
                 )}
                 <Typography variant="body2">
-                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                  <Box component="span" sx={{ color: 'var(--hotel-text-secondary)', display: 'inline-block', minWidth: '80px' }}>
                     {t('checkout.duration')}:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
@@ -1025,8 +1028,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </Grid>
             {/* Charges Table */}
             <PhoneCollapsibleSection isPhone={isPhone} title={t('checkout.sections.charges')}>
-            <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
-              <Box sx={{ bgcolor: '#1976d2', color: 'white', p: 1.5 }}>
+            <Box sx={{ border: '1px solid var(--hotel-border)', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
+              <Box sx={{ bgcolor: 'var(--hotel-primary)', color: 'var(--hotel-on-primary)', p: 1.5 }}>
                 <Grid container>
                   <Grid size={8}>
                     <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
@@ -1042,7 +1045,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Box sx={{ p: 0 }}>
                 {/* Room Charges - Day by Day */}
                 {isHourlyBooking ? (
-                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                  <Box sx={{ p: 1.5, borderBottom: '1px solid var(--hotel-border)' }}>
                     <Grid container>
                       <Grid size={8}>
                         <Typography variant="body2">{t('checkout.roomChargesHourly')}</Typography>
@@ -1058,7 +1061,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <>
                     {/* Edit / Save button row */}
                     {!readOnly && (
-                      <Box sx={{ p: 1, px: 1.5, display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid #eee' }}>
+                      <Box sx={{ p: 1, px: 1.5, display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid var(--hotel-border-subtle)' }}>
                         {editingRates ? (
                           <Button
                             size="small"
@@ -1094,7 +1097,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         const dayTax = subtractMoney(taxInclusiveRate, dayRate);
                         return (
                           <React.Fragment key={i}>
-                            <Box sx={{ p: 1.5, borderBottom: isPositiveMoney(dayTax) ? 'none' : '1px solid #ddd' }}>
+                            <Box sx={{ p: 1.5, borderBottom: isPositiveMoney(dayTax) ? 'none' : '1px solid var(--hotel-border)' }}>
                               <Grid container sx={{
                                 alignItems: "center"
                               }}>
@@ -1130,7 +1133,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               </Grid>
                             </Box>
                             {isPositiveMoney(dayTax) && (
-                              <Box sx={{ p: 1.5, pl: 3, borderBottom: '1px solid #ddd', bgcolor: '#fafafa' }}>
+                              <Box sx={{ p: 1.5, pl: 3, borderBottom: '1px solid var(--hotel-border)', bgcolor: 'var(--hotel-surface-sunken)' }}>
                                 <Grid container>
                                   <Grid size={8}>
                                     <Typography variant="body2" sx={{
@@ -1164,7 +1167,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   const nights = calculateNights();
                   if (isHourlyBooking || nights <= 0) {
                     return (
-                      <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                      <Box sx={{ p: 1.5, borderBottom: '1px solid var(--hotel-border)' }}>
                         <Grid container>
                           <Grid size={8}>
                             <Typography variant="body2">{t('checkout.tourismTax')}</Typography>
@@ -1184,7 +1187,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     const date = new Date(checkIn);
                     date.setDate(date.getDate() + i);
                     return (
-                      <Box key={`tt-${i}`} sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                      <Box key={`tt-${i}`} sx={{ p: 1.5, borderBottom: '1px solid var(--hotel-border)' }}>
                         <Grid container>
                           <Grid size={8}>
                             <Typography variant="body2">
@@ -1204,7 +1207,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
                 {/* Extra Bed */}
                 {isPositiveMoney(charges.extraBedCharge) && (
-                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                  <Box sx={{ p: 1.5, borderBottom: '1px solid var(--hotel-border)' }}>
                     <Grid container>
                       <Grid size={8}>
                         <Typography variant="body2">{t('checkout.extraBedCharge')}</Typography>
@@ -1241,7 +1244,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
 
                 {/* Grand Total */}
-                <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '3px double #1976d2' }}>
+                <Box sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)', borderTop: '3px double var(--hotel-primary)' }}>
                   <Grid container>
                     <Grid size={8}>
                       <Typography variant="h6" sx={{ fontWeight: 700 }}>
@@ -1249,7 +1252,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       </Typography>
                     </Grid>
                     <Grid sx={{ textAlign: 'right' }} size={4}>
-                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#1976d2' }}>
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: 'var(--hotel-primary-text)' }}>
                         {formatCurrency(Math.abs(displayTotal))}
                       </Typography>
                     </Grid>
@@ -1303,11 +1306,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Button>
               ) : undefined}
             >
-            <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
+            <Box sx={{ border: '1px solid var(--hotel-border)', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
               {/* Green banner is the desktop section header; on phone the
                   CollapsibleSection header (with the same Record Payment
                   button in `actions`) replaces it. */}
-              <Box sx={{ bgcolor: '#2e7d32', color: 'white', p: 1.5, display: { xs: 'none', sm: 'flex' }, alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ bgcolor: 'var(--hotel-success)', color: 'var(--hotel-on-primary)', p: 1.5, display: { xs: 'none', sm: 'flex' }, alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
                   <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />{t('checkout.sections.payments')}</Typography>
                 {!readOnly && hasBalanceDue && !editingPayment && (
@@ -1316,7 +1319,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     variant="outlined"
                     onClick={() => setShowPaymentForm(!showPaymentForm)}
                     startIcon={showPaymentForm ? <CloseIcon /> : <AddIcon />}
-                    sx={{ color: 'white', borderColor: 'white', fontSize: '0.75rem', py: 0.25, '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+                    sx={{ color: 'var(--hotel-on-primary)', borderColor: 'var(--hotel-on-primary)', fontSize: '0.75rem', py: 0.25, '&:hover': { borderColor: 'var(--hotel-on-primary)', bgcolor: 'color-mix(in srgb, var(--hotel-on-primary) 12%, transparent)' } }}
                   >
                     {showPaymentForm ? t('common:actions.cancel') : t('ledger.payment.record')}
                   </Button>
@@ -1327,7 +1330,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               {completedPayments.length > 0 && (
                 <Box sx={{ p: 0 }}>
                   {completedPayments.map((p, idx) => (
-                    <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee' }}>
+                    <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid var(--hotel-border-subtle)' }}>
                       {editingPayment?.id === p.id ? (
                         // Edit form inline
                         (<Box>
@@ -1432,7 +1435,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={3}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--hotel-success)' }}>
                               {formatCurrency(toMoneyNumber(p.total_amount))}
                             </Typography>
                           </Grid>
@@ -1476,13 +1479,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   row here. */}
               {depositPayments.length > 0 && (
                 <Box sx={{ p: 0 }}>
-                  <Box sx={{ px: 1.5, py: 0.75, bgcolor: '#eceff1', borderBottom: '1px solid #eee' }}>
+                  <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'var(--hotel-surface-sunken)', borderBottom: '1px solid var(--hotel-border-subtle)' }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('deposit.collateralNote')}</Typography>
                   </Box>
                   {depositPayments.map((p, idx) => {
                     const forfeited = (p.payment_type || '').toLowerCase() === 'deposit_forfeited';
                     return (
-                      <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee', bgcolor: '#fafafa' }}>
+                      <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid var(--hotel-border-subtle)', bgcolor: 'var(--hotel-surface-sunken)' }}>
                         {editingPayment?.id === p.id ? (
                           // Method-only edit form — amount/date/reference are
                           // immutable on a posted deposit row (the backend
@@ -1552,7 +1555,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               )}
                             </Grid>
                             <Grid sx={{ textAlign: 'right' }} size={2}>
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#e65100' }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--hotel-orange)' }}>
                                 {formatCurrency(toMoneyNumber(p.total_amount))}
                               </Typography>
                             </Grid>
@@ -1579,7 +1582,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               {refundedPayments.length > 0 && (
                 <Box sx={{ p: 0 }}>
                   {refundedPayments.map((p, idx) => (
-                    <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee', bgcolor: '#f1f8e9' }}>
+                    <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid var(--hotel-border-subtle)', bgcolor: 'var(--hotel-success-bg)' }}>
                       {editingPayment?.id === p.id ? (
                         <Box>
                           <Grid container spacing={1} sx={{ mb: 1 }}>
@@ -1665,7 +1668,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           alignItems: "center"
                         }}>
                           <Grid size={5}>
-                            <Typography variant="body2" sx={{ color: '#2e7d32' }}>
+                            <Typography variant="body2" sx={{ color: 'var(--hotel-success)' }}>
                               {t('deposit.refundLine', { method: formatStatusLabel(p.payment_method, '') })}
                             </Typography>
                             <Typography variant="caption" sx={{
@@ -1678,7 +1681,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             <Chip label={t('deposit.chipRefunded')} size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={3}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--hotel-success)' }}>
                               -{formatCurrency(toMoneyNumber(p.total_amount))}
                             </Typography>
                           </Grid>
@@ -1727,7 +1730,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               {/* Record Payment Form — locked once fully paid (no outstanding
                   balance) and while a payment row is being edited. */}
               <Collapse in={showPaymentForm && hasBalanceDue && !editingPayment}>
-                <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '1px solid #ddd' }}>
+                <Box sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)', borderTop: '1px solid var(--hotel-border)' }}>
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 12, sm: 4 }}>
                       <TextField
@@ -1806,8 +1809,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
               {/* Bill balance — explicit state wording; a held deposit owed
                   back to the guest is not "overpayment". */}
-              <Box sx={{ p: 1.5, bgcolor: hasBalanceDue ? '#fff3e0' : '#e8f5e9', borderTop: '2px solid #ddd' }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: hasBalanceDue ? '#e65100' : '#2e7d32' }}>
+              <Box sx={{ p: 1.5, bgcolor: hasBalanceDue ? 'var(--hotel-warning-bg)' : 'var(--hotel-success-bg)', borderTop: '2px solid var(--hotel-border)' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: hasBalanceDue ? 'var(--hotel-orange)' : 'var(--hotel-success)' }}>
                   {t('checkout.billBalance', { amount: formatCurrency(Math.abs(balanceDue)), state: billBalanceLabel })}
                 </Typography>
               </Box>
@@ -1816,7 +1819,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             {/* Checkout readiness — the single strip that replaced the old
                 scattered deposit/payment alerts. */}
             {readinessStrip}
-          </Box>)
+          </PaperIsland>)
         ) : (
           // STEP 3: Confirmation Summary (After Review)
           (<Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

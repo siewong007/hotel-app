@@ -34,6 +34,7 @@ import { LedgerStatusBadge } from '../StatusPill';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../../../components/data-table/MobileCardRow';
+import PaperIsland from '../../../../../components/common/PaperIsland';
 import { useTranslation } from '../../../../../i18n';
 
 type InvoiceListFilter = 'billable' | 'all' | 'invoiced';
@@ -445,7 +446,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
       {/* Invoice Preview — renders the paper document on a paper surface
           (print identity is intentionally light; see docs/DESIGN_SYSTEM.md). */}
       {invoiceCompany && showInvoicePreview && (
-        <Box id="company-invoice-content" sx={{ bgcolor: '#FFFFFF', color: '#1C1E24', p: 3, borderRadius: 1 }}>
+        <PaperIsland id="company-invoice-content" sx={{ bgcolor: 'var(--hotel-surface)', color: 'var(--hotel-text)', p: 3, borderRadius: 1 }}>
           {/* Invoice Header */}
           <Box
             className="invoice-header"
@@ -453,10 +454,10 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               textAlign: 'center',
               mb: 3,
               pb: 2,
-              borderBottom: '3px solid #1976d2',
+              borderBottom: '3px solid var(--hotel-primary)',
             }}
           >
-            <Typography variant="h4" sx={{ fontWeight: 700, color: '#1976d2', mb: 0.5 }}>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--hotel-primary-text)', mb: 0.5 }}>
               {hotelSettings.hotel_name}
             </Typography>
             <Typography variant="body2" sx={{
@@ -474,8 +475,8 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
           {/* Invoice Title Bar */}
           <Box
             sx={{
-              bgcolor: '#1976d2',
-              color: 'white',
+              bgcolor: 'var(--hotel-primary)',
+              color: 'var(--hotel-on-primary)',
               py: 1,
               px: 2,
               mb: 3,
@@ -496,7 +497,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
             {/* Bill To */}
             <Box sx={{ flex: 1 }}>
-              <Typography variant="overline" sx={{ color: '#1976d2', fontWeight: 700, letterSpacing: 1.5, display: 'block', mb: 1 }}>
+              <Typography variant="overline" sx={{ color: 'var(--hotel-primary-text)', fontWeight: 700, letterSpacing: 1.5, display: 'block', mb: 1 }}>
                 {t('ledger.invoice.billTo')}
               </Typography>
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{invoiceCompany.company_name}</Typography>
@@ -515,19 +516,19 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               )}
               {invoiceCompany.contact_person && (
                 <Typography variant="body2" sx={{ mt: 1 }}>
-                  <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>{t('ledger.invoice.attn')}:</Box>
+                  <Box component="span" sx={{ color: 'var(--hotel-text-secondary)', minWidth: 60, display: 'inline-block' }}>{t('ledger.invoice.attn')}:</Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>{invoiceCompany.contact_person}</Box>
                 </Typography>
               )}
               {invoiceCompany.contact_email && (
                 <Typography variant="body2">
-                  <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>{t('common:field.email')}:</Box>
+                  <Box component="span" sx={{ color: 'var(--hotel-text-secondary)', minWidth: 60, display: 'inline-block' }}>{t('common:field.email')}:</Box>
                   <Box component="span">{invoiceCompany.contact_email}</Box>
                 </Typography>
               )}
               {invoiceCompany.contact_phone && (
                 <Typography variant="body2">
-                  <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>{t('common:field.phone')}:</Box>
+                  <Box component="span" sx={{ color: 'var(--hotel-text-secondary)', minWidth: 60, display: 'inline-block' }}>{t('common:field.phone')}:</Box>
                   <Box component="span">{invoiceCompany.contact_phone}</Box>
                 </Typography>
               )}
@@ -535,24 +536,24 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
 
             {/* Invoice Details */}
             <Box sx={{ minWidth: 220, textAlign: 'right' }}>
-              <Typography variant="overline" sx={{ color: '#1976d2', fontWeight: 700, letterSpacing: 1.5, display: 'block', mb: 1 }}>
+              <Typography variant="overline" sx={{ color: 'var(--hotel-primary-text)', fontWeight: 700, letterSpacing: 1.5, display: 'block', mb: 1 }}>
                 {t('ledger.invoice.docDetails')}
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="body2" sx={{ color: '#666' }}>{t('ledger.field.invoiceDate')}:</Typography>
+                <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>{t('ledger.field.invoiceDate')}:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600, ml: 2 }}>{formatDateForDisplay(invoiceDate)}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="body2" sx={{ color: '#666' }}>{t('ledger.field.dueDate')}:</Typography>
+                <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>{t('ledger.field.dueDate')}:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600, ml: 2 }}>{formatDateForDisplay(invoiceDueDate)}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="body2" sx={{ color: '#666' }}>{t('ledger.invoice.terms')}:</Typography>
+                <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>{t('ledger.invoice.terms')}:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600, ml: 2 }}>{t('ledger.paymentTermsDays', { days: invoiceCompany.payment_terms_days || 30 })}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="body2" sx={{ color: '#666' }}>{t('common:field.status')}:</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600, ml: 2, color: isPositiveMoney(getSelectedLedgerBalanceDue()) ? '#d32f2f' : '#2e7d32' }}>
+                <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>{t('common:field.status')}:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, ml: 2, color: isPositiveMoney(getSelectedLedgerBalanceDue()) ? 'var(--hotel-danger)' : 'var(--hotel-success)' }}>
                   {isPositiveMoney(getSelectedLedgerBalanceDue()) ? t('status:ledger.outstanding') : t('status:ledger.settled')}
                 </Typography>
               </Box>
@@ -560,26 +561,26 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
           </Box>
 
           {/* Line Items Table */}
-          <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #ddd', borderRadius: 0, mb: 0 }}>
+          <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid var(--hotel-border)', borderRadius: 0, mb: 0 }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                  <TableCell sx={{ bgcolor: 'var(--hotel-primary)', color: 'var(--hotel-on-primary)', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
                     {t('common:field.description')}
                   </TableCell>
-                  <TableCell sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                  <TableCell sx={{ bgcolor: 'var(--hotel-primary)', color: 'var(--hotel-on-primary)', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
                     {t('common:field.date')}
                   </TableCell>
-                  <TableCell sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                  <TableCell sx={{ bgcolor: 'var(--hotel-primary)', color: 'var(--hotel-on-primary)', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
                     {t('ledger.field.room')}
                   </TableCell>
-                  <TableCell align="right" sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                  <TableCell align="right" sx={{ bgcolor: 'var(--hotel-primary)', color: 'var(--hotel-on-primary)', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
                     {t('common:field.amount')}
                   </TableCell>
-                  <TableCell align="right" sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                  <TableCell align="right" sx={{ bgcolor: 'var(--hotel-primary)', color: 'var(--hotel-on-primary)', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
                     {t('ledger.col.paid')}
                   </TableCell>
-                  <TableCell align="right" sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                  <TableCell align="right" sx={{ bgcolor: 'var(--hotel-primary)', color: 'var(--hotel-on-primary)', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
                     {t('ledger.col.balance')}
                   </TableCell>
                 </TableRow>
@@ -592,17 +593,17 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                     const paidAmount = toMoneyNumber(ledger.paid_amount);
                     const balanceDue = toMoneyNumber(ledger.balance_due);
                     return (
-                      <TableRow key={ledger.id} sx={{ bgcolor: idx % 2 === 0 ? 'white' : '#fafafa' }}>
+                      <TableRow key={ledger.id} sx={{ bgcolor: idx % 2 === 0 ? 'var(--hotel-surface-raised)' : 'var(--hotel-surface-sunken)' }}>
                         <TableCell sx={{ py: 1.5, fontSize: 13 }}>{ledger.description}</TableCell>
                         <TableCell sx={{ py: 1.5, fontSize: 13 }}>{formatDateForDisplay(ledger.created_at)}</TableCell>
                         <TableCell sx={{ py: 1.5, fontSize: 13 }}>{ledger.room_number || '-'}</TableCell>
                         <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600 }}>
                           {formatCurrency(amount)}
                         </TableCell>
-                        <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600, color: '#2e7d32' }}>
+                        <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600, color: 'var(--hotel-success)' }}>
                           {isPositiveMoney(paidAmount) ? formatCurrency(paidAmount) : '-'}
                         </TableCell>
-                        <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600, color: isPositiveMoney(balanceDue) ? '#d32f2f' : '#2e7d32' }}>
+                        <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600, color: isPositiveMoney(balanceDue) ? 'var(--hotel-danger)' : 'var(--hotel-success)' }}>
                           {formatCurrency(balanceDue)}
                         </TableCell>
                       </TableRow>
@@ -611,24 +612,24 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
 
                 {/* Subtotal */}
                 <TableRow>
-                  <TableCell colSpan={3} align="right" sx={{ borderTop: '2px solid #ddd', pt: 2, fontWeight: 600, fontSize: 13 }}>
+                  <TableCell colSpan={3} align="right" sx={{ borderTop: '2px solid var(--hotel-border)', pt: 2, fontWeight: 600, fontSize: 13 }}>
                     {t('ledger.invoice.subtotal')}:
                   </TableCell>
-                  <TableCell align="right" sx={{ borderTop: '2px solid #ddd', pt: 2, fontWeight: 700, fontSize: 13 }}>
+                  <TableCell align="right" sx={{ borderTop: '2px solid var(--hotel-border)', pt: 2, fontWeight: 700, fontSize: 13 }}>
                     {formatCurrency(getSelectedLedgerTotal())}
                   </TableCell>
-                  <TableCell colSpan={2} sx={{ borderTop: '2px solid #ddd' }} />
+                  <TableCell colSpan={2} sx={{ borderTop: '2px solid var(--hotel-border)' }} />
                 </TableRow>
 
                 {/* Total Amount Due */}
-                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                  <TableCell colSpan={5} align="right" sx={{ borderTop: '3px double #1976d2', py: 2 }}>
-                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#1976d2' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
+                  <TableCell colSpan={5} align="right" sx={{ borderTop: '3px double var(--hotel-primary)', py: 2 }}>
+                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--hotel-primary-text)' }}>
                       {t('ledger.invoice.totalDue')}:
                     </Typography>
                   </TableCell>
-                  <TableCell align="right" sx={{ borderTop: '3px double #1976d2', py: 2 }}>
-                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#1976d2' }}>
+                  <TableCell align="right" sx={{ borderTop: '3px double var(--hotel-primary)', py: 2 }}>
+                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--hotel-primary-text)' }}>
                       {formatCurrency(getSelectedLedgerBalanceDue())}
                     </Typography>
                   </TableCell>
@@ -639,17 +640,17 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
 
           {/* Notes */}
           {invoiceNotes && (
-            <Box sx={{ mt: 3, p: 2, bgcolor: '#fff3cd', borderLeft: '4px solid #ffc107', borderRadius: 0.5 }}>
-              <Typography variant="subtitle2" sx={{ color: '#856404', mb: 0.5 }}>{t('common:field.notes')}:</Typography>
-              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#856404' }}>
+            <Box sx={{ mt: 3, p: 2, bgcolor: 'var(--hotel-warning-bg)', borderLeft: '4px solid var(--hotel-warning)', borderRadius: 0.5 }}>
+              <Typography variant="subtitle2" sx={{ color: 'var(--hotel-warning)', mb: 0.5 }}>{t('common:field.notes')}:</Typography>
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: 'var(--hotel-warning)' }}>
                 {invoiceNotes}
               </Typography>
             </Box>
           )}
 
           {/* Footer */}
-          <Box sx={{ mt: 5, pt: 2, borderTop: '1px solid #ddd', textAlign: 'center' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2', mb: 0.5 }}>
+          <Box sx={{ mt: 5, pt: 2, borderTop: '1px solid var(--hotel-border)', textAlign: 'center' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--hotel-primary-text)', mb: 0.5 }}>
               {t('ledger.invoice.thanks')}
             </Typography>
             <Typography variant="body2" sx={{
@@ -667,7 +668,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               {t('ledger.invoice.generated')} | {hotelSettings.hotel_name}
             </Typography>
           </Box>
-        </Box>
+        </PaperIsland>
       )}
     </DialogContent>
     {/* The preview state shows three icon buttons; let the row wrap on

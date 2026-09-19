@@ -7,14 +7,18 @@ import type { ThemeMode } from '../../../../theme';
 function renderCard({
   themeMode = 'light' as ThemeMode,
   onThemeModeChange = vi.fn(),
+  glassBlur = 10,
+  onGlassBlurChange = vi.fn(),
 } = {}) {
   render(
     <AppearanceCard
       themeMode={themeMode}
       onThemeModeChange={onThemeModeChange}
+      glassBlur={glassBlur}
+      onGlassBlurChange={onGlassBlurChange}
     />,
   );
-  return { onThemeModeChange };
+  return { onThemeModeChange, onGlassBlurChange };
 }
 
 describe('AppearanceCard', () => {
@@ -46,5 +50,22 @@ describe('AppearanceCard', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Light mode' })[0]);
 
     expect(onThemeModeChange).not.toHaveBeenCalled();
+  });
+
+  it('renders the blur slider at the current value', () => {
+    renderCard({ glassBlur: 14 });
+
+    const slider = screen.getByRole('slider', { name: 'Background blur' });
+    expect(slider.getAttribute('aria-valuenow')).toBe('14');
+  });
+
+  it('calls onGlassBlurChange when the slider moves', () => {
+    const { onGlassBlurChange } = renderCard({ glassBlur: 10 });
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Background blur' }), {
+      target: { value: '4' },
+    });
+
+    expect(onGlassBlurChange).toHaveBeenCalledWith(4);
   });
 });

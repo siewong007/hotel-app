@@ -8,6 +8,7 @@ import type { CheckoutPaymentRecord } from '../types';
 import { formatLocalDate, parseLocalDate, addLocalDays, formatHotelDate } from '../../../utils/date';
 import { useTranslation } from '../../../i18n';
 import { divideMoney, isLessMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../utils/money';
+import { paperTokens } from '../../../theme';
 
 interface CheckoutInvoicePrintViewProps {
   booking: BookingWithDetails;
@@ -186,7 +187,7 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
                     <td className="amount">{formatCurrency(dayRate)}</td>
                   </tr>
                   {isPositiveMoney(dayTax) && (
-                    <tr style={{ color: '#666' }}>
+                    <tr style={{ color: paperTokens.textSecondary }}>
                       <td style={{ paddingLeft: '24px' }}>{t('checkout.serviceTaxPct', { rate: hotelSettings.service_tax_rate })}</td>
                       <td className="amount">{formatCurrency(dayTax)}</td>
                     </tr>
@@ -266,13 +267,13 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
             </tr>
           ))}
           {isPositiveMoney(balanceDue) && (
-            <tr style={{ color: '#e65100', fontWeight: 700 }}>
+            <tr style={{ color: paperTokens.orange, fontWeight: 700 }}>
               <td>{t('ledger.payment.balanceDue')}</td>
               <td className="amount">{formatCurrency(balanceDue)}</td>
             </tr>
           )}
           {!isPositiveMoney(balanceDue) && (
-            <tr style={{ color: '#2e7d32', fontWeight: 700 }}>
+            <tr style={{ color: paperTokens.success, fontWeight: 700 }}>
               <td>{isLessMoney(balanceDue, 0) ? t('checkout.print.overpayment') : t('status:ledger.paid')}</td>
               <td className="amount">{isLessMoney(balanceDue, 0) ? formatCurrency(Math.abs(balanceDue)) : '-'}</td>
             </tr>
@@ -282,13 +283,13 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
     )}
 
     {depositWaived ? (
-      <div className="notes" style={{ backgroundColor: '#fff3e0', borderLeftColor: '#e65100' }}>
-        <strong style={{ color: '#e65100' }}>{t('deposit.print.waivedTitle')}</strong>
+      <div className="notes" style={{ backgroundColor: paperTokens.warningBg, borderLeftColor: paperTokens.orange }}>
+        <strong style={{ color: paperTokens.orange }}>{t('deposit.print.waivedTitle')}</strong>
         {t('deposit.print.reasonLine', { reason: depositWaiveReason })}
       </div>
     ) : depositForfeited ? (
-      <div className="notes" style={{ backgroundColor: '#fff3e0', borderLeftColor: '#e65100' }}>
-        <strong style={{ color: '#e65100' }}>{t('deposit.print.forfeitedTitle')}</strong>
+      <div className="notes" style={{ backgroundColor: paperTokens.warningBg, borderLeftColor: paperTokens.orange }}>
+        <strong style={{ color: paperTokens.orange }}>{t('deposit.print.forfeitedTitle')}</strong>
         {t('deposit.print.forfeitedBody', { amount: formatCurrency(charges.depositRefund) })}
       </div>
     ) : isPositiveMoney(charges.depositRefund) ? (
@@ -297,8 +298,8 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
         {t('deposit.print.refundedBody', { amount: formatCurrency(charges.depositRefund) })}
       </div>
     ) : (
-      <div className="notes" style={{ backgroundColor: '#e3f2fd', borderLeftColor: '#1565c0' }}>
-        <strong style={{ color: '#1565c0' }}>{t('deposit.print.title')}</strong>
+      <div className="notes" style={{ backgroundColor: paperTokens.infoBg, borderLeftColor: paperTokens.info }}>
+        <strong style={{ color: paperTokens.info }}>{t('deposit.print.title')}</strong>
         {t('deposit.print.waivedMember')}
       </div>
     )}

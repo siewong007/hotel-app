@@ -128,6 +128,8 @@
       "lightMode": "淺色模式",
       "darkMode": "深色模式"
     },
+    "glassBlur": "背景模糊",
+    "glassBlurHint": "通知、對話框和浮層背後的磨砂玻璃效果。設為 0 可獲得完全不透明的介面。此偏好儲存在本機並立即生效。",
     "reportsTitle": "報表設定",
     "fontPreset": "報表字體預設組",
     "fontPresetCustom": "自訂",
