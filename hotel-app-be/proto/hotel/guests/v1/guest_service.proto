@@ -33,8 +33,7 @@ service GuestService {
 
   // GET /guests/my-guests-with-credits  (bearer auth; service widens to all
   // guests for guests:read/manage holders — same as REST)
-  rpc ListMyGuestsWithCredits(ListMyGuestsWithCreditsRequest)
-      returns (ListMyGuestsWithCreditsResponse);
+  rpc ListMyGuestsWithCredits(ListMyGuestsWithCreditsRequest) returns (ListMyGuestsWithCreditsResponse);
 
   // POST /guests  (guests:create)
   rpc CreateGuest(CreateGuestRequest) returns (CreateGuestResponse);
@@ -46,12 +45,10 @@ service GuestService {
   rpc DeleteGuest(DeleteGuestRequest) returns (DeleteGuestResponse);
 
   // POST /guests/{id}/tourism-from-last-check-in  (guests:update)
-  rpc ApplyTourismTypeFromLastCheckIn(ApplyTourismTypeFromLastCheckInRequest)
-      returns (ApplyTourismTypeFromLastCheckInResponse);
+  rpc ApplyTourismTypeFromLastCheckIn(ApplyTourismTypeFromLastCheckInRequest) returns (ApplyTourismTypeFromLastCheckInResponse);
 
   // POST /guests/{id}/portal-account  (guests:update)
-  rpc TransferGuestPortalAccount(TransferGuestPortalAccountRequest)
-      returns (TransferGuestPortalAccountResponse);
+  rpc TransferGuestPortalAccount(TransferGuestPortalAccountRequest) returns (TransferGuestPortalAccountResponse);
 }
 
 // REST GuestPaginationParams. Pagination stays page-numbered — the REST

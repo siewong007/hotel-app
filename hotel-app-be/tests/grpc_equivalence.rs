@@ -280,18 +280,24 @@ mod postgres_tests {
     }
 
     async fn seed_guest(pool: &PgPool, guest_id: i64) {
+        // last_name carries the id: update_guest recomputes nick_name from
+        // first+last and enforces uniqueness, so the two fixtures must not
+        // share a name on a fresh database.
         sqlx::query(
             "INSERT INTO guests (id, nick_name, first_name, last_name, email, guest_type, \
              tourism_type, discount_percentage, company_name, vip_status, created_by) \
-             OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Riley', 'Nine', $3, 'member', \
-             'foreign', 15, 'RM981 Co', 'vip-gold', $4) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Riley', $3, $4, 'member', \
+             'foreign', 15, 'RM981 Co', 'vip-gold', $5) \
              ON CONFLICT (id) DO UPDATE SET \
                 nick_name = EXCLUDED.nick_name, \
+                first_name = EXCLUDED.first_name, \
+                last_name = EXCLUDED.last_name, \
                 email = EXCLUDED.email, \
                 company_name = EXCLUDED.company_name",
         )
         .bind(guest_id)
         .bind(format!("RM981 Guest {guest_id}"))
+        .bind(format!("Nine{guest_id}"))
         .bind(format!("rm981-guest-{guest_id}@hotel.local"))
         .bind(ACTOR)
         .execute(pool)

@@ -271,7 +271,7 @@ describe('pb → REST converters', () => {
       guestType: PbGuestType.NON_MEMBER,
     });
 
-    const guest = guestFromPb(pb) as Record<string, unknown>;
+    const guest = guestFromPb(pb) as unknown as Record<string, unknown>;
 
     expect(guest.vip_status).toBeUndefined();
     expect('vip_status' in guest).toBe(false);

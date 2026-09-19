@@ -931,7 +931,7 @@ Replace the "Desktop Data Backup" `cp -r` block with:
 
 Desktop builds manage their own verified backup pairs (`pg_dump` + uploads
 tarball, newest 14 kept) under the app data dir — see
-[desktop-backup-restore.md](desktop-backup-restore.md). There is no manual
+`desktop-backup-restore.md`. There is no manual
 copy step; `pgdata` is not portable across bundled versions.
 ```
 
