@@ -55,15 +55,26 @@ const walk = (dir) => {
   return files;
 };
 
-// Release assets = every file under a `bundle/` directory, except the unpacked
-// `.app/` tree (the .app.tar.gz updater bundle and the .dmg already cover it).
-// Files outside `bundle/` are the raw build outputs uploaded for debugging —
-// the `hotel-desktop` binary and the `hotel-app-be-*` sidecar — which are
-// meaningless as standalone downloads.
+// Release assets are the packaged artifacts sitting directly in a bundle
+// directory: `bundle/<file>` (portable archives) or `bundle/<format>/<file>`
+// (.dmg, .app.tar.gz, -setup.exe, .msi, .deb, .rpm, .AppImage, and their
+// .sig siblings). Files outside `bundle/` are raw build outputs uploaded for
+// debugging — the `hotel-desktop` binary and the `hotel-app-be-*` sidecar.
+//
+// Anything DEEPER than that is an unpacked staging tree the bundlers leave
+// beside the real artifact: the macOS `.app`, the AppImage `.AppDir`, and the
+// dpkg root under `bundle/deb/<pkg>/data/usr/...`. Those must never be staged
+// — flattening them to basenames collides (two `libpq.so.5` from the bundled
+// PostgreSQL, which failed the v0.3.0 release on 2026-09-19) and would ship
+// hundreds of megabytes of loose libraries as release assets.
 const isReleaseAsset = (path) => {
   const parts = path.split(/[\\/]/);
-  if (parts.some((part) => part.endsWith('.app'))) return false;
-  return parts.includes('bundle');
+  if (parts.some((part) => part.endsWith('.app') || part.endsWith('.AppDir'))) {
+    return false;
+  }
+  const bundleIndex = parts.indexOf('bundle');
+  if (bundleIndex === -1) return false;
+  return parts.length - bundleIndex <= 3;
 };
 
 // GitHub's release-asset pipeline renames uploaded files server-side (spaces

@@ -435,8 +435,14 @@ jobs:
           if-no-files-found: error
           path: |
             hotel-desktop/src-tauri/target/release/hotel-desktop
-            hotel-desktop/src-tauri/target/release/bundle/deb/**
-            hotel-desktop/src-tauri/target/release/bundle/appimage/**
+            # Only the packages themselves. `bundle/deb/**` also swept up the
+            # unpacked dpkg staging root (bundle/deb/<pkg>/data/usr/...) and
+            # `bundle/appimage/**` the .AppDir — ~600MB of loose libraries that
+            # collide on basename when staged as release assets.
+            hotel-desktop/src-tauri/target/release/bundle/deb/*.deb
+            hotel-desktop/src-tauri/target/release/bundle/deb/*.deb.sig
+            hotel-desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            hotel-desktop/src-tauri/target/release/bundle/appimage/*.AppImage.sig
             hotel-desktop/src-tauri/target/release/bundle/*-portable.tar.gz
             # Only the .rpm files, not the staged rpm/ tree the bundler
             # leaves next to them. Matches nothing on binary-only builds —

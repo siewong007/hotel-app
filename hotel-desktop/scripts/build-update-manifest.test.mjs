@@ -42,6 +42,12 @@ const FIXTURE_FILES = {
     // linuxdeploy's own tooling is an .AppImage too and carries no .sig —
     // selection must skip it rather than pick it and fail.
     'bundle/appimage/linuxdeploy-x86_64.AppImage',
+    // Unpacked staging trees the bundlers leave beside the real packages.
+    // Both carry a libpq.so.5 from the embedded PostgreSQL, so staging them
+    // flattens to a basename collision — what broke the v0.3.0 release.
+    'bundle/deb/hotel-management-system_1.2.3_amd64/DEBIAN/control',
+    'bundle/deb/hotel-management-system_1.2.3_amd64/data/usr/lib/hotel/pgsql/lib/libpq.so.5',
+    'bundle/appimage/hotel-management-system.AppDir/usr/lib/libpq.so.5',
     'bundle/hotel-desktop-linux-x86_64-portable.tar.gz',
   ],
 };
@@ -162,6 +168,21 @@ describe('build-update-manifest', () => {
     );
     expect(() => run(artifactsDir, outDir, configPath)).toThrow(/linux-x86_64/);
     expect(existsSync(join(outDir, 'latest.json'))).toBe(false);
+  });
+
+  test('never stages unpacked staging trees (.app, .AppDir, dpkg root)', () => {
+    // Regression: `bundle/deb/**` and `bundle/appimage/**` swept the unpacked
+    // dpkg root and the .AppDir into the artifact. Staging them flattened two
+    // different libpq.so.5 to one name and aborted the v0.3.0 release.
+    const { artifactsDir, outDir, configPath } = makeFixtures();
+    const { assets } = run(artifactsDir, outDir, configPath);
+    const staged = new Set(assets);
+    expect(staged).not.toContain('libpq.so.5');
+    expect(staged).not.toContain('control');
+    expect(staged).not.toContain('Info.plist');
+    // The real packages are still there.
+    expect(staged).toContain('hotel-management-system_1.2.3_amd64.deb');
+    expect(staged).toContain('hotel-management-system_1.2.3_amd64.AppImage');
   });
 
   test('skips an unsigned tooling .AppImage and picks the signed bundle', () => {
