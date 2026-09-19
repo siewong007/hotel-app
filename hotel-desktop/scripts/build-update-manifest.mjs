@@ -67,11 +67,21 @@ const walk = (dir) => {
 // — flattening them to basenames collides (two `libpq.so.5` from the bundled
 // PostgreSQL, which failed the v0.3.0 release on 2026-09-19) and would ship
 // hundreds of megabytes of loose libraries as release assets.
+//
+// The dmg bundler also drops its own INPUTS beside the .dmg (bundle_dmg.sh,
+// icon.icns). Those sit at artifact depth but are not downloads, so they would
+// otherwise show up on the public release page. This is a deny-list rather
+// than an extension allow-list on purpose: an unrecognised new package type
+// should still ship, and the updater-critical artifacts are already guarded by
+// the manifest's hard-fail.
+const BUNDLER_SUPPORT_FILE = /\.(sh|icns|plist|desktop)$/;
+
 const isReleaseAsset = (path) => {
   const parts = path.split(/[\\/]/);
   if (parts.some((part) => part.endsWith('.app') || part.endsWith('.AppDir'))) {
     return false;
   }
+  if (BUNDLER_SUPPORT_FILE.test(basename(path))) return false;
   const bundleIndex = parts.indexOf('bundle');
   if (bundleIndex === -1) return false;
   return parts.length - bundleIndex <= 3;

@@ -22,6 +22,9 @@ const FIXTURE_FILES = {
     'bundle/macos/Hotel Management System_1.2.3_aarch64.app.tar.gz.sig',
     'bundle/macos/Hotel Management System.app/Contents/Info.plist',
     'bundle/dmg/Hotel Management System_1.2.3_aarch64.dmg',
+    // The dmg bundler's own inputs, dropped beside the .dmg.
+    'bundle/dmg/bundle_dmg.sh',
+    'bundle/dmg/icon.icns',
   ],
   'hotel-desktop-windows-x86_64': [
     'hotel-desktop.exe',
@@ -180,6 +183,9 @@ describe('build-update-manifest', () => {
     expect(staged).not.toContain('libpq.so.5');
     expect(staged).not.toContain('control');
     expect(staged).not.toContain('Info.plist');
+    // Bundler inputs, not downloads.
+    expect(staged).not.toContain('bundle_dmg.sh');
+    expect(staged).not.toContain('icon.icns');
     // The real packages are still there.
     expect(staged).toContain('hotel-management-system_1.2.3_amd64.deb');
     expect(staged).toContain('hotel-management-system_1.2.3_amd64.AppImage');
