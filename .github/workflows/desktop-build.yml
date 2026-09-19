@@ -151,6 +151,11 @@ jobs:
           # job then hard-fails rather than ship an unsigned manifest.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Arms the SystemHealthPage update card in the FE bundle. Reaches
+          # build-frontend.mjs via beforeBuildCommand → desktop:prepare; that
+          # script forwards VITE_* to `vite build` and hashes it into the
+          # bundle cache key.
+          VITE_DESKTOP_UPDATER_ENABLED: "true"
         run: bun run build
 
       # No OS-level code signing / notarization is configured for this build
@@ -272,6 +277,9 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Arms the SystemHealthPage update card in the FE bundle — same
+          # VITE_* forwarding path as the macOS step above.
+          VITE_DESKTOP_UPDATER_ENABLED: "true"
         run: bun scripts/tauri-build.mjs --bundles deb,appimage
 
       - name: Package portable archive
@@ -457,6 +465,9 @@ jobs:
           WINDOWS_SIGN_TIMESTAMP_URL: ${{ vars.WINDOWS_SIGN_TIMESTAMP_URL }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Arms the SystemHealthPage update card in the FE bundle — same
+          # VITE_* forwarding path as the macOS/Linux steps.
+          VITE_DESKTOP_UPDATER_ENABLED: "true"
         run: |
           $bundles = 'nsis'
           if ($env:GITHUB_REF_TYPE -eq 'tag') { $bundles = 'nsis,msi' }

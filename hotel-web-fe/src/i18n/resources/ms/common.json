@@ -218,6 +218,20 @@
       "restartFailed": "Tidak dapat memulakan semula perkhidmatan backend",
       "upgradeFailed": "Kemas kini pangkalan data gagal",
       "openFolderFailed": "Tidak dapat membuka folder data"
+    },
+    "updates": {
+      "title": "Kemas kini aplikasi",
+      "check": "Semak kemas kini",
+      "checking": "Menyemak…",
+      "upToDate": "Anda menggunakan versi terkini ({{version}}).",
+      "available": "Versi {{version}} tersedia.",
+      "install": "Pasang kemas kini",
+      "installing": "Sedang memuat turun dan memasang…",
+      "installed": "Kemas kini dipasang. Mulakan semula untuk menggunakan versi {{version}}.",
+      "restartNow": "Mulakan semula sekarang",
+      "restartLater": "Kemudian",
+      "checkFailed": "Semakan kemas kini gagal",
+      "installFailed": "Pemasangan kemas kini gagal"
     }
   },
   "form": {

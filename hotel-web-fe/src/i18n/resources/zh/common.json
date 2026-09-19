@@ -218,6 +218,20 @@
       "restartFailed": "无法重启后端服务",
       "upgradeFailed": "数据库升级失败",
       "openFolderFailed": "无法打开数据文件夹"
+    },
+    "updates": {
+      "title": "应用更新",
+      "check": "检查更新",
+      "checking": "正在检查……",
+      "upToDate": "您已是最新版本（{{version}}）。",
+      "available": "新版本 {{version}} 可用。",
+      "install": "安装更新",
+      "installing": "正在下载并安装……",
+      "installed": "更新已安装。重启以应用版本 {{version}}。",
+      "restartNow": "立即重启",
+      "restartLater": "稍后",
+      "checkFailed": "更新检查失败",
+      "installFailed": "更新安装失败"
     }
   },
   "form": {

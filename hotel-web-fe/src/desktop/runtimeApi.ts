@@ -137,6 +137,48 @@ export function shouldUseDesktopRuntime(): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Updater commands — armed only when the desktop runtime is present AND the
+// bundle was built with VITE_DESKTOP_UPDATER_ENABLED=true (the CI bundle
+// steps set it; plain binary builds and web builds leave it off).
+// ---------------------------------------------------------------------------
+
+export interface DesktopUpdateInfo {
+  available: boolean;
+  version: string;
+  current_version: string;
+  notes: string | null;
+}
+
+export function isDesktopUpdaterEnabled(): boolean {
+  return shouldUseDesktopRuntime() && import.meta.env.VITE_DESKTOP_UPDATER_ENABLED === 'true';
+}
+
+export async function checkForUpdates(): Promise<DesktopUpdateInfo> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<DesktopUpdateInfo>('check_for_updates');
+}
+
+/**
+ * Download + install the pending update. On Windows the promise never
+ * resolves: `install_inner` exits the process and the NSIS installer
+ * relaunches the app, so a dropped promise is success-in-progress, not a
+ * failure. Callers must leave the "installing" UI up rather than error out.
+ */
+export async function installUpdate(): Promise<{ installed: boolean; version: string }> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke('install_update');
+}
+
+/**
+ * Relaunch the app via `request_restart`. Returns immediately and the app
+ * exits — like `installUpdate`, a dropped promise is expected, not an error.
+ */
+export async function restartApp(): Promise<void> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke('restart_app');
+}
+
+// ---------------------------------------------------------------------------
 // Internal helper – returns the Tauri IPC bridge or throws.
 // ---------------------------------------------------------------------------
 

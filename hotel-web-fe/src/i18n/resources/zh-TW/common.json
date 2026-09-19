@@ -218,6 +218,20 @@
       "restartFailed": "無法重新啟動後端服務",
       "upgradeFailed": "資料庫升級失敗",
       "openFolderFailed": "無法開啟資料夾"
+    },
+    "updates": {
+      "title": "應用程式更新",
+      "check": "檢查更新",
+      "checking": "正在檢查……",
+      "upToDate": "您已是最新版本（{{version}}）。",
+      "available": "新版本 {{version}} 可用。",
+      "install": "安裝更新",
+      "installing": "正在下載並安裝……",
+      "installed": "更新已安裝。重新啟動以套用版本 {{version}}。",
+      "restartNow": "立即重新啟動",
+      "restartLater": "稍後",
+      "checkFailed": "更新檢查失敗",
+      "installFailed": "更新安裝失敗"
     }
   },
   "form": {
