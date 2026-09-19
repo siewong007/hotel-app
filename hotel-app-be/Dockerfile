@@ -31,8 +31,10 @@ RUN mkdir src && \
 COPY src ./src
 
 # Build the application
-# Touch main.rs to force rebuild of our code only
-RUN touch src/main.rs && \
+# Refresh every source mtime: cargo may otherwise treat copied files as fresh
+# and keep the dependency-layer stubs — with the bin linking hotel_app_be, a
+# stale stub lib.rs fails with unresolved imports (broke deploy 2026-09-19).
+RUN find src -type f -exec touch {} + && \
     cargo build --release && \
     strip target/release/hotel-app-be
 
