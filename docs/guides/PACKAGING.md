@@ -46,7 +46,7 @@ bun run build:nsis             # Windows NSIS installer
 bun run build:msi              # Windows MSI (WiX)
 bun run build:deb              # Linux .deb
 bun run build:appimage         # Linux .AppImage
-bun run build:rpm              # Linux .rpm (needs rpmbuild toolchain)
+bun run build:rpm              # Linux .rpm
 
 # packaging (requires a completed build)
 bun run package:portable       # portable archive of the release output
@@ -54,10 +54,11 @@ bun run package:portable       # portable archive of the release output
                                #   → bundle/hotel-desktop-<os>-<arch>-portable.tar.gz (linux)
 ```
 
-RPM is opt-in: the bundler needs `rpmbuild`, which the Ubuntu CI job does not
-carry, so `build`/`all` on Linux would fail there. CI passes `--bundles
-deb,appimage` explicitly; run `build:rpm` locally on a Fedora/RHEL-ish system if
-RPM distribution ever becomes a requirement.
+RPM ships alongside deb/AppImage: tauri-bundler writes `.rpm` in-process via
+the pure-Rust `rpm` crate, so no `rpmbuild` toolchain is needed anywhere —
+CI passes `--bundles deb,appimage,rpm` and install-smokes the result in a
+`fedora:41` container (`dnf install` + bundled-PostgreSQL check, run
+35424550838). `build:rpm` remains the single-format local path.
 
 ## Embedded PostgreSQL provisioning
 
@@ -122,8 +123,14 @@ failed but the existing unproven tree may still work (warns, continues).
 - **`.deb`** (`build:deb`): installs to `/usr/bin` + `/usr/lib/<name>/`, ships a
   `.desktop` entry and icons; `Depends:` is auto-resolved by the bundler.
 - **`.AppImage`** (`build:appimage`): single-file build; host needs `libfuse2`.
-- **`.rpm`** (`build:rpm`): supported by the bundler but not exercised in CI —
-  see "Commands".
+- **`.rpm`** (`build:rpm`): supported and exercised in CI — `desktop-build.yml`
+  builds it on every bundle run and install-smokes it in a `fedora:41`
+  container (`dnf install` → `rpm -q` → `/usr/bin/hotel-desktop` → bundled
+  `postgres --version` = 19beta2). Package name is kebab-cased
+  `hotel-management-system` (from `productName`), not `hotel-desktop`.
+  `rpm -qpR` declares only SONAME requires — `libwebkit2gtk-4.1.so.0` and
+  `libgtk-3.so.0` — which dnf resolved to a 314-package transaction on f41
+  (webkit2gtk4.1 2.50.1, gtk3 3.24.43; verified run 35424550838).
 - Portable `.tar.gz` mirrors the portable zip semantics on Windows.
 
 ## macOS
