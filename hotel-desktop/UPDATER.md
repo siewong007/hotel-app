@@ -69,15 +69,19 @@ installable-in-sequence (updates verify against the *installed* app's pubkey).
 4. Installed apps GET `releases/latest/download/latest.json`, compare
    `version`, and offer the update.
 
+`releases/latest/` always resolves the NEWEST non-prerelease release — an
+out-of-order patch tag (e.g. a `v1.0.x` backport after `v2.0.0`) produces a
+manifest that `latest/download` will not serve, so release branches need
+their own endpoint or must ship as prereleases.
+
 `workflow_dispatch` builds (including `full_bundle=true`) produce and sign the
 same artifacts but never publish a release — the release job is tag-gated.
 
 ## Frontend flag
 
 Update UI is gated on `VITE_DESKTOP_UPDATER_ENABLED === 'true'` at build time
-(and `shouldUseDesktopRuntime()`). CI will set it on the bundle steps — the
-env lands with the update-UI task, so it has no effect until then. For a
-local `bun run build`, add `VITE_DESKTOP_UPDATER_ENABLED=true` to
+(and `shouldUseDesktopRuntime()`). CI sets it on all three bundle steps. For
+a local `bun run build`, add `VITE_DESKTOP_UPDATER_ENABLED=true` to
 `hotel-web-fe/.env.tauri` (untracked via root `.env.*`); `build-frontend.mjs`
 hashes `VITE_*` into the build cache key, so flipping it rebuilds the bundle.
 
@@ -98,8 +102,11 @@ See `docs/guides/PACKAGING.md` for the provisioning checklist.
 ## Verifying a release end-to-end
 
 ```bash
-git tag v0.0.0-test && git push origin v0.0.0-test   # maintainer only
-gh run watch                                          # three builds + release
+# The tag's version must equal `version` in src-tauri/tauri.conf.json (1.0.0
+# today) — the manifest job hard-fails on a mismatch, so a throwaway tag like
+# v0.0.0-test never produces a release. Bump the version or tag what exists.
+git tag v1.0.0 && git push origin v1.0.0   # maintainer only; matches conf version
+gh run watch                                # three builds + release
 curl -sL https://github.com/siewong007/hotel-app/releases/latest/download/latest.json
 ```
 

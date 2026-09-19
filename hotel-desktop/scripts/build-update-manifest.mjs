@@ -3,12 +3,14 @@
 // desktop-release job on tag pushes:
 //
 //   bun hotel-desktop/scripts/build-update-manifest.mjs \
-//     --tag v1.0.0 --artifacts ./artifacts --repo owner/name --out ./release
+//     --tag v1.0.0 --artifacts ./artifacts --repo owner/name --out ./release \
+//     [--notes "tag annotation"]
 //
 // Produces <out>/latest.json plus a flat copy of every installer, updater
-// bundle, .sig, and portable archive. Hard-fails when ANY platform's updater
-// bundle or signature is missing — publishing a manifest without one would
-// leave that platform's installs permanently unable to update.
+// bundle, .sig, and portable archive — each staged under a sanitized basename
+// (see sanitizeAssetName). Hard-fails when ANY platform's updater bundle or
+// signature is missing — publishing a manifest without one would leave that
+// platform's installs permanently unable to update.
 import {
   copyFileSync,
   existsSync,
@@ -55,6 +57,14 @@ const isReleaseAsset = (path) => {
   return parts.includes('bundle');
 };
 
+// GitHub's release-asset pipeline renames uploaded files server-side (spaces
+// become dots), so a manifest URL built from the on-disk basename can 404 —
+// exactly what would happen to "Hotel Management System_…". Instead of
+// depending on GitHub's exact rule, every staged file is renamed to a basename
+// drawn only from [A-Za-z0-9._-]: the uploaded asset name and the manifest URL
+// are then equal by construction.
+const sanitizeAssetName = (name) => name.replace(/[^A-Za-z0-9._-]+/g, '-');
+
 // Resolved relative to this script so the release job can invoke it from any
 // cwd. Injectable via `configPath` for tests.
 const DEFAULT_CONFIG_PATH = join(
@@ -85,15 +95,16 @@ const assertTagMatchesVersion = (tag, configPath) => {
 
 // Scans <artifactsDir>/<artifactDir> for each platform, pairs the updater
 // bundle with its .sig, writes latest.json into <outDir>, and copies all
-// release assets flat into <outDir>. Returns { manifest, assets } — `assets`
-// is the list of staged file names (excluding latest.json). Throws on any
-// missing bundle/signature.
+// release assets flat into <outDir> under sanitized names. Returns
+// { manifest, assets } — `assets` is the list of staged file names (excluding
+// latest.json). Throws on any missing bundle/signature.
 export const buildUpdateManifest = ({
   tag,
   artifactsDir,
   repo,
   outDir,
   configPath = DEFAULT_CONFIG_PATH,
+  notes = '',
 }) => {
   const version = assertTagMatchesVersion(tag, configPath);
   const platforms = {};
@@ -119,7 +130,9 @@ export const buildUpdateManifest = ({
       errors.push(`${platformKey}: signature file ${basename(sigPath)} is empty`);
       continue;
     }
-    const name = basename(bundle);
+    // The URL must name the file as it will be uploaded — the sanitized
+    // basename staged below, not the on-disk one (which GitHub would rewrite).
+    const name = sanitizeAssetName(basename(bundle));
     platforms[platformKey] = {
       signature,
       url: `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(name)}`,
@@ -135,12 +148,21 @@ export const buildUpdateManifest = ({
   mkdirSync(outDir, { recursive: true });
 
   const assets = [];
+  const stagedNames = new Set();
   for (const spec of Object.values(PLATFORM_ARTIFACTS)) {
     const dir = join(artifactsDir, spec.artifact);
     if (!existsSync(dir)) continue;
     for (const file of walk(dir)) {
       if (!isReleaseAsset(file)) continue;
-      const name = basename(file);
+      const name = sanitizeAssetName(basename(file));
+      // Two distinct artifacts collapsing to one safe name would silently
+      // clobber each other on upload — refuse rather than ship a wrong asset.
+      if (stagedNames.has(name)) {
+        throw new Error(
+          `asset name collision after sanitize: ${name} (from ${file})`,
+        );
+      }
+      stagedNames.add(name);
       copyFileSync(file, join(outDir, name));
       assets.push(name);
     }
@@ -148,6 +170,7 @@ export const buildUpdateManifest = ({
 
   const manifest = {
     version,
+    notes: (notes || '').trim() || null,
     pub_date: new Date().toISOString(),
     platforms,
   };
@@ -182,6 +205,7 @@ if (import.meta.main) {
       artifactsDir: args.artifacts,
       repo: args.repo,
       outDir: args.out,
+      notes: args.notes || '',
     });
     console.log(`latest.json written for ${manifest.version}:`);
     for (const [platform, entry] of Object.entries(manifest.platforms)) {

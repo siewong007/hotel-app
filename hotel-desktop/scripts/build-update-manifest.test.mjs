@@ -60,8 +60,8 @@ const makeFixtures = ({ configVersion = '1.2.3' } = {}) => {
   return { artifactsDir, outDir: join(workDir, 'release'), configPath };
 };
 
-const run = (artifactsDir, outDir, configPath) =>
-  buildUpdateManifest({ tag: TAG, artifactsDir, repo: REPO, outDir, configPath });
+const run = (artifactsDir, outDir, configPath, notes) =>
+  buildUpdateManifest({ tag: TAG, artifactsDir, repo: REPO, outDir, configPath, notes });
 
 afterEach(() => {
   if (workDir) rmSync(workDir, { recursive: true, force: true });
@@ -70,7 +70,7 @@ afterEach(() => {
 describe('build-update-manifest', () => {
   test('emits latest.json with all three platforms, signatures, and URLs', () => {
     const { artifactsDir, outDir, configPath } = makeFixtures();
-    const { manifest } = run(artifactsDir, outDir, configPath);
+    const { manifest, assets } = run(artifactsDir, outDir, configPath);
 
     expect(manifest.version).toBe('1.2.3');
     expect(Number.isNaN(Date.parse(manifest.pub_date))).toBe(false);
@@ -80,18 +80,22 @@ describe('build-update-manifest', () => {
       'windows-x86_64',
     ]);
 
+    const staged = new Set(assets);
     for (const entry of Object.values(manifest.platforms)) {
       expect(entry.signature.length).toBeGreaterThan(0);
       expect(entry.url.startsWith(`https://github.com/${REPO}/releases/download/${TAG}/`)).toBe(
         true,
       );
-      // Fixture names contain spaces — the URL must be encoded or the updater
-      // fetch 404s.
-      expect(entry.url).not.toContain(' ');
+      // GitHub renames uploaded assets server-side (spaces become dots), so
+      // the URL must name the SANITIZED staged file — not the on-disk name —
+      // or the updater fetch 404s. Assert url basename == staged basename.
+      const urlName = decodeURIComponent(entry.url.split('/').pop());
+      expect(urlName).toMatch(/^[A-Za-z0-9._-]+$/);
+      expect(staged.has(urlName)).toBe(true);
     }
     expect(manifest.platforms['darwin-aarch64'].url).toBe(
       `https://github.com/${REPO}/releases/download/${TAG}/` +
-        encodeURIComponent('Hotel Management System_1.2.3_aarch64.app.tar.gz'),
+        'Hotel-Management-System_1.2.3_aarch64.app.tar.gz',
     );
     expect(manifest.platforms['windows-x86_64'].url).toContain('.nsis.zip');
     expect(manifest.platforms['linux-x86_64'].url).toContain('.AppImage.tar.gz');
@@ -101,19 +105,20 @@ describe('build-update-manifest', () => {
     expect(onDisk).toEqual(manifest);
   });
 
-  test('stages installers, updater bundles, sigs, portable archives — not raw bins or .app contents', () => {
+  test('stages installers, updater bundles, sigs, portable archives under GitHub-safe names', () => {
     const { artifactsDir, outDir, configPath } = makeFixtures();
     const { assets } = run(artifactsDir, outDir, configPath);
 
     const staged = new Set(assets);
-    // Wanted: every file under bundle/ except the unpacked .app tree.
-    expect(staged).toContain('Hotel Management System_1.2.3_aarch64.app.tar.gz');
-    expect(staged).toContain('Hotel Management System_1.2.3_aarch64.app.tar.gz.sig');
-    expect(staged).toContain('Hotel Management System_1.2.3_aarch64.dmg');
-    expect(staged).toContain('Hotel Management System_1.2.3_x64-setup.exe');
-    expect(staged).toContain('Hotel Management System_1.2.3_x64.nsis.zip');
-    expect(staged).toContain('Hotel Management System_1.2.3_x64.nsis.zip.sig');
-    expect(staged).toContain('Hotel Management System_1.2.3_x64_en-US.msi');
+    // Wanted: every file under bundle/ except the unpacked .app tree, renamed
+    // to a basename GitHub will not rewrite on upload.
+    expect(staged).toContain('Hotel-Management-System_1.2.3_aarch64.app.tar.gz');
+    expect(staged).toContain('Hotel-Management-System_1.2.3_aarch64.app.tar.gz.sig');
+    expect(staged).toContain('Hotel-Management-System_1.2.3_aarch64.dmg');
+    expect(staged).toContain('Hotel-Management-System_1.2.3_x64-setup.exe');
+    expect(staged).toContain('Hotel-Management-System_1.2.3_x64.nsis.zip');
+    expect(staged).toContain('Hotel-Management-System_1.2.3_x64.nsis.zip.sig');
+    expect(staged).toContain('Hotel-Management-System_1.2.3_x64_en-US.msi');
     expect(staged).toContain('hotel-desktop-windows-x86_64-portable.zip');
     expect(staged).toContain('hotel-management-system_1.2.3_amd64.deb');
     expect(staged).toContain('hotel-management-system_1.2.3_amd64.AppImage');
@@ -170,5 +175,22 @@ describe('build-update-manifest', () => {
       /tag v1\.2\.3 does not match tauri\.conf\.json version 9\.9\.9/,
     );
     expect(existsSync(join(outDir, 'latest.json'))).toBe(false);
+  });
+
+  test('carries the tag annotation into latest.json notes', () => {
+    const { artifactsDir, outDir, configPath } = makeFixtures();
+    const { manifest } = run(
+      artifactsDir,
+      outDir,
+      configPath,
+      'correções do fechamento\nsegundo parágrafo\n',
+    );
+    expect(manifest.notes).toBe('correções do fechamento\nsegundo parágrafo');
+  });
+
+  test('notes is null when the tag carries no annotation', () => {
+    const { artifactsDir, outDir, configPath } = makeFixtures();
+    const { manifest } = run(artifactsDir, outDir, configPath);
+    expect(manifest.notes).toBeNull();
   });
 });

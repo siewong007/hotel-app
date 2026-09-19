@@ -45,9 +45,11 @@ jobs:
     timeout-minutes: 60
 
     # Signing/notarization inputs mapped at job level — `secrets` is not a
-    # legal context in step `if:` conditions. Every signing step below gates
-    # on `env.* != ''`, so with no secrets provisioned the job still produces
-    # unsigned bundles (today's default).
+    # legal context in step `if:` conditions. Every OS-level signing step
+    # below gates on `env.* != ''`, so absent cert secrets mean unsigned
+    # .app/.dmg artifacts (today's default). The updater key is different:
+    # TAURI_SIGNING_PRIVATE_KEY is REQUIRED for the bundle step — with
+    # createUpdaterArtifacts on, `tauri build` hard-fails without it.
     env:
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -161,9 +163,10 @@ jobs:
       # Throwaway keychain + Developer ID import. Secrets absent → step
       # skipped → tauri build finds no signing identity → unsigned .app/.dmg.
       # KEYCHAIN_PASSWORD is any string — it only locks this ephemeral
-      # keychain, never the certificate itself.
+      # keychain, never the certificate itself. Bundle condition included so
+      # binary-only dispatches skip the whole pre-sign pipeline.
       - name: Import Apple signing certificate
-        if: ${{ env.APPLE_CERTIFICATE != '' }}
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && env.APPLE_CERTIFICATE != '' }}
         run: |
           echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
@@ -178,15 +181,16 @@ jobs:
       # sign step has the Mach-Os to sign. The prepare re-run inside
       # `bun run build` is a cache hit; copy-backend-sidecar.mjs may re-copy
       # the cargo output over src-tauri/binaries/, which is why the sign
-      # script signs BOTH locations.
+      # script signs BOTH locations. Pre-sign only feeds the bundler, so
+      # binary-only dispatches skip it.
       - name: Build backend sidecar (pre-sign)
-        if: ${{ env.APPLE_SIGNING_IDENTITY != '' }}
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && env.APPLE_SIGNING_IDENTITY != '' }}
         run: |
           bun scripts/build-backend-sidecar.mjs
           bun scripts/copy-backend-sidecar.mjs
 
       - name: Sign bundled resources
-        if: ${{ env.APPLE_SIGNING_IDENTITY != '' }}
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && env.APPLE_SIGNING_IDENTITY != '' }}
         run: bash scripts/sign-macos-resources.sh
 
       - name: Build desktop app (binary only)
@@ -217,8 +221,9 @@ jobs:
           # notarization vars are unset unconditionally: this workflow owns
           # the keychain import, and the dedicated notarize-macos step is the
           # single notarization path. APPLE_SIGNING_IDENTITY is kept when
-          # provisioned — the bundler does not auto-discover an identity;
-          # it's how the outer .app gets signed against our build.keychain.
+          # provisioned to pin the identity we just imported: left unset, the
+          # bundler falls back to `security find-identity`, which could pick
+          # an identity outside our build.keychain.
           unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD \
                 APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID \
                 APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8 APPLE_API_KEY_PATH
@@ -765,6 +770,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # latest.json `notes` comes from the annotated tag message; a shallow
+          # fetch may hold the ref without the tag object behind it.
+          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -779,9 +788,17 @@ jobs:
 
       - name: Assemble release assets + latest.json
         run: |
+          # Manifest `notes` = the annotated tag message. %(objecttype) is
+          # 'commit' on a lightweight tag, whose %(contents) would be the
+          # commit message — not release notes — so notes stay empty there.
+          NOTES=""
+          if [ "$(git tag -l --format='%(objecttype)' "$GITHUB_REF_NAME")" = "tag" ]; then
+            NOTES="$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")"
+          fi
           bun hotel-desktop/scripts/build-update-manifest.mjs \
             --tag "$GITHUB_REF_NAME" --artifacts artifacts \
-            --repo "$GITHUB_REPOSITORY" --out release-assets
+            --repo "$GITHUB_REPOSITORY" --out release-assets \
+            --notes "$NOTES"
 
       - name: Publish GitHub Release
         env:

@@ -75,8 +75,9 @@ coverage, and the GitHub Action SHA-pinning sweep.
   shipped** — default Linux bundle + `fedora:41` install smoke
   ([eval record](../.claude/reports/rpm-eval-2026-09-19.md)). Origin/proxy
   drift is enforced by `hotel-desktop/scripts/origin-parity.test.mjs`.
-  E2E: the baseline full-bundle run failed twice and every failure got a
-  landed fix ([run ledger](../.claude/reports/desktop-build-e2e-2026-09-19.md))
+  E2E: the first three full-bundle dispatches failed (35354808394,
+  35398662670, 35416174865) and every failure got a landed fix
+  ([run ledger](../.claude/reports/desktop-build-e2e-2026-09-19.md))
   — final verification run 35425902135 **in progress**, not yet green.
   Still open: provision signing certs (Windows PFX, Apple Developer ID +
   notarization creds) then verify a signed/notarized build end-to-end;
