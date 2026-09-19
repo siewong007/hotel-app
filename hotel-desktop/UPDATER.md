@@ -39,9 +39,11 @@ secrets — it is not committed anywhere:
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — its password
 
 All three platform bundle steps in `.github/workflows/desktop-build.yml`
-export both. With the secrets absent, `tauri build` still succeeds but emits
-no `*.sig` files — and the release job then hard-fails instead of publishing a
-manifest that would strand a platform.
+export both. **The secrets are mandatory for bundle builds**: with them
+absent, `tauri build` hard-fails inside `sign_updaters` — updater signing is
+required once `pubkey` + `createUpdaterArtifacts` are configured, so there
+is no unsigned-manifest path. (This is updater signing only; the OS-level
+cert secrets below stay optional and unsigned-by-default.)
 
 **Rotation:** generate a new keypair (`tauri signer generate`), put the new
 private key + password into the two secrets, commit the new public key to

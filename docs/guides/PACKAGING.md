@@ -11,7 +11,7 @@ status in [`hotel-desktop/UPDATER.md`](../../hotel-desktop/UPDATER.md).
 |---|---|---|---|
 | macOS | aarch64 (Apple Silicon) | `.app`, `.dmg` | `desktop-build-macos` (macos-14) |
 | Windows | x86_64 | NSIS `-setup.exe`, MSI, portable `.zip` | `desktop-build-windows` (windows-latest) |
-| Linux | x86_64 | `.deb`, `.AppImage`, portable `.tar.gz` | `desktop-build-linux` (ubuntu-24.04) |
+| Linux | x86_64 | `.deb`, `.AppImage`, `.rpm`, portable `.tar.gz` | `desktop-build-linux` (ubuntu-24.04) |
 
 Only these are built and smoke-tested in CI. Windows ARM64 and Linux ARM64 are
 *not* claimed — Tauri can target them, but nothing here builds or verifies them.
@@ -115,8 +115,6 @@ failed but the existing unproven tree may still work (warns, continues).
 - Known limits: WebView2 must exist on the host — the config uses
   `downloadBootstrapper` so the NSIS installer fetches it when missing. The
   app must not run elevated: PostgreSQL refuses to start as Administrator/root.
-- Deep links / auto-launch: not currently implemented on any platform — no
-  `tauri-plugin-deep-link` or autostart wiring exists to port.
 
 ## Linux
 
@@ -144,12 +142,30 @@ staples the `.dmg` (`scripts/notarize-macos.sh`). Absent secrets → every
 step is skipped and the build stays unsigned. See the provisioning
 checklist below and UPDATER.md for the updater-sig distinction.
 
+## Known limits — all platforms
+
+- **Sessions do not survive an app restart.** The webview origin
+  (`tauri://localhost` / `http://tauri.localhost`) differs from the backend
+  sidecar's `http://127.0.0.1:*`, so the `SameSite` refresh cookie is never
+  sent to the backend — after every launch the user logs in again. This is
+  an accepted limitation: closing it means token-in-keychain work (a
+  separate spec), not a packaging change.
+- Deep links / auto-launch: not implemented on any platform — no
+  `tauri-plugin-deep-link` or autostart wiring exists to port.
+
 ## Signing provisioning checklist
 
 Everything below is secret-gated: with nothing provisioned, the
 `desktop-build.yml` jobs produce **unsigned** artifacts (the default). Set
 the secrets per platform to turn signing on — no workflow edits needed.
 Certificate material lives only in repo secrets, never in the tree.
+
+This covers **OS-level** signing only. Updater signing is separate and
+**mandatory**: `createUpdaterArtifacts` + a configured `pubkey` make
+`tauri build` hard-fail without `TAURI_SIGNING_PRIVATE_KEY` (provisioned —
+see [`hotel-desktop/UPDATER.md`](../../hotel-desktop/UPDATER.md)), so
+"unsigned" here always means unsigned OS artifacts, never unsigned
+updater artifacts.
 
 ### Windows (pick one path)
 
@@ -214,9 +230,15 @@ pgsql/sidecar resources, since `tauri build` is too slow for the PR loop). The
 psql-spawning unit tests are `#[cfg(unix)]`-gated; `DESKTOP_TEST_*` env vars
 enable live-psql coverage when a real database is available.
 
-GitHub Release publishing on tags is deliberately **not** wired — the workflow
-is `contents: read` and uploads artifacts only; promoting a tag to a Release is
-a maintainer step (`gh release create` with the downloaded artifacts).
+Tag pushes additionally run `desktop-release` — the only job with
+`contents: write` (the workflow default stays `contents: read`). It
+downloads the three platforms' artifacts, assembles `latest.json` and the
+release assets via `hotel-desktop/scripts/build-update-manifest.mjs`, and
+publishes them to the tag's GitHub Release (`gh release create`; an
+idempotent `gh release upload --clobber` covers re-runs). That Release is
+the updater endpoint — see [`hotel-desktop/UPDATER.md`](../../hotel-desktop/UPDATER.md).
+`workflow_dispatch` runs never publish: the job is gated on
+`github.ref_type == 'tag'`.
 
 ## Troubleshooting
 

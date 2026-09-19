@@ -60,13 +60,28 @@ coverage, and the GitHub Action SHA-pinning sweep.
   (`CONFIGURED_POSTGRES_BUILD_IDENTITY`, `hotel-desktop/src-tauri/src/postgres.rs`)
   while every server/CI/compose pin is `19beta3`. Bump with the GA move above —
   it needs re-provisioning plus a pgdata rebuild, not just a constant edit.
-- Desktop packaging: Windows (NSIS/MSI + portable zip) and Linux (deb/AppImage +
-  portable tar.gz) jobs now exist in `desktop-build.yml` with install smoke
-  tests — still open: run them once end-to-end, RPM evaluation, arm or hide the
-  updater (`hotel-desktop/UPDATER.md`), signing certs (Windows thumbprint is
-  env-wired; macOS notarization is not), consolidate hand-maintained
-  origin/proxy lists; desktop session persistence across restarts
-  (SameSite boundary).
+- Desktop packaging (hardening landed 2026-09-18/19): **updater ARMED** via
+  GitHub Releases — real pubkey + `releases/latest/download/latest.json`
+  endpoint, `install_update`/`restart_app` commands, tag-gated
+  `desktop-release` job publishes `latest.json` + installers, and a
+  SystemHealthPage update card gated on `VITE_DESKTOP_UPDATER_ENABLED`
+  (owner doc: [`hotel-desktop/UPDATER.md`](../hotel-desktop/UPDATER.md);
+  secrets `TAURI_SIGNING_PRIVATE_KEY[_PASSWORD]` are set, keypair generated
+  2026-09-18). **Signing wired, certs pending** — Windows PFX/thumbprint and
+  macOS keychain-sign/notarytool paths are all `env`-gated, so unsigned
+  stays the default; note that an absent `TAURI_SIGNING_PRIVATE_KEY` now
+  *hard-fails* bundle builds (updater signing is mandatory once configured)
+  while absent cert secrets only mean unsigned OS-level artifacts. **RPM
+  shipped** — default Linux bundle + `fedora:41` install smoke
+  ([eval record](../.claude/reports/rpm-eval-2026-09-19.md)). Origin/proxy
+  drift is enforced by `hotel-desktop/scripts/origin-parity.test.mjs`.
+  E2E: the baseline full-bundle run failed twice and every failure got a
+  landed fix ([run ledger](../.claude/reports/desktop-build-e2e-2026-09-19.md))
+  — final verification run 35425902135 **in progress**, not yet green.
+  Still open: provision signing certs (Windows PFX, Apple Developer ID +
+  notarization creds) then verify a signed/notarized build end-to-end;
+  desktop session persistence across restarts stays an accepted limitation
+  (SameSite boundary — the fix is token-in-keychain work, a separate spec).
 - Dependabot alert #13 (moderate): glib 0.18.5 in hotel-desktop/src-tauri
   (unsound VariantStrIter, fixed 0.20.0). Semver-pinned by the tauri/gtk stack —
   requires a coordinated tauri/gtk major upgrade with desktop regression
