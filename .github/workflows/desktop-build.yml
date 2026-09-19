@@ -170,6 +170,7 @@ jobs:
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security import "$RUNNER_TEMP/certificate.p12" -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/certificate.p12"
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
       # The sidecar binary doesn't exist until cargo build + copy run inside
@@ -205,7 +206,23 @@ jobs:
           # script forwards VITE_* to `vite build` and hashes it into the
           # bundle cache key.
           VITE_DESKTOP_UPDATER_ENABLED: "true"
-        run: bun run build
+        run: |
+          # Scrub APPLE_* env before `bun run build`: tauri-cli/tauri-bundler
+          # read them via var_os — presence, not non-emptiness — so the empty
+          # strings the job env exports for absent secrets would break the
+          # build (`codesign -s ""`, keychain import of an empty p12, or
+          # notarytool with empty creds — notarization runs unconditionally
+          # inside the signed branch, no --ci gate). The cert pair and all
+          # notarization vars are unset unconditionally: this workflow owns
+          # the keychain import, and the dedicated notarize-macos step is the
+          # single notarization path. APPLE_SIGNING_IDENTITY is kept when
+          # provisioned — the bundler does not auto-discover an identity;
+          # it's how the outer .app gets signed against our build.keychain.
+          unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD \
+                APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID \
+                APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8 APPLE_API_KEY_PATH
+          if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then unset APPLE_SIGNING_IDENTITY; fi
+          bun run build
 
       # API-key auth path for notarytool: the P8 material lives in a secret
       # and is decoded to a file whose path goes through GITHUB_ENV
@@ -217,12 +234,19 @@ jobs:
           echo "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
 
-      # Runs only on bundle-producing builds with notarization credentials;
-      # unsigned default (no secrets) skips cleanly. The script prefers
-      # API-key auth and falls back to APPLE_ID+password.
+      # Runs only on bundle-producing builds with a COMPLETE credential set —
+      # the gate mirrors what notarize-macos.sh requires: all three APPLE_ID
+      # vars, or all three API-key vars (APPLE_API_KEY_P8 ⇒ the p8 file was
+      # written by the step above). Unsigned default (no secrets) skips.
       - name: Notarize macOS bundle
-        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && (env.APPLE_ID != '' || env.APPLE_API_KEY != '') }}
-        run: bash scripts/notarize-macos.sh
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && ((env.APPLE_ID != '' && env.APPLE_PASSWORD != '' && env.APPLE_TEAM_ID != '') || (env.APPLE_API_KEY != '' && env.APPLE_API_ISSUER != '' && env.APPLE_API_KEY_P8 != '')) }}
+        run: |
+          bash scripts/notarize-macos.sh
+          # Remove the temp p8 the write step created — the RUNNER_TEMP guard
+          # keeps a maintainer-supplied APPLE_API_KEY_PATH from being deleted.
+          if [[ "${APPLE_API_KEY_PATH:-}" == "$RUNNER_TEMP/"* ]]; then
+            rm -f "$APPLE_API_KEY_PATH"
+          fi
 
       # OS-level signing is conditional: with the APPLE_* secrets provisioned
       # the .app is signed during `tauri build` (bundled resources pre-signed
