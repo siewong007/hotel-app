@@ -2,18 +2,14 @@
 //!
 //! A comprehensive hotel management system built with Axum.
 
-mod constants;
-mod core;
-mod grpc;
-mod models;
-mod modules;
-mod repositories;
-mod routes;
-mod services;
-mod utils;
-
-use core::{AppConfig, AuthService, config, create_pool};
-use routes::create_router;
+// The binary links the `hotel_app_be` library rather than re-declaring every
+// module. Re-declaring them compiled the whole crate a second time (measured
+// 2026-09-19: `cargo check --all-features` 9.5s vs 4.0s for `--lib` alone).
+// Trade-off: `dead_code` no longer fires on the bin copy, because the lib's
+// `pub` items are externally reachable by construction. See lessons.md theme 2.
+use hotel_app_be::core::{self, AppConfig, AuthService, config, create_pool};
+use hotel_app_be::routes::create_router;
+use hotel_app_be::{modules, services};
 use std::io::Write;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::path::PathBuf;
