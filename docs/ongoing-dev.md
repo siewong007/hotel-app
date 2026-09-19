@@ -78,7 +78,9 @@ coverage, and the GitHub Action SHA-pinning sweep.
   E2E: the first three full-bundle dispatches failed (35354808394,
   35398662670, 35416174865) and every failure got a landed fix
   ([run ledger](../.claude/reports/desktop-build-e2e-2026-09-19.md))
-  — final verification run 35425902135 **in progress**, not yet green.
+  — verification run 35425902135 completed **all three platforms green**
+  (macOS 9m30s, Linux 19m23s incl. deb+xvfb smoke, Windows 1h0m54s incl.
+  NSIS silent-install smoke), the first all-green full-bundle run.
   Still open: provision signing certs (Windows PFX, Apple Developer ID +
   notarization creds) then verify a signed/notarized build end-to-end;
   desktop session persistence across restarts stays an accepted limitation

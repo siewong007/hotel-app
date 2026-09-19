@@ -13,7 +13,7 @@ run. Companion eval: [`rpm-eval-2026-09-19.md`](rpm-eval-2026-09-19.md).
 | 35398662670 | ✅ | ❌ | ❌ | Fix-round-1 verified (symlink + vswhere fixes held). Both failed later at `bun scripts/package-portable.mjs`: payload was staged from `target/release` but the sidecar lives in `src-tauri/binaries/` and `pgsql/`/`database/` under `src-tauri/` — stale paths. Fixed by per-item sourcing + interleaved `tar -C` archiving (`8ef154e16`); the Windows upload glob `target/release/hotel-app-be-*.exe` was repointed at `src-tauri/binaries/`. |
 | 35416174865 | ✅ | ❌ | ❌ | Bundles produced and *installed* on both OSes — failures moved inside the install-smoke steps. Linux: the app-binary glob (`/bin/[^/]+$`, first match) picked `pgsql/bin/pg_dump`, which then "failed to launch". Fixed by matching `/hotel-desktop$` minus `/pgsql/` plus a non-empty guard. Windows: `Get-ChildItem -Filter 'hotel-app-be-*.exe'` could never match — tauri-bundler **strips** the `-<triple>` suffix when installing externalBin (`$INSTDIR\hotel-app-be.exe` flat). Fixed with `-Recurse -Filter 'hotel-app-be*.exe'` (`5af7b3926`). |
 | 35424550838 (`rpm_eval`) | — | ⚠️ | — | RPM evaluation dispatch (Linux only): `.rpm` built in-bundle and install-verified in a clean `fedora:41` container — 314 deps resolved from Fedora repos, `/usr/bin/hotel-desktop` present, bundled `postgres --version` = 19beta2 → **RPM shipped** into the default `--bundles deb,appimage,rpm` list with a permanent `timeout 3600` guard against tauri-apps/tauri#15698. The run's only failure was the already-fixed deb-smoke glob. |
-| 35425902135 (final) | ⏳ | ⏳ | ⏳ | **Verification run in progress at time of writing** — re-dispatched `full_bundle=true` after the install-smoke fixes. Do not call the pipeline green until this run concludes. |
+| 35425902135 (final) | ✅ | ✅ | ✅ | **First all-green full-bundle run.** macOS 9m30s; Linux 19m23s incl. deb install + xvfb launch smoke; Windows 1h0m54s incl. NSIS `/S` install that found the triple-stripped `hotel-app-be.exe` via the recursive glob. Release job correctly skipped (tag-gated). Pipeline verified end-to-end. |
 
 ## Fixes landed, by commit
 
@@ -47,9 +47,8 @@ run. Companion eval: [`rpm-eval-2026-09-19.md`](rpm-eval-2026-09-19.md).
 
 ## Residual / pending
 
-- **Final verification**: pending run 35425902135 conclusion — every prior
-  failure mode has a landed fix, but the pipeline is not "green" until a
-  dispatch completes all three jobs.
+- **Final verification**: ✅ complete — run 35425902135 completed all three
+  platform jobs green on the post-fix code (macOS, Linux, Windows).
 - **Signed-build verification**: pending cert provisioning (Windows PFX,
   Apple Developer ID + notarization creds) — all signing steps are
   secret-gated and currently skip.
