@@ -27,6 +27,10 @@ on:
           - windows
           - linux
         default: all
+      rpm_eval:
+        description: 'Also produce an .rpm bundle on Linux and smoke-test it in a Fedora container'
+        type: boolean
+        default: false
   push:
     tags:
       - 'v*'
@@ -360,19 +364,32 @@ jobs:
         if: ${{ github.event.inputs.full_bundle != 'true' && github.ref_type != 'tag' }}
         run: bun run build:no-bundle
 
-      # Explicit bundle list instead of `bun run build` ("all"): `all` also
-      # attempts rpm, which needs an rpmbuild toolchain the runner lacks. RPM
-      # stays an opt-in local build (`bun run build:rpm` on a system with
-      # rpmbuild) — see PACKAGING.md.
+      # Explicit bundle list instead of `bun run build` ("all"): the default
+      # dispatch ships deb + AppImage only — RPM is evaluation-only for now,
+      # opted into via the rpm_eval input (see the RPM evaluation step at the
+      # end of this job). tauri-bundler writes .rpm in-process via the `rpm`
+      # crate, so no rpmbuild toolchain is needed — but tauri-bundler 2.9.x
+      # (cli 2.11.4, pinned) has a known indefinite hang in that path
+      # (tauri-apps/tauri#15698), so the eval arm bounds the build with
+      # `timeout` instead of letting it silently burn the job budget.
       - name: Build desktop app (deb + AppImage)
-        if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
+        if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' || github.event.inputs.rpm_eval == 'true' }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # Arms the SystemHealthPage update card in the FE bundle — same
           # VITE_* forwarding path as the macOS step above.
           VITE_DESKTOP_UPDATER_ENABLED: "true"
-        run: bun scripts/tauri-build.mjs --bundles deb,appimage
+          RPM_EVAL: ${{ github.event.inputs.rpm_eval }}
+        run: |
+          bundles="deb,appimage"
+          guard=()
+          if [ "$RPM_EVAL" = "true" ]; then
+            bundles="deb,appimage,rpm"
+            guard=(timeout --signal=TERM --kill-after=30 3600)
+          fi
+          echo "tauri bundles: $bundles"
+          "${guard[@]}" bun scripts/tauri-build.mjs --bundles "$bundles"
 
       - name: Package portable archive
         run: bun run package:portable
@@ -418,6 +435,108 @@ jobs:
             hotel-desktop/src-tauri/target/release/bundle/deb/**
             hotel-desktop/src-tauri/target/release/bundle/appimage/**
             hotel-desktop/src-tauri/target/release/bundle/*-portable.tar.gz
+            # rpm_eval runs only: only .rpm files, not the staged rpm/ tree
+            # the bundler leaves next to them. Matches nothing otherwise —
+            # harmless when absent.
+            hotel-desktop/src-tauri/target/release/bundle/rpm/**/*.rpm
+
+      # rpm_eval evidence run, AFTER the upload so the artifact survives a
+      # failed eval. Inspect the package on the host, then dnf-install it in a
+      # clean fedora:41 container and verify the app binary + bundled
+      # PostgreSQL. Fails loudly — a green artifact that doesn't install is
+      # worse than a red run. Everything is teed to a report file the always()
+      # summary step below publishes, so partial evidence lands either way.
+      - name: RPM evaluation
+        if: ${{ always() && !cancelled() && github.event.inputs.rpm_eval == 'true' }}
+        run: |
+          set -euo pipefail
+          REPORT="${RUNNER_TEMP}/rpm-eval-report.md"
+          # `rpm` is needed here for -qpR/-ql inspection only — the bundle
+          # itself was written in-process by tauri-bundler's `rpm` crate.
+          sudo apt-get install -y rpm
+
+          shopt -s nullglob
+          rpms=(src-tauri/target/release/bundle/rpm/*.rpm)
+          if [ "${#rpms[@]}" -eq 0 ]; then
+            {
+              echo "## RPM eval"
+              echo
+              echo "- **no .rpm artifact** under \`src-tauri/target/release/bundle/rpm/\` —"
+              echo "  the bundle step produced none (see its log; a silent stop after"
+              echo "  \"Bundling *.rpm\" is the known tauri-apps/tauri#15698 hang)."
+            } | tee "$REPORT"
+            exit 1
+          fi
+          RPM_FILE="${rpms[0]}"
+          PKG_NAME="$(rpm -qp --queryformat '%{NAME}' "$RPM_FILE")"
+          echo "rpm artifact: $RPM_FILE (package: $PKG_NAME)"
+
+          {
+            echo "## RPM eval"
+            echo
+            echo "- artifact: \`$(basename "$RPM_FILE")\`"
+            echo "- package name: \`$PKG_NAME\`"
+            echo
+            echo '### `rpm -qpR` — declared dependencies'
+            echo '```'
+            rpm -qpR "$RPM_FILE"
+            echo '```'
+            echo
+            echo '### fedora:41 container install smoke'
+            echo '```'
+          } | tee "$REPORT"
+
+          # Mount hotel-desktop at /src (read-only); dnf resolves the rpm's
+          # declared deps from Fedora's repos, then verify package
+          # registration, the app binary, and the bundled postgres build —
+          # all inside the clean container. Non-zero exits propagate through
+          # PIPESTATUS so the step fails loudly.
+          set +e
+          docker run --rm \
+            -v "$PWD:/src:ro" -w /src \
+            -e "RPM_PATH=/src/${RPM_FILE}" \
+            -e "PKG_NAME=${PKG_NAME}" \
+            fedora:41 bash -lc '
+              set -euo pipefail
+              dnf install -y "$RPM_PATH"
+              rpm -q "$PKG_NAME"
+              app_bin="$(command -v hotel-desktop)"
+              echo "app binary: $app_bin"
+              ls -la "$app_bin"
+              pg_bin="$(rpm -ql "$PKG_NAME" | grep -E "/pgsql/bin/postgres$" | head -1)"
+              test -n "$pg_bin" || { echo "bundled postgres missing from package"; exit 1; }
+              version="$("$pg_bin" --version)"
+              echo "bundled postgres: $version"
+              case "$version" in *19beta2*) ;; *) echo "unexpected bundled PostgreSQL: $version"; exit 1 ;; esac
+              echo "RPM install smoke: PASS"
+            ' 2>&1 | tee -a "$REPORT"
+          rc="${PIPESTATUS[0]}"
+          set -e
+          {
+            echo '```'
+            echo
+            echo "- install smoke: \`exit ${rc}\`"
+          } | tee -a "$REPORT"
+          if [ "$rc" -ne 0 ]; then
+            echo "RPM eval failed (rc=$rc) — see report" >&2
+            exit "$rc"
+          fi
+
+      # always() so the evidence lands even when the eval step above failed —
+      # the ship-or-defer decision reads this block.
+      - name: RPM eval summary
+        if: ${{ always() && github.event.inputs.rpm_eval == 'true' }}
+        run: |
+          REPORT="${RUNNER_TEMP}/rpm-eval-report.md"
+          if [ -f "$REPORT" ]; then
+            cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## RPM eval"
+              echo
+              echo "- RPM evaluation step did not run — no report produced (check the job log)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   desktop-build-windows:
     name: Desktop — Real Tauri Build (Windows x86_64)
