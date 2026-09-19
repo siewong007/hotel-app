@@ -4,7 +4,12 @@ Assessment date: 2026-09-15, with a second review pass on 2026-09-16 against
 `master` (`46ce8b88d`) that added backlog items 17–19 and the config/env/doc
 fixes listed in §12. Reviewed against `master` (`ea5d738e3`) plus
 uncommitted frontend bookings changes present in the worktree (not assessed;
-concurrent feature work).
+concurrent feature work). Status refreshed 2026-09-19 against `master`
+(`8aaf5a6b7`) — no §11 item changed state; deltas are noted inline where they
+touch a finding. The gRPC service pilot (tonic + Connect-ES, runtime-flagged)
+landed after the assessed revision and is outside this assessment's coverage.
+Execution steps for every open item now live in
+[production-go-live-checklist.md](production-go-live-checklist.md).
 
 This is a **hardening review, not a certification**. It states what the
 repository evidence supports. "Existing" means implemented and verified in the
@@ -132,7 +137,7 @@ review is still required.
 | Privacy notice / terms / eKYC consent / payment terms | Existing | `features/legal/` — versioned documents, locale-aware, linked at consent points |
 | Access/export (data subject) | Existing | data-transfer export is permission- + step-up-gated and audited |
 | Correction/deletion | Partial | guest soft-delete + PII redaction exists; no self-service correction flow for guests |
-| Retention | **Missing** | no automated retention/purge for audit logs, eKYC images, sessions, exports, or logs; PDPA requires a documented schedule and enforcement |
+| Retention | **Missing** | no automated retention/purge for audit logs, eKYC images, sessions, exports, or logs; PDPA requires a documented schedule and enforcement. `audit_logs` is now monthly-partitioned, so its enforcement is a partition detach/drop rather than a `DELETE` scan |
 | Breach response | Partial | documented in `production-operations.md`; no drill evidence |
 | Auditability | Existing | comprehensive audit trail incl. eKYC doc access and transfers |
 | Cookies/tracking | Existing | only the refresh cookie; no trackers found |
@@ -159,7 +164,11 @@ Gaps and notes:
   `/opt/saliminn/logs/*.log` under the prod filename. **Fixed this session.**
 - Staging shares the production VPS — acceptable for cost, but a staging
   incident can consume prod resources (bounded by container limits).
-- No maintenance mode; deploys cause a brief restart window.
+- Maintenance mode now exists as a `MAINTENANCE_MODE=on` env gate in
+  `deploy/Caddyfile` (item #13); deploys still cause a brief restart window.
+- Post-assessment hardening: `deploy.sh` self-heals disk pressure (prunes
+  before failing) and refuses to boot a DB pool starved below the
+  pinned-connection floor.
 - Desktop packaging is **not** gated by CI (`cargo check` with placeholder
   resources only). *Update (2026-09): the updater is now armed via GitHub
   Releases with a real signing keypair, and OS signing/notarization is
@@ -216,6 +225,11 @@ Gaps and notes:
   `docs/security/backup-restore.md`; **no evidence a restore has ever been
   executed**. Per this repo's own standard, the backup policy is therefore
   unvalidated (P1).
+- **Desktop deployments (post-assessment):** managed backup/restore shipped —
+  a verified `pg_dump` + uploads tarball produced as one artifact, scheduled
+  backups with recovery-boot catch-up, and `restore_database` with a safety
+  dump + rollback; runbook in `hotel-desktop/`. Server-side items above are
+  unchanged: no off-host copies configured, no PITR, no demonstrated restore.
 
 ## 9. Testing and quality gates
 
@@ -243,15 +257,15 @@ Gaps and notes:
 
 | # | Sev | Area | Finding | Status | Validation |
 |---|---|---|---|---|---|
-| 1 | P1 | Database | `postgres:19beta3` (pre-release) in prod; no supported upgrade path to GA | Existing | `pg_dump`+`pg_restore` rehearsal to PG18/19-GA on staging |
+| 1 | P1 | Database | `postgres:19beta3` (pre-release) in prod; no supported upgrade path to GA | Existing — GA targeted end of Oct 2026 (Beta 4 ships 2026-09-24) | `pg_dump`+`pg_restore` rehearsal to 19-GA on staging per `postgres-beta3-cutover.md`, into a fresh volume |
 | 2 | P1 | Backup | No off-site/encrypted copies; host-held dumps only | **Partial** (this session) — env-gated `age`+`rclone copy`+`rclone check` ship now in `database-backup.sh`; destination, recipients file and bucket ACLs remain operator-owned | set `SALIMINN_OFFSITE_REMOTE`+`SALIMINN_AGE_RECIPIENTS_FILE` on the backup unit, confirm `offsite:true` in `backup-status.json` + a remote restore |
 | 3 | P1 | Database | Runtime uses `hotel_admin` superuser; `hotel_app` role unapplied | Partial | `SELECT current_user` on backend conn + patch-runbook update |
 | 4 | P1 | Observability | Failure signals have no external consumer (backup-health marker, job failures, audit-write failures) | **Partial** (this session) — `check-backup-health.sh` POSTs transition-deduped alerts + recovery to `SALIMINN_ALERT_WEBHOOK` (`/opt/saliminn/backup-alert.env`); job/audit failure alerting still in-app only; no external uptime probe | set the webhook env file, trigger a forced failure, confirm the POST arrives |
-| 5 | P1 | Compliance | No retention schedule/enforcement for audit logs, eKYC images, sessions, exports, logs | **Partial** (this session) | `docs/security/data-retention-policy-draft.md` proposes schedules — legal sign-off required, then purge jobs; not enforced yet |
+| 5 | P1 | Compliance | No retention schedule/enforcement for audit logs, eKYC images, sessions, exports, logs | **Partial** (this session) | `docs/security/data-retention-policy-draft.md` proposes schedules — legal sign-off required, then purge jobs; `audit_logs` is monthly-partitioned so its purge is a partition drop; not enforced yet |
 | 6 | P1 | DR | No restore has ever been demonstrated | Missing | quarterly drill record per `backup-restore.md` |
 | 7 | P2 | Staging | backup timer ran prod script; logrotate wrote prod file/path | **Fixed** (this session) | `bash -n`; next staging deploy writes correct units |
 | 8 | P2 | Backup | uploads/private_uploads unprotected | **Fixed** (this session) | container test: archive created, verified, pruned, failure alerts (below) |
-| 9 | P2 | Desktop | unsigned artifacts; updater unconfigured | Partial | codesign/notarize + updater pubkey before desktop distribution |
+| 9 | P2 | Desktop | unsigned artifacts; updater unconfigured | Partial — updater now armed via GitHub Releases (real keypair, tag-gated `latest.json`), OS signing env-gated, all-platform install smoke green | provision Windows PFX + Apple Developer ID creds, then verify a signed/notarized build (`hotel-desktop/UPDATER.md`) |
 | 10 | P2 | Testing | no E2E, load, or automated restore tests | Partial — CI now runs a `pg_dump`→`pg_restore` schema round-trip; E2E/load still missing | one happy-path E2E + annual load baseline |
 | 11 | P2 | Deploy | rollback doesn't revert DB patches (additive-only convention) | Existing (documented) | keep patches additive; restore-drill covers destructive case |
 | 12 | P2 | Compliance | no processor inventory/DPA register (PayPal, Google, Cloudflare, SMTP, host) | Missing | documented register + legal review |
@@ -311,6 +325,9 @@ loopback dev DB, SHA-pinned Actions, `permissions:` blocks, per-route body
 limits, rotated fixed-name logs, pinned nginx, 0600 dump files).
 
 ## 14. Remaining risks and external validation required
+
+Execution order, commands, and the evidence that closes each item live in
+[production-go-live-checklist.md](production-go-live-checklist.md).
 
 1. **Off-site backup destination** — needs a hotel-owned bucket + access list,
    then wire rclone/age and flip `offsite:true` in the health contract.

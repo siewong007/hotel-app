@@ -354,7 +354,7 @@ Most operational endpoints require a bearer token and, in many cases, a specific
 
 ## Limitations
 
-- The project is not presented as production-ready; security, compliance, deployment hardening, and operational procedures require additional validation.
+- Assessed as **ready with conditions**, not fully production-ready — remaining gates are operator-side (off-site backups, least-privilege DB cutover, alert destination, restore drill) plus external legal/pentest validation. See the [readiness assessment](docs/security/production-readiness-assessment.md) and [go-live checklist](docs/security/production-go-live-checklist.md).
 - Automated test coverage is enforced at the render level — every page has smoke + axe coverage — with workflow-level interaction assertions on the largest pages; depth elsewhere is uneven (see [ongoing-dev.md](docs/ongoing-dev.md)).
 - Backend integration tests skip silently unless `DATABASE_URL` is set, and because a skipped test early-returns (which libtest counts as a pass) the run count goes *up*, not down — a green `cargo test` is only meaningful alongside wall-clock time and per-suite counts. See [DEVELOPMENT.md](docs/DEVELOPMENT.md#validate).
 - Desktop sessions do not survive an app restart — the webview/sidecar origin split keeps `SameSite` refresh cookies from reaching the backend, so users log in again (see [PACKAGING.md](docs/guides/PACKAGING.md)).
@@ -399,6 +399,7 @@ environment is for development and benchmarking only.
 - [Design System](docs/DESIGN_SYSTEM.md) — Semantic tokens, loading system, and UI conventions
 - [Database Lifecycle](hotel-app-be/database/README.md) — Schema, migrations, and seed data workflow
 - [Production Security Operations](docs/security/production-operations.md) — Release controls, access reviews, incident response
+- [Production Go-Live Checklist](docs/security/production-go-live-checklist.md) — Operator and external gates to clear the readiness conditions
 - [Backup and Restore Drill](docs/security/backup-restore.md) — Off-host backup and quarterly restore procedure
 - [VPS Access Guide](docs/guides/vps-access.md) — Production host access and database maintenance
 - [PostgreSQL 19beta3 Cutover](docs/guides/postgres-beta3-cutover.md) — Dump-and-restore runbook for the production database engine bump
