@@ -30,4 +30,17 @@ describe('runtime API base resolution', () => {
     expect(getApiBaseUrl()).toBe('https://api.example.com');
     expect(apiUrl('health')).toBe('https://api.example.com/health');
   });
+
+  it('leaves root-level gRPC service paths untouched', () => {
+    vi.stubEnv('VITE_APP_TARGET', 'web');
+    vi.stubEnv('VITE_API_URL', '');
+
+    // The whole service name is the first segment — the 'hotel.' entry in
+    // ROOT_API_PREFIXES must match by prefix, not exact equality.
+    expect(apiUrl('hotel.rooms.v1.RoomService/ListRooms')).toBe(
+      '/hotel.rooms.v1.RoomService/ListRooms',
+    );
+    // A bare navigation path still gets /api/ prepended.
+    expect(apiUrl('bookings/123')).toBe('/api/bookings/123');
+  });
 });

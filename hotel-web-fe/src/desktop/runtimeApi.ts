@@ -270,13 +270,20 @@ export function getApiBaseUrl(): string {
 // Domain API endpoints are served under `/api` on the backend so that frontend
 // navigation paths (e.g. `/bookings/123`) don't collide with the API. These
 // root-level prefixes are NOT namespaced (infra healthchecks + static assets),
-// so they must be left untouched.
-const ROOT_API_PREFIXES = ['api', 'health', 'ws', 'uploads'];
+// so they must be left untouched. `hotel.` covers the Connect/gRPC-Web service
+// paths (e.g. /hotel.rooms.v1.RoomService/ListRooms) — an entry ending in '.'
+// matches by prefix since the whole service name is the path's first segment.
+// KEEP IN SYNC: vite.config.ts PROXY_PREFIXES — parity enforced by
+// hotel-desktop/scripts/origin-parity.test.mjs.
+const ROOT_API_PREFIXES = ['api', 'health', 'ws', 'uploads', 'hotel.'];
 
 function withApiPrefix(pathname: string): string {
   const trimmed = pathname.replace(/^\/+/, '');
   const firstSegment = trimmed.split('/')[0];
-  if (ROOT_API_PREFIXES.includes(firstSegment)) {
+  const isRootLevel = ROOT_API_PREFIXES.some((prefix) =>
+    prefix.endsWith('.') ? firstSegment.startsWith(prefix) : firstSegment === prefix,
+  );
+  if (isRootLevel) {
     return `/${trimmed}`;
   }
   return `/api/${trimmed}`;
