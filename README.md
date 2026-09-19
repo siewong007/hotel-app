@@ -1,421 +1,199 @@
-# Hotel app
+# Hotel Booking System
 
-<p align="center">
-  <strong>A full-stack hotel administrative panel for reservations, rooms, guests, payments, ledgers, reports, and desktop operation.</strong>
-</p>
+A hotel property management system covering reservations, rooms, housekeeping, rates,
+payments, ledgers, invoicing, night audit, and a self-service guest portal where guests
+can book without an account. It ships as a web application and as a Tauri desktop app
+that bundles its own PostgreSQL. Three projects live in this repo — there is no root
+workspace, so run commands from each subdirectory.
 
-<p align="center">
-  <a href="https://github.com/siewong007/hotel-app/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/siewong007/hotel-app/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/siewong007/hotel-app/actions/workflows/security.yml"><img alt="Security" src="https://github.com/siewong007/hotel-app/actions/workflows/security.yml/badge.svg"></a>
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-blue">
-  <img alt="Top language" src="https://img.shields.io/github/languages/top/siewong007/hotel-app">
-  <img alt="Last commit" src="https://img.shields.io/github/last-commit/siewong007/hotel-app">
-</p>
+## Stack
 
-<p align="center">
-  <img alt="Rust" src="https://img.shields.io/badge/Rust-1.95.0-orange?logo=rust">
-  <img alt="React" src="https://img.shields.io/badge/React-19.3-61DAFB?logo=react&logoColor=111">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6.0.3%20(pinned)-3178C6?logo=typescript&logoColor=white">
-  <img alt="Vite" src="https://img.shields.io/badge/Vite-8.3-646CFF?logo=vite&logoColor=white">
-  <img alt="Tauri" src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=111">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-19beta3-4169E1?logo=postgresql&logoColor=white">
-</p>
+| Layer | Technology |
+|---|---|
+| Frontend | React 19 + TypeScript (Vite, MUI, TanStack Query/Router) — Bun package manager |
+| Backend | Rust + Axum (SQLx, Tokio) |
+| Database | PostgreSQL 19 (`postgres:19beta3` image) |
+| API | REST/JSON under `/api`; gRPC-Web (tonic) for a few domains behind runtime flags |
+| Real-time | WebSocket (staff updates, loyalty, support) — no SSE endpoint |
+| Authentication | JWT (in-memory access token + HttpOnly refresh cookie), RBAC, TOTP 2FA, passkeys |
+| Payments | PayPal (signature-verified webhooks) + staff-recorded payments |
+| Deployment | Docker Compose + Caddy (TLS), deployed by GitHub Actions |
+| Desktop | Tauri 2 — backend sidecar + bundled PostgreSQL |
 
-## 📌 Overview
+## Features
 
-Hotel app is a three-project monorepo for a hotel administrative panel. It combines a Rust backend API, a React administrative frontend, and a Tauri desktop wrapper that can run the application with bundled local services for offline-style operation.
+**Guests**
 
-The project is suitable as an academic or portfolio system because it demonstrates role-based access control, operational workflows, database-backed business records, reporting dashboards, and a deployable web/desktop architecture. It should be treated as an evolving project rather than a production-certified property management system.
+- Browse rooms and offers, check availability
+- Book without an account (public, rate-limited endpoints)
+- Manage the booking via a secure access token: guest portal, payments, eKYC document
+  upload, self check-in
 
-## Problem Statement
+**Front desk**
 
-Small hotel teams often need a single interface for front-desk operations, guest records, room status tracking, billing records, reports, and administrative permissions. Using disconnected spreadsheets or separate tools can make it difficult to keep bookings, room occupancy, payments, and audit records consistent.
+- View reservations and arrival/departure rosters
+- Check guests in/out; manage stay charges, deposits, and folio
+- Assign and manage rooms, housekeeping, and maintenance
+- Record payments, issue invoices, manage guest/city ledgers
 
-This project addresses that problem by implementing a centralized administrative panel with a structured backend API, a browser-based operator interface, and a desktop packaging path for local use.
+**Admin**
 
-## Objectives
+- Hotel configuration, system settings, users, teams, RBAC roles/permissions
+- Rooms, room types, rates, booking channels, promotions, loyalty
+- Audit log, night audit, reports/insights, backup & restore (`hotel-backup` v1)
 
-- Provide a unified interface for core hotel administration tasks.
-- Maintain structured records for rooms, guests, bookings, payments, ledgers, audit logs, and reports.
-- Demonstrate authenticated and permission-aware workflows using JWT, RBAC, 2FA, and passkey-related endpoints.
-- Package the same frontend/backend system inside a Tauri desktop application.
-- Keep the codebase organized enough for academic review, future refactoring, and open-source contribution.
+The canonical, per-feature delivery list is [docs/FEATURES.md](docs/FEATURES.md).
 
-## ✨ Key Features
-
-| Area | Implemented capability |
-| --- | --- |
-| Authentication | Login, registration, token refresh, logout, email verification flow, 2FA, and passkey route support |
-| Access control | RBAC roles, permissions, user-role assignment, and protected route guards |
-| Bookings | Booking CRUD, check-in workflow, booking timeline, void/reactivation actions, and guest-linked bookings |
-| Rooms | Room and room-type management, availability search, status changes, maintenance/cleaning events, and occupancy summaries |
-| Guests | Guest profiles, linked guest accounts, guest booking history, upgrades, and credit-related records |
-| Payments and invoices | Payment summaries, payment recording (PayPal + staff-recorded), deposit refund workflow, invoice preview, and invoice generation endpoints |
-| Ledgers | Customer/company ledger records, ledger payments, summaries, voids, and reversals |
-| Revenue and marketing | Revenue overview (ADR/RevPAR/channel mix), rate plans and rate calendar, campaigns/promotions, vouchers, and guest segments |
-| Booking channels | Channel records with pricing rules (markup/discount/fixed/net-rate), dated commission rules, preview matrix, and per-booking commission/net-revenue snapshots |
-| Guest relations | CRM workspace: interactions, preferences, reviews, follow-up queue, and complimentary-credit records |
-| Reports and insights | Report catalog (`/insights`), occupancy and booking analytics, dashboard metrics, and generated report endpoints |
-| Loyalty | Loyalty programs, memberships, points, rewards, redemptions, and member-facing reward views |
-| Communications | Email campaigns via SMTP, per-guest notification preferences, transactional booking/payment emails, unsubscribe tokens, staff notifications, and WebSocket realtime updates |
-| eKYC and guest portal | Document upload, eKYC status/review endpoints, self check-in, and public pre-check-in guest portal routes |
-| Help centre | Public `/help` article catalogue with searchable localized content (zh-TW reads the zh set) |
-| Internationalization | English, Bahasa Melayu, Simplified Chinese, and Traditional Chinese across the staff UI, guest portal, and backend emails (in-house `Intl` engine, ADR 012) |
-| Administration | Settings, audit log browsing/export, night audit, complimentary stays, system health/jobs, and `hotel-backup` v1 data import/export behind dedicated `data_transfer:*` permissions + step-up re-auth |
-| Desktop | Tauri shell, backend sidecar startup, bundled PostgreSQL lifecycle code, logs, and service status commands |
-
-## Tech Stack
-
-Versions below are the ones actually resolved in `Cargo.lock` / `bun.lock`,
-verified against crates.io and npm on 2026-09-15. **Every Rust crate and every
-frontend package is on its latest stable release**, with one deliberate pin
-(TypeScript — see below).
-
-| Layer | Technologies |
-| --- | --- |
-| Backend API | Rust 1.95.0 (edition 2024), Axum 0.8.9, Tokio 1.53.1, SQLx 0.9.0, Serde 1.0.229, Validator 0.21, reqwest 0.13.5, lettre 0.11.23, rust_decimal 1.43 |
-| Frontend | React 19.3.0, TypeScript 6.0.3 (**pinned** — see note), Vite 8.3.0, MUI 9.4.0, TanStack Router 1.170.36 / Query 5.102.8 / Table 9.2.4, ky 2.1.0, date-fns 4.4.0 |
-| Tooling | Bun 1.3.14 (exact CI pin), ESLint 10.10, Vitest 5.0 + jsdom 30, `@vitejs/plugin-react` 6.1.1, React Compiler via `babel-plugin-react-compiler` |
-| Desktop | Tauri 2, Rust commands, backend sidecar, bundled PostgreSQL resources |
-| Database | PostgreSQL 19 — `19beta3` on the server/CI stack, `19beta2` still bundled in the desktop app; V1 baseline + seed + checksum-verified patch catalog, parameterized SQLx queries |
-| Security | JWT, refresh tokens, RBAC, TOTP 2FA, passkey endpoints, rate limiting, CORS, and security headers |
-| Reporting | Nivo charts, jsPDF, jsPDF AutoTable, backend analytics endpoints |
-| CI/CD | GitHub Actions — eight CI jobs: secret scan + `cargo audit`, Markdown link check, desktop DB mirror, frontend typecheck/lint/test/build, backend check/test/clippy/release, PostgreSQL schema and workflow smoke, and desktop compile checks (Linux + Windows). Separate workflows for security (CodeQL, dependency review), a real desktop Tauri build for macOS/Windows/Linux, the legacy Docker publisher, and staging/production deploy |
-
-> **Why TypeScript is held at 6.** TypeScript 7.0.2 is published, but no
-> released `@typescript-eslint` supports it: the current parser (8.70.0) and even
-> its canary (8.70.1-alpha.15) both declare `peerDependencies.typescript` as
-> `>=4.8.4 <6.1.0`, and `typescript-estree` hard-codes the same range. On TS 7 the
-> parser throws at module load, so `bun run lint:strict` — a CI gate — fails even
-> though `tsc --noEmit` passes. TypeScript 6 with full strictness is therefore the
-> newest version this project can actually run, not a version it has fallen behind
-> on. Tracked upstream at typescript-eslint#10940, targeting TS ≥ 7.1. Re-checked
-> against npm on 2026-09-15; see [Dependencies](docs/DEPENDENCIES.md).
-
-## 🧱 Architecture
+## Architecture
 
 ```mermaid
 flowchart LR
-    User["Hotel staff / guest user"] --> Web["React + MUI frontend"]
-    User --> Desktop["Tauri desktop shell"]
-
-    Desktop --> Runtime["Desktop runtime service gate"]
-    Runtime --> SidecarBackend["Axum backend sidecar"]
-    Runtime --> PgBundle["Bundled PostgreSQL resources"]
-
-    Web --> ApiClient["ky API client + React Query"]
-    ApiClient --> Backend["Axum backend API"]
-
-    Backend --> Auth["Auth, RBAC, rate limits, validation"]
-    SidecarBackend --> Auth
-    Auth --> Routes["Domain routes and handlers"]
-    Routes --> Services["Services and repositories"]
-    Services --> Db["PostgreSQL database"]
-    PgBundle --> Db
-
-    Backend --> Logs["Audit and application logs"]
-    SidecarBackend --> Logs
+    Browser["Browser"] --> React["React frontend"]
+    Desktop["Tauri desktop"] --> React
+    React -->|"HTTPS/JSON (/api)"| API["Rust / Axum backend"]
+    API --> DB[("PostgreSQL")]
+    API -.->|"WebSocket updates"| React
+    PayPal["PayPal"] -->|"signed webhooks"| API
 ```
 
-The preferred backend flow is:
+PostgreSQL is the single source of truth; the schema is a V1 baseline plus a
+checksum-verified patch catalog (no migration runner). The browser talks to the backend
+over HTTPS/JSON; WebSocket pushes real-time updates to staff screens (there is no SSE,
+and WebTransport is not part of v1). gRPC-Web already serves a few domains behind
+runtime flags and is being extended incrementally — REST remains the default everywhere
+else. The desktop app runs the same frontend and backend, with the API as a localhost
+sidecar against a bundled PostgreSQL.
+
+## Project structure
 
 ```text
-modules/<domain>/routes.rs -> handlers.rs -> service.rs -> repository.rs -> models.rs
+hotel-app-be/               # Rust backend API
+  src/modules/<domain>/     # routes → handlers → service → repository → models
+  src/core/                 # auth, DB pool, middleware, rate limiting
+  database/postgres/        # 0001_v1_baseline.sql, seed.sql, patches/ catalog
+  tests/                    # integration tests (most need DATABASE_URL)
+hotel-web-fe/               # React frontend
+  src/features/<domain>/    # pages, components, hooks, api
+  src/api/                  # ky-based service layer + shared client
+hotel-desktop/              # Tauri desktop app (sidecar backend + bundled PG)
+proto/                      # gRPC contract of record (buf)
+deploy/                     # prod/staging compose files, Caddyfile, deploy scripts
+docs/                       # all documentation (index: docs/README.md)
+infra/terraform/oci/        # OCI free-tier dev environment
+Makefile                    # task runner — `make help`
 ```
 
-The preferred frontend flow is:
+## Getting started
 
-```text
-features/<domain>/pages -> components -> hooks -> api services -> shared API client
-```
+Prerequisites: Rust 1.95.0 (pinned in `rust-toolchain.toml`), Bun 1.3, Docker.
 
-## Current Application Flow
-
-The following flow reflects the current code paths indexed by CodeGraph and verified against the entry points, router composition, authentication client, booking services, guest portal, and Tauri lifecycle.
-
-### Web and staff session startup
-
-```mermaid
-sequenceDiagram
-    participant Browser
-    participant App as React application
-    participant API as Axum API
-    participant DB as PostgreSQL
-
-    Browser->>App: Load index.tsx
-    App->>App: Resolve desktop API URL when running in Tauri
-    App->>API: Load public hotel settings
-    App->>App: Mount query, theme, desktop, auth, and router providers
-    App->>API: POST /api/auth/refresh with HttpOnly cookie
-    API->>DB: Validate and rotate the refresh session
-    API-->>App: Short-lived access token
-    App->>API: Load profile and RBAC access snapshot
-    API->>DB: Resolve user, roles, team roles, permissions, and route policies
-    API-->>App: Authorized navigation state
-```
-
-- The access token is held in memory. The refresh token remains in an HttpOnly cookie and is not stored in `localStorage`.
-- The shared `ky` client resolves service calls under `/api`, attaches the staff bearer token, retries eligible `GET` requests, and performs one refresh-and-retry cycle after a protected staff request returns `401`.
-- Route guards use the access snapshot to enforce authentication, roles, permissions, and route policies before rendering protected pages.
-
-### API request path
-
-```text
-page -> feature component -> TanStack Query hook -> API service -> ky client
-     -> /api/<domain> -> active-session middleware -> domain auth/rate-limit guard
-     -> handler -> service -> repository -> PostgreSQL
-```
-
-Axum mounts domain routes under `/api`. Infrastructure routes remain at the application root: `/health`, `/ws/status`, and public `/uploads`. Authenticated staff requests must carry a session-bound JWT; the backend checks that its refresh-session record is still active before domain handlers run. Services coordinate validation, transactions, audit events, and cross-entity rules, while repositories keep SQL parameterized.
-
-### Reservation-to-checkout flow
-
-```mermaid
-flowchart LR
-    Availability["Search room availability and applicable rates"]
-    Reservation["Create guest and reservation"]
-    Confirmed["Confirmed booking and reserved room"]
-    PreArrival["Guest portal verification, payment, and optional eKYC"]
-    CheckIn["Staff or eligible eKYC auto check-in"]
-    Stay["Occupied stay, charges, payments, and ledger activity"]
-    Checkout["Checkout totals, invoice, deposit decision, and payment"]
-    Turnover["Room status and checkout-cleaning task"]
-    Audit["Night audit posting and operational reports"]
-
-    Availability --> Reservation --> Confirmed --> PreArrival --> CheckIn
-    CheckIn --> Stay --> Checkout --> Turnover --> Audit
-    Confirmed -. "permission-controlled void" .-> Voided["Voided booking and reversed pending effects"]
-    Voided -. "availability recheck" .-> Confirmed
-```
-
-- Check-in funnels through one transactional booking service for staff, self-check-in, and eKYC auto-check-in. It updates the booking and room, records any check-in payment, and writes timeline and audit events together.
-- The checkout workspace combines stay charges, completed payments, deposits, ledger records, and invoice data. Room turnover creates or preserves the corresponding checkout-cleaning workflow.
-- Voiding a booking also voids or reverses applicable payment and loyalty effects. Reactivation is limited to voided bookings and rechecks room availability before reserving the room again.
-- Night audit previews the selected business date, posts eligible activity, and refreshes dependent booking, room, ledger, and reporting data.
-
-### Guest portal flow
-
-The public pre-arrival flow is separate from staff authentication. A guest verifies or opens a portal session, then uses a guest-specific bearer token for `/api/guest-portal/me/*`. From the portal, the guest can review bookings and transactions, cancel an eligible booking, view loyalty benefits and credits, submit a bank-transfer receipt or PayPal payment, upload identity documents, and submit eKYC. Staff review and eligible auto-check-in continue through the same backend booking and eKYC services used by the administrative application.
-
-### Desktop startup and shutdown
-
-```mermaid
-flowchart TD
-    Launch["Launch Tauri application"] --> DataDirs["Create HotelApp data, logs, and backups directories"]
-    DataDirs --> VersionCheck["Detect bundled PostgreSQL and inspect existing data version"]
-    VersionCheck -->|compatible| Postgres["Initialize/start PostgreSQL on local port 5433"]
-    VersionCheck -->|upgrade required| UpgradeGate["Show backup-based upgrade/recovery gate"]
-    Postgres --> Schema["Run database setup and seed/bootstrap checks"]
-    Schema --> Sidecar["Start Axum backend sidecar on an available localhost port"]
-    Sidecar --> Ready["Emit backend-ready and expose the runtime API base URL"]
-    Ready --> UI["DesktopServiceGate releases the React application"]
-    UI --> Backup["Run a delayed backup, then every 24 hours"]
-    UI --> Exit["Application exit"]
-    Exit --> StopBackend["Stop backend sidecar"]
-    StopBackend --> StopPostgres["Stop bundled PostgreSQL"]
-```
-
-The desktop shell and browser deployment use the same React and Axum application. Desktop mode changes service discovery and lifecycle only: it binds the backend to localhost, supplies the local PostgreSQL connection, reports service state to the UI, and prevents orphaned sidecar/database processes on exit.
-
-## Project Structure
-
-```text
-hotel-app/
-├── hotel-app-be/                 # Rust backend API
-│   ├── src/
-│   │   ├── core/                 # Auth, database pool, errors, middleware, rate limiting, metrics
-│   │   ├── modules/              # All domain modules: <domain>/{routes,handlers,service,repository,models}.rs
-│   │   ├── models/               # Cross-domain DTOs only (audit, common, row_mappers)
-│   │   ├── repositories/         # Cross-domain persistence only (audit, invoice_numbers)
-│   │   ├── routes/               # Router composition — every module merged in routes/mod.rs
-│   │   ├── services/             # Cross-domain services only (audit, account_emails, google_identity, invoice_numbers)
-│   │   └── utils/                # Sanitization and validation helpers
-│   ├── database/
-│   │   └── postgres/
-│   │       ├── migrations/       # 0001_v1_baseline.sql — fresh-install schema
-│   │       ├── patches/          # manifest.tsv-ordered, sha256-verified catalog
-│   │       ├── seed.sql          # one-time system/bootstrap records
-│   │       ├── staging.sql       # optional rerunnable demo dataset
-│   │       └── optimization/     # opt-in PG19 tuning + benchmark + rollback
-│   └── tests/                    # Integration tests (most require DATABASE_URL)
-├── hotel-web-fe/                 # React frontend
-│   ├── src/
-│   │   ├── api/                  # ky-based API service layer
-│   │   ├── auth/                 # Auth context and guards
-│   │   ├── components/           # Shared UI components
-│   │   ├── desktop/              # Tauri runtime API helpers
-│   │   ├── features/             # Domain feature modules
-│   │   ├── routes/               # TanStack file routes
-│   │   └── utils/                # Shared frontend utilities
-│   └── vite.config.ts            # Vite config and backend proxy prefixes
-├── hotel-desktop/                # Tauri desktop application
-│   ├── scripts/                  # Desktop resource sync and sidecar copy scripts
-│   └── src-tauri/                # Tauri Rust commands, PostgreSQL lifecycle, config
-├── docs/                         # Project documentation (index: docs/README.md)
-│   ├── api/openapi.json          # Generated route index (CI-enforced)
-│   ├── architecture/             # ADRs, request/data flows, domain boundaries
-│   ├── guides/                   # Deployment, data transfer, i18n, VPS access
-│   ├── security/                 # Production ops + backup/restore runbooks
-│   └── superpowers/              # Active implementation plans only — none today; shipped ones are removed
-├── deploy/                       # Production/staging deploy scripts, Caddyfile, backups
-├── infra/terraform/oci/          # Oracle Cloud Always Free development infrastructure
-├── .github/workflows/            # CI, security, Docker, deploy, desktop-build workflows
-├── Makefile                      # Root task runner (make help)
-└── README.md
-```
-
-## 🚀 Installation
-
-### Docker Compose Quick Start
+**Option A — Docker (full stack):**
 
 ```bash
-git clone https://github.com/siewong007/hotel-app.git
-cd hotel-app
-cp .env.example .env
-# Edit .env — POSTGRES_PASSWORD and JWT_SECRET ship blank and are required.
-# Compose refuses to start until you set them, so an unedited copy cannot
-# bring the stack up on a weak or published credential.
-
-docker compose up -d
-docker compose ps
+cp .env.example .env     # set POSTGRES_PASSWORD and JWT_SECRET — both ship blank and are required
+docker compose up -d     # frontend :80, API :3030, Postgres :5432
 curl http://localhost:3030/health
 ```
 
-Services: frontend at `http://localhost:80`, backend API at `http://localhost:3030`, PostgreSQL at `localhost:5432`. An opt-in PostgreSQL 19 tuning profile is available via `make docker-up-pg19-tuned`.
-
-
-## Environment Variables
-
-Two example files, each with a distinct scope:
-
-- **[.env.example](.env.example)** (repository root) — what `docker compose` reads: Postgres credentials, ports, TLS/domain settings, image tags, and the values passed through to the backend container. This is the file the Quick Start copies.
-- **[hotel-app-be/.env.example](hotel-app-be/.env.example)** — the full backend-process reference, for running the API directly with `cargo run`. Every variable listed there is read at startup.
-
-| Variable | Used by | Required | Description |
-| --- | --- | --- | --- |
-| `POSTGRES_PASSWORD` | Docker Compose | Yes | Database password. Ships blank; compose refuses to start until it is set. |
-| `DATABASE_URL` | Backend/Desktop sidecar | Yes | PostgreSQL connection string. |
-| `JWT_SECRET` | Backend/Desktop sidecar | Yes | JWT signing secret; use at least 32 characters. Rotating it invalidates all staff access tokens. |
-| `ENVIRONMENT` | Backend | In production | `development`/`staging`/`production`. Production startup refuses insecure CORS, passkey, and email-verification combinations. |
-| `BACKEND_PORT` | Backend/Desktop | No | API port, default `3030`. |
-| `ALLOWED_ORIGINS` | Backend | No | Comma-separated CORS origins. |
-| `TRUST_PROXY_HEADERS` | Backend | No | Set true only behind a trusted TLS-terminating proxy. |
-| `VITE_API_URL` | Frontend | No | Optional build-time API-origin override. Leave unset for dynamic same-origin routing. |
-
-Never commit real `.env` files or local credentials. See also the [Deployment Guide](docs/guides/deployment.md#environment-configuration).
-
-## Deployment Security Notes
-
-See [SECURITY.md](SECURITY.md) and the [Deployment Guide's Security Checklist](docs/guides/deployment.md#security-checklist) before exposing this application beyond local development.
-
-## 📡 API Endpoint Documentation
-
-The exhaustive endpoint list lives in [`docs/api/openapi.json`](docs/api/openapi.json) and is
-**CI-enforced**: `hotel-app-be/tests/openapi_drift.rs` fails whenever a route is added,
-renamed, or removed without updating the spec (and vice versa). All domain endpoints are
-prefixed with `/api` — for example, the login endpoint is `POST /api/auth/login`; root
-infrastructure paths such as `/health` appear in full. Operation-level detail (summaries,
-request/response shapes) is documented in the route modules and DTOs under
-`hotel-app-be/src/modules/<domain>/`. Health-check request examples are in the
-[Deployment Guide](docs/guides/deployment.md).
-
-Most operational endpoints require a bearer token and, in many cases, a specific RBAC permission.
-
-## 🗺️ Roadmap
-
-### Completed ✓
-
-- ✅ **Docker Compose full-stack setup** — One-command startup with PostgreSQL + backend + frontend
-- ✅ **OCI Always Free Terraform** — Ampere A1 development VM, networking, Vault access, and Compose bootstrap
-- ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts (`optimization/pg19_beta2*.sql`; guards accept 19beta2/19beta3, but the values were benchmarked on beta2 only — re-run the benchmark script before trusting them on beta3)
-- ✅ **Project Makefile** — Convenience commands for all development workflows
-- ✅ **Frontend test suite** — Vitest + Testing Library: 253 test files green (`bun run test`, 2026-09-17)
-- ✅ **Backend integration tests** — 53 test files covering auth/RBAC, bookings, payments, ledgers, rooms, night audit, data transfer, and portal flows
-- ✅ **Security CI gate** — Committed-secret scan, `cargo audit`, CodeQL, and dependency review
-- ✅ **Generated OpenAPI spec** — `docs/api/openapi.json`, regenerated from the router and enforced by the `openapi_drift` CI test
-- ✅ **Architecture Decision Records (ADRs)** — 13 documented architectural decisions
-- ✅ **Backend domain module migration** — all 39 domain directories live in `modules/<domain>/`; 38 merged into the router (`consent` is internal, routeless)
-- ✅ **Internationalization** — English, Bahasa Melayu, Simplified Chinese (zh), and Traditional Chinese (zh-TW) on the in-house `Intl` engine (ADR 012)
-- ✅ **Booking channels** — Channel pricing rules and dated commission rules with preview matrix; commission and net revenue snapshotted onto bookings at write time
-- ✅ **Guest relations phase 2** — Follow-up queue, interactions, preferences, and reviews in the staff CRM workspace
-- ✅ **Data-transfer hardening** — Dedicated `data_transfer:*` RBAC, tiered export scopes incl. passphrase-encrypted `system` scope, step-up re-authentication, and transfer history
-- ✅ **Help centre** — Public `/help` catalogue with searchable localized articles
-- ✅ **Audit-log overhaul** — Filtering, CSV/PDF export, and a redesigned viewer
-- ✅ **Deployment guide** — Comprehensive production deployment documentation
-- ✅ **Contributing guide** — Guidelines, conventions, and testing instructions
-- ✅ **Security documentation** — Deployment checklist, production runbook, and backup/restore drill
-- ✅ **Desktop CI packaging** — macOS, Windows (NSIS/MSI + portable), and Linux (deb/AppImage/rpm + portable) all built and install-smoke-tested by `desktop-build.yml`; updater armed via GitHub Releases (`hotel-desktop/UPDATER.md`)
-- ✅ **Multi-instance ready** — Shared `rate_limit_buckets` rate limiting, `LISTEN`/`NOTIFY` cache invalidation, advisory-lock scheduler leadership, and cross-replica data-change fan-out; see the deployment guide's multi-replica section
-
-### Planned
-- **SMS channel** — Communications module is email-only today
-- **Desktop OS signing/notarization** — wiring is in place; ships unsigned until certificate secrets are provisioned (`hotel-desktop/UPDATER.md`)
-
-## Limitations
-
-- Assessed as **ready with conditions**, not fully production-ready — remaining gates are operator-side (off-site backups, least-privilege DB cutover, alert destination, restore drill) plus external legal/pentest validation. See the [readiness assessment](docs/security/production-readiness-assessment.md) and [go-live checklist](docs/security/production-go-live-checklist.md).
-- Automated test coverage is enforced at the render level — every page has smoke + axe coverage — with workflow-level interaction assertions on the largest pages; depth elsewhere is uneven (see [ongoing-dev.md](docs/ongoing-dev.md)).
-- Backend integration tests skip silently unless `DATABASE_URL` is set, and because a skipped test early-returns (which libtest counts as a pass) the run count goes *up*, not down — a green `cargo test` is only meaningful alongside wall-clock time and per-suite counts. See [DEVELOPMENT.md](docs/DEVELOPMENT.md#validate).
-- Desktop sessions do not survive an app restart — the webview/sidecar origin split keeps `SameSite` refresh cookies from reaching the backend, so users log in again (see [PACKAGING.md](docs/guides/PACKAGING.md)).
-- Desktop OS signing/notarization is wired but runs unsigned until certificate secrets are provisioned; the updater release path is armed but unproven until a real `v*` tag run publishes `latest.json` (`hotel-desktop/UPDATER.md`).
-- eKYC document handling is implemented as an application workflow, not a certified identity verification service.
-- Multi-replica deployments still need sticky sessions for staged import uploads, in-process import-job polling, and websocket connections (see [deployment.md](docs/guides/deployment.md#running-multiple-backend-replicas)).
-
-## Contributing
-
-Contributions are welcome for bug fixes, documentation improvements, tests, and focused feature work. Please read the comprehensive [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, including its [Development Commands](CONTRIBUTING.md#development-commands) reference for per-project verification commands.
-
-### Oracle Cloud Always Free
-
-The development Terraform environment uses one Oracle Ampere A1 Flex VM for
-the Compose stack and PostgreSQL. It defaults to 2 OCPU, 12 GB RAM, and a 50 GB
-boot volume, with OCI Vault secret references and no paid managed database.
+**Option B — local development:**
 
 ```bash
-cd infra/terraform/oci/environments/dev
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform plan
+cd hotel-web-fe && bun install
+
+cp .env.example .env                                   # set POSTGRES_PASSWORD (required by compose)
+docker compose up -d postgres                          # 127.0.0.1:5432; auto-initializes schema on first boot
+cp hotel-app-be/.env.example hotel-app-be/.env         # set DATABASE_URL and JWT_SECRET
+
+cd hotel-app-be && cargo run --bin hotel-app-be        # API on :3030
+cd hotel-web-fe && bun run start                       # Vite on :3000, proxies /api → 127.0.0.1:3030
 ```
 
-Review [the OCI Terraform guide](infra/terraform/oci/README.md) before applying.
-PostgreSQL 19 is still beta and OCI Always Free has no production SLA, so this
-environment is for development and benchmarking only.
+Optional demo data: point `DATABASE_URL` at the dev database and run `make db-seed`.
 
-## Additional Documentation
+**Database lifecycle** (no migration runner):
 
-- [Architecture](docs/ARCHITECTURE.md) — System overview, layers, feature modules, invariants
-- [Feature Registry](docs/FEATURES.md) — What the application currently supports
-- [Development Guide](docs/DEVELOPMENT.md) — Setup, commands, database lifecycle, troubleshooting
-- [API Reference](docs/API.md) — Auth model, error contract, endpoint domains
-- [Dependencies](docs/DEPENDENCIES.md) — Significant dependencies and modernization decisions
-- [Architecture Flow](docs/architecture/architecture-flow.md) — Request flow through backend and frontend layers
-- [Architecture Decision Records](docs/architecture/ADRS.md) — Documented architectural decisions
-- [Deployment Guide](docs/guides/deployment.md) — Production deployment instructions
-- [Data Transfer Guide](docs/guides/data-transfer.md) — `hotel-backup` export/import format, scopes, and permissions
-- [Internationalization Guide](docs/guides/internationalization.md) — Locale model, bundles, and parity tests
-- [Ongoing Development](docs/ongoing-dev.md) — Single live tracker for open work
-- [Design System](docs/DESIGN_SYSTEM.md) — Semantic tokens, loading system, and UI conventions
-- [Database Lifecycle](hotel-app-be/database/README.md) — Schema, migrations, and seed data workflow
-- [Production Security Operations](docs/security/production-operations.md) — Release controls, access reviews, incident response
-- [Production Go-Live Checklist](docs/security/production-go-live-checklist.md) — Operator and external gates to clear the readiness conditions
-- [Backup and Restore Drill](docs/security/backup-restore.md) — Off-host backup and quarterly restore procedure
-- [VPS Access Guide](docs/guides/vps-access.md) — Production host access and database maintenance
-- [PostgreSQL 19beta3 Cutover](docs/guides/postgres-beta3-cutover.md) — Dump-and-restore runbook for the production database engine bump
-- [Desktop Packaging Guide](docs/guides/PACKAGING.md) — macOS/Windows/Linux build and packaging pipeline
-- [Desktop Build Guide](hotel-desktop/BUILD_SPEED.md) — Desktop build pipeline and caching
-- [OCI Always Free Terraform](infra/terraform/oci/README.md) — Free-tier-shaped development environment
-- [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) — Coding-agent routing index and repository conventions
+```bash
+make db-baseline   # fresh DB: baseline + system seed + all patches (needs DATABASE_URL)
+make db-patch      # converge an existing V1 database
+make db-seed       # optional deterministic staging dataset
+```
+
+## Environment
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `POSTGRES_PASSWORD` | Docker Compose | DB password; ships blank — compose refuses to start without it |
+| `JWT_SECRET` | Always | JWT signing secret, ≥ 32 chars; rotation invalidates staff tokens |
+| `DATABASE_URL` | Backend outside Docker | e.g. `postgres://hotel_admin:<pw>@127.0.0.1:5432/hotel_management` |
+| `ENVIRONMENT` | Production | `development`/`staging`/`production`; prod refuses insecure combos |
+| `ALLOWED_ORIGINS` | Production | Comma-separated CORS origins (HTTPS, non-localhost in prod) |
+| `BACKEND_PORT` | No | API port, default `3030` |
+
+Compose reads the root [.env.example](.env.example); the full backend reference —
+SMTP, PayPal, Turnstile, Google sign-in, pool tuning, all optional — is
+[hotel-app-be/.env.example](hotel-app-be/.env.example). Never commit real `.env` files.
+
+## Development
+
+```bash
+# Backend (hotel-app-be/)
+cargo check --all-features                      # compile
+cargo clippy --all-features -- -D warnings      # lint — the CI gate, verbatim
+cargo fmt                                       # format
+cargo test --all-features                       # needs DATABASE_URL or PG suites silently skip
+
+# Frontend (hotel-web-fe/)
+bun run typecheck && bun run lint:strict && bun run test && bun run build
+
+# Root shortcuts
+make check-all lint-all test-all
+```
+
+Schema changes go into the V1 baseline **and** a new checksum-verified patch under
+`hotel-app-be/database/postgres/patches/` registered in `manifest.tsv` — a loose
+`000N_*.sql` file is never executed. See
+[hotel-app-be/database/README.md](hotel-app-be/database/README.md).
+
+## Documentation
+
+- [Feature registry](docs/FEATURES.md) — what exists, with per-feature delivery status
+- [Architecture](docs/ARCHITECTURE.md) · [ADRs](docs/architecture/ADRS.md) · [request/data flow](docs/architecture/architecture-flow.md)
+- [API](docs/API.md) · generated [openapi.json](docs/api/openapi.json) (CI-enforced)
+- [Development guide](docs/DEVELOPMENT.md) — setup, commands, troubleshooting
+- [Database lifecycle](hotel-app-be/database/README.md)
+- [Deployment](docs/guides/deployment.md) · [VPS access](docs/guides/vps-access.md)
+- [Security](SECURITY.md) · [production operations](docs/security/production-operations.md)
+- [Desktop packaging](docs/guides/PACKAGING.md) · [updater](hotel-desktop/UPDATER.md)
+- [Contributing](CONTRIBUTING.md)
+
+## Status
+
+- **Implemented:** everything marked *Delivered* in [docs/FEATURES.md](docs/FEATURES.md) —
+  bookings, rooms, housekeeping, payments, ledgers, invoicing, night audit, eKYC, guest
+  portal, loyalty, promotions, communications (email), i18n (en/ms/zh/zh-TW), and the
+  desktop app.
+- **In progress:** gRPC-Web migration (rooms, housekeeping, maintenance, guests done;
+  ~350 REST paths remain); desktop OS signing/notarization (wired, awaiting
+  certificates); PostgreSQL 19 GA cutover (currently on `19beta3`).
+- **Planned:** SMS notification channel. PayPal refund/dispute webhooks are verified and
+  audit-logged but not auto-applied — manual reconciliation today.
+
+Assessed as *ready with conditions*, not fully production-ready — see the
+[readiness assessment](docs/security/production-readiness-assessment.md).
+
+## Important rules
+
+- PostgreSQL is the source of truth; booking overlap is blocked by a database exclusion
+  constraint — never bypass the booking transaction path.
+- Shipped patches are immutable: add a new version, never edit one. Additive changes go
+  in both the baseline and a registered patch.
+- Parameterized SQL only; sanitize free text with the existing utilities; multi-step
+  mutations run in transactions.
+- Backend PG tests silently skip without `DATABASE_URL` and each skip counts as a pass —
+  judge runs by wall-clock time, never by exit code or count alone.
+- Changes land via PR on `master` with green CI; production deploys run only from
+  `master`.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
-
-## Acknowledgements
-
-- Rust, Axum, SQLx, Tokio, and the wider Rust ecosystem.
-- React, TypeScript, Vite, MUI, TanStack Router, and TanStack Query.
-- Tauri for enabling a desktop packaging path with a web frontend.
-- University evaluators, reviewers, and open-source contributors who provide feedback on maintainability and project quality.
-- Architecture Decision Records inspired by [Michael Nygard's ADR format](https://thinkmicroservices.com/blog/2024/01/14/architecture-decision-records.html).
+[MIT](LICENSE)
