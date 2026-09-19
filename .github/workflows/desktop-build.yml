@@ -410,7 +410,11 @@ jobs:
           version="$("$pg_bin" --version)"
           echo "bundled postgres: $version"
           case "$version" in *19beta2*) ;; *) echo "unexpected bundled PostgreSQL: $version"; exit 1;; esac
-          app_bin="$(dpkg -L "$pkg" | grep -E '/bin/[^/]+$' | head -1)"
+          # The pgsql/bin tools share the /bin/ path segment, so match the app
+          # binary by exact name (Cargo bin name / tauri mainBinaryName), with
+          # pgsql/ excluded regardless.
+          app_bin="$(dpkg -L "$pkg" | grep -vE '/pgsql/' | grep -E '/hotel-desktop$' | head -1)"
+          test -n "$app_bin" || { echo "installed app binary missing from .deb"; exit 1; }
           echo "installed app binary: $app_bin"
           # Launch probe: a GUI app that survives 25s under xvfb got far enough
           # to start services; `timeout` exit 124 means it was still alive.
@@ -737,7 +741,10 @@ jobs:
           if (-not $app) { throw 'hotel-desktop.exe not found under %LOCALAPPDATA% after silent install' }
           $installDir = $app.Directory.FullName
           $pg = Join-Path $installDir 'pgsql\bin\postgres.exe'
-          $sidecar = Get-ChildItem $installDir -Filter 'hotel-app-be-*.exe' | Select-Object -First 1
+          # tauri-bundler strips the -<triple> suffix when installing
+          # externalBin (installed name: hotel-app-be.exe) — match both names,
+          # recursing in case it ever lands in a subdirectory.
+          $sidecar = Get-ChildItem $installDir -Recurse -Filter 'hotel-app-be*.exe' | Select-Object -First 1
           if (-not (Test-Path $pg)) { throw "bundled postgres.exe missing at $pg" }
           if (-not $sidecar) { throw 'backend sidecar missing from install' }
           $version = & $pg --version
