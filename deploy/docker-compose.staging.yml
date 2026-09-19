@@ -69,7 +69,10 @@ services:
       - "127.0.0.1:3031:3030"
     environment:
       DATABASE_URL: "postgres://hotel_admin:${POSTGRES_PASSWORD}@postgres:5432/hotel_management"
-      DATABASE_MAX_CONNECTIONS: "5"
+      # Seven slots are pinned for life by the leader-locked schedulers and the
+      # cache-bus listener, so the floor is 10 — 12 keeps the pre-distributed-state
+      # request capacity (5) while leaving server slots for pg_dump and patch psql.
+      DATABASE_MAX_CONNECTIONS: "12"
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
       JWT_ISSUER: hotel-app-be
       JWT_AUDIENCE: hotel-web
