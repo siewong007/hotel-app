@@ -23,14 +23,23 @@ import {
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Updater bundle per platform, matched against the file name. These are the
-// artifacts `bundle.createUpdaterArtifacts` emits next to the installers:
-// macOS .app.tar.gz, Windows NSIS .nsis.zip, Linux .AppImage.tar.gz — each
-// with a sibling <name>.sig holding the minisign signature.
+// Updater bundle per platform, matched against the file name, each with a
+// sibling <name>.sig holding the minisign signature.
+//
+// Tauri 2's `createUpdaterArtifacts: true` signs each installer IN PLACE —
+// macOS .app.tar.gz, Windows NSIS .exe, Linux .AppImage. It does NOT emit the
+// repackaged .nsis.zip / .AppImage.tar.gz tarballs; those names belong to the
+// `"v1Compatible"` mode, which exists only for apps migrating from a shipped
+// Tauri 1 updater. This app has never shipped one, so v2 names are correct.
+// Matching the v1 names made the first real tag build (v0.3.0, 2026-09-19)
+// fail at the manifest step with all three platform builds green.
+//
+// Windows deliberately matches the NSIS installer rather than the .msi: both
+// are built and both get signed, so the pattern has to choose.
 const PLATFORM_ARTIFACTS = {
   'darwin-aarch64': { match: /\.app\.tar\.gz$/, artifact: 'hotel-desktop-macos-aarch64' },
-  'windows-x86_64': { match: /\.nsis\.zip$/, artifact: 'hotel-desktop-windows-x86_64' },
-  'linux-x86_64': { match: /\.AppImage\.tar\.gz$/, artifact: 'hotel-desktop-linux-x86_64' },
+  'windows-x86_64': { match: /-setup\.exe$/, artifact: 'hotel-desktop-windows-x86_64' },
+  'linux-x86_64': { match: /\.AppImage$/, artifact: 'hotel-desktop-linux-x86_64' },
 };
 
 const walk = (dir) => {
@@ -113,18 +122,25 @@ export const buildUpdateManifest = ({
   for (const [platformKey, spec] of Object.entries(PLATFORM_ARTIFACTS)) {
     const dir = join(artifactsDir, spec.artifact);
     const files = existsSync(dir) ? walk(dir) : [];
-    const bundle = files.find((file) => spec.match.test(basename(file)));
-    if (!bundle) {
+    const candidates = files.filter((file) => spec.match.test(basename(file)));
+    if (candidates.length === 0) {
       errors.push(
         `${platformKey}: no updater bundle matching ${spec.match} under ${dir}`,
       );
       continue;
     }
-    const sigPath = `${bundle}.sig`;
-    if (!existsSync(sigPath)) {
-      errors.push(`${platformKey}: missing signature file ${basename(sigPath)}`);
+    // The updater artifact is the candidate carrying a sibling .sig. Linux is
+    // why this is a filter rather than a plain first match: linuxdeploy ships
+    // its own *.AppImage tools, and an unsigned one sitting in the bundle
+    // directory would otherwise win and fail as a missing signature.
+    const bundle = candidates.find((file) => existsSync(`${file}.sig`));
+    if (!bundle) {
+      errors.push(
+        `${platformKey}: missing signature file ${basename(candidates[0])}.sig`,
+      );
       continue;
     }
+    const sigPath = `${bundle}.sig`;
     const signature = readFileSync(sigPath, 'utf8').trim();
     if (!signature) {
       errors.push(`${platformKey}: signature file ${basename(sigPath)} is empty`);

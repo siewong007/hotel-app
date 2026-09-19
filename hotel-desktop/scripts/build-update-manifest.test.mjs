@@ -27,17 +27,21 @@ const FIXTURE_FILES = {
     'hotel-desktop.exe',
     'hotel-app-be-x86_64-pc-windows-msvc.exe',
     'bundle/nsis/Hotel Management System_1.2.3_x64-setup.exe',
-    'bundle/nsis/Hotel Management System_1.2.3_x64.nsis.zip',
-    'bundle/nsis/Hotel Management System_1.2.3_x64.nsis.zip.sig',
+    'bundle/nsis/Hotel Management System_1.2.3_x64-setup.exe.sig',
+    // The .msi is built and signed too, so the NSIS pattern has to choose.
     'bundle/msi/Hotel Management System_1.2.3_x64_en-US.msi',
+    'bundle/msi/Hotel Management System_1.2.3_x64_en-US.msi.sig',
     'bundle/hotel-desktop-windows-x86_64-portable.zip',
   ],
   'hotel-desktop-linux-x86_64': [
     'hotel-desktop',
     'bundle/deb/hotel-management-system_1.2.3_amd64.deb',
+    'bundle/deb/hotel-management-system_1.2.3_amd64.deb.sig',
     'bundle/appimage/hotel-management-system_1.2.3_amd64.AppImage',
-    'bundle/appimage/hotel-management-system_1.2.3_amd64.AppImage.tar.gz',
-    'bundle/appimage/hotel-management-system_1.2.3_amd64.AppImage.tar.gz.sig',
+    'bundle/appimage/hotel-management-system_1.2.3_amd64.AppImage.sig',
+    // linuxdeploy's own tooling is an .AppImage too and carries no .sig —
+    // selection must skip it rather than pick it and fail.
+    'bundle/appimage/linuxdeploy-x86_64.AppImage',
     'bundle/hotel-desktop-linux-x86_64-portable.tar.gz',
   ],
 };
@@ -97,8 +101,8 @@ describe('build-update-manifest', () => {
       `https://github.com/${REPO}/releases/download/${TAG}/` +
         'Hotel-Management-System_1.2.3_aarch64.app.tar.gz',
     );
-    expect(manifest.platforms['windows-x86_64'].url).toContain('.nsis.zip');
-    expect(manifest.platforms['linux-x86_64'].url).toContain('.AppImage.tar.gz');
+    expect(manifest.platforms['windows-x86_64'].url).toContain('-setup.exe');
+    expect(manifest.platforms['linux-x86_64'].url).toMatch(/\.AppImage$/);
 
     // The file on disk is the same JSON and ends with a newline.
     const onDisk = JSON.parse(readFileSync(join(outDir, 'latest.json'), 'utf8'));
@@ -116,14 +120,12 @@ describe('build-update-manifest', () => {
     expect(staged).toContain('Hotel-Management-System_1.2.3_aarch64.app.tar.gz.sig');
     expect(staged).toContain('Hotel-Management-System_1.2.3_aarch64.dmg');
     expect(staged).toContain('Hotel-Management-System_1.2.3_x64-setup.exe');
-    expect(staged).toContain('Hotel-Management-System_1.2.3_x64.nsis.zip');
-    expect(staged).toContain('Hotel-Management-System_1.2.3_x64.nsis.zip.sig');
+    expect(staged).toContain('Hotel-Management-System_1.2.3_x64-setup.exe.sig');
     expect(staged).toContain('Hotel-Management-System_1.2.3_x64_en-US.msi');
     expect(staged).toContain('hotel-desktop-windows-x86_64-portable.zip');
     expect(staged).toContain('hotel-management-system_1.2.3_amd64.deb');
     expect(staged).toContain('hotel-management-system_1.2.3_amd64.AppImage');
-    expect(staged).toContain('hotel-management-system_1.2.3_amd64.AppImage.tar.gz');
-    expect(staged).toContain('hotel-management-system_1.2.3_amd64.AppImage.tar.gz.sig');
+    expect(staged).toContain('hotel-management-system_1.2.3_amd64.AppImage.sig');
     expect(staged).toContain('hotel-desktop-linux-x86_64-portable.tar.gz');
 
     // Not wanted: raw binaries / sidecars (outside bundle/) and the unpacked
@@ -143,7 +145,7 @@ describe('build-update-manifest', () => {
       join(
         artifactsDir,
         'hotel-desktop-windows-x86_64',
-        'bundle/nsis/Hotel Management System_1.2.3_x64.nsis.zip.sig',
+        'bundle/nsis/Hotel Management System_1.2.3_x64-setup.exe.sig',
       ),
     );
     expect(() => run(artifactsDir, outDir, configPath)).toThrow(
@@ -155,14 +157,24 @@ describe('build-update-manifest', () => {
   test('hard-fails when a platform updater bundle is missing', () => {
     const { artifactsDir, outDir, configPath } = makeFixtures();
     rmSync(
-      join(
-        artifactsDir,
-        'hotel-desktop-linux-x86_64',
-        'bundle/appimage/hotel-management-system_1.2.3_amd64.AppImage.tar.gz',
-      ),
+      join(artifactsDir, 'hotel-desktop-linux-x86_64', 'bundle/appimage'),
+      { recursive: true },
     );
     expect(() => run(artifactsDir, outDir, configPath)).toThrow(/linux-x86_64/);
     expect(existsSync(join(outDir, 'latest.json'))).toBe(false);
+  });
+
+  test('skips an unsigned tooling .AppImage and picks the signed bundle', () => {
+    // Regression: linuxdeploy-x86_64.AppImage sits in the same bundle dir and
+    // matches /\.AppImage$/, but has no sibling .sig. Selecting it would fail
+    // the whole release as a missing signature.
+    const { artifactsDir, outDir, configPath } = makeFixtures();
+    const { manifest } = run(artifactsDir, outDir, configPath);
+    const url = manifest.platforms['linux-x86_64'].url;
+    expect(decodeURIComponent(url)).toContain(
+      'hotel-management-system_1.2.3_amd64.AppImage',
+    );
+    expect(url).not.toContain('linuxdeploy');
   });
 
   test('hard-fails when the tag does not match tauri.conf.json version', () => {
