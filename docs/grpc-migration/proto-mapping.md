@@ -1,8 +1,10 @@
 # gRPC contract — Phase 1 mapping (pilot: rooms + housekeeping)
 
-Status: **for review**. Nothing is generated from these protos yet; `buf build`,
-`buf lint` (STANDARD), and `buf format` pass locally. Phase 2 begins only after
-this contract is approved.
+Status: **implemented** — this contract was approved and Phases 1–3 landed:
+the services are served by tonic in `hotel-app-be/src/grpc/` and the generated
+Connect-ES clients in `hotel-web-fe/src/gen/` are live behind per-context
+runtime flags (`src/api/grpc/flags.ts`, default off → REST). Kept as the
+contract-of-record reference for the mapped contexts.
 
 Scope: `hotel.rooms.v1` (22 REST routes) + `hotel.housekeeping.v1`
 (housekeeping 5 routes + maintenance 4 routes) + `hotel.guests.v1` (12 RPCs

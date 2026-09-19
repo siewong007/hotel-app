@@ -15,6 +15,7 @@ lockfile dump. Last reviewed during the 2026-09-13 modernization pass.
 | @tanstack/react-query | Server state | The only state library by design (ADR 006) |
 | @tanstack/react-table 9 | Tables | Behind shared `DataTable`; v9 feature-gated API (`tableFeatures`) |
 | ky | HTTP client | Wrapped by `src/api/client.ts` — never call `fetch` directly |
+| @connectrpc/connect + connect-web + @bufbuild/protobuf | gRPC-Web (Connect) clients | For the strangler migration only — generated stubs in `src/gen/` (do not hand-edit), dispatched per context by `src/api/grpc/flags.ts`; REST via ky stays default/fallback (ADR 014) |
 | date-fns | Dates | Business-day math belongs to the backend (`hotel_today`) |
 | @nivo/{bar,line,pie,core} | Charts | Dashboard/reports; wrapped by `src/components/charts/` — never imported directly |
 | jspdf + jspdf-autotable | PDF export | Receipts/reports |
@@ -59,6 +60,7 @@ rejects requests without a User-Agent and returns nothing useful).
 | Crate | Purpose | Notes |
 |---|---|---|
 | axum 0.8 + tower-http 0.7 | HTTP | `catch-panic`, `set-header`, CORS, tracing |
+| tonic 0.14 + prost 0.14 | gRPC services | `tonic-web` (Connect/gRPC-Web for the browser), `tonic-reflection`, `tonic-health`, `tonic-types`, `tonic-prost(-build)`; services merged into the same Axum router/port — no sidecar; contracts in `proto/` (ADR 014) |
 | sqlx 0.9 | PostgreSQL | Runtime queries only — no `query!` macros, so type/column mismatches need live-DB tests. v9 requires `AssertSqlSafe` on dynamic SQL — every wrapped site is template SQL (constants + `param!` bind placeholders), never user input |
 | tokio 1 | Async runtime | |
 | jsonwebtoken 11 | JWT | `rust_crypto` provider (HMAC only); exactly one provider required |

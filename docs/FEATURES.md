@@ -40,6 +40,7 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Audit log viewer | Delivered | ✓ `features/admin/components/AuditLogPage` (`/audit-log`) | ✓ `modules/audit` | Partitioned append-only store |
 | eKYC | Delivered | ✓ `features/ekyc` (`/ekyc`, `/ekyc-admin`) | ✓ `modules/ekyc` | Submission + staff review queue; sensitive-field reveal permissions |
 | Guest portal (booking, pre-check-in, docs) | Delivered | ✓ `guest/` entry + `features/guestPortal` | ✓ `modules/guest_portal`, `modules/guest_booking` | Booking access tokens, consent gate, portal WS sockets, guest feedback submission |
+| Anonymous online booking | Delivered | ✓ public booking pages | ✓ `guest_booking` — `/api/booking/{offers,room-types,quote,reservations}` | No account required; random access token (SHA-256 at rest, stay-relative expiry) gates portal/payment/pre-check-in; IP rate-limited; transactional room allocation; optional `claim_account` later |
 | Guest self check-in wizard | Delivered | ✓ `/guest-checkin/*` | ✓ | Token-gated multi-step flow; `auto_checkin` + eKYC-gated auto check-in |
 | Communications (email campaigns) | Delivered | ✓ `features/communications` (`/communications`) | ✓ `modules/communications` | lettre SMTP worker; per-guest preferences; transactional sends; `segment_id` audience intersection |
 | SMS channel | Not delivered | — | — | Open item; no implementation |
@@ -55,7 +56,8 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 | Internationalization (EN + BM + zh-CN + zh-TW) | Delivered | ✓ `src/i18n` | ✓ `core/i18n.rs` + `core/locales/` | Intl-based, in-house (ADR 012); parity tests both sides; `zh-Hant*` tags resolve to `zh-TW`, `zh-Hans*`/bare `zh` to `zh`; full UI coverage audited in `docs/i18n-coverage-inventory.md` |
 | Search (global) | Delivered | ✓ | ✓ `modules/search` | |
 | Desktop app (Tauri + embedded PG) | Delivered | ✓ shared | ✓ `hotel-desktop/src-tauri` | Sidecar backend; bundled postgres **19beta2** while the server stack runs 19beta3 (see `ARCHITECTURE.md` → Desktop flow); packages for macOS aarch64, Windows x64 (NSIS/MSI + portable), Linux x64 (deb/AppImage/rpm + portable) per `docs/guides/PACKAGING.md`; updater armed via GitHub Releases (`hotel-desktop/UPDATER.md`, tag-run proof pending); managed backup pairs (dump+uploads, 14 kept) with in-app restore — `guides/desktop-backup-restore.md` |
-| Realtime (WebSocket) | Delivered | ✓ | ✓ `modules/realtime`, loyalty/support hubs | `/api/updates/socket` (staff), `/api/admin/loyalty/socket`, `/api/guest-portal/me/{loyalty,support}/socket`; reconnect + lag-drop logging |
+| Realtime (WebSocket) | Delivered | ✓ | ✓ `modules/realtime`, loyalty/support hubs | `/api/updates/socket` (staff), `/api/admin/loyalty/socket`, `/api/guest-portal/me/{loyalty,support}/socket`, `/api/guest-portal/me/availability`; domain-name payloads + permission-checked refetch; reconnect + lag-drop logging; `pg_notify` cross-replica fan-out (ADR 015) |
+| gRPC-Web transport | In progress | ✓ `api/grpc/` + `gen/` Connect-ES clients | ✓ `src/grpc/` (tonic on the same Axum port) | Rooms, room types, housekeeping, maintenance, guests live behind per-context runtime flags (default off); REST remains default/fallback; production edge does not route `/hotel.` yet — ADR 014, `grpc-migration/` |
 | Turnstile bot protection | Delivered | ✓ | ✓ `modules/auth/turnstile.rs` | Public guest forms |
 | Unpaid online-hold release | Delivered | — | ✓ `modules/bookings/unpaid_hold_scheduler.rs` | `unpaid_hold_release_hours` (24 default, 0 disables) |
 | Phone/tablet UX | Delivered | ✓ `useIsPhone`, `MobileNavBar`, per-page phone layouts | — | Phone-first pass across staff + guest surfaces; bookings + online-inventory grids. Shared primitives in `components/common/`: `ActionsMenu`, `BottomSheet`, `CollapsibleSection`, `ResponsiveTabs`, `StickyActionBar` |
@@ -71,6 +73,12 @@ shipped), **Experimental**, **Deprecated**, **Not delivered**, **In progress**.
 - **No external rate-limit store** — counters live in the existing PostgreSQL
   database (`rate_limit_buckets`), so replicas share one budget without adding
   Redis; see ADR 005 (superseded).
+- **No SSE endpoint** — real-time updates use WebSocket hubs (domain-name
+  payloads + permission-checked refetch); see ADR 015.
+- **No message broker / generalized outbox** — cross-replica fan-out uses
+  `pg_notify` and outbound email uses the leased `email_deliveries` queue;
+  there is no domain-event outbox table and no Redis/NATS (optional future
+  infrastructure only).
 - **No payroll/HR module** — staff management stops at `teams`/`team_members`;
   `staging.sql` deliberately seeds no payroll tables. (Re-verified 2026-09-15:
   zero `payroll` matches in `src/`, zero payroll tables in the baseline.)

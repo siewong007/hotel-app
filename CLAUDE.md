@@ -18,7 +18,7 @@ Line anchors rot; Grep first. This volume path has a trailing space — quote pa
 | Editing `.claude/`, or after any failure | [.claude/refs/maintenance.md](.claude/refs/maintenance.md) (+ append `lessons.md`) |
 | UI work / i18n / backup & restore | [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md), [docs/guides/internationalization.md](docs/guides/internationalization.md), [docs/guides/data-transfer.md](docs/guides/data-transfer.md) |
 | Deploy, prod access, incidents | [docs/guides/deployment.md](docs/guides/deployment.md), [docs/guides/vps-access.md](docs/guides/vps-access.md), [docs/security/](docs/security/) |
-| Architecture & decisions (13 ADRs) | [docs/architecture/architecture-flow.md](docs/architecture/architecture-flow.md), [docs/architecture/ADRS.md](docs/architecture/ADRS.md) |
+| Architecture & decisions (15 ADRs) | [docs/architecture/architecture-flow.md](docs/architecture/architecture-flow.md), [docs/architecture/ADRS.md](docs/architecture/ADRS.md) |
 | Desktop build / packaging | [docs/guides/PACKAGING.md](docs/guides/PACKAGING.md), [hotel-desktop/BUILD_SPEED.md](hotel-desktop/BUILD_SPEED.md), [hotel-desktop/UPDATER.md](hotel-desktop/UPDATER.md) |
 | What exists / what's next | [docs/FEATURES.md](docs/FEATURES.md), [docs/ongoing-dev.md](docs/ongoing-dev.md) |
 
@@ -81,7 +81,7 @@ routeless module — **put new domains there**. The residual flat files are shar
 `routes/mod.rs` composition, `services/{audit,account_emails,google_identity,invoice_numbers}.rs`,
 `repositories/{audit,invoice_numbers}.rs`, `models/{audit,common,row_mappers}.rs`.
 
-- `routes/mod.rs::create_router` — every router must be `.merge()`d here (38 today) or it is dead. Wires CORS, rate limits, security headers.
+- `routes/mod.rs::create_router` — every router must be `.merge()`d here (38 today) or it is dead. Wires CORS, rate limits, security headers. `src/grpc/` holds tonic service adapters (rooms, housekeeping, maintenance, guests) merged into the same Axum router at `/hotel.*` paths — they reuse the module service/repository layer, not a parallel implementation (ADR 014).
 - `core/middleware.rs` — `require_auth(&headers) -> i64`, `check_permission(pool, user_id, "<resource>:<action>")`, `check_any_permission`, `ensure_super_admin`. `<resource>:manage` implies every action of that resource.
 - `core/db.rs` — `hotel_today(executor)`, `decimal_to_db`, `generate_uuid`. Each connection takes its timezone from `system_settings.timezone`, so SQL `CURRENT_DATE` **is** the business day. Never use `chrono::Local`/`Utc` for business dates.
 - `core/sql_compat.rs` — `param!(N)`, `current_timestamp()`, `current_date()`. Never literal `$1`/`NOW()`.
@@ -89,15 +89,14 @@ routeless module — **put new domains there**. The residual flat files are shar
 - `main.rs` spawns every background loop through `core::leader::spawn_exclusive` (night audit, payment receipts, unpaid-hold release — window `unpaid_hold_release_hours`, 24 default / 0 disables — communications worker + scheduler, rate-limit bucket prune): a `pg_advisory_lock` on a pinned connection makes exactly one replica drive each loop, and `core::cache_bus::spawn_listener` LISTENs for cross-replica cache invalidation + data-change fan-out. Rate limits live in `rate_limit_buckets` (Postgres fixed windows, fail-open on DB error) — `RateLimiters::new(pool)`; `RateLimiter::new(config)` is the memory-only test constructor. Adding/removing **any** route drifts `docs/api/openapi.json` and fails `tests/openapi_drift.rs` — regenerate with `HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift`.
 
 `sqlx` is plain `sqlx::query()`, **not** the checking macros — a type/column mismatch compiles cleanly
-and fails in production. Any new `FromRow` over date/timestamp/numeric/array columns needs a
-live-PostgreSQL test that actually fetches it.
+and fails in production; new `FromRow` over date/timestamp/numeric/array columns needs a live-PG fetch test.
 
 ## Frontend
 
 - `src/features/<domain>/` (26); `src/api/*.service.ts`, one per backend domain (24). Server state is TanStack Query; there is no separate client-state store.
 - **All** HTTP through `src/api/client.ts` (ky: in-memory access token, HttpOnly refresh cookie, one refresh-and-retry on 401). Never call `fetch` directly.
 - New pages go in **both** `src/routes/*.tsx` and the lazy registry `src/navigation/routeRegistry.tsx` (not App.tsx). The sidebar reads that registry; `route_access_policies` only drives the RBAC admin panel.
-- Vite proxies only `PROXY_PREFIXES` (`/api`, `/uploads`, `/health`, `/ws`). A new `/api/...` route needs no edit; a new **top-level** prefix needs one here *and* in the desktop CORS allow-list (`hotel-desktop/src-tauri/src/commands.rs`).
+- Vite proxies only `PROXY_PREFIXES` (`/api`, `/uploads`, `/health`, `/ws`, `/hotel.`). A new `/api/...` route needs no edit; a new **top-level** prefix needs one here *and* in the desktop CORS allow-list (`hotel-desktop/src-tauri/src/commands.rs`). The prod edge matchers (deploy/Caddyfile + deploy{,-staging}.sh) do not route `/hotel.` yet — gRPC flags stay off outside dev.
 - `lint:strict` (`--max-warnings=0`) is a CI gate. `no-restricted-syntax` bans `toISOString().split/.slice` (use `src/utils/date.ts`), `*.response.json()` (ky 2 already consumed the body — use `readErrorData`), and `replace(/_/g,' ')` enum humanizing (use `formatStatusLabel`).
 - **UI:** one semantic token layer (`src/theme/tokens.ts`) feeds the MUI theme, republished as `--hotel-*` CSS vars. Consume semantic roles, never raw hex; add a missing role rather than a one-off value. Status tones must clear WCAG AA 4.5:1 over the worst surface they sit on. Print/PDF keeps its own literal palette.
 - **i18n:** hand-rolled on `Intl`, **no i18next** (ADR 012). `useTranslation(ns)` → `{ t, tOr, locale, setLocale }`; `t('ns:key')` crosses namespaces, `tOr(key, fallback)` covers un-migrated screens. Bundles: `src/i18n/resources/<locale>/<ns>.json`; a parity test asserts matching keys. Placeholders are `{{name}}`, matching backend email templates.

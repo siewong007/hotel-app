@@ -17,6 +17,18 @@ Browser (React / MUI / TanStack Router and Query)
                               └─ PostgreSQL
 ```
 
+The same process also serves a second transport: tonic gRPC/gRPC-Web services
+for rooms, room types, housekeeping, maintenance, and guests, mounted at
+root-level paths (`/hotel.<package>.<Service>/<Method>`) and wrapped in
+`tonic_web::GrpcWebLayer` so browser Connect clients share the port with no
+proxy sidecar. Browser use is opt-in per context via
+`hotel-web-fe/src/api/grpc/flags.ts` (`VITE_GRPC_CONTEXTS` build default,
+per-browser `grpcContexts` override); a disabled context keeps calling REST.
+The Vite dev proxy forwards `/hotel.`; the production edge matchers
+(`deploy/Caddyfile`, `deploy/deploy{,-staging}.sh`) do not yet — the flags
+therefore stay off outside development (ADR 014,
+[../grpc-migration/](../grpc-migration/)).
+
 ## Desktop flow
 
 ```text
@@ -72,6 +84,86 @@ current-baseline database read-only (`report-schema-drift.sh` +
 Full lifecycle reference, including failure recovery:
 [database README](../../hotel-app-be/database/README.md).
 
+## Reservation lifecycle
+
+The booking `status` vocabulary is wider than a simple
+PENDING → CONFIRMED → CHECKED_IN → CHECKED_OUT sketch — the dedicated
+transitions below map onto it, and staff with the booking permission can also
+move a booking through the edit path:
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending : staff-created booking<br/>(room reserved)
+    [*] --> pending_payment : online booking<br/>(anonymous or portal)
+    pending --> pending_confirmation : payment submitted,<br/>awaiting staff confirmation
+    pending_payment --> pending_confirmation
+    pending --> confirmed : staff confirms
+    pending_payment --> confirmed : payment applied
+    pending_confirmation --> confirmed : staff approves
+    confirmed --> checked_in : staff / self / eKYC check-in
+    confirmed --> auto_checked_in : eligible auto check-in
+    confirmed --> no_show : guest never arrives
+    checked_in --> checked_out : checkout workspace
+    auto_checked_in --> checked_out
+    checked_out --> completed : stay settled
+    pending --> voided : permission-controlled void
+    pending_payment --> voided
+    pending_confirmation --> voided
+    confirmed --> voided
+    checked_in --> voided
+    voided --> confirmed : reactivation<br/>(availability recheck)
+    no_show --> [*]
+    completed --> [*]
+```
+
+- `pending`, `pending_payment`, `pending_confirmation`, `confirmed`,
+  `checked_in`, and `auto_checked_in` are the **overlap-blocking** statuses —
+  the `bookings_no_room_date_overlap` exclusion constraint covers exactly
+  these, so two active bookings can never share a room's date range.
+- `voided` bookings reverse their payment/loyalty effects; reactivation goes
+  back through `confirmed` and re-reserves a room after a fresh availability
+  check.
+- `comp_void`, `partial_complimentary`, and `fully_complimentary` record the
+  complimentary-stay variants alongside the main flow.
+- Voiding from an in-house state (`checked_in`/`auto_checked_in`) exists for
+  corrections; the normal path voids before arrival.
+
+## Anonymous online booking
+
+Guests book without an account through `modules/guest_booking` — public
+`GET /api/booking/offers`, `GET /api/booking/room-types`,
+`POST /api/booking/quote`, and `POST /api/booking/reservations` are
+unauthenticated by design and rate-limited by origin IP. Public pricing is
+list-price only; vouchers, credits, and loyalty stay behind the authenticated
+`/api/guest-portal/me/*` variants.
+
+```mermaid
+sequenceDiagram
+    participant Guest
+    participant API as guest_booking service
+    participant DB as PostgreSQL
+
+    Guest->>API: POST /api/booking/reservations
+    API->>API: generate access token (256-bit)
+    API->>DB: BEGIN
+    API->>DB: recheck online availability + allocate room<br/>(FOR UPDATE SKIP LOCKED)
+    API->>DB: insert anonymous guest + booking (pending_payment)
+    API->>DB: persist SHA-256 hash of access token
+    API->>DB: mark room reserved + history (source: anonymous)
+    API->>DB: COMMIT — bookings_no_room_date_overlap guards the range
+    API-->>Guest: booking_number + raw access token (shown once)
+    Guest->>API: /api/guest-portal/me/* (bearer token)
+    API->>DB: SHA-256(token) lookup; expiry vs stay dates
+```
+
+- The booking **number is not a credential** — the raw token is a random
+  secret, stored only as a SHA-256 hash, expiring relative to the stay.
+- A separate recovery path (`verify_guest_booking`) looks a booking up by
+  number + guest name and mints a distinct 48-hour **pre-check-in** token —
+  that initial lookup intentionally still relies on booking number + name.
+- `claim_account` upgrades the anonymous guest record into a real portal
+  account later, so accounts are never mandatory for the first booking.
+
 ## Payments and PayPal webhooks
 
 Two capture paths converge on one policy: the synchronous capture
@@ -88,6 +180,27 @@ the admin Payment Approvals page via `GET /api/admin/payments/paypal-conflicts`
 (`payments:read`).
 Payments RBAC lives at the route layer: every wrapper in `modules/payments/routes.rs`
 calls `require_permission_helper` before its handler.
+
+```mermaid
+flowchart TD
+    Guest["Guest in portal"] -->|initiates PayPal payment| Create["Backend creates<br/>PayPal order + payment row<br/>(status: pending)"]
+    Create --> TwoPaths{"Two confirmation paths,<br/>one shared policy"}
+
+    TwoPaths -->|payer returns to site| Sync["Synchronous capture:<br/>capture_paypal_payment"]
+    TwoPaths -->|PayPal delivers event| Hook["POST /api/webhooks/paypal"]
+
+    Hook --> Verify["Verify signature via PayPal API<br/>+ IP rate limit + JSON shape"]
+    Verify -->|invalid| Reject["Reject — no state change"]
+    Verify -->|valid, unsupported type| Ignore["Acknowledge + audit<br/>(paypal_webhook_ignored)"]
+    Verify -->|valid capture event| Apply
+
+    Sync --> Apply["Payment service applies capture:<br/>amount checked against the<br/>stored payment row"]
+    Apply -->|amount matches| Done["payment → completed;<br/>booking/payment state updated<br/>in one transaction"]
+    Apply -->|mismatch after money moved| Conflict["Leave untouched + audit<br/>paypal_*_conflict → staff review"]
+    Apply -->|duplicate delivery| Idem["Idempotent no-op"]
+
+    Browser2["Browser 'success' screen"] -.->|cosmetic only — never<br/>writes paid state| Done
+```
 
 ## Payment idempotency and deposit refunds
 
@@ -190,9 +303,40 @@ deleted (`ON DELETE RESTRICT` + a service-level conflict) — deactivate them.
 
 ## Realtime resilience
 
-WebSocket hubs log lagged-drop counts; frontend sockets reconnect with capped
-exponential backoff plus jitter; the HTTP client honors `Retry-After` on
-413/429/503.
+Real-time updates use **WebSocket**, not SSE (ADR 015). The staff data-change
+socket (`GET /api/updates/socket`) upgrades with the access token carried in
+`Sec-WebSocket-Protocol`; session validity is checked before the upgrade.
+Other hubs follow the same pattern (`/api/admin/loyalty/socket`,
+`/api/guest-portal/me/loyalty/socket`, `/api/guest-portal/me/support/socket`,
+`/api/guest-portal/me/availability`).
+
+```mermaid
+flowchart LR
+    subgraph Replica A
+        Mut["Mutating REST request<br/>POST/PUT/PATCH/DELETE /api/*"]
+        Mw["realtime middleware<br/>(after successful write)"]
+        HubA["DataChangeHub<br/>(tokio broadcast)"]
+    end
+    subgraph Replica B
+        Listen["cache_bus LISTEN task"]
+        HubB["DataChangeHub"]
+    end
+    Pg[("PostgreSQL<br/>pg_notify channel")]
+    Staff["Staff browsers<br/>useDataChangeSocket"]
+
+    Mut --> Mw --> HubA
+    Mw --> Pg
+    Pg --> Listen --> HubB
+    HubA -->|"domain name only:<br/>bookings, rooms, …"| Staff
+    HubB -->|"domain name only"| Staff
+    Staff -->|permission-checked REST refetch| Mut
+```
+
+The socket payload is only a domain name — it carries no records, so it can
+never leak data a client is not authorized to read; clients refetch through
+their normal permission-checked queries. WebSocket hubs log lagged-drop counts;
+frontend sockets reconnect with capped exponential backoff plus jitter; the
+HTTP client honors `Retry-After` on 413/429/503.
 
 ## Important wiring checks
 

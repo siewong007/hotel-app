@@ -91,11 +91,21 @@ The repository ships a TLS entry point as a `caddy` service in
 [`deploy/Caddyfile`](../../deploy/Caddyfile). Caddy obtains and renews
 Let's Encrypt certificates automatically, redirects HTTP→HTTPS, and serves
 the whole app on **one domain**: the API prefixes (`/api`, `/uploads`,
-`/health`, `/ws` — the same list as `PROXY_PREFIXES` in
-`hotel-web-fe/vite.config.ts`) are proxied to the backend, everything else to
+`/health`, `/ws`) are proxied to the backend, everything else to
 the frontend SPA. Same-origin serving is required for the
 `SameSite=Lax` refresh cookie to work — do **not** split the API onto a
 separate subdomain.
+
+> **gRPC-Web is not routed here yet.** `PROXY_PREFIXES` in
+> `hotel-web-fe/vite.config.ts` additionally lists `/hotel.` (the gRPC/Connect
+> service paths), but none of the production edge matchers include it — this
+> Caddyfile's `@backend` list, and the generated site matchers embedded in
+> [`deploy/deploy.sh`](../../deploy/deploy.sh) and
+> [`deploy/deploy-staging.sh`](../../deploy/deploy-staging.sh). A browser build
+> with `VITE_GRPC_CONTEXTS` enabled would 404 in production, so the rollout
+> flags stay off outside development until `/hotel.*` is added at the edge
+> (and to the Nginx example below); REST serves those domains either
+> way. See [../grpc-migration/](../grpc-migration/).
 
 Prerequisites: a DNS A/AAAA record for your domain, and ports 80+443 reachable from the internet.
 

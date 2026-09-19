@@ -62,6 +62,9 @@ src/
   routes/         Router composition — every module router merged in routes/mod.rs
   modules/        All domains: <domain>/{routes,handlers,service,repository,models}.rs
                   (38 routed; `consent` is internal with no routes)
+  grpc/           tonic gRPC/gRPC-Web adapters (rooms, room types, housekeeping,
+                  maintenance, guests) merged into the same Axum router at
+                  `/hotel.*` paths — they reuse the module service layer (ADR 014)
   services/       Cross-domain services only: audit, account_emails,
                   google_identity, invoice_numbers
   repositories/   Cross-domain persistence only: audit, invoice_numbers

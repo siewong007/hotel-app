@@ -20,10 +20,12 @@ the source of truth.
 ## Base URL
 
 - Dev: `http://localhost:3030` (Vite proxies `/api`, `/uploads`, `/health`,
-  `/ws` to it)
-- All application routes live under `/api/*` — including the webhook and
-  WebSocket routes. The only root-level paths are `/health` and `/ws/status`
-  (a plain status probe, not a socket upgrade).
+  `/ws`, and `/hotel.` to it)
+- All REST application routes live under `/api/*` — including the webhook and
+  WebSocket routes. Root-level paths are `/health`, `/ws/status` (a plain
+  status probe, not a socket upgrade), public `/uploads`, and the gRPC/Connect
+  service paths `/hotel.<package>.<Service>/<Method>` (plus gRPC health and
+  reflection services).
 
 ## Authentication
 
@@ -31,9 +33,9 @@ the source of truth.
 |---|---|
 | Staff API (`/api/**`) | `Authorization: Bearer <access_token>` — short-lived JWT minted by `POST /api/auth/login` or `POST /api/auth/refresh` |
 | Refresh | HttpOnly cookie on the refresh endpoint; tokens are revocable DB rows |
-| Guest portal (`/api/guest-portal/**`) | Guest session cookie/bearer from `/api/guest-portal/auth/*`; booking access tokens for pre-check-in links |
+| Guest portal (`/api/guest-portal/**`) | Guest session cookie/bearer from `/api/guest-portal/auth/*`; booking access tokens (anonymous-booking credential, SHA-256 at rest) and 48-hour pre-check-in tokens |
 | Webhooks (`/api/webhooks/paypal`) | **No bearer** — PayPal signature verification + IP rate limit |
-| Public endpoints | `/api/promotions`, `/api/promotions/{slug}`, auth/guest-portal public routes, `/health` |
+| Public endpoints | `/api/booking/{offers,room-types,quote,reservations}` (anonymous booking, IP rate-limited), `/api/promotions`, `/api/promotions/{slug}`, auth/guest-portal public routes, `/health` |
 
 Authorization: after auth, route wrappers call
 `check_permission("<resource>:<action>")` — e.g. `bookings:read`,
@@ -59,9 +61,10 @@ fields exist where the client must branch:
 
 ## Rate limiting
 
-In-memory token buckets per category (login `sensitive`, writes, portal
-tokens, webhooks, general). `Retry-After` is returned where applicable.
-Single-instance scope — see ADR 005.
+Fixed-window limits shared through the `rate_limit_buckets` PostgreSQL table
+per category (login `sensitive`, writes, portal tokens, webhooks, general) —
+multi-replica safe and fail-open on database error (ADR 005 is superseded).
+`Retry-After` is returned where applicable.
 
 ## Idempotency
 
@@ -128,10 +131,38 @@ where the file and request mode are known:
 The file format, entity coverage, and semantics are documented in
 [`guides/data-transfer.md`](guides/data-transfer.md).
 
+## gRPC / Connect (partial rollout)
+
+The same process serves tonic gRPC + gRPC-Web (Connect protocol) services at
+root-level paths — a strangler migration, not a second API surface
+(ADR 014):
+
+| Service | Path prefix |
+|---|---|
+| `hotel.rooms.v1.RoomService` | `/hotel.rooms.v1.RoomService/<Method>` |
+| `hotel.rooms.v1.RoomTypeService` | `/hotel.rooms.v1.RoomTypeService/<Method>` |
+| `hotel.housekeeping.v1.HousekeepingService` | `/hotel.housekeeping.v1.HousekeepingService/<Method>` |
+| `hotel.housekeeping.v1.MaintenanceService` | `/hotel.housekeeping.v1.MaintenanceService/<Method>` |
+| `hotel.guests.v1.GuestService` | `/hotel.guests.v1.GuestService/<Method>` |
+
+gRPC health and reflection (v1 + v1alpha) are also mounted for tooling.
+Authorization mirrors the REST routes — the adapters in `src/grpc/` call the
+same permission checks and service layer, so a method and its REST twin have
+identical access rules. Protobuf contracts live in `proto/`; the browser
+clients in `hotel-web-fe/src/gen/` are generated from them and enabled per
+context (`rooms`, `housekeeping`, `maintenance`, `guests`) by
+`src/api/grpc/flags.ts`. A disabled context calls REST — REST is the default
+and the fallback for every domain. The OpenAPI index above covers REST only.
+Migration working record: [`grpc-migration/`](grpc-migration/).
+
 ## Realtime
 
 WebSocket upgrades live under `/api`: `/api/updates/socket` (staff data-change
-hub, `modules/realtime`), `/api/admin/loyalty/socket` (staff loyalty), and
-`/api/guest-portal/me/{loyalty,support}/socket` (guest). Clients reconnect
-with capped exponential backoff and lagged-drop is logged server-side.
-`/ws/status` is a plain JSON status probe, not an upgrade endpoint.
+hub, `modules/realtime` — token via `Sec-WebSocket-Protocol`, session checked
+before upgrade), `/api/admin/loyalty/socket` (staff loyalty),
+`/api/guest-portal/me/{loyalty,support}/socket` (guest), and
+`/api/guest-portal/me/availability` (availability push). Payloads are domain
+names only — clients refetch through permission-checked REST queries. Clients
+reconnect with capped exponential backoff and lagged-drop is logged
+server-side. There is no SSE endpoint (ADR 015). `/ws/status` is a plain JSON
+status probe, not an upgrade endpoint.

@@ -365,3 +365,81 @@ permissions gate the surface.
   `channel_net_revenue.rs`
 - ❌ Snapshot semantics mean "what did we earn" is only exact for bookings
   written after this feature; older rows resolve at report time as before
+
+---
+
+## ADR 014: gRPC-Web for Selected Domains (Strangler Migration)
+
+**Status:** Accepted (2026-09); partial rollout — five services live, ~350 REST
+paths remain
+
+**Context:** The REST/JSON contract under `/api` is correct and complete, but
+some read-heavy staff surfaces (room grids, housekeeping boards, guest
+records) pay for hand-maintained TypeScript types that drift from the Rust
+models. A typed contract (protobuf) removes that drift for the domains that
+benefit, without forcing a big-bang rewrite of an API that already works.
+
+**Decision:** Serve tonic gRPC services inside the same Axum process on the
+same port — no separate server, no envoy sidecar. `tonic_web::GrpcWebLayer`
+exposes them to the browser as Connect/gRPC-Web at root-level paths
+(`/hotel.<package>.<Service>/<Method>`); `src/grpc/` adapters delegate to the
+same service and repository layer as the REST handlers, so authorization and
+business rules are defined once. Contracts of record live in `proto/`; the
+browser clients in `hotel-web-fe/src/gen/` are generated from them.
+Rollout is per bounded context via `src/api/grpc/flags.ts`
+(`VITE_GRPC_CONTEXTS` build default, per-browser `grpcContexts` override) —
+a disabled context keeps calling REST, so every context can roll forward or
+back independently. Implemented: `RoomService`, `RoomTypeService`,
+`HousekeepingService`, `MaintenanceService`, `GuestService`. Working record:
+[../grpc-migration/](../grpc-migration/).
+
+**Consequences:**
+- ✅ Typed contracts end FE/BE model drift in migrated domains
+- ✅ One process, one port, one auth model — gRPC methods mirror their REST
+  twins' permission checks
+- ✅ Incremental rollout with a per-context kill switch; REST stays the
+  default and the fallback
+- ❌ Two transports to keep honest — a route change that forgets its gRPC twin
+  (or vice versa) silently diverges
+- ❌ The dev Vite proxy forwards `/hotel.` but the production edge matchers
+  (`deploy/Caddyfile`, `deploy/deploy{,-staging}.sh`) do not yet — the flags
+  must stay off outside development until the edge matchers are updated
+- ❌ WebSocket, uploads, webhooks, health, and all un-migrated domains remain
+  REST/Axum — gRPC is not the sole browser transport
+
+---
+
+## ADR 015: WebSocket + `pg_notify` for Realtime Fan-out (Not SSE)
+
+**Status:** Accepted (2026)
+
+**Context:** Staff screens (bookings board, room status, housekeeping) need to
+refresh when another user or a background job changes data. Candidates were
+SSE, polling, and WebSocket. The hotel also needed the same push for guest
+surfaces (loyalty, support, availability), where browser `EventSource` cannot
+set authorization headers without workarounds.
+
+**Decision:** WebSocket hubs. The staff data-change socket
+(`GET /api/updates/socket`) carries the access token in
+`Sec-WebSocket-Protocol` (`hotel-updates`) and validates the session before
+the upgrade; loyalty, support, and guest-availability sockets use the same
+pattern. The payload is deliberately thin — a domain name such as `bookings`
+or `rooms` — so the socket can never leak records a client is not allowed to
+read; clients refetch through their normal permission-checked REST queries.
+After a successful mutating `/api` request, realtime middleware publishes the
+changed domain to the local `DataChangeHub` (tokio broadcast) and over
+`pg_notify`, so every replica's `cache_bus` LISTEN task fans the event out to
+its own connected clients — PostgreSQL is the only cross-replica transport.
+
+**Consequences:**
+- ✅ Auth is unambiguous — the token rides the upgrade handshake, and the
+  session is re-validated per connection; no header gymnastics SSE would need
+- ✅ Domain-name payloads keep all data behind the existing permission model
+- ✅ No new infrastructure: `pg_notify` reuses the authoritative database, and
+  no Redis/NATS is introduced for fashion
+- ❌ `pg_notify` is fire-and-forget — a disconnected replica misses events,
+  which is acceptable because clients refetch on reconnect anyway
+- ❌ Sticky sessions are required for socket affinity in multi-replica
+  deployments
+- ❌ SSE remains unimplemented — a client that specifically wants
+  `EventSource` has no endpoint

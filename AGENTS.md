@@ -68,6 +68,9 @@ The flat-by-layer directories no longer hold domain code. What remains there is
 deliberately global: `routes/mod.rs` (router composition + shared extractors),
 `services/{audit,account_emails,google_identity,invoice_numbers}.rs`,
 `repositories/{audit,invoice_numbers}.rs`, and `models/{audit,common,row_mappers}.rs`.
+`grpc/` is also global — tonic service adapters for the gRPC-Web rollout that
+delegate into the same module service/repository layer rather than owning
+domain logic (ADR 014).
 
 Keep these global areas: `core/`, `services/audit.rs`,
 `database/postgres/migrations/0001_v1_baseline.sql`, `database/postgres/seed.sql`.

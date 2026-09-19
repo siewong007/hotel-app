@@ -24,6 +24,8 @@ files > tests > docs. Documentation never overrides the implementation.
 | Dependency rationale | [`DEPENDENCIES.md`](DEPENDENCIES.md) |
 | Design tokens and UI rules | [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) |
 | Deployment, patching, backup/restore | [`guides/deployment.md`](guides/deployment.md) |
+| Desktop managed backup/restore | [`guides/desktop-backup-restore.md`](guides/desktop-backup-restore.md) |
+| gRPC-Web migration (strangler) | [`grpc-migration/`](grpc-migration/) — `audit.md` (Phase 0 inventory), `proto-mapping.md` (contract), `client-phase3.md` (FE rollout) |
 | Data transfer (hotel-backup v1) | [`guides/data-transfer.md`](guides/data-transfer.md) |
 | i18n engine and adding languages | [`guides/internationalization.md`](guides/internationalization.md) |
 | i18n terminology + coverage audit | [`guides/i18n-glossary.md`](guides/i18n-glossary.md), [`i18n-coverage-inventory.md`](i18n-coverage-inventory.md); [`i18n-key-usage-map.md`](i18n-key-usage-map.md) is generated |
@@ -32,6 +34,7 @@ files > tests > docs. Documentation never overrides the implementation.
 | Desktop packaging (all OSes) | [`guides/PACKAGING.md`](guides/PACKAGING.md) |
 | Production security operations | [`security/production-operations.md`](security/production-operations.md) |
 | Production readiness assessment | [`security/production-readiness-assessment.md`](security/production-readiness-assessment.md) |
+| Production go-live checklist | [`security/production-go-live-checklist.md`](security/production-go-live-checklist.md) |
 | Backup/restore drill | [`security/backup-restore.md`](security/backup-restore.md) |
 | Database lifecycle (baseline/seed/patches) | [`../hotel-app-be/database/README.md`](../hotel-app-be/database/README.md) |
 | Backend quick start | [`../hotel-app-be/README.md`](../hotel-app-be/README.md) |

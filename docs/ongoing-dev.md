@@ -88,7 +88,12 @@ coverage, and the GitHub Action SHA-pinning sweep.
 - gRPC migration in flight: tonic services + Connect-ES client for rooms,
   housekeeping, maintenance, and guests shipped behind per-context runtime
   flags (REST stays default/fallback); ~350 REST paths remain —
-  `docs/grpc-migration/` is the working record.
+  `docs/grpc-migration/` is the working record. Open edge gap found
+  2026-09-19: the Vite proxy forwards `/hotel.` but neither
+  `deploy/Caddyfile`'s `@backend` matcher nor the generated site matchers in
+  `deploy/deploy{,-staging}.sh` route it, so production cannot serve gRPC-Web
+  until the edge matchers (and the Nginx example in `guides/deployment.md`)
+  are updated — flags stay off outside dev until then.
 
 ## Decisions needed (user)
 

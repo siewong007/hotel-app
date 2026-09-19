@@ -1,5 +1,15 @@
 # REST → gRPC Migration — Phase 0 Audit
 
+> **Point-in-time record.** This audit ran on 2026-09-17 against HEAD
+> `c2b2ba1cd`. Phases 1–3 have since landed — tonic services for rooms,
+> room types, housekeeping, maintenance, and guests are merged into the Axum
+> router (`src/grpc/`), generated Connect-ES clients run behind per-context
+> runtime flags (`hotel-web-fe/src/api/grpc/flags.ts`, REST default/fallback),
+> and the Vite proxy forwards `/hotel.` (the production Caddyfile does not
+> yet — see `../guides/deployment.md`). The findings below remain useful as
+> the inventory of what is *not* yet migrated; read route counts as of that
+> date, not as current.
+
 Read-only inventory of the current REST surface. No code was changed. Generated
 by static analysis of `hotel-app-be/src/**` and `hotel-web-fe/src/**` on
 2026-09-17 (tree at `master`, HEAD `c2b2ba1cd`). Guard annotations were

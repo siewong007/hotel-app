@@ -40,8 +40,24 @@ In production the edge is two hops, not one: **Caddy** terminates TLS and applie
 the security headers, then splits by path — `/api/*`, `/uploads/*`, `/health`,
 `/ws*` go to `backend:3030`, and everything else to `frontend:80`, an
 **nginx:1.28-alpine** container serving the built SPA (`hotel-web-fe/Dockerfile`,
-`hotel-web-fe/nginx.conf`). Caddy's `@backend` matcher must stay in sync with
-`PROXY_PREFIXES` in `hotel-web-fe/vite.config.ts`.
+`hotel-web-fe/nginx.conf`). Caddy's `@backend` matcher is meant to stay in sync
+with `PROXY_PREFIXES` in `hotel-web-fe/vite.config.ts` — the proxy list now
+includes `/hotel.` (gRPC-Web), which neither this Caddyfile nor the generated
+matchers in `deploy/deploy{,-staging}.sh` route yet, so the gRPC rollout flags
+must stay off outside development until the edge matchers are updated (tracked
+in [ongoing-dev.md](ongoing-dev.md)).
+
+Three transports share the one Axum process:
+
+- **REST/JSON under `/api`** — the primary contract for every domain.
+- **gRPC + gRPC-Web (Connect)** — tonic services merged into the same router at
+  root-level paths (`/hotel.<package>.<Service>/<Method>` plus health and
+  reflection). Implemented for rooms, room types, housekeeping, maintenance,
+  and guests; the browser opts in per context at runtime and falls back to
+  REST everywhere else (ADR 014, working record in
+  [grpc-migration/](grpc-migration/)).
+- **WebSocket** — staff data-change notifications and the availability,
+  loyalty, and support sockets (ADR 015). There is no SSE endpoint.
 
 ### Desktop flow
 
@@ -89,6 +105,9 @@ and toolchain commands.
 modules/<domain>/  Domain modules — routes.rs, handlers.rs, service.rs,
                    repository.rs, models.rs, plus domain-specific files
                    (queries.rs, validation.rs, schedulers, clients) as needed
+grpc/             tonic service adapters (rooms, room types, housekeeping,
+                  maintenance, guests) + generated pb code; delegates to the
+                  same service/repository layer as the REST handlers
 routes/mod.rs     Router composition (.merge per module) + shared extractors
 services/         Cross-domain services only: audit, account_emails,
                   google_identity, invoice_numbers
@@ -192,16 +211,70 @@ runs; eKYC submissions; communications (campaigns, deliveries, preferences);
 loyalty; support tickets; audit logs (partitioned, append-only); system
 settings.
 
+High-level relationships between the principal groups:
+
+```mermaid
+flowchart LR
+    subgraph Identity["Identity & access"]
+        Users["users / roles / permissions<br/>sessions, passkeys, TOTP"]
+    end
+    subgraph Inventory["Rooms & inventory"]
+        Rooms["rooms / room_types"]
+        Housekeep["housekeeping / maintenance"]
+        OnlineInv["online_inventory"]
+    end
+    subgraph Stay["Stay lifecycle"]
+        Bookings["bookings<br/>(room + dates, status)"]
+        Guests["guests + portal access"]
+        Ekyc["eKYC submissions"]
+    end
+    subgraph Money["Money"]
+        Payments["payments<br/>(state, idempotency)"]
+        Invoices["invoices"]
+        Ledgers["customer / city ledgers"]
+        Refunds["deposit refunds"]
+    end
+    subgraph Ops["Operations & comms"]
+        NightAudit["night_audit runs"]
+        Comms["communications / email_deliveries"]
+        Loyalty["loyalty programs / points"]
+        Audit["audit_logs (append-only)"]
+    end
+
+    Users -->|RBAC gates| Bookings
+    Guests -->|owns| Bookings
+    Bookings -->|allocates| Rooms
+    Bookings -->|priced by| Rates["rates / rate plans / channels"]
+    OnlineInv -->|advisory availability| Bookings
+    Ekyc -->|pre-check-in| Bookings
+    Bookings -->|charges| Invoices
+    Payments -->|settles| Bookings
+    Payments -->|postings| Ledgers
+    Invoices -->|balances| Ledgers
+    Payments -.->|may return| Refunds
+    NightAudit -->|posts activity for| Bookings
+    Bookings -->|emails| Comms
+    Guests -->|earns/redeems| Loyalty
+    Ops -.->|every mutation| Audit
+    Housekeep -->|turnover for| Rooms
+```
+
 ## Authentication & authorization
 
 - Staff login: username/password → JWT access token (in memory on the client)
   + HttpOnly refresh cookie. Refresh tokens are server-side rows and revocable
   (logout, password change, passkey reset all revoke). Optional TOTP 2FA with
   recovery codes; passkeys supported. TOTP secrets are encrypted at rest under
-  `TOTP_ENCRYPTION_KEY` (`enc1:` prefix).
+  `TOTP_ENCRYPTION_KEY` (`enc1:` prefix). The `require_two_factor_roles` +
+  `require_two_factor_grace_days` settings can make enrolment mandatory for
+  named roles with a grace window — empty by default, so mandatory 2FA is an
+  opt-in policy rather than a blanket requirement.
 - Guest portal: self-registration/login with its own session tokens; booking
-  access tokens (256-bit) for pre-check-in links; Turnstile bot protection on
-  public forms; Google identity federation for both surfaces.
+  access tokens (random 256-bit credentials, SHA-256 at rest, expiring relative
+  to the stay) issued by anonymous booking for portal/payment/pre-check-in
+  access; a separate booking-number + guest-name verification path mints a
+  48-hour pre-check-in token; Turnstile bot protection on public forms; Google
+  identity federation for both surfaces.
 - Authorization: `check_permission(pool, user_id, "<resource>:<action>")` at the
   route layer. Roles map to permission sets managed through the RBAC admin UI;
   `<resource>:manage` implies all actions on that resource.
@@ -226,6 +299,7 @@ See [FEATURES.md](FEATURES.md) for the status registry. Delivered domains:
 | Communications & support | `modules/{communications,support}` | `features/{communications,support,notifications,help}` |
 | Settings, system, data transfer | `modules/{settings,system,data_transfer}` | `features/user`, `features/admin/system`, `features/admin/components/DataTransferPage` |
 | Realtime | `modules/realtime` (`/api/updates/socket`), hub sockets under loyalty/support | `hooks/useDataChangeSocket`, socket hooks per feature |
+| gRPC-Web (partial) | `src/grpc/` adapters — RoomService, RoomTypeService, HousekeepingService, MaintenanceService, GuestService | `api/grpc/` + `gen/` Connect-ES clients behind `grpcEnabled(context)` flags |
 | Guest portal | `modules/{guest_portal,guest_booking,consent}` | `guest/` entry + `features/guestPortal` |
 | Legal & misc public pages | — (static content) | `features/legal`, `/offers`, `/unsubscribe/$token` |
 | Search | `modules/search` | shared search |
