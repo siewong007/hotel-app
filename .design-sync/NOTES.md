@@ -40,7 +40,7 @@
 
 ## Page-level reconciliation (2026-07-10)
 A route-to-design reconciliation of all 33 app pages against the project was run; manifest
-at `docs/claude-design-page-sync.md`. Determination: page-type design artifacts are not a
+at `docs/reference/design-sync-reconciliation.md`. Determination: page-type design artifacts are not a
 synced artifact type in this integration — pages stay `intentionally_excluded` (consistent
 with the 2026-07-03 scope decision). No remote files were added, changed, or deleted; the
 6-component sync was verified current (no source drift since upload). If page-level design

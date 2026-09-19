@@ -49,7 +49,7 @@ suite still exits 0 — and each early return counts as a *pass*, so a no-databa
 reports **more** tests (~1,317), not fewer. Do not judge by run count or exit code:
 judge by wall-clock and per-suite counts (e.g. `payment_characterization` is
 44 passed in ~0.01s without a database vs ~29 passed / 2 ignored with one).
-See [../docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md#validate) for the full heuristic.
+See [../docs/development.md](../docs/development.md#validate) for the full heuristic.
 The patch-lifecycle
 and schema-drift suites additionally shell out to `psql` — on macOS add libpq to PATH
 (`/opt/homebrew/opt/libpq/bin`) or they fail with `psql: command not found`.
@@ -116,5 +116,5 @@ cd ../hotel-desktop/src-tauri
 ## MCP servers
 
 Not implemented. Earlier documentation described MCP servers under `mcp-server/`; no such
-directory exists. See ADR 009 in [../docs/architecture/ADRS.md](../docs/architecture/ADRS.md)
+directory exists. See ADR 009 in [../docs/architecture/decision-records.md](../docs/architecture/decision-records.md)
 for the authorization constraint any future implementation has to satisfy.

@@ -1,4 +1,4 @@
-# Production security operations
+# Production Security Operations
 
 This runbook applies to the web deployment only. The desktop/offline runtime is
 intentionally not covered by these controls.

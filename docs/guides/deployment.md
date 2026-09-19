@@ -105,7 +105,7 @@ separate subdomain.
 > with `VITE_GRPC_CONTEXTS` enabled would 404 in production, so the rollout
 > flags stay off outside development until `/hotel.*` is added at the edge
 > (and to the Nginx example below); REST serves those domains either
-> way. See [../grpc-migration/](../grpc-migration/).
+> way. See [../architecture/grpc-migration/](../architecture/grpc-migration/).
 
 Prerequisites: a DNS A/AAAA record for your domain, and ports 80+443 reachable from the internet.
 

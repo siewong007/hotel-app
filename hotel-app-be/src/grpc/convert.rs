@@ -1,7 +1,8 @@
 //! Protobuf ↔ domain-model conversions shared by the gRPC adapters.
 //!
-//! Three contracts from `docs/grpc-migration/proto-mapping.md` are enforced
-//! here so every service converts identically:
+//! Three contracts from the Phase 1 mapping
+//! (`docs/architecture/grpc-migration/phase-1-contract.md`) are enforced here so
+//! every service converts identically:
 //!
 //! - **Resource names**: `rooms/42`, `bookings/100`, … — thin strings over
 //!   the int64 keys REST uses in URLs. `parse_name` validates the expected

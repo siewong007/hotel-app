@@ -444,7 +444,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
       )}
 
       {/* Invoice Preview — renders the paper document on a paper surface
-          (print identity is intentionally light; see docs/DESIGN_SYSTEM.md). */}
+          (print identity is intentionally light; see docs/design-system.md). */}
       {invoiceCompany && showInvoicePreview && (
         <PaperIsland id="company-invoice-content" sx={{ bgcolor: 'var(--hotel-surface)', color: 'var(--hotel-text)', p: 3, borderRadius: 1 }}>
           {/* Invoice Header */}

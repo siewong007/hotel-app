@@ -144,7 +144,7 @@ bun run package:portable  # portable archive of the release output
 ```
 
 Cross-platform packaging (supported targets, signing, PostgreSQL provisioning,
-CI): `docs/guides/PACKAGING.md`.
+CI): `docs/guides/desktop-packaging.md`.
 
 Root Makefile: `make check-all`, `make test-all`, `make lint-all`,
 `make help`.

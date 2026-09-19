@@ -1,6 +1,6 @@
 # API Reference
 
-The machine-readable route index is [`api/openapi.json`](api/openapi.json) —
+The machine-readable route index is [`openapi.json`](openapi.json) —
 generated from the router and kept honest by `tests/openapi_drift.rs` (a CI
 gate: any route add/remove/update fails CI until regenerated).
 
@@ -129,7 +129,7 @@ where the file and request mode are known:
   `data_transfer:import`; discard a staged file.
 
 The file format, entity coverage, and semantics are documented in
-[`guides/data-transfer.md`](guides/data-transfer.md).
+[`../guides/data-transfer.md`](../guides/data-transfer.md).
 
 ## gRPC / Connect (partial rollout)
 
@@ -153,7 +153,7 @@ clients in `hotel-web-fe/src/gen/` are generated from them and enabled per
 context (`rooms`, `housekeeping`, `maintenance`, `guests`) by
 `src/api/grpc/flags.ts`. A disabled context calls REST — REST is the default
 and the fallback for every domain. The OpenAPI index above covers REST only.
-Migration working record: [`grpc-migration/`](grpc-migration/).
+Migration working record: [`../architecture/grpc-migration/`](../architecture/grpc-migration/).
 
 ## Realtime
 

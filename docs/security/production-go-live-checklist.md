@@ -1,4 +1,4 @@
-# Production go-live checklist
+# Production Go-Live Checklist
 
 Companion to the [production readiness assessment](production-readiness-assessment.md),
 whose verdict is **ready with conditions**. This checklist is the path from that

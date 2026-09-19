@@ -391,7 +391,7 @@ Rollout is per bounded context via `src/api/grpc/flags.ts`
 a disabled context keeps calling REST, so every context can roll forward or
 back independently. Implemented: `RoomService`, `RoomTypeService`,
 `HousekeepingService`, `MaintenanceService`, `GuestService`. Working record:
-[../grpc-migration/](../grpc-migration/).
+[grpc-migration/](grpc-migration/).
 
 **Consequences:**
 - ✅ Typed contracts end FE/BE model drift in migrated domains

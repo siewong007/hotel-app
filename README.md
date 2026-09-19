@@ -42,7 +42,7 @@ workspace, so run commands from each subdirectory.
 - Rooms, room types, rates, booking channels, promotions, loyalty
 - Audit log, night audit, reports/insights, backup & restore (`hotel-backup` v1)
 
-The canonical, per-feature delivery list is [docs/FEATURES.md](docs/FEATURES.md).
+The canonical, per-feature delivery list is [docs/features.md](docs/features.md).
 
 ## Architecture
 
@@ -156,19 +156,19 @@ Schema changes go into the V1 baseline **and** a new checksum-verified patch und
 
 ## Documentation
 
-- [Feature registry](docs/FEATURES.md) — what exists, with per-feature delivery status
-- [Architecture](docs/ARCHITECTURE.md) · [ADRs](docs/architecture/ADRS.md) · [request/data flow](docs/architecture/architecture-flow.md)
-- [API](docs/API.md) · generated [openapi.json](docs/api/openapi.json) (CI-enforced)
-- [Development guide](docs/DEVELOPMENT.md) — setup, commands, troubleshooting
+- [Feature registry](docs/features.md) — what exists, with per-feature delivery status
+- [Architecture](docs/architecture/overview.md) · [ADRs](docs/architecture/decision-records.md) · [request/data flow](docs/architecture/system-flows.md)
+- [API](docs/api/README.md) · generated [openapi.json](docs/api/openapi.json) (CI-enforced)
+- [Development guide](docs/development.md) — setup, commands, troubleshooting
 - [Database lifecycle](hotel-app-be/database/README.md)
 - [Deployment](docs/guides/deployment.md) · [VPS access](docs/guides/vps-access.md)
 - [Security](SECURITY.md) · [production operations](docs/security/production-operations.md)
-- [Desktop packaging](docs/guides/PACKAGING.md) · [updater](hotel-desktop/UPDATER.md)
+- [Desktop packaging](docs/guides/desktop-packaging.md) · [updater](hotel-desktop/UPDATER.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## Status
 
-- **Implemented:** everything marked *Delivered* in [docs/FEATURES.md](docs/FEATURES.md) —
+- **Implemented:** everything marked *Delivered* in [docs/features.md](docs/features.md) —
   bookings, rooms, housekeeping, payments, ledgers, invoicing, night audit, eKYC, guest
   portal, loyalty, promotions, communications (email), i18n (en/ms/zh/zh-TW), and the
   desktop app.

@@ -780,7 +780,7 @@ function provisionPortableFromPrefix(expected, failExitCode = 1) {
   if (!postgresPrefix) {
     console.error(
       `POSTGRES_PREFIX is not set. Point it at a PostgreSQL ${expected.buildIdentity} install prefix\n` +
-        `(a from-source build; see hotel-desktop/PACKAGING.md for the per-OS recipe), then re-run this script.`,
+        `(a from-source build; see docs/guides/desktop-packaging.md for the per-OS recipe), then re-run this script.`,
     );
     process.exit(failExitCode);
   }

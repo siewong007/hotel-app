@@ -1,13 +1,13 @@
 # Internationalisation
 
 How to add a translated string, translate an existing screen, and add a
-language. The design rationale is [ADR 012](../architecture/ADRS.md); this file
+language. The design rationale is [ADR 012](../architecture/decision-records.md); this file
 is the working guide.
 
 Supported today: **English (`en`)**, **Bahasa Melayu (`ms`)**,
 **简体中文 (`zh`, `Intl` tag `zh-CN`)**, and **繁體中文 (`zh-TW`)**. The full
 coverage audit lives in
-[../i18n-coverage-inventory.md](../i18n-coverage-inventory.md).
+[../reference/i18n-coverage-inventory.md](../reference/i18n-coverage-inventory.md).
 
 ## Where things live
 

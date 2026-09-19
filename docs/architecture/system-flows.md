@@ -1,6 +1,6 @@
-# Architecture Flow
+# System Flows
 
-Decisions and rationale live in [ADRS.md](ADRS.md); deployment steps live in
+Decisions and rationale live in [decision-records.md](decision-records.md); deployment steps live in
 [the deployment guide](../guides/deployment.md).
 
 ## Web request flow
@@ -27,7 +27,7 @@ per-browser `grpcContexts` override); a disabled context keeps calling REST.
 The Vite dev proxy forwards `/hotel.`; the production edge matchers
 (`deploy/Caddyfile`, `deploy/deploy{,-staging}.sh`) do not yet — the flags
 therefore stay off outside development (ADR 014,
-[../grpc-migration/](../grpc-migration/)).
+[grpc-migration/](grpc-migration/)).
 
 ## Desktop flow
 
@@ -226,6 +226,31 @@ takes `bookings.deposit_amount` when `deposit_paid` is true and positive,
 otherwise the sum of completed `deposit` payments — alternatives, never additive.
 A missing or exceeded deposit is rejected; the one-refund-per-booking rule and
 partial refunds are unchanged.
+
+### Checkout deposit guard
+
+`ensure_checkout_balance_resolved` (`modules/bookings/lifecycle.rs`) gates every
+`checked_out`/`completed` transition through `update_booking_handler` — the
+single entry point the Bookings page, Rooms grid, ledger view and direct API
+calls all funnel through. Two independent conditions must hold:
+
+- **Billable balance settled.** `billable_total` minus the workflow summary's
+  `total_paid` (which excludes deposits — collateral, not charge payment) must
+  be zero, *unless* company billing carries the remainder to the city ledger.
+- **Held deposit resolved** — refunded, forfeited, or waived. Unlike the
+  balance check, this one is **not** exempted by company billing: a corporate
+  booking can still hold a keycard deposit.
+
+Both read pre-update state at the call site, so resolution must be a prior
+call — a payment or waive folded into the checkout request itself does not
+satisfy either guard.
+
+The held amount is the larger of the payments ledger's recorded deposits and
+the `bookings.deposit_{paid,amount}` mirror. The mirror exists because a legacy
+booking can assert a deposit with no payment rows behind it; it can only *add*
+a block, never mint refundable money — refund, forfeit and waive all still
+resolve through the ledger. The frontend derives the same lifecycle in
+`features/invoices/hooks/useDepositResolution.ts` for the checkout invoice.
 
 ## Ledger reporting
 

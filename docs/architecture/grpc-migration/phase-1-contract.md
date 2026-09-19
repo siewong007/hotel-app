@@ -1,4 +1,4 @@
-# gRPC contract — Phase 1 mapping (pilot: rooms + housekeeping)
+# gRPC Contract — Phase 1 Mapping (pilot: rooms + housekeeping)
 
 Status: **implemented** — this contract was approved and Phases 1–3 landed:
 the services are served by tonic in `hotel-app-be/src/grpc/` and the generated

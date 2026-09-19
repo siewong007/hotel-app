@@ -19,7 +19,7 @@ interface PaperIslandProps extends BoxProps {
  * chips, alerts) and `var(--hotel-*)` consumers resolve the warm-paper palette
  * no matter which app theme is active. On-screen invoice previews render
  * inside it to keep the printed document's paper identity — see
- * docs/DESIGN_SYSTEM.md. Print output itself can't see these vars; the print
+ * docs/design-system.md. Print output itself can't see these vars; the print
  * paths interpolate `paperTokens` literals instead.
  */
 export function PaperIsland({ children, style, ...boxProps }: PaperIslandProps) {

@@ -1,4 +1,4 @@
-# Terminology glossary
+# Internationalisation Glossary
 
 Canonical en → zh → ms renderings for hotel-domain terms. Every entry is
 extracted from the committed bundles — this file documents what shipped, not

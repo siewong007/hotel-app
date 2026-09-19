@@ -52,7 +52,7 @@ hardcoded in the script.
   PostgreSQL install prefix (no prebuilt binaries for the pinned beta exist).
   Linux trees get `$ORIGIN` rpaths via `patchelf` and external `.so`s bundled into
   `lib/`; Windows trees carry their dependency DLLs in `bin/`. Per-OS recipes:
-  `docs/guides/PACKAGING.md` and the `desktop-build.yml` CI jobs.
+  `docs/guides/desktop-packaging.md` and the `desktop-build.yml` CI jobs.
 - Force re-provisioning (e.g. after a version bump or a suspected bad copy):
   `bun run provision:pgsql:force`, or `bun scripts/provision-pgsql.mjs --force`.
 
@@ -79,7 +79,7 @@ bun run package:portable       # zip (win/mac) or tar.gz (linux) of the release 
 bun run test:scripts           # bun test over scripts/ (provision + sync helpers)
 ```
 
-For day-to-day verification, prefer `bun run build:fast`. For release candidates, use `bun run build` or a single installer target such as `bun run build:nsis`. Cross-platform packaging details (supported targets, signing, CI, smoke tests): `docs/guides/PACKAGING.md`.
+For day-to-day verification, prefer `bun run build:fast`. For release candidates, use `bun run build` or a single installer target such as `bun run build:nsis`. Cross-platform packaging details (supported targets, signing, CI, smoke tests): `docs/guides/desktop-packaging.md`.
 
 ## Rust Build Profiles
 

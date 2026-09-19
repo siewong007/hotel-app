@@ -880,7 +880,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       <DialogContent dividers>
         {(readOnly || checkoutStep === 'preview') ? (
           // STEP 1: Invoice Preview — the paper document on a paper surface
-          // (print identity is intentionally light; see docs/DESIGN_SYSTEM.md).
+          // (print identity is intentionally light; see docs/design-system.md).
           // PaperIsland re-themes everything inside to the warm-paper palette.
           (<PaperIsland sx={{ fontFamily: 'Arial, sans-serif', color: 'var(--hotel-text)', bgcolor: 'var(--hotel-surface)', p: 3, borderRadius: 1 }}>
             {error && (

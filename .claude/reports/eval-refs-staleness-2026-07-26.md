@@ -59,9 +59,9 @@ Sampled inline references that are within ±15 lines are OK:
 **CLAUDE.md path claims** (all verified as existing):
 - ✓ `hotel-desktop/BUILD_SPEED.md`
 - ✓ `hotel-desktop/UPDATER.md`
-- ✓ `docs/architecture/architecture-flow.md`
+- ✓ `docs/architecture/system-flows.md`
 - ✓ `docs/guides/deployment.md`
-- ✓ `docs/architecture/ADRS.md`
+- ✓ `docs/architecture/decision-records.md`
 - ✓ `docs/ongoing-dev.md`
 - ✓ `AGENTS.md`
 - ✓ `hotel-app-be/.env.example`

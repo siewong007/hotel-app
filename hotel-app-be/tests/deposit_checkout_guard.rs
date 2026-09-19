@@ -1,6 +1,6 @@
 //! Integration tests for the checkout deposit guard in
 //! `repositories::bookings::lifecycle::ensure_checkout_balance_resolved`
-//! (spec: `docs/superpowers/specs/2026-09-13-deposit-checkout-guard-design.md`).
+//! (rules: `docs/architecture/system-flows.md` §Checkout deposit guard).
 //!
 //! A `checked_out`/`completed` transition through `update_booking_handler` —
 //! the single entry point every caller (Bookings page, Rooms grid, ledger

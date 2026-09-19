@@ -236,19 +236,29 @@ docs: update deployment guide with Docker Compose
 
 ## Documentation
 
-Each fact has exactly one owning document. Update it there rather than restating it:
+Each fact has exactly one owning document. Update it there rather than restating
+it. [docs/README.md](docs/README.md) is the full map — the short version:
 
 - **README.md** — Project overview, features, tech stack, installation, API surface
 - **CLAUDE.md** — Agent routing index: commands, CI jobs, environment, architecture essentials
 - **AGENTS.md** — Layer responsibilities, naming, refactoring safety, dependency policy
 - **CONTRIBUTING.md** — Contribution process: branching, PR checklist, commit conventions
-- **docs/architecture/architecture-flow.md** — One-page system flow
-- **docs/architecture/ADRS.md** — Architecture Decision Records
+- **docs/README.md** — Documentation index: which document owns which subject
+- **docs/features.md** — Feature registry; the only place delivery status is recorded
+- **docs/architecture/overview.md** — System architecture as it exists today
+- **docs/architecture/system-flows.md** — One-page system flow
+- **docs/architecture/decision-records.md** — Architecture Decision Records
+- **docs/api/README.md** — API contract, beside the generated `api/openapi.json`
 - **docs/guides/deployment.md** — Deployment guide
 - **docs/security/** — Production operations runbook and backup/restore drill
 - **docs/ongoing-dev.md** — The live tracker for open work
 - **hotel-app-be/database/README.md** — Schema, baseline, and seed lifecycle
 - **Inline documentation** — Rust docstrings (`///`) and TypeScript JSDoc
+
+New documents live under `docs/` in lower-case kebab-case (`desktop-packaging.md`,
+not `PACKAGING.md`), and must be added to `docs/README.md` in the same commit —
+an unlisted document has no owner. `make docs-check` gates relative links, and it
+runs on Linux: a case-only mismatch passes locally on macOS and fails in CI.
 
 When adding a new feature (in your commits):
 1. Update `README.md` with the feature description

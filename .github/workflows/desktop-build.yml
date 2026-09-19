@@ -10,7 +10,7 @@ name: Desktop Build
 # the pinned PostgreSQL 19beta2 from the sha256-verified official source
 # tarball, because no trustworthy prebuilt binaries for that pre-release exist
 # (EDB's CDN rejects automated fetches; zonky embedded-postgres ships stable
-# releases only). Details: hotel-desktop/PACKAGING.md.
+# releases only). Details: docs/guides/desktop-packaging.md.
 on:
   workflow_dispatch:
     inputs:
@@ -273,7 +273,7 @@ jobs:
     name: Desktop — Real Tauri Build (Linux x86_64)
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux' }}
     # ubuntu-24.04 pins the glibc floor (2.39) the bundled binaries support;
-    # see hotel-desktop/PACKAGING.md for the compat matrix.
+    # see docs/guides/desktop-packaging.md for the compat matrix.
     runs-on: ubuntu-24.04
     timeout-minutes: 90
 

@@ -1,4 +1,4 @@
-# React client — Phase 3 (Connect/gRPC-Web)
+# React Client — Phase 3 (Connect/gRPC-Web)
 
 Frontend side of the migration: rooms, room types, housekeeping, maintenance
 and guests now dispatch to generated Connect clients **per bounded context**,

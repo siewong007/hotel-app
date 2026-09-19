@@ -27,7 +27,7 @@
 # Output: per-transport p50/p99 latency, throughput, and response bytes.
 # Interpretation: these endpoints are DB-bound, so latency deltas mostly
 # reflect codec cost (serde_json vs prost); the big win is response size.
-# Report numbers, not vibes — see docs/grpc-migration/.
+# Report numbers, not vibes — see docs/architecture/grpc-migration/.
 
 set -euo pipefail
 

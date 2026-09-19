@@ -101,7 +101,7 @@ unsigned-by-default:
   step merges `certificateThumbprint` + `timestampUrl` into the config.
 - macOS: `APPLE_*` secrets for Developer ID signing + notarization.
 
-See `docs/guides/PACKAGING.md` for the provisioning checklist.
+See `docs/guides/desktop-packaging.md` for the provisioning checklist.
 
 ## Verifying a release end-to-end
 

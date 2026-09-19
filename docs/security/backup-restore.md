@@ -1,4 +1,4 @@
-# Backup and restore drill
+# Backup and Restore Drill
 
 The deploy script creates a local pre-deploy PostgreSQL dump. It is a rollback
 aid, not a disaster-recovery backup: a host compromise or disk loss can destroy

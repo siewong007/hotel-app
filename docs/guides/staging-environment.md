@@ -1,4 +1,4 @@
-# Salim Inn staging (same VPS as production)
+# Staging Environment
 
 Staging runs on the AIC VPS alongside production, in an isolated Compose project.
 

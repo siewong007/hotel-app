@@ -4,7 +4,7 @@
 //! `guest_notes`, `guest_preferences`, reviews, loyalty, vouchers,
 //! communications, support conversations) behind the `/guests/{id}/...`
 //! endpoints described in
-//! `docs/superpowers/specs/2026-09-13-guest-relations-design.md`.
+//! `docs/architecture/guest-relations.md`.
 
 pub mod handlers;
 pub mod models;

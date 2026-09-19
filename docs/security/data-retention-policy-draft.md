@@ -1,4 +1,4 @@
-# Data-retention policy (DRAFT — requires legal review)
+# Data-Retention Policy (DRAFT — requires legal review)
 
 Status: **draft**. Every period below is a proposed target, not a decided
 policy. Malaysian PDPA's retention principle ("no longer than necessary"),

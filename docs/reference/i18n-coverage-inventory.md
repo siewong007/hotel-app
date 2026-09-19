@@ -1,11 +1,11 @@
-# i18n coverage inventory
+# i18n Coverage Inventory
 
 Full-coverage audit for `hotel-web-fe`, produced at the close of the
 `feat/i18n-coverage` branch (2026-09-15) and refreshed 2026-09-17 for the
 `zh-TW` locale and the namespaces added since. The design spec was removed
 with the shipped-plan cleanup (repo rule: plans delete on merge — git
 history has it); usage guide:
-[guides/internationalization.md](guides/internationalization.md).
+[../guides/internationalization.md](../guides/internationalization.md).
 
 - Locales: **en** (source of truth), **ms**, **zh** (`Intl` tag `zh-CN`),
   **zh-TW** (`Intl` tag `zh-TW`; `zh-Hant*` tags resolve here, `zh-Hans*`

@@ -1,9 +1,9 @@
-# Architecture
+# Architecture Overview
 
 This document describes the system as it exists today. Historical decisions and
-rationale live in [architecture/ADRS.md](architecture/ADRS.md); request-flow
-detail lives in [architecture/architecture-flow.md](architecture/architecture-flow.md);
-setup commands live in [DEVELOPMENT.md](DEVELOPMENT.md).
+rationale live in [decision-records.md](decision-records.md); request-flow
+detail lives in [system-flows.md](system-flows.md);
+setup commands live in [../development.md](../development.md).
 
 ## System overview
 
@@ -45,7 +45,7 @@ with `PROXY_PREFIXES` in `hotel-web-fe/vite.config.ts` — the proxy list now
 includes `/hotel.` (gRPC-Web), which neither this Caddyfile nor the generated
 matchers in `deploy/deploy{,-staging}.sh` route yet, so the gRPC rollout flags
 must stay off outside development until the edge matchers are updated (tracked
-in [ongoing-dev.md](ongoing-dev.md)).
+in [../ongoing-dev.md](../ongoing-dev.md)).
 
 Three transports share the one Axum process:
 
@@ -81,7 +81,7 @@ than the wildcard. Embedded PostgreSQL is initialized through the same baseline
 > Bumping it requires re-provisioning the tree *and* a data-directory migration —
 > beta on-disk formats have no supported in-place upgrade, which is why the
 > build-identity gate refuses a mismatched `pgdata`. Tracked in
-> [`ongoing-dev.md`](ongoing-dev.md) under the PostgreSQL 19 GA item.
+> [`../ongoing-dev.md`](../ongoing-dev.md) under the PostgreSQL 19 GA item.
 
 ## Repository structure
 
@@ -161,7 +161,7 @@ components/         Shared UI (data-table, dialogs, layout, common, charts)
 hooks/              Shared hooks (useApi, usePermissions, sockets, …)
 guest/              Guest-facing app shell — separate `guest.html` Vite entry
 desktop/            Tauri runtime helpers (service gate, IPC bridge)
-theme/              MUI theme + semantic token layer (see DESIGN_SYSTEM.md)
+theme/              MUI theme + semantic token layer (see ../design-system.md)
 i18n/               In-house Intl-based i18n engine + JSON locale bundles
 utils/              date.ts, errorMessage, pagination, sanitization, …
 ```
@@ -283,7 +283,7 @@ flowchart LR
 
 ## Feature modules
 
-See [FEATURES.md](FEATURES.md) for the status registry. Delivered domains:
+See [../features.md](../features.md) for the status registry. Delivered domains:
 
 | Domain | Backend surface | Frontend surface |
 |---|---|---|

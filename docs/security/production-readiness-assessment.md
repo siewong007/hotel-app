@@ -173,7 +173,7 @@ Gaps and notes:
   resources only). *Update (2026-09): the updater is now armed via GitHub
   Releases with a real signing keypair, and OS signing/notarization is
   wired but runs unsigned until certificate secrets are provisioned —
-  see `hotel-desktop/UPDATER.md` and `docs/guides/PACKAGING.md`.*
+  see `hotel-desktop/UPDATER.md` and `docs/guides/desktop-packaging.md`.*
 
 ## 6. Database and data integrity
 

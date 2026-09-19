@@ -1,4 +1,4 @@
-# i18n key → file usage map (generated)
+# i18n Key → File Usage Map (generated)
 
 Generated 2026-09-15 by a static pass over `hotel-web-fe/src` (literal
 `t()`/`tOr()`/`translate*()`/`statusLabel()` call sites, bound via each

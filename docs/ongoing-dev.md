@@ -2,14 +2,14 @@
 
 Single live tracker for open work. Keep entries to one line; **delete them when done**
 rather than striking them through — shipped behavior belongs in
-`docs/architecture/architecture-flow.md`, and detailed plans stay in `.claude/reports/`.
+`docs/architecture/system-flows.md`, and detailed plans stay in `.claude/reports/`.
 
 Last pruned 2026-09-19: security-eval L6 CSP-vs-PayPal (connect-src now
 enumerates the PayPal origins in `nginx.conf`), the FE test-desert tier (all
 five named pages now carry tests), the DONE/RESOLVED UI-consolidation items,
 and the stale mobile-density session note. The same pass removed every shipped
 plan under `docs/superpowers/plans/` plus the orphaned `.superpowers/sdd/`
-ledgers — see that README's removal record.
+ledgers — see the removal record in `docs/working-notes/README.md`.
 Prior prune 2026-09-15 (doc-sync audit): the L4 `TOTP_ENCRYPTION_KEY` action was
 removed as obsolete — `deploy/deploy.sh:211` already generates and persists that
 key via `ensure_secret_default` on every deploy, so the manual step it asked for
@@ -88,7 +88,7 @@ coverage, and the GitHub Action SHA-pinning sweep.
 - gRPC migration in flight: tonic services + Connect-ES client for rooms,
   housekeeping, maintenance, and guests shipped behind per-context runtime
   flags (REST stays default/fallback); ~350 REST paths remain —
-  `docs/grpc-migration/` is the working record. Open edge gap found
+  `docs/architecture/grpc-migration/` is the working record. Open edge gap found
   2026-09-19: the Vite proxy forwards `/hotel.` but neither
   `deploy/Caddyfile`'s `@backend` matcher nor the generated site matchers in
   `deploy/deploy{,-staging}.sh` route it, so production cannot serve gRPC-Web
@@ -101,7 +101,7 @@ Nothing open. The struck-through RESOLVED entries that used to live here were
 pruned 2026-09-15 per this file's own "delete them when done" rule; git history
 has the full text. Four had already been migrated to an owner doc — the
 void→ledger cascade to `.claude/refs/{booking,ledger}-workflow.md`, both PayPal
-decisions to `architecture/architecture-flow.md` §Payments, and the
+decisions to `architecture/system-flows.md` §Payments, and the
 `is_active` no-op to its code comment in `models/guest.rs`.
 
 Three were decisions with no other home, kept here as standing policy:
