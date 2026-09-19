@@ -542,6 +542,18 @@ pub async fn check_for_updates(app_handle: AppHandle) -> Result<UpdateInfo, Stri
     }
 }
 
+/// Best-effort shutdown of the backend sidecar and bundled PostgreSQL, shared
+/// by the `RunEvent::Exit` handler and `install_update`'s pre-exit hook.
+/// Failures are logged and swallowed — teardown must never abort an exit path.
+pub(crate) async fn stop_services_for_exit(app_handle: &AppHandle) {
+    if let Err(e) = stop_backend_sidecar().await {
+        log::warn!("Failed to stop backend sidecar on exit: {}", e);
+    }
+    if let Err(e) = crate::postgres::stop_postgres(app_handle).await {
+        log::warn!("Failed to stop PostgreSQL on exit: {}", e);
+    }
+}
+
 /// Outcome of an `install_update` call, returned to the frontend.
 #[derive(serde::Serialize)]
 pub struct InstallOutcome {
@@ -551,12 +563,44 @@ pub struct InstallOutcome {
 
 /// Download, verify (against `plugins.updater.pubkey` in `tauri.conf.json`),
 /// and install the pending update. Restart is a separate command so the UI can
-/// confirm with the user first — the install alone does not relaunch the app.
+/// confirm with the user first.
+///
+/// Platform note for the update UI (Task 4): on macOS/Linux the install alone
+/// does not relaunch the app — the UI should offer `restart_app` next. On
+/// Windows the updater runs the NSIS/MSI installer and exits the process via
+/// `std::process::exit(0)`; the installer itself relaunches the app
+/// (`restart_after_install`, default true). The invoke promise therefore never
+/// resolves on Windows — process exit is the success signal, not a failure.
 #[tauri::command]
 pub async fn install_update(app_handle: AppHandle) -> Result<InstallOutcome, String> {
     use tauri_plugin_updater::UpdaterExt;
 
-    let updater = app_handle.updater().map_err(|e| e.to_string())?;
+    // Windows-only hook (a no-op on other platforms): the plugin's install
+    // ends in std::process::exit(0), which bypasses the RunEvent::Exit
+    // teardown — the sidecar and pgsql binaries inside the install dir would
+    // stay running and file-locked while the installer replaces them.
+    // on_before_exit lives on UpdaterBuilder, not Update, and *replaces* the
+    // plugin's default cleanup_before_exit hook — so it is re-run here. The
+    // callback also fires inside the runtime's async context, where block_on
+    // panics, so the async teardown is driven from a helper thread.
+    let updater = app_handle
+        .updater_builder()
+        .on_before_exit({
+            let app_handle = app_handle.clone();
+            move || {
+                let handle = app_handle.clone();
+                if let Err(e) = std::thread::spawn(move || {
+                    tauri::async_runtime::block_on(stop_services_for_exit(&handle));
+                })
+                .join()
+                {
+                    log::warn!("update pre-exit service teardown panicked: {:?}", e);
+                }
+                app_handle.cleanup_before_exit();
+            }
+        })
+        .build()
+        .map_err(|e| e.to_string())?;
     let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
         return Ok(InstallOutcome {
             installed: false,
@@ -582,9 +626,12 @@ pub async fn install_update(app_handle: AppHandle) -> Result<InstallOutcome, Str
 }
 
 /// Relaunch the app (e.g. after `install_update`). Kept separate from install
-/// so the user can finish what they're doing before the restart. Never returns:
-/// the process exits and the OS relaunches it.
+/// so the user can finish what they're doing before the restart. Uses
+/// `request_restart`, which routes the exit through the event loop — the
+/// `RunEvent::Exit` teardown (sidecar + postgres stop) still runs — rather
+/// than `tauri::process::restart`, which hard-exits and would orphan them.
+/// Returns immediately; the app exits and relaunches shortly after.
 #[tauri::command]
 pub fn restart_app(app_handle: AppHandle) {
-    tauri::process::restart(&app_handle.env())
+    app_handle.request_restart();
 }

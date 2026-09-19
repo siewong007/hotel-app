@@ -44,7 +44,7 @@ const FIXTURE_FILES = {
 
 let workDir;
 
-const makeFixtures = () => {
+const makeFixtures = ({ configVersion = '1.2.3' } = {}) => {
   workDir = mkdtempSync(join(tmpdir(), 'update-manifest-'));
   const artifactsDir = join(workDir, 'artifacts');
   for (const [artifactDir, files] of Object.entries(FIXTURE_FILES)) {
@@ -54,11 +54,14 @@ const makeFixtures = () => {
       writeFileSync(path, path.endsWith('.sig') ? `sig-for-${rel}\n` : `payload-${rel}`);
     }
   }
-  return { artifactsDir, outDir: join(workDir, 'release') };
+  // Stand-in for src-tauri/tauri.conf.json — the manifest version contract.
+  const configPath = join(workDir, 'tauri.conf.json');
+  writeFileSync(configPath, JSON.stringify({ version: configVersion }));
+  return { artifactsDir, outDir: join(workDir, 'release'), configPath };
 };
 
-const run = (artifactsDir, outDir) =>
-  buildUpdateManifest({ tag: TAG, artifactsDir, repo: REPO, outDir });
+const run = (artifactsDir, outDir, configPath) =>
+  buildUpdateManifest({ tag: TAG, artifactsDir, repo: REPO, outDir, configPath });
 
 afterEach(() => {
   if (workDir) rmSync(workDir, { recursive: true, force: true });
@@ -66,8 +69,8 @@ afterEach(() => {
 
 describe('build-update-manifest', () => {
   test('emits latest.json with all three platforms, signatures, and URLs', () => {
-    const { artifactsDir, outDir } = makeFixtures();
-    const { manifest } = run(artifactsDir, outDir);
+    const { artifactsDir, outDir, configPath } = makeFixtures();
+    const { manifest } = run(artifactsDir, outDir, configPath);
 
     expect(manifest.version).toBe('1.2.3');
     expect(Number.isNaN(Date.parse(manifest.pub_date))).toBe(false);
@@ -99,8 +102,8 @@ describe('build-update-manifest', () => {
   });
 
   test('stages installers, updater bundles, sigs, portable archives — not raw bins or .app contents', () => {
-    const { artifactsDir, outDir } = makeFixtures();
-    const { assets } = run(artifactsDir, outDir);
+    const { artifactsDir, outDir, configPath } = makeFixtures();
+    const { assets } = run(artifactsDir, outDir, configPath);
 
     const staged = new Set(assets);
     // Wanted: every file under bundle/ except the unpacked .app tree.
@@ -130,7 +133,7 @@ describe('build-update-manifest', () => {
   });
 
   test('hard-fails when a platform signature is missing', () => {
-    const { artifactsDir, outDir } = makeFixtures();
+    const { artifactsDir, outDir, configPath } = makeFixtures();
     rmSync(
       join(
         artifactsDir,
@@ -138,12 +141,14 @@ describe('build-update-manifest', () => {
         'bundle/nsis/Hotel Management System_1.2.3_x64.nsis.zip.sig',
       ),
     );
-    expect(() => run(artifactsDir, outDir)).toThrow(/windows-x86_64.*signature/);
+    expect(() => run(artifactsDir, outDir, configPath)).toThrow(
+      /windows-x86_64.*signature/,
+    );
     expect(existsSync(join(outDir, 'latest.json'))).toBe(false);
   });
 
   test('hard-fails when a platform updater bundle is missing', () => {
-    const { artifactsDir, outDir } = makeFixtures();
+    const { artifactsDir, outDir, configPath } = makeFixtures();
     rmSync(
       join(
         artifactsDir,
@@ -151,7 +156,19 @@ describe('build-update-manifest', () => {
         'bundle/appimage/hotel-management-system_1.2.3_amd64.AppImage.tar.gz',
       ),
     );
-    expect(() => run(artifactsDir, outDir)).toThrow(/linux-x86_64/);
+    expect(() => run(artifactsDir, outDir, configPath)).toThrow(/linux-x86_64/);
+    expect(existsSync(join(outDir, 'latest.json'))).toBe(false);
+  });
+
+  test('hard-fails when the tag does not match tauri.conf.json version', () => {
+    // A v1.2.3 tag over a 9.9.9 config would publish a manifest advertising a
+    // version no installed build can reach — infinite update-offer loop.
+    const { artifactsDir, outDir, configPath } = makeFixtures({
+      configVersion: '9.9.9',
+    });
+    expect(() => run(artifactsDir, outDir, configPath)).toThrow(
+      /tag v1\.2\.3 does not match tauri\.conf\.json version 9\.9\.9/,
+    );
     expect(existsSync(join(outDir, 'latest.json'))).toBe(false);
   });
 });

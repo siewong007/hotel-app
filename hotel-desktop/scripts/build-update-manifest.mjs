@@ -18,7 +18,8 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Updater bundle per platform, matched against the file name. These are the
 // artifacts `bundle.createUpdaterArtifacts` emits next to the installers:
@@ -54,13 +55,47 @@ const isReleaseAsset = (path) => {
   return parts.includes('bundle');
 };
 
+// Resolved relative to this script so the release job can invoke it from any
+// cwd. Injectable via `configPath` for tests.
+const DEFAULT_CONFIG_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'src-tauri',
+  'tauri.conf.json',
+);
+
+// The tag is the release's version contract: latest.json tells every client
+// "tag vX.Y.Z carries app version X.Y.Z". A tag that doesn't match the bundled
+// version produces a manifest advertising a release no client can reach — an
+// infinite update-offer loop. Hard-fail before any manifest is written.
+const configVersionFor = (configPath) =>
+  JSON.parse(readFileSync(configPath, 'utf8')).version;
+
+const assertTagMatchesVersion = (tag, configPath) => {
+  const configVersion = configVersionFor(configPath);
+  const tagVersion = tag.replace(/^v/, '');
+  if (tagVersion !== configVersion) {
+    throw new Error(
+      `tag ${tag} does not match tauri.conf.json version ${configVersion} — ` +
+        'bump the version or retag before releasing',
+    );
+  }
+  return tagVersion;
+};
+
 // Scans <artifactsDir>/<artifactDir> for each platform, pairs the updater
 // bundle with its .sig, writes latest.json into <outDir>, and copies all
 // release assets flat into <outDir>. Returns { manifest, assets } — `assets`
 // is the list of staged file names (excluding latest.json). Throws on any
 // missing bundle/signature.
-export const buildUpdateManifest = ({ tag, artifactsDir, repo, outDir }) => {
-  const version = tag.replace(/^v/, '');
+export const buildUpdateManifest = ({
+  tag,
+  artifactsDir,
+  repo,
+  outDir,
+  configPath = DEFAULT_CONFIG_PATH,
+}) => {
+  const version = assertTagMatchesVersion(tag, configPath);
   const platforms = {};
   const errors = [];
 

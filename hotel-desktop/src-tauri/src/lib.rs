@@ -75,12 +75,7 @@ pub fn run() {
                 log::info!("Application exiting; stopping backend services...");
                 let handle = app_handle.clone();
                 tauri::async_runtime::block_on(async move {
-                    if let Err(e) = commands::stop_backend_sidecar().await {
-                        log::warn!("Failed to stop backend sidecar on exit: {}", e);
-                    }
-                    if let Err(e) = postgres::stop_postgres(&handle).await {
-                        log::warn!("Failed to stop PostgreSQL on exit: {}", e);
-                    }
+                    commands::stop_services_for_exit(&handle).await;
                 });
             }
         });

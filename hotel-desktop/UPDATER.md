@@ -61,6 +61,9 @@ installable-in-sequence (updates verify against the *installed* app's pubkey).
    `*-setup.exe`, `*.msi`), updater bundles + `*.sig`, and portable archives.
    Re-runs are idempotent (`gh release upload --clobber` when the release
    already exists).
+   The tag's version must equal `tauri.conf.json` `version` — the script
+   hard-fails on a mismatch, because a manifest advertising a version no
+   build equals would loop clients on an update they can never reach.
 4. Installed apps GET `releases/latest/download/latest.json`, compare
    `version`, and offer the update.
 
@@ -70,8 +73,9 @@ same artifacts but never publish a release — the release job is tag-gated.
 ## Frontend flag
 
 Update UI is gated on `VITE_DESKTOP_UPDATER_ENABLED === 'true'` at build time
-(and `shouldUseDesktopRuntime()`). CI sets it on the bundle steps. For a local
-`bun run build`, add `VITE_DESKTOP_UPDATER_ENABLED=true` to
+(and `shouldUseDesktopRuntime()`). CI will set it on the bundle steps — the
+env lands with the update-UI task, so it has no effect until then. For a
+local `bun run build`, add `VITE_DESKTOP_UPDATER_ENABLED=true` to
 `hotel-web-fe/.env.tauri` (untracked via root `.env.*`); `build-frontend.mjs`
 hashes `VITE_*` into the build cache key, so flipping it rebuilds the bundle.
 
