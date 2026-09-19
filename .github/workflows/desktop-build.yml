@@ -44,6 +44,25 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 60
 
+    # Signing/notarization inputs mapped at job level — `secrets` is not a
+    # legal context in step `if:` conditions. Every signing step below gates
+    # on `env.* != ''`, so with no secrets provisioned the job still produces
+    # unsigned bundles (today's default).
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      # API-key notarization alternative to APPLE_ID+APPLE_PASSWORD: the P8
+      # key material is decoded to a file by a step below (APPLE_API_KEY_PATH
+      # is a path, so it comes through GITHUB_ENV, not a secret mapping).
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+
     defaults:
       run:
         working-directory: hotel-desktop
@@ -139,6 +158,36 @@ jobs:
       - name: Provision embedded PostgreSQL tree
         run: bun run provision:pgsql
 
+      # Throwaway keychain + Developer ID import. Secrets absent → step
+      # skipped → tauri build finds no signing identity → unsigned .app/.dmg.
+      # KEYCHAIN_PASSWORD is any string — it only locks this ephemeral
+      # keychain, never the certificate itself.
+      - name: Import Apple signing certificate
+        if: ${{ env.APPLE_CERTIFICATE != '' }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import "$RUNNER_TEMP/certificate.p12" -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      # The sidecar binary doesn't exist until cargo build + copy run inside
+      # desktop:prepare (tauri's beforeBuildCommand) — produce it now so the
+      # sign step has the Mach-Os to sign. The prepare re-run inside
+      # `bun run build` is a cache hit; copy-backend-sidecar.mjs may re-copy
+      # the cargo output over src-tauri/binaries/, which is why the sign
+      # script signs BOTH locations.
+      - name: Build backend sidecar (pre-sign)
+        if: ${{ env.APPLE_SIGNING_IDENTITY != '' }}
+        run: |
+          bun scripts/build-backend-sidecar.mjs
+          bun scripts/copy-backend-sidecar.mjs
+
+      - name: Sign bundled resources
+        if: ${{ env.APPLE_SIGNING_IDENTITY != '' }}
+        run: bash scripts/sign-macos-resources.sh
+
       - name: Build desktop app (binary only)
         if: ${{ github.event.inputs.full_bundle != 'true' && github.ref_type != 'tag' }}
         run: bun run build:no-bundle
@@ -158,10 +207,28 @@ jobs:
           VITE_DESKTOP_UPDATER_ENABLED: "true"
         run: bun run build
 
-      # No OS-level code signing / notarization is configured for this build
-      # (certificateThumbprint is null in tauri.conf.json) — installers are
+      # API-key auth path for notarytool: the P8 material lives in a secret
+      # and is decoded to a file whose path goes through GITHUB_ENV
+      # (APPLE_API_KEY_PATH). Skipped when the secret is absent; the
+      # APPLE_ID+password path in the script needs no file.
+      - name: Write App Store Connect API key
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && env.APPLE_API_KEY_P8 != '' }}
+        run: |
+          echo "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+
+      # Runs only on bundle-producing builds with notarization credentials;
+      # unsigned default (no secrets) skips cleanly. The script prefers
+      # API-key auth and falls back to APPLE_ID+password.
+      - name: Notarize macOS bundle
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && (env.APPLE_ID != '' || env.APPLE_API_KEY != '') }}
+        run: bash scripts/notarize-macos.sh
+
+      # OS-level signing is conditional: with the APPLE_* secrets provisioned
+      # the .app is signed during `tauri build` (bundled resources pre-signed
+      # above) and the .dmg is notarized+stapled; without them installers are
       # unsigned. The updater *.sig files are minisign signatures from
-      # TAURI_SIGNING_PRIVATE_KEY, unrelated to OS trust.
+      # TAURI_SIGNING_PRIVATE_KEY, unrelated to OS trust either way.
       - name: Upload build artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -338,6 +405,16 @@ jobs:
     # and needs the same prefix if the tree must be re-provisioned.
     env:
       POSTGRES_PREFIX: C:\hotel-pg19
+      # Signing inputs are mapped at JOB level, not step level: `secrets`/`vars`
+      # are legal here, and a value the PFX-import step writes to GITHUB_ENV
+      # overrides job env (a step-level `env:` on the bundle step would shadow
+      # it instead). Two supported paths, both absent-proof:
+      #   WINDOWS_CERT_PFX_BASE64+PASSWORD — import into CurrentUser\My (hosted)
+      #   WINDOWS_CERT_THUMBPRINT         — cert already in the store (self-hosted)
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      WINDOWS_CERT_THUMBPRINT: ${{ secrets.WINDOWS_CERT_THUMBPRINT }}
+      WINDOWS_SIGN_TIMESTAMP_URL: ${{ vars.WINDOWS_SIGN_TIMESTAMP_URL }}
 
     defaults:
       run:
@@ -453,16 +530,31 @@ jobs:
         if: ${{ github.event.inputs.full_bundle != 'true' && github.ref_type != 'tag' }}
         run: bun run build:no-bundle
 
+      # PFX path for hosted runners: decode the base64 PFX into a temp file,
+      # import into CurrentUser\My, then hand the resolved thumbprint to the
+      # bundle step via GITHUB_ENV (overrides the job-env thumbprint secret,
+      # which may be empty — the imported cert is guaranteed to be in the
+      # store). Secrets absent → step skipped → unsigned, the default.
+      - name: Import code-signing certificate
+        if: ${{ env.WINDOWS_CERT_PFX_BASE64 != '' }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'hotel-codesign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $pwd = ConvertTo-SecureString $env:WINDOWS_CERT_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -Password $pwd -CertStoreLocation Cert:\CurrentUser\My
+          Remove-Item $pfx -Force
+          "WINDOWS_CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Certificate imported (thumbprint resolved; expires $($cert.NotAfter.ToString('yyyy-MM-dd')))"
+
       # NSIS is the always-on Windows installer; MSI joins it on tag releases
       # (WiX toolchain download adds build time, so validation builds skip it).
-      # Signing is conditional: set the WINDOWS_CERT_THUMBPRINT secret (a cert
-      # present in the runner/build agent's certificate store) and Tauri signs
-      # exe + installers via signtool. Absent → unsigned artifacts, by design.
+      # Signing is conditional: WINDOWS_CERT_THUMBPRINT reaches this step from
+      # job env (self-hosted store secret) or from the PFX import above via
+      # GITHUB_ENV (hosted runners) — either way Tauri signs exe + installers
+      # via signtool. Absent → unsigned artifacts, by design.
       - name: Build desktop app (NSIS / MSI)
         if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
         env:
-          WINDOWS_CERT_THUMBPRINT: ${{ secrets.WINDOWS_CERT_THUMBPRINT }}
-          WINDOWS_SIGN_TIMESTAMP_URL: ${{ vars.WINDOWS_SIGN_TIMESTAMP_URL }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # Arms the SystemHealthPage update card in the FE bundle — same

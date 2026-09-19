@@ -100,12 +100,17 @@ failed but the existing unproven tree may still work (warns, continues).
 - **Portable zip** (`package:portable`) is a validation/escape-hatch artifact:
   unzip anywhere, run `hotel-desktop.exe`. Nothing is written outside the
   user's data dir.
-- **Signing**: set the `WINDOWS_CERT_THUMBPRINT` secret (and optionally the
-  `WINDOWS_SIGN_TIMESTAMP_URL` repo variable) and the CI job merges
-  `bundle.windows.certificateThumbprint`/`digestAlgorithm`/`timestampUrl` into
-  the config via `tauri build --config`, so `signtool` signs the exe and the
-  installers. No secret → unsigned artifacts; local builds stay unsigned.
-  Certificates are never committed.
+- **Signing**: two secret-gated paths feed `signtool` via
+  `bundle.windows.certificateThumbprint` (merged through `tauri build
+  --config` when `WINDOWS_CERT_THUMBPRINT` is in the environment). Hosted
+  runners use `WINDOWS_CERT_PFX_BASE64` + `WINDOWS_CERT_PASSWORD` — a job
+  step imports the PFX into `Cert:\CurrentUser\My` and passes the resolved
+  thumbprint through `GITHUB_ENV`. Self-hosted runners with a persisted cert
+  store can set `WINDOWS_CERT_THUMBPRINT` directly instead (PFX wins when
+  both are set, since the freshly imported cert is guaranteed present).
+  `WINDOWS_SIGN_TIMESTAMP_URL` repo variable overrides the timestamp server
+  (default `http://timestamp.digicert.com`). No secrets → unsigned
+  artifacts; local builds stay unsigned. Certificates are never committed.
 - Known limits: WebView2 must exist on the host — the config uses
   `downloadBootstrapper` so the NSIS installer fetches it when missing. The
   app must not run elevated: PostgreSQL refuses to start as Administrator/root.
@@ -123,9 +128,58 @@ failed but the existing unproven tree may still work (warns, continues).
 
 ## macOS
 
-Unchanged: `bun run build` → `.app` + `.dmg` for aarch64. Signing/notarization
-are not configured (`certificateThumbprint`/identity placeholders remain empty)
-— see UPDATER.md for the Apple-side checklist when that work lands.
+`bun run build` → `.app` + `.dmg` for aarch64. OS signing is secret-gated in
+CI: with the Apple secrets provisioned, `desktop-build-macos` imports a
+Developer ID certificate into a throwaway keychain, signs every bundled
+Mach-O (`scripts/sign-macos-resources.sh` — the `pgsql/` tree and the
+backend sidecar) before `tauri build` signs the `.app`, then notarizes and
+staples the `.dmg` (`scripts/notarize-macos.sh`). Absent secrets → every
+step is skipped and the build stays unsigned. See the provisioning
+checklist below and UPDATER.md for the updater-sig distinction.
+
+## Signing provisioning checklist
+
+Everything below is secret-gated: with nothing provisioned, the
+`desktop-build.yml` jobs produce **unsigned** artifacts (the default). Set
+the secrets per platform to turn signing on — no workflow edits needed.
+Certificate material lives only in repo secrets, never in the tree.
+
+### Windows (pick one path)
+
+- **PFX (hosted runners)** — export the code-signing cert + private key as
+  `.pfx`, then `base64 -i cert.pfx` into secrets:
+  - `WINDOWS_CERT_PFX_BASE64` — base64 of the `.pfx`
+  - `WINDOWS_CERT_PASSWORD` — the PFX export password
+- **Thumbprint (self-hosted runners)** — cert already in the agent's store:
+  - `WINDOWS_CERT_THUMBPRINT` — SHA-1 thumbprint of the installed cert
+- Optional repo *variable*: `WINDOWS_SIGN_TIMESTAMP_URL` (default
+  `http://timestamp.digicert.com`).
+
+### macOS
+
+- `APPLE_CERTIFICATE` — base64 of a `.p12` export of the **Developer ID
+  Application** certificate + private key (Keychain Access → export).
+- `APPLE_CERTIFICATE_PASSWORD` — the `.p12` export password.
+- `APPLE_SIGNING_IDENTITY` — the cert's common name, e.g.
+  `Developer ID Application: Your Name (TEAMID)`.
+- `KEYCHAIN_PASSWORD` — any string; it locks the ephemeral CI keychain only.
+- Notarization credentials, **either**:
+  - `APPLE_ID` + `APPLE_PASSWORD` (an [app-specific
+    password](https://support.apple.com/102654)) + `APPLE_TEAM_ID`, **or**
+  - `APPLE_API_KEY` + `APPLE_API_ISSUER` + `APPLE_API_KEY_P8` (base64 of the
+    `.p8`) — an App Store Connect API key. API-key auth is preferred by
+    `notarize-macos.sh` when all three are set.
+
+### First signed release checklist
+
+1. Provision the secrets above for the platforms you intend to sign.
+2. Dispatch `desktop-build.yml` with `full_bundle` → confirm the signing
+   steps run (not skipped) and artifacts upload.
+3. Verify locally: `codesign --verify --deep --strict` +
+   `spctl --assess --type execute` on the `.app`; `signtool verify /pa` on
+   the NSIS exe; `xcrun stapler validate` on the `.dmg`.
+4. Tag a release (`v*`) — the same jobs sign, notarize, and publish via
+   `desktop-release`.
 
 ## CI
 
