@@ -164,14 +164,21 @@ async fn main() {
     // Initialize database pool
     // Six leader-locked schedulers and the cache-bus LISTENER each pin a
     // pooled connection for life. Below ~10 connections the remainder cannot
-    // serve requests — every acquire hits the timeout, healthcheck included.
+    // serve requests — every acquire hits the timeout, healthcheck included —
+    // so refuse to boot into guaranteed starvation.
     if config.database.max_connections < 10 {
-        log::warn!(
-            "DATABASE_MAX_CONNECTIONS={} leaves under 3 connections for \
+        log::error!(
+            "✗ DATABASE_MAX_CONNECTIONS={} leaves under 3 connections for \
              requests after 7 are pinned by schedulers and the cache-bus \
-             listener — expect acquire timeouts under load",
+             listener",
             config.database.max_connections
         );
+        eprintln!(
+            "FATAL: DATABASE_MAX_CONNECTIONS={} cannot serve requests; \
+             schedulers and the cache-bus listener pin 7 for life — set at least 10",
+            config.database.max_connections
+        );
+        std::process::exit(1);
     }
 
     let pool = match create_pool(&config.database).await {

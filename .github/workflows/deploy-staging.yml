@@ -255,6 +255,8 @@ jobs:
             -o "UserKnownHostsFile=$RUNNER_TEMP/vps-known-hosts" \
             "$VPS_USER@$VPS_HOST" \
             "set -eu
+             docker image prune -f >/dev/null 2>&1 || true
+             find /tmp -maxdepth 1 -name 'saliminn-*.tar.gz*' -mmin +60 -delete 2>/dev/null || true
              failed=0
              for target in /tmp /opt; do
                available=\$(df --output=avail -B1 \"\$target\" | tail -n 1 | tr -d ' ')
