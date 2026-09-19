@@ -108,8 +108,11 @@ With a real database that same suite reports **29 passed / 2 ignored**. Skipped
 tests early-return, and libtest counts an early return as a *pass* — so removing
 the database makes the number go **up** while testing less. The `~1,300` figure
 older docs quote as proof of "a full run" is in fact the fully-skipped number.
-(958 of those 1,317 are the `src/` unit tests counted twice — `main.rs`
-re-declares every module, so lib and bin each report 479.)
+(958 of those 1,317 *were* the `src/` unit tests counted twice — `main.rs`
+re-declared every module, so lib and bin each reported 479. Since 2026-09-19
+`main.rs` links the lib instead, so the bin reports **0** unit tests and the
+lib reports **509**; expect a total well below 1,317, which is the duplicate
+going away, not tests disappearing.)
 
 **Judge by wall-clock time and per-suite counts instead.** A PostgreSQL suite
 that finishes in hundredths of a second did nothing. To see the skips explicitly:

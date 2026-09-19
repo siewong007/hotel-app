@@ -3,10 +3,19 @@
 //! A comprehensive hotel management system built with Axum.
 
 // The binary links the `hotel_app_be` library rather than re-declaring every
-// module. Re-declaring them compiled the whole crate a second time (measured
-// 2026-09-19: `cargo check --all-features` 9.5s vs 4.0s for `--lib` alone).
-// Trade-off: `dead_code` no longer fires on the bin copy, because the lib's
-// `pub` items are externally reachable by construction. See lessons.md theme 2.
+// module. Re-declaring them compiled the whole crate a second time.
+//
+// Measured 2026-09-19, A/B on the same leaf-file edit, median of 3 runs each:
+// `cargo check --all-features` 8.75s -> 5.98s; incremental build+link after
+// touching this file 22.8s -> 12.9s. (An earlier draft of this comment claimed
+// "9.5s vs 4.0s" -- that compared against `--lib` alone and overstated the win,
+// because the thin bin is still checked and linked against the lib's metadata.)
+//
+// Trade-off: `dead_code` no longer fires on a duplicated bin copy, because every
+// lib module is `pub` and so externally reachable by construction. Taken after
+// confirming plain clippy reported zero dead-code findings at the time. A
+// qualified grep across `tests/` is now the only guard before deleting a
+// suspected-dead item. See lessons.md theme 2.
 use hotel_app_be::core::{self, AppConfig, AuthService, config, create_pool};
 use hotel_app_be::routes::create_router;
 use hotel_app_be::{modules, services};

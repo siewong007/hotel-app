@@ -141,7 +141,7 @@ using APIs newer than `lib: ES2024` passes tests and fails typecheck.
 - Treat existing behavior as the specification unless there is a clear bug, security issue, or data-loss risk.
 - Do not change route paths, HTTP methods, status codes, response fields, permission names, storage keys, or database column meanings during a refactor.
 - Schema changes go into the V1 baseline plus an idempotent patch for live databases. Nothing in this repo applies a second migration file, so a new `000N_*.sql` is inert.
-- Do not delete legacy code until a qualified grep confirms there are no callers. In this crate `main.rs` re-declares every module, so a `dead_code` warning describes the *bin* target only and can name an item that `tests/` still uses — grep `Struct::method` and `use hotel_app_be::` across `tests/` first.
+- Do not delete legacy code until a qualified grep confirms there are no callers. In this crate `main.rs` links the `hotel_app_be` lib (since 2026-09-19), so `dead_code` no longer reports on a duplicated bin copy at all — absence of a warning is NOT evidence an item is used. Grep `Struct::method` and `use hotel_app_be::` across `tests/` before deleting anything.
 - Do not change authentication, authorization, passkey, 2FA, payment, ledger, eKYC, or night audit behavior without targeted tests or explicit approval.
 - Keep SQL parameterized; never interpolate user input. Sanitize free text with the existing utilities. Use transactions for multi-step mutations — and note that in PostgreSQL a failed statement aborts the whole transaction, so `let _ = sqlx::query(...)` is not a safe "best effort"; use a SAVEPOINT or propagate the error.
 - Log internal error details server-side; return generic client-facing errors.
