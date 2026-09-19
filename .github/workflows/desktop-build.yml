@@ -104,6 +104,14 @@ jobs:
         working-directory: hotel-desktop
         run: bun ci
 
+      # hotel-app-be/build.rs compiles the gRPC protos with tonic-prost-build,
+      # which shells out to `protoc`. macos-14 does not ship it, so the backend
+      # sidecar build fails with "Could not find `protoc`" before any bundling
+      # happens. ci.yml installs protobuf-compiler on its Ubuntu runners for the
+      # same reason.
+      - name: Install protobuf compiler
+        run: brew install protobuf
+
       # PostgreSQL 19 is still pre-release, so Homebrew does not provide a
       # versioned formula yet. Build the official beta source and pass its
       # installation prefix to the resource provisioning script. This MUST
@@ -324,7 +332,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential curl ca-certificates pkg-config \
+            build-essential curl ca-certificates pkg-config protobuf-compiler \
             libssl-dev libicu-dev liblz4-dev zlib1g-dev libreadline-dev \
             libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
             patchelf xvfb
@@ -600,7 +608,7 @@ jobs:
       # pkgconfiglite: lets meson locate the vcpkg-built dependencies.
       - name: Install build tools
         run: |
-          choco install -y winflexbison3 nasm pkgconfiglite
+          choco install -y winflexbison3 nasm pkgconfiglite protoc
           python -m pip install --upgrade meson ninja
 
       # vcpkg provides OpenSSL/lz4/zlib/ICU for the PostgreSQL meson build.
