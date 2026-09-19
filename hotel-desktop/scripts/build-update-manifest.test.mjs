@@ -193,4 +193,21 @@ describe('build-update-manifest', () => {
     const { manifest } = run(artifactsDir, outDir, configPath);
     expect(manifest.notes).toBeNull();
   });
+
+  test('hard-fails when two artifacts sanitize to the same staged name', () => {
+    // `Hotel-Management-System_…dmg` and the spaced variant both sanitize to
+    // `Hotel-Management-System_…dmg` — silently shipping whichever staged
+    // last would publish the wrong asset, so refuse instead.
+    const { artifactsDir, outDir, configPath } = makeFixtures();
+    const colliding = join(
+      artifactsDir,
+      'hotel-desktop-macos-aarch64',
+      'bundle/dmg/Hotel-Management-System_1.2.3_aarch64.dmg',
+    );
+    writeFileSync(colliding, 'payload-collision');
+    expect(() => run(artifactsDir, outDir, configPath)).toThrow(
+      /asset name collision after sanitize/,
+    );
+    expect(existsSync(join(outDir, 'latest.json'))).toBe(false);
+  });
 });

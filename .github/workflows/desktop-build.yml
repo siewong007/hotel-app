@@ -788,17 +788,19 @@ jobs:
 
       - name: Assemble release assets + latest.json
         run: |
-          # Manifest `notes` = the annotated tag message. %(objecttype) is
-          # 'commit' on a lightweight tag, whose %(contents) would be the
-          # commit message — not release notes — so notes stay empty there.
+          # Manifest `notes` = the annotated tag message (subject + body;
+          # `contents` on a signed tag would also carry the PGP block).
+          # %(objecttype) is 'commit' on a lightweight tag, whose %(contents)
+          # would be the commit message — not release notes — so notes stay
+          # empty there. Passed via env, not a flag, so an annotation that
+          # begins with "--" can't trip the script's CLI arg parsing.
           NOTES=""
           if [ "$(git tag -l --format='%(objecttype)' "$GITHUB_REF_NAME")" = "tag" ]; then
-            NOTES="$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")"
+            NOTES="$(git tag -l --format='%(contents:subject)%0a%(contents:body)' "$GITHUB_REF_NAME")"
           fi
-          bun hotel-desktop/scripts/build-update-manifest.mjs \
+          NOTES="$NOTES" bun hotel-desktop/scripts/build-update-manifest.mjs \
             --tag "$GITHUB_REF_NAME" --artifacts artifacts \
-            --repo "$GITHUB_REPOSITORY" --out release-assets \
-            --notes "$NOTES"
+            --repo "$GITHUB_REPOSITORY" --out release-assets
 
       - name: Publish GitHub Release
         env:

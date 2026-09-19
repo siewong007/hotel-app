@@ -66,6 +66,10 @@ installable-in-sequence (updates verify against the *installed* app's pubkey).
    The tag's version must equal `tauri.conf.json` `version` — the script
    hard-fails on a mismatch, because a manifest advertising a version no
    build equals would loop clients on an update they can never reach.
+   `latest.json`'s `notes` field (what `check_for_updates` surfaces to the
+   UI) is populated from the tag's annotation — subject + body — so tag with
+   `git tag -a`, not a lightweight tag or `gh release create --generate-notes`
+   (those release notes stay GitHub-side only and never reach the app).
 4. Installed apps GET `releases/latest/download/latest.json`, compare
    `version`, and offer the update.
 

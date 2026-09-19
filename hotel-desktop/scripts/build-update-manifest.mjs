@@ -4,7 +4,7 @@
 //
 //   bun hotel-desktop/scripts/build-update-manifest.mjs \
 //     --tag v1.0.0 --artifacts ./artifacts --repo owner/name --out ./release \
-//     [--notes "tag annotation"]
+//     [--notes "tag annotation" | NOTES env var]
 //
 // Produces <out>/latest.json plus a flat copy of every installer, updater
 // bundle, .sig, and portable archive — each staged under a sanitized basename
@@ -205,7 +205,9 @@ if (import.meta.main) {
       artifactsDir: args.artifacts,
       repo: args.repo,
       outDir: args.out,
-      notes: args.notes || '',
+      // Env fallback so an annotation that begins with "--" can't trip
+      // parseArgs' "requires a value" check on the CLI path.
+      notes: args.notes ?? process.env.NOTES ?? '',
     });
     console.log(`latest.json written for ${manifest.version}:`);
     for (const [platform, entry] of Object.entries(manifest.platforms)) {
