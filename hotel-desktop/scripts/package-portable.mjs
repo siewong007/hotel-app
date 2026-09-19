@@ -11,7 +11,12 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, '..');
-const releaseDir = join(desktopRoot, 'src-tauri', 'target', 'release');
+const srcTauriRoot = join(desktopRoot, 'src-tauri');
+const releaseDir = join(srcTauriRoot, 'target', 'release');
+// The tauri build leaves the externalBin sidecar under src-tauri/binaries and
+// the resource trees under src-tauri/{pgsql,database} — only the app binary
+// lands in target/release.
+const sidecarDir = join(srcTauriRoot, 'binaries');
 const outDir = join(releaseDir, 'bundle');
 
 const isWindows = platform() === 'win32';
@@ -31,17 +36,15 @@ if (!existsSync(releaseDir)) {
   process.exit(1);
 }
 
-// Payload = everything the app resolves relative to its own executable:
-// the Tauri binary, the backend sidecar, and the bundled resource trees.
-const sidecars = readdirSync(releaseDir).filter((entry) =>
-  /^hotel-app-be-.+?\.exe$/.test(entry) || /^hotel-app-be-[^.]+$/.test(entry),
-);
-const payload = [
-  `hotel-desktop${exeSuffix}`,
-  ...sidecars,
-  'pgsql',
-  'database',
-].filter((entry) => existsSync(join(releaseDir, entry)));
+// Payload = everything the app resolves relative to its own executable,
+// archived flat: the Tauri binary (target/release), the backend sidecar
+// (src-tauri/binaries, tauri's externalBin staging dir), and the bundled
+// resource trees (src-tauri/pgsql, src-tauri/database).
+const sidecars = existsSync(sidecarDir)
+  ? readdirSync(sidecarDir).filter(
+      (entry) => /^hotel-app-be-.+?\.exe$/.test(entry) || /^hotel-app-be-[^.]+$/.test(entry),
+    )
+  : [];
 
 if (!existsSync(join(releaseDir, `hotel-desktop${exeSuffix}`))) {
   console.error(
@@ -50,12 +53,15 @@ if (!existsSync(join(releaseDir, `hotel-desktop${exeSuffix}`))) {
   process.exit(1);
 }
 if (sidecars.length === 0) {
-  console.error(`No hotel-app-be-<triple> sidecar found in ${releaseDir} — was the sidecar copied?`);
+  console.error(`No hotel-app-be-<triple> sidecar found in ${sidecarDir} — was the sidecar copied?`);
   process.exit(1);
 }
-if (!payload.includes('pgsql') || !payload.includes('database')) {
+const missingResources = ['pgsql', 'database'].filter(
+  (name) => !existsSync(join(srcTauriRoot, name)),
+);
+if (missingResources.length > 0) {
   console.error(
-    `pgsql/ and/or database/ resources are missing under ${releaseDir} — ` +
+    `${missingResources.join(' and ')} resource tree(s) missing under ${srcTauriRoot} — ` +
       `run 'bun run desktop:prepare' then build again.`,
   );
   process.exit(1);
@@ -63,9 +69,19 @@ if (!payload.includes('pgsql') || !payload.includes('database')) {
 
 mkdirSync(outDir, { recursive: true });
 
-const tarArgs = archiveExt === 'zip'
-  ? ['-a', '-c', '-f', outPath, '-C', releaseDir, ...payload]
-  : ['-c', '-z', '-f', outPath, '-C', releaseDir, ...payload];
+// Interleaved -C lets each entry come from its real source directory while
+// keeping every archive member flat (supported by GNU tar and bsdtar).
+const payload = [
+  [releaseDir, `hotel-desktop${exeSuffix}`],
+  ...sidecars.map((name) => [sidecarDir, name]),
+  [srcTauriRoot, 'pgsql'],
+  [srcTauriRoot, 'database'],
+];
+const tarArgs =
+  archiveExt === 'zip' ? ['-a', '-c', '-f', outPath] : ['-c', '-z', '-f', outPath];
+for (const [dir, entry] of payload) {
+  tarArgs.push('-C', dir, entry);
+}
 const result = spawnSync('tar', tarArgs, { stdio: 'inherit' });
 
 if (result.status !== 0) {
@@ -74,4 +90,4 @@ if (result.status !== 0) {
 }
 
 console.log(`Portable package written to ${outPath}`);
-console.log(`Contents: ${payload.join(', ')}`);
+console.log(`Contents: ${payload.map(([, entry]) => entry).join(', ')}`);

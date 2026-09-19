@@ -506,7 +506,7 @@ jobs:
           if-no-files-found: error
           path: |
             hotel-desktop/src-tauri/target/release/hotel-desktop.exe
-            hotel-desktop/src-tauri/target/release/hotel-app-be-*.exe
+            hotel-desktop/src-tauri/binaries/hotel-app-be-*.exe
             hotel-desktop/src-tauri/target/release/bundle/nsis/**
             hotel-desktop/src-tauri/target/release/bundle/msi/**
             hotel-desktop/src-tauri/target/release/bundle/*-portable.zip
