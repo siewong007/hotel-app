@@ -197,8 +197,9 @@ jobs:
         if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
         env:
           # Updater artifact signing (createUpdaterArtifacts: true). Absent →
-          # tauri build still succeeds but emits no *.sig files; the release
-          # job then hard-fails rather than ship an unsigned manifest.
+          # tauri build HARD-FAILS here (sign_updaters requires the key once
+          # pubkey is configured) — updater-enabled builds always need this
+          # secret; there is no unsigned-manifest path.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # Arms the SystemHealthPage update card in the FE bundle. Reaches
