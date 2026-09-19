@@ -1785,4 +1785,133 @@ mod postgres_tests {
             cleanup_scoped_role(&pool, role).await;
         }
     }
+
+    /// Regression: `execute_room_change_tx` referenced a
+    /// `bookings.room_rate_override` column that has never existed in any
+    /// schema version, so every execute-change call 500'd in production
+    /// (`column "room_rate_override" does not exist`). The override is an
+    /// input-only value: a re-price lands on `room_rate` + the
+    /// weekday/weekend override columns with `subtotal`/`total_amount`
+    /// recomputed across the stay, mirroring the booking edit path; an
+    /// omitted override preserves all four.
+    #[tokio::test]
+    async fn postgres_execute_room_change_reassigns_and_reprices() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 980_019;
+        let booking_id = 980_103;
+        let guest_id = 980_203;
+        let room_type_id = 980_404;
+        let (source_id, target_id, second_target_id) = (980_314, 980_315, 980_316);
+
+        cleanup_booking(&pool, booking_id).await;
+        cleanup_room(&pool, source_id).await;
+        cleanup_room(&pool, target_id).await;
+        cleanup_room(&pool, second_target_id).await;
+        cleanup_guest(&pool, guest_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+
+        seed_actor(&pool, actor_id).await;
+        grant_permission(&pool, actor_id, "bookings:update").await;
+        seed_room_type(&pool, room_type_id).await;
+        seed_room(&pool, source_id, room_type_id, "occupied").await;
+        seed_room(&pool, target_id, room_type_id, "available").await;
+        seed_room(&pool, second_target_id, room_type_id, "available").await;
+        seed_guest(&pool, guest_id).await;
+
+        // A checked-in booking spanning today: check_in yesterday, check_out
+        // in two days — three nights at the seeded 150.00 rate.
+        let check_in = Utc::now().date_naive() - Duration::days(1);
+        let check_out = check_in + Duration::days(3);
+        seed_booking(
+            &pool,
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id: source_id,
+                status: "checked_in",
+                check_in,
+                check_out,
+            },
+        )
+        .await;
+
+        let _ = rooms::execute_room_change_handler(
+            State(pool.clone()),
+            Path(source_id),
+            auth_headers(actor_id),
+            axum::Json(serde_json::json!({
+                "target_room_id": target_id,
+                "room_rate_override": 200.0,
+            })),
+        )
+        .await
+        .expect("room change with a rate override must succeed");
+
+        let (moved_to, rate, weekday, weekend, subtotal, total): (
+            i64,
+            String,
+            String,
+            String,
+            String,
+            String,
+        ) = sqlx::query_as(
+            "SELECT room_id, room_rate::text, rate_override_weekday::text, \
+                    rate_override_weekend::text, subtotal::text, total_amount::text \
+             FROM bookings WHERE id = $1",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(moved_to, target_id, "the booking must move to the target room");
+        assert_eq!(rate, "200.00", "the override lands on room_rate");
+        assert_eq!(weekday, "200.00");
+        assert_eq!(weekend, "200.00");
+        assert_eq!(subtotal, "600.00", "subtotal = override x 3 nights");
+        assert_eq!(total, "600.00");
+        assert_eq!(room_status_of(&pool, source_id).await, "dirty");
+        assert_eq!(room_status_of(&pool, target_id).await, "occupied");
+
+        // A second change without an override keeps every re-priced value —
+        // the COALESCE path must not blank the rate columns.
+        let _ = rooms::execute_room_change_handler(
+            State(pool.clone()),
+            Path(target_id),
+            auth_headers(actor_id),
+            axum::Json(serde_json::json!({"target_room_id": second_target_id})),
+        )
+        .await
+        .expect("room change without an override must succeed");
+
+        let (moved_to, rate, subtotal): (i64, String, String) = sqlx::query_as(
+            "SELECT room_id, room_rate::text, subtotal::text FROM bookings WHERE id = $1",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(moved_to, second_target_id);
+        assert_eq!(rate, "200.00", "an omitted override preserves the rate");
+        assert_eq!(subtotal, "600.00");
+        assert_eq!(room_status_of(&pool, second_target_id).await, "occupied");
+
+        // `room_changes.from_room_id`/`to_room_id` carry no cascade — delete
+        // by booking before the room/booking teardowns hit those FKs.
+        sqlx::query("DELETE FROM room_changes WHERE booking_id = $1")
+            .bind(booking_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        cleanup_booking(&pool, booking_id).await;
+        cleanup_room(&pool, source_id).await;
+        cleanup_room(&pool, target_id).await;
+        cleanup_room(&pool, second_target_id).await;
+        cleanup_guest(&pool, guest_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+    }
 }

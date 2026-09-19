@@ -1379,10 +1379,22 @@ pub async fn execute_room_change_tx(
         to_room_number,
         room_rate_override,
     } = values;
-    // COALESCE keeps any existing override when the caller moves the guest
-    // without re-pricing (e.g. the room-event flow).
+    // `bookings` has no `room_rate_override` column — the name is input-only.
+    // A re-price lands on the real rate columns exactly as the booking edit
+    // path does: flat room_rate + weekday/weekend overrides, and
+    // subtotal/total recomputed across the stay's nights. COALESCE keeps
+    // every existing value when the caller moves the guest without
+    // re-pricing (e.g. the room-event flow).
     sqlx::query(
-        "UPDATE bookings SET room_id = $1, room_rate_override = COALESCE($2, room_rate_override), updated_at = CURRENT_TIMESTAMP WHERE id = $3",
+        "UPDATE bookings SET \
+            room_id = $1, \
+            room_rate = COALESCE($2, room_rate), \
+            rate_override_weekday = COALESCE($2, rate_override_weekday), \
+            rate_override_weekend = COALESCE($2, rate_override_weekend), \
+            subtotal = COALESCE($2 * GREATEST(check_out_date - check_in_date, 1), subtotal), \
+            total_amount = COALESCE($2 * GREATEST(check_out_date - check_in_date, 1), total_amount), \
+            updated_at = CURRENT_TIMESTAMP \
+         WHERE id = $3",
     )
         .bind(target_id)
         .bind(room_rate_override)

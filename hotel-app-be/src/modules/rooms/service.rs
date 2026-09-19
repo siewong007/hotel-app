@@ -1183,7 +1183,7 @@ pub async fn execute_room_change_handler(
         .unwrap_or_else(|| "Room change requested".to_string());
 
     // Optional re-price applied inside the same transaction — omitted means
-    // the booking keeps its existing room_rate_override.
+    // the booking keeps its current rate and override columns.
     let room_rate_override = input
         .get("room_rate_override")
         .and_then(|v| {
