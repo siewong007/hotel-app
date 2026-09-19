@@ -11,7 +11,7 @@ status in [`hotel-desktop/UPDATER.md`](../../hotel-desktop/UPDATER.md).
 |---|---|---|---|
 | macOS | aarch64 (Apple Silicon) | `.app`, `.dmg` | `desktop-build-macos` (macos-14) |
 | Windows | x86_64 | NSIS `-setup.exe`, MSI, portable `.zip` | `desktop-build-windows` (windows-latest) |
-| Linux | x86_64 | `.deb`, `.AppImage`, portable `.tar.gz` | `desktop-build-linux` (ubuntu-24.04) |
+| Linux | x86_64 | `.deb`, `.AppImage`, `.rpm`, portable `.tar.gz` | `desktop-build-linux` (ubuntu-24.04) |
 
 Only these are built and smoke-tested in CI. Windows ARM64 and Linux ARM64 are
 *not* claimed — Tauri can target them, but nothing here builds or verifies them.
@@ -46,7 +46,7 @@ bun run build:nsis             # Windows NSIS installer
 bun run build:msi              # Windows MSI (WiX)
 bun run build:deb              # Linux .deb
 bun run build:appimage         # Linux .AppImage
-bun run build:rpm              # Linux .rpm (needs rpmbuild toolchain)
+bun run build:rpm              # Linux .rpm
 
 # packaging (requires a completed build)
 bun run package:portable       # portable archive of the release output
@@ -54,10 +54,11 @@ bun run package:portable       # portable archive of the release output
                                #   → bundle/hotel-desktop-<os>-<arch>-portable.tar.gz (linux)
 ```
 
-RPM is opt-in: the bundler needs `rpmbuild`, which the Ubuntu CI job does not
-carry, so `build`/`all` on Linux would fail there. CI passes `--bundles
-deb,appimage` explicitly; run `build:rpm` locally on a Fedora/RHEL-ish system if
-RPM distribution ever becomes a requirement.
+RPM ships alongside deb/AppImage: tauri-bundler writes `.rpm` in-process via
+the pure-Rust `rpm` crate, so no `rpmbuild` toolchain is needed anywhere —
+CI passes `--bundles deb,appimage,rpm` and install-smokes the result in a
+`fedora:41` container (`dnf install` + bundled-PostgreSQL check, run
+35424550838). `build:rpm` remains the single-format local path.
 
 ## Embedded PostgreSQL provisioning
 
@@ -100,32 +101,108 @@ failed but the existing unproven tree may still work (warns, continues).
 - **Portable zip** (`package:portable`) is a validation/escape-hatch artifact:
   unzip anywhere, run `hotel-desktop.exe`. Nothing is written outside the
   user's data dir.
-- **Signing**: set the `WINDOWS_CERT_THUMBPRINT` secret (and optionally the
-  `WINDOWS_SIGN_TIMESTAMP_URL` repo variable) and the CI job merges
-  `bundle.windows.certificateThumbprint`/`digestAlgorithm`/`timestampUrl` into
-  the config via `tauri build --config`, so `signtool` signs the exe and the
-  installers. No secret → unsigned artifacts; local builds stay unsigned.
-  Certificates are never committed.
+- **Signing**: two secret-gated paths feed `signtool` via
+  `bundle.windows.certificateThumbprint` (merged through `tauri build
+  --config` when `WINDOWS_CERT_THUMBPRINT` is in the environment). Hosted
+  runners use `WINDOWS_CERT_PFX_BASE64` + `WINDOWS_CERT_PASSWORD` — a job
+  step imports the PFX into `Cert:\CurrentUser\My` and passes the resolved
+  thumbprint through `GITHUB_ENV`. Self-hosted runners with a persisted cert
+  store can set `WINDOWS_CERT_THUMBPRINT` directly instead (PFX wins when
+  both are set, since the freshly imported cert is guaranteed present).
+  `WINDOWS_SIGN_TIMESTAMP_URL` repo variable overrides the timestamp server
+  (default `http://timestamp.digicert.com`). No secrets → unsigned
+  artifacts; local builds stay unsigned. Certificates are never committed.
 - Known limits: WebView2 must exist on the host — the config uses
   `downloadBootstrapper` so the NSIS installer fetches it when missing. The
   app must not run elevated: PostgreSQL refuses to start as Administrator/root.
-- Deep links / auto-launch: not currently implemented on any platform — no
-  `tauri-plugin-deep-link` or autostart wiring exists to port.
 
 ## Linux
 
 - **`.deb`** (`build:deb`): installs to `/usr/bin` + `/usr/lib/<name>/`, ships a
   `.desktop` entry and icons; `Depends:` is auto-resolved by the bundler.
 - **`.AppImage`** (`build:appimage`): single-file build; host needs `libfuse2`.
-- **`.rpm`** (`build:rpm`): supported by the bundler but not exercised in CI —
-  see "Commands".
+- **`.rpm`** (`build:rpm`): supported and exercised in CI — `desktop-build.yml`
+  builds it on every bundle run and install-smokes it in a `fedora:41`
+  container (`dnf install` → `rpm -q` → `/usr/bin/hotel-desktop` → bundled
+  `postgres --version` = 19beta2). Package name is kebab-cased
+  `hotel-management-system` (from `productName`), not `hotel-desktop`.
+  `rpm -qpR` declares only SONAME requires — `libwebkit2gtk-4.1.so.0` and
+  `libgtk-3.so.0` — which dnf resolved to a 314-package transaction on f41
+  (webkit2gtk4.1 2.50.1, gtk3 3.24.43; verified run 35424550838).
 - Portable `.tar.gz` mirrors the portable zip semantics on Windows.
 
 ## macOS
 
-Unchanged: `bun run build` → `.app` + `.dmg` for aarch64. Signing/notarization
-are not configured (`certificateThumbprint`/identity placeholders remain empty)
-— see UPDATER.md for the Apple-side checklist when that work lands.
+`bun run build` → `.app` + `.dmg` for aarch64. OS signing is secret-gated in
+CI: with the Apple secrets provisioned, `desktop-build-macos` imports a
+Developer ID certificate into a throwaway keychain, signs every bundled
+Mach-O (`scripts/sign-macos-resources.sh` — the `pgsql/` tree and the
+backend sidecar) before `tauri build` signs the `.app`, then notarizes and
+staples the `.dmg` (`scripts/notarize-macos.sh`). Absent secrets → every
+step is skipped and the build stays unsigned. See the provisioning
+checklist below and UPDATER.md for the updater-sig distinction.
+
+## Known limits — all platforms
+
+- **Sessions do not survive an app restart.** The webview origin
+  (`tauri://localhost` / `http://tauri.localhost`) differs from the backend
+  sidecar's `http://127.0.0.1:*`, so the `SameSite` refresh cookie is never
+  sent to the backend — after every launch the user logs in again. This is
+  an accepted limitation: closing it means token-in-keychain work (a
+  separate spec), not a packaging change.
+- Deep links / auto-launch: not implemented on any platform — no
+  `tauri-plugin-deep-link` or autostart wiring exists to port.
+
+## Signing provisioning checklist
+
+Everything below is secret-gated: with nothing provisioned, the
+`desktop-build.yml` jobs produce **unsigned** artifacts (the default). Set
+the secrets per platform to turn signing on — no workflow edits needed.
+Certificate material lives only in repo secrets, never in the tree.
+
+This covers **OS-level** signing only. Updater signing is separate and
+**mandatory**: `createUpdaterArtifacts` + a configured `pubkey` make
+`tauri build` hard-fail without `TAURI_SIGNING_PRIVATE_KEY` (provisioned —
+see [`hotel-desktop/UPDATER.md`](../../hotel-desktop/UPDATER.md)), so
+"unsigned" here always means unsigned OS artifacts, never unsigned
+updater artifacts.
+
+### Windows (pick one path)
+
+- **PFX (hosted runners)** — export the code-signing cert + private key as
+  `.pfx`, then `base64 -i cert.pfx` into secrets:
+  - `WINDOWS_CERT_PFX_BASE64` — base64 of the `.pfx`
+  - `WINDOWS_CERT_PASSWORD` — the PFX export password
+- **Thumbprint (self-hosted runners)** — cert already in the agent's store:
+  - `WINDOWS_CERT_THUMBPRINT` — SHA-1 thumbprint of the installed cert
+- Optional repo *variable*: `WINDOWS_SIGN_TIMESTAMP_URL` (default
+  `http://timestamp.digicert.com`).
+
+### macOS
+
+- `APPLE_CERTIFICATE` — base64 of a `.p12` export of the **Developer ID
+  Application** certificate + private key (Keychain Access → export).
+- `APPLE_CERTIFICATE_PASSWORD` — the `.p12` export password.
+- `APPLE_SIGNING_IDENTITY` — the cert's common name, e.g.
+  `Developer ID Application: Your Name (TEAMID)`.
+- `KEYCHAIN_PASSWORD` — any string; it locks the ephemeral CI keychain only.
+- Notarization credentials, **either**:
+  - `APPLE_ID` + `APPLE_PASSWORD` (an [app-specific
+    password](https://support.apple.com/102654)) + `APPLE_TEAM_ID`, **or**
+  - `APPLE_API_KEY` + `APPLE_API_ISSUER` + `APPLE_API_KEY_P8` (base64 of the
+    `.p8`) — an App Store Connect API key. API-key auth is preferred by
+    `notarize-macos.sh` when all three are set.
+
+### First signed release checklist
+
+1. Provision the secrets above for the platforms you intend to sign.
+2. Dispatch `desktop-build.yml` with `full_bundle` → confirm the signing
+   steps run (not skipped) and artifacts upload.
+3. Verify locally: `codesign --verify --deep --strict` +
+   `spctl --assess --type execute` on the `.app`; `signtool verify /pa` on
+   the NSIS exe; `xcrun stapler validate` on the `.dmg`.
+4. Tag a release (`v*`) — the same jobs sign, notarize, and publish via
+   `desktop-release`.
 
 ## CI
 
@@ -153,9 +230,15 @@ pgsql/sidecar resources, since `tauri build` is too slow for the PR loop). The
 psql-spawning unit tests are `#[cfg(unix)]`-gated; `DESKTOP_TEST_*` env vars
 enable live-psql coverage when a real database is available.
 
-GitHub Release publishing on tags is deliberately **not** wired — the workflow
-is `contents: read` and uploads artifacts only; promoting a tag to a Release is
-a maintainer step (`gh release create` with the downloaded artifacts).
+Tag pushes additionally run `desktop-release` — the only job with
+`contents: write` (the workflow default stays `contents: read`). It
+downloads the three platforms' artifacts, assembles `latest.json` and the
+release assets via `hotel-desktop/scripts/build-update-manifest.mjs`, and
+publishes them to the tag's GitHub Release (`gh release create`; an
+idempotent `gh release upload --clobber` covers re-runs). That Release is
+the updater endpoint — see [`hotel-desktop/UPDATER.md`](../../hotel-desktop/UPDATER.md).
+`workflow_dispatch` runs never publish: the job is gated on
+`github.ref_type == 'tag'`.
 
 ## Troubleshooting
 

@@ -4,16 +4,24 @@
 //  - "booking notes menu action" regression tests: the compact phone card
 //    dropped the card's inline notes editor, so the menu (BottomSheet on
 //    phone, anchored Menu on desktop) must keep it reachable.
+//  - status-change workflows: the only wired quick action is mark-available
+//    (card pill on dirty rooms, "Mark clean" menu primary on reserved-dirty);
+//    every other status move goes through the shared RoomStatusUpdateDialog,
+//    which handleSaveRoomStatus forwards to RoomsService verbatim.
 // The page's real getMenuLayout runs here — workflow hooks are mocked at the
-// barrel, dialogs are stubbed, the card + context menu under test are not.
+// barrel, most dialogs are stubbed, the card + context menu + the shared
+// status dialog under test are not.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   isPhone: true,
   openBookingNotes: vi.fn(),
+  updateRoomStatus: vi.fn(),
+  reload: vi.fn(),
+  setRoomSearch: vi.fn(),
   rooms: [] as import('../../../../types').Room[],
   roomBookings: new Map<string, import('../../../../types').BookingWithDetails>(),
   reservedBookings: new Map<string, import('../../../../types').BookingWithDetails>(),
@@ -37,7 +45,7 @@ vi.mock('../../../../router', () => ({
 vi.mock('../../../../api', () => ({
   BookingsService: { markBookingComplimentary: vi.fn() },
   RoomsService: {
-    updateRoomStatus: vi.fn(),
+    updateRoomStatus: mocks.updateRoomStatus,
     getRoomHistory: vi.fn().mockResolvedValue([]),
     executeRoomChange: vi.fn(),
   },
@@ -64,7 +72,7 @@ vi.mock('../../hooks', () => ({
     roomBookings: mocks.roomBookings,
     reservedBookings: mocks.reservedBookings,
     allBookingsData: [],
-    reload: vi.fn(),
+    reload: mocks.reload,
     reloadRooms: vi.fn(),
     reloadBookings: vi.fn(),
   }),
@@ -98,7 +106,7 @@ vi.mock('../../hooks', () => ({
     floorFilter: 'all',
     setFloorFilter: vi.fn(),
     roomSearch: '',
-    setRoomSearch: vi.fn(),
+    setRoomSearch: mocks.setRoomSearch,
     prioritySort: false,
     togglePrioritySort: vi.fn(),
     floors: [],
@@ -226,6 +234,13 @@ const renderPage = () =>
     </QueryClientProvider>,
   );
 
+// Opens the surface a card click raises (anchored Menu on desktop, BottomSheet
+// on phone) and waits for the one entry every room's housekeeping section has.
+const openRoomMenu = async (roomNumber: string) => {
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(`Room ${roomNumber}`) }));
+  await screen.findByText('Update status / block');
+};
+
 const occupiedRoom: Room = {
   id: 'r1',
   room_number: '101',
@@ -254,6 +269,26 @@ const vacantRoom: Room = {
   available: true,
   max_occupancy: 2,
   status: 'available',
+};
+
+const dirtyRoom: Room = {
+  id: 'r4',
+  room_number: '104',
+  room_type: 'deluxe',
+  price_per_night: 120,
+  available: false,
+  max_occupancy: 2,
+  status: 'dirty',
+};
+
+const reservedDirtyRoom: Room = {
+  id: 'r5',
+  room_number: '105',
+  room_type: 'deluxe',
+  price_per_night: 120,
+  available: false,
+  max_occupancy: 2,
+  status: 'reserved_dirty',
 };
 
 const booking: BookingWithDetails = {
@@ -389,5 +424,116 @@ describe('RoomManagementPage — booking notes menu action', () => {
 
     expect(mocks.openBookingNotes).toHaveBeenCalledTimes(1);
     expect(mocks.openBookingNotes).toHaveBeenCalledWith(booking);
+  });
+});
+
+describe('RoomManagementPage — status-change workflows', () => {
+  beforeEach(() => {
+    mocks.isPhone = false;
+    mocks.updateRoomStatus.mockClear();
+    mocks.reload.mockClear();
+    mocks.setRoomSearch.mockClear();
+    mocks.rooms = [];
+    mocks.roomBookings = new Map([['r1', booking]]);
+    mocks.reservedBookings = new Map();
+    mocks.infoByRoom = new Map([
+      ['r1', statusInfo({
+        computedStatus: 'occupied',
+        booking,
+        hasCheckedInBooking: true,
+        isOccupied: true,
+      })],
+      ['r4', statusInfo({ computedStatus: 'dirty' })],
+      ['r5', statusInfo({ computedStatus: 'reserved_dirty' })],
+    ]);
+  });
+  afterEach(cleanup);
+
+  it('marks a dirty room available from the card action with the canned note payload', async () => {
+    mocks.rooms = [dirtyRoom];
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark available' }));
+
+    await waitFor(() =>
+      expect(mocks.updateRoomStatus).toHaveBeenCalledWith(dirtyRoom.id, {
+        status: 'available',
+        notes: 'Room marked as available',
+      }),
+    );
+    expect(mocks.reload).toHaveBeenCalled();
+  });
+
+  it('marks a reserved-dirty room available from the menu primary action', async () => {
+    mocks.rooms = [reservedDirtyRoom];
+    renderPage();
+
+    await openRoomMenu('105');
+    // The card pill carries the same "Mark clean" label — scope to the menu.
+    const menu = await screen.findByRole('menu');
+    fireEvent.click(within(menu).getByRole('button', { name: 'Mark clean' }));
+
+    await waitFor(() =>
+      expect(mocks.updateRoomStatus).toHaveBeenCalledWith(reservedDirtyRoom.id, {
+        status: 'available',
+        notes: 'Room marked as available',
+      }),
+    );
+    expect(mocks.reload).toHaveBeenCalled();
+  });
+
+  it('sends the requested status and notes verbatim from RoomStatusUpdateDialog', async () => {
+    mocks.rooms = [occupiedRoom];
+    renderPage();
+
+    await openRoomMenu('101');
+    fireEvent.click(screen.getByText('Update status / block'));
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.mouseDown(within(dialog).getByRole('combobox', { name: 'New status' }));
+    fireEvent.click(await screen.findByRole('option', { name: /dirty/i }));
+    fireEvent.change(within(dialog).getByLabelText(/notes/i), {
+      target: { value: 'Carpet needs shampooing' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Update Status' }));
+
+    // handleSaveRoomStatus deliberately does NOT coerce the requested status —
+    // the backend owns the available→reserved decision.
+    await waitFor(() =>
+      expect(mocks.updateRoomStatus).toHaveBeenCalledWith(occupiedRoom.id, {
+        status: 'dirty',
+        notes: 'Carpet needs shampooing',
+      }),
+    );
+    expect(mocks.reload).toHaveBeenCalled();
+  });
+
+  it('omits notes when the dialog submits none', async () => {
+    mocks.rooms = [occupiedRoom];
+    renderPage();
+
+    await openRoomMenu('101');
+    fireEvent.click(screen.getByText('Update status / block'));
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.mouseDown(within(dialog).getByRole('combobox', { name: 'New status' }));
+    fireEvent.click(await screen.findByRole('option', { name: /maintenance/i }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Update Status' }));
+
+    await waitFor(() =>
+      expect(mocks.updateRoomStatus).toHaveBeenCalledWith(occupiedRoom.id, {
+        status: 'maintenance',
+        notes: undefined,
+      }),
+    );
+  });
+
+  it('typing a room number calls setRoomSearch', () => {
+    mocks.rooms = [occupiedRoom];
+    renderPage();
+
+    fireEvent.change(screen.getByPlaceholderText('Room #'), { target: { value: '301' } });
+
+    expect(mocks.setRoomSearch).toHaveBeenCalledWith('301');
   });
 });

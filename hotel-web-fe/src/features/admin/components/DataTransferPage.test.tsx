@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +30,7 @@ vi.mock('../../../hooks/useIsPhone', () => ({
 }));
 
 import DataTransferPage from './DataTransferPage';
+import { DataTransferService } from '../../../api';
 import { expectNoCriticalAxeViolations } from '../../../test/axe';
 
 const ALL_PERMISSIONS = [
@@ -115,6 +116,41 @@ describe('DataTransferPage', () => {
     expect(screen.queryByRole('button', { name: 'Export' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Import' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'History' })).toBeTruthy();
+  });
+
+  it('switches to the import wizard when the Import tab is clicked', async () => {
+    grant(...ALL_PERMISSIONS);
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+
+    expect(await screen.findByText('Select a backup file to import')).toBeTruthy();
+    // The tabs own the content area exclusively — the export panel unmounted.
+    expect(screen.queryByText('Standard export')).toBeNull();
+  });
+
+  it('switches to the transfer history when the History tab is clicked', async () => {
+    vi.mocked(DataTransferService.transferHistory).mockResolvedValue({
+      entries: [
+        {
+          id: 11,
+          action: 'data_export',
+          userId: 1,
+          username: 'admin.test',
+          createdAt: '2026-09-17T10:00:00Z',
+          details: { export_type: 'standard', record_count: 42, export_id: 'exp-abc123' },
+        },
+      ],
+      total: 1,
+    });
+    grant(...ALL_PERMISSIONS);
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'History' }));
+
+    // Server-backed row projected through mapServerHistoryEntry.
+    expect(await screen.findByText('Standard export')).toBeTruthy();
+    expect(screen.getByText('admin.test')).toBeTruthy();
+    expect(screen.getByText('42')).toBeTruthy();
+    expect(screen.getByText('Success')).toBeTruthy();
   });
 
   it('reports no critical axe violations', async () => {

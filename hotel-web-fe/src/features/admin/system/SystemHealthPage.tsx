@@ -15,6 +15,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { useSystemHealth } from './hooks';
 import { JobsTable } from './JobsTable';
 import { LogoLoader } from '../../../components';
+import { UpdateChecker } from '../../../desktop/UpdateChecker';
 import { useTranslation } from '../../../i18n';
 import { formatNumber } from '../../../i18n/format';
 
@@ -130,6 +131,9 @@ const SystemHealthPage: React.FC = () => {
                   }
                 />
               </Grid>
+              {/* Desktop-only: renders null (no grid cell) unless the updater
+                  flag armed this build. */}
+              <UpdateChecker />
             </Grid>
 
             <Card variant="outlined" sx={{ mb: 3 }}>

@@ -4,6 +4,7 @@
 
 use rand::RngExt;
 use std::net::TcpListener;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, LazyLock};
 use tauri::{AppHandle, Emitter, Manager};
@@ -103,15 +104,22 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
     let sidecar_command = shell
         .sidecar("hotel-app-be")
         .map_err(|e| format!("Failed to create sidecar command: {}", e))?
+        // The backend resolves uploads/, private_uploads/ and other relative
+        // paths against its CWD — pin it to the data dir so user files land in
+        // managed storage (and therefore in backups) instead of wherever the
+        // app happened to be launched from.
+        .current_dir(get_data_directory())
         .env("DATABASE_URL", &database_url)
         .env("BACKEND_PORT", backend_port.to_string())
         .env("JWT_SECRET", jwt_secret)
         .env("HOTEL_DESKTOP_MODE", "1")
         // KEEP IN SYNC: dev proxy prefixes in hotel-web-fe/vite.config.ts;
-        // router merge in hotel-app-be/src/routes/mod.rs
+        // router merge in hotel-app-be/src/routes/mod.rs; dev http origins in
+        // src-tauri/capabilities/default.json remote.urls — parity enforced by
+        // hotel-desktop/scripts/origin-parity.test.mjs.
         .env(
             "ALLOWED_ORIGINS",
-            "tauri://localhost,http://tauri.localhost,http://localhost:3000,http://localhost:5173",
+            "tauri://localhost,http://tauri.localhost,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173",
         )
         .env("SKIP_EMAIL_VERIFICATION", "true")
         .env("TRUST_PROXY_HEADERS", "false")
@@ -180,6 +188,12 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
 
     BACKEND_STARTING.store(false, Ordering::SeqCst);
     BACKEND_RUNNING.store(true, Ordering::SeqCst);
+
+    // Every path that brings the backend up — initial start, manual restart,
+    // restore, guided upgrade, crash backoff — goes through here, so this is
+    // the single point that guarantees the scheduled-backup loop is running.
+    // The spawn is idempotent; repeat starts are no-ops.
+    crate::spawn_scheduled_backups(app_handle.clone());
 
     if let Some(window) = app_handle.get_webview_window("main") {
         let _ = window.emit("backend-ready", get_backend_url());
@@ -340,6 +354,51 @@ pub async fn upgrade_database_from_backup(
     Ok(summary)
 }
 
+/// Restore a managed backup (dump + uploads pair) into the live database.
+/// Validates the selection first, then stops the sidecar, restores, and
+/// restarts — the webview sees the normal service-restart flow while this
+/// runs.
+#[tauri::command]
+pub async fn restore_database(
+    app_handle: AppHandle,
+    filename: String,
+) -> Result<crate::postgres::RestoreSummary, String> {
+    log::info!("Database restore requested from {}", filename);
+    // Resolve + verify BEFORE stopping the backend: an invalid filename or
+    // unreadable dump must not bounce the app for nothing.
+    let prepared = crate::postgres::prepare_restore(&app_handle, &filename)
+        .await
+        .map_err(|err| err.to_string())?;
+    // Backups and restores are mutually exclusive for the whole
+    // stop → restore → restart window — a scheduled dump taken mid-restore
+    // would capture a half-restored database, and its pruning could delete
+    // the restore source. Checked before the sidecar stops so a busy reply
+    // doesn't bounce the backend either.
+    let guard = crate::postgres::try_begin_backup_or_restore()
+        .ok_or_else(|| crate::postgres::PostgresError::OperationInProgress.to_string())?;
+    stop_backend_sidecar().await?;
+    let result = crate::postgres::restore_prepared(&app_handle, prepared, guard).await;
+    // Always try to bring the app back — even on failure the pre-restore
+    // state (rolled back or not) is the database the app should serve.
+    if let Err(err) = start_backend_sidecar(&app_handle).await {
+        return Err(format!(
+            "Backend restart failed: {}. {}",
+            err,
+            match &result {
+                Ok(_) => "The restore itself had finished".to_string(),
+                Err(restore_err) => format!("The restore also failed: {}", restore_err),
+            }
+        ));
+    }
+    result.map_err(|e| e.to_string())
+}
+
+/// List managed database backups (newest first) for the backup/restore UI.
+#[tauri::command]
+pub async fn list_backups() -> Result<Vec<crate::postgres::BackupInfo>, String> {
+    Ok(crate::postgres::managed_backup_infos())
+}
+
 /// Get recent log entries
 #[tauri::command]
 pub async fn get_logs(lines: Option<usize>) -> Result<Vec<String>, String> {
@@ -382,15 +441,14 @@ pub async fn get_logs(lines: Option<usize>) -> Result<Vec<String>, String> {
     }
 }
 
-/// Open the data folder in the file explorer
-#[tauri::command]
-pub async fn open_data_folder() -> Result<(), String> {
-    let data_dir = get_data_directory();
-
+/// Open `path` in the OS file explorer (macOS `open`, Windows `explorer`,
+/// Linux `xdg-open`). Fire-and-forget: the spawned child keeps running after
+/// its handle is dropped.
+fn open_in_file_manager(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         tokio::process::Command::new("open")
-            .arg(&data_dir)
+            .arg(path)
             .spawn()
             .map_err(|e| e.to_string())?;
     }
@@ -398,7 +456,7 @@ pub async fn open_data_folder() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         tokio::process::Command::new("explorer")
-            .arg(&data_dir)
+            .arg(path)
             .spawn()
             .map_err(|e| e.to_string())?;
     }
@@ -406,12 +464,28 @@ pub async fn open_data_folder() -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         tokio::process::Command::new("xdg-open")
-            .arg(&data_dir)
+            .arg(path)
             .spawn()
             .map_err(|e| e.to_string())?;
     }
 
     Ok(())
+}
+
+/// Open the data folder in the file explorer
+#[tauri::command]
+pub async fn open_data_folder() -> Result<(), String> {
+    open_in_file_manager(&get_data_directory())
+}
+
+/// Open the managed backups folder in the OS file explorer so the user can
+/// copy dumps off-app. Deliberately folder-only: arbitrary destination paths
+/// stay refused (see ensure_within_data_dir).
+#[tauri::command]
+pub async fn open_backups_folder() -> Result<(), String> {
+    let dir = crate::postgres::backups_directory();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    open_in_file_manager(&dir)
 }
 
 /// Shutdown the application gracefully
@@ -472,4 +546,98 @@ pub async fn check_for_updates(app_handle: AppHandle) -> Result<UpdateInfo, Stri
             Err(err.to_string())
         }
     }
+}
+
+/// Best-effort shutdown of the backend sidecar and bundled PostgreSQL, shared
+/// by the `RunEvent::Exit` handler and `install_update`'s pre-exit hook.
+/// Failures are logged and swallowed — teardown must never abort an exit path.
+pub(crate) async fn stop_services_for_exit(app_handle: &AppHandle) {
+    if let Err(e) = stop_backend_sidecar().await {
+        log::warn!("Failed to stop backend sidecar on exit: {}", e);
+    }
+    if let Err(e) = crate::postgres::stop_postgres(app_handle).await {
+        log::warn!("Failed to stop PostgreSQL on exit: {}", e);
+    }
+}
+
+/// Outcome of an `install_update` call, returned to the frontend.
+#[derive(serde::Serialize)]
+pub struct InstallOutcome {
+    pub installed: bool,
+    pub version: String,
+}
+
+/// Download, verify (against `plugins.updater.pubkey` in `tauri.conf.json`),
+/// and install the pending update. Restart is a separate command so the UI can
+/// confirm with the user first.
+///
+/// Platform note for the update UI (Task 4): on macOS/Linux the install alone
+/// does not relaunch the app — the UI should offer `restart_app` next. On
+/// Windows the updater runs the NSIS/MSI installer and exits the process via
+/// `std::process::exit(0)`; the installer itself relaunches the app
+/// (`restart_after_install`, default true). The invoke promise therefore never
+/// resolves on Windows — process exit is the success signal, not a failure.
+#[tauri::command]
+pub async fn install_update(app_handle: AppHandle) -> Result<InstallOutcome, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    // Windows-only hook (a no-op on other platforms): the plugin's install
+    // ends in std::process::exit(0), which bypasses the RunEvent::Exit
+    // teardown — the sidecar and pgsql binaries inside the install dir would
+    // stay running and file-locked while the installer replaces them.
+    // on_before_exit lives on UpdaterBuilder, not Update, and *replaces* the
+    // plugin's default cleanup_before_exit hook — so it is re-run here. The
+    // callback also fires inside the runtime's async context, where block_on
+    // panics, so the async teardown is driven from a helper thread.
+    let updater = app_handle
+        .updater_builder()
+        .on_before_exit({
+            let app_handle = app_handle.clone();
+            move || {
+                let handle = app_handle.clone();
+                if let Err(e) = std::thread::spawn(move || {
+                    tauri::async_runtime::block_on(stop_services_for_exit(&handle));
+                })
+                .join()
+                {
+                    log::warn!("update pre-exit service teardown panicked: {:?}", e);
+                }
+                app_handle.cleanup_before_exit();
+            }
+        })
+        .build()
+        .map_err(|e| e.to_string())?;
+    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
+        return Ok(InstallOutcome {
+            installed: false,
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        });
+    };
+    let version = update.version.clone();
+    let mut downloaded: usize = 0;
+    update
+        .download_and_install(
+            |chunk_length, content_length| {
+                downloaded += chunk_length;
+                log::info!("update: {}/{}", downloaded, content_length.unwrap_or(0));
+            },
+            || log::info!("update download finished; installing"),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(InstallOutcome {
+        installed: true,
+        version,
+    })
+}
+
+/// Relaunch the app (e.g. after `install_update`). Kept separate from install
+/// so the user can finish what they're doing before the restart. Uses
+/// `request_restart`, which routes the exit through the event loop — the
+/// `RunEvent::Exit` teardown (sidecar + postgres stop) still runs — rather
+/// than `tauri::process::restart`, which hard-exits and would orphan them.
+/// Returns immediately; the app exits and relaunches shortly after.
+#[tauri::command]
+pub fn restart_app(app_handle: AppHandle) {
+    app_handle.request_restart();
 }

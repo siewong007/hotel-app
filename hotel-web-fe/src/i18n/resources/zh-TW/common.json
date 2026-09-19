@@ -194,6 +194,22 @@
     "restartServices": "重新啟動服務",
     "versionOlder": "較舊版本",
     "versionCurrent": "目前版本",
+    "backups": {
+      "title": "本機備份",
+      "subtitle": "自動的資料庫與檔案備份會保存在這台電腦上。保留最新 {{count}} 份。",
+      "backUpNow": "立即備份",
+      "openFolder": "開啟備份資料夾",
+      "includesFiles": "包含已上傳的檔案",
+      "restore": "還原",
+      "restoreConfirmTitle": "還原此備份？",
+      "restoreConfirmBody": "應用程式將還原 {{filename}}（{{date}}）。該時間點之後變更的資料將會遺失——系統會先建立新的安全備份，讓您可以回復。還原期間應用程式會重新啟動。",
+      "restoreConfirm": "還原並重新啟動",
+      "restoring": "正在還原……完成後應用程式將重新啟動。",
+      "restored": "已還原 {{filename}}",
+      "restoreFailed": "還原失敗",
+      "empty": "尚無備份——第一個備份會在啟動後約兩分鐘自動建立。",
+      "backedUp": "已建立備份：{{filename}}"
+    },
     "errors": {
       "statusRead": "無法讀取桌面版服務狀態",
       "backendStopped": "後端服務已停止",
@@ -202,6 +218,20 @@
       "restartFailed": "無法重新啟動後端服務",
       "upgradeFailed": "資料庫升級失敗",
       "openFolderFailed": "無法開啟資料夾"
+    },
+    "updates": {
+      "title": "應用程式更新",
+      "check": "檢查更新",
+      "checking": "正在檢查……",
+      "upToDate": "您已是最新版本（{{version}}）。",
+      "available": "新版本 {{version}} 可用。",
+      "install": "安裝更新",
+      "installing": "正在下載並安裝……",
+      "installed": "更新已安裝。重新啟動以套用版本 {{version}}。",
+      "restartNow": "立即重新啟動",
+      "restartLater": "稍後",
+      "checkFailed": "更新檢查失敗",
+      "installFailed": "更新安裝失敗"
     }
   },
   "form": {

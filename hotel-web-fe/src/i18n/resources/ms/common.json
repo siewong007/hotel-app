@@ -194,6 +194,22 @@
     "restartServices": "Mulakan semula perkhidmatan",
     "versionOlder": "versi lama",
     "versionCurrent": "versi semasa",
+    "backups": {
+      "title": "Sandaran tempatan",
+      "subtitle": "Sandaran pangkalan data + fail automatik disimpan pada komputer ini. {{count}} yang terbaharu disimpan.",
+      "backUpNow": "Sandar sekarang",
+      "openFolder": "Buka folder sandaran",
+      "includesFiles": "termasuk fail yang dimuat naik",
+      "restore": "Pulihkan",
+      "restoreConfirmTitle": "Pulihkan sandaran ini?",
+      "restoreConfirmBody": "Aplikasi memulihkan {{filename}} ({{date}}). Data yang diubah selepas titik itu akan hilang — sandaran keselamatan baharu diambil dahulu supaya anda boleh kembali. Aplikasi dimulakan semula semasa pemulihan.",
+      "restoreConfirm": "Pulihkan dan mulakan semula",
+      "restoring": "Sedang memulihkan… aplikasi akan dimulakan semula apabila selesai.",
+      "restored": "{{filename}} dipulihkan",
+      "restoreFailed": "Pemulihan gagal",
+      "empty": "Tiada sandaran lagi — yang pertama dicipta secara automatik kira-kira dua minit selepas permulaan.",
+      "backedUp": "Sandaran dicipta: {{filename}}"
+    },
     "errors": {
       "statusRead": "Tidak dapat membaca status perkhidmatan desktop",
       "backendStopped": "Perkhidmatan backend telah berhenti",
@@ -202,6 +218,20 @@
       "restartFailed": "Tidak dapat memulakan semula perkhidmatan backend",
       "upgradeFailed": "Kemas kini pangkalan data gagal",
       "openFolderFailed": "Tidak dapat membuka folder data"
+    },
+    "updates": {
+      "title": "Kemas kini aplikasi",
+      "check": "Semak kemas kini",
+      "checking": "Menyemak…",
+      "upToDate": "Anda menggunakan versi terkini ({{version}}).",
+      "available": "Versi {{version}} tersedia.",
+      "install": "Pasang kemas kini",
+      "installing": "Sedang memuat turun dan memasang…",
+      "installed": "Kemas kini dipasang. Mulakan semula untuk menggunakan versi {{version}}.",
+      "restartNow": "Mulakan semula sekarang",
+      "restartLater": "Kemudian",
+      "checkFailed": "Semakan kemas kini gagal",
+      "installFailed": "Pemasangan kemas kini gagal"
     }
   },
   "form": {

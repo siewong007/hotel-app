@@ -1,66 +1,119 @@
-# Desktop auto-update (scaffold)
+# Desktop auto-update (armed)
 
-The Tauri updater plugin is wired in but **not yet armed**. Builds are unaffected
-until you complete the steps below, because `bundle.createUpdaterArtifacts` is
-`false` and the public key / endpoint are placeholders.
+The Tauri updater is **armed**: it checks a static `latest.json` manifest
+served from this repo's GitHub Releases, verifies each download's minisign
+signature against the public key baked into `tauri.conf.json`, and applies the
+update on user confirmation.
 
-## What is already in place
+## What is in place
 
-- `tauri-plugin-updater` + `tauri-plugin-process` dependencies (`src-tauri/Cargo.toml`)
-- Plugins registered in `src-tauri/src/lib.rs`
-- `check_for_updates` Tauri command (`src-tauri/src/commands.rs`) — checks only;
-  the signature is verified by the plugin before any artifact is trusted
-- `plugins.updater` config block in `src-tauri/tauri.conf.json` (placeholders)
-- `updater:default` + `process:default` capability grants (`capabilities/default.json`)
+- `tauri-plugin-updater` + `tauri-plugin-process` (`src-tauri/Cargo.toml`),
+  registered in `src-tauri/src/lib.rs`
+- Commands (`src-tauri/src/commands.rs`):
+  - `check_for_updates` — queries the endpoint, returns
+    `{ available, version, current_version, notes }`
+  - `install_update` — downloads, signature-verifies, and installs; returns
+    `{ installed, version }`
+  - `restart_app` — relaunches the app (separate so the UI can confirm first)
+- `plugins.updater` in `src-tauri/tauri.conf.json`:
+  - endpoint: `https://github.com/siewong007/hotel-app/releases/latest/download/latest.json`
+  - `pubkey`: the minisign public key (public data, committed)
+  - `windows.installMode: passive`
+- `bundle.createUpdaterArtifacts: true` — every `tauri build` that produces
+  bundles also emits updater artifacts (`*.app.tar.gz`, `*.nsis.zip`,
+  `*.AppImage.tar.gz`) plus their `*.sig` files when the signing key is in the
+  environment
+- `updater:default` + `process:default` capability grants
+  (`capabilities/default.json`)
+- `scripts/build-update-manifest.mjs` — assembles `latest.json` and stages the
+  release assets from the downloaded build artifacts; hard-fails if any
+  platform's updater bundle or `.sig` is missing
 
-## Steps to arm it
+## Signing key
 
-1. **Generate a signing keypair** (keep the private key secret, never commit it):
-   ```bash
-   bunx @tauri-apps/cli signer generate -w ~/.tauri/hotel-app.key
-   ```
-   This prints a **public key**. Put it in `tauri.conf.json` →
-   `plugins.updater.pubkey` (replacing `REPLACE_WITH_TAURI_SIGNER_PUBLIC_KEY`).
+Generated **2026-09-18 by the repo maintainer** via
+`bunx @tauri-apps/cli signer generate`. The private key lives **only** in repo
+secrets — it is not committed anywhere:
 
-2. **Set the update endpoint(s)** in `plugins.updater.endpoints`, replacing
-   `REPLACE_WITH_YOUR_UPDATE_HOST`. Tauri expands `{{target}}`, `{{arch}}`, and
-   `{{current_version}}`. The endpoint serves a JSON manifest pointing at the
-   signed artifacts (see Tauri "Server-side" updater docs).
+- `TAURI_SIGNING_PRIVATE_KEY` — private key material
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — its password
 
-3. **Enable artifact generation**: set `bundle.createUpdaterArtifacts` to `true`.
+All three platform bundle steps in `.github/workflows/desktop-build.yml`
+export both. **The secrets are mandatory for bundle builds**: with them
+absent, `tauri build` hard-fails inside `sign_updaters` — updater signing is
+required once `pubkey` + `createUpdaterArtifacts` are configured, so there
+is no unsigned-manifest path. (This is updater signing only; the OS-level
+cert secrets below stay optional and unsigned-by-default.)
 
-4. **Build with the signing key in the environment** (CI secret, not in git):
-   ```bash
-   export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/hotel-app.key)"
-   export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="<key password>"
-   bun run build
-   ```
-   This emits `*.sig` files and a `latest.json` manifest to publish at your endpoint.
+**Rotation:** generate a new keypair (`tauri signer generate`), put the new
+private key + password into the two secrets, commit the new public key to
+`plugins.updater.pubkey`, and ship a release signed with the new key. Clients
+older than that release cannot verify it — keep the old pubkey release
+installable-in-sequence (updates verify against the *installed* app's pubkey).
 
-5. **(Related, still open)** Installer code-signing is separate and still
-   unconfigured: `bundle.windows.certificateThumbprint` is `null` and
-   `timestampUrl` is empty. Configure these (and macOS notarization) so the
-   downloaded installer itself is trusted by the OS.
+## Release flow
 
-## Frontend usage
+1. Push a `v*` tag → `desktop-build.yml` runs all three platform jobs.
+2. Each job's bundle step signs updater artifacts with
+   `TAURI_SIGNING_PRIVATE_KEY` and uploads `hotel-desktop-<platform>` artifacts.
+3. The `desktop-release` job (`if: github.ref_type == 'tag'`,
+   `contents: write`) downloads all three artifacts, runs
+   `build-update-manifest.mjs`, and publishes the result to the tag's GitHub
+   Release: `latest.json`, installers (`*.dmg`, `*.deb`, `*.AppImage`,
+   `*-setup.exe`, `*.msi`), updater bundles + `*.sig`, and portable archives.
+   Re-runs are idempotent (`gh release upload --clobber` when the release
+   already exists).
+   The tag's version must equal `tauri.conf.json` `version` — the script
+   hard-fails on a mismatch, because a manifest advertising a version no
+   build equals would loop clients on an update they can never reach.
+   `latest.json`'s `notes` field (what `check_for_updates` surfaces to the
+   UI) is populated from the tag's annotation — subject + body — so tag with
+   `git tag -a`, not a lightweight tag or `gh release create --generate-notes`
+   (those release notes stay GitHub-side only and never reach the app).
+4. Installed apps GET `releases/latest/download/latest.json`, compare
+   `version`, and offer the update.
 
-```ts
-import { invoke } from '@tauri-apps/api/core';
-const info = await invoke('check_for_updates');
-// { available, version, current_version, notes }
+`releases/latest/` always resolves the NEWEST non-prerelease release — an
+out-of-order patch tag (e.g. a `v1.0.x` backport after `v2.0.0`) produces a
+manifest that `latest/download` will not serve, so release branches need
+their own endpoint or must ship as prereleases.
+
+`workflow_dispatch` builds (including `full_bundle=true`) produce and sign the
+same artifacts but never publish a release — the release job is tag-gated.
+
+## Frontend flag
+
+Update UI is gated on `VITE_DESKTOP_UPDATER_ENABLED === 'true'` at build time
+(and `shouldUseDesktopRuntime()`). CI sets it on all three bundle steps. For
+a local `bun run build`, add `VITE_DESKTOP_UPDATER_ENABLED=true` to
+`hotel-web-fe/.env.tauri` (untracked via root `.env.*`); `build-frontend.mjs`
+hashes `VITE_*` into the build cache key, so flipping it rebuilds the bundle.
+
+## Installer code-signing vs updater signing
+
+These are independent. `*.sig` files above are *updater* signatures — they
+prove to the installed app that an update is authentic. They do **not** make
+the installer trusted by the OS. OS-level signing remains secret-gated and
+unsigned-by-default:
+
+- Windows: `WINDOWS_CERT_THUMBPRINT` (cert in the runner's store) or the PFX
+  secrets `WINDOWS_CERT_PFX_BASE64` / `WINDOWS_CERT_PASSWORD` — the NSIS/MSI
+  step merges `certificateThumbprint` + `timestampUrl` into the config.
+- macOS: `APPLE_*` secrets for Developer ID signing + notarization.
+
+See `docs/guides/PACKAGING.md` for the provisioning checklist.
+
+## Verifying a release end-to-end
+
+```bash
+# The tag's version must equal `version` in src-tauri/tauri.conf.json (1.0.0
+# today) — the manifest job hard-fails on a mismatch, so a throwaway tag like
+# v0.0.0-test never produces a release. Bump the version or tag what exists.
+git tag v1.0.0 && git push origin v1.0.0   # maintainer only; matches conf version
+gh run watch                                # three builds + release
+curl -sL https://github.com/siewong007/hotel-app/releases/latest/download/latest.json
 ```
-Driving the actual download/install (`update.downloadAndInstall()` +
-`relaunch()`) can be added once endpoints and keys are live.
 
-## Frontend update UI (re-verified 2026-08-02)
-
-A grep of `hotel-web-fe/src` for `updater`, `check_for_update(s)`, `checkForUpdate`,
-`update-available`, `@tauri-apps/plugin-updater`, `relaunch`, and
-`downloadAndInstall` found **no matches** — the frontend does not currently call
-`check_for_updates` or render any update-check UI. There is nothing to gate today.
-
-If/when update-check UI or IPC calls are added to the frontend, they must be
-gated behind `import.meta.env.VITE_DESKTOP_UPDATER_ENABLED === 'true'` (default:
-absent → disabled → UI hidden and IPC never called). The FE update UI should
-stay hidden until `VITE_DESKTOP_UPDATER_ENABLED=true` is set at build time —
-flip it only after completing the arming steps above.
+The last command must return JSON with `platforms.darwin-aarch64`,
+`platforms.windows-x86_64`, and `platforms.linux-x86_64` entries, each with a
+`signature` and a `releases/download/<tag>/...` URL.

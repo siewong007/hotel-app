@@ -55,7 +55,7 @@
       "database/postgres/seed.sql",
       "database/postgres/patches/**/*"
     ],
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
@@ -71,9 +71,9 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://REPLACE_WITH_YOUR_UPDATE_HOST/hotel-app/{{target}}/{{arch}}/{{current_version}}"
+        "https://github.com/siewong007/hotel-app/releases/latest/download/latest.json"
       ],
-      "pubkey": "REPLACE_WITH_TAURI_SIGNER_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlERDhBQjFBOUM5MjkyOTAKUldTUWtwS2NHcXZZblFtR2RidzVTWWVjSlNMODlPY1p4bzd6NEhRSEE3SHRoc0ZDVGpuVHZDU2QK",
       "windows": {
         "installMode": "passive"
       }

@@ -73,7 +73,7 @@ bun run build:msi              # Windows-only MSI package
 bun run build:nsis             # Windows-only NSIS package
 bun run build:deb              # Linux-only .deb package
 bun run build:appimage         # Linux-only AppImage
-bun run build:rpm              # Linux-only .rpm (needs an rpmbuild toolchain)
+bun run build:rpm              # Linux-only .rpm (CI builds it via `rpm`; locally needs rpmbuild)
 
 bun run package:portable       # zip (win/mac) or tar.gz (linux) of the release output
 bun run test:scripts           # bun test over scripts/ (provision + sync helpers)

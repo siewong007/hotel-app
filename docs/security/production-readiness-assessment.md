@@ -161,8 +161,10 @@ Gaps and notes:
   incident can consume prod resources (bounded by container limits).
 - No maintenance mode; deploys cause a brief restart window.
 - Desktop packaging is **not** gated by CI (`cargo check` with placeholder
-  resources only); desktop artifacts ship unsigned with an unconfigured
-  updater (`REPLACE_WITH_TAURI_SIGNER_PUBLIC_KEY`).
+  resources only). *Update (2026-09): the updater is now armed via GitHub
+  Releases with a real signing keypair, and OS signing/notarization is
+  wired but runs unsigned until certificate secrets are provisioned —
+  see `hotel-desktop/UPDATER.md` and `docs/guides/PACKAGING.md`.*
 
 ## 6. Database and data integrity
 

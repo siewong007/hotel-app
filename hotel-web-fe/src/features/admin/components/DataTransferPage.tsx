@@ -17,6 +17,8 @@ import {
 import { useAuth } from '../../../auth/AuthContext';
 import { useTranslation } from '../../../i18n';
 import PageHeader from '../../../components/common/PageHeader';
+import { shouldUseDesktopRuntime } from '../../../desktop/runtimeApi';
+import DesktopBackupsCard from './data-transfer/DesktopBackupsCard';
 import ExportPanel from './data-transfer/ExportPanel';
 import ImportWizard from './data-transfer/ImportWizard';
 import TransferHistoryList from './data-transfer/TransferHistoryList';
@@ -160,6 +162,11 @@ const DataTransferPage: React.FC = () => {
       {activeTab === 'history' && (
         <TransferHistoryList entries={historyEntries} loading={historyQuery.isLoading} />
       )}
+
+      {/* Desktop-only managed backups; restore overwrites the same data the
+          import flow does, so it carries the same permission — the card
+          double-gates on both checks. */}
+      {canImport && shouldUseDesktopRuntime() && <DesktopBackupsCard notify={notify} />}
 
       <Snackbar
         open={toast.open}

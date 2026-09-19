@@ -88,6 +88,16 @@ describe('page coverage manifest', () => {
     expect(stale).toEqual([]);
   });
 
+  it('lists workflow files that actually simulate user interaction', () => {
+    const shallow = PAGE_MANIFEST.flatMap((entry) =>
+      (entry.workflowTests ?? [])
+        .filter(exists)
+        .filter((file) => !/userEvent|fireEvent|\bclick\(|keyboard\(/.test(sourceOf(file)))
+        .map((file) => `${entry.id}: ${file}`),
+    );
+    expect(shallow).toEqual([]);
+  });
+
   it('has no manifest entries pointing at missing route files', () => {
     const missing = PAGE_MANIFEST.flatMap((entry) =>
       entry.routeFiles.filter((file) => !exists(`routes/${file}`)).map((file) => `${entry.id}: ${file}`),

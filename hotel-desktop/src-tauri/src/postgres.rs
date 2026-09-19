@@ -12,6 +12,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tokio::time::sleep;
@@ -98,6 +99,11 @@ pub enum PostgresError {
         "Port {port} is already used by a PostgreSQL server this app did not start (the app's data directory has no matching postmaster.pid). This build manages its own embedded database on port {port}; free the port by stopping that other PostgreSQL instance (or moving it to another port), then start the app again."
     )]
     ForeignServerOnPort { port: u16 },
+
+    #[error(
+        "Another backup or restore is already in progress; wait for it to finish, then try again."
+    )]
+    OperationInProgress,
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -1286,7 +1292,48 @@ fn ensure_within_data_dir(candidate: &Path) -> Result<PathBuf, PostgresError> {
     Ok(resolved)
 }
 
+/// Mutual exclusion for operations that dump or overwrite the live
+/// database. A scheduled backup firing mid-restore would write a
+/// valid-looking dump of a half-restored database — and its retention
+/// pruning could even delete the dump being restored from. Manual backups,
+/// restores, and guided upgrades therefore share this flag; whoever holds
+/// it owns the database until the guard drops.
+static BACKUP_OR_RESTORE_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Proof that the holder owns [`BACKUP_OR_RESTORE_ACTIVE`]. Release is
+/// automatic on drop, including panic paths.
+pub struct BackupRestoreGuard {
+    _private: (),
+}
+
+impl Drop for BackupRestoreGuard {
+    fn drop(&mut self) {
+        BACKUP_OR_RESTORE_ACTIVE.store(false, Ordering::SeqCst);
+    }
+}
+
+/// Try to begin a backup/restore critical section. Returns `None` while a
+/// backup, restore, or upgrade is already in flight.
+pub(crate) fn try_begin_backup_or_restore() -> Option<BackupRestoreGuard> {
+    BACKUP_OR_RESTORE_ACTIVE
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .ok()
+        .map(|_| BackupRestoreGuard { _private: () })
+}
+
+/// Backup the bundled PostgreSQL database, refusing to run while a restore
+/// or another backup holds [`BACKUP_OR_RESTORE_ACTIVE`].
 pub async fn backup_database(
+    app_handle: &AppHandle,
+    destination: Option<String>,
+) -> Result<PathBuf, PostgresError> {
+    let _guard = try_begin_backup_or_restore().ok_or(PostgresError::OperationInProgress)?;
+    backup_database_inner(app_handle, destination).await
+}
+
+/// The backup body, for callers that already hold the backup/restore guard
+/// (the scheduled task, the restore safety dump).
+async fn backup_database_inner(
     app_handle: &AppHandle,
     destination: Option<String>,
 ) -> Result<PathBuf, PostgresError> {
@@ -1368,20 +1415,136 @@ pub async fn backup_database(
         )));
     }
 
+    // A dump that pg_restore can't even enumerate is worthless — verify now,
+    // at creation time, rather than discovering it during a recovery.
+    verify_backup_dump(app_handle, &backup_path, true).await?;
+
+    // Uploads are user data the dump cannot cover (eKYC images, receipts,
+    // room photos) — archive them alongside, sharing the timestamp stem.
+    let stem = backup_path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    backup_uploads(&stem)?;
+
     log::info!("Database backup written to {:?}", backup_path);
     Ok(backup_path)
 }
 
-/// Prefix + suffix identifying a backup dump produced by this app.
-/// Filenames look like `hotel-backup-YYYYMMDD-HHMMSS.dump`.
+/// `pg_restore --list` exits non-zero on a corrupt/unreadable dump.
+///
+/// `delete_on_failure` controls what happens to a dump that fails the check:
+/// `true` on the creation path, where a corrupt artifact must not stay on
+/// disk pretending to be a backup; `false` on the restore path, where the
+/// file is the user's chosen recovery copy — possibly their only one — and
+/// is left untouched.
+async fn verify_backup_dump(
+    app_handle: &AppHandle,
+    dump_path: &Path,
+    delete_on_failure: bool,
+) -> Result<(), PostgresError> {
+    let pg_restore_path = get_pgsql_bin_dir(app_handle).join(format!("pg_restore{}", EXE_SUFFIX));
+    if !pg_restore_path.exists() {
+        return Err(PostgresError::BinaryNotFound(
+            pg_restore_path.to_string_lossy().to_string(),
+        ));
+    }
+
+    let mut cmd = tokio::process::Command::new(&pg_restore_path);
+    cmd.args(["--list", &dump_path.to_string_lossy()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
+    if !output.status.success() {
+        let details = command_output_details("pg_restore --list backup verification", &output);
+        let outcome_note = if delete_on_failure {
+            if std::fs::remove_file(dump_path).is_ok() {
+                "the unreadable dump was removed".to_string()
+            } else {
+                "the unreadable dump could not be removed; delete it manually".to_string()
+            }
+        } else {
+            format!(
+                "the dump was left in place at {}",
+                dump_path.to_string_lossy()
+            )
+        };
+        return Err(PostgresError::MigrationFailed(format!(
+            "Backup verification failed: {}; {}",
+            details, outcome_note
+        )));
+    }
+
+    Ok(())
+}
+
+/// Archive `uploads/` + `private_uploads/` into `<stem>-uploads.tar.gz` inside
+/// the backups dir. Returns `None` when there is nothing worth archiving —
+/// restore treats a missing tarball as "no files to restore", not an error.
+fn backup_uploads(stem: &str) -> Result<Option<PathBuf>, PostgresError> {
+    let data_dir = get_data_directory();
+    let roots = ["uploads", "private_uploads"]
+        .iter()
+        .map(|name| data_dir.join(name))
+        .filter(|dir| {
+            dir.is_dir()
+                && dir
+                    .read_dir()
+                    .map(|mut d| d.next().is_some())
+                    .unwrap_or(false)
+        })
+        .collect::<Vec<_>>();
+    if roots.is_empty() {
+        return Ok(None);
+    }
+
+    let out_path = backups_directory().join(format!("{}{}", stem, UPLOADS_FILE_SUFFIX));
+    let written = (|| -> std::io::Result<()> {
+        let file = std::fs::File::create(&out_path)?;
+        let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+        let mut builder = tar::Builder::new(encoder);
+        for dir in &roots {
+            // Top-level entry name is the dir itself ("uploads", "private_uploads")
+            // so extraction restores the layout verbatim.
+            builder.append_dir_all(dir.file_name().unwrap_or_default(), dir)?;
+        }
+        builder.into_inner()?.finish()?;
+        Ok(())
+    })();
+    if let Err(err) = written {
+        // A truncated tarball must not stay behind pretending to be a backup.
+        let _ = std::fs::remove_file(&out_path);
+        return Err(err.into());
+    }
+    Ok(Some(out_path))
+}
+
+/// Prefix + suffixes identifying backup artifacts produced by this app.
+/// A managed backup is a pair sharing the stem `hotel-backup-YYYYMMDD-HHMMSS`:
+/// `<stem>.dump` plus `<stem>-uploads.tar.gz` when uploads existed at backup
+/// time.
 const BACKUP_FILE_PREFIX: &str = "hotel-backup-";
 const BACKUP_FILE_SUFFIX: &str = ".dump";
+const UPLOADS_FILE_SUFFIX: &str = "-uploads.tar.gz";
 
 /// Number of most-recent backups to retain when pruning.
 const BACKUP_RETENTION_COUNT: usize = 14;
 
-fn backups_directory() -> PathBuf {
+pub(crate) fn backups_directory() -> PathBuf {
     get_data_directory().join("backups")
+}
+
+fn is_managed_backup_name(name: &str) -> bool {
+    name.starts_with(BACKUP_FILE_PREFIX) && name.ends_with(BACKUP_FILE_SUFFIX)
+}
+
+fn is_managed_uploads_name(name: &str) -> bool {
+    name.starts_with(BACKUP_FILE_PREFIX) && name.ends_with(UPLOADS_FILE_SUFFIX)
 }
 
 fn is_managed_backup_file(path: &Path) -> bool {
@@ -1389,15 +1552,39 @@ fn is_managed_backup_file(path: &Path) -> bool {
         return false;
     }
     match path.file_name().and_then(|name| name.to_str()) {
-        Some(name) => name.starts_with(BACKUP_FILE_PREFIX) && name.ends_with(BACKUP_FILE_SUFFIX),
+        Some(name) => is_managed_backup_name(name),
         None => false,
     }
 }
 
-/// List managed backup dumps in the backups directory, newest first (by mtime).
-fn list_managed_backups() -> Vec<PathBuf> {
+fn is_managed_uploads_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    match path.file_name().and_then(|name| name.to_str()) {
+        Some(name) => is_managed_uploads_name(name),
+        None => false,
+    }
+}
+
+/// One managed backup: a verified pg_dump plus its uploads tarball (when any
+/// uploaded files existed at backup time). The pair shares the timestamp stem
+/// `hotel-backup-YYYYMMDD-HHMMSS`.
+pub struct ManagedBackup {
+    pub dump_path: PathBuf,
+    pub uploads_path: Option<PathBuf>,
+    /// RFC3339, from dump mtime.
+    pub timestamp: String,
+    /// Dump + uploads bytes.
+    pub size_bytes: u64,
+}
+
+/// List managed backups (dump+uploads pairs) newest first by dump mtime.
+/// A stray `-uploads.tar.gz` with no matching `.dump` is ignored — it cannot
+/// be restored without its database half.
+fn list_managed_backups() -> Vec<ManagedBackup> {
     let dir = backups_directory();
-    let mut entries: Vec<(PathBuf, std::time::SystemTime)> = match std::fs::read_dir(&dir) {
+    let mut dumps: Vec<(PathBuf, std::time::SystemTime)> = match std::fs::read_dir(&dir) {
         Ok(read_dir) => read_dir
             .filter_map(|entry| entry.ok())
             .map(|entry| entry.path())
@@ -1414,8 +1601,39 @@ fn list_managed_backups() -> Vec<PathBuf> {
     };
 
     // Newest first.
-    entries.sort_by_key(|entry| std::cmp::Reverse(entry.1));
-    entries.into_iter().map(|(path, _)| path).collect()
+    dumps.sort_by_key(|entry| std::cmp::Reverse(entry.1));
+    dumps
+        .into_iter()
+        .map(|(dump_path, mtime)| {
+            let stem = dump_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .trim_end_matches(BACKUP_FILE_SUFFIX)
+                .to_string();
+            let uploads_path = {
+                let candidate = dir.join(format!("{}{}", stem, UPLOADS_FILE_SUFFIX));
+                is_managed_uploads_file(&candidate).then_some(candidate)
+            };
+            let size_bytes = [&dump_path]
+                .into_iter()
+                .chain(uploads_path.iter())
+                .filter_map(|p| p.metadata().ok().map(|m| m.len()))
+                .sum();
+            let timestamp: chrono::DateTime<chrono::Utc> = mtime.into();
+            ManagedBackup {
+                dump_path,
+                uploads_path,
+                timestamp: timestamp.to_rfc3339(),
+                size_bytes,
+            }
+        })
+        .collect()
+}
+
+/// The newest managed backup pair, for the status and upgrade/restore paths.
+fn latest_backup_pair() -> Option<ManagedBackup> {
+    list_managed_backups().into_iter().next()
 }
 
 /// Metadata about the most recent managed backup, surfaced to the frontend.
@@ -1426,22 +1644,72 @@ pub struct LatestBackup {
     /// Backup timestamp as RFC3339 (from file mtime), local-agnostic; the FE
     /// renders it in local time.
     pub timestamp: String,
+    /// Filename of the paired uploads tarball, when uploads existed at backup
+    /// time.
+    pub uploads_filename: Option<String>,
+    /// Combined size of the dump plus its uploads tarball, in bytes.
+    pub size_bytes: u64,
 }
 
-fn latest_managed_backup() -> Option<LatestBackup> {
-    let path = list_managed_backups().into_iter().next()?;
-    let filename = path.file_name()?.to_string_lossy().to_string();
-    let mtime = path.metadata().ok()?.modified().ok()?;
-    let timestamp: chrono::DateTime<chrono::Utc> = mtime.into();
-    Some(LatestBackup {
-        path: path.to_string_lossy().to_string(),
-        filename,
-        timestamp: timestamp.to_rfc3339(),
-    })
+impl From<&ManagedBackup> for LatestBackup {
+    fn from(backup: &ManagedBackup) -> Self {
+        LatestBackup {
+            path: backup.dump_path.to_string_lossy().to_string(),
+            filename: backup
+                .dump_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            timestamp: backup.timestamp.clone(),
+            uploads_filename: backup
+                .uploads_path
+                .as_ref()
+                .and_then(|path| path.file_name().map(|n| n.to_string_lossy().to_string())),
+            size_bytes: backup.size_bytes,
+        }
+    }
 }
 
-/// Delete all but the newest `BACKUP_RETENTION_COUNT` managed backup dumps.
-/// Only files matching the managed backup pattern are ever removed.
+/// Metadata about one managed backup, surfaced to the frontend by the
+/// `list_backups` command. Filenames only — full paths stay internal.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BackupInfo {
+    pub filename: String,
+    /// Backup timestamp as RFC3339 (from file mtime), local-agnostic; the FE
+    /// renders it in local time.
+    pub timestamp: String,
+    /// Combined size of the dump plus its uploads tarball, in bytes.
+    pub size_bytes: u64,
+    /// Filename of the paired uploads tarball, when uploads existed at backup
+    /// time.
+    pub uploads_filename: Option<String>,
+}
+
+/// All managed backups (dump+uploads pairs) newest first, for the
+/// backup/restore UI. Thin mapping over `list_managed_backups`.
+pub fn managed_backup_infos() -> Vec<BackupInfo> {
+    list_managed_backups()
+        .into_iter()
+        .map(|backup| BackupInfo {
+            filename: backup
+                .dump_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            timestamp: backup.timestamp,
+            size_bytes: backup.size_bytes,
+            uploads_filename: backup
+                .uploads_path
+                .and_then(|path| path.file_name().map(|n| n.to_string_lossy().to_string())),
+        })
+        .collect()
+}
+
+/// Delete all but the newest `BACKUP_RETENTION_COUNT` managed backups — both
+/// the dump and its uploads partner. Only files matching the managed backup
+/// patterns are ever removed.
 fn prune_old_backups() {
     let backups = list_managed_backups();
     if backups.len() <= BACKUP_RETENTION_COUNT {
@@ -1449,33 +1717,58 @@ fn prune_old_backups() {
     }
 
     for stale in backups.into_iter().skip(BACKUP_RETENTION_COUNT) {
-        // Extra safety: never remove anything that is not a managed dump.
-        if !is_managed_backup_file(&stale) {
-            continue;
-        }
-        match std::fs::remove_file(&stale) {
-            Ok(()) => log::info!("Pruned old database backup {:?}", stale),
-            Err(err) => log::warn!("Failed to prune old database backup {:?}: {}", stale, err),
+        for path in [stale.dump_path].into_iter().chain(stale.uploads_path) {
+            // Extra safety: never remove anything that is not a managed
+            // artifact.
+            if !(is_managed_backup_file(&path) || is_managed_uploads_file(&path)) {
+                continue;
+            }
+            match std::fs::remove_file(&path) {
+                Ok(()) => log::info!("Pruned old backup artifact {:?}", path),
+                Err(err) => log::warn!("Failed to prune backup {:?}: {}", path, err),
+            }
         }
     }
 }
 
 /// Run a backup into the default backups directory and prune old dumps.
 /// Used by the scheduled backup task; failures are returned to the caller,
-/// which logs and continues without crashing the app.
-pub async fn run_scheduled_backup(app_handle: &AppHandle) -> Result<PathBuf, PostgresError> {
-    let path = backup_database(app_handle, None).await?;
+/// which logs and continues without crashing the app. Returns `Ok(None)`
+/// when another backup or restore holds [`BACKUP_OR_RESTORE_ACTIVE`] — the
+/// scheduler skips that cycle rather than competing with it.
+pub async fn run_scheduled_backup(
+    app_handle: &AppHandle,
+) -> Result<Option<PathBuf>, PostgresError> {
+    let Some(_guard) = try_begin_backup_or_restore() else {
+        return Ok(None);
+    };
+    let path = backup_database_inner(app_handle, None).await?;
     prune_old_backups();
-    Ok(path)
+    Ok(Some(path))
 }
 
 /// Summary returned to the frontend after a successful guided upgrade.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct UpgradeSummary {
     pub restored_backup: String,
+    /// Uploads tarball filename restored alongside the dump, when the pair
+    /// had one.
+    pub restored_uploads: Option<String>,
     pub retired_data_dir: String,
     pub from_version: String,
     pub to_version: String,
+}
+
+/// Summary returned to the frontend after a same-version restore.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RestoreSummary {
+    /// Managed dump filename that was restored.
+    pub restored_backup: String,
+    /// Uploads tarball filename restored alongside it, when the pair had one.
+    pub restored_uploads: Option<String>,
+    /// Filename of the safety dump taken immediately before the restore — the
+    /// pre-restore state the user can roll back to from the backups list.
+    pub safety_backup: String,
 }
 
 /// Restore a custom-format (`pg_dump -F c`) backup into the freshly-created
@@ -1540,6 +1833,252 @@ async fn restore_backup_dump(
     Ok(())
 }
 
+/// Pure half of `resolve_managed_dump`: untrusted input must be a bare
+/// `hotel-backup-*.dump` filename — no separators, no parent components.
+/// `file_name()` returning the input unchanged proves the path is a single
+/// component; anything with separators fails that check, and `..`/`/`
+/// produce no file name at all.
+fn is_valid_restore_filename(filename: &str) -> bool {
+    Path::new(filename)
+        .file_name()
+        .filter(|name| *name == std::ffi::OsStr::new(filename))
+        .and_then(|name| name.to_str())
+        .map(is_managed_backup_name)
+        .unwrap_or(false)
+}
+
+/// Resolve a user-supplied backup filename to a managed dump inside the
+/// backups dir. Bare filename only — no separators, must match the managed
+/// pattern, must exist in the managed list (a file dropped there by hand
+/// with a matching name is fine; anything else is refused).
+fn resolve_managed_dump(filename: &str) -> Result<PathBuf, PostgresError> {
+    let reject = || PostgresError::InvalidBackupDestination(filename.to_string());
+    if !is_valid_restore_filename(filename) {
+        return Err(reject());
+    }
+    let candidate = backups_directory().join(filename);
+    if !is_managed_backup_file(&candidate) {
+        return Err(reject());
+    }
+    Ok(candidate)
+}
+
+/// Whether one uploads-archive entry is safe to restore. Only plain files
+/// and directories rooted at `uploads/` or `private_uploads/` qualify:
+/// `unpack` recreates symlink and hardlink entries with their archived
+/// targets unchecked, so a crafted `uploads/x` -> absolute host path would
+/// become a file-exfiltration primitive through the backend's ServeDir; and
+/// without the top-level allowlist an archive could overwrite managed files
+/// like `postgres-password.txt` or `pgdata/postgresql.conf`. Pure half of
+/// `restore_uploads_tarball`'s pre-validation pass.
+fn uploads_entry_is_restorable(
+    path: &Path,
+    entry_type: tar::EntryType,
+) -> Result<(), PostgresError> {
+    if !matches!(
+        entry_type,
+        tar::EntryType::Regular | tar::EntryType::Directory
+    ) {
+        return Err(PostgresError::MigrationFailed(format!(
+            "entry {:?} has unsupported type {:?}; only regular files and directories are restored",
+            path, entry_type
+        )));
+    }
+    if path.components().any(|c| {
+        matches!(
+            c,
+            std::path::Component::ParentDir
+                | std::path::Component::RootDir
+                | std::path::Component::Prefix(_)
+        )
+    }) {
+        return Err(PostgresError::MigrationFailed(format!(
+            "entry {:?} has an unsafe path",
+            path
+        )));
+    }
+    if !matches!(
+        path.components().next(),
+        Some(std::path::Component::Normal(name))
+            if name == "uploads" || name == "private_uploads"
+    ) {
+        return Err(PostgresError::MigrationFailed(format!(
+            "entry {:?} is not under uploads/ or private_uploads/",
+            path
+        )));
+    }
+    Ok(())
+}
+
+/// Extract a `-uploads.tar.gz` into the data dir. Current uploads/ and
+/// private_uploads/ are renamed aside FIRST and only deleted after a clean
+/// extract — a corrupt tarball can never leave the app without its files.
+/// Every entry is validated by [`uploads_entry_is_restorable`] before the
+/// filesystem is touched: plain files and directories under the two upload
+/// roots only — no links, no traversal, no absolute paths.
+async fn restore_uploads_tarball(tarball_path: &Path) -> Result<(), PostgresError> {
+    let data_dir = get_data_directory();
+    let file = std::fs::File::open(tarball_path)?;
+    let decoder = flate2::read::GzDecoder::new(file);
+    let mut archive = tar::Archive::new(decoder);
+
+    // Pre-validate every entry before touching the filesystem.
+    for entry in archive.entries()? {
+        let entry = entry?;
+        let path = entry.path()?;
+        uploads_entry_is_restorable(&path, entry.header().entry_type()).map_err(|err| {
+            PostgresError::MigrationFailed(format!("Refusing uploads archive: {}", err))
+        })?;
+    }
+
+    let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let mut retired: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for name in ["uploads", "private_uploads"] {
+        let dir = data_dir.join(name);
+        if dir.exists() {
+            let aside = data_dir.join(format!("{}.prerestore-{}", name, stamp));
+            std::fs::rename(&dir, &aside)?;
+            retired.push((aside, dir));
+        }
+    }
+
+    // Re-open (entries() consumed the archive) and extract.
+    let file = std::fs::File::open(tarball_path)?;
+    let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(file));
+    match archive.unpack(&data_dir) {
+        Ok(()) => {
+            for (aside, _) in retired {
+                let _ = std::fs::remove_dir_all(&aside);
+            }
+            Ok(())
+        }
+        Err(err) => {
+            // Roll the renamed dirs back; name any that could not be moved
+            // back so their pre-restore contents stay findable at the aside
+            // path for manual recovery.
+            let mut stranded: Vec<PathBuf> = Vec::new();
+            for (aside, original) in retired {
+                let _ = std::fs::remove_dir_all(&original);
+                if std::fs::rename(&aside, &original).is_err() && aside.exists() {
+                    stranded.push(aside);
+                }
+            }
+            let rollback_note = if stranded.is_empty() {
+                "the previous uploads directories were restored in place".to_string()
+            } else {
+                format!(
+                    "the previous uploads directories could not be moved back; they are preserved at {}",
+                    stranded
+                        .iter()
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
+            Err(PostgresError::MigrationFailed(format!(
+                "uploads restore failed: {}. {}",
+                err, rollback_note
+            )))
+        }
+    }
+}
+
+/// A managed-restore request that has passed validation: the named dump is a
+/// managed file that `pg_restore --list` can read, and its uploads partner
+/// (when the pair has one) is located. Splitting this out lets the command
+/// validate BEFORE stopping the backend sidecar — a bad filename or
+/// unreadable dump must not bounce the app for nothing.
+pub struct PreparedRestore {
+    filename: String,
+    dump_path: PathBuf,
+    uploads_path: Option<PathBuf>,
+}
+
+/// Validate a managed-restore request without changing any state: resolve
+/// the bare managed filename, verify the dump reads, locate the paired
+/// uploads tarball. The selected dump is verified with
+/// `delete_on_failure: false` — it may be the user's only recovery copy, so
+/// a failed check never deletes it.
+pub async fn prepare_restore(
+    app_handle: &AppHandle,
+    filename: &str,
+) -> Result<PreparedRestore, PostgresError> {
+    let dump_path = resolve_managed_dump(filename)?;
+    verify_backup_dump(app_handle, &dump_path, false).await?;
+    let uploads_path = {
+        let stem = filename.trim_end_matches(BACKUP_FILE_SUFFIX);
+        let candidate = backups_directory().join(format!("{}{}", stem, UPLOADS_FILE_SUFFIX));
+        is_managed_uploads_file(&candidate).then_some(candidate)
+    };
+    Ok(PreparedRestore {
+        filename: filename.to_string(),
+        dump_path,
+        uploads_path,
+    })
+}
+
+/// The destructive half of a same-version restore: replace the live database
+/// (and uploads) with the validated backup. The caller must hold the
+/// [`BackupRestoreGuard`] (it is consumed here) and have stopped the backend
+/// sidecar — that keeps a scheduled or manual backup from dumping a
+/// half-restored database or pruning the restore source mid-flight.
+///
+/// A fresh safety dump is taken first — if the restore fails, the safety
+/// dump is restored back automatically (best effort) and named in the error
+/// either way. `pg_restore --clean` is not transactional, so a mid-restore
+/// failure can leave a half-restored database; the safety dump is the
+/// mitigation, which is why rollback is attempted immediately rather than
+/// left to the user.
+pub async fn restore_prepared(
+    app_handle: &AppHandle,
+    prepared: PreparedRestore,
+    _guard: BackupRestoreGuard,
+) -> Result<RestoreSummary, PostgresError> {
+    // Safety net: a pre-restore dump the user can roll back to. Uses the same
+    // managed naming so it lands in the list and prunes naturally.
+    let safety_path = backup_database_inner(app_handle, None).await?;
+    let safety_name = safety_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    if let Err(err) = restore_backup_dump(app_handle, &prepared.dump_path).await {
+        // Best-effort auto-rollback to the pre-restore state.
+        let rollback_note = match restore_backup_dump(app_handle, &safety_path).await {
+            Ok(()) => format!(
+                "The pre-restore state was rolled back automatically (safety backup: {}).",
+                safety_name
+            ),
+            Err(rb) => format!(
+                "Automatic rollback also failed ({}); restore {} manually to recover the pre-restore state.",
+                rb, safety_name
+            ),
+        };
+        return Err(PostgresError::MigrationFailed(format!(
+            "Restore of {} failed: {}. {}",
+            prepared.filename, err, rollback_note
+        )));
+    }
+
+    if let Some(tarball) = &prepared.uploads_path {
+        restore_uploads_tarball(tarball).await.map_err(|err| {
+            PostgresError::MigrationFailed(format!(
+                "Database restored but uploads restore failed: {}. Database state is from {}; uploaded files may be inconsistent.",
+                err, prepared.filename
+            ))
+        })?;
+    }
+
+    Ok(RestoreSummary {
+        restored_backup: prepared.filename,
+        restored_uploads: prepared
+            .uploads_path
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string())),
+        safety_backup: safety_name,
+    })
+}
+
 /// Guided PostgreSQL build upgrade: retire the incompatible data directory, create
 /// a fresh cluster with the bundled version, and restore the latest backup.
 ///
@@ -1552,6 +2091,11 @@ async fn restore_backup_dump(
 pub async fn upgrade_database_from_backup(
     app_handle: &AppHandle,
 ) -> Result<UpgradeSummary, PostgresError> {
+    // Same exclusion as manual restores/backups: the upgrade rewrites the
+    // database and the upload trees, and a second concurrent invocation
+    // would double-rename the retired data directory.
+    let _guard = try_begin_backup_or_restore().ok_or(PostgresError::OperationInProgress)?;
+
     let bundled_version = detect_bundled_postgres_version(app_handle).await?;
 
     // (a) Verify the mismatch state still holds.
@@ -1577,13 +2121,13 @@ pub async fn upgrade_database_from_backup(
     };
 
     // Require a backup before doing anything destructive.
-    let Some(latest) = latest_managed_backup() else {
+    let Some(latest) = latest_backup_pair() else {
         return Err(PostgresError::MigrationFailed(format!(
             "No backup available to restore. The existing PostgreSQL {} data directory has been left untouched. To recover, install a desktop build matching PostgreSQL {} to read the existing data and create a logical backup before upgrading.",
             found_version, found_version
         )));
     };
-    let backup_path = PathBuf::from(&latest.path);
+    let backup_path = latest.dump_path;
 
     let pgdata = get_pgdata_dir();
     let retired_version_label: String = found_version
@@ -1677,7 +2221,12 @@ pub async fn upgrade_database_from_backup(
         )));
     }
 
-    // (f) Run the migrations / schema bootstrap step (idempotent).
+    // (f) Run the migrations / schema bootstrap step (idempotent). This
+    // must complete BEFORE the uploads restore: restore_uploads_tarball
+    // deletes its retired-aside copies of the live upload trees on success,
+    // so if setup failed after a successful uploads restore the rollback
+    // would return the pre-upgrade database while uploads had already been
+    // reset to backup state — losing files uploaded since that backup.
     if let Err(err) = run_database_setup(app_handle).await {
         let _ = stop_postgres(app_handle).await;
         return Err(rollback(format!(
@@ -1686,7 +2235,22 @@ pub async fn upgrade_database_from_backup(
         )));
     }
 
-    // (g) Success.
+    // (g) Restore uploaded files when the backup pair carries them. Runs
+    // last so the live trees stay untouched until the database half has
+    // committed; a failure here re-enters rollback() with the uploads dirs
+    // already put back (or named as stranded asides) by
+    // restore_uploads_tarball itself.
+    if let Some(tarball) = &latest.uploads_path {
+        if let Err(err) = restore_uploads_tarball(tarball).await {
+            let _ = stop_postgres(app_handle).await;
+            return Err(rollback(format!(
+                "uploads restore from {:?} failed: {}",
+                tarball, err
+            )));
+        }
+    }
+
+    // (h) Success.
     log::info!(
         "Guided upgrade complete: PostgreSQL {} -> {}, restored {:?}, retired old data at {:?}",
         found_version,
@@ -1695,7 +2259,15 @@ pub async fn upgrade_database_from_backup(
         retired_dir
     );
     Ok(UpgradeSummary {
-        restored_backup: latest.filename,
+        restored_backup: backup_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string(),
+        restored_uploads: latest.uploads_path.and_then(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().to_string())
+        }),
         retired_data_dir: retired_dir.to_string_lossy().to_string(),
         from_version: found_version,
         to_version: bundled_version.build_identity,
@@ -2025,7 +2597,7 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
     // state so the webview can offer a guided restore-from-backup upgrade.
     let needs_upgrade = data_version.is_some() && !version_compatible;
     let latest_backup = if needs_upgrade {
-        latest_managed_backup()
+        latest_backup_pair().map(|pair| LatestBackup::from(&pair))
     } else {
         None
     };
@@ -2159,5 +2731,96 @@ mod tests {
                 found: "19beta1".to_string()
             }
         );
+    }
+
+    #[test]
+    fn managed_file_predicates_split_dumps_from_uploads() {
+        assert!(is_managed_backup_name("hotel-backup-20260918-120000.dump"));
+        assert!(!is_managed_backup_name(
+            "hotel-backup-20260918-120000-uploads.tar.gz"
+        ));
+        assert!(is_managed_uploads_name(
+            "hotel-backup-20260918-120000-uploads.tar.gz"
+        ));
+        assert!(!is_managed_uploads_name(
+            "hotel-backup-20260918-120000.dump"
+        ));
+        assert!(!is_managed_uploads_name("random.tar.gz"));
+        // A dump without our prefix must never be treated as a managed
+        // artifact (pruning only ever removes managed files).
+        assert!(!is_managed_backup_name("someone-elses.dump"));
+    }
+
+    #[test]
+    fn uploads_archive_entries_must_be_plain_files_under_upload_roots() {
+        use tar::EntryType;
+
+        // Regular files and directories under the two upload roots pass.
+        for path in [
+            "uploads",
+            "uploads/room-photos/lobby.jpg",
+            "private_uploads",
+            "private_uploads/ekyc/session-1/front.png",
+        ] {
+            assert!(
+                uploads_entry_is_restorable(Path::new(path), EntryType::Regular).is_ok(),
+                "{path} should be restorable"
+            );
+        }
+        assert!(
+            uploads_entry_is_restorable(Path::new("uploads/ekyc"), EntryType::Directory).is_ok()
+        );
+
+        // Link entries are refused wherever they appear: `unpack` recreates
+        // them with unchecked targets, which would let a crafted archive
+        // plant a symlink under uploads/ pointing at an absolute host path.
+        for entry_type in [
+            EntryType::Symlink,
+            EntryType::Link,
+            EntryType::Fifo,
+            EntryType::Char,
+            EntryType::Block,
+            EntryType::GNUSparse,
+        ] {
+            assert!(
+                uploads_entry_is_restorable(Path::new("uploads/x"), entry_type).is_err(),
+                "{entry_type:?} should be refused"
+            );
+        }
+
+        // Traversal, absolute paths, and non-upload top-level names are
+        // refused — an archive must never write postgres-password.txt or
+        // into pgdata/.
+        for path in [
+            "uploads/../postgres-password.txt",
+            "/tmp/evil",
+            "postgres-password.txt",
+            "pgdata/postgresql.conf",
+            "./uploads/x",
+            "backups/hotel-backup-1.dump",
+        ] {
+            assert!(
+                uploads_entry_is_restorable(Path::new(path), EntryType::Regular).is_err(),
+                "{path} should be refused"
+            );
+        }
+    }
+
+    #[test]
+    fn restore_rejects_non_managed_filenames() {
+        for bad in [
+            "../etc/passwd",
+            "foo/bar.dump",
+            "hotel-backup-x.sql",
+            "..",
+            "backups/hotel-backup-1.dump",
+        ] {
+            assert!(!is_valid_restore_filename(bad), "{bad} should be refused");
+        }
+        // A bare managed filename passes the pure check; resolve_managed_dump
+        // additionally requires the file to exist inside the backups dir.
+        assert!(is_valid_restore_filename(
+            "hotel-backup-20260918-120000.dump"
+        ));
     }
 }

@@ -32,6 +32,10 @@ export interface DesktopLatestBackup {
   filename: string;
   /** RFC3339 UTC timestamp; render in local time via `new Date(...)`. */
   timestamp: string;
+  /** Uploads tarball filename paired with the dump, when present. */
+  uploads_filename: string | null;
+  /** Combined size of the dump plus its uploads tarball, in bytes. */
+  size_bytes: number;
 }
 
 export interface DesktopAppStatus {
@@ -56,6 +60,7 @@ export interface DesktopAppStatus {
 
 export interface DesktopUpgradeSummary {
   restored_backup: string;
+  restored_uploads?: string | null;
   retired_data_dir: string;
   from_version: string;
   to_version: string;
@@ -64,6 +69,53 @@ export interface DesktopUpgradeSummary {
 export async function upgradeDatabaseFromBackup(): Promise<DesktopUpgradeSummary> {
   const { invoke } = await getTauriCoreApi();
   return invoke<DesktopUpgradeSummary>('upgrade_database_from_backup');
+}
+
+/** One managed backup pair as returned by the `list_backups` command —
+ * mirrors `postgres::BackupInfo` (filenames only; paths stay internal). */
+export interface DesktopBackupInfo {
+  filename: string;
+  /** RFC3339 UTC timestamp; render in local time via `new Date(...)`. */
+  timestamp: string;
+  /** Combined size of the dump plus its uploads tarball, in bytes. */
+  size_bytes: number;
+  /** Uploads tarball filename restored alongside the dump, when paired. */
+  uploads_filename: string | null;
+}
+
+/** Mirrors `postgres::RestoreSummary` — returned by `restore_database`. */
+export interface DesktopRestoreSummary {
+  restored_backup: string;
+  restored_uploads: string | null;
+  /** Pre-restore safety dump filename — appears in the backups list. */
+  safety_backup: string;
+}
+
+export async function listBackups(): Promise<DesktopBackupInfo[]> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<DesktopBackupInfo[]>('list_backups');
+}
+
+/** Run a managed backup into the default backups dir; resolves to its path. */
+export async function backupNow(): Promise<string> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<string>('backup_database', { destination: null });
+}
+
+/**
+ * Restore a managed backup into the live database. The command stops the
+ * backend sidecar first, so the app drops into the `DesktopServiceGate`
+ * restart screen while this is in flight — the promise usually settles after
+ * the calling component has already unmounted.
+ */
+export async function restoreDatabase(filename: string): Promise<DesktopRestoreSummary> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<DesktopRestoreSummary>('restore_database', { filename });
+}
+
+export async function openBackupsFolder(): Promise<void> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<void>('open_backups_folder');
 }
 
 export function isTauriBuildTarget(): boolean {
@@ -82,6 +134,48 @@ export function isTauriRuntime(): boolean {
 
 export function shouldUseDesktopRuntime(): boolean {
   return isTauriBuildTarget() || isTauriRuntime();
+}
+
+// ---------------------------------------------------------------------------
+// Updater commands — armed only when the desktop runtime is present AND the
+// bundle was built with VITE_DESKTOP_UPDATER_ENABLED=true (the CI bundle
+// steps set it; plain binary builds and web builds leave it off).
+// ---------------------------------------------------------------------------
+
+export interface DesktopUpdateInfo {
+  available: boolean;
+  version: string;
+  current_version: string;
+  notes: string | null;
+}
+
+export function isDesktopUpdaterEnabled(): boolean {
+  return shouldUseDesktopRuntime() && import.meta.env.VITE_DESKTOP_UPDATER_ENABLED === 'true';
+}
+
+export async function checkForUpdates(): Promise<DesktopUpdateInfo> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<DesktopUpdateInfo>('check_for_updates');
+}
+
+/**
+ * Download + install the pending update. On Windows the promise never
+ * resolves: `install_inner` exits the process and the NSIS installer
+ * relaunches the app, so a dropped promise is success-in-progress, not a
+ * failure. Callers must leave the "installing" UI up rather than error out.
+ */
+export async function installUpdate(): Promise<{ installed: boolean; version: string }> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke('install_update');
+}
+
+/**
+ * Relaunch the app via `request_restart`. Returns immediately and the app
+ * exits — like `installUpdate`, a dropped promise is expected, not an error.
+ */
+export async function restartApp(): Promise<void> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke('restart_app');
 }
 
 // ---------------------------------------------------------------------------

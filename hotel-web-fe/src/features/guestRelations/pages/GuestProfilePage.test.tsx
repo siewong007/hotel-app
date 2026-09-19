@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Guest, GuestProfile } from '../../../types';
 
@@ -131,6 +131,17 @@ describe('GuestProfilePage', () => {
     render(<GuestProfilePage guestId="7" />);
     expect(screen.queryByRole('tab', { name: 'Communication' })).toBeNull();
     expect(screen.getByRole('tab', { name: 'Support & Feedback' })).toBeTruthy();
+  });
+
+  it('swaps the visible panel when a tab is clicked', () => {
+    render(<GuestProfilePage guestId="7" />);
+    expect(screen.getByText('OverviewTab')).toBeTruthy();
+    expect(screen.queryByText('StaysTab')).toBeNull();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Stays' }));
+
+    expect(screen.getByText('StaysTab')).toBeTruthy();
+    expect(screen.queryByText('OverviewTab')).toBeNull();
   });
 
   it('renders the 360 header chips for VIP + blacklisted guests', () => {

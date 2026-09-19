@@ -560,8 +560,8 @@ const EkycManagementPage: React.FC = () => {
             <>
             <Grid size={{ xs: 6, md: 2 }}>
               <FormControl fullWidth size="small">
-                <InputLabel>{t('filters.status')}</InputLabel>
-                <Select label={t('filters.status')} value={filters.status ?? 'all'} onChange={(event) => setFilter('status', event.target.value)}>
+                <InputLabel id="ekyc-filter-status-label">{t('filters.status')}</InputLabel>
+                <Select labelId="ekyc-filter-status-label" label={t('filters.status')} value={filters.status ?? 'all'} onChange={(event) => setFilter('status', event.target.value)}>
                   <MenuItem value="all">{t('common:filters.all')}</MenuItem>
                   {STATUS_OPTIONS.map(status => (
                     <MenuItem key={status} value={status}>{ekycStatus(t, status)}</MenuItem>
@@ -571,8 +571,9 @@ const EkycManagementPage: React.FC = () => {
             </Grid>
             <Grid size={{ xs: 6, md: 2 }}>
               <FormControl fullWidth size="small">
-                <InputLabel>{t('filters.orderBy')}</InputLabel>
+                <InputLabel id="ekyc-filter-order-by-label">{t('filters.orderBy')}</InputLabel>
                 <Select
+                  labelId="ekyc-filter-order-by-label"
                   label={t('filters.orderBy')}
                   value={filters.sort_by ?? 'submitted_at'}
                   onChange={(event) => {
@@ -596,8 +597,8 @@ const EkycManagementPage: React.FC = () => {
             </Grid>
             <Grid size={{ xs: 6, md: 2 }}>
               <FormControl fullWidth size="small">
-                <InputLabel>{t('filters.risk')}</InputLabel>
-                <Select label={t('filters.risk')} value={filters.risk_level ?? 'all'} onChange={(event) => setFilter('risk_level', event.target.value)}>
+                <InputLabel id="ekyc-filter-risk-label">{t('filters.risk')}</InputLabel>
+                <Select labelId="ekyc-filter-risk-label" label={t('filters.risk')} value={filters.risk_level ?? 'all'} onChange={(event) => setFilter('risk_level', event.target.value)}>
                   <MenuItem value="all">{t('common:filters.all')}</MenuItem>
                   {RISK_OPTIONS.map(risk => (
                     <MenuItem key={risk} value={risk}>{riskLabel(t, tOr, risk)}</MenuItem>
@@ -635,8 +636,8 @@ const EkycManagementPage: React.FC = () => {
             onReset={resetFilters}
           >
             <FormControl fullWidth size="small">
-              <InputLabel>{t('filters.status')}</InputLabel>
-              <Select label={t('filters.status')} value={filters.status ?? 'all'} onChange={(event) => setFilter('status', event.target.value)}>
+              <InputLabel id="ekyc-sheet-status-label">{t('filters.status')}</InputLabel>
+              <Select labelId="ekyc-sheet-status-label" label={t('filters.status')} value={filters.status ?? 'all'} onChange={(event) => setFilter('status', event.target.value)}>
                 <MenuItem value="all">{t('common:filters.all')}</MenuItem>
                 {STATUS_OPTIONS.map(status => (
                   <MenuItem key={status} value={status}>{ekycStatus(t, status)}</MenuItem>
@@ -644,8 +645,9 @@ const EkycManagementPage: React.FC = () => {
               </Select>
             </FormControl>
             <FormControl fullWidth size="small">
-              <InputLabel>{t('filters.orderBy')}</InputLabel>
+              <InputLabel id="ekyc-sheet-order-by-label">{t('filters.orderBy')}</InputLabel>
               <Select
+                labelId="ekyc-sheet-order-by-label"
                 label={t('filters.orderBy')}
                 value={filters.sort_by ?? 'submitted_at'}
                 onChange={(event) => {
@@ -664,8 +666,8 @@ const EkycManagementPage: React.FC = () => {
               </Select>
             </FormControl>
             <FormControl fullWidth size="small">
-              <InputLabel>{t('filters.risk')}</InputLabel>
-              <Select label={t('filters.risk')} value={filters.risk_level ?? 'all'} onChange={(event) => setFilter('risk_level', event.target.value)}>
+              <InputLabel id="ekyc-sheet-risk-label">{t('filters.risk')}</InputLabel>
+              <Select labelId="ekyc-sheet-risk-label" label={t('filters.risk')} value={filters.risk_level ?? 'all'} onChange={(event) => setFilter('risk_level', event.target.value)}>
                 <MenuItem value="all">{t('common:filters.all')}</MenuItem>
                 {RISK_OPTIONS.map(risk => (
                   <MenuItem key={risk} value={risk}>{riskLabel(t, tOr, risk)}</MenuItem>
@@ -881,8 +883,8 @@ const EkycManagementPage: React.FC = () => {
           <Stack spacing={2} sx={{ mt: 1 }}>
             {ACTION_REASONS_REQUIRED.has(actionMode ?? '') && (
               <FormControl fullWidth size="small">
-                <InputLabel>{t('detail.reasonCode')}</InputLabel>
-                <Select label={t('detail.reasonCode')} value={reasonCode} onChange={(event) => setReasonCode(event.target.value)}>
+                <InputLabel id="ekyc-action-reason-code-label">{t('detail.reasonCode')}</InputLabel>
+                <Select labelId="ekyc-action-reason-code-label" label={t('detail.reasonCode')} value={reasonCode} onChange={(event) => setReasonCode(event.target.value)}>
                   {reasonCodes.map(code => (
                     <MenuItem key={code.code} value={code.code}>{code.label}</MenuItem>
                   ))}
@@ -937,8 +939,8 @@ const EkycManagementPage: React.FC = () => {
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <FormControl fullWidth size="small">
-              <InputLabel>{t('reveal.field')}</InputLabel>
-              <Select label={t('reveal.field')} value={revealField} onChange={(event) => {
+              <InputLabel id="ekyc-reveal-field-label">{t('reveal.field')}</InputLabel>
+              <Select labelId="ekyc-reveal-field-label" label={t('reveal.field')} value={revealField} onChange={(event) => {
                 setRevealField(event.target.value);
                 setRevealedValue(null);
               }}>

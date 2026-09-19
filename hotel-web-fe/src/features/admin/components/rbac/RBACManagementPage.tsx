@@ -590,10 +590,10 @@ const RBACManagementPage: React.FC = () => {
                         )}
                       </Box>
                       <Box sx={{ display: 'flex', gap: 0.5 }}>
-                        <Tooltip title={t('rbac.rename')}><span><IconButton size="small" onClick={openRename} disabled={locked}><EditIcon sx={{ fontSize: 16 }} /></IconButton></span></Tooltip>
-                        <Tooltip title={t('rbac.duplicate')}><IconButton size="small" onClick={duplicateRole}><CopyIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
+                        <Tooltip title={t('rbac.rename')}><span><IconButton size="small" onClick={openRename} disabled={locked} aria-label={t('rbac.rename')}><EditIcon sx={{ fontSize: 16 }} /></IconButton></span></Tooltip>
+                        <Tooltip title={t('rbac.duplicate')}><IconButton size="small" onClick={duplicateRole} aria-label={t('rbac.duplicate')}><CopyIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
                         <Tooltip title={isBuiltin(selectedRole) ? t('rbac.builtinNoDelete') : t('common:actions.delete')}>
-                          <span><IconButton size="small" onClick={() => setDeleteTarget(selectedRole)} disabled={isBuiltin(selectedRole)}><DeleteIcon sx={{ fontSize: 16, color: isBuiltin(selectedRole) ? undefined : T.rose }} /></IconButton></span>
+                          <span><IconButton size="small" onClick={() => setDeleteTarget(selectedRole)} disabled={isBuiltin(selectedRole)} aria-label={isBuiltin(selectedRole) ? t('rbac.builtinNoDelete') : t('common:actions.delete')}><DeleteIcon sx={{ fontSize: 16, color: isBuiltin(selectedRole) ? undefined : T.rose }} /></IconButton></span>
                         </Tooltip>
                       </Box>
                     </Box>

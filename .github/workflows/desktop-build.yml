@@ -44,6 +44,27 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 60
 
+    # Signing/notarization inputs mapped at job level — `secrets` is not a
+    # legal context in step `if:` conditions. Every OS-level signing step
+    # below gates on `env.* != ''`, so absent cert secrets mean unsigned
+    # .app/.dmg artifacts (today's default). The updater key is different:
+    # TAURI_SIGNING_PRIVATE_KEY is REQUIRED for the bundle step — with
+    # createUpdaterArtifacts on, `tauri build` hard-fails without it.
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      # API-key notarization alternative to APPLE_ID+APPLE_PASSWORD: the P8
+      # key material is decoded to a file by a step below (APPLE_API_KEY_PATH
+      # is a path, so it comes through GITHUB_ENV, not a secret mapping).
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+
     defaults:
       run:
         working-directory: hotel-desktop
@@ -131,11 +152,46 @@ jobs:
           ln -s postgresql "share/postgresql@19"
           mv "lib/postgresql@19" "lib/postgresql"
           ln -s postgresql "lib/postgresql@19"
+          # Job-wide, not just the provision step: tauri's beforeBuildCommand
+          # (bun run desktop:prepare) re-runs provision:pgsql inside the build
+          # steps and needs the same prefix if the tree must be re-provisioned.
+          echo "POSTGRES_PREFIX=${PG_PREFIX}" >> "$GITHUB_ENV"
 
       - name: Provision embedded PostgreSQL tree
-        env:
-          POSTGRES_PREFIX: ${{ runner.temp }}/postgresql-19beta2
         run: bun run provision:pgsql
+
+      # Throwaway keychain + Developer ID import. Secrets absent → step
+      # skipped → tauri build finds no signing identity → unsigned .app/.dmg.
+      # KEYCHAIN_PASSWORD is any string — it only locks this ephemeral
+      # keychain, never the certificate itself. Bundle condition included so
+      # binary-only dispatches skip the whole pre-sign pipeline.
+      - name: Import Apple signing certificate
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && env.APPLE_CERTIFICATE != '' }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import "$RUNNER_TEMP/certificate.p12" -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      # The sidecar binary doesn't exist until cargo build + copy run inside
+      # desktop:prepare (tauri's beforeBuildCommand) — produce it now so the
+      # sign step has the Mach-Os to sign. The prepare re-run inside
+      # `bun run build` is a cache hit; copy-backend-sidecar.mjs may re-copy
+      # the cargo output over src-tauri/binaries/, which is why the sign
+      # script signs BOTH locations. Pre-sign only feeds the bundler, so
+      # binary-only dispatches skip it.
+      - name: Build backend sidecar (pre-sign)
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && env.APPLE_SIGNING_IDENTITY != '' }}
+        run: |
+          bun scripts/build-backend-sidecar.mjs
+          bun scripts/copy-backend-sidecar.mjs
+
+      - name: Sign bundled resources
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && env.APPLE_SIGNING_IDENTITY != '' }}
+        run: bash scripts/sign-macos-resources.sh
 
       - name: Build desktop app (binary only)
         if: ${{ github.event.inputs.full_bundle != 'true' && github.ref_type != 'tag' }}
@@ -143,11 +199,66 @@ jobs:
 
       - name: Build desktop app (full bundle)
         if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
-        run: bun run build
+        env:
+          # Updater artifact signing (createUpdaterArtifacts: true). Absent →
+          # tauri build HARD-FAILS here (sign_updaters requires the key once
+          # pubkey is configured) — updater-enabled builds always need this
+          # secret; there is no unsigned-manifest path.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Arms the SystemHealthPage update card in the FE bundle. Reaches
+          # build-frontend.mjs via beforeBuildCommand → desktop:prepare; that
+          # script forwards VITE_* to `vite build` and hashes it into the
+          # bundle cache key.
+          VITE_DESKTOP_UPDATER_ENABLED: "true"
+        run: |
+          # Scrub APPLE_* env before `bun run build`: tauri-cli/tauri-bundler
+          # read them via var_os — presence, not non-emptiness — so the empty
+          # strings the job env exports for absent secrets would break the
+          # build (`codesign -s ""`, keychain import of an empty p12, or
+          # notarytool with empty creds — notarization runs unconditionally
+          # inside the signed branch, no --ci gate). The cert pair and all
+          # notarization vars are unset unconditionally: this workflow owns
+          # the keychain import, and the dedicated notarize-macos step is the
+          # single notarization path. APPLE_SIGNING_IDENTITY is kept when
+          # provisioned to pin the identity we just imported: left unset, the
+          # bundler falls back to `security find-identity`, which could pick
+          # an identity outside our build.keychain.
+          unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD \
+                APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID \
+                APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8 APPLE_API_KEY_PATH
+          if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then unset APPLE_SIGNING_IDENTITY; fi
+          bun run build
 
-      # No code signing / notarization is configured for this build — see the
-      # unfilled certificateThumbprint/updater pubkey placeholders in
-      # hotel-desktop/src-tauri/tauri.conf.json. Artifacts here are unsigned.
+      # API-key auth path for notarytool: the P8 material lives in a secret
+      # and is decoded to a file whose path goes through GITHUB_ENV
+      # (APPLE_API_KEY_PATH). Skipped when the secret is absent; the
+      # APPLE_ID+password path in the script needs no file.
+      - name: Write App Store Connect API key
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && env.APPLE_API_KEY_P8 != '' }}
+        run: |
+          echo "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+
+      # Runs only on bundle-producing builds with a COMPLETE credential set —
+      # the gate mirrors what notarize-macos.sh requires: all three APPLE_ID
+      # vars, or all three API-key vars (APPLE_API_KEY_P8 ⇒ the p8 file was
+      # written by the step above). Unsigned default (no secrets) skips.
+      - name: Notarize macOS bundle
+        if: ${{ (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') && ((env.APPLE_ID != '' && env.APPLE_PASSWORD != '' && env.APPLE_TEAM_ID != '') || (env.APPLE_API_KEY != '' && env.APPLE_API_ISSUER != '' && env.APPLE_API_KEY_P8 != '')) }}
+        run: |
+          bash scripts/notarize-macos.sh
+          # Remove the temp p8 the write step created — the RUNNER_TEMP guard
+          # keeps a maintainer-supplied APPLE_API_KEY_PATH from being deleted.
+          if [[ "${APPLE_API_KEY_PATH:-}" == "$RUNNER_TEMP/"* ]]; then
+            rm -f "$APPLE_API_KEY_PATH"
+          fi
+
+      # OS-level signing is conditional: with the APPLE_* secrets provisioned
+      # the .app is signed during `tauri build` (bundled resources pre-signed
+      # above) and the .dmg is notarized+stapled; without them installers are
+      # unsigned. The updater *.sig files are minisign signatures from
+      # TAURI_SIGNING_PRIVATE_KEY, unrelated to OS trust either way.
       - name: Upload build artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -242,23 +353,34 @@ jobs:
             --with-openssl --with-lz4
           make -j"$(nproc)" world-bin
           make install-world-bin
+          # Job-wide, not just the provision step: tauri's beforeBuildCommand
+          # (bun run desktop:prepare) re-runs provision:pgsql inside the build
+          # steps and needs the same prefix if the tree must be re-provisioned.
+          echo "POSTGRES_PREFIX=${PG_PREFIX}" >> "$GITHUB_ENV"
 
       - name: Provision embedded PostgreSQL tree
-        env:
-          POSTGRES_PREFIX: ${{ runner.temp }}/postgresql-19beta2
         run: bun run provision:pgsql
 
       - name: Build desktop app (binary only)
         if: ${{ github.event.inputs.full_bundle != 'true' && github.ref_type != 'tag' }}
         run: bun run build:no-bundle
 
-      # Explicit bundle list instead of `bun run build` ("all"): `all` also
-      # attempts rpm, which needs an rpmbuild toolchain the runner lacks. RPM
-      # stays an opt-in local build (`bun run build:rpm` on a system with
-      # rpmbuild) — see PACKAGING.md.
-      - name: Build desktop app (deb + AppImage)
+      # Explicit bundle list instead of `bun run build` ("all"): every bundle
+      # build ships deb + AppImage + rpm (RPM support verified — install-smoked
+      # on fedora:41, run 35424550838). tauri-bundler writes .rpm in-process
+      # via the `rpm` crate, so no rpmbuild toolchain is needed — but
+      # tauri-bundler 2.9.x (cli 2.11.4, pinned) has a known indefinite hang
+      # in that path (tauri-apps/tauri#15698), so `timeout` bounds every
+      # bundle build instead of letting a silent hang burn the job budget.
+      - name: Build desktop app (deb + AppImage + rpm)
         if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
-        run: bun scripts/tauri-build.mjs --bundles deb,appimage
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Arms the SystemHealthPage update card in the FE bundle — same
+          # VITE_* forwarding path as the macOS step above.
+          VITE_DESKTOP_UPDATER_ENABLED: "true"
+        run: timeout --signal=TERM --kill-after=30 3600 bun scripts/tauri-build.mjs --bundles deb,appimage,rpm
 
       - name: Package portable archive
         run: bun run package:portable
@@ -279,7 +401,11 @@ jobs:
           version="$("$pg_bin" --version)"
           echo "bundled postgres: $version"
           case "$version" in *19beta2*) ;; *) echo "unexpected bundled PostgreSQL: $version"; exit 1;; esac
-          app_bin="$(dpkg -L "$pkg" | grep -E '/bin/[^/]+$' | head -1)"
+          # The pgsql/bin tools share the /bin/ path segment, so match the app
+          # binary by exact name (Cargo bin name / tauri mainBinaryName), with
+          # pgsql/ excluded regardless.
+          app_bin="$(dpkg -L "$pkg" | grep -vE '/pgsql/' | grep -E '/hotel-desktop$' | head -1)"
+          test -n "$app_bin" || { echo "installed app binary missing from .deb"; exit 1; }
           echo "installed app binary: $app_bin"
           # Launch probe: a GUI app that survives 25s under xvfb got far enough
           # to start services; `timeout` exit 124 means it was still alive.
@@ -304,12 +430,131 @@ jobs:
             hotel-desktop/src-tauri/target/release/bundle/deb/**
             hotel-desktop/src-tauri/target/release/bundle/appimage/**
             hotel-desktop/src-tauri/target/release/bundle/*-portable.tar.gz
+            # Only the .rpm files, not the staged rpm/ tree the bundler
+            # leaves next to them. Matches nothing on binary-only builds —
+            # harmless when absent.
+            hotel-desktop/src-tauri/target/release/bundle/rpm/**/*.rpm
+
+      # RPM install smoke, AFTER the upload so the artifact survives a failed
+      # install. Inspect the package on the host, then dnf-install it in a
+      # clean fedora:41 container and verify the app binary + bundled
+      # PostgreSQL. Fails loudly — a green artifact that doesn't install is
+      # worse than a red run. always() && !cancelled() so it still runs when
+      # an earlier check (e.g. the deb smoke) already failed — the report is
+      # the evidence either way; gated on the bundle step's condition so
+      # binary-only dispatches skip it.
+      - name: Smoke test .rpm install (Fedora)
+        if: ${{ always() && !cancelled() && (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') }}
+        run: |
+          set -euo pipefail
+          REPORT="${RUNNER_TEMP}/rpm-smoke-report.md"
+          # `rpm` is needed here for -qpR/-ql inspection only — the bundle
+          # itself was written in-process by tauri-bundler's `rpm` crate.
+          sudo apt-get install -y rpm
+
+          shopt -s nullglob
+          rpms=(src-tauri/target/release/bundle/rpm/*.rpm)
+          if [ "${#rpms[@]}" -eq 0 ]; then
+            {
+              echo "## RPM install smoke"
+              echo
+              echo "- **no .rpm artifact** under \`src-tauri/target/release/bundle/rpm/\` —"
+              echo "  the bundle step produced none (see its log; a silent stop after"
+              echo "  \"Bundling *.rpm\" is the known tauri-apps/tauri#15698 hang)."
+            } | tee "$REPORT"
+            exit 1
+          fi
+          RPM_FILE="${rpms[0]}"
+          PKG_NAME="$(rpm -qp --queryformat '%{NAME}' "$RPM_FILE")"
+          echo "rpm artifact: $RPM_FILE (package: $PKG_NAME)"
+
+          {
+            echo "## RPM install smoke"
+            echo
+            echo "- artifact: \`$(basename "$RPM_FILE")\`"
+            echo "- package name: \`$PKG_NAME\`"
+            echo
+            echo '### `rpm -qpR` — declared dependencies'
+            echo '```'
+            rpm -qpR "$RPM_FILE"
+            echo '```'
+            echo
+            echo '### fedora:41 container install smoke'
+            echo '```'
+          } | tee "$REPORT"
+
+          # Mount hotel-desktop at /src (read-only); dnf resolves the rpm's
+          # declared deps from Fedora's repos, then verify package
+          # registration, the app binary, and the bundled postgres build —
+          # all inside the clean container. Non-zero exits propagate through
+          # PIPESTATUS so the step fails loudly.
+          set +e
+          docker run --rm \
+            -v "$PWD:/src:ro" -w /src \
+            -e "RPM_PATH=/src/${RPM_FILE}" \
+            -e "PKG_NAME=${PKG_NAME}" \
+            fedora:41 bash -lc '
+              set -euo pipefail
+              dnf install -y "$RPM_PATH"
+              rpm -q "$PKG_NAME"
+              app_bin="$(command -v hotel-desktop)"
+              echo "app binary: $app_bin"
+              ls -la "$app_bin"
+              pg_bin="$(rpm -ql "$PKG_NAME" | grep -E "/pgsql/bin/postgres$" | head -1)"
+              test -n "$pg_bin" || { echo "bundled postgres missing from package"; exit 1; }
+              version="$("$pg_bin" --version)"
+              echo "bundled postgres: $version"
+              case "$version" in *19beta2*) ;; *) echo "unexpected bundled PostgreSQL: $version"; exit 1 ;; esac
+              echo "RPM install smoke: PASS"
+            ' 2>&1 | tee -a "$REPORT"
+          rc="${PIPESTATUS[0]}"
+          set -e
+          {
+            echo '```'
+            echo
+            echo "- install smoke: \`exit ${rc}\`"
+          } | tee -a "$REPORT"
+          if [ "$rc" -ne 0 ]; then
+            echo "RPM install smoke failed (rc=$rc) — see report" >&2
+            exit "$rc"
+          fi
+
+      # always() so the smoke evidence lands even when the step above failed.
+      - name: RPM smoke summary
+        if: ${{ always() && (github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag') }}
+        run: |
+          REPORT="${RUNNER_TEMP}/rpm-smoke-report.md"
+          if [ -f "$REPORT" ]; then
+            cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## RPM install smoke"
+              echo
+              echo "- smoke step did not run — no report produced (check the job log)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   desktop-build-windows:
     name: Desktop — Real Tauri Build (Windows x86_64)
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows' }}
     runs-on: windows-latest
     timeout-minutes: 120
+
+    # Job-level, not just the provision step: tauri's beforeBuildCommand
+    # (bun run desktop:prepare) re-runs provision:pgsql inside the build steps
+    # and needs the same prefix if the tree must be re-provisioned.
+    env:
+      POSTGRES_PREFIX: C:\hotel-pg19
+      # Signing inputs are mapped at JOB level, not step level: `secrets`/`vars`
+      # are legal here, and a value the PFX-import step writes to GITHUB_ENV
+      # overrides job env (a step-level `env:` on the bundle step would shadow
+      # it instead). Two supported paths, both absent-proof:
+      #   WINDOWS_CERT_PFX_BASE64+PASSWORD — import into CurrentUser\My (hosted)
+      #   WINDOWS_CERT_THUMBPRINT         — cert already in the store (self-hosted)
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      WINDOWS_CERT_THUMBPRINT: ${{ secrets.WINDOWS_CERT_THUMBPRINT }}
+      WINDOWS_SIGN_TIMESTAMP_URL: ${{ vars.WINDOWS_SIGN_TIMESTAMP_URL }}
 
     defaults:
       run:
@@ -402,7 +647,9 @@ jobs:
 
       # Meson is the only supported Windows build for PG19 (the old MSVC perl
       # scripts were removed). vcvars64 must run inside cmd so its environment
-      # persists for the meson invocations below. -Dicu=auto: ICU collations
+      # persists for the meson invocations below; VSINSTALL comes from the
+      # pwsh step above (resolving it under cmd trips on the ')' in
+      # "Program Files (x86)" — run 35354808394). -Dicu=auto: ICU collations
       # come along when vcpkg's pkgconfig resolves; the build does not hinge
       # on it.
       - name: Build PostgreSQL 19 Beta 2 (Meson + MSVC)
@@ -425,24 +672,42 @@ jobs:
           Get-ChildItem "C:\hotel-pg19\bin" | Measure-Object | Out-Default
 
       - name: Provision embedded PostgreSQL tree
-        env:
-          POSTGRES_PREFIX: C:\hotel-pg19
         run: bun run provision:pgsql
 
       - name: Build desktop app (binary only)
         if: ${{ github.event.inputs.full_bundle != 'true' && github.ref_type != 'tag' }}
         run: bun run build:no-bundle
 
+      # PFX path for hosted runners: decode the base64 PFX into a temp file,
+      # import into CurrentUser\My, then hand the resolved thumbprint to the
+      # bundle step via GITHUB_ENV (overrides the job-env thumbprint secret,
+      # which may be empty — the imported cert is guaranteed to be in the
+      # store). Secrets absent → step skipped → unsigned, the default.
+      - name: Import code-signing certificate
+        if: ${{ env.WINDOWS_CERT_PFX_BASE64 != '' }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'hotel-codesign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $pwd = ConvertTo-SecureString $env:WINDOWS_CERT_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -Password $pwd -CertStoreLocation Cert:\CurrentUser\My
+          Remove-Item $pfx -Force
+          "WINDOWS_CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Certificate imported (thumbprint resolved; expires $($cert.NotAfter.ToString('yyyy-MM-dd')))"
+
       # NSIS is the always-on Windows installer; MSI joins it on tag releases
       # (WiX toolchain download adds build time, so validation builds skip it).
-      # Signing is conditional: set the WINDOWS_CERT_THUMBPRINT secret (a cert
-      # present in the runner/build agent's certificate store) and Tauri signs
-      # exe + installers via signtool. Absent → unsigned artifacts, by design.
+      # Signing is conditional: WINDOWS_CERT_THUMBPRINT reaches this step from
+      # job env (self-hosted store secret) or from the PFX import above via
+      # GITHUB_ENV (hosted runners) — either way Tauri signs exe + installers
+      # via signtool. Absent → unsigned artifacts, by design.
       - name: Build desktop app (NSIS / MSI)
         if: ${{ github.event.inputs.full_bundle == 'true' || github.ref_type == 'tag' }}
         env:
-          WINDOWS_CERT_THUMBPRINT: ${{ secrets.WINDOWS_CERT_THUMBPRINT }}
-          WINDOWS_SIGN_TIMESTAMP_URL: ${{ vars.WINDOWS_SIGN_TIMESTAMP_URL }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Arms the SystemHealthPage update card in the FE bundle — same
+          # VITE_* forwarding path as the macOS/Linux steps.
+          VITE_DESKTOP_UPDATER_ENABLED: "true"
         run: |
           $bundles = 'nsis'
           if ($env:GITHUB_REF_TYPE -eq 'tag') { $bundles = 'nsis,msi' }
@@ -476,7 +741,10 @@ jobs:
           if (-not $app) { throw 'hotel-desktop.exe not found under %LOCALAPPDATA% after silent install' }
           $installDir = $app.Directory.FullName
           $pg = Join-Path $installDir 'pgsql\bin\postgres.exe'
-          $sidecar = Get-ChildItem $installDir -Filter 'hotel-app-be-*.exe' | Select-Object -First 1
+          # tauri-bundler strips the -<triple> suffix when installing
+          # externalBin (installed name: hotel-app-be.exe) — match both names,
+          # recursing in case it ever lands in a subdirectory.
+          $sidecar = Get-ChildItem $installDir -Recurse -Filter 'hotel-app-be*.exe' | Select-Object -First 1
           if (-not (Test-Path $pg)) { throw "bundled postgres.exe missing at $pg" }
           if (-not $sidecar) { throw 'backend sidecar missing from install' }
           $version = & $pg --version
@@ -492,7 +760,66 @@ jobs:
           if-no-files-found: error
           path: |
             hotel-desktop/src-tauri/target/release/hotel-desktop.exe
-            hotel-desktop/src-tauri/target/release/hotel-app-be-*.exe
+            hotel-desktop/src-tauri/binaries/hotel-app-be-*.exe
             hotel-desktop/src-tauri/target/release/bundle/nsis/**
             hotel-desktop/src-tauri/target/release/bundle/msi/**
             hotel-desktop/src-tauri/target/release/bundle/*-portable.zip
+
+  # Tag pushes only: assembles latest.json from the three platforms' updater
+  # artifacts and publishes it (plus installers) to the tag's GitHub Release,
+  # which is the updater endpoint configured in tauri.conf.json. The
+  # full_bundle workflow_dispatch path intentionally does NOT publish.
+  desktop-release:
+    name: Publish GitHub Release + updater manifest
+    if: ${{ github.ref_type == 'tag' }}
+    needs: [desktop-build-macos, desktop-build-windows, desktop-build-linux]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # latest.json `notes` comes from the annotated tag message; a shallow
+          # fetch may hold the ref without the tag object behind it.
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: hotel-desktop-*
+          path: artifacts
+
+      - name: Assemble release assets + latest.json
+        run: |
+          # Manifest `notes` = the annotated tag message (subject + body;
+          # `contents` on a signed tag would also carry the PGP block).
+          # %(objecttype) is 'commit' on a lightweight tag, whose %(contents)
+          # would be the commit message — not release notes — so notes stay
+          # empty there. Passed via env, not a flag, so an annotation that
+          # begins with "--" can't trip the script's CLI arg parsing.
+          NOTES=""
+          if [ "$(git tag -l --format='%(objecttype)' "$GITHUB_REF_NAME")" = "tag" ]; then
+            NOTES="$(git tag -l --format='%(contents:subject)%0a%(contents:body)' "$GITHUB_REF_NAME")"
+          fi
+          NOTES="$NOTES" bun hotel-desktop/scripts/build-update-manifest.mjs \
+            --tag "$GITHUB_REF_NAME" --artifacts artifacts \
+            --repo "$GITHUB_REPOSITORY" --out release-assets
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Idempotent: a re-run of this job finds the release already exists.
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release-assets/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              release-assets/*
+          fi

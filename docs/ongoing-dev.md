@@ -34,21 +34,15 @@ coverage, and the GitHub Action SHA-pinning sweep.
 
 ## P2 — later
 
-- FE test deserts (2026-09-14 update): loyalty and user settings suites are
-  covered, and every `*Page` now has at least smoke + axe coverage —
-  AuditLogPage, NightAuditPage, SystemHealthPage, JobsPage,
-  ReportLibraryPage, RevenueOverviewPage, SegmentsPage, DataTransferPage,
-  ComplimentaryManagementPage, CommunicationsPage, OffersPage,
-  PromotionManagementPage, RatesPage, UserProfilePage, EkycManagementPage,
-  EkycRegistrationPage, RoomManagementPage, RoomConfigurationPage,
-  RBACManagementPage, EnrollTwoFactorPage, EmailVerificationPage all gained
-  focused test files this session (the axe runs also surfaced and fixed ~57
-  unlabeled form controls/buttons). Still thin by depth rather than coverage:
-  the big workflow pages (RoomManagementPage, EkycManagementPage,
-  RBACManagementPage, DataTransferPage) only have render-level smoke — real
-  workflow assertions remain follow-ups. Remaining SettingsPage cards
-  (hotel info, times, charges, support workflow, security, appearance) not
-  yet split into sibling components.
+- FE test deserts (2026-09-18 update): loyalty and user settings suites are
+  covered, every `*Page` has at least smoke + axe coverage, and the four big
+  workflow pages (RoomManagementPage, EkycManagementPage, RBACManagementPage,
+  DataTransferPage) now carry real interaction assertions —
+  `pageManifest.workflowTests` is content-checked so a listed file must
+  simulate user interaction or fail CI. Still thin by depth — next tier by
+  component/test ratio stays as follow-ups: EkycRegistrationPage,
+  CommunicationsPage, NightAuditPage, RoomConfigurationPage, LoyaltyPortal.
+  SettingsPage cards are split into sibling components.
 - Phone/tablet density backlog (migrated 2026-09-15 from the deleted
   `superpowers/reports/2026-09-14-mobile-ux-report.md` as that plan's artifacts
   were pruned; priority order preserved). Item 4 of the original five —
@@ -66,13 +60,31 @@ coverage, and the GitHub Action SHA-pinning sweep.
   (`CONFIGURED_POSTGRES_BUILD_IDENTITY`, `hotel-desktop/src-tauri/src/postgres.rs`)
   while every server/CI/compose pin is `19beta3`. Bump with the GA move above —
   it needs re-provisioning plus a pgdata rebuild, not just a constant edit.
-- Desktop packaging: Windows (NSIS/MSI + portable zip) and Linux (deb/AppImage +
-  portable tar.gz) jobs now exist in `desktop-build.yml` with install smoke
-  tests — still open: run them once end-to-end, RPM evaluation, arm or hide the
-  updater (`hotel-desktop/UPDATER.md`), signing certs (Windows thumbprint is
-  env-wired; macOS notarization is not), consolidate hand-maintained
-  origin/proxy lists; desktop session persistence across restarts
-  (SameSite boundary).
+- Desktop packaging (hardening landed 2026-09-18/19): **updater ARMED** via
+  GitHub Releases — real pubkey + `releases/latest/download/latest.json`
+  endpoint, `install_update`/`restart_app` commands, tag-gated
+  `desktop-release` job publishes `latest.json` + installers, and a
+  SystemHealthPage update card gated on `VITE_DESKTOP_UPDATER_ENABLED`
+  (owner doc: [`hotel-desktop/UPDATER.md`](../hotel-desktop/UPDATER.md);
+  secrets `TAURI_SIGNING_PRIVATE_KEY[_PASSWORD]` are set, keypair generated
+  2026-09-18). **Signing wired, certs pending** — Windows PFX/thumbprint and
+  macOS keychain-sign/notarytool paths are all `env`-gated, so unsigned
+  stays the default; note that an absent `TAURI_SIGNING_PRIVATE_KEY` now
+  *hard-fails* bundle builds (updater signing is mandatory once configured)
+  while absent cert secrets only mean unsigned OS-level artifacts. **RPM
+  shipped** — default Linux bundle + `fedora:41` install smoke
+  ([eval record](../.claude/reports/rpm-eval-2026-09-19.md)). Origin/proxy
+  drift is enforced by `hotel-desktop/scripts/origin-parity.test.mjs`.
+  E2E: the first three full-bundle dispatches failed (35354808394,
+  35398662670, 35416174865) and every failure got a landed fix
+  ([run ledger](../.claude/reports/desktop-build-e2e-2026-09-19.md))
+  — verification run 35425902135 completed **all three platforms green**
+  (macOS 9m30s, Linux 19m23s incl. deb+xvfb smoke, Windows 1h0m54s incl.
+  NSIS silent-install smoke), the first all-green full-bundle run.
+  Still open: provision signing certs (Windows PFX, Apple Developer ID +
+  notarization creds) then verify a signed/notarized build end-to-end;
+  desktop session persistence across restarts stays an accepted limitation
+  (SameSite boundary — the fix is token-in-keychain work, a separate spec).
 - Dependabot alert #13 (moderate): glib 0.18.5 in hotel-desktop/src-tauri
   (unsound VariantStrIter, fixed 0.20.0). Semver-pinned by the tauri/gtk stack —
   requires a coordinated tauri/gtk major upgrade with desktop regression

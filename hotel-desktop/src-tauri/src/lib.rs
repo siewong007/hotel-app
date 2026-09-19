@@ -7,6 +7,7 @@ pub mod commands;
 pub mod logging;
 pub mod postgres;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, Manager};
 
 /// Initialize and run the Tauri application
@@ -19,7 +20,10 @@ pub fn run() {
         // Secure auto-update support. The updater verifies a minisign signature
         // against `plugins.updater.pubkey` in tauri.conf.json before applying any
         // downloaded artifact, so releases must be signed with the matching
-        // private key (see UPDATER.md). `process` provides relaunch-after-update.
+        // private key (see UPDATER.md). `process` stays registered only for its
+        // capability grant (`process:default`, a valid FE-side restart fallback
+        // via `plugin:process|restart`) — the Rust `restart_app` command goes
+        // through `AppHandle::request_restart` so RunEvent::Exit teardown runs.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
@@ -31,14 +35,12 @@ pub fn run() {
                 // Continue anyway - directories might already exist
             }
 
-            // Start backend in background
+            // Start backend in background. A successful start_backend_sidecar
+            // also kicks off the scheduled-backup loop (see commands.rs), so
+            // recovery paths get the scheduler too.
             tauri::async_runtime::spawn(async move {
                 match start_services(app_handle.clone()).await {
-                    Ok(()) => {
-                        // Services are up; run automatic backups on a schedule.
-                        // Failures here must never crash or block the app.
-                        spawn_scheduled_backups(app_handle.clone());
-                    }
+                    Ok(()) => {}
                     Err(e) => {
                         log::error!("Failed to start services: {}", e);
                         if let Some(window) = app_handle.get_webview_window("main") {
@@ -55,10 +57,15 @@ pub fn run() {
             commands::restart_backend,
             commands::backup_database,
             commands::upgrade_database_from_backup,
+            commands::restore_database,
+            commands::list_backups,
             commands::get_logs,
             commands::open_data_folder,
+            commands::open_backups_folder,
             commands::shutdown_app,
             commands::check_for_updates,
+            commands::install_update,
+            commands::restart_app,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
@@ -70,12 +77,7 @@ pub fn run() {
                 log::info!("Application exiting; stopping backend services...");
                 let handle = app_handle.clone();
                 tauri::async_runtime::block_on(async move {
-                    if let Err(e) = commands::stop_backend_sidecar().await {
-                        log::warn!("Failed to stop backend sidecar on exit: {}", e);
-                    }
-                    if let Err(e) = postgres::stop_postgres(&handle).await {
-                        log::warn!("Failed to stop PostgreSQL on exit: {}", e);
-                    }
+                    commands::stop_services_for_exit(&handle).await;
                 });
             }
         });
@@ -91,6 +93,8 @@ fn init_data_directories() -> Result<(), std::io::Error> {
     // Create subdirectories
     std::fs::create_dir_all(data_dir.join("logs"))?;
     std::fs::create_dir_all(data_dir.join("backups"))?;
+    std::fs::create_dir_all(data_dir.join("uploads"))?;
+    std::fs::create_dir_all(data_dir.join("private_uploads"))?;
 
     log::info!("Data directories initialized at: {:?}", data_dir);
     Ok(())
@@ -133,17 +137,33 @@ const FIRST_BACKUP_DELAY_SECS: u64 = 120;
 /// Interval between automatic backups thereafter.
 const BACKUP_INTERVAL_SECS: u64 = 24 * 60 * 60;
 
+/// True once the scheduled-backup loop has been spawned. Every path that
+/// brings the backend up — initial start, manual restart, restore, guided
+/// upgrade, crash backoff — calls `spawn_scheduled_backups` afterwards; only
+/// the first call spawns the loop, so the scheduler is neither lost on
+/// recovery paths nor duplicated when more than one of them fires.
+static SCHEDULER_SPAWNED: AtomicBool = AtomicBool::new(false);
+
 /// Spawn a background task that runs a database backup shortly after startup and
-/// then every 24 hours. Backup failures are logged and never propagated, so this
+/// then every 24 hours. Idempotent — safe to call after every successful
+/// backend start. Backup failures are logged and never propagated, so this
 /// task can neither crash nor block the application.
-fn spawn_scheduled_backups(app_handle: tauri::AppHandle) {
+pub(crate) fn spawn_scheduled_backups(app_handle: tauri::AppHandle) {
+    if SCHEDULER_SPAWNED.swap(true, Ordering::SeqCst) {
+        return;
+    }
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(FIRST_BACKUP_DELAY_SECS)).await;
 
         loop {
             log::info!("Running scheduled database backup...");
             match postgres::run_scheduled_backup(&app_handle).await {
-                Ok(path) => log::info!("Scheduled backup written to {:?}", path),
+                Ok(Some(path)) => log::info!("Scheduled backup written to {:?}", path),
+                // A manual backup or a restore is in flight — skip this
+                // cycle rather than dump a half-restored database.
+                Ok(None) => {
+                    log::info!("Scheduled backup skipped: another backup or restore is in progress")
+                }
                 Err(e) => log::error!("Scheduled backup failed (continuing): {}", e),
             }
 

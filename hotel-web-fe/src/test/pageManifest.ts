@@ -126,7 +126,6 @@ export const PAGE_MANIFEST: PageManifestEntry[] = [
     component: 'features/auth/components/EnrollTwoFactorPage.tsx',
     smokeTests: ['features/auth/components/EnrollTwoFactorPage.test.tsx'],
     axeTests: ['features/auth/components/EnrollTwoFactorPage.test.tsx'],
-    workflowTests: ['features/auth/components/EnrollTwoFactorPage.test.tsx'],
   },
   // ── guest check-in (unauthenticated) ──────────────────────────────────────
   {
@@ -440,7 +439,6 @@ export const PAGE_MANIFEST: PageManifestEntry[] = [
     component: 'features/promotions/pages/PromotionManagementPage.tsx',
     smokeTests: ['features/promotions/pages/PromotionManagementPage.test.tsx'],
     axeTests: ['features/promotions/pages/PromotionManagementPage.test.tsx'],
-    workflowTests: ['features/promotions/pages/PromotionManagementPage.test.tsx'],
   },
   {
     id: 'segments',
@@ -451,7 +449,6 @@ export const PAGE_MANIFEST: PageManifestEntry[] = [
     component: 'features/segments/pages/SegmentsPage.tsx',
     smokeTests: ['features/segments/pages/SegmentsPage.test.tsx'],
     axeTests: ['features/segments/pages/SegmentsPage.test.tsx'],
-    workflowTests: ['features/segments/pages/SegmentsPage.test.tsx'],
   },
   {
     id: 'communications',
@@ -529,7 +526,6 @@ export const PAGE_MANIFEST: PageManifestEntry[] = [
     component: 'features/insights/pages/ReportLibraryPage.tsx',
     smokeTests: ['features/insights/pages/ReportLibraryPage.test.tsx'],
     axeTests: ['features/insights/pages/ReportLibraryPage.test.tsx'],
-    workflowTests: ['features/insights/pages/ReportLibraryPage.test.tsx'],
   },
   // ── administration ────────────────────────────────────────────────────────
   {
@@ -563,7 +559,6 @@ export const PAGE_MANIFEST: PageManifestEntry[] = [
     component: 'features/ekyc/components/EkycRegistrationPage.tsx',
     smokeTests: ['features/ekyc/components/EkycRegistrationPage.test.tsx'],
     axeTests: ['features/ekyc/components/EkycRegistrationPage.test.tsx'],
-    workflowTests: ['features/ekyc/components/EkycRegistrationPage.test.tsx'],
   },
   {
     id: 'settings',
@@ -609,6 +604,8 @@ export const PAGE_MANIFEST: PageManifestEntry[] = [
     workflowTests: [
       'features/admin/components/DataTransferPage.test.tsx',
       'features/admin/components/data-transfer/ImportWizard.test.tsx',
+      'features/admin/components/data-transfer/ExportPanel.test.tsx',
+      'features/admin/components/data-transfer/DesktopBackupsCard.test.tsx',
     ],
   },
   {
@@ -671,7 +668,6 @@ export const PAGE_MANIFEST: PageManifestEntry[] = [
     component: 'features/user/components/UserProfilePage.tsx',
     smokeTests: ['features/user/components/UserProfilePage.test.tsx'],
     axeTests: ['features/user/components/UserProfilePage.test.tsx'],
-    workflowTests: ['features/user/components/UserProfilePage.test.tsx'],
   },
   // ── standalone public surfaces (file routes, not in the registry) ─────────
   {
