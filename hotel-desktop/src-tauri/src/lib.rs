@@ -7,6 +7,7 @@ pub mod commands;
 pub mod logging;
 pub mod postgres;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, Manager};
 
 /// Initialize and run the Tauri application
@@ -34,14 +35,12 @@ pub fn run() {
                 // Continue anyway - directories might already exist
             }
 
-            // Start backend in background
+            // Start backend in background. A successful start_backend_sidecar
+            // also kicks off the scheduled-backup loop (see commands.rs), so
+            // recovery paths get the scheduler too.
             tauri::async_runtime::spawn(async move {
                 match start_services(app_handle.clone()).await {
-                    Ok(()) => {
-                        // Services are up; run automatic backups on a schedule.
-                        // Failures here must never crash or block the app.
-                        spawn_scheduled_backups(app_handle.clone());
-                    }
+                    Ok(()) => {}
                     Err(e) => {
                         log::error!("Failed to start services: {}", e);
                         if let Some(window) = app_handle.get_webview_window("main") {
@@ -138,10 +137,21 @@ const FIRST_BACKUP_DELAY_SECS: u64 = 120;
 /// Interval between automatic backups thereafter.
 const BACKUP_INTERVAL_SECS: u64 = 24 * 60 * 60;
 
+/// True once the scheduled-backup loop has been spawned. Every path that
+/// brings the backend up — initial start, manual restart, restore, guided
+/// upgrade, crash backoff — calls `spawn_scheduled_backups` afterwards; only
+/// the first call spawns the loop, so the scheduler is neither lost on
+/// recovery paths nor duplicated when more than one of them fires.
+static SCHEDULER_SPAWNED: AtomicBool = AtomicBool::new(false);
+
 /// Spawn a background task that runs a database backup shortly after startup and
-/// then every 24 hours. Backup failures are logged and never propagated, so this
+/// then every 24 hours. Idempotent — safe to call after every successful
+/// backend start. Backup failures are logged and never propagated, so this
 /// task can neither crash nor block the application.
-fn spawn_scheduled_backups(app_handle: tauri::AppHandle) {
+pub(crate) fn spawn_scheduled_backups(app_handle: tauri::AppHandle) {
+    if SCHEDULER_SPAWNED.swap(true, Ordering::SeqCst) {
+        return;
+    }
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(FIRST_BACKUP_DELAY_SECS)).await;
 

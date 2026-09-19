@@ -279,7 +279,7 @@ Scale-out checklist:
 cd hotel-desktop
 bun install
 bun run desktop:prepare
-bun run build   # installer: .dmg on macOS, .msi on Windows, .AppImage on Linux — in src-tauri/target/release/bundle/
+bun run build   # installer: .dmg (macOS), NSIS/MSI (Windows), deb/AppImage/rpm (Linux) — in src-tauri/target/release/bundle/
 ```
 
 `desktop:prepare` is cache-aware: it syncs database resources, builds the frontend bundle, builds the backend sidecar, and copies the sidecar in that order, skipping each artifact when its inputs are unchanged. Production builds use the release backend sidecar; `build:fast` and `build:debug` use the debug sidecar. Use `bun run desktop:prepare:force` to rebuild every prepared artifact.

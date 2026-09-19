@@ -36,7 +36,7 @@ files > tests > docs. Documentation never overrides the implementation.
 | Database lifecycle (baseline/seed/patches) | [`../hotel-app-be/database/README.md`](../hotel-app-be/database/README.md) |
 | Backend quick start | [`../hotel-app-be/README.md`](../hotel-app-be/README.md) |
 | Desktop build pipeline | [`../hotel-desktop/BUILD_SPEED.md`](../hotel-desktop/BUILD_SPEED.md) |
-| Desktop updater (not armed) | [`../hotel-desktop/UPDATER.md`](../hotel-desktop/UPDATER.md) |
+| Desktop updater | [`../hotel-desktop/UPDATER.md`](../hotel-desktop/UPDATER.md) |
 | OCI dev infrastructure | [`../infra/terraform/oci/README.md`](../infra/terraform/oci/README.md) |
 | Open work tracker | [`ongoing-dev.md`](ongoing-dev.md) |
 | Contribution process | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |

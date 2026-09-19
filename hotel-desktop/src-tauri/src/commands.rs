@@ -189,6 +189,12 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
     BACKEND_STARTING.store(false, Ordering::SeqCst);
     BACKEND_RUNNING.store(true, Ordering::SeqCst);
 
+    // Every path that brings the backend up — initial start, manual restart,
+    // restore, guided upgrade, crash backoff — goes through here, so this is
+    // the single point that guarantees the scheduled-backup loop is running.
+    // The spawn is idempotent; repeat starts are no-ops.
+    crate::spawn_scheduled_backups(app_handle.clone());
+
     if let Some(window) = app_handle.get_webview_window("main") {
         let _ = window.emit("backend-ready", get_backend_url());
     }
