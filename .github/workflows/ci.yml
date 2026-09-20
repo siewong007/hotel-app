@@ -287,12 +287,12 @@ jobs:
       - name: Verify PostgreSQL patch lifecycle
         run: cargo test --test postgres_patch_lifecycle -- --nocapture
 
-      # staging.sql is the canonical rerunnable staging dataset. Apply it twice:
-      # the second run must be a no-op delete+reinsert inside the 800000-899999
-      # id band, so row counts must be identical across runs. It gets its own
-      # database: the fixtures intentionally stay in place, and tests sharing
-      # hotel_ci assert exact global counts (the delivery feed counted
-      # staging's email_deliveries rows as its own).
+      # The seed bin (`src/bin/seed`) is the canonical rerunnable staging
+      # dataset. Apply it twice: the second run must be a no-op wipe+reinsert
+      # inside the 800000-899999 id band, so row counts must be identical
+      # across runs. It gets its own database: the fixtures intentionally stay
+      # in place, and tests sharing hotel_ci assert exact global counts (the
+      # delivery feed counted seed email_deliveries rows as its own).
       - name: Verify staging dataset applies and reruns idempotently
         run: |
           STAGING_URL="${DATABASE_URL%/*}/hotel_ci_staging"
@@ -300,9 +300,9 @@ jobs:
                              -c "CREATE DATABASE hotel_ci_staging"
           psql "$STAGING_URL" -f database/postgres/migrations/0001_v1_baseline.sql
           psql "$STAGING_URL" -f database/postgres/seed.sql
-          psql "$STAGING_URL" -v ON_ERROR_STOP=1 -f database/postgres/staging.sql
+          APP_ENV=development DATABASE_URL="$STAGING_URL" cargo run --quiet --bin seed -- --all
           first=$(psql "$STAGING_URL" -At -c "SELECT COUNT(*) FROM bookings WHERE id BETWEEN 800000 AND 899999")
-          psql "$STAGING_URL" -v ON_ERROR_STOP=1 -f database/postgres/staging.sql
+          APP_ENV=development DATABASE_URL="$STAGING_URL" cargo run --quiet --bin seed -- --all
           second=$(psql "$STAGING_URL" -At -c "SELECT COUNT(*) FROM bookings WHERE id BETWEEN 800000 AND 899999")
           test "$first" -gt 0 && test "$first" = "$second"
           psql "$STAGING_URL" -v ON_ERROR_STOP=1 <<'SQL'
