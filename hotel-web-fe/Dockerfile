@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for React Frontend
 # Stage 1: Build the application
-FROM oven/bun:1.3.14-alpine AS builder
+FROM oven/bun:1.4.2-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -52,7 +52,7 @@ RUN bun run build
 # Stage 2: Serve with Nginx
 # Version-pinned (was floating nginx:alpine) so two deploys of the
 # same commit cannot get different web servers.
-FROM nginx:1.28-alpine
+FROM nginx:1.29-alpine
 
 # Install curl for health checks
 RUN apk add --no-cache curl
