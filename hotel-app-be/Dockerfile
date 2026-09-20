@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for Rust Backend
 # Stage 1: Build the application
-FROM rust:1.95.0-bookworm AS builder
+FROM rust:1.98.0-bookworm AS builder
 
 # Install build dependencies
 # protobuf-compiler: build.rs compiles the gRPC contract in ./proto via protoc
