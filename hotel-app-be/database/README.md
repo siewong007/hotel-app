@@ -6,7 +6,6 @@ PostgreSQL is the application's only database engine.
 database/postgres/
 ├── migrations/0001_v1_baseline.sql     # fresh install: schema
 ├── seed.sql                            # fresh install: system/bootstrap records
-├── staging.sql                         # optional: rerunnable staging/demo dataset
 ├── patches/manifest.tsv                # ordered, checksummed patch catalog
 ├── patches/_begin.sql                  # shared control: lock, guard, skip
 ├── patches/_end.sql                    # shared control: record, commit
@@ -97,30 +96,37 @@ be empty — and check the dumps are non-trivial first, because two failed dumps
 also diff to zero. Declare a new column in the position `ALTER TABLE ADD COLUMN`
 produces (last in the table body) or fresh and patched schemas diverge forever.
 
-## Staging dataset (`staging.sql`)
+## Staging dataset (`seed` binary)
 
-`staging.sql` is the canonical staging/demo dataset: a comprehensive,
-deterministic, **re-runnable** population of every application module on top of
-a completed V1 lifecycle. It never ships to production and is not part of
-`db-baseline`.
+The canonical staging/demo dataset lives in the `seed` binary
+(`src/bin/seed/`): a comprehensive, deterministic, **re-runnable** population
+of every application module on top of a completed V1 lifecycle. It never ships
+to production and is not part of `db-baseline`.
 
 ```bash
 make db-baseline DATABASE_URL="$DATABASE_URL"   # once per fresh database
 make db-seed     DATABASE_URL="$DATABASE_URL"   # apply; safe to rerun
 ```
 
-Rerun semantics: the script opens one transaction, takes an advisory lock,
-guards on the recorded V1 revision, deletes every staging-owned row
-(child-first) inside the fixed id band **800000-899999** (plus generated-id
-children and marker-tagged `job_runs`), then reinserts. A rerun therefore
-yields identical counts — it is a reset of the staging dataset, never an
-append. It never touches bootstrap rows or ids outside the band.
+Rerun semantics: the binary opens one transaction, takes an advisory lock,
+guards on the recorded V1 revision and the environment (refuses production),
+wipes every staging-owned row (child-first) inside the fixed id band
+**800000-899999** (plus generated-id children and marker-tagged `job_runs`),
+then inserts the selected sections. A rerun therefore yields identical counts
+— it is a reset of the staging dataset, never an append. It never touches
+bootstrap rows or ids outside the band.
 
-Reference date: every stay/schedule date derives from the connection's
-`CURRENT_DATE`, so the dataset never goes stale. Pin it for reproducible runs:
+Scenarios: `cargo run --bin seed -- --list` shows the named subsets
+(`basic`, `availability`, `frontdesk`, `payments`, …). Apply one or more with
+`--scenario NAME`; `--all` (and bare `seed`) applies everything; `--reset`
+wipes seed-owned rows only and is refused outside development/test
+environments.
+
+Reference date: every stay/schedule date derives from the hotel business date
+(`staging_ref`), so the dataset never goes stale. Pin it for reproducible runs:
 
 ```bash
-PGOPTIONS='-c staging.ref_date=2026-01-15' psql "$DATABASE_URL" -f hotel-app-be/database/postgres/staging.sql
+cargo run --bin seed -- --all --ref-date 2026-01-15
 ```
 
 Auth fixtures: every staging user shares the staging-only password

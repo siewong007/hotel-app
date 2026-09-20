@@ -151,7 +151,7 @@ db-baseline: require-database-url ## Canonical: create schema + system bootstrap
 	$(MAKE) db-patch
 
 db-seed: require-database-url ## Canonical: populate comprehensive deterministic staging data (requires DATABASE_URL)
-	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/staging.sql
+	cd hotel-app-be && cargo run --quiet --bin seed -- --all
 
 db-setup: db-baseline ## DEPRECATED alias for db-baseline (kept for compatibility)
 	@printf '%s\n' 'warning: `db-setup` is deprecated — use `db-baseline` (structure) + `db-seed` (staging data)' >&2
