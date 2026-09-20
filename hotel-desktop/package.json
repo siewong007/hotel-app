@@ -34,7 +34,7 @@
     "desktop:prepare:force": "bun scripts/desktop-prepare.mjs --force"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.4"
+    "@tauri-apps/cli": "^2.11.5"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1"
