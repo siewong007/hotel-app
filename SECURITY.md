@@ -11,7 +11,11 @@ Hotel app is an academic and portfolio-oriented project. Security fixes are curr
 
 ## Reporting a Vulnerability
 
-Please do not disclose suspected vulnerabilities publicly before they can be reviewed. If a private GitHub security advisory is available, use it. Otherwise, contact the repository maintainer through a private channel and include:
+Please do not disclose suspected vulnerabilities publicly before they can be reviewed.
+
+**Report privately through GitHub:** [open a security advisory](https://github.com/siewong007/hotel-app/security/advisories/new). Private vulnerability reporting is enabled on this repository, so the report stays visible only to you and the maintainer until a fix ships. Do not open a public issue for a vulnerability.
+
+Include:
 
 - A clear description of the issue.
 - Steps to reproduce or proof-of-concept details.

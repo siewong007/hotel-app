@@ -1,0 +1,55 @@
+name: Dependabot auto-merge
+
+# Queues Dependabot's patch and minor bumps for auto-merge.
+#
+# This does NOT bypass CI. Auto-merge only asks GitHub to merge once the
+# branch ruleset is satisfied, and that ruleset requires all 17 status checks
+# to pass, so a red bump sits open exactly as it does today. What it removes
+# is the manual click on ~7 green PRs a week, which is what let #163/#164/#165
+# rot for five days.
+#
+# `pull_request_target`, not `pull_request`: a Dependabot-authored
+# `pull_request` run receives a read-only token and no secrets, so it cannot
+# enable auto-merge. The elevated token is safe here because this workflow
+# never checks out the pull request branch -- no untrusted code executes.
+#
+# The gate is written as an allow-list (patch OR minor) rather than
+# "not major" so that an empty or unexpected `update-type` fails closed and
+# leaves the PR for a human.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Queue patch/minor for auto-merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch update metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge
+        if: |
+          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+          steps.meta.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Explain why a major was left alone
+        if: |
+          steps.meta.outputs.update-type != 'version-update:semver-patch' &&
+          steps.meta.outputs.update-type != 'version-update:semver-minor'
+        run: |
+          echo "update-type='${{ steps.meta.outputs.update-type }}' is not patch or minor." >> "$GITHUB_STEP_SUMMARY"
+          echo "Left open for manual review." >> "$GITHUB_STEP_SUMMARY"

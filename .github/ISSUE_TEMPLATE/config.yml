@@ -1,0 +1,13 @@
+# Routes security reports away from the public issue tracker. Private
+# vulnerability reporting is enabled on this repository, so the advisory form
+# below is a real destination -- SECURITY.md used to hedge with "if a private
+# GitHub security advisory is available" because it was not.
+blank_issues_enabled: true
+
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/siewong007/hotel-app/security/advisories/new
+    about: >-
+      Auth or RBAC bypass, SQL injection, exposure of secrets/tokens/eKYC
+      evidence, or unsafe upload handling. Stays private between you and the
+      maintainer until a fix ships. Never file these as a public issue.
