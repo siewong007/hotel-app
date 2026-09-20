@@ -93,6 +93,15 @@ updates:
       backend-images-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # The builder image mirrors a toolchain version pinned in four other
+      # places (rust-toolchain.toml, both Cargo.toml `rust-version` fields, and
+      # the dtolnay action ref). Moving only this one is wrong by construction:
+      # rust-toolchain.toml still says 1.95.0, so rustup would just download
+      # 1.95.0 inside a 1.98.0 image. PR #176 proposed exactly that. Bump the
+      # five together by hand. `debian:bookworm-slim` stays watched — it is a
+      # standalone runtime and genuinely wants CVE updates.
+      - dependency-name: "rust"
 
   - package-ecosystem: docker
     directory: /hotel-web-fe
@@ -102,3 +111,10 @@ updates:
       frontend-images-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # Same reason as the backend builder: `bun-version: "1.3.14"` is pinned
+      # in three workflow steps, so bumping only the image makes the shipped
+      # container build with a bun that CI never exercised. PR #177 proposed
+      # 1.4.2 while CI stayed on 1.3.14. `nginx` stays watched — it is a
+      # standalone runtime with real CVE exposure and no pin elsewhere.
+      - dependency-name: "oven/bun"
