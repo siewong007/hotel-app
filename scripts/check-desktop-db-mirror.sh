@@ -46,7 +46,7 @@ sha_of() {
 
 # ── 1. Files that must be byte-identical on both sides ───────────────────────
 # Only what the desktop bundle actually ships. Backend-only tooling
-# (apply-patches.sh, staging.sql, optimization/) is deliberately not mirrored.
+# (apply-patches.sh, optimization/) is deliberately not mirrored.
 mirrored=(
     "migrations/0001_v1_baseline.sql"
     "seed.sql"

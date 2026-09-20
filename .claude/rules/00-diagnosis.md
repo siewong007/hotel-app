@@ -11,8 +11,7 @@ since the domain-module migration): the V1 baseline SQL 10.7k lines,
 `modules/analytics/repository.rs` ~2.5k, `modules/payments/repository.rs` ~2.3k,
 `features/invoices/components/CheckoutInvoiceModal.tsx` ~2.2k, `src-tauri/src/postgres.rs` ~2.2k,
 `features/admin/components/CustomerLedger/CustomerLedgerPage.tsx` ~2.2k,
-`modules/ledgers/repository.rs` ~2.1k, `staging.sql` ~1.7k,
-`seed.sql` ~1.7k. Reading one whole can burn 30–60k tokens in a single call. Handlers are
+`modules/ledgers/repository.rs` ~2.1k, `seed.sql` ~1.7k. Reading one whole can burn 30–60k tokens in a single call. Handlers are
 thin wrappers now — `modules/bookings/handlers.rs` is 268 lines, and `BookingsPage.tsx` was split
 down to ~450, so neither is worth avoiding any more.
 

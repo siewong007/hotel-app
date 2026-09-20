@@ -58,7 +58,7 @@ Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lin
 ## Database — PostgreSQL only
 
 `make db-baseline` (baseline + seed.sql + patches = structure & system bootstrap) initializes an
-empty DB **once**; `make db-seed` loads `staging.sql` demo data (optional, never production);
+empty DB **once**; `make db-seed` runs the `seed` bin demo dataset (optional, never production);
 `make db-patch` converges an existing V1 database. **There is no second migration file** — the only
 forward path is `hotel-app-be/database/postgres/patches/`, a checksum-verified catalog driven by
 `manifest.tsv` (generation 1, head version 8 — read the manifest, never a
