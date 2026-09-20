@@ -117,6 +117,7 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 scrollTo({ top: 0, behavior: 'auto' });
 
 const state = { progress: 0, target: 0, autoplayProgress: 0, stage: -1, playing: true, alignment: true };
+let fovBoost = 1;
 const copy = [
   { i: '01', k: 'Your Sibu base', t: 'Easy to find at Farley', b: 'See exactly where Salim Inn sits, how to approach the frontage, and where to park before you arrive.' },
   { i: '02', k: 'A connected location', t: 'Everything at Farley, close at hand', b: 'Shops, dining, and everyday conveniences sit around your stay, so errands and easy meals never feel far away.' },
@@ -179,8 +180,11 @@ function setOpacity(meshes, value) {
 function updateScene(p) {
   camera.position.copy(samplePath(p, 'pos'));
   camera.lookAt(samplePath(p, 'tar'));
-  camera.fov =
-    THREE.MathUtils.lerp(38, 47, range(p, 0.4, 0.7)) - THREE.MathUtils.lerp(0, 4, range(p, 0.76, 1));
+  camera.fov = Math.min(
+    66,
+    (THREE.MathUtils.lerp(38, 47, range(p, 0.4, 0.7)) - THREE.MathUtils.lerp(0, 4, range(p, 0.76, 1))) *
+      fovBoost
+  );
   camera.updateProjectionMatrix();
 
   // The walk now ends standing in the bays at p≈0.63, so the dissolve holds
@@ -207,7 +211,12 @@ function updateScene(p) {
   for (const m of interior.interiorMeshes) m.material.opacity = enter * recFade;
   interior.recSign.material.opacity = enter * recFade;
   for (const m of interior.roomMeshes) m.material.opacity = roomReveal;
-  interior.roomDoorPivot.rotation.y = -Math.PI * 0.48 * range(p, 0.86, 0.97);
+  // The room's practical lights ramp up with the reveal so it reads as the
+  // lights coming on rather than a lit room fading in.
+  for (const l of interior.roomLights) l.intensity = l.userData.base * roomReveal;
+  // Opened earlier than before: the camera now pauses in the corridor and the
+  // door should already stand ajar when it arrives.
+  interior.roomDoorPivot.rotation.y = -Math.PI * 0.36 * range(p, 0.8, 0.9);
 
   const far = p < 0.42;
   for (const r of rings) r.visible = far;
@@ -299,6 +308,9 @@ function resize() {
   renderer.setPixelRatio(Math.min(devicePixelRatio, innerWidth < 800 ? 1.25 : 1.75));
   renderer.setSize(innerWidth, innerHeight, false);
   camera.aspect = innerWidth / innerHeight;
+  // Portrait phones collapse the horizontal FOV to a sliver — boost the
+  // per-frame FOV as the aspect shrinks so the room still composes.
+  fovBoost = Math.min(1.55, Math.max(1, 1 / Math.sqrt(camera.aspect)));
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);

@@ -83,15 +83,21 @@ export function buildPaths(salim, farley, interior) {
   ];
 
   // Reception, stair rise, corridor and room entry share one continuous spline
-  // so there is no velocity reset at the stage 04 -> 05 boundary.
+  // so there is no velocity reset at the stage 04 -> 05 boundary. The upstairs
+  // leg now runs the corridor void beside the room (the bathroom pod fills the
+  // old flyway), pauses at the door, then settles into the bed-side corner
+  // looking back at the window wall — the room photo's own composition.
   const interiorPos = curve([
     salim.standWorld.clone(),
     salim.doorWorld.clone(),
     interior.receptionWorld.clone().add(V(0.8, 0.2, -1.2)),
     interior.stairFootWorld.clone(),
     interior.stairTopWorld.clone(),
+    interior.corridorMidWorld.clone(),
+    interior.corridorFrontWorld.clone(),
     interior.roomEntryWorld.clone(),
-    interior.roomInsideWorld.clone().add(V(0.1, 0.1, -0.5)),
+    interior.roomInsideWorld.clone(),
+    interior.roomCornerWorld.clone(),
   ]);
   const interiorTar = curve([
     salim.facadeTarget.clone(),
@@ -99,8 +105,10 @@ export function buildPaths(salim, farley, interior) {
     interior.receptionWorld.clone().add(V(-0.4, -0.1, 1.5)),
     interior.stairTopWorld.clone(),
     interior.roomEntryWorld.clone(),
+    interior.roomEntryWorld.clone(),
     interior.roomInsideWorld.clone(),
-    interior.bedTargetWorld.clone(),
+    interior.windowTargetWorld.clone(),
+    interior.windowTargetWorld.clone(),
   ]);
 
   function samplePath(p, key) {
