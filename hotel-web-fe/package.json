@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@bufbuild/protobuf": "2.14.1",
+    "@bufbuild/protobuf": "2.15.0",
     "@connectrpc/connect": "2.2.0",
     "@connectrpc/connect-web": "2.2.0",
     "@emotion/react": "^11.14.0",
@@ -62,7 +62,7 @@
     "eslint-plugin-react-compiler": "^19.1.0-rc.2",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",
-    "jsdom": "30.0.1",
+    "jsdom": "30.1.0",
     "typescript": "~6.0.3",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"
