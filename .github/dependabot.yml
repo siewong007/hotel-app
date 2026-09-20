@@ -4,6 +4,16 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # The toolchain version is pinned in rust-toolchain.toml and in both
+      # Cargo.toml `rust-version` fields; the action ref must follow those, not
+      # lead them. Dependabot also cannot tell a real release from a phantom
+      # here: dtolnay/rust-toolchain pre-creates branches for unreleased
+      # versions (1.99.0 and 1.120.0 both exist as refs while the newest Rust
+      # is 1.98.1), and it picks the numerically largest. That produced
+      # "could not download nonexistent rust version 1.100.0" once and
+      # "1.120.0" again in PR #165. Bump this ref by hand alongside the pins.
+      - dependency-name: "dtolnay/rust-toolchain"
   - package-ecosystem: cargo
     directory: /hotel-app-be
     schedule:

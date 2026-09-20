@@ -1,0 +1,47 @@
+# Code owners for hotel-app.
+#
+# Single maintainer today, so this does not gate merges — the ruleset does not
+# set `require_code_owner_review`, and enabling it would deadlock a solo repo
+# (you cannot approve your own pull request). What it does do is auto-request
+# review on the paths below, so a Dependabot bump or an outside contribution
+# that touches money, auth, or the schema surfaces as a review request instead
+# of arriving as one line in a 40-file diff.
+#
+# The paths are the ones CLAUDE.md marks as needing targeted tests or explicit
+# approval: money, tax, auth, RBAC, passkey/2FA, eKYC, booking state, ledgers,
+# night audit — plus the CI/deploy and schema machinery that can break every
+# installed database at once.
+
+* @siewong007
+
+# --- Money -----------------------------------------------------------------
+/hotel-app-be/src/modules/payments/      @siewong007
+/hotel-app-be/src/modules/ledgers/       @siewong007
+/hotel-app-be/src/modules/revenue/       @siewong007
+/hotel-app-be/src/modules/payment_retry/ @siewong007
+/hotel-app-be/src/services/invoice_numbers.rs   @siewong007
+/hotel-app-be/src/repositories/invoice_numbers.rs @siewong007
+
+# --- Auth, RBAC, and identity ----------------------------------------------
+/hotel-app-be/src/core/auth.rs           @siewong007
+/hotel-app-be/src/core/middleware.rs     @siewong007
+/hotel-app-be/src/modules/auth/          @siewong007
+/hotel-app-be/src/modules/passkey/       @siewong007
+/hotel-app-be/src/modules/two_factor/    @siewong007
+/hotel-app-be/src/modules/ekyc/          @siewong007
+
+# --- Booking state machine and night audit ---------------------------------
+/hotel-app-be/src/modules/bookings/      @siewong007
+/hotel-app-be/src/modules/night_audit/   @siewong007
+
+# --- Schema: a bad patch breaks every installed database -------------------
+/hotel-app-be/database/                  @siewong007
+/hotel-desktop/src-tauri/database/       @siewong007
+/hotel-desktop/src-tauri/src/postgres/   @siewong007
+
+# --- CI, deploy, and security policy ---------------------------------------
+/.github/workflows/                      @siewong007
+/.github/dependabot.yml                  @siewong007
+/.github/codeql/                         @siewong007
+/deploy/                                 @siewong007
+/SECURITY.md                             @siewong007

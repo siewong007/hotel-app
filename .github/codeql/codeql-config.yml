@@ -1,0 +1,26 @@
+# CodeQL analysis scope for hotel-app.
+#
+# Test code is excluded from analysis. It is never shipped — the Rust
+# integration suites live in their own `tests/` crates and the frontend's
+# `*.test.ts(x)` files are stripped by the Vite build — and its fixtures are
+# deliberately made of fake credentials, which `rust/hard-coded-cryptographic-
+# value` reports one-for-one. Before this exclusion those fixtures produced 42
+# of 96 open alerts (`tests/rbac_profile.rs` alone accounted for 27), which is
+# what made the real findings unreadable.
+#
+# This cannot cover `#[cfg(test)] mod tests` blocks that live inside a `src/`
+# file — CodeQL filters by path, not by cfg attribute. Alerts from those blocks
+# (core/auth.rs, src-tauri/src/postgres/patches.rs) are dismissed individually
+# as "used in tests".
+name: "hotel-app CodeQL config"
+
+paths-ignore:
+  # Rust integration-test crates.
+  - "hotel-app-be/tests/**"
+  - "hotel-desktop/src-tauri/tests/**"
+  # Frontend test files and the ky error-fixture helper they build errors with.
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "hotel-web-fe/src/api/testSupport/**"
