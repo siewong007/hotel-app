@@ -52,7 +52,15 @@ jobs:
           # Breaking-change check diffs against the base branch ref.
           fetch-depth: 0
 
+      # `github_token` is not optional in practice: without it the action
+      # resolves its download URL through the GitHub API unauthenticated, so
+      # it shares the runner IP's anonymous quota and dies with "API rate
+      # limit exceeded" at random. That took down `Proto — buf lint &
+      # breaking` on PR #173, a change that touches no proto file. This check
+      # is now a required status check, so that flake blocks merges.
       - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check proto formatting
         run: buf format --diff --exit-code proto

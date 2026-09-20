@@ -71,6 +71,15 @@ updates:
       frontend-bun-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # jsdom is held at an exact 30.0.1 on purpose (see b5413e34e). 30.1.0
+      # pulls @asamuzakjp/dom-selector 8->9 and breaks MUI's FocusTrap with
+      # "TypeError: nodeToRestore.current.focus is not a function", cascading
+      # to 139 failures across 35 test files — every menu, dialog and
+      # bottom-sheet suite. Bisected on a quiet machine: 30.1.0 fails 2/3,
+      # 30.0.1 passes 3/3. Dependabot re-proposed it in PR #171 regardless.
+      # Lift this only once that FocusTrap regression is confirmed fixed.
+      - dependency-name: "jsdom"
 
   # Container base images. Without these two entries nothing watched them at
   # all: `debian:bookworm-slim` is the production backend runtime and
