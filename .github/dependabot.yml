@@ -71,6 +71,15 @@ updates:
       frontend-bun-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # jsdom is held at an exact 30.0.1 on purpose (see b5413e34e). 30.1.0
+      # pulls @asamuzakjp/dom-selector 8->9 and breaks MUI's FocusTrap with
+      # "TypeError: nodeToRestore.current.focus is not a function", cascading
+      # to 139 failures across 35 test files — every menu, dialog and
+      # bottom-sheet suite. Bisected on a quiet machine: 30.1.0 fails 2/3,
+      # 30.0.1 passes 3/3. Dependabot re-proposed it in PR #171 regardless.
+      # Lift this only once that FocusTrap regression is confirmed fixed.
+      - dependency-name: "jsdom"
 
   # Container base images. Without these two entries nothing watched them at
   # all: `debian:bookworm-slim` is the production backend runtime and
@@ -84,6 +93,15 @@ updates:
       backend-images-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # The builder image mirrors a toolchain version pinned in four other
+      # places (rust-toolchain.toml, both Cargo.toml `rust-version` fields, and
+      # the dtolnay action ref). Moving only this one is wrong by construction:
+      # rust-toolchain.toml still says 1.95.0, so rustup would just download
+      # 1.95.0 inside a 1.98.0 image. PR #176 proposed exactly that. Bump the
+      # five together by hand. `debian:bookworm-slim` stays watched — it is a
+      # standalone runtime and genuinely wants CVE updates.
+      - dependency-name: "rust"
 
   - package-ecosystem: docker
     directory: /hotel-web-fe
@@ -93,3 +111,10 @@ updates:
       frontend-images-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # Same reason as the backend builder: `bun-version: "1.3.14"` is pinned
+      # in three workflow steps, so bumping only the image makes the shipped
+      # container build with a bun that CI never exercised. PR #177 proposed
+      # 1.4.2 while CI stayed on 1.3.14. `nginx` stays watched — it is a
+      # standalone runtime with real CVE exposure and no pin elsewhere.
+      - dependency-name: "oven/bun"
