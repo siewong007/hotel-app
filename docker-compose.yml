@@ -24,6 +24,39 @@ services:
     networks:
       - hotel-network
 
+  # One-shot: run the patch catalog before the backend starts, as deploy.sh does
+  # in production. The initdb scripts above record only the V1 baseline
+  # revision, and the backend refuses to serve a database missing a revision
+  # its compiled-in manifest lists. Runs on every `up`, so an existing volume
+  # converges when a new patch lands (recorded patches are skipped).
+  db-patches:
+    image: postgres:19beta3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-hotel_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-hotel_management}
+    volumes:
+      - ./hotel-app-be/database/postgres:/catalog:ro
+    # The socket-based healthcheck passes while initdb is still running its
+    # scripts on a socket-only server, so first wait until the final TCP server
+    # holds the V1 baseline row (deploy.sh's wait_for_database_baseline).
+    entrypoint:
+      - bash
+      - -c
+      - |
+        for _ in $$(seq 120); do
+          if [ "$$(psql "$$DATABASE_URL" -XAtqc 'SELECT 1 FROM public.hotel_schema_revisions WHERE generation = 1 AND version = 1' 2>/dev/null)" = 1 ]; then
+            exec bash /catalog/apply-patches.sh
+          fi
+          sleep 2
+        done
+        echo 'db-patches: the V1 baseline never became reachable over TCP' >&2
+        exit 1
+    restart: "no"
+    networks:
+      - hotel-network
+
   backend:
     build:
       context: ./hotel-app-be
@@ -64,6 +97,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-patches:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3030/health || exit 1"]
       interval: 10s

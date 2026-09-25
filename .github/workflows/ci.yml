@@ -253,6 +253,13 @@ jobs:
           psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
           psql "$DATABASE_URL" -f database/postgres/seed.sql
 
+      # Completes the canonical install (`make db-baseline` = baseline + seed +
+      # patch catalog). The patches are no-ops on a fresh baseline but record
+      # their revisions, and the backend started at the end of this job refuses
+      # to serve a database missing any revision its compiled-in manifest lists.
+      - name: Apply PostgreSQL patch catalog
+        run: ./database/postgres/apply-patches.sh
+
       # Backup-format regression gate: production recovery depends on
       # pg_dump --format=custom output that pg_restore can actually consume.
       # A schema/role change that silently breaks the dump->restore path must

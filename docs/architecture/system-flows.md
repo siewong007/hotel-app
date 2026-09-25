@@ -73,9 +73,10 @@ row. There is no partially applied patch, and a rerun is a no-op.
 | Context | Application point |
 |---|---|
 | Server / local | `make db-patch` (also the last step of `make db-baseline`) |
+| Local Docker Compose | the one-shot `db-patches` service, which the `backend` container waits on (`docker compose run --rm db-patches` when running only `postgres`) |
 | Production deploy | `deploy/deploy.sh` — after the verified backup, after PostgreSQL alone is up, before the application containers are activated |
 | Desktop | the Tauri launcher (`src-tauri/src/postgres/patches.rs`), after it recognizes a fresh or V1 database and before it starts the backend sidecar |
-| Backend startup | never — it validates the schema and refuses layouts it does not recognize |
+| Backend startup | never applies — it refuses layouts it does not recognize, and refuses to start while any revision in its compiled-in manifest is unrecorded or recorded with a different checksum (`core/schema_catalog.rs`); revisions newer than the build are accepted, as after a rollback |
 
 `make db-schema-drift` compares a target database against a scratch
 current-baseline database read-only (`report-schema-drift.sh` +

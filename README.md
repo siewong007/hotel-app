@@ -102,6 +102,7 @@ cd hotel-web-fe && bun install
 
 cp .env.example .env                                   # set POSTGRES_PASSWORD (required by compose)
 docker compose up -d postgres                          # 127.0.0.1:5432; auto-initializes schema on first boot
+docker compose run --rm db-patches                     # apply the patch catalog; the API refuses to start without it
 cp hotel-app-be/.env.example hotel-app-be/.env         # set DATABASE_URL and JWT_SECRET
 
 cd hotel-app-be && cargo run --bin hotel-app-be        # API on :3030

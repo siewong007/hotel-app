@@ -247,6 +247,69 @@ async fn main() {
         Err(e) => log::warn!("Teams schema-generation probe failed: {}", e),
     }
 
+    // The patch catalog is applied by deploy.sh, `make db-patch`, and the
+    // desktop launcher — never here — so refuse to serve a database missing a
+    // revision this build was compiled against (see core::schema_catalog). A
+    // newer database is fine: rollbacks run older builds against it. A probe
+    // error only warns, like the checks above; an unparsable compiled-in
+    // manifest is a broken build.
+    match core::schema_catalog::check(&pool).await {
+        Ok(core::schema_catalog::CatalogCheck::Current {
+            head,
+            newer_recorded,
+        }) => {
+            match head {
+                Some((generation, version)) => log::info!(
+                    "✓ Schema catalog current through revision {}.{}",
+                    generation,
+                    version
+                ),
+                None => log::info!("✓ Schema catalog is empty; nothing to verify"),
+            }
+            if newer_recorded > 0 {
+                log::info!(
+                    "Database records {} schema revision(s) newer than this build (expected after a rollback)",
+                    newer_recorded
+                );
+            }
+        }
+        Ok(core::schema_catalog::CatalogCheck::Behind(gaps)) => {
+            let summary = gaps
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            // A missing revision is fixed by running the catalog; a checksum
+            // mismatch is not — the executors refuse it too — because the
+            // database was patched from a different catalog lineage.
+            let remedy = if gaps.iter().any(|gap| {
+                matches!(
+                    gap,
+                    core::schema_catalog::RevisionGap::ChecksumMismatch { .. }
+                )
+            }) {
+                "the database was patched from a different catalog; follow the lineage reset in docs/guides/deployment.md"
+            } else {
+                "apply the patch catalog (make db-patch) and restart"
+            };
+            log::error!(
+                "✗ database schema does not satisfy this build's patch catalog: {}. Remedy: {}. deploy.sh and the desktop launcher apply the catalog before starting the backend, so a desktop hitting this was bundled with a stale database mirror",
+                summary,
+                remedy
+            );
+            eprintln!("FATAL: database schema does not match this build ({summary}); {remedy}");
+            std::process::exit(1);
+        }
+        Err(e @ core::schema_catalog::CheckError::Manifest(_)) => {
+            log::error!("✗ {}", e);
+            eprintln!("FATAL: {e}");
+            std::process::exit(1);
+        }
+        Err(e @ core::schema_catalog::CheckError::Probe(_)) => {
+            log::warn!("Schema catalog probe failed: {}", e)
+        }
+    }
+
     // One-shot backfill: ensure every booking has an invoice row.
     match services::invoice_numbers::backfill_missing_booking_invoices(&pool).await {
         Ok(0) => {}

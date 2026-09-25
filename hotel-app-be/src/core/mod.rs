@@ -7,6 +7,7 @@
 //! - `i18n`: Locale negotiation and the server-side message catalog
 //! - `middleware`: Request authentication and authorization middleware
 //! - `metrics`: In-process counters for operational alerting
+//! - `schema_catalog`: Startup check that every compiled-in schema patch is applied
 //! - `sql_compat`: PostgreSQL SQL helpers
 
 pub mod auth;
@@ -21,6 +22,7 @@ pub mod metrics;
 pub mod middleware;
 pub mod rate_limiter;
 pub mod rbac_cache;
+pub mod schema_catalog;
 pub mod settings_cache;
 pub mod sql_compat;
 

@@ -209,9 +209,22 @@ Where it is applied:
 | Context | Application point |
 |---|---|
 | Server / local | `make db-patch DATABASE_URL="…"` (also the last step of `make db-baseline`) |
+| Local Docker Compose | the one-shot `db-patches` service, which the `backend` container waits on; with only `postgres` up, run `docker compose run --rm db-patches` |
 | Production deploy | `deploy/deploy.sh` — after the verified backup, after PostgreSQL alone is up, before the application containers are activated |
 | Desktop | the Tauri launcher, after it recognizes a fresh or V1 database and before it starts the backend sidecar, streaming the bundled catalog to the bundled `psql` |
 | Backend startup | never — it validates and refuses, it does not patch |
+
+**The backend verifies the catalog at startup.** `src/core/schema_catalog.rs`
+compiles `patches/manifest.tsv` into the binary, and `main` refuses to start
+while any listed revision is missing from `hotel_schema_revisions` or recorded
+with a different checksum, naming each one (`FATAL: database schema does not
+match this build (1.8 distributed-state (missing)); apply the patch catalog
+(make db-patch) and restart`). A missing revision is fixed by running the
+catalog; a checksum mismatch needs the lineage reset in
+`docs/guides/deployment.md`. Revisions newer than the build are accepted —
+a deploy rollback runs the previous release against an already-patched
+database. A baseline + seed install without the catalog step records only
+revision 1, so the backend refuses it even though the structure is complete.
 
 **Failure recovery.** Every failure is fatal and visible; nothing is swallowed.
 The failing patch rolled back whole, so the database is still at the last

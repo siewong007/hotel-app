@@ -59,7 +59,7 @@ Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lin
 
 `make db-baseline` (baseline + seed.sql + patches = structure & system bootstrap) initializes an
 empty DB **once**; `make db-seed` runs the `seed` bin demo dataset (optional, never production);
-`make db-patch` converges an existing V1 database. **There is no second migration file** — the only
+`make db-patch` converges an existing V1 database; the backend refuses to start until it has (`core/schema_catalog.rs`). **There is no second migration file** — the only
 forward path is `hotel-app-be/database/postgres/patches/`, a checksum-verified catalog driven by
 `manifest.tsv` (generation 1, head version 8 — read the manifest, never a
 remembered range), applied by `apply-patches.sh` and `hotel-desktop/src-tauri/src/postgres/patches.rs`. Lifecycle
@@ -103,7 +103,7 @@ and fails in production; new `FromRow` over date/timestamp/numeric/array columns
 
 ## Testing
 
-Backend: 54 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0,
+Backend: 56 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0,
 and each skip counts as a PASS** — a no-DB run reports *more* (`payment_characterization`
 44-in-0.01s vs a real 29 passed / 2 ignored), so run count cannot detect it: judge by wall-clock +
 per-suite counts. Patch/drift suites need `psql`. Fix-gated tests carry `#[ignore]`; CI fails when
