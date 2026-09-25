@@ -43,7 +43,7 @@ and local; `codegraph.json` (tracked) holds its exclude list.
 ```bash
 # hotel-app-be/
 cargo check --all-features                    # minimum bar before claiming done
-cargo clippy --all-features -- -D warnings    # what CI runs — copy verbatim
+cargo fmt --check && cargo clippy --all-features -- -D warnings  # what CI runs — copy verbatim
 cargo test --all-features                     # set DATABASE_URL or the PG suites silently skip
 cargo run --bin hotel-app-be                  # :3030 (bare `cargo run` errors: multiple bins)
 # hotel-web-fe/  — four independent gates; vitest is weakest (transpiles without type info)
@@ -117,8 +117,8 @@ vitest suites concurrently here — they starve each other's timeouts.
 `.github/workflows/ci.yml` (push/PR to master) runs **eight** jobs: secret scan + `cargo audit`;
 **Markdown link check** (`scripts/check-doc-links.py` — a broken relative link in any `.md` fails
 CI); **desktop DB mirror** (`make db-mirror-check`); FE typecheck/lint:strict/test/build; BE
-check/test/clippy/release + schema/booking smoke; a full PostgreSQL suite with a stale-`#[ignore]`
-check; and a desktop `cargo check` against
+fmt/check/test/clippy/release + schema/booking smoke; a full PostgreSQL suite with a stale-`#[ignore]`
+check; and a desktop `cargo fmt --check` + `cargo check` against
 placeholder resources — **so a broken `tauri build` is not caught by CI**. Deploy triggers only on a
 successful CI run on master (no `workflow_dispatch` by design). A green "Deploy production" run may
 still have deployed nothing — read the job conclusion. Never hand-provision secrets on the host; CI

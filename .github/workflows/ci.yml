@@ -159,7 +159,13 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@46817827a5bfabe028bf34e1cce71fd40e2ff697 # 1.95.0
         with:
-          components: clippy
+          components: clippy, rustfmt
+
+      # First and dependency-free, so a formatting slip fails in seconds. Run
+      # `make fmt` (or `cargo fmt`) before pushing; formatting-only commits are
+      # listed in .git-blame-ignore-revs.
+      - name: Cargo fmt
+        run: cargo fmt --check
 
       - name: Cache Cargo dependencies
         if: ${{ !env.ACT }}
@@ -400,6 +406,11 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@46817827a5bfabe028bf34e1cce71fd40e2ff697 # 1.95.0
+        with:
+          components: rustfmt
+
+      - name: Cargo fmt
+        run: cargo fmt --check
 
       - name: Cache Cargo dependencies
         if: ${{ !env.ACT }}

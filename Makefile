@@ -21,7 +21,7 @@ export TARGET_DATABASE_URL
         db-repack db-repack-full \
         prepare-desktop docs docs-check db-mirror-check \
         sync-proto proto-mirror-check \
-        fmt fmt-all \
+        fmt fmt-all fmt-check fmt-check-be fmt-check-desktop \
         clean clean-all
 
 help: ## Show this help
@@ -87,7 +87,7 @@ lint-fe: ## Lint frontend
 lint-desktop: ## Lint desktop
 	cd hotel-desktop/src-tauri && cargo clippy -- -D warnings
 
-lint-all: lint-be lint-fe lint-desktop ## Lint all projects
+lint-all: fmt-check lint-be lint-fe lint-desktop ## Lint all projects (includes the rustfmt check CI runs)
 
 # ─── Formatting ───────────────────────────────────────────────────────────────
 
@@ -98,6 +98,14 @@ fmt-desktop: ## Format desktop code
 	cd hotel-desktop/src-tauri && cargo fmt
 
 fmt-all: fmt-be fmt-desktop ## Format all Rust code
+
+fmt-check-be: ## Check backend formatting without writing (CI gate)
+	cd hotel-app-be && cargo fmt --check
+
+fmt-check-desktop: ## Check desktop formatting without writing (CI gate)
+	cd hotel-desktop/src-tauri && cargo fmt --check
+
+fmt-check: fmt-check-be fmt-check-desktop ## Check all Rust formatting without writing
 
 fmt: fmt-all ## Alias for fmt-all
 

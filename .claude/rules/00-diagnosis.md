@@ -50,7 +50,8 @@ behaves differently (e.g. `NOW()`, `$1` vs `?1`, Decimal handling) ships silentl
    Then mirror to desktop (item 10 below). ("One engine without the other" here was
    a leftover from the removed SQLite/Postgres dual-engine era — corrected 2026-09-15.)
 5. Before claiming done: `cargo check --all-features` MUST pass. This is the minimum
-   bar; `cargo clippy --all-features -- -D warnings` is what CI actually runs.
+   bar; `cargo fmt --check` and `cargo clippy --all-features -- -D warnings` are what CI
+   actually runs (fmt in both the backend and desktop jobs since 2026-09-25).
 
 
 ## Leak #3: Forgetting cross-cutting wiring (silent runtime failures)

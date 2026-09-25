@@ -1,0 +1,10 @@
+# Commits that only reformat code, skipped by `git blame`. GitHub's blame view
+# reads this file automatically; for local blame, run once per clone:
+#
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Entries are full SHAs, so they survive only merge-commit merges: a squash or
+# rebase merge rewrites the SHA and the entry must be updated to the new one.
+
+# style: apply rustfmt to the backend and desktop crates
+26d96b722537650501d0cf85445b5cc42242f2ea
