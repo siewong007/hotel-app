@@ -5,8 +5,8 @@ use rust_decimal::Decimal;
 use sqlx::Row;
 
 use super::models::{
-    BookingInsert, GuestBookingConfirmation, GuestContact, OnlineInventoryAllocation,
-    RoomTypeInventory, VoucherPricing,
+    AllocatedRoom, BookingInsert, GuestBookingConfirmation, GuestContact,
+    OnlineInventoryAllocation, RoomTypeInventory, SmokingPreference, VoucherPricing,
 };
 use super::validation::ValidatedAnonymousGuest;
 use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db, opt_decimal_to_db};
@@ -65,6 +65,10 @@ fn confirmation_from_row(row: &DbRow) -> GuestBookingConfirmation {
         tax_amount: get_decimal(row, "tourism_tax_amount"),
         total_amount: get_decimal(row, "total_amount") + get_decimal(row, "tourism_tax_amount"),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
+        smoking_preference: row
+            .try_get::<Option<String>, _>("smoking_preference")
+            .ok()
+            .flatten(),
         access_token: None,
         access_token_expires_at: row
             .try_get::<Option<chrono::DateTime<Utc>>, _>("pre_checkin_token_expires_at")
@@ -555,7 +559,7 @@ impl GuestBookingRepository {
                        b.discount_amount::text AS discount_amount,
                        b.tax_amount::text AS tax_amount, b.total_amount::text AS total_amount,
                        COALESCE(b.tourism_tax_amount, 0)::text AS tourism_tax_amount,
-                       b.created_at
+                       b.created_at, b.smoking_preference
                 FROM bookings b
                 JOIN rooms r ON r.id = b.room_id
                 JOIN room_types rt ON rt.id = r.room_type_id
@@ -583,15 +587,24 @@ impl GuestBookingRepository {
         .map_err(ApiError::from)
     }
 
+    /// Pick and lock one free room of `room_type_id` for the stay.
+    ///
+    /// Rooms matching the guest's smoking preference sort first; with no
+    /// preference, non-smoking rooms sort first so smoking rooms stay free for
+    /// guests who ask for them. The preference is soft: when no matching room
+    /// is free the next free room is still allocated (the caller notes the
+    /// mismatch for staff). Ties break on `r.id`, as before. Availability
+    /// counts and the walk-in hold are untouched — only the order changes.
     pub async fn allocate_room_tx(
         tx: &mut DbTransaction<'_>,
         room_type_id: i64,
         check_in: NaiveDate,
         check_out: NaiveDate,
-    ) -> Result<i64, ApiError> {
+        smoking_preference: Option<SmokingPreference>,
+    ) -> Result<AllocatedRoom, ApiError> {
         let sql = format!(
             r#"
-                SELECT r.id FROM rooms r
+                SELECT r.id, COALESCE(r.is_smoking, false) AS is_smoking FROM rooms r
                 WHERE r.room_type_id = $1 AND r.is_active = true
                   AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order')
                   AND NOT EXISTS (
@@ -599,18 +612,26 @@ impl GuestBookingRepository {
                     WHERE b.room_id = r.id AND b.status IN ({ACTIVE_BOOKING_STATUSES})
                       AND b.check_in_date < $3 AND b.check_out_date > $2
                   )
-                ORDER BY r.id
+                ORDER BY (COALESCE(r.is_smoking, false) = $4) DESC, r.id
                 FOR UPDATE SKIP LOCKED LIMIT 1
                 "#
         );
-        sqlx::query_scalar(sqlx::AssertSqlSafe(&*sql))
+        let wants_smoking = smoking_preference.is_some_and(SmokingPreference::wants_smoking);
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(room_type_id)
             .bind(check_in)
             .bind(check_out)
+            .bind(wants_smoking)
             .fetch_optional(&mut **tx)
             .await
             .map_err(ApiError::from)?
-            .ok_or_else(|| ApiError::Conflict("The selected room type was just booked".to_string()))
+            .ok_or_else(|| {
+                ApiError::Conflict("The selected room type was just booked".to_string())
+            })?;
+        Ok(AllocatedRoom {
+            room_id: row.try_get("id").map_err(ApiError::from)?,
+            is_smoking: row.try_get("is_smoking").map_err(ApiError::from)?,
+        })
     }
 
     pub async fn insert_booking_tx(
@@ -636,12 +657,14 @@ impl GuestBookingRepository {
                     currency, status, payment_status, source, booking_channel_id,
                     special_requests, cleaning_preference, daily_rates, created_by,
                     is_complimentary, complimentary_reason, is_tourist, tourism_tax_amount,
-                    commission_amount, net_revenue, channel_pricing_snapshot
+                    commission_amount, net_revenue, channel_pricing_snapshot,
+                    smoking_preference, internal_notes
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8,
                     $9, $10, 0, $11, $12, $13, $14, $15,
                     'website', $16, $17, $18, $19, $20,
-                    $21, $22, $23, $24, $25, $26, $27
+                    $21, $22, $23, $24, $25, $26, $27,
+                    $28, $29
                 ) RETURNING id
             "#,
         )
@@ -672,6 +695,8 @@ impl GuestBookingRepository {
         .bind(input.commission_amount.map(decimal_to_db))
         .bind(input.net_revenue.map(decimal_to_db))
         .bind(&input.channel_pricing_snapshot)
+        .bind(input.smoking_preference.map(SmokingPreference::as_str))
+        .bind(input.internal_notes.as_deref())
         .fetch_one(&mut **tx)
         .await
         .map_err(ApiError::from)
@@ -835,7 +860,7 @@ impl GuestBookingRepository {
                        b.discount_amount::text AS discount_amount,
                        b.tax_amount::text AS tax_amount, b.total_amount::text AS total_amount,
                        COALESCE(b.tourism_tax_amount, 0)::text AS tourism_tax_amount,
-                       b.created_at
+                       b.created_at, b.smoking_preference
                 FROM bookings b JOIN rooms r ON r.id = b.room_id
                 JOIN room_types rt ON rt.id = r.room_type_id WHERE b.id = $1
             "#,
@@ -881,7 +906,7 @@ impl GuestBookingRepository {
                        b.discount_amount::text AS discount_amount,
                        b.tax_amount::text AS tax_amount, b.total_amount::text AS total_amount,
                        COALESCE(b.tourism_tax_amount, 0)::text AS tourism_tax_amount,
-                       b.created_at, b.pre_checkin_token_expires_at
+                       b.created_at, b.pre_checkin_token_expires_at, b.smoking_preference
                 FROM bookings b
                 JOIN rooms r ON r.id = b.room_id
                 JOIN room_types rt ON rt.id = r.room_type_id

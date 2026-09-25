@@ -1,5 +1,12 @@
 {
   "title": "预订管理",
+  "smokingPreference": {
+    "chipNonSmoking": "要求无烟房",
+    "chipSmoking": "要求吸烟房",
+    "hint": "客人预订时选择的客房偏好。仅为偏好，无法保证。",
+    "mismatchWantsNonSmoking": "客人要求无烟房，但此客房被标记为吸烟房。",
+    "mismatchWantsSmoking": "客人要求吸烟房，但此客房未被标记为吸烟房。"
+  },
   "page": {
     "frontDesk": "前台",
     "newBooking": "新建预订",

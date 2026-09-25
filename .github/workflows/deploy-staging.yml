@@ -195,6 +195,8 @@ jobs:
             "$bundle_dir/database/patches/0007_consent_locale_zh_tw.sql"
           cp hotel-app-be/database/postgres/patches/0008_distributed_state.sql \
             "$bundle_dir/database/patches/0008_distributed_state.sql"
+          cp hotel-app-be/database/postgres/patches/0009_booking_smoking_preference.sql \
+            "$bundle_dir/database/patches/0009_booking_smoking_preference.sql"
 
           (
             cd "$bundle_dir"
@@ -218,6 +220,7 @@ jobs:
               database/patches/0006_channel_pricing.sql \
               database/patches/0007_consent_locale_zh_tw.sql \
               database/patches/0008_distributed_state.sql \
+              database/patches/0009_booking_smoking_preference.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

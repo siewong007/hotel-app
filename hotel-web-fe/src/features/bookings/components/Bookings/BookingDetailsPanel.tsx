@@ -27,6 +27,7 @@ import {
   OpenInNewOutlined as OpenFullIcon,
 } from '@mui/icons-material';
 import { BookingChannelChip, BillingChip, NightAuditChip } from './BookingMetaChips';
+import { SmokingPreferenceChip } from '../SmokingPreferenceChip';
 import type { BookingWithDetails } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
@@ -229,7 +230,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                   {[booking.guest_email, booking.company_name].filter(Boolean).join(' · ')}
                 </Typography>
               )}
-              {(channelInfo || billingChipLabel || nightAuditInvolved) && (
+              {(channelInfo || billingChipLabel || nightAuditInvolved || booking.smoking_preference) && (
                 <Stack
                   direction="row"
                   spacing={0.75}
@@ -241,6 +242,11 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                   {channelInfo && <BookingChannelChip channel={channelInfo} />}
                   {billingChipLabel && <BillingChip label={billingChipLabel} />}
                   {nightAuditInvolved && <NightAuditChip />}
+                  <SmokingPreferenceChip
+                    preference={booking.smoking_preference}
+                    roomIsSmoking={booking.room_is_smoking}
+                    sx={{ alignSelf: 'center' }}
+                  />
                 </Stack>
               )}
             </Box>

@@ -79,6 +79,10 @@ export interface Booking {
   daily_rates?: Record<string, number>;
   // Guest daily-cleaning preference (true = wants it, false = declined, null/undefined = not set)
   cleaning_preference?: boolean | null;
+  // Guest room smoking preference from the portal (null/undefined = no preference). Soft: not guaranteed.
+  smoking_preference?: 'smoking' | 'non_smoking' | null;
+  // `rooms.is_smoking` of the booked room, so staff views can flag a preference mismatch.
+  room_is_smoking?: boolean | null;
   // Night audit posting fields
   is_posted?: boolean;
   posted_date?: string;

@@ -199,6 +199,11 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/hotel_workflow_test
         run: cargo test --all-features --test booking_service postgres_concurrent_reactivation_allows_only_one_success
 
+      - name: PostgreSQL smoking-preference allocation tests
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/hotel_workflow_test
+        run: cargo test --all-features --test guest_booking_smoking_preference
+
       - name: Cargo clippy
         run: cargo clippy --all-features -- -D warnings
 

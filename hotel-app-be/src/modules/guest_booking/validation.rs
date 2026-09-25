@@ -3,6 +3,7 @@ use sqlx::query_scalar;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::modules::guest_booking::models::SmokingPreference;
 use crate::utils::sanitization::Sanitizer;
 
 pub const MAX_BOOKING_NIGHTS: i64 = 30;
@@ -124,6 +125,53 @@ pub fn validate_client_request_id(value: &str) -> Result<String, ApiError> {
     Ok(value.to_string())
 }
 
+/// Parse the optional smoking preference from a booking request.
+///
+/// Absent, blank, or `no_preference` all mean "no preference" (`None`, stored
+/// as NULL). Anything other than `smoking` / `non_smoking` is refused before
+/// any row is written, so the column's CHECK constraint is never the first
+/// line of defence.
+pub fn validate_smoking_preference(
+    value: Option<&str>,
+) -> Result<Option<SmokingPreference>, ApiError> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    match value.to_ascii_lowercase().as_str() {
+        "no_preference" => Ok(None),
+        "smoking" => Ok(Some(SmokingPreference::Smoking)),
+        "non_smoking" => Ok(Some(SmokingPreference::NonSmoking)),
+        _ => Err(ApiError::BadRequest(
+            "Invalid smoking preference. Use smoking, non_smoking or no_preference".to_string(),
+        )),
+    }
+}
+
+/// Staff-only note recorded when the allocated room does not satisfy the
+/// guest's smoking preference; `None` when it does or there was none.
+pub fn smoking_preference_note(
+    preference: Option<SmokingPreference>,
+    room_is_smoking: bool,
+) -> Option<String> {
+    let preference = preference?;
+    if preference.is_met_by(room_is_smoking) {
+        return None;
+    }
+    let requested = if preference.wants_smoking() {
+        "smoking"
+    } else {
+        "non-smoking"
+    };
+    let assigned = if room_is_smoking {
+        "smoking"
+    } else {
+        "non-smoking"
+    };
+    Some(format!(
+        "Smoking preference not met: requested {requested}, assigned a {assigned} room (none matching was free)"
+    ))
+}
+
 /// A validated anonymous booker, normalised for storage.
 #[derive(Debug, Clone)]
 pub struct ValidatedAnonymousGuest {
@@ -192,6 +240,54 @@ pub fn validate_anonymous_guest(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn smoking_preference_accepts_known_values_and_treats_blank_as_none() {
+        assert_eq!(validate_smoking_preference(None).unwrap(), None);
+        assert_eq!(validate_smoking_preference(Some("")).unwrap(), None);
+        assert_eq!(validate_smoking_preference(Some("  ")).unwrap(), None);
+        assert_eq!(
+            validate_smoking_preference(Some("no_preference")).unwrap(),
+            None
+        );
+        assert_eq!(
+            validate_smoking_preference(Some("smoking")).unwrap(),
+            Some(SmokingPreference::Smoking)
+        );
+        assert_eq!(
+            validate_smoking_preference(Some(" NON_SMOKING ")).unwrap(),
+            Some(SmokingPreference::NonSmoking)
+        );
+        assert!(matches!(
+            validate_smoking_preference(Some("vape")),
+            Err(ApiError::BadRequest(_))
+        ));
+    }
+
+    #[test]
+    fn smoking_preference_note_only_when_the_room_does_not_match() {
+        assert_eq!(smoking_preference_note(None, true), None);
+        assert_eq!(smoking_preference_note(None, false), None);
+        assert_eq!(
+            smoking_preference_note(Some(SmokingPreference::NonSmoking), false),
+            None
+        );
+        assert_eq!(
+            smoking_preference_note(Some(SmokingPreference::Smoking), true),
+            None
+        );
+        let note = smoking_preference_note(Some(SmokingPreference::NonSmoking), true).unwrap();
+        assert!(note.starts_with("Smoking preference not met: requested non-smoking"));
+        assert!(note.contains("assigned a smoking room"));
+        let note = smoking_preference_note(Some(SmokingPreference::Smoking), false).unwrap();
+        assert!(note.starts_with("Smoking preference not met: requested smoking"));
+    }
+
+    #[test]
+    fn smoking_preference_storage_values_match_the_column_check() {
+        assert_eq!(SmokingPreference::Smoking.as_str(), "smoking");
+        assert_eq!(SmokingPreference::NonSmoking.as_str(), "non_smoking");
+    }
 
     #[test]
     fn rejects_zero_night_stay() {

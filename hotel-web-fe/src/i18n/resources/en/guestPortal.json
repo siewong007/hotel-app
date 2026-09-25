@@ -37,6 +37,7 @@
       "payTitle": "Complete your payment",
       "receiptBody": "Payment received and your booking is confirmed.",
       "receiptTitle": "Payment receipt",
+      "smokingPreference": "Room preference: {{value}} (subject to availability)",
       "stayDates": "{{checkIn}} to {{checkOut}}"
     },
     "confirmingPrice": "Confirming the latest price…",
@@ -48,6 +49,13 @@
     "creditsHint_one": "You have {{count}} free night for {{room}}. Choose which nights to cover.",
     "creditsHint_other": "You have {{count}} free nights for {{room}}. Choose which nights to cover.",
     "dailyCleaning": "I would like daily room cleaning",
+    "smokingPreference": {
+      "helper": "Subject to availability and not guaranteed. We will do our best to match your preference.",
+      "label": "Room preference",
+      "noPreference": "No preference",
+      "nonSmoking": "Non-smoking",
+      "smoking": "Smoking"
+    },
     "detailsHint": "A nickname holds the room and your email carries the confirmation. Your legal name is collected at check-in.",
     "discount": "Discount",
     "email": "Email",

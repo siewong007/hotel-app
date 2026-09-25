@@ -128,6 +128,8 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         daily_rates: row.try_get("daily_rates").ok().flatten(),
         invoice_number: row.try_get("invoice_number").ok(),
         cleaning_preference: get_opt_bool(row, "cleaning_preference"),
+        smoking_preference: row.try_get("smoking_preference").ok().flatten(),
+        room_is_smoking: row.try_get("room_is_smoking").ok().flatten(),
         ekyc_summary: GuestEkycStatusSummary::not_submitted(guest_id),
     }
 }
@@ -194,6 +196,7 @@ pub fn row_to_booking(row: &DbRow) -> Booking {
         payment_note: row.try_get("payment_note").ok(),
         daily_rates: row.try_get("daily_rates").ok().flatten(),
         cleaning_preference: get_opt_bool(row, "cleaning_preference"),
+        smoking_preference: row.try_get("smoking_preference").ok().flatten(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
     }

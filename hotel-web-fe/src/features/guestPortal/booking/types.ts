@@ -1,4 +1,8 @@
 import type { ConsentAcceptance } from '../../legal/useConsent';
+
+/** Soft room preference: steers room allocation, never blocks a booking.
+ *  Omitted from the request when the guest has no preference. */
+export type SmokingPreference = 'smoking' | 'non_smoking';
 export interface GuestBookingSearch {
   check_in_date: string;
   check_out_date: string;
@@ -81,6 +85,7 @@ export interface CreateGuestBookingRequest extends GuestBookingQuoteRequest {
   expected_total: string | number;
   special_requests?: string;
   cleaning_preference?: boolean;
+  smoking_preference?: SmokingPreference;
   consents: ConsentAcceptance[];
 }
 
@@ -108,6 +113,7 @@ export interface CreateAnonymousBookingRequest extends GuestBookingSearch {
   expected_total: string | number;
   special_requests?: string;
   cleaning_preference?: boolean;
+  smoking_preference?: SmokingPreference;
   guest: AnonymousGuestDetails;
   /** PDPA consent taken on the booking form. The API refuses the booking if the
    *  Booking Terms or Privacy Notice consent is missing, refused, or stale. */
@@ -129,6 +135,8 @@ export interface GuestBookingConfirmation {
   tax_amount: string | number;
   total_amount: string | number;
   created_at: string;
+  /** The preference recorded on the booking; `null`/absent = no preference. */
+  smoking_preference?: SmokingPreference | null;
   /** Present only for an anonymous booking: a booking-scoped token that lets
    *  the guest pay and track this one booking with no account. */
   access_token?: string;

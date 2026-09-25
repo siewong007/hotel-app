@@ -37,6 +37,7 @@
       "payTitle": "完成您的付款",
       "receiptBody": "款項已收到，您的預訂已確認。",
       "receiptTitle": "付款收據",
+      "smokingPreference": "客房偏好：{{value}}（視供應情況而定）",
       "stayDates": "{{checkIn}} 至 {{checkOut}}"
     },
     "confirmingPrice": "正在確認最新價格…",
@@ -47,6 +48,13 @@
     "creditsAvailable": "可用 {{count}} 個",
     "creditsHint_other": "您有 {{count}} 個{{room}}的免費房晚。請選擇要涵蓋的晚數。",
     "dailyCleaning": "我希望每日清潔客房",
+    "smokingPreference": {
+      "helper": "視供應情況而定，恕不保證。我們會盡量滿足您的偏好。",
+      "label": "客房偏好",
+      "noPreference": "無偏好",
+      "nonSmoking": "禁菸房",
+      "smoking": "吸菸房"
+    },
     "detailsHint": "暱稱用於保留客房，確認信會寄到您的電子郵件。入住時會收集您的法定姓名。",
     "discount": "折扣",
     "email": "電子郵件",

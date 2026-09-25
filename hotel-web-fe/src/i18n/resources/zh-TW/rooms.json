@@ -96,6 +96,8 @@
     "clickToEditNotes": "點擊編輯備註",
     "clickToAddNotes": "點擊新增備註",
     "addBookingNotes": "新增備註…",
+    "guestRequestLabel": "客人需求",
+    "staffNotesLabel": "員工備註",
     "checkOut": "退房",
     "move": "換房",
     "checkIn": "入住",

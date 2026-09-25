@@ -1,5 +1,12 @@
 {
   "title": "Bookings",
+  "smokingPreference": {
+    "chipNonSmoking": "Wants non-smoking",
+    "chipSmoking": "Wants smoking",
+    "hint": "Guest's room preference from the booking. Soft preference, not guaranteed.",
+    "mismatchWantsNonSmoking": "Guest asked for a non-smoking room, but this room is marked as a smoking room.",
+    "mismatchWantsSmoking": "Guest asked for a smoking room, but this room is not marked as a smoking room."
+  },
   "page": {
     "frontDesk": "Front Desk",
     "newBooking": "New booking",

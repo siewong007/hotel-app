@@ -351,6 +351,59 @@ describe('PortalBookingPage voucher eligibility', () => {
     fireEvent.click(await screen.findByRole('radio', { name: 'Offline banking (bank transfer)' }));
     expect(await screen.findByRole('button', { name: "I've paid via bank transfer" })).toBeTruthy();
   });
+  it('sends the chosen smoking preference with a signed-in booking and shows it on the confirmation', async () => {
+    mocks.paymentConfig.mockResolvedValue({ paypal_enabled: false, paypal_client_id: null, bank_details: { bank_name: 'Maybank', account_name: 'Salim Inn', account_number: '511270052595' } });
+    mocks.createBooking.mockResolvedValue({
+      booking_id: 43,
+      booking_number: 'WEB-43',
+      room_type_name: 'Deluxe Room',
+      check_in_date: '2026-07-17',
+      check_out_date: '2026-07-18',
+      status: 'pending',
+      payment_status: 'unpaid',
+      currency: 'MYR',
+      subtotal: '250.00',
+      discount_amount: '0.00',
+      tax_amount: '0.00',
+      total_amount: '250.00',
+      created_at: '2026-07-01T00:00:00Z',
+      smoking_preference: 'non_smoking',
+    });
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+
+    // Defaults to "No preference", with the not-guaranteed helper text.
+    expect((screen.getByRole('radio', { name: 'No preference' }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText(/Subject to availability and not guaranteed/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Non-smoking' }));
+    acceptRequiredConsents();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledTimes(1));
+    expect(mocks.createBooking.mock.calls[0][0]).toMatchObject({ smoking_preference: 'non_smoking' });
+    expect(await screen.findByText('Room preference: Non-smoking (subject to availability)')).toBeTruthy();
+  });
+
+  it('leaves smoking_preference out of a signed-in booking when the guest has no preference', async () => {
+    mocks.createBooking.mockRejectedValue(new Error('stop here'));
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+    acceptRequiredConsents();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledTimes(1));
+    expect(mocks.createBooking.mock.calls[0][0]).not.toHaveProperty('smoking_preference');
+  });
+
   it('has no axe violations on the populated rate selection', async () => {
     const { container } = render(<PortalBookingPage />);
 
