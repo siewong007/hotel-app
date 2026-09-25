@@ -4,8 +4,10 @@ This project shares a production VPS with the payroll and online-shopping
 services. Use the dedicated local administrator key in `deploy/credentials/`; do
 not use the GitHub Actions deployment key for interactive maintenance.
 
-Migrated from AWS Lightsail to AIC cloud on 2026-09-05. The Lightsail box
-(`13.251.162.88`) is retained only as a rollback target — see "Old host" below.
+Migrated from AWS Lightsail to AIC cloud on 2026-09-05. The Lightsail box and
+every other AWS resource were deleted on 2026-09-25, so **this host is the only
+copy of all four stacks and of their backups** — there is no rollback target.
+See "Backups" below.
 
 ## Connection details
 
@@ -166,30 +168,42 @@ rotate access, generate and verify a replacement first, add its public key to
 line by its exact comment. Never delete or overwrite the whole
 `authorized_keys` file.
 
-## Old host (Lightsail, rollback only)
+## Backups (local-only, by owner decision)
 
-`ubuntu@13.251.162.88` with `deploy/credentials/lightsail-default-ap-southeast-1.pem`
-and `deploy/credentials/lightsail-known-hosts`. Host-key fingerprint
-`SHA256:EvysNdkRZEdS5wOyNFI+lZs2dH589gW9ycQGAiVImsE`. It still holds a complete,
-running copy of all four stacks. Do not decommission it until the DNS cutover
-has been stable long enough to be confident, and remember that any writes taken
-on the new host after cutover will not exist there.
+Since 2026-09-25 every backup stays on this host. The owner chose this over any
+cloud destination (AWS S3, Cloudflare R2, or a paid AIC backup product) knowing
+that losing the host loses the live data and every backup together. No cloud
+credentials remain on the box.
 
-```bash
-ssh \
-  -i deploy/credentials/lightsail-default-ap-southeast-1.pem \
-  -o IdentitiesOnly=yes \
-  -o StrictHostKeyChecking=yes \
-  -o UserKnownHostsFile=deploy/credentials/lightsail-known-hosts \
-  ubuntu@13.251.162.88
-```
+| Stack | Nightly job | Location |
+|---|---|---|
+| hotel | `saliminn-backup.timer` → `/opt/saliminn/database-backup.sh` (DB + uploads) | `/opt/saliminn/backups` (`"offsite": false` is expected) |
+| payroll | `payroll-backup.timer`; drop-in `payroll-backup.service.d/local.conf` runs `/usr/local/sbin/payroll-local-backup.sh` | `/srv/backups/payroll` (14 kept) |
+| online-shopping | `online-shopping-backup.timer`; `backup.env` points at rclone remote `aiclocal` | `/opt/online-shopping/backups` + `/srv/backups/online-shopping` |
 
-## DNS cutover (completed 2026-09-07)
+One-off archives taken before the AWS teardown:
+
+- `/srv/backups/aws-archive/` — every S3 object (old payroll/online-shopping
+  dumps, payroll Terraform state, payroll dev frontend) plus the deleted
+  Route 53 zones' records.
+- `/srv/backups/lightsail-final-20260925/` — final dumps of all four Lightsail
+  databases. The hotel one is frozen at 2026-09-04 and predates the 2026-09-11
+  data reload, so it is history, not a restore source.
+
+## If the host is unreachable
+
+The 2026-09-25 outage (about 04:16–06:07 UTC) was a provider-side hard stop of
+the container: Cloudflare answered **522**, port 20049 returned *Network is
+unreachable* while 443 on the shared IPv4 still answered (other tenants), and
+the IPv6 address did not answer ping. Nothing here can fix that — raise it
+with AIC. The same disk came back with no data loss; the journal showed no
+shutdown sequence.
+
+## DNS (Cloudflare only)
 
 Cloudflare origin for every public hostname is the proxied AAAA
 `2001:41d0:306:277a::2450`. Lightsail A records and the payrollmy.com
-CloudFront addresses were removed the same day. SSL mode is **Full** (Caddy
-still serves `internal` certificates until Origin CA certs are installed).
-
-Keep Lightsail running for a few quiet days, then snapshot and delete. Any
-writes taken on AIC after this cutover will not exist on Lightsail.
+CloudFront addresses were removed on 2026-09-07; the unused Route 53 zones,
+the CloudFront distribution and the Lightsail instance were deleted on
+2026-09-25. SSL mode is **Full** (Caddy still serves `internal` certificates
+until Origin CA certs are installed).

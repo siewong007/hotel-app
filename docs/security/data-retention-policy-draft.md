@@ -19,7 +19,7 @@ code.
 | `guest_portal_sessions`, `refresh_tokens` | expired session rows | delete 30 days after expiry/revocation | nightly job |
 | Data-transfer exports/imports (staged files) | full-table JSON snapshots | delete staging files immediately on completion; audit rows persist | worker cleanup |
 | Backend/Caddy logs | request + error logs | 14 days local (current logrotate), longer only if shipped to central log store | logrotate |
-| Nightly backups | DB dump + uploads tar | 14 nightly / 5 predeploy / 7 uploads local; off-site tier per bucket lifecycle | backup script |
+| Nightly backups | DB dump + uploads tar | 14 nightly / 5 predeploy / 7 uploads local; no off-site tier (local-only by owner decision, 2026-09-25) | backup script |
 | Invoices/ledger/payment rows | financial records | **do not purge** — subject to statutory retention (Malaysia: generally 7 years for business records); verify with counsel | never |
 
 ## Non-negotiables
