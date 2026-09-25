@@ -64,6 +64,7 @@ could fail:
 - **A check that cannot fail is worse than no check.** "Zero `Skipping` lines in the output" was proposed here as proof tests ran — but libtest captures stderr for passing tests, so a fully-skipped run prints zero such lines and exits 0. Before trusting any "grep the output for X" assertion, confirm X would actually appear on the failure path.
 - **Never identify a CI/deploy run by workflow name plus recency.** `gh run list --json name` + `.[0]` returns the PREVIOUS deploy, so the watcher reports success one second after a push. Filter on the full `headSha` you pushed.
 - **Never accept a subagent's verdict on a gate it ran.** A haiku gate agent reported "10 ignored tests passed, remove the `#[ignore]`s"; re-running by hand gave exit 101 with 0 passed. Re-run the load-bearing command yourself when the conclusion decides whether to ship.
+- **A truncated search cannot prove absence.** A 2026-09-25 review told the user "no page ever sets its own title" from `git grep 'document\.title' … | head -6` — the six hits shown were print templates, and `router/RootLayout.tsx:60` and `guest/GuestRootLayout.tsx:47` were cut off. The same review called a missing startup pool guard a gap without reading the `main.rs` block that already enforces it. Before any "X is missing / nothing does Y" claim, rerun the search untruncated (or `-c` to count) and read the code path that would contain it.
 
 ### Green gates prove less than they look like they prove
 
@@ -195,6 +196,12 @@ stale half-up stack with the backend exited and no Caddy, so no browser could
 authenticate. All verification had run against Vite on :3000.
 
 **Rule:** `lsof -iTCP:80 -sTCP:LISTEN` + `docker ps -a` before any client-side theory.
+The public site has the same trap: `hotel-web-fe` builds three documents (`index.html` staff,
+`guest.html`, `salim-inn/index.html` marketing), and `nginx.conf`'s `location = /` 302s any
+cookie-less visitor — every crawler and link previewer — to `/salim-inn/index.html`. A review
+judged saliminn.my's SEO from `index.html`'s placeholder title; crawlers never see that file.
+Check what the public gets with `curl -sI https://saliminn.my/` (no cookies), then read the
+document it lands on.
 (One genuinely Safari-specific trap does exist — GPU-promoting fixed UI over a canvas;
 see `.claude/refs/webgl-scene-tracing.md`.)
 
