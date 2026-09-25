@@ -22,6 +22,10 @@ export interface RoomManagementStatusInfo {
   isOccupied: boolean;
   isReserved: boolean;
   isReservedToday: boolean;
+  /** The reservation holds the room but its payment is outstanding or awaiting confirmation. */
+  isAwaitingPayment: boolean;
+  /** Reserved for today and payable state allows check-in (confirmed/pending only). */
+  canCheckInReservation: boolean;
   isComplimentary: boolean;
 }
 

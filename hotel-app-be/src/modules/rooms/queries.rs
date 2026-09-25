@@ -795,11 +795,17 @@ where
     Ok(found.is_some())
 }
 
+// Room-hold lookups below use every room-holding reservation status
+// (`bookings::helpers::ROOM_HOLDING_RESERVATION_STATUSES_SQL`), not just
+// confirmed/pending: an unpaid (`pending_payment`) or awaiting-confirmation
+// (`pending_confirmation`) website booking holds its room too, and leaving
+// those out let housekeeping release a held room to `available`. The unit
+// tests at the bottom of this file pin each query to that list.
 const CHECK_NEXT_RESERVATION: &str = r#"
 SELECT id, check_in_date, check_out_date
 FROM bookings
 WHERE room_id = $1
-  AND status IN ('confirmed', 'pending')
+  AND status IN ('pending', 'pending_payment', 'pending_confirmation', 'confirmed')
   AND check_out_date >= CURRENT_DATE
 ORDER BY check_in_date ASC
 LIMIT 1
@@ -825,7 +831,7 @@ where
 const CHECK_RESERVATION_TODAY: &str = r#"
 SELECT id, check_in_date, check_out_date FROM bookings
 WHERE room_id = $1
-AND status IN ('confirmed', 'pending')
+AND status IN ('pending', 'pending_payment', 'pending_confirmation', 'confirmed')
 AND check_in_date = CURRENT_DATE
 AND CURRENT_TIME >= $2::TIME
 ORDER BY check_in_date ASC
@@ -848,19 +854,19 @@ where
         .map_err(db_err)
 }
 
+const CHECK_BOOKING_VALID_FOR_RESERVATION: &str = "SELECT id FROM bookings WHERE id = $1 AND room_id = $2 AND status IN ('pending', 'pending_payment', 'pending_confirmation', 'confirmed')";
+
 pub async fn booking_valid_for_reservation(
     pool: &DbPool,
     booking_id: Option<i64>,
     room_id: i64,
 ) -> Result<bool, ApiError> {
-    let found: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM bookings WHERE id = $1 AND room_id = $2 AND status IN ('confirmed', 'pending')",
-    )
-    .bind(booking_id)
-    .bind(room_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(db_err)?;
+    let found: Option<i64> = sqlx::query_scalar(CHECK_BOOKING_VALID_FOR_RESERVATION)
+        .bind(booking_id)
+        .bind(room_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(db_err)?;
     Ok(found.is_some())
 }
 
@@ -1229,20 +1235,24 @@ pub async fn end_cleaning_update(
     Ok(())
 }
 
-pub async fn next_room_status(pool: &DbPool, room_id: i64) -> Result<String, ApiError> {
-    let query = r#"
+/// Status a room lands in when cleaning ends: `reserved` while any
+/// room-holding reservation (including an awaiting-payment one) still covers
+/// today or later, otherwise `available`.
+const NEXT_ROOM_STATUS_AFTER_CLEANING: &str = r#"
 SELECT
     CASE
         WHEN EXISTS (
             SELECT 1 FROM bookings
             WHERE room_id = $1
-            AND status IN ('confirmed', 'pending')
+            AND status IN ('pending', 'pending_payment', 'pending_confirmation', 'confirmed')
             AND check_out_date >= CURRENT_DATE
         ) THEN 'reserved'
         ELSE 'available'
     END
 "#;
-    sqlx::query_scalar(query)
+
+pub async fn next_room_status(pool: &DbPool, room_id: i64) -> Result<String, ApiError> {
+    sqlx::query_scalar(NEXT_ROOM_STATUS_AFTER_CLEANING)
         .bind(room_id)
         .fetch_one(pool)
         .await
@@ -1319,7 +1329,7 @@ SELECT
         WHEN EXISTS (
             SELECT 1 FROM bookings
             WHERE room_id = r.id
-            AND status IN ('confirmed', 'pending')
+            AND status IN ('pending', 'pending_payment', 'pending_confirmation', 'confirmed')
             AND check_in_date <= CURRENT_DATE
             AND check_out_date >= CURRENT_DATE
         ) THEN 'reserved'
@@ -2046,4 +2056,59 @@ pub async fn fetch_rooms_with_occupancy(pool: &DbPool) -> Result<Vec<RoomWithOcc
             }
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modules::bookings::helpers::ROOM_HOLDING_RESERVATION_STATUSES_SQL;
+
+    /// Every "is this room held?" query must treat unpaid (`pending_payment`)
+    /// and awaiting-confirmation (`pending_confirmation`) reservations as holds.
+    /// Room 210 regression: a website booking in `pending_confirmation` held
+    /// the room, but ending cleaning would have released it to `available`.
+    #[test]
+    fn room_hold_queries_use_every_room_holding_status() {
+        let hold = format!("status IN ({ROOM_HOLDING_RESERVATION_STATUSES_SQL})");
+        for (name, sql) in [
+            ("CHECK_NEXT_RESERVATION", CHECK_NEXT_RESERVATION),
+            ("CHECK_RESERVATION_TODAY", CHECK_RESERVATION_TODAY),
+            (
+                "CHECK_BOOKING_VALID_FOR_RESERVATION",
+                CHECK_BOOKING_VALID_FOR_RESERVATION,
+            ),
+            (
+                "NEXT_ROOM_STATUS_AFTER_CLEANING",
+                NEXT_ROOM_STATUS_AFTER_CLEANING,
+            ),
+            ("GET_TARGET_ROOM_STATUS", GET_TARGET_ROOM_STATUS),
+        ] {
+            assert!(sql.contains(&hold), "{name} must use {hold}: {sql}");
+            assert!(
+                !sql.contains("'voided'"),
+                "{name} must never treat a voided booking as a hold"
+            );
+        }
+    }
+
+    #[test]
+    fn room_holding_statuses_cover_awaiting_payment_but_not_voided() {
+        for status in [
+            "'pending'",
+            "'pending_payment'",
+            "'pending_confirmation'",
+            "'confirmed'",
+        ] {
+            assert!(ROOM_HOLDING_RESERVATION_STATUSES_SQL.contains(status));
+        }
+        assert!(!ROOM_HOLDING_RESERVATION_STATUSES_SQL.contains("voided"));
+        assert!(!ROOM_HOLDING_RESERVATION_STATUSES_SQL.contains("checked"));
+    }
+
+    /// The in-house checks stay in-house only: a reservation, paid or not,
+    /// is not an active stay.
+    #[test]
+    fn active_booking_check_stays_in_house_only() {
+        assert!(CHECK_ACTIVE_BOOKING.contains("status IN ('checked_in', 'auto_checked_in')"));
+    }
 }

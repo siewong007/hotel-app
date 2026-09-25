@@ -51,6 +51,8 @@ const statusInfo = (overrides: Partial<RoomManagementStatusInfo>): RoomManagemen
   isOccupied: false,
   isReserved: false,
   isReservedToday: false,
+  isAwaitingPayment: false,
+  canCheckInReservation: false,
   isComplimentary: false,
   ...overrides,
 });

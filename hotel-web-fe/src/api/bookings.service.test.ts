@@ -213,6 +213,20 @@ describe('BookingsService current-and-upcoming stay window', () => {
       expect(call[1]?.searchParams?.check_in_to).toBeTruthy();
     }
   });
+
+  it('fetches unpaid and awaiting-confirmation holds for the live room grid', async () => {
+    // Room 210 regression: a website booking in `pending_confirmation` held the
+    // room (backend marked it reserved) but the grid never fetched it, so the
+    // card read as available with no guest.
+    mockEmptyPage();
+
+    await BookingsService.getActiveBookings();
+
+    const statuses = get.mock.calls.map((c) => c[1]?.searchParams?.status);
+    expect(statuses).toEqual(expect.arrayContaining(['pending_payment', 'pending_confirmation']));
+    expect(statuses.includes('voided')).toBe(false);
+    expect(statuses.includes('checked_out')).toBe(false);
+  });
 });
 
 describe('BookingsService page fan-out is bounded', () => {

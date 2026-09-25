@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { BookingWithDetails, Room } from '../../../types';
+import { isInHouseBookingStatus, isRoomHoldingReservationStatus } from '../../../constants/booking.constants';
 
 interface UseUpcomingBookingsDialogArgs {
   allBookings: BookingWithDetails[];
@@ -30,7 +31,7 @@ export function useUpcomingBookingsDialog({
         const checkInDate = new Date(booking.check_in_date);
         checkInDate.setHours(0, 0, 0, 0);
         const isUpcoming = checkInDate >= today;
-        const isActive = ['pending', 'confirmed', 'checked_in', 'auto_checked_in'].includes(booking.status);
+        const isActive = isRoomHoldingReservationStatus(booking.status) || isInHouseBookingStatus(booking.status);
         return isThisRoom && (isUpcoming || booking.status === 'checked_in') && isActive;
       })
       .sort((a, b) => new Date(a.check_in_date).getTime() - new Date(b.check_in_date).getTime());

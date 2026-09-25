@@ -113,6 +113,66 @@ describe('roomManagementUtils', () => {
     expect(status.futureCheckInDate?.getDate()).toBe(20);
   });
 
+  it('treats an awaiting-payment hold as reserving the room without offering check-in', () => {
+    // Room 210 regression: a website booking in `pending_confirmation` (bank
+    // transfer awaiting confirmation) arriving today held the room, but the
+    // grid read it as available with no guest.
+    for (const holdStatus of ['pending_payment', 'pending_confirmation']) {
+      const status = deriveRoomStatusInfo({
+        room: { status: 'reserved' },
+        booking: undefined,
+        reservedBooking: {
+          status: holdStatus,
+          check_in_date: '2026-09-25',
+        },
+        today: new Date(2026, 8, 25, 20, 30, 0),
+        checkInTime: '15:00',
+      });
+
+      expect(status.computedStatus).toBe('reserved');
+      expect(status.hasReservationForToday).toBe(true);
+      expect(status.isReservedToday).toBe(true);
+      expect(status.isAwaitingPayment).toBe(true);
+      expect(status.canCheckInReservation).toBe(false);
+    }
+  });
+
+  it('keeps check-in available for confirmed and pending reservations', () => {
+    for (const reservedStatus of ['confirmed', 'pending']) {
+      const status = deriveRoomStatusInfo({
+        room: { status: 'available' },
+        booking: undefined,
+        reservedBooking: {
+          status: reservedStatus,
+          check_in_date: '2026-09-25',
+        },
+        today: new Date(2026, 8, 25, 16, 0, 0),
+        checkInTime: '15:00',
+      });
+
+      expect(status.isReservedToday).toBe(true);
+      expect(status.isAwaitingPayment).toBe(false);
+      expect(status.canCheckInReservation).toBe(true);
+    }
+  });
+
+  it('never lets a voided booking hold the room', () => {
+    const status = deriveRoomStatusInfo({
+      room: { status: 'available' },
+      booking: undefined,
+      reservedBooking: {
+        status: 'voided',
+        check_in_date: '2026-09-25',
+      },
+      today: new Date(2026, 8, 25, 16, 0, 0),
+      checkInTime: '15:00',
+    });
+
+    expect(status.computedStatus).toBe('available');
+    expect(status.hasReservationForToday).toBe(false);
+    expect(status.canCheckInReservation).toBe(false);
+  });
+
   it('blocks check-in through the night before checkout, but not checkout day', () => {
     const ranges = [{ start: '2026-06-15', end: '2026-06-18', status: 'confirmed' }];
 

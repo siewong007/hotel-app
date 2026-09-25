@@ -329,6 +329,8 @@ const statusInfo = (overrides: Partial<RoomManagementStatusInfo>): RoomManagemen
   isOccupied: false,
   isReserved: false,
   isReservedToday: false,
+  isAwaitingPayment: false,
+  canCheckInReservation: false,
   isComplimentary: false,
   ...overrides,
 });
@@ -535,5 +537,74 @@ describe('RoomManagementPage — status-change workflows', () => {
     fireEvent.change(screen.getByPlaceholderText('Room #'), { target: { value: '301' } });
 
     expect(mocks.setRoomSearch).toHaveBeenCalledWith('301');
+  });
+});
+
+describe('RoomManagementPage — awaiting-payment holds', () => {
+  // Room 210 regression: a website booking in `pending_confirmation` held the
+  // room, but the grid showed it as available with no guest. The card must
+  // show the guest, dates and a payment badge — without offering check-in,
+  // which the backend refuses until the payment is confirmed.
+  const awaitingBooking: BookingWithDetails = {
+    ...reservedBooking,
+    status: 'pending_confirmation',
+    guest_name: 'Web Guest',
+  };
+
+  beforeEach(() => {
+    mocks.isPhone = false;
+    mocks.rooms = [reservedRoom];
+    mocks.roomBookings = new Map();
+    mocks.reservedBookings = new Map([['r2', awaitingBooking]]);
+    mocks.infoByRoom = new Map([
+      ['r2', statusInfo({
+        computedStatus: 'reserved',
+        reservedBooking: awaitingBooking,
+        hasReservationForToday: true,
+        isReserved: true,
+        isReservedToday: true,
+        isAwaitingPayment: true,
+        canCheckInReservation: false,
+      })],
+    ]);
+  });
+  afterEach(cleanup);
+
+  it('desktop: shows the guest and an awaiting-confirmation badge, with no check-in pill', () => {
+    renderPage();
+
+    expect(screen.getByText('Web Guest')).toBeTruthy();
+    expect(screen.getByText('Awaiting payment confirmation')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Check in' })).toBeNull();
+  });
+
+  it('labels an unpaid hold as pending payment', () => {
+    const unpaid = { ...awaitingBooking, status: 'pending_payment' };
+    mocks.reservedBookings = new Map([['r2', unpaid]]);
+    mocks.infoByRoom = new Map([
+      ['r2', statusInfo({
+        computedStatus: 'reserved',
+        reservedBooking: unpaid,
+        hasReservationForToday: true,
+        isReserved: true,
+        isReservedToday: true,
+        isAwaitingPayment: true,
+      })],
+    ]);
+    renderPage();
+
+    expect(screen.getByText('Pending payment')).toBeTruthy();
+  });
+
+  it('phone: the card shows the badge and the menu offers no check-in', async () => {
+    mocks.isPhone = true;
+    renderPage();
+
+    expect(screen.getByText('Awaiting payment confirmation')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Check in' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /Room 102/ }));
+    expect(await screen.findByText('Edit booking notes')).toBeTruthy();
+    expect(screen.queryByText('Check-in guest')).toBeNull();
   });
 });

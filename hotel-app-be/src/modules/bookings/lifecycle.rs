@@ -2,6 +2,7 @@
 //! transitions) plus their shared private helpers.
 
 use super::helpers as booking_svc;
+use super::helpers::ROOM_HOLDING_RESERVATION_STATUSES_SQL;
 use super::queries::*;
 use super::repository::BookingRepository;
 use crate::core::auth::AuthService;
@@ -1010,24 +1011,31 @@ pub async fn get_booking_stats_handler(
             .await
             .unwrap_or(0);
 
-    let today_check_ins: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed') AND check_in_date::date = $1"
-    ).bind(today).fetch_one(&pool).await.unwrap_or(0);
+    // Arrivals, upcoming and active counts include every room-holding
+    // reservation — unpaid (`pending_payment`) and awaiting-confirmation
+    // website bookings hold their room too.
+    let today_check_ins: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT COUNT(*) FROM bookings WHERE status IN ({ROOM_HOLDING_RESERVATION_STATUSES_SQL}) AND check_in_date::date = $1"
+    )))
+    .bind(today)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
 
     let today_check_outs: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM bookings WHERE status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed') AND check_out_date::date = $1"
     ).bind(today).fetch_one(&pool).await.unwrap_or(0);
 
-    let pending: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed')",
-    )
+    let pending: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT COUNT(*) FROM bookings WHERE status IN ({ROOM_HOLDING_RESERVATION_STATUSES_SQL})"
+    )))
     .fetch_one(&pool)
     .await
     .unwrap_or(0);
 
-    let active: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed', 'checked_in', 'auto_checked_in')",
-    )
+    let active: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT COUNT(*) FROM bookings WHERE status IN ({ROOM_HOLDING_RESERVATION_STATUSES_SQL}, 'checked_in', 'auto_checked_in')"
+    )))
     .fetch_one(&pool)
     .await
     .unwrap_or(0);

@@ -158,4 +158,16 @@ describe('overdue balance slices', () => {
     expect(slices.companyDue.map((b) => b.id)).toEqual(['cdue']);
     expect(slices.due.map((b) => b.id)).toEqual(['ndue', 'cdue']);
   });
+
+  it('counts unpaid and awaiting-confirmation holds as upcoming, but never voided ones', () => {
+    const list = [
+      booking({ id: 'unpaid', status: 'pending_payment', check_in_date: future, check_out_date: '2026-04-03' }),
+      booking({ id: 'transfer', status: 'pending_confirmation', check_in_date: future, check_out_date: '2026-04-03' }),
+      booking({ id: 'pending', status: 'pending', check_in_date: future, check_out_date: '2026-04-03' }),
+      booking({ id: 'voided', status: 'voided', check_in_date: future, check_out_date: '2026-04-03' }),
+      booking({ id: 'gone', status: 'checked_out', check_in_date: future, check_out_date: '2026-04-03' }),
+    ];
+    const slices = getBookingViewSlices(list, today);
+    expect(slices.upcoming.map((b) => b.id)).toEqual(['unpaid', 'transfer', 'pending']);
+  });
 });

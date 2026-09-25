@@ -104,6 +104,8 @@
     "markAvailable": "Mark available",
     "newBooking": "+ New booking",
     "reservedOn": "Reserved: {{date}}",
+    "pendingPayment": "Pending payment",
+    "awaitingPaymentConfirmation": "Awaiting payment confirmation",
     "openActionsAria": "Room {{room}}, {{status}} — open actions"
   },
   "contextMenu": {
@@ -279,6 +281,7 @@
     "changeRoomCredit": "Room changed successfully. Credit applied: {{symbol}}{{amount}}/night",
     "changeRoomNoCharge": "Room changed successfully. No additional charges.",
     "noPendingBooking": "No pending booking found for this room",
+    "awaitingPaymentNoCheckIn": "This booking is awaiting payment, so it can't be checked in yet. Record or confirm the payment first.",
     "noBookingSelected": "No booking selected",
     "markedComplimentary": "Booking marked as complimentary! {{count}} night(s) of {{roomType}} credits added to guest.",
     "checkoutExtended": "Checkout date extended successfully",

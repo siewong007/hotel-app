@@ -3,6 +3,7 @@ import type { BookingWithDetails, Company, Room } from '../../../types';
 import { dateFormatter } from '../../../i18n/format';
 import { formatLocalDate, parseLocalDate } from '../../../utils/date';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
+import { isRoomHoldingReservationStatus } from '../../../constants/booking.constants';
 
 export type BookingView =
   | 'all'
@@ -162,8 +163,11 @@ export const getBookingViewSlices = (bookings: BookingWithDetails[], todayIso: s
     (booking) => getDateOnly(booking.check_out_date) === todayIso && booking.status === 'checked_in',
   ),
   inHouse: bookings.filter((booking) => booking.status === 'checked_in'),
+  // Every room-holding reservation, so unpaid (`pending_payment`) and
+  // awaiting-confirmation holds are counted too. Mirrors the backend's
+  // `board_view_filter("upcoming")`.
   upcoming: bookings.filter(
-    (booking) => ['pending', 'confirmed'].includes(booking.status)
+    (booking) => isRoomHoldingReservationStatus(booking.status)
       && getDateOnly(booking.check_in_date) > todayIso,
   ),
   normalDue: bookings.filter(

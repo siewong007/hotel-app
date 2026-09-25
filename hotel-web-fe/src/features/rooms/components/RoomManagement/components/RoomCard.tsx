@@ -23,12 +23,14 @@ import {
   MoreHoriz as MoreHorizIcon,
   SmokingRooms as SmokingIcon,
   AutoAwesome as SparkleIcon,
+  HourglassEmpty as HourglassIcon,
 } from '@mui/icons-material';
 import type { Room, BookingWithDetails } from '../../../../../types';
 import type { RoomMenuAnchor } from '../types';
 import { getRoomTypeCode, formatMenuBookingDate } from '../../../utils/roomManagementUtils';
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
 import { useTranslation } from '../../../../../i18n/useTranslation';
+import { BookingStatus } from '../../../../../constants/booking.constants';
 
 // Ink and borders rendered ON the saturated status fill. The fill is the
 // status accent token, which inverts between modes (deep in light, pastel in
@@ -130,6 +132,49 @@ const CardMoreButton: React.FC<{
   );
 };
 
+// Shown on a held room whose reservation is still unpaid (`pending_payment`)
+// or whose payment is awaiting staff confirmation (`pending_confirmation`),
+// e.g. a website booking paid by bank transfer. The hold is real, so the card
+// shows the guest, but check-in waits on the payment.
+const AwaitingPaymentBadge: React.FC<{ status?: string | null }> = ({ status }) => {
+  const { t } = useTranslation('rooms');
+  const label = status === BookingStatus.PENDING_CONFIRMATION
+    ? t('card.awaitingPaymentConfirmation')
+    : t('card.pendingPayment');
+  return (
+    <Box
+      data-testid="room-card-awaiting-payment"
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.4,
+        mt: 0.5,
+        px: 0.75,
+        py: 0.15,
+        maxWidth: '100%',
+        borderRadius: 999,
+        bgcolor: 'background.paper',
+        color: 'var(--hotel-warning)',
+      }}
+    >
+      <HourglassIcon sx={{ fontSize: 12, flexShrink: 0 }} />
+      <Typography
+        variant="caption"
+        sx={{
+          fontSize: '0.55rem',
+          fontWeight: 800,
+          letterSpacing: 0.5,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {label}
+      </Typography>
+    </Box>
+  );
+};
+
 interface RoomCardProps {
   room: Room;
   computedStatus: string;
@@ -139,6 +184,8 @@ interface RoomCardProps {
   hasReservationForToday: boolean;
   isOccupied: boolean;
   isReservedToday: boolean;
+  /** The reservation holds the room but payment is outstanding or awaiting confirmation — no check-in yet. */
+  isAwaitingPayment?: boolean;
   isComplimentary: boolean;
   overdueDays?: number;
   cardFill: string;
@@ -161,6 +208,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
   hasReservationForToday,
   isOccupied,
   isReservedToday,
+  isAwaitingPayment = false,
   isComplimentary,
   overdueDays,
   cardFill,
@@ -175,6 +223,9 @@ const RoomCard: React.FC<RoomCardProps> = ({
 }) => {
   const isPhone = useIsPhone();
   const { t } = useTranslation('rooms');
+  // Check-in is only offered once the reservation is payable-in-full or
+  // confirmed; the backend refuses check-in for awaiting-payment holds.
+  const canCheckInReservation = isReservedToday && !isAwaitingPayment;
 
   // Phone: compact card — room identity, a status line, the guest when one is
   // attached, and ONE next-step action + More (which opens the same context
@@ -182,7 +233,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
   if (isPhone) {
     const primary = isOccupied
       ? { label: t('card.checkOut'), tone: 'paper' as const, onClick: () => onCheckOut(room) }
-      : isReservedToday
+      : canCheckInReservation
         ? { label: t('card.checkIn'), tone: 'dark' as const, onClick: () => onCheckIn(room) }
         : computedStatus === 'dirty' || computedStatus === 'reserved_dirty'
           ? { label: t('card.markClean'), tone: 'dark' as const, onClick: () => onMarkAvailable(room) }
@@ -321,6 +372,9 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 >
                   {formatMenuBookingDate(guestBooking.check_in_date)} – {formatMenuBookingDate(guestBooking.check_out_date)}
                 </Typography>
+                {!isOccupied && isAwaitingPayment && (
+                  <AwaitingPaymentBadge status={guestBooking.status} />
+                )}
               </Box>
             )}
 
@@ -748,6 +802,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 >
                   {formatMenuBookingDate(reservedBooking.check_in_date)} – {formatMenuBookingDate(reservedBooking.check_out_date)}
                 </Typography>
+                {isAwaitingPayment && <AwaitingPaymentBadge status={reservedBooking.status} />}
 
                 {/* Editable booking notes — same affordance as occupied rooms */}
                 <Tooltip title={reservedBooking.remarks || reservedBooking.special_requests ? t('card.clickToEditNotes') : t('card.clickToAddNotes')} arrow>
@@ -788,11 +843,16 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 </Tooltip>
               </Box>
 
-              {/* Action row: Check in (primary) + More */}
+              {/* Action row: Check in (primary) + More. An awaiting-payment
+                  hold has no check-in yet, so only More is offered. */}
               <CardActionRow>
-                <CardPillButton tone="dark" onClick={() => onCheckIn(room)}>
-                  {t('card.checkIn')}
-                </CardPillButton>
+                {canCheckInReservation ? (
+                  <CardPillButton tone="dark" onClick={() => onCheckIn(room)}>
+                    {t('card.checkIn')}
+                  </CardPillButton>
+                ) : (
+                  <Box sx={{ flex: 1 }} />
+                )}
                 <CardMoreButton onClick={(e) => onMenuOpen(e, room)} />
               </CardActionRow>
             </>
@@ -830,6 +890,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                   </Typography>
                 </Box>
               )}
+              {isAwaitingPayment && <AwaitingPaymentBadge status={reservedBooking.status} />}
             </Box>
           )}
 
