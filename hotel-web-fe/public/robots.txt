@@ -1,0 +1,19 @@
+# robots.txt for saliminn.my (source: hotel-web-fe/public/robots.txt).
+#
+# Crawlers get the public marketing site only: "/" (which nginx 302s to the
+# marketing page for any visitor without a session cookie), the page itself
+# under /salim-inn/, and the hashed /assets/ bundles it needs to render. Its
+# live room photos come from /api/booking/room-types; crawlers are kept off
+# /api/ and see the bundled photos instead, which room-photos.js leaves in
+# place whenever that fetch fails.
+#
+# Everything else is the signed-in staff application or the client-rendered
+# guest app (booking, portal, offers, legal pages, token links), which renders
+# only from the API and has nothing to offer a crawler. Deny-by-default keeps
+# new staff routes out without editing this file. Staging is behind basic
+# auth, so this policy only matters in production.
+User-agent: *
+Allow: /$
+Allow: /salim-inn/
+Allow: /assets/
+Disallow: /
