@@ -178,7 +178,7 @@ credentials remain on the box.
 | Stack | Nightly job | Location |
 |---|---|---|
 | hotel | `saliminn-backup.timer` → `/opt/saliminn/database-backup.sh` (DB + uploads) | `/opt/saliminn/backups` (`"offsite": false` is expected) |
-| payroll | `payroll-backup.timer`; drop-in `payroll-backup.service.d/local.conf` runs `/usr/local/sbin/payroll-local-backup.sh` | `/srv/backups/payroll` (14 kept) |
+| payroll | `payroll-backup.timer` → `/opt/payroll/payroll-backup.sh` (deployed from payroll-system `deploy/`) | `/opt/payroll/backups` (14 kept) |
 | online-shopping | `online-shopping-backup.timer`; `backup.env` points at rclone remote `aiclocal` | `/opt/online-shopping/backups` + `/srv/backups/online-shopping` |
 
 One-off archives taken before the AWS teardown:
