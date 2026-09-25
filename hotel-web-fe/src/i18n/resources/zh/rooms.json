@@ -96,6 +96,8 @@
     "clickToEditNotes": "点击编辑备注",
     "clickToAddNotes": "点击添加备注",
     "addBookingNotes": "添加备注…",
+    "guestRequestLabel": "客人要求",
+    "staffNotesLabel": "员工备注",
     "checkOut": "退房",
     "move": "换房",
     "checkIn": "入住",

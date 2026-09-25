@@ -1,5 +1,12 @@
 {
   "title": "Tempahan",
+  "smokingPreference": {
+    "chipNonSmoking": "Mahu bilik tidak merokok",
+    "chipSmoking": "Mahu bilik merokok",
+    "hint": "Pilihan bilik tetamu semasa tempahan. Pilihan sahaja, tidak dijamin.",
+    "mismatchWantsNonSmoking": "Tetamu meminta bilik tidak merokok, tetapi bilik ini ditanda sebagai bilik merokok.",
+    "mismatchWantsSmoking": "Tetamu meminta bilik merokok, tetapi bilik ini tidak ditanda sebagai bilik merokok."
+  },
   "page": {
     "frontDesk": "Meja Hadapan",
     "newBooking": "Tempahan baharu",

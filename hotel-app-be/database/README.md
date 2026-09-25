@@ -44,10 +44,11 @@ make db-patch DATABASE_URL="$DATABASE_URL"
 The final `make db-patch` step reads `patches/manifest.tsv` and applies its
 catalog in order. The original V1 convergence catalog (versions 2 through 23)
 was folded into the baseline and the catalog republished from empty; it now
-carries seven converge-style patches (versions 2–8 — `deposit-forfeited`,
+carries eight converge-style patches (versions 2–9 — `deposit-forfeited`,
 `guest-relations-phase2`, `consent-locale-zh`, `data-transfer-permissions`,
-`channel-pricing`, `consent-locale-zh-tw`, `distributed-state`), so a fresh
-install records revisions 1 through 8.
+`channel-pricing`, `consent-locale-zh-tw`, `distributed-state`,
+`booking-smoking-preference`), so a fresh install records revisions 1
+through 9.
 A database that still records the pre-fold 1.2+ lineage aborts on a
 checksum-mismatch guard; the one-time lineage reset runbook is in
 `docs/guides/deployment.md`. An empty catalog is also valid state: the

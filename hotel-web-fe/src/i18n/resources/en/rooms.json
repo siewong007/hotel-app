@@ -97,6 +97,8 @@
     "clickToEditNotes": "Click to edit notes",
     "clickToAddNotes": "Click to add notes",
     "addBookingNotes": "Add notes...",
+    "guestRequestLabel": "Guest request",
+    "staffNotesLabel": "Staff notes",
     "checkOut": "Check out",
     "move": "Move",
     "checkIn": "Check in",

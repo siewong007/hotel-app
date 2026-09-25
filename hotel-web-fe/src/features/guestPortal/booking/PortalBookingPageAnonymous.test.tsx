@@ -395,6 +395,27 @@ describe('PortalBookingPage anonymous checkout', () => {
     expect('last_name' in payload.guest).toBe(false);
   });
 
+  it('sends the chosen smoking preference with an anonymous booking', async () => {
+    await reachSubmittableReview();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Smoking' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+
+    await waitFor(() => expect(mocks.publicCreate).toHaveBeenCalledTimes(1));
+    const payload = mocks.publicCreate.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.smoking_preference).toBe('smoking');
+  });
+
+  it('omits smoking_preference from an anonymous booking when "No preference" is kept', async () => {
+    await reachSubmittableReview();
+
+    expect((screen.getByRole('radio', { name: 'No preference' }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+
+    await waitFor(() => expect(mocks.publicCreate).toHaveBeenCalledTimes(1));
+    expect(mocks.publicCreate.mock.calls[0][0]).not.toHaveProperty('smoking_preference');
+  });
+
   it('has no axe violations on the populated rate selection', async () => {
     const { container } = render(<PortalBookingPage />);
 

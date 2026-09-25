@@ -16,8 +16,8 @@ use super::repository::{
     VoucherRedemptionValues,
 };
 use super::validation::{
-    ValidatedStay, validate_anonymous_guest, validate_client_request_id,
-    validate_complimentary_dates, validate_stay,
+    ValidatedStay, smoking_preference_note, validate_anonymous_guest, validate_client_request_id,
+    validate_complimentary_dates, validate_smoking_preference, validate_stay,
 };
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -1026,6 +1026,7 @@ pub async fn create(
     user_agent: Option<String>,
 ) -> Result<GuestBookingConfirmation, ApiError> {
     let request_id = validate_client_request_id(&request.client_request_id)?;
+    let smoking_preference = validate_smoking_preference(request.smoking_preference.as_deref())?;
     consent_validation::validate_locales(&request.consents)?;
     consent_validation::require_consents(&request.consents, consent_validation::BOOKING_REQUIRED)?;
     if let Some(existing) = Repository::find_by_request_id(pool, guest_id, &request_id).await? {
@@ -1131,13 +1132,16 @@ pub async fn create(
         quote.check_out_date,
     )
     .await?;
-    let room_id = Repository::allocate_room_tx(
+    let allocated = Repository::allocate_room_tx(
         &mut tx,
         request.room_type_id,
         quote.check_in_date,
         quote.check_out_date,
+        smoking_preference,
     )
     .await?;
+    let room_id = allocated.room_id;
+    let preference_note = smoking_preference_note(smoking_preference, allocated.is_smoking);
     let insert = BookingInsert {
         portal_request_id: request_id.clone(),
         guest_id,
@@ -1155,6 +1159,8 @@ pub async fn create(
         currency: quote.currency.clone(),
         special_requests,
         cleaning_preference: request.cleaning_preference,
+        smoking_preference,
+        internal_notes: preference_note.clone(),
         booking_channel_id,
         nightly_rates: daily_rates,
         complimentary_reason,
@@ -1226,6 +1232,8 @@ pub async fn create(
             "guest_id": guest_id,
             "room_type_id": request.room_type_id,
             "portal_request_id": request_id,
+            "smoking_preference": smoking_preference.map(|preference| preference.as_str()),
+            "smoking_preference_met": preference_note.is_none(),
             "complimentary_nights": quote.complimentary_nights,
         }),
     )
@@ -1341,6 +1349,7 @@ pub async fn create_anonymous(
 ) -> Result<GuestBookingConfirmation, ApiError> {
     let request_id = validate_client_request_id(&request.client_request_id)?;
     let guest = validate_anonymous_guest(&request.guest)?;
+    let smoking_preference = validate_smoking_preference(request.smoking_preference.as_deref())?;
 
     // Checked before the idempotent-replay branch below, so a replayed request
     // that has dropped its consent cannot reissue an access token either.
@@ -1427,13 +1436,16 @@ pub async fn create_anonymous(
         quote.check_out_date,
     )
     .await?;
-    let room_id = Repository::allocate_room_tx(
+    let allocated = Repository::allocate_room_tx(
         &mut tx,
         request.room_type_id,
         quote.check_in_date,
         quote.check_out_date,
+        smoking_preference,
     )
     .await?;
+    let room_id = allocated.room_id;
+    let preference_note = smoking_preference_note(smoking_preference, allocated.is_smoking);
     let language_preference = consent_validation::preferred_locale(&request.consents);
     let guest_id =
         Repository::insert_anonymous_guest_tx(&mut tx, &guest, &language_preference).await?;
@@ -1456,6 +1468,8 @@ pub async fn create_anonymous(
         currency: quote.currency.clone(),
         special_requests,
         cleaning_preference: request.cleaning_preference,
+        smoking_preference,
+        internal_notes: preference_note.clone(),
         booking_channel_id,
         nightly_rates: daily_rates,
         // No credits, so never a complimentary reason and never settled by them.
@@ -1483,6 +1497,8 @@ pub async fn create_anonymous(
             "guest_id": guest_id,
             "room_type_id": request.room_type_id,
             "portal_request_id": request_id,
+            "smoking_preference": smoking_preference.map(|preference| preference.as_str()),
+            "smoking_preference_met": preference_note.is_none(),
             "anonymous": true,
         }),
     )

@@ -37,6 +37,7 @@
       "payTitle": "Complete your payment",
       "receiptBody": "Payment received and your booking is confirmed.",
       "receiptTitle": "Payment receipt",
+      "smokingPreference": "客房偏好：{{value}}（视供应情况而定）",
       "stayDates": "{{checkIn}} to {{checkOut}}"
     },
     "confirmingPrice": "正在确认最新价格…",
@@ -48,6 +49,13 @@
     "creditsHint_one": "You have {{count}} free night for {{room}}. Choose which nights to cover.",
     "creditsHint_other": "您有 {{count}} 晚 {{room}} 的免费房晚。请选择要抵扣的晚数。",
     "dailyCleaning": "我需要每日客房清洁",
+    "smokingPreference": {
+      "helper": "视供应情况而定，无法保证。我们会尽量满足您的偏好。",
+      "label": "客房偏好",
+      "noPreference": "无偏好",
+      "nonSmoking": "无烟房",
+      "smoking": "吸烟房"
+    },
     "detailsHint": "昵称用于保留房间，确认信息将发送至您的邮箱。入住时会登记您的法定姓名。",
     "discount": "折扣",
     "email": "电子邮箱",

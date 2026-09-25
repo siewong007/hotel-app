@@ -37,6 +37,7 @@
       "payTitle": "Lengkapkan pembayaran anda",
       "receiptBody": "Pembayaran diterima dan tempahan anda telah disahkan.",
       "receiptTitle": "Resit pembayaran",
+      "smokingPreference": "Pilihan bilik: {{value}} (tertakluk kepada ketersediaan)",
       "stayDates": "{{checkIn}} hingga {{checkOut}}"
     },
     "confirmingPrice": "Mengesahkan harga terkini…",
@@ -47,6 +48,13 @@
     "creditsAvailable": "{{count}} tersedia",
     "creditsHint_other": "Anda mempunyai {{count}} malam percuma untuk {{room}}. Pilih malam yang mahu ditampung.",
     "dailyCleaning": "Saya ingin pembersihan bilik harian",
+    "smokingPreference": {
+      "helper": "Tertakluk kepada ketersediaan dan tidak dijamin. Kami akan cuba sedaya upaya memenuhi pilihan anda.",
+      "label": "Pilihan bilik",
+      "noPreference": "Tiada pilihan",
+      "nonSmoking": "Tidak merokok",
+      "smoking": "Merokok"
+    },
     "detailsHint": "Nama samaran menahan bilik dan e-mel anda membawa pengesahan. Nama sah anda diambil semasa daftar masuk.",
     "discount": "Diskaun",
     "email": "E-mel",

@@ -31,6 +31,7 @@ import { getRoomTypeCode, formatMenuBookingDate } from '../../../utils/roomManag
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
 import { useTranslation } from '../../../../../i18n/useTranslation';
 import { BookingStatus } from '../../../../../constants/booking.constants';
+import { SmokingPreferenceChip } from '../../../../bookings/components/SmokingPreferenceChip';
 
 // Ink and borders rendered ON the saturated status fill. The fill is the
 // status accent token, which inverts between modes (deep in light, pastel in
@@ -129,6 +130,77 @@ const CardMoreButton: React.FC<{
       <MoreHorizIcon sx={{ fontSize: Math.round(size * 0.6) }} />
     </IconButton>
   </Tooltip>
+  );
+};
+
+// Editable booking notes on the card. The guest's own special request and the
+// staff remarks are separate fields, so both are shown with a label rather than
+// one hiding the other (staff remarks used to mask the guest's request).
+const BookingNotesPreview: React.FC<{
+  booking: BookingWithDetails;
+  onEdit: (booking: BookingWithDetails, event: React.MouseEvent) => void;
+  mt: number;
+}> = ({ booking, onEdit, mt }) => {
+  const { t } = useTranslation('rooms');
+  const guestRequest = booking.special_requests?.trim() || '';
+  const staffRemarks = booking.remarks?.trim() || '';
+  const hasBoth = Boolean(guestRequest && staffRemarks);
+  const lines = hasBoth ? 1 : 2;
+  const clamp = {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    display: '-webkit-box',
+    WebkitLineClamp: lines,
+    WebkitBoxOrient: 'vertical',
+  } as const;
+  const label = (text: string) => (
+    <Box component="span" sx={{ fontWeight: 800 }}>
+      {text}:{' '}
+    </Box>
+  );
+  return (
+    <Tooltip title={guestRequest || staffRemarks ? t('card.clickToEditNotes') : t('card.clickToAddNotes')} arrow>
+      <Box
+        onClick={(e) => onEdit(booking, e)}
+        sx={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 0.5,
+          mt,
+          p: 0.5,
+          bgcolor: 'transparent',
+          borderRadius: 0.5,
+          cursor: 'pointer',
+          '&:hover': { bgcolor: onFill(12) },
+          minHeight: 24,
+        }}
+      >
+        <NotesIcon sx={{ fontSize: 12, opacity: 0.8, mt: 0.25 }} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          {guestRequest || staffRemarks ? (
+            <>
+              {guestRequest && (
+                <Typography variant="caption" component="div" sx={{ fontSize: '0.6rem', opacity: 0.9, ...clamp }}>
+                  {label(t('card.guestRequestLabel'))}
+                  {guestRequest}
+                </Typography>
+              )}
+              {staffRemarks && (
+                <Typography variant="caption" component="div" sx={{ fontSize: '0.6rem', opacity: 0.9, ...clamp }}>
+                  {label(t('card.staffNotesLabel'))}
+                  {staffRemarks}
+                </Typography>
+              )}
+            </>
+          ) : (
+            <Typography variant="caption" component="div" sx={{ fontSize: '0.6rem', opacity: 0.9, fontStyle: 'italic' }}>
+              {t('card.addBookingNotes')}
+            </Typography>
+          )}
+        </Box>
+        <EditIcon sx={{ fontSize: 10, opacity: 0.6 }} />
+      </Box>
+    </Tooltip>
   );
 };
 
@@ -720,45 +792,15 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 </Tooltip>
               )}
 
-              {/* Booking Notes - Clickable to edit */}
-              <Tooltip title={booking.remarks || booking.special_requests ? t('card.clickToEditNotes') : t('card.clickToAddNotes')} arrow>
-                <Box
-                  onClick={(e) => onEditBookingNotes(booking, e)}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 0.5,
-                    mt: 0.5,
-                    p: 0.5,
-                    bgcolor: 'transparent',
-                    borderRadius: 0.5,
-                    cursor: 'pointer',
-                    '&:hover': {
-                      bgcolor: onFill(12),
-                    },
-                    minHeight: 24,
-                  }}
-                >
-                  <NotesIcon sx={{ fontSize: 12, opacity: 0.8, mt: 0.25 }} />
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontSize: '0.6rem',
-                      opacity: 0.9,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      flex: 1,
-                      fontStyle: (booking.remarks || booking.special_requests) ? 'normal' : 'italic',
-                    }}
-                  >
-                    {booking.remarks || booking.special_requests || t('card.addBookingNotes')}
-                  </Typography>
-                  <EditIcon sx={{ fontSize: 10, opacity: 0.6 }} />
-                </Box>
-              </Tooltip>
+              {/* Smoking-room preference chip (soft preference; warns on mismatch) */}
+              <SmokingPreferenceChip
+                preference={booking.smoking_preference}
+                roomIsSmoking={room.is_smoking ?? false}
+                sx={{ mt: 0.6 }}
+              />
+
+              {/* Booking notes (guest request + staff remarks) - click to edit */}
+              <BookingNotesPreview booking={booking} onEdit={onEditBookingNotes} mt={0.5} />
 
               {/* Action row: Check out, Move, More */}
               <CardActionRow>
@@ -803,44 +845,14 @@ const RoomCard: React.FC<RoomCardProps> = ({
                   {formatMenuBookingDate(reservedBooking.check_in_date)} – {formatMenuBookingDate(reservedBooking.check_out_date)}
                 </Typography>
                 {isAwaitingPayment && <AwaitingPaymentBadge status={reservedBooking.status} />}
+                <SmokingPreferenceChip
+                  preference={reservedBooking.smoking_preference}
+                  roomIsSmoking={room.is_smoking ?? false}
+                  sx={{ mt: 0.6 }}
+                />
 
                 {/* Editable booking notes — same affordance as occupied rooms */}
-                <Tooltip title={reservedBooking.remarks || reservedBooking.special_requests ? t('card.clickToEditNotes') : t('card.clickToAddNotes')} arrow>
-                  <Box
-                    onClick={(e) => onEditBookingNotes(reservedBooking, e)}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 0.5,
-                      mt: 0.75,
-                      p: 0.5,
-                      bgcolor: 'transparent',
-                      borderRadius: 0.5,
-                      cursor: 'pointer',
-                      '&:hover': { bgcolor: onFill(12) },
-                      minHeight: 24,
-                    }}
-                  >
-                    <NotesIcon sx={{ fontSize: 12, opacity: 0.8, mt: 0.25 }} />
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        fontSize: '0.6rem',
-                        opacity: 0.9,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        flex: 1,
-                        fontStyle: (reservedBooking.remarks || reservedBooking.special_requests) ? 'normal' : 'italic',
-                      }}
-                    >
-                      {reservedBooking.remarks || reservedBooking.special_requests || t('card.addBookingNotes')}
-                    </Typography>
-                    <EditIcon sx={{ fontSize: 10, opacity: 0.6 }} />
-                  </Box>
-                </Tooltip>
+                <BookingNotesPreview booking={reservedBooking} onEdit={onEditBookingNotes} mt={0.75} />
               </Box>
 
               {/* Action row: Check in (primary) + More. An awaiting-payment

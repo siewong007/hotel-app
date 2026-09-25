@@ -1620,7 +1620,9 @@ END),
     nights integer GENERATED ALWAYS AS ((check_out_date - check_in_date)),
     total_guests integer GENERATED ALWAYS AS (((adults + children) + infants)),
     channel_pricing_snapshot jsonb,
+    smoking_preference character varying(20),
     CONSTRAINT bookings_payment_status_check CHECK (((payment_status)::text = ANY ((ARRAY['unpaid'::character varying, 'unpaid_deposit'::character varying, 'paid_rate'::character varying, 'partial'::character varying, 'paid'::character varying, 'refunded'::character varying, 'void'::character varying])::text[]))),
+    CONSTRAINT bookings_smoking_preference_check CHECK (((smoking_preference)::text = ANY ((ARRAY['smoking'::character varying, 'non_smoking'::character varying])::text[]))),
     CONSTRAINT bookings_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'pending_payment'::character varying, 'pending_confirmation'::character varying, 'confirmed'::character varying, 'checked_in'::character varying, 'auto_checked_in'::character varying, 'checked_out'::character varying, 'no_show'::character varying, 'completed'::character varying, 'comp_void'::character varying, 'partial_complimentary'::character varying, 'fully_complimentary'::character varying, 'voided'::character varying])::text[]))),
     CONSTRAINT valid_complimentary_dates CHECK ((((complimentary_start_date IS NULL) AND (complimentary_end_date IS NULL)) OR ((complimentary_start_date IS NOT NULL) AND (complimentary_end_date IS NOT NULL) AND (complimentary_start_date >= check_in_date) AND (complimentary_end_date <= check_out_date) AND (complimentary_start_date < complimentary_end_date)))),
     CONSTRAINT valid_dates CHECK ((check_out_date >= check_in_date)),
@@ -1710,6 +1712,13 @@ COMMENT ON COLUMN public.bookings.posted_date IS 'The business date when this bo
 --
 
 COMMENT ON COLUMN public.bookings.tourism_billable_amount IS 'Virtual generated column (PostgreSQL 19 baseline): tourism_tax_amount when is_tourist, else 0. Computed on read; no storage overhead. Replaces repeated CASE expressions in reporting queries.';
+
+
+--
+-- Name: COLUMN bookings.smoking_preference; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bookings.smoking_preference IS 'Guest room smoking preference (smoking / non_smoking); NULL = no preference. Soft: steers allocation, never blocks.';
 
 
 --

@@ -7,8 +7,8 @@ import PeopleOutlineIcon from '@mui/icons-material/PeopleOutlined';
 import {
   Alert, Box, Button, Card, CardContent, Checkbox, Chip, CircularProgress, Collapse,
   Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl,
-  FormControlLabel, Grid, InputLabel, MenuItem, Paper, Select, Stack, Step, StepLabel,
-  Stepper, TextField, Typography, useMediaQuery,
+  FormControlLabel, FormHelperText, FormLabel, Grid, InputLabel, MenuItem, Paper, Radio,
+  RadioGroup, Select, Stack, Step, StepLabel, Stepper, TextField, Typography, useMediaQuery,
 } from '@mui/material';
 
 import { Navigate, useNavigate } from '../../../router';
@@ -25,7 +25,7 @@ import { ConsentBlock } from '../../legal/components/ConsentBlock';
 import { BOOKING_CONSENTS } from '../../legal/content';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
 import { useConsent, type ConsentState } from '../../legal/useConsent';
-import type { AnonymousGuestDetails, AvailabilityEvent, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingSearch } from './types';
+import type { AnonymousGuestDetails, AvailabilityEvent, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingSearch, SmokingPreference } from './types';
 import type { PaymentActionResponse } from '../../../types';
 import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayOverlapsAvailabilityEvent, validateGuestBookingSearch } from './utils';
 import { useAvailabilitySocket } from './useAvailabilitySocket';
@@ -127,6 +127,8 @@ const PortalBookingPage: React.FC = () => {
   const [complimentaryDates, setComplimentaryDates] = useState<string[]>([]);
   const [specialRequests, setSpecialRequests] = useState('');
   const [cleaningPreference, setCleaningPreference] = useState(false);
+  // '' = no preference (the default); the field is then left out of the request.
+  const [smokingPreference, setSmokingPreference] = useState<SmokingPreference | ''>('');
   const [requestId, setRequestId] = useState(newRequestId);
   const [confirmation, setConfirmation] = useState<GuestBookingConfirmation | null>(null);
   const consent = useConsent(BOOKING_CONSENTS);
@@ -327,6 +329,7 @@ const PortalBookingPage: React.FC = () => {
         expected_total: quote.total_amount,
         special_requests: specialRequests.trim() || undefined,
         cleaning_preference: cleaningPreference,
+        ...(smokingPreference ? { smoking_preference: smokingPreference } : {}),
         consents: consentPayload.consents,
         marketing_opt_in: consentPayload.marketing_opt_in,
         guest: {
@@ -360,7 +363,7 @@ const PortalBookingPage: React.FC = () => {
       }
       catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch({ background: true }); }
     } finally { setIsSubmitting(false); }
-  }, [cleaningPreference, consent, guestDetails, legalLocale, quote, requestId, runSearch, search, setError, specialRequests, t]);
+  }, [cleaningPreference, consent, guestDetails, legalLocale, quote, requestId, runSearch, search, setError, smokingPreference, specialRequests, t]);
 
   const submitBooking = useCallback(async () => {
     if (!quote) return;
@@ -383,7 +386,7 @@ const PortalBookingPage: React.FC = () => {
     try {
       // Submit the nights the server itself priced, so what is booked is
       // exactly what the guest just reviewed.
-      const result = await GuestBookingApi.create({ ...search, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates, client_request_id: requestId, expected_total: quote.total_amount, special_requests: specialRequests.trim() || undefined, cleaning_preference: cleaningPreference, consents: consentPayload.consents }, token);
+      const result = await GuestBookingApi.create({ ...search, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates, client_request_id: requestId, expected_total: quote.total_amount, special_requests: specialRequests.trim() || undefined, cleaning_preference: cleaningPreference, ...(smokingPreference ? { smoking_preference: smokingPreference } : {}), consents: consentPayload.consents }, token);
       setConfirmation(result);
     } catch (createError) {
       const missingFields = await readProfileIncompleteFields(createError);
@@ -396,7 +399,7 @@ const PortalBookingPage: React.FC = () => {
       try { setQuote(await GuestBookingApi.quote({ ...search, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates }, token)); }
       catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch({ background: true }); }
     } finally { setIsSubmitting(false); }
-  }, [cleaningPreference, consent, isAnonymous, legalLocale, navigate, profileComplete, quote, requestId, runSearch, search, setError, specialRequests, submitAnonymousBooking, t, token]);
+  }, [cleaningPreference, consent, isAnonymous, legalLocale, navigate, profileComplete, quote, requestId, runSearch, search, setError, smokingPreference, specialRequests, submitAnonymousBooking, t, token]);
 
   const handleAvailabilityChange = useCallback((event: AvailabilityEvent) => {
     if (!stayOverlapsAvailabilityEvent(event, search)) return;
@@ -415,7 +418,7 @@ const PortalBookingPage: React.FC = () => {
   // Only gate when an account session is genuinely mid-flight or broken. A
   // visitor with no account at all falls through to the anonymous flow.
   if (!token && !isAnonymous) return <SessionGate error={sessionError} status={sessionStatus} canRetry={canRetry} onRetry={retry} onRestart={restartSignIn} />;
-  if (confirmation) return <ConfirmationStage confirmation={confirmation} token={token ?? confirmation.access_token ?? null} paymentMode={token ? 'session' : 'token'} isAnonymous={isAnonymous} onStays={() => navigate(isAnonymous ? '/salim-inn/index.html' : '/guest-portal?section=stays')} onAnother={() => { setConfirmation(null); setSelectedOffer(null); setQuote(null); setOffers([]); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setSpecialRequests(''); setCleaningPreference(false); setRequestId(newRequestId()); }} />;
+  if (confirmation) return <ConfirmationStage confirmation={confirmation} token={token ?? confirmation.access_token ?? null} paymentMode={token ? 'session' : 'token'} isAnonymous={isAnonymous} onStays={() => navigate(isAnonymous ? '/salim-inn/index.html' : '/guest-portal?section=stays')} onAnother={() => { setConfirmation(null); setSelectedOffer(null); setQuote(null); setOffers([]); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setSpecialRequests(''); setCleaningPreference(false); setSmokingPreference(''); setRequestId(newRequestId()); }} />;
 
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
@@ -438,7 +441,7 @@ const PortalBookingPage: React.FC = () => {
         <Box sx={{ mt: 3 }}><Typography variant="h5" component="h2" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} disabled={isQuoting} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} nicknameTaken={nicknameTaken} quote={quote} search={search} vouchers={vouchers} vouchersError={vouchersError} onRetryVouchers={() => void loadVouchers()} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
+        <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} nicknameTaken={nicknameTaken} quote={quote} search={search} vouchers={vouchers} vouchersError={vouchersError} onRetryVouchers={() => void loadVouchers()} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} smokingPreference={smokingPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onSmokingPreference={setSmokingPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
       </Collapse>
       <Dialog open={availabilityLost} onClose={() => setAvailabilityLost(false)}><DialogTitle>{t('book.availabilityChangedTitle')}</DialogTitle><DialogContent><Typography>{t('book.availabilityChangedBody')}</Typography></DialogContent><DialogActions><Button variant="contained" onClick={() => setAvailabilityLost(false)}>{t('book.viewAvailable')}</Button></DialogActions></Dialog>
     </Container>
@@ -518,9 +521,9 @@ function LoadingQuote() {
   );
 }
 
-function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guestDetails: AnonymousGuestDetails; onGuestDetails: (value: AnonymousGuestDetails) => void; nicknameTaken: boolean; quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; vouchersError: string | null; onRetryVouchers: () => void; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onBack: () => void; onConfirm: () => void }) {
+function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guestDetails: AnonymousGuestDetails; onGuestDetails: (value: AnonymousGuestDetails) => void; nicknameTaken: boolean; quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; vouchersError: string | null; onRetryVouchers: () => void; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; smokingPreference: SmokingPreference | ''; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onSmokingPreference: (value: SmokingPreference | '') => void; onBack: () => void; onConfirm: () => void }) {
   const { t } = useTranslation('guestPortal');
-  const { isAnonymous, consent, guestDetails, onGuestDetails, nicknameTaken, quote, search, vouchers, vouchersError, onRetryVouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onBack, onConfirm } = props;
+  const { isAnonymous, consent, guestDetails, onGuestDetails, nicknameTaken, quote, search, vouchers, vouchersError, onRetryVouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, smokingPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onSmokingPreference, onBack, onConfirm } = props;
   const nightsLabel = t('common:count.nights', { count: countStayNights(search) });
   const childrenLabel = quote.children > 0 ? t('book.childrenSuffix', { count: quote.children }) : '';
   return (
@@ -528,7 +531,7 @@ function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guest
         color: "text.secondary"
       }}>{t('book.staySummary', { checkIn: quote.check_in_date, checkOut: quote.check_out_date, nights: nightsLabel, adults: quote.adults, children: childrenLabel })}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} nicknameTaken={nicknameTaken} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} disabled={isSubmitting} />{vouchersError ? <Alert severity="warning" role="alert" sx={{ mt: 3 }} action={<Button color="inherit" size="small" onClick={onRetryVouchers}>{t('common:actions.retry')}</Button>}>{vouchersError}</Alert> : null}<FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">{t('book.voucher')}</InputLabel><Select labelId="voucher-label" label={t('book.voucher')} value={voucherId} disabled={isSubmitting} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">{t('book.noVoucher')}</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? t('book.notEligible') : ''}{voucher.is_cancellable === false ? t('book.voucherNonCancellable') : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" role="alert" sx={{ mt: 2 }}>{t('book.voucherApplied', { name: quote.voucher_name })}</Alert>}{quote.voucher_is_cancellable === false && <Alert severity="warning" role="alert" sx={{ mt: 2 }}>{t('book.voucherLocksCancellation')}</Alert>}</>}<ConsentBlock prompts={BOOKING_CONSENTS} state={consent} /><TextField label={t('book.specialRequests')} value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
         htmlInput: { maxLength: 1000 }
-      }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label={t('book.dailyCleaning')} /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>
+      }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label={t('book.dailyCleaning')} /><SmokingPreferenceField value={smokingPreference} onChange={onSmokingPreference} disabled={isSubmitting} /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>
   );
 }
 
@@ -689,6 +692,33 @@ function SummaryLine({ label, value, strong = false, color }: { label: string; v
   }}>{value}</Typography></Stack>
 ); }
 
+/** Soft smoking-room preference. Steers room allocation only; the helper text
+ *  tells the guest it is not guaranteed, and '' (no preference) is the default. */
+function SmokingPreferenceField({ value, onChange, disabled }: { value: SmokingPreference | ''; onChange: (value: SmokingPreference | '') => void; disabled: boolean }) {
+  const { t } = useTranslation('guestPortal');
+  return (
+    <FormControl component="fieldset" sx={{ mt: 2, display: 'block' }} disabled={disabled}>
+      <FormLabel component="legend" id="smoking-preference-label">{t('book.smokingPreference.label')}</FormLabel>
+      <RadioGroup
+        row
+        name="smoking_preference"
+        aria-labelledby="smoking-preference-label"
+        aria-describedby="smoking-preference-helper"
+        value={value}
+        onChange={(event) => {
+          const next = event.target.value;
+          onChange(next === 'smoking' || next === 'non_smoking' ? next : '');
+        }}
+      >
+        <FormControlLabel value="smoking" control={<Radio />} label={t('book.smokingPreference.smoking')} />
+        <FormControlLabel value="non_smoking" control={<Radio />} label={t('book.smokingPreference.nonSmoking')} />
+        <FormControlLabel value="" control={<Radio />} label={t('book.smokingPreference.noPreference')} />
+      </RadioGroup>
+      <FormHelperText id="smoking-preference-helper" sx={{ mx: 0 }}>{t('book.smokingPreference.helper')}</FormHelperText>
+    </FormControl>
+  );
+}
+
 function ConfirmationStage({ confirmation, token, paymentMode, isAnonymous, onStays, onAnother }: { confirmation: GuestBookingConfirmation; token: string | null; paymentMode: 'session' | 'token'; isAnonymous: boolean; onStays: () => void; onAnother: () => void }) {
   const { t } = useTranslation('guestPortal');
   const [paymentComplete, setPaymentComplete] = useState(confirmation.status === 'confirmed');
@@ -716,7 +746,7 @@ function ConfirmationStage({ confirmation, token, paymentMode, isAnonymous, onSt
         fontVariantNumeric: 'tabular-nums'
       }}>{confirmation.booking_number}</Typography><Typography sx={{ mt: 3, fontWeight: 700 }}>{confirmation.room_type_name}</Typography><Typography sx={{
       color: "text.secondary"
-    }}>{t('book.confirmation.stayDates', { checkIn: confirmation.check_in_date, checkOut: confirmation.check_out_date })}</Typography><Typography variant="h5" component="div" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode={paymentMode} bookingId={confirmation.booking_id} token={token ?? ''} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'var(--hotel-success-bg)', borderColor: 'var(--hotel-success-border)' }}><Stack
+    }}>{t('book.confirmation.stayDates', { checkIn: confirmation.check_in_date, checkOut: confirmation.check_out_date })}</Typography>{confirmation.smoking_preference ? <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{t('book.confirmation.smokingPreference', { value: confirmation.smoking_preference === 'smoking' ? t('book.smokingPreference.smoking') : t('book.smokingPreference.nonSmoking') })}</Typography> : null}<Typography variant="h5" component="div" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode={paymentMode} bookingId={confirmation.booking_id} token={token ?? ''} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'var(--hotel-success-bg)', borderColor: 'var(--hotel-success-border)' }}><Stack
       direction="row"
       spacing={2}
       sx={{

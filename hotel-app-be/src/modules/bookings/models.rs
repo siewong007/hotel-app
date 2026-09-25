@@ -161,6 +161,10 @@ pub struct Booking {
     pub daily_rates: Option<serde_json::Value>,
 
     pub cleaning_preference: Option<bool>,
+    /// Guest's room smoking preference from the portal (`smoking` /
+    /// `non_smoking`); NULL = no preference. Tolerant: absent from most
+    /// SELECT lists.
+    pub smoking_preference: Option<String>,
     /// Channel attribution economics snapshotted at write time — later rule
     /// edits never rewrite these. Tolerant: absent from most SELECT lists.
     pub rate_plan_id: Option<i64>,
@@ -435,6 +439,13 @@ pub struct BookingWithDetails {
     pub invoice_number: Option<String>,
     // Per-booking daily-cleaning preference (NULL = not set)
     pub cleaning_preference: Option<bool>,
+    /// Guest's room smoking preference (`smoking` / `non_smoking`); NULL = no
+    /// preference. Soft: compared against the room's `is_smoking` by staff UI.
+    pub smoking_preference: Option<String>,
+    /// `rooms.is_smoking` of the booked room, so staff views can flag a
+    /// booking whose smoking preference the room does not satisfy.
+    /// Tolerant: absent from most SELECT lists.
+    pub room_is_smoking: Option<bool>,
     /// Computed from the booking guest's latest eKYC verification and booking eligibility.
     #[serde(default)]
     pub ekyc_summary: GuestEkycStatusSummary,
@@ -520,6 +531,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Booking {
             payment_note: row.try_get("payment_note")?,
             daily_rates: row.try_get("daily_rates")?,
             cleaning_preference: row.try_get("cleaning_preference")?,
+            smoking_preference: row.try_get("smoking_preference").ok().flatten(),
             rate_plan_id: row.try_get("rate_plan_id").ok().flatten(),
             commission_amount: row.try_get("commission_amount").ok().flatten(),
             net_revenue: row.try_get("net_revenue").ok().flatten(),
@@ -595,6 +607,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
             daily_rates: row.try_get("daily_rates")?,
             invoice_number: row.try_get("invoice_number")?,
             cleaning_preference: row.try_get("cleaning_preference")?,
+            smoking_preference: row.try_get("smoking_preference").ok().flatten(),
+            room_is_smoking: row.try_get("room_is_smoking").ok().flatten(),
             ekyc_summary: GuestEkycStatusSummary::not_submitted(guest_id),
         })
     }
@@ -651,6 +665,7 @@ mod tests {
             payment_note: None,
             daily_rates: None,
             cleaning_preference: None,
+            smoking_preference: None,
             rate_plan_id: None,
             commission_amount: None,
             net_revenue: None,

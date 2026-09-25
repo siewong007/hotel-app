@@ -2,6 +2,46 @@ use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+/// A guest's optional smoking / non-smoking room preference.
+///
+/// Soft by design: it steers `allocate_room_tx` toward rooms whose
+/// `rooms.is_smoking` matches, but never removes rooms from availability or
+/// refuses a booking. `None` (no preference) is stored as SQL NULL and fills
+/// non-smoking rooms first. Stored in `bookings.smoking_preference` as the
+/// `as_str` value, which the column's CHECK constraint pins.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SmokingPreference {
+    Smoking,
+    NonSmoking,
+}
+
+impl SmokingPreference {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Smoking => "smoking",
+            Self::NonSmoking => "non_smoking",
+        }
+    }
+
+    /// Whether this preference asks for a smoking room.
+    pub fn wants_smoking(self) -> bool {
+        matches!(self, Self::Smoking)
+    }
+
+    /// Whether a room with the given `rooms.is_smoking` value satisfies it.
+    pub fn is_met_by(self, room_is_smoking: bool) -> bool {
+        self.wants_smoking() == room_is_smoking
+    }
+}
+
+/// The room `allocate_room_tx` picked, with the attribute the smoking
+/// preference is matched against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AllocatedRoom {
+    pub room_id: i64,
+    pub is_smoking: bool,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct BookingSearchQuery {
     pub check_in_date: String,
@@ -113,6 +153,10 @@ pub struct CreateGuestBookingRequest {
     pub expected_total: Decimal,
     pub special_requests: Option<String>,
     pub cleaning_preference: Option<bool>,
+    /// `smoking`, `non_smoking`, or absent / `no_preference` for none.
+    /// Validated by `validate_smoking_preference`; soft (never blocks).
+    #[serde(default)]
+    pub smoking_preference: Option<String>,
     /// Consent taken on the booking form. The Booking Terms and the Privacy
     /// Notice are mandatory; the request is refused before any row is written
     /// if either is missing, refused, or pinned to a superseded version.
@@ -244,6 +288,10 @@ pub struct AnonymousBookingRequest {
     pub expected_total: Decimal,
     pub special_requests: Option<String>,
     pub cleaning_preference: Option<bool>,
+    /// `smoking`, `non_smoking`, or absent / `no_preference` for none.
+    /// Validated by `validate_smoking_preference`; soft (never blocks).
+    #[serde(default)]
+    pub smoking_preference: Option<String>,
     pub guest: AnonymousGuestDetails,
     /// Consent taken on the booking form. The Booking Terms and the Privacy
     /// Notice are mandatory; the request is refused before any row is written
@@ -271,6 +319,10 @@ pub struct GuestBookingConfirmation {
     pub tax_amount: Decimal,
     pub total_amount: Decimal,
     pub created_at: DateTime<Utc>,
+    /// The smoking preference recorded on the booking (`smoking` /
+    /// `non_smoking`), or `None` for no preference. Echoed so the portal's
+    /// confirmation summary shows what was asked for — never which room.
+    pub smoking_preference: Option<String>,
     /// Booking-scoped access token, returned only for an anonymous booking so
     /// the guest can pay and track this one booking with no account. A
     /// session-authenticated booking authenticates by session and gets `None`.
@@ -338,6 +390,11 @@ pub struct BookingInsert {
     pub currency: String,
     pub special_requests: Option<String>,
     pub cleaning_preference: Option<bool>,
+    /// `None` = no preference (stored as NULL).
+    pub smoking_preference: Option<SmokingPreference>,
+    /// Staff-only note written to `bookings.internal_notes`, e.g. when the
+    /// allocated room could not satisfy the smoking preference.
+    pub internal_notes: Option<String>,
     pub booking_channel_id: Option<i64>,
     pub nightly_rates: serde_json::Value,
     /// Set when credits funded at least one night; drives `is_complimentary`

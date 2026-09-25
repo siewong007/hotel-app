@@ -274,6 +274,30 @@ describe('BookingDetailPage', () => {
     expect(screen.getByText('Night audit')).toBeDefined();
   });
 
+  it('shows the guest smoking preference chip, in the warning style when the booked room does not match', async () => {
+    mocks.getBookingById.mockResolvedValue(buildBooking({
+      smoking_preference: 'non_smoking',
+      room_is_smoking: true,
+    }));
+    renderPage('42');
+
+    const chip = await screen.findByTestId('smoking-preference-chip');
+    expect(within(chip).getByText('Wants non-smoking')).toBeDefined();
+    expect(chip.getAttribute('data-mismatch')).toBe('true');
+  });
+
+  it('shows the smoking preference chip without a warning when the booked room matches', async () => {
+    mocks.getBookingById.mockResolvedValue(buildBooking({
+      smoking_preference: 'smoking',
+      room_is_smoking: true,
+    }));
+    renderPage('42');
+
+    const chip = await screen.findByTestId('smoking-preference-chip');
+    expect(within(chip).getByText('Wants smoking')).toBeDefined();
+    expect(chip.getAttribute('data-mismatch')).toBe('false');
+  });
+
   it('renders no secondary metadata chips when the booking carries none of those fields', async () => {
     // Default fixture: walk_in source, no guest_type, not posted.
     renderPage('42');
@@ -282,6 +306,7 @@ describe('BookingDetailPage', () => {
     expect(screen.queryByText('DW')).toBeNull();
     expect(screen.queryByText('Non-member')).toBeNull();
     expect(screen.queryByText('Night audit')).toBeNull();
+    expect(screen.queryByTestId('smoking-preference-chip')).toBeNull();
   });
 
   // ---------------------------------------------------------------------

@@ -283,6 +283,8 @@ mod postgres_tests {
             currency: "MYR".to_string(),
             special_requests: None,
             cleaning_preference: None,
+            smoking_preference: None,
+            internal_notes: None,
             booking_channel_id: None,
             nightly_rates: serde_json::json!({ "2031-03-10": "150.00", "2031-03-11": "150.00" }),
             complimentary_reason: Some("Guest portal: credits".to_string()),

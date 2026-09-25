@@ -2183,6 +2183,7 @@ mod postgres_guest_portal_race_tests {
             expected_total: quote.total_amount,
             special_requests: None,
             cleaning_preference: None,
+            smoking_preference: None,
             consents: vec![
                 granted(ConsentDocument::TermsOfService),
                 granted(ConsentDocument::PrivacyNotice),
