@@ -457,7 +457,7 @@ pub struct ImportJobStatus {
 #[cfg(test)]
 mod tests {
     use super::{BackupFile, BackupImportMode, ConflictPolicy, ImportJobState, UploadResponse};
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
     use uuid::Uuid;
 
     #[test]

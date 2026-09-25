@@ -38,8 +38,14 @@ pub async fn create(
     input: BookingChannelInput,
 ) -> Result<BookingChannel, ApiError> {
     let channel = repository::create(pool, user_id, input).await?;
-    log_channel_event(pool, user_id, "booking_channel_created", channel.id, &channel.name)
-        .await;
+    log_channel_event(
+        pool,
+        user_id,
+        "booking_channel_created",
+        channel.id,
+        &channel.name,
+    )
+    .await;
     Ok(channel)
 }
 
@@ -50,19 +56,27 @@ pub async fn update(
     input: BookingChannelUpdate,
 ) -> Result<BookingChannel, ApiError> {
     let channel = repository::update(pool, id, user_id, input).await?;
-    log_channel_event(pool, user_id, "booking_channel_updated", channel.id, &channel.name)
-        .await;
+    log_channel_event(
+        pool,
+        user_id,
+        "booking_channel_updated",
+        channel.id,
+        &channel.name,
+    )
+    .await;
     Ok(channel)
 }
 
-pub async fn deactivate(
-    pool: &DbPool,
-    id: i64,
-    user_id: i64,
-) -> Result<BookingChannel, ApiError> {
+pub async fn deactivate(pool: &DbPool, id: i64, user_id: i64) -> Result<BookingChannel, ApiError> {
     let channel = repository::deactivate(pool, id, user_id).await?;
-    log_channel_event(pool, user_id, "booking_channel_deactivated", channel.id, &channel.name)
-        .await;
+    log_channel_event(
+        pool,
+        user_id,
+        "booking_channel_deactivated",
+        channel.id,
+        &channel.name,
+    )
+    .await;
     Ok(channel)
 }
 
@@ -95,8 +109,14 @@ fn validate_window(from: NaiveDate, to: Option<NaiveDate>) -> Result<(), ApiErro
     Ok(())
 }
 
-fn pricing_rule_values(input: &ChannelPricingRuleInput) -> Result<ChannelPricingRuleValues, ApiError> {
-    let rule_type = input.rule_type.trim().to_ascii_lowercase().replace('-', "_");
+fn pricing_rule_values(
+    input: &ChannelPricingRuleInput,
+) -> Result<ChannelPricingRuleValues, ApiError> {
+    let rule_type = input
+        .rule_type
+        .trim()
+        .to_ascii_lowercase()
+        .replace('-', "_");
     if !pricing::RULE_TYPES.contains(&rule_type.as_str()) {
         return Err(ApiError::BadRequest(format!(
             "Invalid rule_type '{rule_type}'"
@@ -105,7 +125,9 @@ fn pricing_rule_values(input: &ChannelPricingRuleInput) -> Result<ChannelPricing
     let value = Decimal::from_f64_retain(input.value)
         .ok_or_else(|| ApiError::BadRequest("Invalid value".to_string()))?;
     if value < Decimal::ZERO {
-        return Err(ApiError::BadRequest("value must be non-negative".to_string()));
+        return Err(ApiError::BadRequest(
+            "value must be non-negative".to_string(),
+        ));
     }
     if rule_type == "discount_percent" && value > Decimal::new(100, 0) {
         return Err(ApiError::BadRequest(
@@ -174,7 +196,9 @@ fn pricing_rule_update_values(
         .and_then(Decimal::from_f64_retain)
         .unwrap_or(current.value);
     if value < Decimal::ZERO {
-        return Err(ApiError::BadRequest("value must be non-negative".to_string()));
+        return Err(ApiError::BadRequest(
+            "value must be non-negative".to_string(),
+        ));
     }
     if rule_type == "discount_percent" && value > Decimal::new(100, 0) {
         return Err(ApiError::BadRequest(
@@ -244,7 +268,9 @@ fn commission_rule_values(
     let value = Decimal::from_f64_retain(input.value)
         .ok_or_else(|| ApiError::BadRequest("Invalid value".to_string()))?;
     if value < Decimal::ZERO {
-        return Err(ApiError::BadRequest("value must be non-negative".to_string()));
+        return Err(ApiError::BadRequest(
+            "value must be non-negative".to_string(),
+        ));
     }
     if commission_type == "percentage" && value > Decimal::new(100, 0) {
         return Err(ApiError::BadRequest(
@@ -298,7 +324,9 @@ fn commission_rule_update_values(
         .and_then(Decimal::from_f64_retain)
         .unwrap_or(current.value);
     if value < Decimal::ZERO {
-        return Err(ApiError::BadRequest("value must be non-negative".to_string()));
+        return Err(ApiError::BadRequest(
+            "value must be non-negative".to_string(),
+        ));
     }
     if commission_type == "percentage" && value > Decimal::new(100, 0) {
         return Err(ApiError::BadRequest(
@@ -421,8 +449,7 @@ pub async fn update_pricing_rule(
 ) -> Result<PricingRuleResponse, ApiError> {
     let current = repository::find_pricing_rule(pool, rule_id).await?;
     let values = pricing_rule_update_values(&current, &input)?;
-    let warnings =
-        overlap_warnings(pool, current.channel_id, &values, Some(rule_id)).await?;
+    let warnings = overlap_warnings(pool, current.channel_id, &values, Some(rule_id)).await?;
     let rule = repository::update_pricing_rule(pool, rule_id, user_id, &values).await?;
     log_rule_event(pool, user_id, "channel_pricing_rule_updated", &rule).await;
     Ok(PricingRuleResponse { rule, warnings })
@@ -674,8 +701,7 @@ pub async fn resolve_channel_nights(
         return Ok(Vec::new());
     };
     let last_night = sources.last().map(|(d, _)| *d).unwrap_or(*first);
-    let rules =
-        repository::active_pricing_rules(pool, &[channel_id], *first, last_night).await?;
+    let rules = repository::active_pricing_rules(pool, &[channel_id], *first, last_night).await?;
     Ok(sources
         .iter()
         .map(|(date, source)| {
@@ -785,7 +811,9 @@ pub async fn preview(
             .collect(),
         selling_subtotal,
         // Preview has no promotion context: commission base is the sell subtotal.
-        commission_base: selling_subtotal.or(quote.net_subtotal).unwrap_or(Decimal::ZERO),
+        commission_base: selling_subtotal
+            .or(quote.net_subtotal)
+            .unwrap_or(Decimal::ZERO),
         commission_type: quote.commission.commission_type.clone(),
         commission_value: quote.commission.value,
         commission_scope: quote.commission.scope.clone(),

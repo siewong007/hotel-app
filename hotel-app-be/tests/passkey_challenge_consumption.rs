@@ -156,13 +156,9 @@ async fn consume_challenge_is_single_use_and_type_scoped() {
         "authentication",
     )
     .await;
-    let wrong_type = PasskeyRepository::consume_challenge(
-        &pool,
-        SINGLE_USE_USER_ID,
-        &challenge,
-        "registration",
-    )
-    .await;
+    let wrong_type =
+        PasskeyRepository::consume_challenge(&pool, SINGLE_USE_USER_ID, &challenge, "registration")
+            .await;
 
     cleanup(&pool, SINGLE_USE_USER_ID).await;
 

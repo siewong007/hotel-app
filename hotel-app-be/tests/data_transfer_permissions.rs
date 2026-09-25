@@ -46,11 +46,26 @@ const STEP_UP_PASSWORD: &str = "StepUp-Test-Passw0rd!";
 
 /// Every test injects its own ConnectInfo IP so the step-up endpoint's
 /// per-IP rate bucket (10/300s) cannot bleed across tests.
-const IP_EXPORT: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 240, 0, 1)), 40_000);
-const IP_STEP_UP: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 240, 0, 2)), 40_000);
-const IP_EXECUTE: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 240, 0, 3)), 40_000);
-const IP_MANAGE: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 240, 0, 4)), 40_000);
-const IP_HISTORY: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 240, 0, 5)), 40_000);
+const IP_EXPORT: SocketAddr = SocketAddr::new(
+    std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 240, 0, 1)),
+    40_000,
+);
+const IP_STEP_UP: SocketAddr = SocketAddr::new(
+    std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 240, 0, 2)),
+    40_000,
+);
+const IP_EXECUTE: SocketAddr = SocketAddr::new(
+    std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 240, 0, 3)),
+    40_000,
+);
+const IP_MANAGE: SocketAddr = SocketAddr::new(
+    std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 240, 0, 4)),
+    40_000,
+);
+const IP_HISTORY: SocketAddr = SocketAddr::new(
+    std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 240, 0, 5)),
+    40_000,
+);
 
 struct Session {
     auth: String,
@@ -70,7 +85,9 @@ impl Fixture {
         let database_url = match std::env::var("DATABASE_URL") {
             Ok(url) => url,
             Err(_) => {
-                eprintln!("Skipping data-transfer permission tests because DATABASE_URL is not set");
+                eprintln!(
+                    "Skipping data-transfer permission tests because DATABASE_URL is not set"
+                );
                 return None;
             }
         };
@@ -119,10 +136,7 @@ impl Fixture {
         // Granular grants resolve only through roles (`effective_roles` →
         // `role_permissions`); `user_permissions` is not consulted. Each
         // grantable worker gets its own empty fixture role the tests fill in.
-        for (user_id, role_name) in [
-            (WORKER_ID, "dt_perms_worker"),
-            (OTHER_ID, "dt_perms_other"),
-        ] {
+        for (user_id, role_name) in [(WORKER_ID, "dt_perms_worker"), (OTHER_ID, "dt_perms_other")] {
             sqlx::query(
                 "INSERT INTO roles (name, display_name, description) \
                  VALUES ($1, $2, 'data-transfer permission fixture') \
@@ -277,12 +291,8 @@ impl Fixture {
     /// gated endpoints without spending rate-limited credential calls.
     fn step_up_token(&self, user_id: i64) -> String {
         let session = self.sessions.get(&user_id).expect("session must exist");
-        AuthService::issue_step_up_token(
-            user_id,
-            self.username(user_id),
-            Some(session.sid.clone()),
-        )
-        .expect("step-up token must encode")
+        AuthService::issue_step_up_token(user_id, self.username(user_id), Some(session.sid.clone()))
+            .expect("step-up token must encode")
     }
 
     fn username(&self, user_id: i64) -> String {
@@ -405,8 +415,7 @@ impl Fixture {
             )
             .await;
         let job_id = (status == StatusCode::ACCEPTED).then(|| {
-            let parsed: Value =
-                serde_json::from_slice(&body).expect("execute response must parse");
+            let parsed: Value = serde_json::from_slice(&body).expect("execute response must parse");
             uuid::Uuid::parse_str(parsed["jobId"].as_str().expect("jobId must be present"))
                 .expect("jobId must be a uuid")
         });
@@ -602,7 +611,11 @@ async fn export_endpoints_enforce_the_permission_tiers() {
             IP_EXPORT,
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "view must open the standard preview");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "view must open the standard preview"
+    );
     let status = fixture
         .status(
             "GET",
@@ -619,11 +632,25 @@ async fn export_endpoints_enforce_the_permission_tiers() {
         "the sensitive-tier preview must require export_sensitive"
     );
     let status = fixture
-        .status("GET", "/api/data-transfer/history", Some(WORKER_ID), &[], &[], IP_EXPORT)
+        .status(
+            "GET",
+            "/api/data-transfer/history",
+            Some(WORKER_ID),
+            &[],
+            &[],
+            IP_EXPORT,
+        )
         .await;
     assert_eq!(status, StatusCode::OK, "view must open history");
     let status = fixture
-        .status("GET", "/api/data-transfer/export", Some(WORKER_ID), &[], &[], IP_EXPORT)
+        .status(
+            "GET",
+            "/api/data-transfer/export",
+            Some(WORKER_ID),
+            &[],
+            &[],
+            IP_EXPORT,
+        )
         .await;
     assert_eq!(
         status,
@@ -644,7 +671,11 @@ async fn export_endpoints_enforce_the_permission_tiers() {
             IP_EXPORT,
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "export must stream for export holders");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "export must stream for export holders"
+    );
     let head = String::from_utf8_lossy(&body[..body.len().min(4096)]);
     assert!(
         head.contains("\"exportType\":\"standard\""),
@@ -681,12 +712,18 @@ async fn export_endpoints_enforce_the_permission_tiers() {
 
     // `export_sensitive` passes the permission check — then the step-up gate
     // answers 401 until a token bound to THIS session is presented.
-    fixture.grant(WORKER_ID, "data_transfer:export_sensitive").await;
+    fixture
+        .grant(WORKER_ID, "data_transfer:export_sensitive")
+        .await;
     let uri = "/api/data-transfer/export?scope=full";
     let status = fixture
         .status("GET", uri, Some(WORKER_ID), &[], &[], IP_EXPORT)
         .await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED, "missing step-up must be 401");
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "missing step-up must be 401"
+    );
     let status = fixture
         .status(
             "GET",
@@ -697,7 +734,11 @@ async fn export_endpoints_enforce_the_permission_tiers() {
             IP_EXPORT,
         )
         .await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED, "a garbage token must be 401");
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "a garbage token must be 401"
+    );
     let other_token = fixture.step_up_token(OTHER_ID);
     let status = fixture
         .status(
@@ -873,7 +914,9 @@ async fn step_up_endpoint_verifies_credentials_and_audits() {
 
     // End to end: the minted token unlocks a sensitive export for a holder of
     // `export_sensitive` — the two halves of the flow agreeing on the token.
-    fixture.grant(OTHER_ID, "data_transfer:export_sensitive").await;
+    fixture
+        .grant(OTHER_ID, "data_transfer:export_sensitive")
+        .await;
     let status = fixture
         .status(
             "GET",
@@ -922,7 +965,10 @@ async fn execute_enforces_file_and_mode_permissions() {
         .execute(WORKER_ID, &plain_upload, "merge", Some("skip"), None)
         .await;
     assert_eq!(status, StatusCode::ACCEPTED, "plain merge must run");
-    assert_eq!(wait_for_job(job.unwrap()).await.status, ImportJobState::Succeeded);
+    assert_eq!(
+        wait_for_job(job.unwrap()).await.status,
+        ImportJobState::Succeeded
+    );
 
     // Sensitive v1 (the `guests` entity marks it): `import` alone -> 403.
     let sensitive_upload = fixture
@@ -1014,26 +1060,37 @@ async fn execute_enforces_file_and_mode_permissions() {
 
     // Grant the conditional permissions one at a time — each unlocks exactly
     // its own gate.
-    fixture.grant(WORKER_ID, "data_transfer:import_sensitive").await;
+    fixture
+        .grant(WORKER_ID, "data_transfer:import_sensitive")
+        .await;
     let (status, job) = fixture
         .execute(WORKER_ID, &sensitive_upload, "merge", Some("skip"), None)
         .await;
     assert_eq!(status, StatusCode::ACCEPTED);
-    assert_eq!(wait_for_job(job.unwrap()).await.status, ImportJobState::Succeeded);
+    assert_eq!(
+        wait_for_job(job.unwrap()).await.status,
+        ImportJobState::Succeeded
+    );
     // With import_sensitive granted the gate opens — but the retired flat
     // format is then rejected by the job itself rather than imported.
     let (status, job) = fixture
         .execute(WORKER_ID, &legacy_upload, "merge", Some("skip"), None)
         .await;
     assert_eq!(status, StatusCode::ACCEPTED);
-    assert_eq!(wait_for_job(job.unwrap()).await.status, ImportJobState::Failed);
+    assert_eq!(
+        wait_for_job(job.unwrap()).await.status,
+        ImportJobState::Failed
+    );
 
     fixture.grant(WORKER_ID, "data_transfer:override").await;
     let (status, job) = fixture
         .execute(WORKER_ID, &update_upload, "merge", Some("update"), None)
         .await;
     assert_eq!(status, StatusCode::ACCEPTED);
-    assert_eq!(wait_for_job(job.unwrap()).await.status, ImportJobState::Succeeded);
+    assert_eq!(
+        wait_for_job(job.unwrap()).await.status,
+        ImportJobState::Succeeded
+    );
 
     // Restore is exercised against a MISSING upload: enforcement runs first
     // (fail-closed sensitive -> import_sensitive already held -> restore perm
@@ -1086,13 +1143,7 @@ async fn execute_enforces_file_and_mode_permissions() {
     // Past step-up, the restore permission is still required.
     let step_up = fixture.step_up_token(WORKER_ID);
     let (status, _) = fixture
-        .execute(
-            WORKER_ID,
-            &missing_upload,
-            "restore",
-            None,
-            Some(&step_up),
-        )
+        .execute(WORKER_ID, &missing_upload, "restore", None, Some(&step_up))
         .await;
     assert_eq!(
         status,
@@ -1101,13 +1152,7 @@ async fn execute_enforces_file_and_mode_permissions() {
     );
     fixture.grant(WORKER_ID, "data_transfer:restore").await;
     let (status, _) = fixture
-        .execute(
-            WORKER_ID,
-            &missing_upload,
-            "restore",
-            None,
-            Some(&step_up),
-        )
+        .execute(WORKER_ID, &missing_upload, "restore", None, Some(&step_up))
         .await;
     assert_eq!(
         status,
@@ -1145,7 +1190,14 @@ async fn manage_permission_implies_every_action() {
     fixture.grant(WORKER_ID, "data_transfer:manage").await;
 
     let status = fixture
-        .status("GET", "/api/data-transfer/history", Some(WORKER_ID), &[], &[], IP_MANAGE)
+        .status(
+            "GET",
+            "/api/data-transfer/history",
+            Some(WORKER_ID),
+            &[],
+            &[],
+            IP_MANAGE,
+        )
         .await;
     assert_eq!(status, StatusCode::OK, "manage implies view");
     let status = fixture
@@ -1197,13 +1249,7 @@ async fn manage_permission_implies_every_action() {
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     let step_up = fixture.step_up_token(WORKER_ID);
     let (status, _) = fixture
-        .execute(
-            WORKER_ID,
-            &missing_upload,
-            "restore",
-            None,
-            Some(&step_up),
-        )
+        .execute(WORKER_ID, &missing_upload, "restore", None, Some(&step_up))
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 
@@ -1247,7 +1293,14 @@ async fn history_lists_the_just_run_transfer_events() {
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
     let status = fixture
-        .status("GET", "/api/data-transfer/history", Some(PLAIN_ID), &[], &[], IP_HISTORY)
+        .status(
+            "GET",
+            "/api/data-transfer/history",
+            Some(PLAIN_ID),
+            &[],
+            &[],
+            IP_HISTORY,
+        )
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
@@ -1269,8 +1322,7 @@ async fn history_lists_the_just_run_transfer_events() {
         .expect("entries must be an array");
     let has_event = |action: &str, user_id: i64| {
         entries.iter().any(|entry| {
-            entry["action"].as_str() == Some(action)
-                && entry["userId"].as_i64() == Some(user_id)
+            entry["action"].as_str() == Some(action) && entry["userId"].as_i64() == Some(user_id)
         })
     };
     assert!(

@@ -4,21 +4,21 @@
 //! user record itself (create / update / deactivate). Both share the
 //! role-priority guard so an administrator can never act on a peer or superior.
 
+use super::repository::UserRepository;
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
-use crate::modules::auth::models::UserSessionInfo;
 use crate::models::{
     InviteUserInput, InviteUserResponse, StaffDirectoryQuery, StaffDirectoryResponse, User,
     UserCreateInput, UserResponse, UserUpdateInput, UserWithRolesAndPermissions,
 };
+use crate::modules::auth::models::UserSessionInfo;
 use crate::modules::auth::repository::AuthRepository;
-use crate::modules::rbac::repository::RbacRepository;
-use super::repository::UserRepository;
-use crate::services::audit::AuditLog;
 use crate::modules::profile::service::{location_from_timezone, mask_ip_address};
+use crate::modules::rbac::repository::RbacRepository;
 use crate::modules::rbac::service::{ensure_actor_can_manage_roles, ensure_actor_can_manage_user};
+use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 use chrono::{Duration, Utc};
@@ -176,12 +176,13 @@ pub async fn update_user(
             .map_err(|error| {
                 ApiError::Database(format!("Failed to revoke password-reset sessions: {error}"))
             })?;
-        let revoked =
-            crate::modules::passkey::repository::PasskeyRepository::revoke_all_for_user(pool, user_id)
-                .await
-                .map_err(|error| {
-                    ApiError::Database(format!("Failed to revoke passkeys after reset: {error}"))
-                })?;
+        let revoked = crate::modules::passkey::repository::PasskeyRepository::revoke_all_for_user(
+            pool, user_id,
+        )
+        .await
+        .map_err(|error| {
+            ApiError::Database(format!("Failed to revoke passkeys after reset: {error}"))
+        })?;
         if revoked > 0 {
             let _ = crate::services::audit::AuditLog::log_event(
                 pool,

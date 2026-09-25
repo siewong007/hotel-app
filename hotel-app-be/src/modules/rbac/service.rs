@@ -1,9 +1,9 @@
 //! RBAC business workflows.
 
+use super::repository::RbacRepository;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::repository::RbacRepository;
 use crate::modules::users::repository::UserRepository;
 use crate::services::audit::AuditLog;
 use std::collections::HashSet;
@@ -172,14 +172,8 @@ pub async fn remove_role_from_user(
         .ok()
         .flatten()
         .map(|role| role.name);
-    let _ = AuditLog::log_role_removal(
-        pool,
-        actor_user_id,
-        user_id,
-        role_id,
-        role_name.as_deref(),
-    )
-    .await;
+    let _ = AuditLog::log_role_removal(pool, actor_user_id, user_id, role_id, role_name.as_deref())
+        .await;
     crate::core::rbac_cache::invalidate_all(pool).await;
     Ok(())
 }

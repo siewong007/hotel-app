@@ -39,16 +39,16 @@ mod postgres_tests {
         GuestUpdateInput, RatePlanInput, RatePlanUpdateInput, RoomRateInput, RoomRateUpdateInput,
         UpdateGuestCreditsRequest,
     };
-    use hotel_app_be::modules::loyalty::models::{
-        GiftPointsInput, ManualAdjustmentInput, RedeemRewardInput, RewardInput,
-    };
-    use hotel_app_be::modules::loyalty::service as loyalty_service;
     use hotel_app_be::modules::bookings::{
         add_guest_credits_handler, book_with_credits_handler, delete_guest_credits_handler,
         update_guest_credits_handler,
     };
     use hotel_app_be::modules::guests::repository::GuestRepository;
     use hotel_app_be::modules::guests::service as guest_service;
+    use hotel_app_be::modules::loyalty::models::{
+        GiftPointsInput, ManualAdjustmentInput, RedeemRewardInput, RewardInput,
+    };
+    use hotel_app_be::modules::loyalty::service as loyalty_service;
     use hotel_app_be::modules::rates::service as rate_service;
     use hotel_app_be::{AuthService, Claims};
     use rust_decimal::Decimal;

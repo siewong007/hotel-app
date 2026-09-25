@@ -5,6 +5,7 @@ use axum::{
     extract::{Extension, Path, Query, State},
 };
 
+use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
@@ -12,7 +13,6 @@ use crate::models::{
     HousekeepingBoardResponse, HousekeepingTask, HousekeepingTaskListResponse,
     ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
 };
-use super::service;
 
 pub async fn list_tasks_handler(
     State(pool): State<DbPool>,
@@ -26,9 +26,7 @@ pub async fn create_task_handler(
     Extension(user_id): Extension<i64>,
     Json(input): Json<CreateHousekeepingTaskRequest>,
 ) -> Result<Json<HousekeepingTask>, ApiError> {
-    Ok(Json(
-        service::create_task(&pool, user_id, input).await?,
-    ))
+    Ok(Json(service::create_task(&pool, user_id, input).await?))
 }
 
 pub async fn update_task_handler(

@@ -1,4 +1,4 @@
-use super::{command_output_details, PostgresError, PATH_SEP};
+use super::{PATH_SEP, PostgresError, command_output_details};
 use sha2::{Digest, Sha256};
 use std::fs::{File, Metadata, OpenOptions};
 use std::io::Read;
@@ -767,8 +767,8 @@ pub(super) async fn apply_catalog(
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_catalog, parse_manifest, read_catalog_file, read_opened_catalog_file,
-        PatchManifestEntry, PsqlConnection,
+        PatchManifestEntry, PsqlConnection, apply_catalog, parse_manifest, read_catalog_file,
+        read_opened_catalog_file,
     };
     use std::fs::File;
     use std::path::{Path, PathBuf};
@@ -1218,9 +1218,11 @@ mod tests {
         let error = read_opened_catalog_file(opened, &path, "patch.sql")
             .expect_err("replacement must be detected before reading the handle");
 
-        assert!(error
-            .to_string()
-            .contains("patch.sql changed while being read"));
+        assert!(
+            error
+                .to_string()
+                .contains("patch.sql changed while being read")
+        );
     }
 
     #[tokio::test]
@@ -1290,9 +1292,11 @@ mod tests {
             .await
             .expect_err("a corrupt final patch must fail before psql starts");
 
-        assert!(error
-            .to_string()
-            .contains("checksum mismatch for 0004_booking_status_vocabulary.sql"));
+        assert!(
+            error
+                .to_string()
+                .contains("checksum mismatch for 0004_booking_status_vocabulary.sql")
+        );
         assert!(!capture_dir.path().join("started").exists());
     }
 
@@ -1347,9 +1351,11 @@ mod tests {
                 std::fs::read_to_string(capture_dir.path().join(format!("args-{invocation}")))
                     .expect("arguments must be captured");
             assert!(arguments.lines().any(|argument| argument == "-X"));
-            assert!(arguments
-                .lines()
-                .any(|argument| argument == "ON_ERROR_STOP=1"));
+            assert!(
+                arguments
+                    .lines()
+                    .any(|argument| argument == "ON_ERROR_STOP=1")
+            );
             assert!(arguments.contains("--set=patch_generation=1"));
             assert!(arguments.contains(&format!("--set=patch_version={version}")));
             assert!(arguments.contains(&format!("--set=patch_name={name}")));

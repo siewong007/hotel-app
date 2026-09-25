@@ -16,10 +16,10 @@ use std::time::Duration;
 
 use chrono::{Datelike, NaiveDateTime, NaiveTime};
 
+use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
-use super::service;
 
 /// How often the loop wakes to check whether an audit is due. The audit fires at
 /// most once per business date regardless of this cadence.
@@ -38,13 +38,8 @@ pub async fn run(pool: DbPool) {
         tokio::time::sleep(POLL_INTERVAL).await;
         let started = std::time::Instant::now();
         let outcome = tick(&pool).await;
-        crate::core::job_runs::record_outcome(
-            &pool,
-            "night_audit",
-            &outcome,
-            started.elapsed(),
-        )
-        .await;
+        crate::core::job_runs::record_outcome(&pool, "night_audit", &outcome, started.elapsed())
+            .await;
         if let Err(e) = &outcome {
             // Log and keep looping — a transient DB error must not kill the
             // scheduler; the next tick retries.

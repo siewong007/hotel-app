@@ -7,11 +7,11 @@ use std::time::Instant;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::metrics;
+use crate::modules::rbac::repository::RbacRepository;
 use crate::modules::system::models::{
     JobRunRow, StaffNotificationItem, StaffNotificationsResponse, SystemHealthResponse,
 };
 use crate::modules::system::repository;
-use crate::modules::rbac::repository::RbacRepository;
 
 /// Process start, initialized on first read — close enough to process birth
 /// for an uptime display, and impossible to get wrong at startup.

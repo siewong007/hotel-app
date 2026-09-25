@@ -6,13 +6,13 @@
 
 use std::net::SocketAddr;
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{
     check_permission, extract_claims, extract_user_id, require_permission_helper,
 };
 use crate::core::rate_limiter::RateLimiters;
-use super::handlers as handlers;
 use crate::models;
 use axum::{
     Router,
@@ -183,10 +183,8 @@ async fn execute_import(
     headers: HeaderMap,
     Json(request): Json<models::ImportExecuteRequest>,
 ) -> Result<Response, ApiError> {
-    let user_id =
-        require_permission_helper(&pool, &headers, "data_transfer:import").await?;
-    handlers::execute_import_handler(State(pool), user_id, headers, Json(request))
-        .await
+    let user_id = require_permission_helper(&pool, &headers, "data_transfer:import").await?;
+    handlers::execute_import_handler(State(pool), user_id, headers, Json(request)).await
 }
 
 async fn import_job_status(

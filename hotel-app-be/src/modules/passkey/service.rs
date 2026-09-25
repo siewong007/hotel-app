@@ -1,5 +1,6 @@
 //! Passkey/WebAuthn business workflows.
 
+use super::repository::PasskeyRepository;
 use crate::core::config;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -9,7 +10,6 @@ use crate::models::{
     AuthResponse, PasskeyInfo, PasskeyLoginFinish, PasskeyLoginStart, PasskeyRegistrationFinish,
     PasskeyRegistrationStart, PasskeyUpdateInput,
 };
-use super::repository::PasskeyRepository;
 use crate::services::audit::AuditLog;
 use base64::Engine;
 use base64::engine::general_purpose;
@@ -272,8 +272,14 @@ pub async fn login_finish(
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     // Account lockout applies to every login door, not just the password one.
-    crate::modules::auth::service::ensure_not_locked(pool, user.id, &req.username, ip_address, user_agent)
-        .await?;
+    crate::modules::auth::service::ensure_not_locked(
+        pool,
+        user.id,
+        &req.username,
+        ip_address,
+        user_agent,
+    )
+    .await?;
 
     let expected_challenge = decode_standard_b64(&req.challenge, "challenge")?;
     // Single-use, consumed atomically — a replayed or raced assertion finds
@@ -346,8 +352,7 @@ pub async fn login_finish(
 
     // The challenge is already spent; the counter write is bookkeeping that
     // must not fail the login, but silent drops weaken clone detection.
-    if let Err(e) =
-        PasskeyRepository::update_last_used(pool, passkey.id, i64::from(counter)).await
+    if let Err(e) = PasskeyRepository::update_last_used(pool, passkey.id, i64::from(counter)).await
     {
         log::warn!(
             "Failed to record sign counter for passkey {} (user {}): {}",

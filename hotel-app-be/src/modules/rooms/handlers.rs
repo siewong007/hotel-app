@@ -2,10 +2,10 @@
 //!
 //! Thin HTTP-facing wrappers for room workflows.
 
+use super::service as room_service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::service as room_service;
 use axum::{
     extract::{Path, Query, State},
     http::HeaderMap,

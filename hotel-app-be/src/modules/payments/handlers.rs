@@ -9,10 +9,10 @@ use axum::{
     response::{Json, Response},
 };
 
+use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::service;
 
 /// Recompute and persist `bookings.payment_status` for a single booking.
 ///
@@ -203,8 +203,7 @@ pub async fn list_payment_approval_history_handler(
 /// Audit actions the payment-approvals conflict banner surfaces. Mirrors the
 /// list the frontend previously fanned out over the generic audit-logs
 /// endpoint — pinned here so the route stays a narrow read.
-const PAYPAL_CONFLICT_ACTIONS: [&str; 2] =
-    ["paypal_webhook_conflict", "paypal_capture_conflict"];
+const PAYPAL_CONFLICT_ACTIONS: [&str; 2] = ["paypal_webhook_conflict", "paypal_capture_conflict"];
 const PAYPAL_CONFLICT_LOOKBACK_DAYS: i64 = 30;
 const PAYPAL_CONFLICT_LIMIT: i64 = 50;
 

@@ -114,8 +114,8 @@ pub fn is_encrypted_backup(prefix: &[u8]) -> bool {
 }
 
 fn derive_key(passphrase: &str, salt: &[u8], iterations: u32) -> Result<[u8; KEY_LEN], String> {
-    let iterations =
-        NonZeroU32::new(iterations).ok_or_else(|| "iteration count must be positive".to_string())?;
+    let iterations = NonZeroU32::new(iterations)
+        .ok_or_else(|| "iteration count must be positive".to_string())?;
     let mut key = [0u8; KEY_LEN];
     pbkdf2::derive(
         pbkdf2::PBKDF2_HMAC_SHA256,
@@ -314,7 +314,10 @@ impl<R: Read> DecryptingReader<R> {
             return Err(format!("unsupported backup cipher '{}'", header.cipher));
         }
         if header.kdf != "pbkdf2-hmac-sha256" {
-            return Err(format!("unsupported backup key derivation '{}'", header.kdf));
+            return Err(format!(
+                "unsupported backup key derivation '{}'",
+                header.kdf
+            ));
         }
         if header.iterations < MIN_PBKDF2_ITERATIONS {
             return Err("the backup header declares too weak a key derivation".to_string());
@@ -381,12 +384,14 @@ impl<R: Read> DecryptingReader<R> {
         }
         let frame_len = u32::from_be_bytes(len_bytes) as usize;
         if frame_len < TAG_LEN || frame_len > self.max_frame_len {
-            return Err(invalid("the encrypted backup declares an invalid frame size"));
+            return Err(invalid(
+                "the encrypted backup declares an invalid frame size",
+            ));
         }
         let mut frame = vec![0u8; frame_len];
-        self.inner.read_exact(&mut frame).map_err(|_| {
-            invalid("the encrypted backup ends mid-frame — the file is truncated")
-        })?;
+        self.inner
+            .read_exact(&mut frame)
+            .map_err(|_| invalid("the encrypted backup ends mid-frame — the file is truncated"))?;
 
         let index = self.counter;
         self.counter += 1;

@@ -1,12 +1,12 @@
 //! Passkey (WebAuthn) authentication routes
 
-use crate::routes::extract_client_ip;
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::core::rate_limiter::RateLimiters;
-use super::handlers;
 use crate::models;
+use crate::routes::extract_client_ip;
 use axum::{
     Router,
     extract::{ConnectInfo, Extension, State},
@@ -44,8 +44,7 @@ async fn register_start(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::passkey_register_start_handler(State(pool), Extension(user_id), Json(req))
-        .await
+    handlers::passkey_register_start_handler(State(pool), Extension(user_id), Json(req)).await
 }
 
 async fn register_finish(
@@ -67,8 +66,7 @@ async fn register_finish(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    handlers::passkey_register_finish_handler(State(pool), Extension(user_id), Json(req))
-        .await
+    handlers::passkey_register_finish_handler(State(pool), Extension(user_id), Json(req)).await
 }
 
 async fn login_start(

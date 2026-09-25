@@ -128,19 +128,9 @@ async fn guest_payment_limit_allows_100_attempts_in_ten_minutes() {
     let limiter = KeyedRateLimiter::new(RateLimitConfig::new(100, 600));
 
     for _ in 0..100 {
-        assert!(
-            limiter
-                .check_with_retry("guest:payment-limit")
-                .await
-                .0
-        );
+        assert!(limiter.check_with_retry("guest:payment-limit").await.0);
     }
-    assert!(
-        !limiter
-            .check_with_retry("guest:payment-limit")
-            .await
-            .0
-    );
+    assert!(!limiter.check_with_retry("guest:payment-limit").await.0);
 
     // Same rule the `guest_portal_token_payment` field carries in production.
     let token_limiter = KeyedRateLimiter::new(RateLimitConfig::new(100, 600));

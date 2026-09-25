@@ -7,10 +7,9 @@ use uuid::Uuid;
 use super::hub::{SupportEvent, SupportHub};
 use super::models::{
     CreateGuestSupportConversationRequest, CreateStaffConversationRequest,
-    GuestSupportConversation, GuestSupportConversationDetail,
-    GuestSupportConversationListResponse, GuestSupportMessageRequest, SupportActionInput,
-    SupportConversationDetail, SupportConversationListResponse, SupportListQuery,
-    SupportMessageRequest,
+    GuestSupportConversation, GuestSupportConversationDetail, GuestSupportConversationListResponse,
+    GuestSupportMessageRequest, SupportActionInput, SupportConversationDetail,
+    SupportConversationListResponse, SupportListQuery, SupportMessageRequest,
 };
 use super::repository::{
     ConversationFilters, ConversationMutation, NewConversation, SupportEventValues,

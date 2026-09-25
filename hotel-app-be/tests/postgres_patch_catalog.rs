@@ -649,14 +649,14 @@ fn synthetic_catalog_dir(label: &str, patch_bytes: &[u8]) -> PathBuf {
     ));
     std::fs::create_dir(&temporary_dir).expect("temporary catalog directory must be created");
     for control in ["_begin.sql", "_end.sql"] {
-        std::fs::copy(postgres_dir().join("patches").join(control), temporary_dir.join(control))
-            .expect("patch control must be copied");
+        std::fs::copy(
+            postgres_dir().join("patches").join(control),
+            temporary_dir.join(control),
+        )
+        .expect("patch control must be copied");
     }
-    std::fs::write(
-        temporary_dir.join("0002_synthetic_patch.sql"),
-        patch_bytes,
-    )
-    .expect("synthetic patch must be written");
+    std::fs::write(temporary_dir.join("0002_synthetic_patch.sql"), patch_bytes)
+        .expect("synthetic patch must be written");
     let checksum = format!("sha256:{}", hex::encode(Sha256::digest(patch_bytes)));
     std::fs::write(
         temporary_dir.join("manifest.tsv"),
@@ -755,7 +755,10 @@ fn patch_runner_executes_the_validated_patch_snapshot() {
         .env("PATCH_CATALOG_DIR", &temporary_dir)
         .env("DATABASE_URL", "postgresql://unused")
         .env("PATH", path)
-        .env("SNAPSHOT_TARGET", temporary_dir.join("0002_synthetic_patch.sql"))
+        .env(
+            "SNAPSHOT_TARGET",
+            temporary_dir.join("0002_synthetic_patch.sql"),
+        )
         .env("PSQL_CAPTURE", &capture_file)
         .output()
         .expect("patch runner must start");

@@ -2,10 +2,10 @@
 //!
 //! Routes for customer ledgers and accounts receivable.
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use super::handlers as handlers;
 use crate::models;
 use axum::{
     Router,
@@ -137,8 +137,7 @@ async fn create_company_ledger_payment(
     Json(input): Json<models::CompanyLedgerPaymentRequest>,
 ) -> Result<Json<models::CompanyLedgerPaymentResponse>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_CREATE).await?;
-    handlers::create_company_ledger_payment_handler(State(pool), Json(input), user_id)
-        .await
+    handlers::create_company_ledger_payment_handler(State(pool), Json(input), user_id).await
 }
 
 async fn update_ledger_payment(

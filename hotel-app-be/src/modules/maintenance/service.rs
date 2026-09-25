@@ -1,5 +1,6 @@
 //! Maintenance ticket workflows
 
+use super::repository::{self, NewMaintenanceTicket};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
@@ -8,7 +9,6 @@ use crate::models::{
     MaintenanceTicketListResponse, MaintenanceTicketPatch, UpdateMaintenanceTicketRequest,
 };
 use crate::modules::housekeeping::repository as housekeeping_repo;
-use super::repository::{self, NewMaintenanceTicket};
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;

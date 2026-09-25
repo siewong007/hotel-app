@@ -2,12 +2,12 @@
 //!
 //! Routes for reports and analytics dashboards.
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{
     require_any_permission_helper, require_auth, require_permission_helper,
 };
-use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -59,8 +59,7 @@ async fn get_personalized(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
     let user_id = require_auth(&headers).await?;
-    handlers::get_personalized_report_handler(State(pool), Extension(user_id), query)
-        .await
+    handlers::get_personalized_report_handler(State(pool), Extension(user_id), query).await
 }
 
 async fn generate_report(

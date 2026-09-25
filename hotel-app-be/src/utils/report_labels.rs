@@ -158,7 +158,12 @@ pub fn payment_journal_account_label(
     payment_method: Option<&str>,
 ) -> String {
     let tender = payment_account_label(payment_method, None, None);
-    match payment_type.unwrap_or("").trim().to_ascii_lowercase().as_str() {
+    match payment_type
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "deposit" => format!("Deposit ({tender})"),
         "deposit_forfeited" => format!("Deposit Forfeited ({tender})"),
         _ => tender,
@@ -248,7 +253,10 @@ mod tests {
             payment_journal_account_label(Some("booking"), Some("sarawak_pay")),
             "Sarawak Pay"
         );
-        assert_eq!(payment_journal_account_label(Some(""), Some("cash")), "Cash");
+        assert_eq!(
+            payment_journal_account_label(Some(""), Some("cash")),
+            "Cash"
+        );
         assert_eq!(payment_journal_account_label(None, Some("cash")), "Cash");
     }
 }

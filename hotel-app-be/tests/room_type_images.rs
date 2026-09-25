@@ -167,7 +167,9 @@ async fn public_room_types_lists_active_types_with_images_only() {
     assert_eq!(active.images, images);
     assert!(listed.iter().all(|t| t.id != inactive_id));
 
-    rq::delete_room_type(&pool, active_id).await.expect("cleanup");
+    rq::delete_room_type(&pool, active_id)
+        .await
+        .expect("cleanup");
     rq::delete_room_type(&pool, inactive_id)
         .await
         .expect("cleanup");

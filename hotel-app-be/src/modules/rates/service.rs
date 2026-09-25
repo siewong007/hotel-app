@@ -1,5 +1,6 @@
 //! Rate plan business logic.
 
+use super::repository::RateRepository;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
@@ -9,7 +10,6 @@ use crate::models::{
     RoomRateCreateValues, RoomRateInput, RoomRateUpdateInput, RoomRateUpdateValues,
     RoomRateWithDetails, RoomType,
 };
-use super::repository::RateRepository;
 use crate::services::audit::AuditLog;
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;

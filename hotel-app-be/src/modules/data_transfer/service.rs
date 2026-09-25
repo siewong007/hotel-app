@@ -5,15 +5,13 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use axum::body::{Body, Bytes};
 use uuid::Uuid;
 
+use super::repository::{DataTransferRepository, QualifiedTable, TransferTable};
 use crate::core::config::Environment;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
     BackupEntityDescriptor, BackupExclusion, BackupIntegrity, BackupManifest, BackupRelationship,
     BackupSource, ExportPreview, ExportScope, TransferTablePreview,
-};
-use super::repository::{
-    DataTransferRepository, QualifiedTable, TransferTable,
 };
 
 /// Every transferable table in foreign-key-safe **insert** order (parents
@@ -374,8 +372,7 @@ const KNOWN_EXCLUSION_REASONS: &[&str] = &[
 /// not just the names — stay out of the file. The same registry is enforced
 /// on import in the repository (`NEVER_TRANSFERRED_COLUMNS`) so a crafted
 /// file cannot write them either.
-const EXCLUDED_EXPORT_COLUMNS: &[(&str, &str)] =
-    super::repository::NEVER_TRANSFERRED_COLUMNS;
+const EXCLUDED_EXPORT_COLUMNS: &[(&str, &str)] = super::repository::NEVER_TRANSFERRED_COLUMNS;
 
 /// The columns of `table` the export emits — `ordered_columns` (schema
 /// `ordinal_position` order, matching the emitted row key order) minus
@@ -580,8 +577,10 @@ fn build_backup_manifest(
         // Name-only record of the sensitive entities a standard export skips —
         // catalog names, so the file explains its own coverage without
         // leaking row data.
-        let emitted: HashSet<&str> =
-            tables.iter().map(|table| table.table.name.as_str()).collect();
+        let emitted: HashSet<&str> = tables
+            .iter()
+            .map(|table| table.table.name.as_str())
+            .collect();
         Some(
             SENSITIVE_TABLES
                 .iter()
@@ -606,10 +605,8 @@ async fn backup_relationships(
     pool: &DbPool,
     tables: &[TransferTable],
 ) -> Result<Vec<BackupRelationship>, ApiError> {
-    let children: Vec<QualifiedTable> =
-        tables.iter().map(|table| table.table.clone()).collect();
-    let emitted_keys: HashSet<String> =
-        tables.iter().map(|table| table.table.key()).collect();
+    let children: Vec<QualifiedTable> = tables.iter().map(|table| table.table.clone()).collect();
+    let emitted_keys: HashSet<String> = tables.iter().map(|table| table.table.key()).collect();
     let edges = DataTransferRepository::foreign_key_refs(pool, &children).await?;
     Ok(edges
         .into_iter()
@@ -891,7 +888,6 @@ pub async fn export_booking_data(pool: &DbPool, scope: ExportScope) -> Result<St
     String::from_utf8(bytes.to_vec()).map_err(|error| ApiError::Internal(error.to_string()))
 }
 
-
 pub(crate) fn expand_full_overwrite_tables(
     selected: &mut HashSet<String>,
     dependencies: &HashMap<String, HashSet<String>>,
@@ -1024,7 +1020,10 @@ mod tests {
             );
         }
         // The business set stays transferable at both tiers.
-        assert!(is_transferable_key("public.bookings", TransferTier::Business));
+        assert!(is_transferable_key(
+            "public.bookings",
+            TransferTier::Business
+        ));
         assert!(is_transferable_key("public.bookings", TransferTier::System));
     }
 
@@ -1067,7 +1066,10 @@ mod tests {
             ExportScope::Full,
             ExportScope::Backup,
         ] {
-            assert!(!scope.includes_protected(), "{scope:?} must not be protected");
+            assert!(
+                !scope.includes_protected(),
+                "{scope:?} must not be protected"
+            );
             assert!(!scope.requires_encryption());
             assert_eq!(TransferTier::for_scope(scope), TransferTier::Business);
         }

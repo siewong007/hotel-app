@@ -141,7 +141,9 @@ pub async fn communications_summary_handler(
     Path(guest_id): Path<i64>,
 ) -> Result<Json<GuestCommunicationsSummary>, ApiError> {
     require_permission_helper(&pool, &headers, "communications:read").await?;
-    Ok(Json(service::communications_summary(&pool, guest_id).await?))
+    Ok(Json(
+        service::communications_summary(&pool, guest_id).await?,
+    ))
 }
 
 pub async fn list_support_conversations_handler(

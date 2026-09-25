@@ -8,10 +8,10 @@ use axum::{
     routing::{get, patch, post},
 };
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_any_permission_helper, require_permission_helper};
-use super::handlers;
 use crate::models::{
     AssignableStaffMember, AssignableStaffQuery, CreateHousekeepingTaskRequest,
     HousekeepingBoardResponse, HousekeepingTask, HousekeepingTaskListResponse,
@@ -27,7 +27,9 @@ pub fn routes() -> Router<DbPool> {
         .route("/housekeeping/assignable-staff", get(assignable_staff))
         // Task completion can flip a room to available — let availability
         // subscribers see the inventory change like any /rooms mutation.
-        .route_layer(middleware::from_fn(crate::modules::rooms::routes::publish_inventory_changes))
+        .route_layer(middleware::from_fn(
+            crate::modules::rooms::routes::publish_inventory_changes,
+        ))
 }
 
 async fn list_tasks(
@@ -55,8 +57,7 @@ async fn update_task(
     Json(input): Json<UpdateHousekeepingTaskRequest>,
 ) -> Result<Json<HousekeepingTask>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "housekeeping:update").await?;
-    handlers::update_task_handler(State(pool), Extension(user_id), Path(task_id), Json(input))
-        .await
+    handlers::update_task_handler(State(pool), Extension(user_id), Path(task_id), Json(input)).await
 }
 
 async fn board(

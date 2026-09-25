@@ -1,9 +1,9 @@
 //! Booking repository for database operations
 
+use super::list as booking_list;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{Booking, BookingPaginationParams, BookingWithDetails, row_mappers};
-use super::list as booking_list;
 use crate::utils::pagination::Pagination;
 
 pub struct BookingRepository;

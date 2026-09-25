@@ -338,7 +338,11 @@ mod tests {
 
     #[test]
     fn seal_escapes_a_hostile_hotel_name() {
-        let html = seal_html_for("<script>x</script>", "example.test", Locale::default_locale());
+        let html = seal_html_for(
+            "<script>x</script>",
+            "example.test",
+            Locale::default_locale(),
+        );
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
     }

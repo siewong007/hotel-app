@@ -12,9 +12,9 @@
 //! - [`checkin_advisory_for_guest`] — for a guest before any booking exists
 //!   (the walk-in / direct-booking dialog), keyed purely on guest history.
 
+use super::helpers::fetch_booking_by_id;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use super::helpers::fetch_booking_by_id;
 use sqlx::Row;
 
 /// Sentinel booking id that excludes nothing (no real booking has id -1), so the

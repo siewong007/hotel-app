@@ -2,9 +2,9 @@
 //!
 //! Routes for rate plans and room rates management.
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::middleware::require_permission_helper;
-use super::handlers;
 use crate::models;
 use axum::{
     Router,

@@ -6,6 +6,8 @@ use rand::RngExt;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
+use super::repository::GuestPortalRepository;
+use super::session_repository::GuestPortalSessionRepository;
 use crate::core::auth::AuthService;
 use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
@@ -18,15 +20,13 @@ use crate::models::{
     GuestPortalPage, GuestPortalTransaction, GuestPortalVerifyRequest, GuestPortalVerifyResponse,
     PreCheckInUpdateRequest,
 };
+use crate::modules::auth::repository::{AuthRepository, ClaimGuestAccountValues};
+use crate::modules::bookings::auto_checkin;
 use crate::modules::communications::service as communications_service;
 use crate::modules::consent::models::{ConsentDocument, ConsentSource};
 use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
 use crate::modules::consent::validation as consent_validation;
-use crate::modules::auth::repository::{AuthRepository, ClaimGuestAccountValues};
-use super::repository::GuestPortalRepository;
-use super::session_repository::GuestPortalSessionRepository;
 use crate::services::audit::AuditLog;
-use crate::modules::bookings::auto_checkin as auto_checkin;
 use crate::utils::sanitization::Sanitizer;
 use validator::Validate;
 
@@ -634,8 +634,10 @@ pub async fn update_my_profile(
         .normalize_and_validate()
         .map_err(|error| ApiError::BadRequest(error.to_string()))?;
 
-    crate::modules::guests::repository::GuestRepository::update_contact_profile(pool, guest_id, &input)
-        .await?;
+    crate::modules::guests::repository::GuestRepository::update_contact_profile(
+        pool, guest_id, &input,
+    )
+    .await?;
 
     // Which fields moved is not recorded: the values are the guest's own
     // contact details, and the audit trail only needs to show that the guest
@@ -798,8 +800,10 @@ pub async fn cancel_my_booking(
         .ok_or_else(|| {
             ApiError::Forbidden("No active guest account is linked to this booking.".to_string())
         })?;
-    crate::modules::bookings::service::cancel_pending_booking_by_guest(pool, user_id, booking_id, reason)
-        .await
+    crate::modules::bookings::service::cancel_pending_booking_by_guest(
+        pool, user_id, booking_id, reason,
+    )
+    .await
 }
 
 /// GET /guest-portal/me/transactions
@@ -934,10 +938,11 @@ pub async fn session_upload_payment_receipt(
     payment_id: i64,
     bytes: &[u8],
 ) -> Result<(), ApiError> {
-    let payment =
-        crate::modules::payments::repository::PaymentRepository::get_payment_for_review(pool, payment_id)
-            .await?
-            .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    let payment = crate::modules::payments::repository::PaymentRepository::get_payment_for_review(
+        pool, payment_id,
+    )
+    .await?
+    .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
     if payment.guest_id != Some(guest_id) {
         return Err(ApiError::Forbidden(
             "This payment does not belong to you.".to_string(),
@@ -972,7 +977,8 @@ pub async fn session_capture_paypal(
     payment_id: i64,
 ) -> Result<crate::models::PaymentActionResponse, ApiError> {
     let booking = resolve_owned_booking(pool, guest_id, booking_id).await?;
-    crate::modules::payments::service::capture_paypal_payment(pool, &booking, order_id, payment_id).await
+    crate::modules::payments::service::capture_paypal_payment(pool, &booking, order_id, payment_id)
+        .await
 }
 
 pub async fn token_bank_transfer(
@@ -999,10 +1005,11 @@ pub async fn token_upload_payment_receipt(
     bytes: &[u8],
 ) -> Result<(), ApiError> {
     let booking = require_valid_token(pool, token).await?;
-    let payment =
-        crate::modules::payments::repository::PaymentRepository::get_payment_for_review(pool, payment_id)
-            .await?
-            .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    let payment = crate::modules::payments::repository::PaymentRepository::get_payment_for_review(
+        pool, payment_id,
+    )
+    .await?
+    .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
     if payment.booking_id != booking.id {
         return Err(ApiError::Forbidden(
             "This payment does not belong to this booking.".to_string(),
@@ -1035,7 +1042,8 @@ pub async fn token_capture_paypal(
     payment_id: i64,
 ) -> Result<crate::models::PaymentActionResponse, ApiError> {
     let booking = require_valid_token(pool, token).await?;
-    crate::modules::payments::service::capture_paypal_payment(pool, &booking, order_id, payment_id).await
+    crate::modules::payments::service::capture_paypal_payment(pool, &booking, order_id, payment_id)
+        .await
 }
 
 #[cfg(test)]

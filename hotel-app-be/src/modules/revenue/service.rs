@@ -3,9 +3,9 @@ use rust_decimal::Decimal;
 use serde_json::{Value, json};
 
 use super::models::{
-    DebtorRow, RateCalendar, RateCalendarQuery, Receivables, ReceivablesBucket,
-    RevenueChannelMix, RevenueDailyPoint, RevenueKpis, RevenueOverview,
-    RevenueOverviewQuery, RevenuePipeline, RevenueRangeInfo, RoomTypePerformance,
+    DebtorRow, RateCalendar, RateCalendarQuery, Receivables, ReceivablesBucket, RevenueChannelMix,
+    RevenueDailyPoint, RevenueKpis, RevenueOverview, RevenueOverviewQuery, RevenuePipeline,
+    RevenueRangeInfo, RoomTypePerformance,
 };
 use super::repository::{RevenueRepository, StaySums};
 use super::validation::{RevenueRange, revenue_range};
@@ -232,7 +232,12 @@ fn ratio_pct(part: Decimal, whole: i64) -> Decimal {
 }
 
 /// Derive every ratio from raw sums — the formulas live here and nowhere else.
-fn kpis(sums: &StaySums, days: i64, direct_share: Decimal, service_revenue: Decimal) -> RevenueKpis {
+fn kpis(
+    sums: &StaySums,
+    days: i64,
+    direct_share: Decimal,
+    service_revenue: Decimal,
+) -> RevenueKpis {
     let capacity = sums.sellable_rooms * days.max(1);
     let sold = Decimal::from(sums.room_nights_sold);
     RevenueKpis {
@@ -392,7 +397,12 @@ mod tests {
     #[test]
     fn kpis_derive_from_sums() {
         // 20 sellable rooms, 10-day range → 200 capacity; 140 sold → 70.0%.
-        let kpi = kpis(&sums(14000, 140, 50, 60, 3, 1, 20), 10, Decimal::from(50), Decimal::from(2100));
+        let kpi = kpis(
+            &sums(14000, 140, 50, 60, 3, 1, 20),
+            10,
+            Decimal::from(50),
+            Decimal::from(2100),
+        );
         assert_eq!(kpi.room_revenue, Decimal::from(14000));
         assert_eq!(kpi.occupancy_rate, Decimal::new(700, 1));
         assert_eq!(kpi.adr, Decimal::from(100));
@@ -406,7 +416,12 @@ mod tests {
 
     #[test]
     fn empty_window_reports_zeros_not_nulls() {
-        let kpi = kpis(&sums(0, 0, 0, 0, 0, 0, 20), 30, Decimal::ZERO, Decimal::ZERO);
+        let kpi = kpis(
+            &sums(0, 0, 0, 0, 0, 0, 20),
+            30,
+            Decimal::ZERO,
+            Decimal::ZERO,
+        );
         assert_eq!(kpi.occupancy_rate, Decimal::ZERO);
         assert_eq!(kpi.adr, Decimal::ZERO);
         assert_eq!(kpi.revpar, Decimal::ZERO);
@@ -418,7 +433,12 @@ mod tests {
 
     #[test]
     fn zero_sellable_rooms_never_divides() {
-        let kpi = kpis(&sums(100, 5, 1, 1, 0, 0, 0), 1, Decimal::ZERO, Decimal::ZERO);
+        let kpi = kpis(
+            &sums(100, 5, 1, 1, 0, 0, 0),
+            1,
+            Decimal::ZERO,
+            Decimal::ZERO,
+        );
         assert_eq!(kpi.occupancy_rate, Decimal::ZERO);
         assert_eq!(kpi.revpar, Decimal::ZERO);
     }
@@ -434,8 +454,14 @@ mod tests {
             adr: Decimal::ZERO,
         }];
         let service = vec![
-            (NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(), Decimal::from(120)),
-            (NaiveDate::from_ymd_opt(2026, 9, 11).unwrap(), Decimal::from(75)),
+            (
+                NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+                Decimal::from(120),
+            ),
+            (
+                NaiveDate::from_ymd_opt(2026, 9, 11).unwrap(),
+                Decimal::from(75),
+            ),
         ];
         merge_daily_service(&mut daily, &service);
         assert_eq!(daily.len(), 2);

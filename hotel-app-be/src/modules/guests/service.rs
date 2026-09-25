@@ -696,8 +696,7 @@ pub async fn my_guests_with_credits(
     let mut result = Vec::new();
 
     for guest in guests {
-        let credits_by_room_type =
-            GuestRepository::room_credits_by_guest(pool, guest.id).await;
+        let credits_by_room_type = GuestRepository::room_credits_by_guest(pool, guest.id).await;
 
         let total_credits: i32 = credits_by_room_type
             .iter()

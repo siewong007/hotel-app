@@ -312,9 +312,11 @@ mod postgres_tests {
             price: 100.0,
         };
         assert!(
-            hotel_app_be::modules::rates::service::bulk_upsert_room_rates(&pool, BULK_BASE, inverted)
-                .await
-                .is_err()
+            hotel_app_be::modules::rates::service::bulk_upsert_room_rates(
+                &pool, BULK_BASE, inverted
+            )
+            .await
+            .is_err()
         );
         let missing_plan = BulkRoomRateInput {
             rate_plan_id: BULK_BASE + 9_999,
@@ -324,9 +326,13 @@ mod postgres_tests {
             price: 100.0,
         };
         assert!(
-            hotel_app_be::modules::rates::service::bulk_upsert_room_rates(&pool, BULK_BASE, missing_plan)
-                .await
-                .is_err()
+            hotel_app_be::modules::rates::service::bulk_upsert_room_rates(
+                &pool,
+                BULK_BASE,
+                missing_plan
+            )
+            .await
+            .is_err()
         );
     }
 }

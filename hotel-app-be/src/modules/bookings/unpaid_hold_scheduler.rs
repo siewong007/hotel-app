@@ -6,8 +6,8 @@
 
 use std::time::Duration;
 
-use crate::core::db::DbPool;
 use super::service as bookings;
+use crate::core::db::DbPool;
 
 /// The sweep is bounded by the configured hold window, which is measured in
 /// hours, so polling more often than this buys nothing.

@@ -161,7 +161,10 @@ mod tests {
     #[test]
     fn validates_normalized_categories() {
         assert_eq!(validate_category(" STAY ").unwrap(), "stay");
-        assert_eq!(validate_category("Service Request").unwrap(), "service_request");
+        assert_eq!(
+            validate_category("Service Request").unwrap(),
+            "service_request"
+        );
         assert_eq!(validate_category("complaint").unwrap(), "complaint");
         assert!(validate_category("maintenance").is_err());
     }

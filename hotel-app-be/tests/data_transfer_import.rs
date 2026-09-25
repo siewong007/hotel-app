@@ -734,7 +734,10 @@ async fn retired_backup_formats_are_rejected() {
     let fixtures: Vec<(&str, Vec<u8>)> = vec![
         ("v2", v2),
         ("flat-v1", legacy_v1_fixture()),
-        ("hotel-backup-v3", serde_json::to_vec(&v3).expect("v3 fixture serializes")),
+        (
+            "hotel-backup-v3",
+            serde_json::to_vec(&v3).expect("v3 fixture serializes"),
+        ),
     ];
 
     for (label, bytes) in fixtures {
@@ -764,7 +767,7 @@ async fn retired_backup_formats_are_rejected() {
                 on_conflict: Some(ConflictPolicy::Skip),
                 tables: vec![],
                 confirm: true,
-            passphrase: None,
+                passphrase: None,
             },
         )
         .await

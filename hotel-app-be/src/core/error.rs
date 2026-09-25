@@ -68,10 +68,7 @@ pub enum ApiError {
     /// carries `block_code` — the same stable code
     /// `GuestEkycStatusSummary.auto_checkin_block_code` reports — so the guest
     /// UI renders a localized explanation instead of matching English text.
-    AutoCheckinBlocked {
-        block_code: String,
-        message: String,
-    },
+    AutoCheckinBlocked { block_code: String, message: String },
 }
 
 impl std::fmt::Display for ApiError {
@@ -412,7 +409,10 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
         let json = body_json(response).await;
         assert_eq!(json["code"], "profile_incomplete");
-        assert_eq!(json["missing_profile_fields"], serde_json::json!(["phone", "email"]));
+        assert_eq!(
+            json["missing_profile_fields"],
+            serde_json::json!(["phone", "email"])
+        );
         assert!(json["error"].is_string());
     }
 

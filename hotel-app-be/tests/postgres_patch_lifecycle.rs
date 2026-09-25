@@ -12,7 +12,6 @@ use tokio::time::{Duration, timeout};
 const POSTGRES_SCHEMA: &str = include_str!("../database/postgres/migrations/0001_v1_baseline.sql");
 const POSTGRES_SEED: &str = include_str!("../database/postgres/seed.sql");
 
-
 #[derive(Clone)]
 struct TestDatabase {
     name: String,
@@ -154,9 +153,8 @@ impl TemporaryCatalog {
     /// already recorded instead of colliding with them.
     fn with_synthetic_patches() -> Self {
         let catalog = Self::copy_committed();
-        let mut manifest =
-            std::fs::read_to_string(postgres_dir().join("patches/manifest.tsv"))
-                .expect("committed manifest must be readable");
+        let mut manifest = std::fs::read_to_string(postgres_dir().join("patches/manifest.tsv"))
+            .expect("committed manifest must be readable");
         if manifest.trim().is_empty() {
             manifest = "# generation\tversion\tname\tchecksum\tfile\n".to_string();
         } else if !manifest.ends_with('\n') {
@@ -169,12 +167,9 @@ impl TemporaryCatalog {
         for (offset, name) in ["sentinel-a", "sentinel-b"].into_iter().enumerate() {
             let version = first_version + offset as i32;
             let file = format!("{version:04}_{name}.sql").replace('-', "_");
-            let patch_source = format!(
-                "CREATE TABLE public.patch_sentinel_{name}(id integer);\n",
-            )
-            .replace('-', "_");
-            std::fs::write(catalog.path.join(&file), &patch_source)
-                .expect("write synthetic patch");
+            let patch_source = format!("CREATE TABLE public.patch_sentinel_{name}(id integer);\n",)
+                .replace('-', "_");
+            std::fs::write(catalog.path.join(&file), &patch_source).expect("write synthetic patch");
             let checksum = hex::encode(Sha256::digest(patch_source.as_bytes()));
             manifest.push_str(&format!(
                 "1\t{version}\t{name}\tsha256:{checksum}\t{file}\n"
@@ -213,7 +208,8 @@ impl TemporaryCatalog {
     /// transaction, so a second runner can be observed waiting on the lock.
     fn with_sleeping_patch() -> Self {
         let catalog = Self::copy_committed();
-        let patch_source = "SELECT pg_sleep(5);\nCREATE TABLE public.sleeping_sentinel(id integer);\n";
+        let patch_source =
+            "SELECT pg_sleep(5);\nCREATE TABLE public.sleeping_sentinel(id integer);\n";
         let file = "0002_sleeping_patch.sql";
         std::fs::write(catalog.path.join(file), patch_source)
             .expect("write lock-holding temporary patch");
@@ -554,9 +550,15 @@ fn manifest_revision_entries(catalog_dir: &Path) -> Vec<(i32, String, String)> {
         .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
         .map(|line| {
             let fields: Vec<&str> = line.split('\t').collect();
-            assert_eq!(fields.len(), 5, "manifest row must have five fields: {line}");
+            assert_eq!(
+                fields.len(),
+                5,
+                "manifest row must have five fields: {line}"
+            );
             (
-                fields[1].parse().expect("manifest version must be an integer"),
+                fields[1]
+                    .parse()
+                    .expect("manifest version must be an integer"),
                 fields[2].to_owned(),
                 fields[3].to_owned(),
             )
@@ -731,7 +733,10 @@ async fn postgres_v1_patches_apply_record_and_skip_idempotently() {
             .fetch_one(&fresh_pool)
             .await
             .expect("check synthetic sentinel table");
-        assert!(exists, "{sentinel} must exist after the synthetic catalog ran");
+        assert!(
+            exists,
+            "{sentinel} must exist after the synthetic catalog ran"
+        );
     }
 
     let second_run = run_patches(&fresh, Some(&synthetic.path)).await;

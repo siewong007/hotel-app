@@ -162,8 +162,8 @@ async fn special_types_survive_export_and_reimport() {
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
-    use hotel_app_be::modules::data_transfer::service::export_booking_data_body;
     use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
+    use hotel_app_be::modules::data_transfer::service::export_booking_data_body;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
@@ -979,7 +979,7 @@ async fn malformed_and_mismatched_documents_fail_cleanly() {
                 on_conflict: Some(ConflictPolicy::Skip),
                 tables: vec![],
                 confirm: true,
-            passphrase: None,
+                passphrase: None,
             },
         )
     };
@@ -1207,7 +1207,10 @@ async fn protected_entities_preview_as_system_tier_and_stay_route_gated() {
             .fetch_one(&pool)
             .await
             .expect("probe must run");
-    assert!(!forged, "no protected-table row may ever be imported ungated");
+    assert!(
+        !forged,
+        "no protected-table row may ever be imported ungated"
+    );
 
     // The same entity list without the protected half is business-tier and
     // flows through the job path untouched.
@@ -2093,13 +2096,11 @@ async fn import_endpoints_require_authentication_and_data_transfer_import() {
     // business-tier: an unknown or protected-set upload fails closed into the
     // system tier, where the step-up gate answers 401 before `confirm` is read.
     use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
-    let staged = data_transfer_jobs::stage_backup_upload(Body::from(v1_document(&[
-        V1Entity {
-            name: "public.amenities",
-            primary_key: &["id"],
-            rows: vec![json!({"id": 920_945_777_i64, "name": "dt-gate-row", "category": "ok"})],
-        },
-    ])))
+    let staged = data_transfer_jobs::stage_backup_upload(Body::from(v1_document(&[V1Entity {
+        name: "public.amenities",
+        primary_key: &["id"],
+        rows: vec![json!({"id": 920_945_777_i64, "name": "dt-gate-row", "category": "ok"})],
+    }])))
     .await
     .expect("business-tier upload must stage");
     let status = fixture

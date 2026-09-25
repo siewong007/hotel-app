@@ -334,8 +334,7 @@ impl RevenueRepository {
         .map_err(ApiError::from)?;
         Ok(PipelineSums {
             booked: row.get("booked"),
-            collected: row.get::<Decimal, _>("collected")
-                - row.get::<Decimal, _>("refunded"),
+            collected: row.get::<Decimal, _>("collected") - row.get::<Decimal, _>("refunded"),
             outstanding: row.get("outstanding"),
         })
     }
@@ -376,9 +375,7 @@ impl RevenueRepository {
                     corporate_id: row.get("bill_to_corporate_id"),
                     anchor: row.get("anchor"),
                     debtor: DebtorRow {
-                        name: company_name
-                            .or(guest_name)
-                            .unwrap_or(billing_name),
+                        name: company_name.or(guest_name).unwrap_or(billing_name),
                         invoice_number: row.get("invoice_number"),
                         balance: row.get::<Decimal, _>("balance_due"),
                         // Filled by the service once the age is known.

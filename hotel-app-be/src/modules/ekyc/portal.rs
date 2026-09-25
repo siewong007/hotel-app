@@ -27,9 +27,9 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
 use crate::models::AuditEvent;
+use crate::modules::guest_portal::service as guest_portal;
 use crate::modules::guest_portal::session_repository::GuestPortalSessionRepository;
 use crate::services::audit::AuditLog;
-use crate::modules::guest_portal::service as guest_portal;
 
 /// Resolve the `users.id` that backs a portal session's guest.
 ///

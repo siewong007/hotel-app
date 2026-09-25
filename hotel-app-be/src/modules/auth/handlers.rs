@@ -2,10 +2,10 @@
 //!
 //! Handles login, logout, registration, and token management.
 
+use super::service as svc;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::service as svc;
 use axum::{extract::State, response::Json};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use validator::Validate;

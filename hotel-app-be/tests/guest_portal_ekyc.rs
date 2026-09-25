@@ -34,9 +34,9 @@ mod postgres_tests {
     use hotel_app_be::ApiError;
     use hotel_app_be::models::EkycSubmissionRequest;
     use hotel_app_be::modules::consent::models::{ConsentAcceptance, ConsentDocument};
+    use hotel_app_be::modules::ekyc::repository::EkycRepository;
     use hotel_app_be::modules::ekyc::service::{self, SubmissionChannel};
     use hotel_app_be::modules::ekyc::validation;
-    use hotel_app_be::modules::ekyc::repository::EkycRepository;
     use hotel_app_be::modules::guest_portal::session_repository::GuestPortalSessionRepository;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
     use std::fs;

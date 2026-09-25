@@ -1,9 +1,9 @@
 //! Customer ledger service layer.
 
+use super::repository as repo;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::repository as repo;
 use crate::services::audit::AuditLog;
 use crate::utils::sanitization::Sanitizer;
 

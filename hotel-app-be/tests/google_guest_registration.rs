@@ -5,9 +5,9 @@
 //! represent. A configured database must include migration 0002.
 
 use hotel_app_be::core::error::ApiError;
+use hotel_app_be::modules::auth::repository::{AuthRepository, NewGoogleAccountConsent};
 use hotel_app_be::modules::consent::models::{ConsentAcceptance, ConsentDocument};
 use hotel_app_be::modules::consent::service::ConsentContext;
-use hotel_app_be::modules::auth::repository::{AuthRepository, NewGoogleAccountConsent};
 use hotel_app_be::services::google_identity::{GoogleIdentity, google_username};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 

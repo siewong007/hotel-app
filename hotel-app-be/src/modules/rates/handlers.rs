@@ -9,13 +9,13 @@ use axum::{
 };
 use serde_json::json;
 
+use super::service as svc;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
     ApplicableRateQuery, BulkRoomRateInput, RatePlanInput, RatePlanUpdateInput, RoomRateInput,
     RoomRateUpdateInput,
 };
-use super::service as svc;
 
 /// Rate-specific error type.
 pub enum RateError {

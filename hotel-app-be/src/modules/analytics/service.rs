@@ -1,9 +1,9 @@
+use super::repository;
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::models::ReportQuery;
-use super::repository;
 use crate::services::audit::AuditLog;
 use std::collections::HashMap;
 

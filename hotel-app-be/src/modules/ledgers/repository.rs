@@ -1327,7 +1327,8 @@ pub(crate) async fn create_ledger_payment_with_outcome(
     user_id: i64,
     request: CustomerLedgerPaymentRequest,
 ) -> Result<LedgerPaymentOutcome, ApiError> {
-    let key = crate::modules::payments::service::normalized_idempotency_key(&request.idempotency_key)?;
+    let key =
+        crate::modules::payments::service::normalized_idempotency_key(&request.idempotency_key)?;
     let values = payment_values(
         request.payment_amount,
         &request.payment_method,
@@ -1468,7 +1469,8 @@ pub(crate) async fn create_company_ledger_payment_with_outcome(
         ));
     }
 
-    let key = crate::modules::payments::service::normalized_idempotency_key(&request.idempotency_key)?;
+    let key =
+        crate::modules::payments::service::normalized_idempotency_key(&request.idempotency_key)?;
     let values = payment_values(
         request.payment_amount,
         &request.payment_method,

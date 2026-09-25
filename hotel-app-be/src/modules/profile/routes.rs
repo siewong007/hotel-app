@@ -2,13 +2,13 @@
 //!
 //! Routes for user profile management, 2FA, and passkeys.
 
-use crate::routes::extract_client_ip;
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{extract_claims, require_auth};
 use crate::core::rate_limiter::RateLimiters;
-use super::handlers;
 use crate::models;
+use crate::routes::extract_client_ip;
 use axum::{
     Router,
     extract::{ConnectInfo, Extension, Path, State},
@@ -56,8 +56,7 @@ async fn update_profile(
     Json(input): Json<models::UserProfileUpdate>,
 ) -> Result<Json<models::UserProfile>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::update_user_profile_handler(State(pool), Extension(user_id), Json(input))
-        .await
+    handlers::update_user_profile_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn complete_profile(
@@ -128,7 +127,8 @@ async fn delete_passkey(
     path: Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    crate::modules::passkey::handlers::delete_passkey_handler(State(pool), Extension(user_id), path).await
+    crate::modules::passkey::handlers::delete_passkey_handler(State(pool), Extension(user_id), path)
+        .await
 }
 
 async fn update_passkey(
@@ -138,8 +138,13 @@ async fn update_passkey(
     Json(input): Json<models::PasskeyUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    crate::modules::passkey::handlers::update_passkey_handler(State(pool), Extension(user_id), path, Json(input))
-        .await
+    crate::modules::passkey::handlers::update_passkey_handler(
+        State(pool),
+        Extension(user_id),
+        path,
+        Json(input),
+    )
+    .await
 }
 
 // 2FA handlers (profile context)
@@ -185,7 +190,8 @@ async fn enable_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    crate::modules::two_factor::handlers::enable_2fa_handler(State(pool), user_id, Json(input)).await
+    crate::modules::two_factor::handlers::enable_2fa_handler(State(pool), user_id, Json(input))
+        .await
 }
 
 async fn disable_2fa(
@@ -207,7 +213,8 @@ async fn disable_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    crate::modules::two_factor::handlers::disable_2fa_handler(State(pool), user_id, Json(input)).await
+    crate::modules::two_factor::handlers::disable_2fa_handler(State(pool), user_id, Json(input))
+        .await
 }
 
 async fn get_2fa_status(
@@ -237,5 +244,6 @@ async fn verify_2fa(
         ));
     }
     let user_id = require_auth(&headers).await?;
-    crate::modules::two_factor::handlers::verify_2fa_code_handler(State(pool), user_id, Json(input)).await
+    crate::modules::two_factor::handlers::verify_2fa_code_handler(State(pool), user_id, Json(input))
+        .await
 }

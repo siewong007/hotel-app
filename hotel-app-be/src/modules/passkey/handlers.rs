@@ -2,11 +2,11 @@
 //!
 //! Handles passkey registration and authentication.
 
+use super::service as svc;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::modules::auth::handlers::build_refresh_cookie;
 use crate::models::*;
-use super::service as svc;
+use crate::modules::auth::handlers::build_refresh_cookie;
 use axum::{
     extract::{Extension, Path, State},
     response::Json,

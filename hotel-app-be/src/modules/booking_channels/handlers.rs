@@ -6,6 +6,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 
+use super::service::{self, PricingRuleResponse};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
@@ -15,7 +16,6 @@ use crate::models::{
     ChannelPricingRuleUpdate, ChannelRatePlanMapping, ChannelRatePlanMappingInput,
     ChannelRoomTypeMapping, ChannelRoomTypeMappingInput,
 };
-use super::service::{self, PricingRuleResponse};
 
 pub async fn list_handler(
     State(pool): State<DbPool>,
@@ -98,7 +98,9 @@ pub async fn list_commission_rules_handler(
     State(pool): State<DbPool>,
     Path(channel_id): Path<i64>,
 ) -> Result<Json<Vec<ChannelCommissionRule>>, ApiError> {
-    Ok(Json(service::list_commission_rules(&pool, channel_id).await?))
+    Ok(Json(
+        service::list_commission_rules(&pool, channel_id).await?,
+    ))
 }
 
 pub async fn create_commission_rule_handler(
@@ -201,5 +203,7 @@ pub async fn matrix_handler(
             .map_err(|_| ApiError::BadRequest("Invalid date. Use YYYY-MM-DD".to_string()))?,
         None => crate::core::db::hotel_today(&pool).await?,
     };
-    Ok(Json(service::matrix(&pool, date, query.rate_plan_id).await?))
+    Ok(Json(
+        service::matrix(&pool, date, query.rate_plan_id).await?,
+    ))
 }

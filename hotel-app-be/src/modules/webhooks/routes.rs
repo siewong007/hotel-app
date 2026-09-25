@@ -4,10 +4,10 @@
 //! provider's delivery instead — and IP rate-limited so unverifiable junk
 //! cannot burn upstream verification calls.
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
-use super::handlers;
 use axum::{
     Json, Router,
     extract::{ConnectInfo, Extension, State},

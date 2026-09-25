@@ -1,10 +1,10 @@
 //! Global search workflow
 
+use super::repository::SearchRepository;
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{GlobalSearchQuery, SearchGroup, SearchResponse};
-use super::repository::SearchRepository;
 
 pub async fn global_search(
     pool: &DbPool,

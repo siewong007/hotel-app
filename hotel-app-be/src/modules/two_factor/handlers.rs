@@ -2,10 +2,10 @@
 //!
 //! Handles 2FA setup, verification, and management.
 
+use super::service as two_factor_service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::service as two_factor_service;
 use axum::{extract::State, response::Json};
 
 pub async fn setup_2fa_handler(

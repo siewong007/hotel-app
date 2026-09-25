@@ -2179,7 +2179,10 @@ pub async fn upgrade_database_from_backup(
         if let Err(err) = std::fs::rename(&retired_dir, &pgdata) {
             log::error!(
                 "Rollback: failed to restore data directory {:?} -> {:?}: {}. The pre-upgrade data is preserved at {:?}.",
-                retired_dir, pgdata, err, retired_dir
+                retired_dir,
+                pgdata,
+                err,
+                retired_dir
             );
             return PostgresError::MigrationFailed(format!(
                 "{}. Additionally, automatic rollback could not restore the data directory; your original data is preserved at {:?} and must be renamed back to {:?} manually.",
@@ -2334,8 +2337,7 @@ async fn randomize_seed_passwords(app_handle: &AppHandle) -> Result<(), Postgres
     let password_file = bootstrap_password_file_path();
     let contents = format!(
         "Initial desktop login password for seeded accounts:\n{}\n\nSeeded usernames:\n{}\n\nChange account passwords after first login.\n",
-        password,
-        username_lines
+        password, username_lines
     );
     // 0600 like the postgres password file: this contains the cleartext
     // initial admin password, and shared front-desk machines have multiple
@@ -2642,7 +2644,11 @@ mod tests {
         assert_eq!(read_postmaster_pid(path.clone()), Some((12345, 5433)));
 
         // A pidfile naming a different port must not claim ownership.
-        std::fs::write(&path, "999\n/some/pgdata\n2026-08-22 10:00:00\n5432\n/tmp\n*\n").unwrap();
+        std::fs::write(
+            &path,
+            "999\n/some/pgdata\n2026-08-22 10:00:00\n5432\n/tmp\n*\n",
+        )
+        .unwrap();
         assert_eq!(read_postmaster_pid(path), Some((999, 5432)));
 
         std::fs::remove_dir_all(&dir).ok();

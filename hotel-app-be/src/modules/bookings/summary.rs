@@ -58,8 +58,7 @@ use super::models::BookingBoardSummary;
 const COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT: i32 = 1;
 
 /// `isCompanyBooking` — an id **or** a non-blank name, not the id alone.
-const IS_COMPANY: &str =
-    "(b.company_id IS NOT NULL OR COALESCE(TRIM(b.company_name), '') <> '')";
+const IS_COMPANY: &str = "(b.company_id IS NOT NULL OR COALESCE(TRIM(b.company_name), '') <> '')";
 
 /// A board view's row predicate for the booking list query.
 ///
@@ -271,7 +270,9 @@ mod tests {
         // The card and the row beneath it must agree on what is owed, so this
         // aggregate carries the list query's own expression, not a rewrite.
         assert!(sql.contains("bk_charge.paid_amount"));
-        assert!(sql.contains("COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')"));
+        assert!(sql.contains(
+            "COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')"
+        ));
         assert!(sql.contains("cl.post_type = 'room_charge'"));
     }
 
@@ -279,7 +280,9 @@ mod tests {
     fn company_bucket_matches_the_frontend_predicate() {
         let sql = board_summary_sql();
         // isCompanyBooking is id OR non-blank name -- not the id alone.
-        assert!(sql.contains("b.company_id IS NOT NULL OR COALESCE(TRIM(b.company_name), '') <> ''"));
+        assert!(
+            sql.contains("b.company_id IS NOT NULL OR COALESCE(TRIM(b.company_name), '') <> ''")
+        );
         // ...and the terms window comes from the shared constant.
         assert!(sql.contains("INTERVAL '1 month'"));
     }

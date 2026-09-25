@@ -13,10 +13,10 @@
 use chrono::{DateTime, Duration, Utc};
 use sha2::{Digest, Sha256};
 
-use crate::core::db::DbPool;
-use crate::core::error::ApiError;
 use super::models::PaymentRetryCapability;
 use super::repository::PaymentRetryRepository;
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
 
 /// How long a freshly issued recovery link stays usable.
 pub const RETRY_CAPABILITY_TTL_MINUTES: i64 = 60;
@@ -238,9 +238,10 @@ pub async fn describe_recovery(
     presented: &str,
 ) -> Result<super::handlers::PaymentRecoveryView, ApiError> {
     let capability = resolve_capability(pool, presented).await?;
-    let booking = crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
-        .await
-        .map_err(|_| unavailable())?;
+    let booking =
+        crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
+            .await
+            .map_err(|_| unavailable())?;
 
     // The booking may have moved on since the mail was sent -- paid at the
     // desk, cancelled, released. The link is not an entitlement to pay.
@@ -313,9 +314,10 @@ pub async fn recover_with_bank_transfer(
         });
     }
 
-    let booking = crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
-        .await
-        .map_err(|_| unavailable())?;
+    let booking =
+        crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
+            .await
+            .map_err(|_| unavailable())?;
     crate::modules::payments::service::create_bank_transfer_claim_for_capability(
         pool,
         &booking,
@@ -339,24 +341,29 @@ pub async fn recover_with_paypal(
         // Resume rather than authorise again: the guest may simply have
         // reloaded between approving in PayPal's window and coming back.
         let order_id =
-            crate::modules::payments::repository::PaymentRepository::find_gateway_order_id(pool, existing)
-                .await?
-                .ok_or_else(|| {
-                    ApiError::Conflict(
-                        "A payment is already in progress for this booking.".to_string(),
-                    )
-                })?;
+            crate::modules::payments::repository::PaymentRepository::find_gateway_order_id(
+                pool, existing,
+            )
+            .await?
+            .ok_or_else(|| {
+                ApiError::Conflict("A payment is already in progress for this booking.".to_string())
+            })?;
         return Ok(crate::models::PaypalCreateOrderResponse {
             order_id,
             payment_id: existing,
         });
     }
 
-    let booking = crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
-        .await
-        .map_err(|_| unavailable())?;
-    crate::modules::payments::service::create_paypal_order_for_capability(pool, &booking, capability.id)
-        .await
+    let booking =
+        crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
+            .await
+            .map_err(|_| unavailable())?;
+    crate::modules::payments::service::create_paypal_order_for_capability(
+        pool,
+        &booking,
+        capability.id,
+    )
+    .await
 }
 
 /// Capture the PayPal order this capability authorised.
@@ -380,10 +387,12 @@ pub async fn capture_recovered_paypal(
         ));
     }
 
-    let booking = crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
+    let booking =
+        crate::modules::bookings::helpers::fetch_booking_by_id(pool, capability.booking_id)
+            .await
+            .map_err(|_| unavailable())?;
+    crate::modules::payments::service::capture_paypal_payment(pool, &booking, order_id, payment_id)
         .await
-        .map_err(|_| unavailable())?;
-    crate::modules::payments::service::capture_paypal_payment(pool, &booking, order_id, payment_id).await
 }
 
 /// Attach payment evidence to the claim this capability raised.

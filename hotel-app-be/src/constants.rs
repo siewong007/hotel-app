@@ -121,4 +121,3 @@ impl std::fmt::Display for EkycStatus {
         }
     }
 }
-

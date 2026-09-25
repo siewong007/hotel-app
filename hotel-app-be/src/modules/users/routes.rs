@@ -5,10 +5,10 @@
 //! *membership* and still delegates to [`super::handlers::rbac`], which owns
 //! role assignment.
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_any_permission_helper;
-use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -168,8 +168,7 @@ async fn update_user(
 ) -> Result<Json<models::UserResponse>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
-    handlers::update_user_handler(State(pool), Extension(actor_user_id), path, Json(input))
-        .await
+    handlers::update_user_handler(State(pool), Extension(actor_user_id), path, Json(input)).await
 }
 
 async fn delete_user(
@@ -198,8 +197,12 @@ async fn assign_role(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
-    crate::modules::rbac::handlers::assign_role_to_user_handler(State(pool), Extension(actor_user_id), Json(input))
-        .await
+    crate::modules::rbac::handlers::assign_role_to_user_handler(
+        State(pool),
+        Extension(actor_user_id),
+        Json(input),
+    )
+    .await
 }
 
 async fn remove_role(
@@ -209,7 +212,12 @@ async fn remove_role(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
-    crate::modules::rbac::handlers::remove_role_from_user_handler(State(pool), Extension(actor_user_id), path).await
+    crate::modules::rbac::handlers::remove_role_from_user_handler(
+        State(pool),
+        Extension(actor_user_id),
+        path,
+    )
+    .await
 }
 
 async fn replace_user_roles(

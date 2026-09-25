@@ -98,7 +98,8 @@ pub async fn report_envelope(
     };
 
     // Services layer keeps the generation audit event on the new path too.
-    let payload = crate::modules::analytics::service::generate_report(pool, user_id, params).await?;
+    let payload =
+        crate::modules::analytics::service::generate_report(pool, user_id, params).await?;
 
     Ok(wrap_payload(entry, &query, payload))
 }

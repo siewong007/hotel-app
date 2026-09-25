@@ -52,8 +52,14 @@ pub fn routes() -> Router<DbPool> {
             "/guests/{id}/reviews/{rid}/response",
             post(handlers::respond_to_review_handler),
         )
-        .route("/guests/{id}/loyalty", get(handlers::loyalty_summary_handler))
-        .route("/guests/{id}/vouchers", get(handlers::list_vouchers_handler))
+        .route(
+            "/guests/{id}/loyalty",
+            get(handlers::loyalty_summary_handler),
+        )
+        .route(
+            "/guests/{id}/vouchers",
+            get(handlers::list_vouchers_handler),
+        )
         .route(
             "/guests/{id}/communications",
             get(handlers::communications_summary_handler),
@@ -62,10 +68,7 @@ pub fn routes() -> Router<DbPool> {
             "/guests/{id}/support",
             get(handlers::list_support_conversations_handler),
         )
-        .route(
-            "/guest-relations/overview",
-            get(handlers::overview_handler),
-        )
+        .route("/guest-relations/overview", get(handlers::overview_handler))
         .route(
             "/guest-relations/follow-ups",
             get(handlers::follow_ups_handler),

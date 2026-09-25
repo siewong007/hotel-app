@@ -2,10 +2,10 @@
 //!
 //! Routes for payments and invoices.
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -148,8 +148,7 @@ async fn refund_deposit(
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_REFUND).await?;
-    handlers::refund_deposit_handler(State(pool), Extension(user_id), path, Json(body))
-        .await
+    handlers::refund_deposit_handler(State(pool), Extension(user_id), path, Json(body)).await
 }
 
 // Forfeiting a held deposit (lost keycard, damage) is checkout-side money
@@ -162,8 +161,7 @@ async fn forfeit_deposit(
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_REFUND).await?;
-    handlers::forfeit_deposit_handler(State(pool), Extension(user_id), path, Json(body))
-        .await
+    handlers::forfeit_deposit_handler(State(pool), Extension(user_id), path, Json(body)).await
 }
 
 async fn revert_deposit_refund(
@@ -220,8 +218,7 @@ async fn update_payment(
     Json(input): Json<models::UpdatePaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_UPDATE).await?;
-    handlers::update_payment_handler(State(pool), Extension(user_id), path, Json(input))
-        .await
+    handlers::update_payment_handler(State(pool), Extension(user_id), path, Json(input)).await
 }
 
 async fn delete_payment(
@@ -284,8 +281,7 @@ async fn reject_payment(
     Json(body): Json<models::RejectPaymentRequest>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_APPROVE).await?;
-    handlers::reject_payment_handler(State(pool), Extension(user_id), path, Json(body))
-        .await
+    handlers::reject_payment_handler(State(pool), Extension(user_id), path, Json(body)).await
 }
 
 async fn request_payment_receipt(
@@ -295,11 +291,6 @@ async fn request_payment_receipt(
     Json(body): Json<models::RequestPaymentReceiptRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_APPROVE).await?;
-    handlers::request_payment_receipt_handler(
-        State(pool),
-        Extension(user_id),
-        path,
-        Json(body),
-    )
-    .await
+    handlers::request_payment_receipt_handler(State(pool), Extension(user_id), path, Json(body))
+        .await
 }

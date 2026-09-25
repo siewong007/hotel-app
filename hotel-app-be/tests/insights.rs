@@ -134,7 +134,11 @@ mod postgres_tests {
             assert!(!row.guest_name.is_empty());
             assert!(!row.room_number.is_empty());
             assert!(row.nights > 0, "departure {} nights", row.booking_number);
-            assert!(row.balance >= 0.0, "departure {} balance", row.booking_number);
+            assert!(
+                row.balance >= 0.0,
+                "departure {} balance",
+                row.booking_number
+            );
         }
     }
 

@@ -8,16 +8,14 @@ pub mod row_mappers;
 
 // Re-export all models for convenience
 pub use crate::modules::analytics::models::*;
-pub use audit::*;
 pub use crate::modules::auth::models::*;
-pub use crate::modules::bookings::models::*;
 pub use crate::modules::booking_channels::models::*;
-pub use common::*;
+pub use crate::modules::bookings::models::*;
 pub use crate::modules::companies::models::*;
 pub use crate::modules::data_transfer::models::*;
 pub use crate::modules::ekyc::models::*;
-pub use crate::modules::guests::models::*;
 pub use crate::modules::guest_portal::models::*;
+pub use crate::modules::guests::models::*;
 pub use crate::modules::housekeeping::models::*;
 pub use crate::modules::ledgers::models::*;
 pub use crate::modules::maintenance::models::*;
@@ -28,3 +26,5 @@ pub use crate::modules::rbac::models::*;
 pub use crate::modules::rooms::models::*;
 pub use crate::modules::search::models::*;
 pub use crate::modules::users::models::*;
+pub use audit::*;
+pub use common::*;

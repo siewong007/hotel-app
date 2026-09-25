@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use super::repository::{self, NewHousekeepingTask};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
@@ -10,9 +11,8 @@ use crate::models::{
     HousekeepingTask, HousekeepingTaskListResponse, HousekeepingTaskPatch,
     ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
 };
-use super::repository::{self, NewHousekeepingTask};
-use crate::services::{audit::AuditLog};
 use crate::modules::rooms::service as rooms;
+use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 

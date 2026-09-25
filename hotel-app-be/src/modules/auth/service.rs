@@ -1,5 +1,6 @@
 //! Authentication business workflows.
 
+use super::repository::AuthRepository;
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -14,11 +15,10 @@ use crate::modules::communications::service as communications_service;
 use crate::modules::consent::models::{ConsentDocument, ConsentSource};
 use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
 use crate::modules::consent::validation as consent_validation;
-use crate::modules::settings::repository::SettingsRepository;
-use super::repository::AuthRepository;
 use crate::modules::guests::repository::GuestRepository;
 use crate::modules::passkey::repository::PasskeyRepository;
 use crate::modules::rbac::repository::RbacRepository;
+use crate::modules::settings::repository::SettingsRepository;
 use crate::services::account_emails;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity;
@@ -569,7 +569,8 @@ pub(crate) async fn issue_authenticated_response(
 
     let _ = AuthRepository::update_last_login(pool, user.id).await;
 
-    let profile_completion = crate::modules::profile::service::completion_for_user(pool, user.id).await?;
+    let profile_completion =
+        crate::modules::profile::service::completion_for_user(pool, user.id).await?;
 
     Ok((
         AuthResponse {

@@ -10,6 +10,7 @@ use axum::{
     http::HeaderMap,
 };
 
+use super::service as guest_portal_service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
@@ -21,7 +22,6 @@ use crate::models::{
     GuestPortalVerifyResponse, PreCheckInUpdateRequest,
 };
 use crate::modules::consent::service::ConsentContext;
-use super::service as guest_portal_service;
 
 /// POST /guest-portal/verify
 pub async fn verify_guest_booking(
@@ -225,7 +225,9 @@ pub async fn get_my_credits(
 /// Bank details and the PayPal client id. The route wrapper requires a booking
 /// access token or a guest portal session before this runs.
 pub async fn get_payment_config() -> Result<Json<crate::models::GuestPaymentConfig>, ApiError> {
-    Ok(Json(crate::modules::payments::service::guest_payment_config()))
+    Ok(Json(
+        crate::modules::payments::service::guest_payment_config(),
+    ))
 }
 
 /// Per-guest rate limit for the authenticated payment-write routes. Keyed on
@@ -299,7 +301,8 @@ pub(crate) async fn receipt_upload_bytes(mut multipart: Multipart) -> Result<Vec
                 .await
                 .map_err(|_| ApiError::BadRequest("Unable to read receipt upload.".to_string()))?
             {
-                if bytes.len() + chunk.len() > crate::modules::payments::service::MAX_PAYMENT_RECEIPT_BYTES
+                if bytes.len() + chunk.len()
+                    > crate::modules::payments::service::MAX_PAYMENT_RECEIPT_BYTES
                 {
                     return Err(ApiError::BadRequest(
                         "Receipt file size must be between 1 byte and 10MB".to_string(),

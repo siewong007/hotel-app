@@ -383,11 +383,7 @@ impl GuestService for GuestGrpc {
                 guest_name: credits.guest_name,
                 total_nights: credits.total_nights,
                 legacy_total_nights: credits.legacy_total_nights,
-                credits_by_room_type: credits
-                    .credits_by_room_type
-                    .iter()
-                    .map(credit_pb)
-                    .collect(),
+                credits_by_room_type: credits.credits_by_room_type.iter().map(credit_pb).collect(),
             }),
         }))
     }
@@ -504,57 +500,36 @@ impl GuestService for GuestGrpc {
                         "nationality" => input.nationality = g.nationality.clone(),
                         "address_line1" => input.address_line1 = g.address_line1.clone(),
                         "city" => input.city = g.city.clone(),
-                        "state_province" => {
-                            input.state_province = g.state_province.clone()
-                        }
+                        "state_province" => input.state_province = g.state_province.clone(),
                         "postal_code" => input.postal_code = g.postal_code.clone(),
                         "country" => input.country = g.country.clone(),
                         // Accepted-but-ignored in REST — passed through so the
                         // service's own ignore/apply rules stay authoritative.
                         "is_active" => input.is_active = Some(g.is_active),
-                        "guest_type" => {
-                            input.guest_type = guest_type_model(g.guest_type())
-                        }
-                        "tourism_type" => {
-                            input.tourism_type = tourism_type_model(g.tourism_type())
-                        }
-                        "discount_percentage" => {
-                            input.discount_percentage = g.discount_percentage
-                        }
-                        "company_name" => {
-                            input.company_name = g.company_name.clone()
-                        }
+                        "guest_type" => input.guest_type = guest_type_model(g.guest_type()),
+                        "tourism_type" => input.tourism_type = tourism_type_model(g.tourism_type()),
+                        "discount_percentage" => input.discount_percentage = g.discount_percentage,
+                        "company_name" => input.company_name = g.company_name.clone(),
                         "vip_status" => input.vip_status = g.vip_status.clone(),
                         "tags" => input.tags = Some(g.tags.clone()),
                         "job_title" => input.job_title = g.job_title.clone(),
                         "notes" => input.notes = g.notes.clone(),
-                        "special_requests" => {
-                            input.special_requests = g.special_requests.clone()
-                        }
-                        "marketing_opt_in" => {
-                            input.marketing_opt_in = g.marketing_opt_in
-                        }
+                        "special_requests" => input.special_requests = g.special_requests.clone(),
+                        "marketing_opt_in" => input.marketing_opt_in = g.marketing_opt_in,
                         "communication_preference" => {
-                            input.communication_preference =
-                                g.communication_preference.clone()
+                            input.communication_preference = g.communication_preference.clone()
                         }
                         "language_preference" => {
                             input.language_preference = g.language_preference.clone()
                         }
-                        "is_blacklisted" => {
-                            input.is_blacklisted = g.is_blacklisted
-                        }
-                        "blacklist_reason" => {
-                            input.blacklist_reason = g.blacklist_reason.clone()
-                        }
+                        "is_blacklisted" => input.is_blacklisted = g.is_blacklisted,
+                        "blacklist_reason" => input.blacklist_reason = g.blacklist_reason.clone(),
                         "date_of_birth" => {
                             input.date_of_birth = c::date_from_pb(g.date_of_birth.as_ref())?
                         }
                         "id_type" => input.id_type = g.id_type.clone(),
                         "id_number" => input.id_number = g.id_number.clone(),
-                        "id_expiry" => {
-                            input.id_expiry = c::date_from_pb(g.id_expiry.as_ref())?
-                        }
+                        "id_expiry" => input.id_expiry = c::date_from_pb(g.id_expiry.as_ref())?,
                         "id_country" => input.id_country = g.id_country.clone(),
                         other => {
                             return Err(Status::invalid_argument(format!(
@@ -603,31 +578,35 @@ impl GuestService for GuestGrpc {
             .map_err(to_status)?;
         let req = request.into_inner();
         self.idem
-            .run("ApplyTourismTypeFromLastCheckIn", &req.request_id, || async {
-                let guest_id = c::require_name(&req.name, "guests")?;
-                let currency = self.currency().await?;
-                let res = svc::apply_tourism_type_from_last_check_in(
-                    &self.pool,
-                    auth.user_id,
-                    guest_id,
-                )
-                .await
-                .map_err(to_status)?;
-                let s = &res.source;
-                Ok(Response::new(pb::ApplyTourismTypeFromLastCheckInResponse {
-                    conversion: Some(pb::GuestTourismConversion {
-                        guest: Some(guest_pb(&res.guest)),
-                        booking: c::booking_name(s.booking_id),
-                        booking_number: s.booking_number.clone(),
-                        check_in_date: Some(c::date(&s.check_in_date)),
-                        check_out_date: Some(c::date(&s.check_out_date)),
-                        tourism_tax_amount: Some(c::money(&s.tourism_tax_amount, &currency)),
-                        net_paid_amount: Some(c::money(&s.net_paid_amount, &currency)),
-                        paid_tourism_tax: s.paid_tourism_tax,
-                        inferred_tourism_type: tourism_type_pb(&s.inferred_tourism_type).into(),
-                    }),
-                }))
-            })
+            .run(
+                "ApplyTourismTypeFromLastCheckIn",
+                &req.request_id,
+                || async {
+                    let guest_id = c::require_name(&req.name, "guests")?;
+                    let currency = self.currency().await?;
+                    let res = svc::apply_tourism_type_from_last_check_in(
+                        &self.pool,
+                        auth.user_id,
+                        guest_id,
+                    )
+                    .await
+                    .map_err(to_status)?;
+                    let s = &res.source;
+                    Ok(Response::new(pb::ApplyTourismTypeFromLastCheckInResponse {
+                        conversion: Some(pb::GuestTourismConversion {
+                            guest: Some(guest_pb(&res.guest)),
+                            booking: c::booking_name(s.booking_id),
+                            booking_number: s.booking_number.clone(),
+                            check_in_date: Some(c::date(&s.check_in_date)),
+                            check_out_date: Some(c::date(&s.check_out_date)),
+                            tourism_tax_amount: Some(c::money(&s.tourism_tax_amount, &currency)),
+                            net_paid_amount: Some(c::money(&s.net_paid_amount, &currency)),
+                            paid_tourism_tax: s.paid_tourism_tax,
+                            inferred_tourism_type: tourism_type_pb(&s.inferred_tourism_type).into(),
+                        }),
+                    }))
+                },
+            )
             .await
     }
 

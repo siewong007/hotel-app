@@ -2,6 +2,8 @@
 
 use chrono::{NaiveDate, Utc};
 
+use super::helpers as booking_service;
+use super::service::{CheckinSourceContext, SelfCheckinEventInsert, checkin_booking_flow};
 use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::models::{
@@ -9,10 +11,6 @@ use crate::models::{
 };
 use crate::modules::bookings as booking_repo;
 use crate::modules::ekyc::repository::{EkycRepository, GuestEkycSummaryRecord};
-use super::helpers as booking_service;
-use super::service::{
-    CheckinSourceContext, SelfCheckinEventInsert, checkin_booking_flow,
-};
 
 pub const AUTO_CHECKIN_SOURCE: &str = "ekyc_auto_checkin";
 
@@ -147,17 +145,15 @@ pub async fn auto_checkin_for_guest_portal(
 ) -> Result<AutoCheckinResponse, ApiError> {
     let booking = booking_service::fetch_booking_by_id(pool, booking_id).await?;
     let (summary, record) = eligibility_for_booking(pool, &booking).await?;
-    let record = record.ok_or_else(|| {
-        ApiError::AutoCheckinBlocked {
-            block_code: summary
-                .auto_checkin_block_code
-                .clone()
-                .unwrap_or_else(|| "ekyc_not_approved".to_string()),
-            message: summary
-                .auto_checkin_block_reason
-                .clone()
-                .unwrap_or_else(|| "Approved eKYC is required for auto check-in".to_string()),
-        }
+    let record = record.ok_or_else(|| ApiError::AutoCheckinBlocked {
+        block_code: summary
+            .auto_checkin_block_code
+            .clone()
+            .unwrap_or_else(|| "ekyc_not_approved".to_string()),
+        message: summary
+            .auto_checkin_block_reason
+            .clone()
+            .unwrap_or_else(|| "Approved eKYC is required for auto check-in".to_string()),
     })?;
 
     perform_auto_checkin_with_summary(pool, record.user_id, booking, summary, record, None, None)
@@ -172,17 +168,15 @@ async fn perform_auto_checkin(
     checkin_location: Option<String>,
 ) -> Result<AutoCheckinResponse, ApiError> {
     let (summary, record) = eligibility_for_booking(pool, &booking).await?;
-    let record = record.ok_or_else(|| {
-        ApiError::AutoCheckinBlocked {
-            block_code: summary
-                .auto_checkin_block_code
-                .clone()
-                .unwrap_or_else(|| "ekyc_not_approved".to_string()),
-            message: summary
-                .auto_checkin_block_reason
-                .clone()
-                .unwrap_or_else(|| "Approved eKYC is required for auto check-in".to_string()),
-        }
+    let record = record.ok_or_else(|| ApiError::AutoCheckinBlocked {
+        block_code: summary
+            .auto_checkin_block_code
+            .clone()
+            .unwrap_or_else(|| "ekyc_not_approved".to_string()),
+        message: summary
+            .auto_checkin_block_reason
+            .clone()
+            .unwrap_or_else(|| "Approved eKYC is required for auto check-in".to_string()),
     })?;
 
     perform_auto_checkin_with_summary(

@@ -187,7 +187,10 @@ fn support_summary_from_row(row: &DbRow) -> SupportConversationSummary {
         queue: row.try_get("assigned_team").unwrap_or_default(),
         assigned_to_user_id: opt(row, "assigned_to_user_id"),
         assigned_to_name: opt(row, "assigned_to_name"),
-        escalation_level: i32::from(row.try_get::<i16, _>("escalation_level").unwrap_or_default()),
+        escalation_level: i32::from(
+            row.try_get::<i16, _>("escalation_level")
+                .unwrap_or_default(),
+        ),
         escalated_at: opt(row, "escalated_at"),
         first_response_due_at,
         resolution_due_at,
@@ -757,8 +760,8 @@ impl GuestRelationsRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Vec<GuestSubscriptionRow>, ApiError> {
-        let subscriptions = CommunicationsRepository::list_subscriptions_for_guest(pool, guest_id)
-            .await?;
+        let subscriptions =
+            CommunicationsRepository::list_subscriptions_for_guest(pool, guest_id).await?;
         Ok(subscriptions
             .into_iter()
             .map(|s| GuestSubscriptionRow {
@@ -989,9 +992,7 @@ impl GuestRelationsRepository {
     /// `queue_metrics` / the `has_open_support` flag); `waiting_for_staff` is
     /// split out so the dashboard can surface the staff-actionable backlog.
     /// Preview rows put waiting-for-staff first, then newest activity.
-    async fn support_overview_section(
-        pool: &DbPool,
-    ) -> Result<OverviewSupportSection, ApiError> {
+    async fn support_overview_section(pool: &DbPool) -> Result<OverviewSupportSection, ApiError> {
         let counts = sqlx::query(
             r#"
                 SELECT COUNT(*) AS open_count,
@@ -1154,8 +1155,7 @@ impl GuestRelationsRepository {
               AND n.follow_up_completed_at IS NULL
               AND (NOT COALESCE(n.is_private, false) OR n.created_by = $1 OR $2::bool)
         "#;
-        let count_sql =
-            format!("SELECT COUNT(*) FROM guest_notes n {visibility}{due_filter}");
+        let count_sql = format!("SELECT COUNT(*) FROM guest_notes n {visibility}{due_filter}");
         let list_sql = format!(
             r#"
             SELECT n.id AS note_id,

@@ -2,8 +2,8 @@
 
 use std::time::Duration;
 
-use crate::core::db::DbPool;
 use super::service;
+use crate::core::db::DbPool;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(60);
 

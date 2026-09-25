@@ -188,7 +188,9 @@ LEFT JOIN (
 "#;
 
 fn fmt_time(value: Option<chrono::NaiveTime>) -> String {
-    value.map(|t| t.format("%H:%M").to_string()).unwrap_or_else(|| "—".into())
+    value
+        .map(|t| t.format("%H:%M").to_string())
+        .unwrap_or_else(|| "—".into())
 }
 
 /// Today's expected check-ins — same status predicate as the

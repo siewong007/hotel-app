@@ -7,10 +7,10 @@ use axum::{
     routing::{get, patch, post},
 };
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use super::handlers;
 use crate::models::{
     CreateMaintenanceTicketRequest, ListMaintenanceTicketsQuery, MaintenanceTicket,
     MaintenanceTicketListResponse, UpdateMaintenanceTicketRequest,

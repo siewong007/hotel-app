@@ -73,15 +73,13 @@ pub async fn issue_step_up(
     let totp_enabled = totp_enabled.unwrap_or(false);
     let totp_ok = if totp_enabled {
         match (request.totp_code.as_deref(), stored_secret.as_deref()) {
-            (Some(code), Some(stored)) => {
-                match AuthService::decrypt_stored_totp_secret(stored) {
-                    Ok(secret) => AuthService::verify_totp_code(&secret, code).unwrap_or(false),
-                    Err(error) => {
-                        log::warn!("step-up: TOTP secret undecryptable for user {user_id}: {error}");
-                        false
-                    }
+            (Some(code), Some(stored)) => match AuthService::decrypt_stored_totp_secret(stored) {
+                Ok(secret) => AuthService::verify_totp_code(&secret, code).unwrap_or(false),
+                Err(error) => {
+                    log::warn!("step-up: TOTP secret undecryptable for user {user_id}: {error}");
+                    false
                 }
-            }
+            },
             _ => false,
         }
     } else {

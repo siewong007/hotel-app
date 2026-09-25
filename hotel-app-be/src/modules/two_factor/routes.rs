@@ -1,12 +1,12 @@
 //! Two-factor authentication routes
 
-use crate::routes::extract_client_ip;
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::core::rate_limiter::RateLimiters;
-use super::handlers;
 use crate::models;
+use crate::routes::extract_client_ip;
 use axum::{
     Router,
     extract::{ConnectInfo, Extension, State},

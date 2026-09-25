@@ -2,10 +2,10 @@
 //!
 //! Thin HTTP-facing wrappers for booking workflows.
 
+use super::service as booking_service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::service as booking_service;
 use axum::{
     extract::{Extension, Path, Query, State},
     http::HeaderMap,

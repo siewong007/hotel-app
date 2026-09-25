@@ -7,10 +7,10 @@ use axum::{
     extract::{Path, Query, State},
 };
 
+use super::service as company_service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{Company, CompanyCreateRequest, CompanyListQuery, CompanyUpdateRequest};
-use super::service as company_service;
 
 /// List all companies with optional filters
 pub async fn list_companies_handler(

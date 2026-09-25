@@ -173,7 +173,8 @@ pub async fn add_member(
     // bar as granting those roles directly -- otherwise teams become a
     // laundering path around the escalation guard.
     let role_ids = TeamRepository::role_ids(pool, team_id).await?;
-    crate::modules::rbac::service::ensure_actor_can_manage_roles(pool, actor_user_id, &role_ids).await?;
+    crate::modules::rbac::service::ensure_actor_can_manage_roles(pool, actor_user_id, &role_ids)
+        .await?;
 
     TeamRepository::upsert_member(pool, team_id, &input, actor_user_id).await?;
 
@@ -250,8 +251,10 @@ pub async fn replace_team_roles(
     next.sort_unstable();
     next.dedup();
 
-    crate::modules::rbac::service::ensure_actor_can_manage_roles(pool, actor_user_id, &current).await?;
-    crate::modules::rbac::service::ensure_actor_can_manage_roles(pool, actor_user_id, &next).await?;
+    crate::modules::rbac::service::ensure_actor_can_manage_roles(pool, actor_user_id, &current)
+        .await?;
+    crate::modules::rbac::service::ensure_actor_can_manage_roles(pool, actor_user_id, &next)
+        .await?;
 
     TeamRepository::replace_roles(pool, team_id, &next, actor_user_id).await?;
 

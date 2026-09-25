@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct GuestInteraction {
     pub id: i64,
     pub guest_id: i64,
-    pub interaction_type: String,   // note|call|email|in_person|follow_up
+    pub interaction_type: String, // note|call|email|in_person|follow_up
     pub note_type: String,
     pub subject: Option<String>,
     pub content: String,

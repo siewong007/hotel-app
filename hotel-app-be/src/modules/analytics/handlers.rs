@@ -2,10 +2,10 @@
 //!
 //! Handles reports and analytics dashboards.
 
+use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::ReportQuery;
-use super::service;
 use axum::{
     Json,
     extract::{Extension, Query, State},

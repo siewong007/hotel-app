@@ -582,8 +582,7 @@ pub async fn generate_report(
         "occupancy" => generate_occupancy_report(pool, start_date, end_date).await?,
         "revenue" => generate_revenue_report(pool, start_date, end_date).await?,
         "channel_net_revenue" | "ota_commission" => {
-            super::channel_net_revenue::generate(pool, &params, start_date, end_date)
-                .await?
+            super::channel_net_revenue::generate(pool, &params, start_date, end_date).await?
         }
         "ota_monthly_statement" => {
             super::channel_net_revenue::generate_monthly_statement(

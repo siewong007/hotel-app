@@ -2,10 +2,10 @@
 //!
 //! HTTP translation only — the workflows live in [`super::service`].
 
+use super::service as svc;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::service as svc;
 use axum::{
     extract::{Extension, Path, State},
     response::Json,

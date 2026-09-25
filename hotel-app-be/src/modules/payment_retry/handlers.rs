@@ -16,11 +16,11 @@ use axum::{
 };
 use std::net::SocketAddr;
 
+use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
 use crate::models::{PaymentActionResponse, PaypalCreateOrderResponse};
-use super::service;
 
 /// What the recovery page may show. Deliberately minimal: a reservation
 /// reference the guest can recognise, what they owe, and how they may pay.
@@ -114,9 +114,7 @@ pub async fn recover_paypal_create_order_handler(
     Path(token): Path<String>,
 ) -> Result<Json<PaypalCreateOrderResponse>, ApiError> {
     require_capacity(&limiters, &headers, peer).await?;
-    Ok(Json(
-        service::recover_with_paypal(&pool, &token).await?,
-    ))
+    Ok(Json(service::recover_with_paypal(&pool, &token).await?))
 }
 
 pub async fn recover_paypal_capture_handler(
@@ -129,13 +127,8 @@ pub async fn recover_paypal_capture_handler(
 ) -> Result<Json<PaymentActionResponse>, ApiError> {
     require_capacity(&limiters, &headers, peer).await?;
     Ok(Json(
-        service::capture_recovered_paypal(
-            &pool,
-            &token,
-            &request.order_id,
-            request.payment_id,
-        )
-        .await?,
+        service::capture_recovered_paypal(&pool, &token, &request.order_id, request.payment_id)
+            .await?,
     ))
 }
 

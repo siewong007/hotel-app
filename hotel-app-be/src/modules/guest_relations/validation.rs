@@ -223,7 +223,10 @@ mod tests {
 
     #[test]
     fn validates_normalized_preference_categories() {
-        assert_eq!(validate_preference_category(" DIETARY ").unwrap(), "dietary");
+        assert_eq!(
+            validate_preference_category(" DIETARY ").unwrap(),
+            "dietary"
+        );
         assert!(validate_preference_category("room_service").is_err());
         assert!(validate_preference_category("").is_err());
     }
@@ -272,7 +275,10 @@ mod tests {
     fn validates_review_response() {
         assert!(validate_review_response("  ").is_err());
         assert!(validate_review_response(&"r".repeat(2001)).is_err());
-        assert_eq!(validate_review_response(" Thank you ").unwrap(), "Thank you");
+        assert_eq!(
+            validate_review_response(" Thank you ").unwrap(),
+            "Thank you"
+        );
     }
 
     #[test]

@@ -23,8 +23,8 @@ use crate::core::auth::AuthService;
 use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
-use crate::modules::support::models::SupportConversationSummary;
 use crate::modules::guests::repository::GuestRepository;
+use crate::modules::support::models::SupportConversationSummary;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 
@@ -117,9 +117,7 @@ pub async fn create_interaction(
         ));
     }
     let values = NewInteraction {
-        interaction_type: validation::validate_interaction_type(
-            input.interaction_type.as_deref(),
-        )?,
+        interaction_type: validation::validate_interaction_type(input.interaction_type.as_deref())?,
         subject: validation::sanitize_subject(input.subject)?,
         content: validation::validate_content(&input.content)?,
         booking_id: input.booking_id,
@@ -334,10 +332,7 @@ pub async fn put_preferences(
 // Reviews (guest_reviews)
 // ---------------------------------------------------------------------
 
-pub async fn list_reviews(
-    pool: &DbPool,
-    guest_id: i64,
-) -> Result<Vec<GuestReviewRow>, ApiError> {
+pub async fn list_reviews(pool: &DbPool, guest_id: i64) -> Result<Vec<GuestReviewRow>, ApiError> {
     require_guest(pool, guest_id).await?;
     GuestRelationsRepository::list_reviews(pool, guest_id).await
 }
@@ -385,10 +380,7 @@ pub async fn loyalty_summary(
     GuestRelationsRepository::loyalty_summary(pool, guest_id).await
 }
 
-pub async fn list_vouchers(
-    pool: &DbPool,
-    guest_id: i64,
-) -> Result<Vec<GuestVoucherRow>, ApiError> {
+pub async fn list_vouchers(pool: &DbPool, guest_id: i64) -> Result<Vec<GuestVoucherRow>, ApiError> {
     require_guest(pool, guest_id).await?;
     GuestRelationsRepository::list_vouchers(pool, guest_id).await
 }

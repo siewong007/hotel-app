@@ -88,8 +88,8 @@ mod postgres_tests {
     use hotel_app_be::AuthService;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::modules::auth::models::{LoginRequest, RefreshTokenRequest};
-    use hotel_app_be::repositories::audit::AuditRepository;
     use hotel_app_be::modules::auth::service as auth_service;
+    use hotel_app_be::repositories::audit::AuditRepository;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
     /// `services::auth::login` hard-requires `core::config::get()` (for the

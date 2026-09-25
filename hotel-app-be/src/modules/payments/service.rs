@@ -1,6 +1,8 @@
+use super::repository::{PaymentRepository, PendingPaymentValues};
 use crate::constants::PaymentMethod;
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
+use crate::core::i18n;
 use crate::models::AuditEvent;
 use crate::models::{
     Booking, GuestBankDetails, GuestPaymentConfig, Invoice, InvoicePreview, Payment,
@@ -8,14 +10,12 @@ use crate::models::{
     PaypalCreateOrderResponse, PendingPaymentEntry, PendingPaymentPage, RecordPaymentRequest,
     UpdatePaymentRequest,
 };
-use crate::core::i18n;
 use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
 use crate::modules::guest_portal::repository::GuestPortalRepository;
-use super::repository::{PaymentRepository, PendingPaymentValues};
-use crate::services::audit::AuditLog;
 use crate::modules::payment_retry::service as payment_retry;
+use crate::services::audit::AuditLog;
 use crate::utils::sanitization::Sanitizer;
 use rust_decimal::Decimal;
 use std::fs;
@@ -51,10 +51,11 @@ pub async fn queue_paid_online_booking_room_assignment(
         return Ok(false);
     };
 
-    let stored_locale = CommunicationsRepository::guest_language_preference(pool, assignment.guest_id)
-        .await
-        .ok()
-        .flatten();
+    let stored_locale =
+        CommunicationsRepository::guest_language_preference(pool, assignment.guest_id)
+            .await
+            .ok()
+            .flatten();
     let locale = i18n::mail_locale(pool, stored_locale.as_deref()).await;
     let hotel = email_layout::hotel_display_name();
     let subject = locale.format(
@@ -75,7 +76,10 @@ pub async fn queue_paid_online_booking_room_assignment(
     );
     let room = format!("{} ({})", assignment.room_number, assignment.room_type_name);
     let details = email_layout::details_table(&[
-        (locale.message("email.labels.booking"), &assignment.booking_number),
+        (
+            locale.message("email.labels.booking"),
+            &assignment.booking_number,
+        ),
         (locale.message("email.labels.room"), &room),
         (locale.message("email.labels.stay"), &stay),
     ]);
@@ -539,8 +543,7 @@ pub async fn get_payment_workflow_summary(
         "Review failed payment".to_string()
     } else if balance_due > Decimal::ZERO {
         "Collect balance due".to_string()
-    } else if row.deposit_collected - row.deposit_refunded - row.deposit_forfeited
-        > Decimal::ZERO
+    } else if row.deposit_collected - row.deposit_refunded - row.deposit_forfeited > Decimal::ZERO
         && matches!(row.booking_status.as_str(), "checked_out" | "completed")
     {
         "Refund deposit".to_string()
@@ -1207,10 +1210,8 @@ pub async fn queue_checkout_receipt_email(
             url: &portal,
         }),
     });
-    let footer = crate::modules::communications::scheduler::unsubscribe_footer_html(
-        source.guest_id,
-        locale,
-    );
+    let footer =
+        crate::modules::communications::scheduler::unsubscribe_footer_html(source.guest_id, locale);
     let body_html_with_footer = format!("{}{footer}", rendered.html);
     let body_text = rendered.text;
 
@@ -2493,15 +2494,13 @@ async fn queue_payment_rejected_notification(
     let seal_html = email_layout::identity_seal_html(locale);
     let seal_text = email_layout::identity_seal_text(locale);
 
-    let expiry_label = recovery
-        .as_ref()
-        .map(|link| {
-            format!(
-                "{}, {} UTC",
-                locale.format_date(link.expires_at.date_naive()),
-                link.expires_at.format("%H:%M")
-            )
-        });
+    let expiry_label = recovery.as_ref().map(|link| {
+        format!(
+            "{}, {} UTC",
+            locale.format_date(link.expires_at.date_naive()),
+            link.expires_at.format("%H:%M")
+        )
+    });
     let mut rows: Vec<(&str, &str)> = vec![
         (locale.message("email.labels.booking"), booking_number),
         (locale.message("email.labels.reason"), reason),
@@ -2513,7 +2512,10 @@ async fn queue_payment_rejected_notification(
 
     let (action_html, action_text, cta) = match recovery.as_ref() {
         Some(link) => (
-            format!("<p>{}</p>", locale.message("email.paymentRejected.payAgainHtml")),
+            format!(
+                "<p>{}</p>",
+                locale.message("email.paymentRejected.payAgainHtml")
+            ),
             locale
                 .message("email.paymentRejected.payAgainText")
                 .to_string(),
@@ -2523,7 +2525,10 @@ async fn queue_payment_rejected_notification(
             },
         ),
         None => (
-            format!("<p>{}</p>", locale.message("email.paymentRejected.contactHtml")),
+            format!(
+                "<p>{}</p>",
+                locale.message("email.paymentRejected.contactHtml")
+            ),
             locale
                 .message("email.paymentRejected.contactText")
                 .to_string(),
@@ -2720,11 +2725,9 @@ async fn reject_payment_by(
         ));
     }
 
-    let reset_to_payment = crate::modules::bookings::move_booking_to_pending_payment_tx(
-        &mut tx,
-        review.booking_id,
-    )
-    .await?;
+    let reset_to_payment =
+        crate::modules::bookings::move_booking_to_pending_payment_tx(&mut tx, review.booking_id)
+            .await?;
     if reset_to_payment {
         crate::modules::bookings::record_booking_history_tx(
             &mut tx,

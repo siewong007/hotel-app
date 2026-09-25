@@ -2,10 +2,10 @@
 //!
 //! Routes for role-based access control management.
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{ensure_super_admin, require_any_permission_helper};
-use super::handlers;
 use crate::models;
 use axum::{
     Router,
@@ -93,13 +93,8 @@ async fn update_route_policy(
 ) -> Result<Json<models::RouteAccessPolicy>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, PERMISSION_MANAGE_PERMISSIONS).await?;
-    handlers::update_route_policy_handler(
-        State(pool),
-        Extension(actor_user_id),
-        path,
-        Json(input),
-    )
-    .await
+    handlers::update_route_policy_handler(State(pool), Extension(actor_user_id), path, Json(input))
+        .await
 }
 
 async fn get_roles(
@@ -147,8 +142,7 @@ async fn create_permission(
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, PERMISSION_CREATE_PERMISSIONS).await?;
     ensure_super_admin(&pool, actor_user_id).await?;
-    handlers::create_permission_handler(State(pool), Extension(actor_user_id), Json(input))
-        .await
+    handlers::create_permission_handler(State(pool), Extension(actor_user_id), Json(input)).await
 }
 
 async fn assign_permission(
@@ -158,12 +152,8 @@ async fn assign_permission(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, PERMISSION_MANAGE_PERMISSIONS).await?;
-    handlers::assign_permission_to_role_handler(
-        State(pool),
-        Extension(actor_user_id),
-        Json(input),
-    )
-    .await
+    handlers::assign_permission_to_role_handler(State(pool), Extension(actor_user_id), Json(input))
+        .await
 }
 
 async fn remove_permission(
@@ -173,8 +163,7 @@ async fn remove_permission(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, PERMISSION_MANAGE_PERMISSIONS).await?;
-    handlers::remove_permission_from_role_handler(State(pool), Extension(actor_user_id), path)
-        .await
+    handlers::remove_permission_from_role_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn replace_role_permissions(
@@ -202,8 +191,7 @@ async fn update_role(
 ) -> Result<Json<models::Role>, ApiError> {
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, ROLE_UPDATE_PERMISSIONS).await?;
-    handlers::update_role_handler(State(pool), Extension(actor_user_id), path, Json(input))
-        .await
+    handlers::update_role_handler(State(pool), Extension(actor_user_id), path, Json(input)).await
 }
 
 async fn delete_role(
@@ -225,13 +213,8 @@ async fn update_permission(
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, PERMISSION_UPDATE_PERMISSIONS).await?;
     ensure_super_admin(&pool, actor_user_id).await?;
-    handlers::update_permission_handler(
-        State(pool),
-        Extension(actor_user_id),
-        path,
-        Json(input),
-    )
-    .await
+    handlers::update_permission_handler(State(pool), Extension(actor_user_id), path, Json(input))
+        .await
 }
 
 async fn delete_permission(

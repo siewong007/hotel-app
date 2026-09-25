@@ -5,13 +5,13 @@ use axum::{
     extract::{Extension, Path, Query, State},
 };
 
+use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
     CreateMaintenanceTicketRequest, ListMaintenanceTicketsQuery, MaintenanceTicket,
     MaintenanceTicketListResponse, UpdateMaintenanceTicketRequest,
 };
-use super::service;
 
 pub async fn list_tickets_handler(
     State(pool): State<DbPool>,
@@ -32,9 +32,7 @@ pub async fn create_ticket_handler(
     Extension(user_id): Extension<i64>,
     Json(input): Json<CreateMaintenanceTicketRequest>,
 ) -> Result<Json<MaintenanceTicket>, ApiError> {
-    Ok(Json(
-        service::create_ticket(&pool, user_id, input).await?,
-    ))
+    Ok(Json(service::create_ticket(&pool, user_id, input).await?))
 }
 
 pub async fn update_ticket_handler(

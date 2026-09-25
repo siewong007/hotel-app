@@ -8,10 +8,10 @@
 use chrono::{DateTime, Utc};
 use sqlx::Row;
 
+use super::models::PaymentRetryCapability;
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::core::sql_compat::current_timestamp;
-use super::models::PaymentRetryCapability;
 use crate::param;
 
 const CAPABILITY_COLUMNS: &str =

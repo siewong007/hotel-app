@@ -984,7 +984,10 @@ mod postgres_tests {
             .expect("created guest must persist");
         assert_eq!(persisted.first_name.as_deref(), Some("Grpc"));
         assert_eq!(persisted.last_name.as_deref(), Some("Guest"));
-        assert_eq!(persisted.email.as_deref(), Some("rm981-created@hotel.local"));
+        assert_eq!(
+            persisted.email.as_deref(),
+            Some("rm981-created@hotel.local")
+        );
         assert_eq!(
             persisted.tourism_type,
             Some(hotel_app_be::constants::TourismType::Local)
@@ -1049,7 +1052,11 @@ mod postgres_tests {
         assert_eq!(g.vip_status, rest.vip_status);
         // Untouched fields must survive — same as REST unwrap_or(existing).
         assert_eq!(g.company_name, rest.company_name);
-        assert_eq!(g.nick_name, rest.nick_name.replace(GUEST_A.to_string().as_str(), GUEST_B.to_string().as_str()));
+        assert_eq!(
+            g.nick_name,
+            rest.nick_name
+                .replace(GUEST_A.to_string().as_str(), GUEST_B.to_string().as_str())
+        );
 
         teardown(&pool).await;
     }

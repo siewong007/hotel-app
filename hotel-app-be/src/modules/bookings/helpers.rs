@@ -3,10 +3,10 @@
 use chrono::NaiveDate;
 use uuid::Uuid;
 
+use super::repository::BookingRepository;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::Booking;
-use super::repository::BookingRepository;
 
 /// Generate a unique booking number using the provided hotel-local date.
 pub fn generate_booking_number_for_date(date: NaiveDate) -> String {

@@ -14,6 +14,7 @@ use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::middleware::check_permission;
 use crate::models::AuditEvent;
+use crate::modules::bookings::auto_checkin;
 use crate::modules::consent::models::ConsentSource;
 use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
 use crate::modules::consent::validation as consent_validation;
@@ -29,7 +30,6 @@ use crate::modules::ekyc::repository::{
     EkycReviewAction, NewEkycVerification,
 };
 use crate::services::audit::AuditLog;
-use crate::modules::bookings::auto_checkin as auto_checkin;
 use crate::utils::sanitization::Sanitizer;
 
 /// Which surface a verification was submitted through.

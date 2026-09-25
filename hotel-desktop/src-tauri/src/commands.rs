@@ -8,8 +8,8 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, LazyLock};
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
+use tauri_plugin_shell::process::CommandChild;
 use tokio::sync::Mutex;
 
 use crate::get_data_directory;

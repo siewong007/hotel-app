@@ -2,10 +2,10 @@
 //!
 //! Handles user profile management.
 
+use super::service as profile_service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use super::service as profile_service;
 use axum::{
     extract::{Extension, State},
     response::Json,

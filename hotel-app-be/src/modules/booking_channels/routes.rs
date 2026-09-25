@@ -8,10 +8,11 @@ use axum::{
     routing::{get, put},
 };
 
+use super::handlers;
+use super::service::PricingRuleResponse;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{check_any_permission, require_permission_helper};
-use super::handlers;
 use crate::models::{
     BookingChannel, BookingChannelInput, BookingChannelUpdate, ChannelCommissionRule,
     ChannelCommissionRuleInput, ChannelCommissionRuleUpdate, ChannelMappings, ChannelMatrix,
@@ -19,7 +20,6 @@ use crate::models::{
     ChannelPricingRuleInput, ChannelPricingRuleUpdate, ChannelRatePlanMapping,
     ChannelRatePlanMappingInput, ChannelRoomTypeMapping, ChannelRoomTypeMappingInput,
 };
-use super::service::PricingRuleResponse;
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
@@ -36,10 +36,7 @@ pub fn routes() -> Router<DbPool> {
             "/booking-channels/{id}/commission-rules",
             get(list_commission_rules).post(create_commission_rule),
         )
-        .route(
-            "/booking-channels/{id}/mappings",
-            get(get_channel_mappings),
-        )
+        .route("/booking-channels/{id}/mappings", get(get_channel_mappings))
         .route(
             "/booking-channels/{id}/mappings/room-types",
             put(upsert_room_type_mapping),

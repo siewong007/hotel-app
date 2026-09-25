@@ -25,12 +25,12 @@ use tonic::{
 };
 use tower::Service;
 
+use super::guests::GuestGrpc;
 use super::pb::hotel::guests::v1::guest_service_server::GuestServiceServer;
 use super::pb::hotel::housekeeping::v1::housekeeping_service_server::HousekeepingServiceServer;
 use super::pb::hotel::housekeeping::v1::maintenance_service_server::MaintenanceServiceServer;
 use super::pb::hotel::rooms::v1::room_service_server::RoomServiceServer;
 use super::pb::hotel::rooms::v1::room_type_service_server::RoomTypeServiceServer;
-use super::guests::GuestGrpc;
 use super::{housekeeping::HousekeepingGrpc, housekeeping::MaintenanceGrpc};
 use super::{rooms::RoomGrpc, rooms::RoomTypeGrpc};
 use crate::core::db::DbPool;

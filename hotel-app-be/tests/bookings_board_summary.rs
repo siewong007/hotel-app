@@ -305,8 +305,7 @@ async fn booking_rows_carry_occupancy() {
     .await
     .expect("list query runs");
 
-    let seeded: Option<BookingWithDetails> =
-        rows.into_iter().find(|b| b.id == BOOKING_IN_HOUSE);
+    let seeded: Option<BookingWithDetails> = rows.into_iter().find(|b| b.id == BOOKING_IN_HOUSE);
 
     cleanup(&pool).await;
 

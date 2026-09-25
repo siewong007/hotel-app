@@ -2,10 +2,10 @@
 //!
 //! Routes for room CRUD, status management, and events.
 
+use super::handlers;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
-use super::handlers;
 use crate::models;
 use axum::{
     Extension, Router,
@@ -38,9 +38,8 @@ pub fn routes() -> Router<DbPool> {
         // handler's own size check runs (same trap as routes/guest_portal.rs).
         .route(
             "/room-types/{id}/images",
-            post(upload_room_type_image).layer(DefaultBodyLimit::max(
-                super::service::MAX_ROOM_IMAGE_BYTES,
-            )),
+            post(upload_room_type_image)
+                .layer(DefaultBodyLimit::max(super::service::MAX_ROOM_IMAGE_BYTES)),
         )
         .route("/rooms/{room_type}/reviews", get(get_room_reviews))
         // Status and events

@@ -81,10 +81,10 @@ mod postgres_tests {
         CreateHousekeepingTaskRequest, CreateMaintenanceTicketRequest, ListHousekeepingTasksQuery,
         RoomStatusUpdateInput, UpdateHousekeepingTaskRequest, UpdateMaintenanceTicketRequest,
     };
-    use hotel_app_be::modules::rooms::queries as rq;
+    use hotel_app_be::modules::bookings::service as bookings;
     use hotel_app_be::modules::housekeeping::service as housekeeping;
     use hotel_app_be::modules::maintenance::service as maintenance;
-    use hotel_app_be::modules::bookings::service as bookings;
+    use hotel_app_be::modules::rooms::queries as rq;
     use hotel_app_be::modules::rooms::service as rooms;
     use sqlx::{PgPool, postgres::PgPoolOptions};
 
@@ -1867,7 +1867,10 @@ mod postgres_tests {
         .fetch_one(&pool)
         .await
         .unwrap();
-        assert_eq!(moved_to, target_id, "the booking must move to the target room");
+        assert_eq!(
+            moved_to, target_id,
+            "the booking must move to the target room"
+        );
         assert_eq!(rate, "200.00", "the override lands on room_rate");
         assert_eq!(weekday, "200.00");
         assert_eq!(weekend, "200.00");

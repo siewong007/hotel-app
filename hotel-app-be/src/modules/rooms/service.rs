@@ -3,6 +3,7 @@
 //! Business logic (branching, permission checks, audit calls) for the room
 //! domain. SQL text and row mapping live in `repositories::rooms_queries`.
 
+use super::queries as rq;
 use crate::core::auth::AuthService;
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
@@ -10,7 +11,6 @@ use crate::core::middleware::{
     check_permission, require_any_permission_helper, require_permission_helper,
 };
 use crate::models::*;
-use super::queries as rq;
 use crate::services::audit::AuditLog;
 use axum::{
     extract::{Multipart, Path, Query, State},
@@ -1674,10 +1674,7 @@ mod tests {
     #[test]
     fn room_image_extension_sniffs_magic_bytes() {
         assert_eq!(room_image_extension(&[0xff, 0xd8, 0xff, 0xe0]), Some("jpg"));
-        assert_eq!(
-            room_image_extension(b"\x89PNG\r\n\x1a\nrest"),
-            Some("png")
-        );
+        assert_eq!(room_image_extension(b"\x89PNG\r\n\x1a\nrest"), Some("png"));
         assert_eq!(
             room_image_extension(b"RIFF\x10\x00\x00\x00WEBPreset"),
             Some("webp")

@@ -2,6 +2,7 @@
 
 use chrono::NaiveDate;
 
+use super::repository as repo;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
@@ -9,7 +10,6 @@ use crate::models::{
     AuditDetailsResponse, ListAuditsQuery, NightAuditListResponse, NightAuditPreview,
     NightAuditResponse, NightAuditRunWithUser, RunNightAuditRequest,
 };
-use super::repository as repo;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 

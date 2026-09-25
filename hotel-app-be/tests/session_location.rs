@@ -184,9 +184,10 @@ async fn postgres_session_without_a_timezone_reports_no_location() {
     .expect("the stored row must be readable")
     .get("is_null");
 
-    let sessions = hotel_app_be::modules::profile::service::list_sessions(&pool, NO_TIMEZONE_USER_ID, None)
-        .await
-        .expect("listing sessions must succeed");
+    let sessions =
+        hotel_app_be::modules::profile::service::list_sessions(&pool, NO_TIMEZONE_USER_ID, None)
+            .await
+            .expect("listing sessions must succeed");
     let found = sessions.iter().find(|s| s.id == session_id).cloned();
     cleanup(&pool, NO_TIMEZONE_USER_ID).await;
 
