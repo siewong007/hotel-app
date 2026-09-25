@@ -29,6 +29,10 @@ RUN mkdir src && \
 
 # Copy the actual source code
 COPY src ./src
+# core::schema_catalog compiles the patch manifest into the binary with
+# include_str!("../../database/postgres/patches/manifest.tsv"), so it must sit
+# at the same path relative to src/ — without it the build fails to compile.
+COPY database/postgres/patches/manifest.tsv ./database/postgres/patches/manifest.tsv
 
 # Build the application
 # Refresh every source mtime: cargo may otherwise treat copied files as fresh
