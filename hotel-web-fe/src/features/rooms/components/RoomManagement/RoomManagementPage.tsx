@@ -49,6 +49,7 @@ import { formatLocalDate, parseLocalDate } from '../../../../utils/date';
 import { useTranslation } from '../../../../i18n/useTranslation';
 import { intlTag } from '../../../../i18n/format';
 import { isGreaterMoney, isLessMoney, subtractMoney, toMoneyNumber } from '../../../../utils/money';
+import { isAwaitingPaymentBookingStatus } from '../../../../constants/booking.constants';
 import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
 import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
@@ -336,6 +337,14 @@ const RoomManagementPage: React.FC = () => {
 
   const handleCheckIn = useCallback((room: Room) => {
     const reservedBooking = reservedBookings.get(room.id);
+    if (reservedBooking && isAwaitingPaymentBookingStatus(reservedBooking.status)) {
+      // The room is held for an unpaid / awaiting-confirmation booking. The
+      // backend check-in accepts only confirmed/pending, so say why instead of
+      // opening a dialog that would fail — and never fall through to a new
+      // booking on a held room.
+      showSnackbar(t('notifications.awaitingPaymentNoCheckIn'), 'warning');
+      return;
+    }
     if (reservedBooking) {
       // Reserved rooms go through the streamlined check-in dialog.
       setSelectedRoom(room);
@@ -345,7 +354,7 @@ const RoomManagementPage: React.FC = () => {
 
     // No reservation on file — fall back to the unified booking flow.
     openUnifiedBooking(room, 'online');
-  }, [reservedBookings, openReservedCheckIn, openUnifiedBooking]);
+  }, [reservedBookings, openReservedCheckIn, openUnifiedBooking, showSnackbar, t]);
 
   const handleCheckOut = useCallback((room: Room) => {
     setSelectedRoom(room);
@@ -567,7 +576,7 @@ const RoomManagementPage: React.FC = () => {
   const getMenuLayout = (room: Room | null): MenuLayout => {
     if (!room) return { sections: [] };
 
-    const { computedStatus, booking, reservedBooking, isOccupied, isReserved, isComplimentary } = getRoomStatusInfo(room);
+    const { computedStatus, booking, reservedBooking, isOccupied, isReserved, isAwaitingPayment, isComplimentary } = getRoomStatusInfo(room);
     const isMaintenance = computedStatus === 'maintenance';
     const isReservedDirty = computedStatus === 'reserved_dirty';
     const layout: MenuLayout = { sections: [] };
@@ -575,8 +584,11 @@ const RoomManagementPage: React.FC = () => {
     // Primary action — anchors the menu with the most likely next step for this room state
     if (isOccupied) {
       layout.primary = { label: t('menu.checkOut'), icon: <LogoutIcon />, onClick: handleCheckOut, color: 'error' };
-    } else if (isReserved && reservedBooking) {
+    } else if (isReserved && reservedBooking && !isAwaitingPayment) {
       layout.primary = { label: t('menu.checkInGuest'), icon: <LoginIcon />, onClick: handleCheckIn, color: 'primary', dark: true };
+    } else if (isReserved && reservedBooking) {
+      // Held for an awaiting-payment booking: no check-in and no new booking
+      // on this room; the booking section below still lists it.
     } else if (isReservedDirty) {
       layout.primary = { label: t('menu.markClean'), icon: <SparkleIcon />, onClick: handleMarkAvailable, color: 'success', dark: true };
     } else if (!isMaintenance) {
@@ -624,7 +636,8 @@ const RoomManagementPage: React.FC = () => {
         },
       });
     }
-    if (isReserved && reservedBooking && !reservedBooking.is_complimentary) {
+    // Marking complimentary is limited to confirmed/pending bookings server-side.
+    if (isReserved && reservedBooking && !reservedBooking.is_complimentary && !isAwaitingPayment) {
       bookingActions.push({ id: 'mark-complimentary', label: t('menu.markComplimentary'), icon: <GiftIcon />, color: 'var(--hotel-chart-4)', onClick: handleMarkComplimentary });
     }
     if (bookingActions.length > 0) {
@@ -788,6 +801,7 @@ const RoomManagementPage: React.FC = () => {
               hasReservationForToday={info.hasReservationForToday}
               isOccupied={info.isOccupied}
               isReservedToday={info.isReservedToday}
+              isAwaitingPayment={info.isAwaitingPayment}
               isComplimentary={info.isComplimentary}
               overdueDays={overdueDaysByRoom.get(room.id)}
               cardFill={cardFill}

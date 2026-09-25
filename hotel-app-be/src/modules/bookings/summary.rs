@@ -51,6 +51,7 @@ use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use sqlx::Row;
 
+use super::helpers::ROOM_HOLDING_RESERVATION_STATUSES_SQL;
 use super::models::BookingBoardSummary;
 
 /// How long after checkout a company-billed stay is treated as overdue.
@@ -98,8 +99,12 @@ pub fn board_view_filter(view: &str) -> Option<BoardViewFilter> {
             "b.check_out_date = CURRENT_DATE AND b.status = 'checked_in'".to_string(),
             false,
         ),
+        // Every room-holding reservation, so unpaid and awaiting-confirmation
+        // website bookings are counted too. Mirrors `getBookingViewSlices`.
         "upcoming" => (
-            "b.status IN ('pending', 'confirmed') AND b.check_in_date > CURRENT_DATE".to_string(),
+            format!(
+                "b.status IN ({ROOM_HOLDING_RESERVATION_STATUSES_SQL}) AND b.check_in_date > CURRENT_DATE"
+            ),
             false,
         ),
         "normal_balance" => (
@@ -285,6 +290,36 @@ mod tests {
         );
         // ...and the terms window comes from the shared constant.
         assert!(sql.contains("INTERVAL '1 month'"));
+    }
+
+    #[test]
+    fn upcoming_counts_unpaid_and_awaiting_confirmation_holds() {
+        let upcoming = board_view_filter("upcoming").expect("upcoming is a known view");
+        for status in [
+            "'pending'",
+            "'pending_payment'",
+            "'pending_confirmation'",
+            "'confirmed'",
+        ] {
+            assert!(
+                upcoming.predicate.contains(status),
+                "upcoming must include {status}: {}",
+                upcoming.predicate
+            );
+        }
+        assert!(!upcoming.predicate.contains("voided"));
+        // The card count is generated from the same predicate.
+        assert!(board_summary_sql().contains(&upcoming.predicate));
+    }
+
+    #[test]
+    fn ready_to_check_in_stays_limited_to_check_in_able_statuses() {
+        // Check-in accepts only confirmed/pending; an awaiting-payment hold is
+        // arriving but not ready.
+        let sql = board_summary_sql();
+        assert!(sql.contains(
+            "WHERE b.check_in_date = CURRENT_DATE AND b.status IN ('confirmed', 'pending')"
+        ));
     }
 
     #[test]

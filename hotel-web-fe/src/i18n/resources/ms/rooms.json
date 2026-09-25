@@ -104,6 +104,8 @@
     "markAvailable": "Tanda tersedia",
     "newBooking": "+ Tempahan baharu",
     "reservedOn": "Ditempah: {{date}}",
+    "pendingPayment": "Menunggu bayaran",
+    "awaitingPaymentConfirmation": "Menunggu pengesahan bayaran",
     "openActionsAria": "Bilik {{room}}, {{status}} — buka tindakan"
   },
   "contextMenu": {
@@ -279,6 +281,7 @@
     "changeRoomCredit": "Bilik berjaya ditukar. Kredit dikenakan: {{symbol}}{{amount}}/malam",
     "changeRoomNoCharge": "Bilik berjaya ditukar. Tiada caj tambahan.",
     "noPendingBooking": "Tiada tempahan menunggu ditemui untuk bilik ini",
+    "awaitingPaymentNoCheckIn": "Tempahan ini masih menunggu bayaran, jadi belum boleh didaftar masuk. Rekod atau sahkan bayaran dahulu.",
     "noBookingSelected": "Tiada tempahan dipilih",
     "markedComplimentary": "Tempahan ditanda sebagai percuma! {{count}} malam kredit {{roomType}} ditambah kepada tetamu.",
     "checkoutExtended": "Tarikh daftar keluar berjaya dilanjutkan",

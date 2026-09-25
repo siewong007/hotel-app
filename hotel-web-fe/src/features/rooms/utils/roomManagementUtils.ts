@@ -2,6 +2,11 @@ import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/da
 import { intlTag } from '../../../i18n/format';
 import { getHotelSetting } from '../../../utils/hotelSettings';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
+import {
+  isAwaitingPaymentBookingStatus,
+  isInHouseBookingStatus,
+  isRoomHoldingReservationStatus,
+} from '../../../constants/booking.constants';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -262,7 +267,7 @@ export const deriveRoomStatusInfo = <
   checkInTime?: string;
 }) => {
   const todaySerial = dateSerial(formatLocalDate(today));
-  const hasCheckedInBooking = booking?.status === 'checked_in' || booking?.status === 'auto_checked_in';
+  const hasCheckedInBooking = isInHouseBookingStatus(booking?.status);
   // On the arrival day a reservation only "holds" the room once the configured
   // check-in time has passed; before that the room reads as available. Earlier
   // arrival dates (a reservation that should already be in-house) are not gated.
@@ -272,9 +277,12 @@ export const deriveRoomStatusInfo = <
   const isArrivalToday = reservationCheckInSerial === todaySerial;
   const checkInTimeReached =
     !isArrivalToday || today.getHours() * 60 + today.getMinutes() >= timeToMinutes(checkInTime);
+  // Any room-holding reservation counts — an unpaid (`pending_payment`) or
+  // awaiting-confirmation (`pending_confirmation`) website booking holds the
+  // room just like a confirmed one, and the backend already reports it reserved.
   const hasReservationForToday = Boolean(
     reservedBooking
-    && ['confirmed', 'pending'].includes(reservedBooking.status || '')
+    && isRoomHoldingReservationStatus(reservedBooking.status)
     && reservationCheckInSerial !== null
     && reservationCheckInSerial <= todaySerial
     && checkInTimeReached,
@@ -295,6 +303,13 @@ export const deriveRoomStatusInfo = <
   const isOccupied = computedStatus === 'occupied';
   const isReserved = computedStatus === 'reserved';
   const isReservedToday = isReserved && hasReservationForToday;
+  // The hold is real but payment is outstanding or awaiting confirmation. The
+  // backend check-in accepts only confirmed/pending, so the card shows the
+  // guest and a payment badge but must not offer check-in.
+  const isAwaitingPayment = Boolean(
+    reservedBooking && isAwaitingPaymentBookingStatus(reservedBooking.status),
+  );
+  const canCheckInReservation = isReservedToday && !isAwaitingPayment;
   const isComplimentary = (
     (isOccupied && booking?.is_complimentary === true)
     || (isReserved && reservedBooking?.is_complimentary === true)
@@ -311,6 +326,8 @@ export const deriveRoomStatusInfo = <
     isOccupied,
     isReserved,
     isReservedToday,
+    isAwaitingPayment,
+    canCheckInReservation,
     isComplimentary,
   };
 };

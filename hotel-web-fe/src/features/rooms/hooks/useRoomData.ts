@@ -4,6 +4,7 @@ import { useActiveBookings } from '../../bookings/hooks/useBookingQueries';
 import { useGuests } from '../../guests/hooks/useGuestQueries';
 import { useRooms } from './useRoomQueries';
 import { errorMessage } from '../../../utils/errorMessage';
+import { isInHouseBookingStatus, isRoomHoldingReservationStatus } from '../../../constants/booking.constants';
 import { useTranslation } from '../../../i18n/useTranslation';
 
 const ROOM_DATA_REFETCH_INTERVAL_MS = 30_000;
@@ -67,10 +68,12 @@ export function useRoomData(guestsEnabled = true) {
     const reservedMap = new Map<string, BookingWithDetails>();
 
     allBookingsData.forEach((booking: BookingWithDetails) => {
-      if (booking.status === 'checked_in' || booking.status === 'auto_checked_in') {
+      if (isInHouseBookingStatus(booking.status)) {
         bookingsMap.set(booking.room_id, booking);
       }
-      if (booking.status === 'confirmed' || booking.status === 'pending') {
+      // Every room-holding reservation, including unpaid (`pending_payment`)
+      // and awaiting-confirmation holds — the room is held for them too.
+      if (isRoomHoldingReservationStatus(booking.status)) {
         const existing = reservedMap.get(booking.room_id);
         if (!existing || new Date(booking.check_in_date) < new Date(existing.check_in_date)) {
           reservedMap.set(booking.room_id, booking);

@@ -103,6 +103,8 @@
     "markAvailable": "标记可售",
     "newBooking": "+ 新建预订",
     "reservedOn": "已预订：{{date}}",
+    "pendingPayment": "待付款",
+    "awaitingPaymentConfirmation": "等待付款确认",
     "openActionsAria": "客房 {{room}}，{{status}} — 打开操作"
   },
   "contextMenu": {
@@ -275,6 +277,7 @@
     "changeRoomCredit": "换房成功。已记入贷项：{{symbol}}{{amount}}/晚",
     "changeRoomNoCharge": "换房成功。无额外费用。",
     "noPendingBooking": "此客房没有待处理的预订",
+    "awaitingPaymentNoCheckIn": "此预订尚待付款，暂时无法办理入住。请先记录或确认付款。",
     "noBookingSelected": "未选择预订",
     "markedComplimentary": "预订已标记为免费！已为客人添加 {{count}} 晚 {{roomType}} 免费房晚。",
     "checkoutExtended": "退房日期已延长",

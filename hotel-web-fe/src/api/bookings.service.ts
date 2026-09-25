@@ -17,6 +17,7 @@ import {
 import { withRetry, batchWithRetry } from '../utils/retry';
 import { validateBookingRequest, enhanceBookingDetails } from '../utils/bookingUtils';
 import { addLocalDays, formatLocalDate, toHotelDateString } from '../utils/date';
+import { IN_HOUSE_BOOKING_STATUSES, ROOM_HOLDING_RESERVATION_STATUSES } from '../constants/booking.constants';
 
 // The backend pool is five connections. Two page fetches in flight keeps a
 // single screen refresh from occupying it, and the per-status fan-out below is
@@ -148,8 +149,12 @@ export class BookingsService {
 
   // Only the statuses a live room grid can act on, and only bookings that touch
   // today or later — the grid cannot act on a stay that ended last year.
+  // Includes every room-holding reservation status, not just confirmed/pending:
+  // an unpaid website booking (`pending_payment`) or a bank transfer awaiting
+  // confirmation (`pending_confirmation`) holds its room, and leaving them out
+  // made a held room read as free on the grid.
   static async getActiveBookings(): Promise<BookingWithDetails[]> {
-    const statuses = ['checked_in', 'auto_checked_in', 'confirmed', 'pending'];
+    const statuses: string[] = [...IN_HOUSE_BOOKING_STATUSES, ...ROOM_HOLDING_RESERVATION_STATUSES];
     const window = currentStayWindow();
     const results = await batchWithRetry(
       statuses.map((status) => () => this.getAllBookings({ status, ...window })),
