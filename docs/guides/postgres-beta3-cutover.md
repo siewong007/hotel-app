@@ -10,7 +10,8 @@ Derived from `deploy/deploy.sh`, `deploy/docker-compose.prod.yml` and
 
 > ⚠️ **Host changed after this run — adapt before reusing (audit 2026-09-15).**
 > This runbook executed on 2026-09-04; production migrated to the AIC VPS on
-> 2026-09-05. Every command below is written for the retired Lightsail box. On the
+> 2026-09-05. Every command below is written for the Lightsail box, which was deleted on
+> 2026-09-25. On the
 > current host the SSH target is `root@162.19.81.122 -p 20049`, and **`docker` takes
 > no `sudo` prefix** because that account is already root — so `sudo docker volume rm
 > …` will not run as written. Read

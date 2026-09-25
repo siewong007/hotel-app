@@ -94,6 +94,12 @@ marks the run `error` with category `offsite_failed` — the health check and
 its webhook alert fire — while `last_success` still tracks the usable local
 dump.
 
+**Production decision (2026-09-25): off-host shipping is intentionally not
+configured.** After the AWS account was emptied the owner chose local-only
+backups on the AIC host over any cloud destination, accepting that losing the
+host loses the live data and every backup together. `"offsite": false` is the
+expected production state; see [vps-access.md](../guides/vps-access.md#backups-local-only-by-owner-decision).
+
 ## Maintenance mode
 
 There is no maintenance flag in the app; the proxy answers 503 during a
