@@ -11,7 +11,8 @@
     "discardTitle": "放弃未保存的修改",
     "discardConfirm": "放弃修改",
     "discardMove": "移动日期窗口将放弃未保存的库存修改，是否继续？",
-    "discardRefresh": "刷新可售库存将放弃未保存的库存修改，是否继续？"
+    "discardRefresh": "刷新可售库存将放弃未保存的库存修改，是否继续？",
+    "discardLeave": "离开此页面将放弃未保存的库存修改，是否继续？"
   },
   "changedBar_other": "已修改 {{count}} 个单元格",
   "discard": "放弃",
@@ -30,7 +31,8 @@
     "controlsAria": "库存窗口控制",
     "refresh": "刷新",
     "select": "选择",
-    "windowAria": "日期范围"
+    "windowAria": "日期范围",
+    "dateRange": "请选择 {{min}} 至 {{max}} 之间的日期。"
   },
   "grid": {
     "aria": "按房型和日期查看的线上库存",
@@ -84,7 +86,8 @@
     "selectedCount_one": "已选 {{count}} 项",
     "selectedCount_other": "已选 {{count}} 项",
     "editSelected": "编辑所选",
-    "editSelectedCells": "编辑所选单元格"
+    "editSelectedCells": "编辑所选单元格",
+    "overHeld_other": "在 {{count}} 个所选日期中，保留数超过了空余房间数。"
   },
   "editor": {
     "bookable": "可线上预订",
@@ -101,7 +104,8 @@
     "standardRate": "该日期标准价格：{{price}}——留空则使用标准价。",
     "resetStandard": "重置为标准规则",
     "resetAria": "重置为标准规则",
-    "reset": "重置"
+    "reset": "重置",
+    "priceDecimals": "最多保留 2 位小数，例如 199.99。"
   },
   "summary": {
     "physical": "实际可用",
@@ -130,7 +134,9 @@
   },
   "errors": {
     "load": "无法加载线上库存。",
-    "save": "无法保存库存修改。"
+    "save": "无法保存库存修改。",
+    "loadTitle": "无法加载线上可售情况",
+    "retry": "重试"
   },
   "success": {
     "updated_other": "已更新 {{count}} 个单元格。"
@@ -139,6 +145,16 @@
     "freeToday_other": "今天空闲 {{count}} 间",
     "stripAria": "{{name}} 每日可售情况",
     "hint": "点按日期进行编辑 · 左右滑动查看更多日期",
-    "hintSelect": "点按日期进行选择，然后点“编辑所选”"
+    "hintSelect": "点按日期进行选择，然后点“编辑所选”",
+    "hintReadOnly": "仅可查看 · 左右滑动查看更多日期"
+  },
+  "readOnly": {
+    "note": "仅可查看——您可以查看线上可售情况，但不能修改。如需修改，请联系管理员或经理。"
+  },
+  "conflict": {
+    "title": "您的修改未保存",
+    "message": "自您加载以来，其他人已修改了这些日期。请重新加载以查看最新内容。",
+    "reload": "重新加载",
+    "more_other": "还有 {{count}} 天"
   }
 }

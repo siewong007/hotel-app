@@ -23,7 +23,7 @@ export const CellEditorPopover = ({
   formatPrice,
 }: CellEditorPopoverProps) => {
   const { t } = useTranslation('onlineInventory');
-  const { draft, patchDraft, priceInvalid, overHeld } = useCellEditorDraft(view);
+  const { draft, patchDraft, priceInvalid, priceError, overHeld } = useCellEditorDraft(view);
 
   if (!view) return null;
 
@@ -60,6 +60,7 @@ export const CellEditorPopover = ({
           draft={draft}
           onDraftChange={patchDraft}
           priceInvalid={priceInvalid}
+          priceError={priceError}
           overHeld={overHeld}
           formatPrice={formatPrice}
         />

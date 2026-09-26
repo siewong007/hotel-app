@@ -14,12 +14,15 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import { useTranslation } from '../../../i18n/useTranslation';
 import type { EditableCell, GridCellView } from '../types';
 import { useCurrency } from '../../../hooks/useCurrency';
+import type { PriceError } from '../hooks/useCellEditorDraft';
 
 interface CellEditorFormProps {
   view: GridCellView;
   draft: EditableCell;
   onDraftChange(patch: Partial<EditableCell>): void;
   priceInvalid: boolean;
+  /** Why the price is invalid — picks the inline message. */
+  priceError?: PriceError;
   overHeld: boolean;
   formatPrice(value: string): string;
 }
@@ -34,6 +37,7 @@ export const CellEditorForm = ({
   draft,
   onDraftChange,
   priceInvalid,
+  priceError = null,
   overHeld,
   formatPrice,
 }: CellEditorFormProps) => {
@@ -123,7 +127,9 @@ export const CellEditorForm = ({
         error={priceInvalid}
         helperText={
           priceInvalid
-            ? t('editor.priceInvalid')
+            ? priceError === 'decimals'
+              ? t('editor.priceDecimals')
+              : t('editor.priceInvalid')
             : t('editor.standardRate', { price: formatPrice(view.standard_price) })
         }
         slotProps={{

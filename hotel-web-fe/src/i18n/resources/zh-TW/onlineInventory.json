@@ -11,7 +11,8 @@
     "discardTitle": "捨棄未儲存的變更",
     "discardConfirm": "捨棄變更",
     "discardMove": "移動視窗並捨棄未儲存的庫存變更？",
-    "discardRefresh": "重新整理可售量並捨棄未儲存的庫存變更？"
+    "discardRefresh": "重新整理可售量並捨棄未儲存的庫存變更？",
+    "discardLeave": "離開此頁面並捨棄未儲存的庫存變更？"
   },
   "changedBar_other": "已變更 {{count}} 個儲存格",
   "discard": "捨棄",
@@ -30,7 +31,8 @@
     "controlsAria": "庫存視窗控制",
     "refresh": "重新整理",
     "select": "選取",
-    "windowAria": "日期範圍"
+    "windowAria": "日期範圍",
+    "dateRange": "請選擇 {{min}} 至 {{max}} 之間的日期。"
   },
   "grid": {
     "aria": "按房型與日期的線上庫存",
@@ -83,7 +85,8 @@
     "selectedCount": "已選取 {{count}} 項",
     "selectedCount_other": "已選取 {{count}} 項",
     "editSelected": "編輯選取項",
-    "editSelectedCells": "編輯選取的儲存格"
+    "editSelectedCells": "編輯選取的儲存格",
+    "overHeld_other": "在 {{count}} 個所選日期中，保留數超過了空房數。"
   },
   "editor": {
     "bookable": "開放線上預訂",
@@ -100,7 +103,8 @@
     "standardRate": "此日期的標準房價：{{price}} — 留空即使用此價。",
     "resetStandard": "重設為標準規則",
     "resetAria": "重設為標準規則",
-    "reset": "重設"
+    "reset": "重設",
+    "priceDecimals": "最多 2 位小數，例如 199.99。"
   },
   "summary": {
     "physical": "實際空房",
@@ -129,7 +133,9 @@
   },
   "errors": {
     "load": "無法載入線上庫存。",
-    "save": "無法儲存庫存變更。"
+    "save": "無法儲存庫存變更。",
+    "loadTitle": "無法載入線上可售量",
+    "retry": "重試"
   },
   "success": {
     "updated_other": "已更新 {{count}} 個儲存格。"
@@ -138,6 +144,16 @@
     "freeToday_other": "今天空房 {{count}} 間",
     "stripAria": "{{name}} 每日可售狀況",
     "hint": "點選日期即可編輯 · 左右滑動查看更多日期",
-    "hintSelect": "點選日期加以選取，再點「編輯選取項」"
+    "hintSelect": "點選日期加以選取，再點「編輯選取項」",
+    "hintReadOnly": "僅供檢視 · 左右滑動查看更多日期"
+  },
+  "readOnly": {
+    "note": "僅供檢視 — 您可以查看線上可售量，但無法變更。如需變更，請聯絡管理員或經理。"
+  },
+  "conflict": {
+    "title": "您的變更未儲存",
+    "message": "自您載入後，其他人已變更這些日期。請重新載入以查看最新內容。",
+    "reload": "重新載入",
+    "more_other": "還有 {{count}} 天"
   }
 }

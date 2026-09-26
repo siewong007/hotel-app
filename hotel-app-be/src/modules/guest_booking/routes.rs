@@ -51,13 +51,24 @@ pub fn routes() -> Router<DbPool> {
         )
 }
 
+/// Changing online inventory — online sales, walk-in holds and guest-facing
+/// custom prices — is limited to roles granted this permission (admin and
+/// manager by default). Viewing stays on `rooms:update`, so front-desk and
+/// housekeeping staff keep a read-only view.
+pub const ONLINE_INVENTORY_MANAGE: &str = "online_inventory:manage";
+
 async fn list_online_inventory(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     query: Query<super::models::OnlineInventoryQuery>,
 ) -> Result<axum::Json<Vec<super::models::OnlineInventoryAllocation>>, crate::core::error::ApiError>
 {
-    crate::core::middleware::require_permission_helper(&pool, &headers, "rooms:update").await?;
+    crate::core::middleware::require_any_permission_helper(
+        &pool,
+        &headers,
+        &["rooms:update", ONLINE_INVENTORY_MANAGE],
+    )
+    .await?;
     handlers::list_online_inventory_handler(State(pool), query).await
 }
 
@@ -70,8 +81,12 @@ async fn update_online_inventory(
     Path(path): Path<(i64, String)>,
     axum::Json(request): axum::Json<super::models::UpdateOnlineInventoryRequest>,
 ) -> Result<axum::Json<super::models::OnlineInventoryAllocation>, crate::core::error::ApiError> {
-    let actor_id =
-        crate::core::middleware::require_permission_helper(&pool, &headers, "rooms:update").await?;
+    let actor_id = crate::core::middleware::require_permission_helper(
+        &pool,
+        &headers,
+        ONLINE_INVENTORY_MANAGE,
+    )
+    .await?;
     handlers::update_online_inventory_handler(
         State(pool),
         axum::Extension(actor_id),
@@ -91,8 +106,12 @@ async fn bulk_update_online_inventory(
     axum::Json(request): axum::Json<super::models::BulkUpdateOnlineInventoryRequest>,
 ) -> Result<axum::Json<Vec<super::models::OnlineInventoryAllocation>>, crate::core::error::ApiError>
 {
-    let actor_id =
-        crate::core::middleware::require_permission_helper(&pool, &headers, "rooms:update").await?;
+    let actor_id = crate::core::middleware::require_permission_helper(
+        &pool,
+        &headers,
+        ONLINE_INVENTORY_MANAGE,
+    )
+    .await?;
     handlers::bulk_update_online_inventory_handler(
         State(pool),
         axum::Extension(actor_id),

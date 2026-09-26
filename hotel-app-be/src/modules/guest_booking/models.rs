@@ -59,11 +59,47 @@ pub struct OnlineInventoryQuery {
     pub stay_date: Option<String>,
 }
 
+/// A custom online price exactly as the client sent it — a JSON string
+/// (`"149.50"`, what the web client sends) or a JSON number. Kept raw so the
+/// service can reject scientific notation (`"1e3"`), more than two decimals
+/// and non-positive values with a clear 400, instead of the framework's
+/// generic deserialization rejection. Parsed by `service::parse_custom_price`.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum CustomPriceInput {
+    Text(String),
+    Number(serde_json::Number),
+}
+
+impl CustomPriceInput {
+    /// The client's literal spelling of the price.
+    pub fn as_literal(&self) -> String {
+        match self {
+            Self::Text(text) => text.trim().to_string(),
+            Self::Number(number) => number.to_string(),
+        }
+    }
+}
+
+/// Distinguishes an absent JSON field (`None`) from an explicit `null`
+/// (`Some(None)`) — `#[serde(default)]` alone folds both into `None`.
+fn deserialize_present<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateOnlineInventoryRequest {
     pub walk_in_reserved_rooms: i32,
     pub online_booking_enabled: bool,
-    pub custom_price: Option<Decimal>,
+    pub custom_price: Option<CustomPriceInput>,
+    /// Optimistic-concurrency precondition; same contract as
+    /// [`OnlineInventoryCellUpdate::expected_updated_at`].
+    #[serde(default, deserialize_with = "deserialize_present")]
+    pub expected_updated_at: Option<Option<DateTime<Utc>>>,
 }
 
 /// One cell of a bulk online-inventory write. `reset` deletes the allocation
@@ -77,7 +113,21 @@ pub struct OnlineInventoryCellUpdate {
     pub reset: bool,
     pub walk_in_reserved_rooms: Option<i32>,
     pub online_booking_enabled: Option<bool>,
-    pub custom_price: Option<Decimal>,
+    pub custom_price: Option<CustomPriceInput>,
+    /// Optimistic-concurrency precondition: the cell's `updated_at` as the
+    /// client last read it. `null` means "I saw no stored row" — the write
+    /// conflicts if another admin created one meanwhile. A timestamp means
+    /// the stored row must still carry exactly that `updated_at`. Omitting
+    /// the field skips the check (clients predating the precondition).
+    #[serde(default, deserialize_with = "deserialize_present")]
+    pub expected_updated_at: Option<Option<DateTime<Utc>>>,
+}
+
+/// A cell whose stored state no longer matches the client's precondition.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OnlineInventoryConflict {
+    pub room_type_id: i64,
+    pub stay_date: NaiveDate,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -116,6 +166,9 @@ pub struct OnlineInventoryAllocation {
     /// stores defaults — distinguishes configured cells from untouched ones.
     pub is_override: bool,
     pub online_available_rooms: i64,
+    /// When the stored row last changed; `null` when no row exists. Echoed
+    /// back as `expected_updated_at` so a stale save is refused with 409.
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -69,6 +69,14 @@ pub enum ApiError {
     /// `GuestEkycStatusSummary.auto_checkin_block_code` reports — so the guest
     /// UI renders a localized explanation instead of matching English text.
     AutoCheckinBlocked { block_code: String, message: String },
+    /// An optimistic-concurrency precondition failed: the records the client
+    /// edited changed since it read them, so nothing was written. `conflicts`
+    /// is the JSON array of the stale records (domain-shaped) so the client
+    /// can reload exactly those without matching English text.
+    StaleWrite {
+        message: String,
+        conflicts: serde_json::Value,
+    },
 }
 
 impl std::fmt::Display for ApiError {
@@ -96,6 +104,7 @@ impl std::fmt::Display for ApiError {
             ApiError::AutoCheckinBlocked { message, .. } => {
                 write!(f, "Bad request: {}", message)
             }
+            ApiError::StaleWrite { message, .. } => write!(f, "Conflict: {}", message),
         }
     }
 }
@@ -234,6 +243,11 @@ impl IntoResponse for ApiError {
                 polish_message(message, "That request couldn't be processed."),
                 "auto_checkin_blocked",
             ),
+            ApiError::StaleWrite { message, .. } => (
+                StatusCode::CONFLICT,
+                polish_message(message, "Someone else changed this since you loaded it."),
+                "stale_write",
+            ),
         };
 
         let mut body = serde_json::json!({
@@ -250,6 +264,9 @@ impl IntoResponse for ApiError {
         }
         if let ApiError::AutoCheckinBlocked { block_code, .. } = &self {
             body["block_code"] = serde_json::json!(block_code);
+        }
+        if let ApiError::StaleWrite { conflicts, .. } = &self {
+            body["conflicts"] = conflicts.clone();
         }
 
         let body = with_request_id(Json(body));
@@ -381,6 +398,14 @@ mod tests {
                 StatusCode::BAD_REQUEST,
                 "auto_checkin_blocked",
             ),
+            (
+                ApiError::StaleWrite {
+                    message: "Changed since you loaded it.".into(),
+                    conflicts: serde_json::json!([]),
+                },
+                StatusCode::CONFLICT,
+                "stale_write",
+            ),
         ];
 
         for (error, expected_status, expected_code) in cases {
@@ -400,6 +425,20 @@ mod tests {
                 "{label}: code {code} must be snake_case"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn stale_write_carries_conflicts_alongside_code() {
+        let response = ApiError::StaleWrite {
+            message: "Changed since you loaded it.".into(),
+            conflicts: serde_json::json!([{ "room_type_id": 3, "stay_date": "2026-12-08" }]),
+        }
+        .into_response();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], "stale_write");
+        assert_eq!(json["conflicts"][0]["room_type_id"], 3);
+        assert_eq!(json["conflicts"][0]["stay_date"], "2026-12-08");
     }
 
     #[tokio::test]

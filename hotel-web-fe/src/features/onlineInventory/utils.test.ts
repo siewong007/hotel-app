@@ -9,6 +9,7 @@ import {
   editsEqual,
   editableOf,
   isRealChange,
+  isValidPrice,
   parseCellKey,
   projectBulkAction,
   rectKeys,
@@ -215,6 +216,53 @@ describe('toCellUpdateInputs', () => {
       },
       { room_type_id: 1, stay_date: '2026-09-13', reset: true },
     ]);
+  });
+
+  it('turns an edit equal to the defaults into a reset (no leftover row)', () => {
+    // A closed day reopened with no hold and no price is just the defaults.
+    const edits = new Map<string, StagedEdit>([
+      ['1:2026-09-12', { type: 'set', value: { ...DEFAULT_EDIT } }],
+      ['1:2026-09-13', { type: 'set', value: { walk_in_reserved_rooms: 0, online_booking_enabled: true, custom_price: null } }],
+    ]);
+    expect(toCellUpdateInputs(edits)).toEqual([
+      { room_type_id: 1, stay_date: '2026-09-12', reset: true },
+      { room_type_id: 1, stay_date: '2026-09-13', reset: true },
+    ]);
+  });
+
+  it('attaches the loaded row version as expected_updated_at', () => {
+    const saved = new Map<string, OnlineInventoryAllocation>([
+      ['1:2026-09-12', allocation({ is_override: true, online_booking_enabled: false, updated_at: '2026-09-20T01:02:03.456789Z' })],
+      ['1:2026-09-13', allocation({ stay_date: '2026-09-13', updated_at: null })],
+    ]);
+    const edits = new Map<string, StagedEdit>([
+      ['1:2026-09-12', { type: 'set', value: { walk_in_reserved_rooms: 0, online_booking_enabled: true, custom_price: null } }],
+      ['1:2026-09-13', { type: 'set', value: { walk_in_reserved_rooms: 1, online_booking_enabled: true, custom_price: null } }],
+    ]);
+    expect(toCellUpdateInputs(edits, saved)).toEqual([
+      {
+        room_type_id: 1,
+        stay_date: '2026-09-12',
+        reset: true,
+        expected_updated_at: '2026-09-20T01:02:03.456789Z',
+      },
+      {
+        room_type_id: 1,
+        stay_date: '2026-09-13',
+        walk_in_reserved_rooms: 1,
+        online_booking_enabled: true,
+        custom_price: null,
+        // No row was loaded: a row created meanwhile is a conflict.
+        expected_updated_at: null,
+      },
+    ]);
+  });
+});
+
+describe('isValidPrice', () => {
+  it('accepts plain positive decimals with up to 2 places only', () => {
+    for (const ok of ['150', '149.5', '149.50', '0.01']) expect(isValidPrice(ok)).toBe(true);
+    for (const bad of ['199.999', '1e3', '0', '-5', '', 'abc', '1.']) expect(isValidPrice(bad)).toBe(false);
   });
 });
 

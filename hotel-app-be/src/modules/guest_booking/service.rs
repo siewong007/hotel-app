@@ -1,4 +1,4 @@
-use chrono::{Duration, NaiveDate};
+use chrono::{DateTime, Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde_json::json;
 use uuid::Uuid;
@@ -7,8 +7,9 @@ use super::availability::{AvailabilityEvent, AvailabilityHub};
 use super::models::{
     AnonymousBookingRequest, BookingInsert, BookingQuoteRequest, BookingSearchQuery,
     BulkOnlineInventoryOutcome, BulkUpdateOnlineInventoryRequest, CreateGuestBookingRequest,
-    GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingVoucherOptions,
-    NightlyRate, OnlineInventoryAffectedSpan, OnlineInventoryAllocation, OnlineInventoryCellUpdate,
+    CustomPriceInput, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote,
+    GuestBookingVoucherOptions, NightlyRate, OnlineInventoryAffectedSpan,
+    OnlineInventoryAllocation, OnlineInventoryCellUpdate, OnlineInventoryConflict,
     OnlineInventoryQuery, RoomTypeInventory, UpdateOnlineInventoryRequest, VoucherPricing,
 };
 use super::repository::{
@@ -771,30 +772,85 @@ pub async fn list_online_inventory(
     Repository::list_online_inventory_range(pool, from, to).await
 }
 
-fn validate_inventory_fields(reserved: i32, custom_price: Option<Decimal>) -> Result<(), ApiError> {
+/// Parses a client-supplied custom online price. Accepts only a plain
+/// decimal literal — digits with an optional fraction (`150`, `149.5`,
+/// `149.50`) — so scientific notation (`"1e3"`), signs other than a leading
+/// minus, blanks and other spellings are refused with a clear message instead
+/// of being silently reinterpreted. The value must be positive and carry at
+/// most two decimal places once trailing zeros are dropped.
+pub(crate) fn parse_custom_price(raw: &CustomPriceInput) -> Result<Decimal, ApiError> {
+    let literal = raw.as_literal();
+    let unsigned = literal.strip_prefix('-').unwrap_or(&literal);
+    let (whole, fraction) = match unsigned.split_once('.') {
+        Some((whole, fraction)) => (whole, Some(fraction)),
+        None => (unsigned, None),
+    };
+    let is_digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+    if !is_digits(whole) || fraction.is_some_and(|fraction| !is_digits(fraction)) {
+        return Err(ApiError::BadRequest(
+            "Custom online price must be a plain number such as 150 or 149.50".to_string(),
+        ));
+    }
+    let price = literal.parse::<Decimal>().map_err(|_| {
+        ApiError::BadRequest(
+            "Custom online price must be a plain number such as 150 or 149.50".to_string(),
+        )
+    })?;
+    if price <= Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "Custom online price must be greater than zero".to_string(),
+        ));
+    }
+    if price.normalize().scale() > 2 {
+        return Err(ApiError::BadRequest(
+            "Custom online price can have at most two decimal places".to_string(),
+        ));
+    }
+    // numeric(10,2): at most eight integer digits.
+    if price >= Decimal::new(100_000_000, 0) {
+        return Err(ApiError::BadRequest(
+            "Custom online price is too large".to_string(),
+        ));
+    }
+    Ok(price.round_dp(2))
+}
+
+fn validate_inventory_fields(
+    reserved: i32,
+    custom_price: Option<&CustomPriceInput>,
+) -> Result<Option<Decimal>, ApiError> {
     if reserved < 0 {
         return Err(ApiError::BadRequest(
             "Walk-in reserve cannot be negative".to_string(),
         ));
     }
-    if let Some(custom_price) = custom_price {
-        if custom_price <= Decimal::ZERO {
-            return Err(ApiError::BadRequest(
-                "Custom online price must be greater than zero".to_string(),
-            ));
-        }
-        if custom_price.scale() > 2 {
-            return Err(ApiError::BadRequest(
-                "Custom online price can have at most two decimal places".to_string(),
-            ));
-        }
-    }
-    Ok(())
+    custom_price.map(parse_custom_price).transpose()
 }
 
 /// One bulk write must never apply half its cells — the grid's review-and-apply
 /// flow promises the hotel an all-or-nothing commit.
 pub const MAX_BULK_INVENTORY_CELLS: usize = 500;
+
+/// The optimistic-concurrency precondition a cell write carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Precondition {
+    /// The client sent no `expected_updated_at` — write unconditionally.
+    Unchecked,
+    /// The client saw no stored row.
+    Absent,
+    /// The client saw a row with exactly this `updated_at`.
+    At(DateTime<Utc>),
+}
+
+impl Precondition {
+    fn from_request(expected: Option<Option<DateTime<Utc>>>) -> Self {
+        match expected {
+            None => Self::Unchecked,
+            Some(None) => Self::Absent,
+            Some(Some(at)) => Self::At(at),
+        }
+    }
+}
 
 enum ResolvedCell {
     Set {
@@ -803,11 +859,30 @@ enum ResolvedCell {
         reserved: i32,
         enabled: bool,
         price: Option<Decimal>,
+        expected: Precondition,
     },
     Reset {
         room_type_id: i64,
         stay_date: NaiveDate,
+        expected: Precondition,
     },
+}
+
+impl ResolvedCell {
+    fn key(&self) -> (i64, NaiveDate) {
+        match *self {
+            ResolvedCell::Set {
+                room_type_id,
+                stay_date,
+                ..
+            }
+            | ResolvedCell::Reset {
+                room_type_id,
+                stay_date,
+                ..
+            } => (room_type_id, stay_date),
+        }
+    }
 }
 
 fn resolve_bulk_cells(
@@ -833,10 +908,12 @@ fn resolve_bulk_cells(
                 "Duplicate cell for a room type and date".to_string(),
             ));
         }
+        let expected = Precondition::from_request(cell.expected_updated_at);
         if cell.reset {
             resolved.push(ResolvedCell::Reset {
                 room_type_id: cell.room_type_id,
                 stay_date,
+                expected,
             });
             continue;
         }
@@ -847,16 +924,114 @@ fn resolve_bulk_cells(
                 "walk_in_reserved_rooms and online_booking_enabled are required".to_string(),
             ));
         };
-        validate_inventory_fields(reserved, cell.custom_price)?;
+        let price = validate_inventory_fields(reserved, cell.custom_price.as_ref())?;
         resolved.push(ResolvedCell::Set {
             room_type_id: cell.room_type_id,
             stay_date,
             reserved,
             enabled,
-            price: cell.custom_price,
+            price,
+            expected,
         });
     }
     Ok(resolved)
+}
+
+/// Writes one resolved cell inside the caller's transaction. Returns `false`
+/// when the cell's precondition failed — nothing was written for it, and the
+/// caller must roll the whole transaction back.
+async fn write_resolved_cell(
+    tx: &mut crate::core::db::DbTransaction<'_>,
+    cell: &ResolvedCell,
+    actor_id: i64,
+) -> Result<bool, ApiError> {
+    match *cell {
+        ResolvedCell::Set {
+            room_type_id,
+            stay_date,
+            reserved,
+            enabled,
+            price,
+            expected,
+        } => match expected {
+            Precondition::Unchecked => {
+                Repository::upsert_online_inventory_tx(
+                    tx,
+                    room_type_id,
+                    stay_date,
+                    reserved,
+                    enabled,
+                    price,
+                    Some(actor_id),
+                )
+                .await?;
+                Ok(true)
+            }
+            Precondition::Absent => {
+                Repository::insert_online_inventory_if_absent_tx(
+                    tx,
+                    room_type_id,
+                    stay_date,
+                    reserved,
+                    enabled,
+                    price,
+                    Some(actor_id),
+                )
+                .await
+            }
+            Precondition::At(at) => {
+                Repository::update_online_inventory_if_unchanged_tx(
+                    tx,
+                    room_type_id,
+                    stay_date,
+                    reserved,
+                    enabled,
+                    price,
+                    Some(actor_id),
+                    at,
+                )
+                .await
+            }
+        },
+        ResolvedCell::Reset {
+            room_type_id,
+            stay_date,
+            expected,
+        } => match expected {
+            Precondition::Unchecked => {
+                Repository::delete_online_inventory_tx(tx, room_type_id, stay_date).await?;
+                Ok(true)
+            }
+            Precondition::Absent => {
+                Repository::delete_online_inventory_if_unchanged_tx(
+                    tx,
+                    room_type_id,
+                    stay_date,
+                    None,
+                )
+                .await
+            }
+            Precondition::At(at) => {
+                Repository::delete_online_inventory_if_unchanged_tx(
+                    tx,
+                    room_type_id,
+                    stay_date,
+                    Some(at),
+                )
+                .await
+            }
+        },
+    }
+}
+
+/// The 409 a failed precondition returns: every stale cell, so the client
+/// can reload exactly those days. Nothing was written.
+fn stale_inventory_error(conflicts: Vec<OnlineInventoryConflict>) -> ApiError {
+    ApiError::StaleWrite {
+        message: "Someone else changed these days since you loaded them. Reload to see the latest."
+            .to_string(),
+        conflicts: json!(conflicts),
+    }
 }
 
 pub async fn update_online_inventory(
@@ -866,20 +1041,28 @@ pub async fn update_online_inventory(
     request: UpdateOnlineInventoryRequest,
     actor_id: i64,
 ) -> Result<OnlineInventoryAllocation, ApiError> {
-    validate_inventory_fields(request.walk_in_reserved_rooms, request.custom_price)?;
+    let price = validate_inventory_fields(
+        request.walk_in_reserved_rooms,
+        request.custom_price.as_ref(),
+    )?;
     let stay_date = NaiveDate::parse_from_str(stay_date.trim(), "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid stay date. Use YYYY-MM-DD".to_string()))?;
-    let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    Repository::upsert_online_inventory_tx(
-        &mut tx,
+    let cell = ResolvedCell::Set {
         room_type_id,
         stay_date,
-        request.walk_in_reserved_rooms,
-        request.online_booking_enabled,
-        request.custom_price,
-        Some(actor_id),
-    )
-    .await?;
+        reserved: request.walk_in_reserved_rooms,
+        enabled: request.online_booking_enabled,
+        price,
+        expected: Precondition::from_request(request.expected_updated_at),
+    };
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    if !write_resolved_cell(&mut tx, &cell, actor_id).await? {
+        tx.rollback().await.map_err(ApiError::from)?;
+        return Err(stale_inventory_error(vec![OnlineInventoryConflict {
+            room_type_id,
+            stay_date,
+        }]));
+    }
     AuditLog::log_event_tx(
         &mut tx,
         AuditEvent {
@@ -912,47 +1095,27 @@ pub async fn bulk_update_online_inventory(
     let resolved = resolve_bulk_cells(request.cells)?;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    // Every cell is attempted so the 409 can name all stale days at once; a
+    // failed precondition writes nothing, and any failure rolls back the lot.
+    let mut conflicts = Vec::new();
     for cell in &resolved {
-        match *cell {
-            ResolvedCell::Set {
+        if !write_resolved_cell(&mut tx, cell, actor_id).await? {
+            let (room_type_id, stay_date) = cell.key();
+            conflicts.push(OnlineInventoryConflict {
                 room_type_id,
                 stay_date,
-                reserved,
-                enabled,
-                price,
-            } => {
-                Repository::upsert_online_inventory_tx(
-                    &mut tx,
-                    room_type_id,
-                    stay_date,
-                    reserved,
-                    enabled,
-                    price,
-                    Some(actor_id),
-                )
-                .await?
-            }
-            ResolvedCell::Reset {
-                room_type_id,
-                stay_date,
-            } => Repository::delete_online_inventory_tx(&mut tx, room_type_id, stay_date).await?,
+            });
         }
+    }
+    if !conflicts.is_empty() {
+        tx.rollback().await.map_err(ApiError::from)?;
+        return Err(stale_inventory_error(conflicts));
     }
 
     let mut span_by_room_type: std::collections::BTreeMap<i64, (NaiveDate, NaiveDate)> =
         std::collections::BTreeMap::new();
     for cell in &resolved {
-        let (room_type_id, stay_date) = match *cell {
-            ResolvedCell::Set {
-                room_type_id,
-                stay_date,
-                ..
-            }
-            | ResolvedCell::Reset {
-                room_type_id,
-                stay_date,
-            } => (room_type_id, stay_date),
-        };
+        let (room_type_id, stay_date) = cell.key();
         span_by_room_type
             .entry(room_type_id)
             .and_modify(|span| {
@@ -2232,7 +2395,12 @@ mod tests {
             walk_in_reserved_rooms: Some(1),
             online_booking_enabled: Some(true),
             custom_price: None,
+            expected_updated_at: None,
         }
+    }
+
+    fn text(price: &str) -> CustomPriceInput {
+        CustomPriceInput::Text(price.to_string())
     }
 
     #[test]
@@ -2254,7 +2422,7 @@ mod tests {
         assert!(resolve_bulk_cells(vec![missing]).is_err());
 
         let mut bad_price = bulk_cell(1, "2026-09-01");
-        bad_price.custom_price = Some(Decimal::ZERO);
+        bad_price.custom_price = Some(text("0"));
         assert!(resolve_bulk_cells(vec![bad_price]).is_err());
 
         let mut reset = bulk_cell(1, "2026-09-01");
@@ -2267,8 +2435,140 @@ mod tests {
     #[test]
     fn inventory_fields_match_single_put_rules() {
         assert!(validate_inventory_fields(-1, None).is_err());
-        assert!(validate_inventory_fields(0, Some(Decimal::ZERO)).is_err());
-        assert!(validate_inventory_fields(0, Some(Decimal::new(1001, 2))).is_ok());
-        assert!(validate_inventory_fields(0, Some(Decimal::new(10001, 3))).is_err());
+        assert!(validate_inventory_fields(0, Some(&text("0"))).is_err());
+        assert_eq!(
+            validate_inventory_fields(0, Some(&text("10.01"))).unwrap(),
+            Some(Decimal::new(1001, 2))
+        );
+        assert!(validate_inventory_fields(0, Some(&text("10.001"))).is_err());
+    }
+
+    fn bad_request_message(result: Result<Decimal, ApiError>) -> String {
+        match result {
+            Err(ApiError::BadRequest(message)) => message,
+            other => panic!("expected a 400, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn custom_price_accepts_plain_decimals_only() {
+        for (raw, expected) in [
+            ("150", Decimal::new(150, 0)),
+            ("149.5", Decimal::new(1495, 1)),
+            ("149.50", Decimal::new(14950, 2)),
+            (" 99.99 ", Decimal::new(9999, 2)),
+            ("10.500", Decimal::new(1050, 2)),
+            ("0.01", Decimal::new(1, 2)),
+        ] {
+            assert_eq!(parse_custom_price(&text(raw)).unwrap(), expected, "{raw}");
+        }
+        for raw in [
+            "1e3", "1E3", "1.5e2", "+150", "", ".5", "5.", "abc", "1,000", "NaN", "Infinity",
+            "0x10",
+        ] {
+            assert!(
+                bad_request_message(parse_custom_price(&text(raw))).contains("plain number"),
+                "{raw:?} must be refused as a non-plain number"
+            );
+        }
+        assert!(bad_request_message(parse_custom_price(&text("0"))).contains("greater than zero"));
+        assert!(bad_request_message(parse_custom_price(&text("-5"))).contains("greater than zero"));
+        assert!(
+            bad_request_message(parse_custom_price(&text("199.999")))
+                .contains("two decimal places")
+        );
+        assert!(bad_request_message(parse_custom_price(&text("100000000"))).contains("too large"));
+    }
+
+    #[test]
+    fn custom_price_json_numbers_and_strings_deserialize_raw() {
+        let cell: OnlineInventoryCellUpdate = serde_json::from_value(json!({
+            "room_type_id": 1, "stay_date": "2026-12-08",
+            "walk_in_reserved_rooms": 0, "online_booking_enabled": true,
+            "custom_price": 175.5
+        }))
+        .unwrap();
+        assert_eq!(
+            parse_custom_price(cell.custom_price.as_ref().unwrap()).unwrap(),
+            Decimal::new(1755, 1)
+        );
+        let cell: OnlineInventoryCellUpdate = serde_json::from_value(json!({
+            "room_type_id": 1, "stay_date": "2026-12-08",
+            "walk_in_reserved_rooms": 0, "online_booking_enabled": true,
+            "custom_price": 1e3
+        }))
+        .unwrap();
+        // serde_json renders the float 1e3 as "1000.0" — plain, so accepted.
+        assert_eq!(
+            parse_custom_price(cell.custom_price.as_ref().unwrap()).unwrap(),
+            Decimal::new(1000, 0)
+        );
+        let cell: OnlineInventoryCellUpdate = serde_json::from_value(json!({
+            "room_type_id": 1, "stay_date": "2026-12-08",
+            "walk_in_reserved_rooms": 0, "online_booking_enabled": true,
+            "custom_price": "1e3"
+        }))
+        .unwrap();
+        assert!(parse_custom_price(cell.custom_price.as_ref().unwrap()).is_err());
+    }
+
+    #[test]
+    fn expected_updated_at_distinguishes_absent_null_and_timestamp() {
+        let base = json!({
+            "room_type_id": 1, "stay_date": "2026-12-08", "reset": true
+        });
+        let absent: OnlineInventoryCellUpdate = serde_json::from_value(base.clone()).unwrap();
+        assert_eq!(
+            Precondition::from_request(absent.expected_updated_at),
+            Precondition::Unchecked
+        );
+
+        let mut with_null = base.clone();
+        with_null["expected_updated_at"] = serde_json::Value::Null;
+        let null: OnlineInventoryCellUpdate = serde_json::from_value(with_null).unwrap();
+        assert_eq!(
+            Precondition::from_request(null.expected_updated_at),
+            Precondition::Absent
+        );
+
+        let mut with_ts = base;
+        with_ts["expected_updated_at"] = json!("2026-09-26T06:06:35.326671Z");
+        let ts: OnlineInventoryCellUpdate = serde_json::from_value(with_ts).unwrap();
+        let expected = DateTime::parse_from_rfc3339("2026-09-26T06:06:35.326671Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        assert_eq!(
+            Precondition::from_request(ts.expected_updated_at),
+            Precondition::At(expected)
+        );
+    }
+
+    #[tokio::test]
+    async fn stale_inventory_error_is_a_409_listing_every_cell() {
+        use axum::response::IntoResponse;
+        let response = stale_inventory_error(vec![
+            OnlineInventoryConflict {
+                room_type_id: 1,
+                stay_date: NaiveDate::from_ymd_opt(2026, 12, 15).unwrap(),
+            },
+            OnlineInventoryConflict {
+                room_type_id: 3,
+                stay_date: NaiveDate::from_ymd_opt(2026, 12, 16).unwrap(),
+            },
+        ])
+        .into_response();
+        assert_eq!(response.status(), axum::http::StatusCode::CONFLICT);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["code"], "stale_write");
+        assert_eq!(
+            body["conflicts"],
+            json!([
+                { "room_type_id": 1, "stay_date": "2026-12-15" },
+                { "room_type_id": 3, "stay_date": "2026-12-16" }
+            ])
+        );
     }
 }

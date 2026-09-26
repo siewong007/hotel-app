@@ -121,6 +121,7 @@ VALUES
     ('navigation_segments:read'),
     ('night_audit:execute'),
     ('night_audit:read'),
+    ('online_inventory:manage'),
     ('payments:approve'),
     ('payments:create'),
     ('payments:delete'),
@@ -468,6 +469,7 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('rooms:update', 'rooms', 'update', 'Update room information', true),
 ('rooms:delete', 'rooms', 'delete', 'Delete rooms', true),
 ('rooms:manage', 'rooms', 'manage', 'Full room management', true),
+('online_inventory:manage', 'online_inventory', 'manage', 'Change online inventory: online sales, walk-in holds and custom online prices', true),
 ('housekeeping:read', 'housekeeping', 'read', 'View housekeeping tasks and board', true),
 ('housekeeping:create', 'housekeeping', 'create', 'Create housekeeping tasks', true),
 ('housekeeping:update', 'housekeeping', 'update', 'Update housekeeping task status and assignments', true),
@@ -618,7 +620,9 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
     'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read',
     'revenue:read', 'navigation_revenue:read',
     'channels:read', 'channels:write', 'channels:manage',
-    'teams:read', 'teams:assign', 'loyalty:read', 'loyalty:manage'
+    'teams:read', 'teams:assign', 'loyalty:read', 'loyalty:manage',
+    -- Online sales, walk-in holds and guest-facing custom prices.
+    'online_inventory:manage'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Receptionist permissions

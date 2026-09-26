@@ -167,14 +167,34 @@ export const projectBulkAction = (
   return { edits, skipped };
 };
 
+/** Prices the server accepts: a plain positive decimal with at most 2 places. */
+export const PRICE_PATTERN = /^\d+(\.\d{1,2})?$/;
+
+export const isValidPrice = (value: string): boolean =>
+  PRICE_PATTERN.test(value.trim()) && Number(value) > 0;
+
+/**
+ * Turns staged edits into the bulk payload.
+ *
+ * - A `set` whose value equals the standard rules becomes a `reset`, so
+ *   reopening a closed day (or clearing a hold/price back to default) deletes
+ *   the override row instead of storing one that says "no override".
+ * - When `saved` is given, every cell carries `expected_updated_at` — the row
+ *   version the grid was built from (`null` when the cell had no row) — so a
+ *   save built on a stale read is refused whole with a 409.
+ */
 export const toCellUpdateInputs = (
   edits: Map<CellKey, StagedEdit>,
+  saved?: Map<CellKey, OnlineInventoryAllocation>,
 ): CellUpdateInput[] =>
   [...edits.entries()].map(([key, edit]) => {
     const { roomTypeId, date } = parseCellKey(key);
-    return edit.type === 'reset'
-      ? { room_type_id: roomTypeId, stay_date: date, reset: true }
-      : { room_type_id: roomTypeId, stay_date: date, ...edit.value };
+    const base: CellUpdateInput = { room_type_id: roomTypeId, stay_date: date };
+    const savedCell = saved?.get(key);
+    if (savedCell !== undefined) base.expected_updated_at = savedCell.updated_at ?? null;
+    return edit.type === 'reset' || editsEqual(edit.value, DEFAULT_EDIT)
+      ? { ...base, reset: true }
+      : { ...base, ...edit.value };
   });
 
 /** All cell keys inside the rectangle two keys span, row-major order. */

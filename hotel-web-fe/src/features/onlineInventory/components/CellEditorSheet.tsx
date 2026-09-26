@@ -25,7 +25,7 @@ export const CellEditorSheet = ({ view, onClose, onApply }: CellEditorSheetProps
   const { format } = useCurrency();
   const formatPrice = (value: string) => format(Number(value));
 
-  const { draft, patchDraft, priceInvalid, overHeld } = useCellEditorDraft(view);
+  const { draft, patchDraft, priceInvalid, priceError, overHeld } = useCellEditorDraft(view);
 
   const apply = () => {
     if (view === null || priceInvalid) return;
@@ -56,6 +56,7 @@ export const CellEditorSheet = ({ view, onClose, onApply }: CellEditorSheetProps
             draft={draft}
             onDraftChange={patchDraft}
             priceInvalid={priceInvalid}
+            priceError={priceError}
             overHeld={overHeld}
             formatPrice={formatPrice}
           />

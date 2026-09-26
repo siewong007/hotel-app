@@ -11,7 +11,8 @@
     "discardTitle": "Discard unsaved changes",
     "discardConfirm": "Discard changes",
     "discardMove": "Move the window and discard your unsaved inventory changes?",
-    "discardRefresh": "Refresh availability and discard your unsaved inventory changes?"
+    "discardRefresh": "Refresh availability and discard your unsaved inventory changes?",
+    "discardLeave": "Leave this page and discard your unsaved inventory changes?"
   },
   "changedBar_one": "{{count}} cell changed",
   "changedBar_other": "{{count}} cells changed",
@@ -31,7 +32,8 @@
     "controlsAria": "Inventory window controls",
     "refresh": "Refresh",
     "select": "Select",
-    "windowAria": "Date window"
+    "windowAria": "Date window",
+    "dateRange": "Pick a date between {{min}} and {{max}}."
   },
   "grid": {
     "aria": "Online inventory by room type and date",
@@ -87,7 +89,9 @@
     "selectedCount_one": "{{count}} selected",
     "selectedCount_other": "{{count}} selected",
     "editSelected": "Edit selected",
-    "editSelectedCells": "Edit selected cells"
+    "editSelectedCells": "Edit selected cells",
+    "overHeld_one": "The hold is higher than the free rooms on {{count}} selected day.",
+    "overHeld_other": "The hold is higher than the free rooms on {{count}} selected days."
   },
   "editor": {
     "bookable": "Bookable online",
@@ -104,7 +108,8 @@
     "standardRate": "Standard rate for this date: {{price}} — leave blank to use it.",
     "resetStandard": "Reset to standard rules",
     "resetAria": "Reset to standard rules",
-    "reset": "Reset"
+    "reset": "Reset",
+    "priceDecimals": "Use at most 2 decimal places, e.g. 199.99."
   },
   "summary": {
     "physical": "Physically free",
@@ -135,7 +140,9 @@
   },
   "errors": {
     "load": "Unable to load online inventory.",
-    "save": "Unable to save the inventory changes."
+    "save": "Unable to save the inventory changes.",
+    "loadTitle": "Couldn't load online availability",
+    "retry": "Try again"
   },
   "success": {
     "updated_one": "{{count}} cell updated.",
@@ -146,6 +153,17 @@
     "freeToday_other": "{{count}} free today",
     "stripAria": "{{name}} availability by day",
     "hint": "Tap a day to edit it · swipe sideways for more dates",
-    "hintSelect": "Tap days to select them, then choose Edit selected"
+    "hintSelect": "Tap days to select them, then choose Edit selected",
+    "hintReadOnly": "View only · swipe sideways for more dates"
+  },
+  "readOnly": {
+    "note": "View only — you can see online availability but not change it. Ask an admin or manager to make changes."
+  },
+  "conflict": {
+    "title": "Your changes were not saved",
+    "message": "Someone else changed these days since you loaded them. Reload to see the latest.",
+    "reload": "Reload",
+    "more_one": "+{{count}} more day",
+    "more_other": "+{{count}} more days"
   }
 }

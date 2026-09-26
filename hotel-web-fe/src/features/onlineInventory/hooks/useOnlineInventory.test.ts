@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OnlineInventoryAllocation } from '../types';
 import { cellKey } from '../utils';
+import { buildKyHttpError } from '../../../api/testSupport/httpError';
 
 const getOnlineInventoryRange = vi.fn();
 const bulkUpdateOnlineInventory = vi.fn();
@@ -108,6 +109,11 @@ describe('useOnlineInventory', () => {
     );
     const { result } = renderHook(() => useOnlineInventory('2026-09-12', '2026-09-25'));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // The post-save refresh reads the window again and sees the new row.
+    getOnlineInventoryRange.mockResolvedValue([
+      allocation({ walk_in_reserved_rooms: 2, is_override: true, updated_at: '2026-09-26T06:00:00Z' }),
+      ...rangeRows().slice(1),
+    ]);
 
     act(() =>
       result.current.stageCell(cellKey(1, '2026-09-12'), {
@@ -130,9 +136,16 @@ describe('useOnlineInventory', () => {
         walk_in_reserved_rooms: 2,
         online_booking_enabled: true,
         custom_price: null,
+        expected_updated_at: null,
       },
     ]);
     expect(result.current.changedCount).toBe(0);
+    await waitFor(() => expect(getOnlineInventoryRange).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(result.current.savedCells.get(cellKey(1, '2026-09-12'))?.updated_at).toBe(
+        '2026-09-26T06:00:00Z',
+      ),
+    );
     expect(result.current.cells.get(cellKey(1, '2026-09-12'))?.saved.walk_in_reserved_rooms).toBe(2);
     expect(result.current.successMessage).toContain('1');
   });
@@ -166,5 +179,80 @@ describe('useOnlineInventory', () => {
       await result.current.saveChanges();
     });
     expect(bulkUpdateOnlineInventory).not.toHaveBeenCalled();
+  });
+
+  it('keeps edits on a 409 stale_write and exposes the conflicting cells', async () => {
+    bulkUpdateOnlineInventory.mockRejectedValue(
+      buildKyHttpError(409, {
+        error: 'Someone else changed these days since you loaded them. Reload to see the latest.',
+        code: 'stale_write',
+        conflicts: [{ room_type_id: 1, stay_date: '2026-09-12' }],
+      }),
+    );
+    const { result } = renderHook(() => useOnlineInventory('2026-09-12', '2026-09-25'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.stageCell(cellKey(1, '2026-09-12'), {
+        type: 'set',
+        value: { walk_in_reserved_rooms: 1, online_booking_enabled: true, custom_price: null },
+      });
+      result.current.stageCell(cellKey(1, '2026-09-13'), {
+        type: 'set',
+        value: { walk_in_reserved_rooms: 3, online_booking_enabled: true, custom_price: null },
+      });
+    });
+
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.saveChanges();
+    });
+    expect(ok).toBe(false);
+    expect(result.current.conflicts).toEqual([{ room_type_id: 1, stay_date: '2026-09-12' }]);
+    expect(result.current.error).toBeNull();
+    expect(result.current.changedCount).toBe(2);
+
+    // Reload: the conflicting day takes the latest value and loses its staged
+    // edit; the untouched day keeps its edit.
+    getOnlineInventoryRange.mockResolvedValue([
+      allocation({ walk_in_reserved_rooms: 2, is_override: true, updated_at: '2026-09-26T06:00:00Z' }),
+      ...rangeRows().slice(1),
+    ]);
+    await act(async () => {
+      await result.current.reloadAfterConflict();
+    });
+    expect(result.current.conflicts).toBeNull();
+    expect(result.current.changedCount).toBe(1);
+    expect(result.current.edits.has(cellKey(1, '2026-09-13'))).toBe(true);
+    expect(result.current.cells.get(cellKey(1, '2026-09-12'))?.saved.walk_in_reserved_rooms).toBe(2);
+  });
+
+  it("surfaces the server's error text for other failures", async () => {
+    bulkUpdateOnlineInventory.mockRejectedValue(
+      buildKyHttpError(403, { error: "You don't have permission to do that.", code: 'forbidden' }),
+    );
+    const { result } = renderHook(() => useOnlineInventory('2026-09-12', '2026-09-25'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() =>
+      result.current.stageCell(cellKey(1, '2026-09-12'), {
+        type: 'set',
+        value: { walk_in_reserved_rooms: 1, online_booking_enabled: true, custom_price: null },
+      }),
+    );
+    await act(async () => {
+      await result.current.saveChanges();
+    });
+    expect(result.current.error).toBe("You don't have permission to do that.");
+    expect(result.current.conflicts).toBeNull();
+  });
+
+  it('reports a load failure separately so the page can show it', async () => {
+    getOnlineInventoryRange.mockRejectedValue(
+      buildKyHttpError(400, { error: "Invalid 'to' date", code: 'bad_request' }),
+    );
+    const { result } = renderHook(() => useOnlineInventory('2026-09-12', '2026-09-25'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.loadError).toBe("Invalid 'to' date");
+    expect(result.current.cells.size).toBe(0);
   });
 });

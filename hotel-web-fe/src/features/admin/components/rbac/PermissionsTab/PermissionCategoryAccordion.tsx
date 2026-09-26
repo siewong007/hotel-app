@@ -22,6 +22,7 @@ import {
   AccountBalance as AccountBalanceIcon,
   Assessment as AssessmentIcon,
   VpnKey as VpnKeyIcon,
+  Language as LanguageIcon,
 } from '@mui/icons-material';
 import type { Permission, Role } from '../../../../../types';
 import type { PermissionCategory } from '../types';
@@ -42,6 +43,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   AccountBalance: AccountBalanceIcon,
   Assessment: AssessmentIcon,
   VpnKey: VpnKeyIcon,
+  Language: LanguageIcon,
 };
 
 interface PermissionCategoryAccordionProps {

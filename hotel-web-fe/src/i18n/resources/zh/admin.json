@@ -736,7 +736,8 @@
       "loyalty": "忠诚度",
       "rewards": "奖励",
       "ledgers": "台账",
-      "analytics": "分析"
+      "analytics": "分析",
+      "online_inventory": "线上库存"
     },
     "roles": "角色",
     "users": {

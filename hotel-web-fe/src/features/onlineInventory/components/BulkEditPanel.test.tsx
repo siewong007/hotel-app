@@ -131,4 +131,18 @@ describe('BulkEditFields', () => {
     expect(onApply).toHaveBeenCalledTimes(1);
     expect(onApply).toHaveBeenCalledWith(edits);
   });
+
+  it('warns when the bulk hold is above the free rooms, like the single editor', () => {
+    renderPanel([
+      buildCellView(allocation(), undefined), // 5 free
+      buildCellView(allocation({ stay_date: '2026-09-14', physical_available_rooms: 2 }), undefined),
+    ]);
+    const hold = screen.getByRole('spinbutton', { name: 'Set hold' });
+    fireEvent.change(hold, { target: { value: '3' } });
+    expect(screen.getByText('The hold is higher than the free rooms on 1 selected day.')).toBeTruthy();
+    fireEvent.change(hold, { target: { value: '6' } });
+    expect(screen.getByText('The hold is higher than the free rooms on 2 selected days.')).toBeTruthy();
+    fireEvent.change(hold, { target: { value: '2' } });
+    expect(screen.queryByText(/higher than the free rooms/)).toBeNull();
+  });
 });

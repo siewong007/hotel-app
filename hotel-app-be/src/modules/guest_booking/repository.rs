@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chrono::{NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
@@ -167,6 +167,7 @@ impl GuestBookingRepository {
                        COALESCE(a.online_booking_enabled, true) AS online_booking_enabled,
                        a.custom_price::text AS custom_price,
                        (a.room_type_id IS NOT NULL) AS is_override,
+                       a.updated_at,
                        COALESCE(
                            CASE WHEN extract(isodow FROM d.stay_date) IN (6, 7)
                                 THEN rt.weekend_rate ELSE rt.weekday_rate END,
@@ -214,6 +215,7 @@ impl GuestBookingRepository {
                     } else {
                         0
                     },
+                    updated_at: row.try_get("updated_at").unwrap_or(None),
                 }
             })
             .collect())
@@ -256,6 +258,114 @@ impl GuestBookingRepository {
         .await
         .map_err(ApiError::from)?;
         Ok(())
+    }
+
+    /// Creates a cell only if no row exists yet — the client saw no stored
+    /// row, so a row another admin created meanwhile is a conflict. Returns
+    /// `false` (writing nothing) when the row already exists.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_online_inventory_if_absent_tx(
+        tx: &mut DbTransaction<'_>,
+        room_type_id: i64,
+        stay_date: NaiveDate,
+        reserved: i32,
+        enabled: bool,
+        custom_price: Option<Decimal>,
+        updated_by: Option<i64>,
+    ) -> Result<bool, ApiError> {
+        Self::lock_room_type_tx(tx, room_type_id).await?;
+        let inserted = sqlx::query_scalar::<_, i64>(
+            "INSERT INTO online_inventory_allocations \
+             (room_type_id, stay_date, walk_in_reserved_rooms, online_booking_enabled, custom_price, updated_by) \
+             VALUES ($1, $2, $3, $4, $5, $6) \
+             ON CONFLICT (room_type_id, stay_date) DO NOTHING \
+             RETURNING room_type_id",
+        )
+        .bind(room_type_id)
+        .bind(stay_date)
+        .bind(reserved)
+        .bind(enabled)
+        .bind(opt_decimal_to_db(custom_price))
+        .bind(updated_by)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(inserted.is_some())
+    }
+
+    /// Updates a cell only if its row still carries `expected_updated_at`.
+    /// Under READ COMMITTED a concurrent writer's committed change makes the
+    /// re-evaluated WHERE fail, so a stale save updates nothing and returns
+    /// `false`. A row deleted meanwhile is also `false`.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update_online_inventory_if_unchanged_tx(
+        tx: &mut DbTransaction<'_>,
+        room_type_id: i64,
+        stay_date: NaiveDate,
+        reserved: i32,
+        enabled: bool,
+        custom_price: Option<Decimal>,
+        updated_by: Option<i64>,
+        expected_updated_at: DateTime<Utc>,
+    ) -> Result<bool, ApiError> {
+        Self::lock_room_type_tx(tx, room_type_id).await?;
+        let result = sqlx::query(
+            "UPDATE online_inventory_allocations \
+             SET walk_in_reserved_rooms = $3, online_booking_enabled = $4, custom_price = $5, \
+                 updated_by = $6, updated_at = clock_timestamp() \
+             WHERE room_type_id = $1 AND stay_date = $2 AND updated_at = $7",
+        )
+        .bind(room_type_id)
+        .bind(stay_date)
+        .bind(reserved)
+        .bind(enabled)
+        .bind(opt_decimal_to_db(custom_price))
+        .bind(updated_by)
+        .bind(expected_updated_at)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    /// Deletes a cell only if it is still in the state the client read:
+    /// `Some(ts)` — the row still carries that `updated_at`; `None` — the
+    /// client saw no row, so any row found now is a conflict. Returns `false`
+    /// (deleting nothing) on a mismatch.
+    pub async fn delete_online_inventory_if_unchanged_tx(
+        tx: &mut DbTransaction<'_>,
+        room_type_id: i64,
+        stay_date: NaiveDate,
+        expected_updated_at: Option<DateTime<Utc>>,
+    ) -> Result<bool, ApiError> {
+        Self::lock_room_type_tx(tx, room_type_id).await?;
+        match expected_updated_at {
+            Some(expected) => {
+                let result = sqlx::query(
+                    "DELETE FROM online_inventory_allocations \
+                     WHERE room_type_id = $1 AND stay_date = $2 AND updated_at = $3",
+                )
+                .bind(room_type_id)
+                .bind(stay_date)
+                .bind(expected)
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
+                Ok(result.rows_affected() == 1)
+            }
+            None => {
+                let exists = sqlx::query_scalar::<_, bool>(
+                    "SELECT EXISTS (SELECT 1 FROM online_inventory_allocations \
+                     WHERE room_type_id = $1 AND stay_date = $2)",
+                )
+                .bind(room_type_id)
+                .bind(stay_date)
+                .fetch_one(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
+                Ok(!exists)
+            }
+        }
     }
 
     pub async fn online_custom_prices_for_stay(

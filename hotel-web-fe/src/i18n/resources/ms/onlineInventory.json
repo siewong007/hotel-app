@@ -11,7 +11,8 @@
     "discardTitle": "Buang perubahan belum disimpan",
     "discardConfirm": "Buang perubahan",
     "discardMove": "Alihkan tetingkap dan buang perubahan inventori yang belum disimpan?",
-    "discardRefresh": "Segar semula ketersediaan dan buang perubahan inventori yang belum disimpan?"
+    "discardRefresh": "Segar semula ketersediaan dan buang perubahan inventori yang belum disimpan?",
+    "discardLeave": "Tinggalkan halaman ini dan buang perubahan inventori yang belum disimpan?"
   },
   "changedBar_one": "{{count}} sel diubah",
   "changedBar_other": "{{count}} sel diubah",
@@ -26,12 +27,13 @@
     "nextDay": "Hari berikutnya",
     "forwardDays": "Maju {{days}} hari",
     "today": "Hari ini",
-    "overridesOnly": "Penggantian sahaja",
+    "overridesOnly": "Tetapan khas sahaja",
     "selected": "{{count}} dipilih",
     "controlsAria": "Kawalan tetingkap inventori",
     "refresh": "Muat semula",
     "select": "Pilih",
-    "windowAria": "Tetingkap tarikh"
+    "windowAria": "Tetingkap tarikh",
+    "dateRange": "Pilih tarikh antara {{min}} dan {{max}}."
   },
   "grid": {
     "aria": "Inventori dalam talian mengikut jenis bilik dan tarikh",
@@ -50,7 +52,7 @@
     "ariaClosed": "ditutup untuk tempahan dalam talian",
     "ariaNoneLeft": ", tiada lagi",
     "ariaModified": ", diubah",
-    "ariaResetPending": ", set semula belum selesai"
+    "ariaResetPending": ", tetapan semula belum disimpan"
   },
   "bulk": {
     "aria": "Edit pukal sel terpilih",
@@ -76,18 +78,20 @@
     "setPrice": "Tetapkan harga",
     "percentLabel": "±%",
     "adjustPercentAria": "Laras mengikut peratus",
-    "applyPercent": "Laksana %",
+    "applyPercent": "Laksanakan %",
     "amountLabel": "± jumlah",
     "adjustAmountAria": "Laras mengikut jumlah",
     "applyAmount": "Laksanakan jumlah",
-    "clearOverrides": "Kosongkan override",
+    "clearOverrides": "Buang tetapan khas",
     "skipped_one": "{{count}} sel dilangkau — pelarasan akan menjadikan harga sifar atau negatif.",
     "skipped_other": "{{count}} sel dilangkau — pelarasan akan menjadikan harga sifar atau negatif.",
     "selectedCount": "{{count}} dipilih",
     "selectedCount_one": "{{count}} dipilih",
     "selectedCount_other": "{{count}} dipilih",
     "editSelected": "Sunting yang dipilih",
-    "editSelectedCells": "Sunting sel yang dipilih"
+    "editSelectedCells": "Sunting sel yang dipilih",
+    "overHeld_one": "Tahanan melebihi bilik kosong pada {{count}} hari yang dipilih.",
+    "overHeld_other": "Tahanan melebihi bilik kosong pada {{count}} hari yang dipilih."
   },
   "editor": {
     "bookable": "Boleh ditempah dalam talian",
@@ -102,9 +106,10 @@
     "customPrice": "Harga dalam talian tersuai",
     "priceInvalid": "Masukkan harga lebih besar daripada sifar.",
     "standardRate": "Kadar standard untuk tarikh ini: {{price}} — biarkan kosong untuk menggunakannya.",
-    "resetStandard": "Set semula kepada peraturan standard",
+    "resetStandard": "Tetapkan semula kepada peraturan standard",
     "resetAria": "Tetapkan semula kepada peraturan standard",
-    "reset": "Tetapkan semula"
+    "reset": "Tetapkan semula",
+    "priceDecimals": "Gunakan maksimum 2 tempat perpuluhan, cth. 199.99."
   },
   "summary": {
     "physical": "Bebas secara fizikal",
@@ -124,7 +129,7 @@
     "apply_other": "Laksanakan {{count}} perubahan"
   },
   "lines": {
-    "resetStandard": "Set semula kepada peraturan standard",
+    "resetStandard": "Tetapkan semula kepada peraturan standard",
     "updated": "Dikemas kini",
     "reopenOnline": "Buka semula dalam talian",
     "closeOnline": "Tutup dalam talian",
@@ -135,7 +140,9 @@
   },
   "errors": {
     "load": "Tidak dapat memuatkan inventori dalam talian.",
-    "save": "Tidak dapat menyimpan perubahan inventori."
+    "save": "Tidak dapat menyimpan perubahan inventori.",
+    "loadTitle": "Tidak dapat memuatkan ketersediaan dalam talian",
+    "retry": "Cuba lagi"
   },
   "success": {
     "updated_one": "{{count}} sel dikemas kini.",
@@ -146,6 +153,17 @@
     "freeToday_other": "{{count}} kosong hari ini",
     "stripAria": "Ketersediaan {{name}} mengikut hari",
     "hint": "Ketik satu hari untuk menyuntingnya · leret ke sisi untuk tarikh lain",
-    "hintSelect": "Ketik hari untuk memilih, kemudian pilih Sunting yang dipilih"
+    "hintSelect": "Ketik hari untuk memilih, kemudian pilih Sunting yang dipilih",
+    "hintReadOnly": "Lihat sahaja · leret ke sisi untuk tarikh lain"
+  },
+  "readOnly": {
+    "note": "Lihat sahaja — anda boleh melihat ketersediaan dalam talian tetapi tidak boleh mengubahnya. Minta pentadbir atau pengurus untuk membuat perubahan."
+  },
+  "conflict": {
+    "title": "Perubahan anda tidak disimpan",
+    "message": "Orang lain telah mengubah hari-hari ini sejak anda memuatkannya. Muat semula untuk melihat yang terkini.",
+    "reload": "Muat semula",
+    "more_one": "+{{count}} hari lagi",
+    "more_other": "+{{count}} hari lagi"
   }
 }

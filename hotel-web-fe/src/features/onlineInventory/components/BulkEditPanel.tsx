@@ -101,6 +101,20 @@ export const BulkEditFields = ({ targets, onApply }: BulkEditFieldsProps) => {
     return targets.filter((t) => weekdayFilter.has(weekdayOf(t.stay_date))).length;
   }, [targets, weekdayFilter]);
 
+  // Same warning the single-cell editor shows: a hold above the rooms that
+  // are physically free still stages (online availability just drops to
+  // zero), but the user should know on how many days it overshoots.
+  const holdValue = Number(hold);
+  const overHeldCount = useMemo(() => {
+    if (hold.trim() === '' || !Number.isFinite(holdValue)) return 0;
+    const rooms = Math.max(0, Math.trunc(holdValue));
+    return targets.filter(
+      (target) =>
+        (weekdayFilter === null || weekdayFilter.has(weekdayOf(target.stay_date))) &&
+        rooms > target.physical,
+    ).length;
+  }, [hold, holdValue, targets, weekdayFilter]);
+
   const run = (action: BulkAction) => {
     const { edits, skipped: skippedCells } = projectBulkAction(targets, action, weekdayFilter);
     setSkipped(skippedCells);
@@ -258,6 +272,12 @@ export const BulkEditFields = ({ targets, onApply }: BulkEditFieldsProps) => {
           {t('bulk.clearOverrides')}
         </Button>
       </Stack>
+
+      {overHeldCount > 0 && (
+        <Alert severity="warning" sx={{ py: 0 }}>
+          {t('bulk.overHeld', { count: overHeldCount })}
+        </Alert>
+      )}
 
       {skipped > 0 && (
         <Alert severity="warning" sx={{ py: 0 }}>
