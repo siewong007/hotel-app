@@ -13,6 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 
+import { TableScroll } from '../../../components/data-table/TableScroll';
 import { useTranslation } from '../../../i18n/useTranslation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { formatCurrency, toNumber } from '../../../utils/currency';
@@ -106,34 +107,36 @@ export const PreviewPanel = ({ channelId }: Props) => {
 
       {result && (
         <>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>{t('preview.columns.date')}</TableCell>
-                <TableCell align="right">{t('preview.columns.sourceRate')}</TableCell>
-                <TableCell align="right">{t('preview.columns.sellingPrice')}</TableCell>
-                <TableCell>{t('preview.columns.rule')}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {result.nights.map((night) => (
-                <TableRow key={night.date}>
-                  <TableCell>{night.date}</TableCell>
-                  <TableCell align="right">
-                    {formatCurrency(toNumber(night.source_rate), result.currency)}
-                  </TableCell>
-                  <TableCell align="right">
-                    {optNum(night.selling_price) !== null
-                      ? formatCurrency(toNumber(night.selling_price), result.currency)
-                      : night.net_rate !== null
-                        ? `${formatCurrency(toNumber(night.net_rate), result.currency)} ${t('matrix.netTag')}`
-                        : '—'}
-                  </TableCell>
-                  <TableCell>{night.rule_label}</TableCell>
+          <TableScroll stickyFirstColumn>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t('preview.columns.date')}</TableCell>
+                  <TableCell align="right">{t('preview.columns.sourceRate')}</TableCell>
+                  <TableCell align="right">{t('preview.columns.sellingPrice')}</TableCell>
+                  <TableCell>{t('preview.columns.rule')}</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {result.nights.map((night) => (
+                  <TableRow key={night.date}>
+                    <TableCell>{night.date}</TableCell>
+                    <TableCell align="right">
+                      {formatCurrency(toNumber(night.source_rate), result.currency)}
+                    </TableCell>
+                    <TableCell align="right">
+                      {optNum(night.selling_price) !== null
+                        ? formatCurrency(toNumber(night.selling_price), result.currency)
+                        : night.net_rate !== null
+                          ? `${formatCurrency(toNumber(night.net_rate), result.currency)} ${t('matrix.netTag')}`
+                          : '—'}
+                    </TableCell>
+                    <TableCell>{night.rule_label}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableScroll>
           <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             <Typography variant="body2">
               {t('preview.sellingSubtotal')}:{' '}

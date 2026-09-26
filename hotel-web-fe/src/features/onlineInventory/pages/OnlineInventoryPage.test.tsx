@@ -345,7 +345,7 @@ describe('OnlineInventoryPage on a phone', () => {
     expect(stepper.contains(screen.getByRole('button', { name: 'Select' }))).toBe(false);
   });
 
-  it('portals the pending-changes bar to <body> so it pins to the viewport', async () => {
+  it('pins the pending-changes bar to the viewport in place (no portal)', async () => {
     const { container } = renderPage();
     await screen.findByText('Deluxe King');
 
@@ -356,8 +356,8 @@ describe('OnlineInventoryPage on a phone', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
 
     const bar = await screen.findByRole('region', { name: 'Unsaved inventory changes' });
-    // Outside the page subtree: <main>'s contain/transform can't trap it.
-    expect(container.contains(bar)).toBe(false);
+    // Rendered inside the page: the shell no longer traps `position: fixed`.
+    expect(container.contains(bar)).toBe(true);
     expect(getComputedStyle(bar).position).toBe('fixed');
     expect(bar.textContent).toMatch(/1 cell changed/);
     fireEvent.click(screen.getByRole('button', { name: /review & apply/i }));

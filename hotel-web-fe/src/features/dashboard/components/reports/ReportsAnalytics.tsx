@@ -325,7 +325,7 @@ const ReportsAnalyticsInner: React.FC = () => {
           <div className="chart-row two">
             {canViewFinancials ? (
               <Panel phoneCollapsible title={t('reports.charts.dailyRevenue')} icon="chart"
-                sub={t('reports.charts.dailyRevenueSub', { room: fmtMoneyK(model.roomRev), other: fmtMoneyK(model.otherRev), count: model.periodDays })}
+                sub={t('reports.charts.dailyRevenueSub', { room: fmtMoneyK(model.roomRev), other: fmtMoneyK(model.otherRev), days: model.periodDays })}
                 right={<Legend items={[{ label: t('reports.charts.roomRevenue'), color: palette[0] }, { label: t('reports.charts.otherRevenue'), color: palette[1] }]} />}>
                 <ChartStateGate loading={loading} isEmpty={model.daily.length === 0}>
                   <HotelLineChart
@@ -402,7 +402,7 @@ const ReportsAnalyticsInner: React.FC = () => {
           {/* CHARTS — occupancy trend + room type */}
           <div className="chart-row two">
             <Panel phoneCollapsible collapseOnPhone title={t('reports.charts.occupancyTrend')} icon="percent"
-              sub={t('reports.charts.occupancyTrendSub', { avg: fmtPct(k.occupancy.value), rooms: model.periodRooms, count: model.periodDays })}
+              sub={t('reports.charts.occupancyTrendSub', { avg: fmtPct(k.occupancy.value), rooms: model.periodRooms, days: model.periodDays })}
               right={<Legend items={[{ label: t('reports.charts.dailyOccupancy'), color: accent }]} />}>
               <ChartStateGate loading={loading} isEmpty={model.daily.length === 0}>
                 <HotelLineChart

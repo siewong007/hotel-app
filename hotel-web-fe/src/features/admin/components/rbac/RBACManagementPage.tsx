@@ -533,7 +533,9 @@ const RBACManagementPage: React.FC = () => {
                 const acc = roleAccent(selectedRole);
                 const heroUsers = usersByRole[selectedRole.id] || [];
                 return (
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 2.25, p: '18px 22px', background: `linear-gradient(180deg,${T.surface},${T.surface2})`, borderBottom: `1px solid ${T.border}`, alignItems: 'start' }}>
+                  // Phones: the avatar/actions column drops to its own row so the
+                  // description and stats keep the card's full width.
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'auto 1fr', sm: 'auto 1fr auto' }, gap: { xs: 1.5, sm: 2.25 }, p: { xs: '14px 16px', sm: '18px 22px' }, background: `linear-gradient(180deg,${T.surface},${T.surface2})`, borderBottom: `1px solid ${T.border}`, alignItems: 'start' }}>
                     <Box sx={{ width: 56, height: 56, borderRadius: '14px', bgcolor: acc.soft, color: acc.deep, border: `1px solid color-mix(in srgb, ${acc.deep} 14%, transparent)`, display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 800 }}>
                       {initials(selectedRole.name)}
                     </Box>
@@ -575,7 +577,7 @@ const RBACManagementPage: React.FC = () => {
                         </Box>
                       </Box>
                     </Box>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, alignItems: 'flex-end' }}>
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'row', sm: 'column' }, gap: 0.75, alignItems: { xs: 'center', sm: 'flex-end' }, justifyContent: { xs: 'space-between', sm: 'flex-start' }, gridColumn: { xs: '1 / -1', sm: 'auto' } }}>
                       <Box sx={{ display: 'flex' }}>
                         {heroUsers.slice(0, 5).map((u, i) => (
                           <Box key={u.id} title={u.full_name || u.username}
@@ -589,7 +591,7 @@ const RBACManagementPage: React.FC = () => {
                           </Box>
                         )}
                       </Box>
-                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      <Box sx={{ display: 'flex', gap: 0.5, '& .MuiIconButton-root': { minWidth: { xs: 44 }, minHeight: { xs: 44 } } }}>
                         <Tooltip title={t('rbac.rename')}><span><IconButton size="small" onClick={openRename} disabled={locked} aria-label={t('rbac.rename')}><EditIcon sx={{ fontSize: 16 }} /></IconButton></span></Tooltip>
                         <Tooltip title={t('rbac.duplicate')}><IconButton size="small" onClick={duplicateRole} aria-label={t('rbac.duplicate')}><CopyIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
                         <Tooltip title={isBuiltin(selectedRole) ? t('rbac.builtinNoDelete') : t('common:actions.delete')}>

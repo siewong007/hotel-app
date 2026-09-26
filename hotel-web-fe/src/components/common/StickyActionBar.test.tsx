@@ -37,15 +37,16 @@ describe('StickyActionBar', () => {
     expect(getComputedStyle(bar).position).toBe('fixed');
   });
 
-  it('phone: the bar is portalled out of the page so contain/transform ancestors cannot trap it', () => {
+  it('phone: the bar renders in place (no portal) and stays position: fixed', () => {
     mocks.isPhone = true;
     const { container } = render(
-      <div style={{ contain: 'layout', transform: 'translateZ(0)' }}>
+      <div>
         <StickyActionBar primary={primary} />
       </div>,
     );
-    expect(container.querySelector('button')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Check in' }).closest('body')).toBe(document.body);
+    const button = screen.getByRole('button', { name: 'Check in' });
+    expect(container.contains(button)).toBe(true);
+    expect(getComputedStyle(button.parentElement as HTMLElement).position).toBe('fixed');
   });
 
   it('desktop: the bar stays inline (position: static)', () => {

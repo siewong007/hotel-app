@@ -4,7 +4,23 @@ import { Box, type SxProps, type Theme } from '@mui/material';
 export interface TableScrollProps {
   children: React.ReactNode;
   sx?: SxProps<Theme>;
+  /**
+   * Pin the first column while the rest scrolls sideways, so every row keeps
+   * its label (room type, date, …) in view on a narrow screen.
+   */
+  stickyFirstColumn?: boolean;
 }
+
+const stickyFirstColumnSx: SxProps<Theme> = {
+  '& th:first-of-type, & td:first-of-type': {
+    position: 'sticky',
+    left: 0,
+    zIndex: 1,
+    bgcolor: 'background.paper',
+    // Hairline so the pinned column reads as separate from what scrolls under it.
+    boxShadow: (theme: Theme) => `inset -1px 0 0 ${theme.palette.divider}`,
+  },
+};
 
 /**
  * Horizontal scroll host for a bare `<Table>`.
@@ -28,7 +44,7 @@ export interface TableScrollProps {
  * a primary surface, give it a `renderMobileCard` via `DataTable`, or an
  * explicit card branch, so phones get a readable list instead.
  */
-export const TableScroll: React.FC<TableScrollProps> = ({ children, sx }) => (
+export const TableScroll: React.FC<TableScrollProps> = ({ children, sx, stickyFirstColumn = false }) => (
   <Box
     sx={[
       {
@@ -37,6 +53,7 @@ export const TableScroll: React.FC<TableScrollProps> = ({ children, sx }) => (
         overscrollBehaviorX: 'contain',
         WebkitOverflowScrolling: 'touch',
       },
+      stickyFirstColumn && stickyFirstColumnSx,
       ...(Array.isArray(sx) ? sx : [sx]),
     ]}
   >

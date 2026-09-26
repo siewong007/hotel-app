@@ -459,7 +459,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
               ) : (
                 <Box sx={{ flex: 1 }} />
               )}
-              <CardMoreButton onClick={(e) => onMenuOpen(e, room)} size={32} />
+              <CardMoreButton onClick={(e) => onMenuOpen(e, room)} size={44} />
             </CardActionRow>
           </CardContent>
         </Card>

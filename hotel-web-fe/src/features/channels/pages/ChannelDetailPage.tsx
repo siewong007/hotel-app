@@ -74,7 +74,7 @@ const ChannelDetailPage = ({ channelId }: Props) => {
         title={channel?.name ?? t('detail.title')}
         subtitle={subtitle}
         actions={
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button
               startIcon={<ArrowBackIcon />}
               onClick={() => navigate({ to: '/channels' })}
@@ -109,7 +109,14 @@ const ChannelDetailPage = ({ channelId }: Props) => {
         </Alert>
       )}
 
-      <Tabs value={tab} onChange={(_, value: DetailTab) => setTab(value)} sx={{ mb: 2 }}>
+      <Tabs
+        value={tab}
+        onChange={(_, value: DetailTab) => setTab(value)}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
+        sx={{ mb: 2 }}
+      >
         <Tab value="rules" label={t('detail.tabs.rules')} />
         <Tab value="commission" label={t('detail.tabs.commission')} />
         <Tab value="mappings" label={t('detail.tabs.mappings')} />

@@ -154,14 +154,14 @@ html {
    =================================== */
 
 /* Smooth fade animation - GPU accelerated */
+/* Route entrances end at `transform: none` so a finished animation never
+   leaves a containing block for `position: fixed` descendants behind. */
 @keyframes smoothFadeIn {
   from {
     opacity: 0;
-    transform: translate3d(0, 0, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -173,7 +173,7 @@ html {
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: none;
   }
 }
 
@@ -185,7 +185,7 @@ html {
   }
   to {
     opacity: 1;
-    transform: scale3d(1, 1, 1);
+    transform: none;
   }
 }
 

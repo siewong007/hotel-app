@@ -15,6 +15,7 @@ import { ErrorBoundary, PageErrorBoundary } from '../components';
 import { GuestPortalShell } from '../features/guestPortal/components/GuestPortalShell';
 import { useTranslation } from '../i18n';
 import { getHotelSettings } from '../utils/hotelSettings';
+import { MAIN_CONTAINMENT } from './mainContainment';
 
 const ADMIN_FAVICON = '/favicon.ico';
 const GUEST_FAVICON = '/salim-inn/salim-inn-icon.svg';
@@ -168,8 +169,8 @@ export const RootLayout: React.FC = () => {
               // exists below `sm`; from `sm` up the sidebar rail takes over.
               pb: { xs: 'calc(84px + var(--sab))', sm: 0 },
               flex: 1,
-              contain: 'layout style',
-              isolation: 'isolate',
+              // Must not trap `position: fixed` descendants — see mainContainment.
+              ...MAIN_CONTAINMENT,
             }}
           >
             <PageErrorBoundary>

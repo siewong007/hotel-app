@@ -23,6 +23,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
+import { TableScroll } from '../../../components/data-table/TableScroll';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useRatePlans, useRateRoomTypes } from '../../rates/hooks/useRatePlans';
@@ -111,59 +112,61 @@ export const MappingsPanel = ({ mappings, loading, canWrite, mutations }: Props)
             </Button>
           )}
         </Box>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>{t('mappings.columns.roomType')}</TableCell>
-              <TableCell>{t('mappings.columns.externalId')}</TableCell>
-              <TableCell>{t('mappings.columns.externalName')}</TableCell>
-              <TableCell>{t('mappings.columns.enabled')}</TableCell>
-              <TableCell align="right">{t('mappings.columns.actions')}</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {mappings.room_types.map((mapping) => (
-              <TableRow key={mapping.id} hover>
-                <TableCell>{mapping.room_type_name ?? `#${mapping.room_type_id}`}</TableCell>
-                <TableCell>{mapping.external_room_id ?? '—'}</TableCell>
-                <TableCell>{mapping.external_room_name ?? '—'}</TableCell>
-                <TableCell>
-                  <Switch
-                    size="small"
-                    checked={mapping.is_enabled}
-                    disabled={!canWrite}
-                    onChange={(event) =>
-                      mutations.upsertRoomMapping.mutate({
-                        room_type_id: mapping.room_type_id,
-                        external_room_id: mapping.external_room_id,
-                        external_room_name: mapping.external_room_name,
-                        is_enabled: event.target.checked,
-                      })
-                    }
-                  />
-                </TableCell>
-                <TableCell align="right">
-                  {canWrite && (
-                    <Tooltip title={t('common:actions.delete')}>
-                      <IconButton size="small" onClick={() => removeRoom(mapping)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {mappings.room_types.length === 0 && (
+        <TableScroll stickyFirstColumn>
+          <Table size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={5}>
-                  <Typography variant="body2" color="text.secondary">
-                    {t('mappings.empty')}
-                  </Typography>
-                </TableCell>
+                <TableCell>{t('mappings.columns.roomType')}</TableCell>
+                <TableCell>{t('mappings.columns.externalId')}</TableCell>
+                <TableCell>{t('mappings.columns.externalName')}</TableCell>
+                <TableCell>{t('mappings.columns.enabled')}</TableCell>
+                <TableCell align="right">{t('mappings.columns.actions')}</TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {mappings.room_types.map((mapping) => (
+                <TableRow key={mapping.id} hover>
+                  <TableCell>{mapping.room_type_name ?? `#${mapping.room_type_id}`}</TableCell>
+                  <TableCell>{mapping.external_room_id ?? '—'}</TableCell>
+                  <TableCell>{mapping.external_room_name ?? '—'}</TableCell>
+                  <TableCell>
+                    <Switch
+                      size="small"
+                      checked={mapping.is_enabled}
+                      disabled={!canWrite}
+                      onChange={(event) =>
+                        mutations.upsertRoomMapping.mutate({
+                          room_type_id: mapping.room_type_id,
+                          external_room_id: mapping.external_room_id,
+                          external_room_name: mapping.external_room_name,
+                          is_enabled: event.target.checked,
+                        })
+                      }
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    {canWrite && (
+                      <Tooltip title={t('common:actions.delete')}>
+                        <IconButton size="small" onClick={() => removeRoom(mapping)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {mappings.room_types.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5}>
+                    <Typography variant="body2" color="text.secondary">
+                      {t('mappings.empty')}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableScroll>
       </Box>
 
       <Box>
@@ -185,59 +188,61 @@ export const MappingsPanel = ({ mappings, loading, canWrite, mutations }: Props)
             </Button>
           )}
         </Box>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>{t('mappings.columns.ratePlan')}</TableCell>
-              <TableCell>{t('mappings.columns.externalId')}</TableCell>
-              <TableCell>{t('mappings.columns.externalName')}</TableCell>
-              <TableCell>{t('mappings.columns.enabled')}</TableCell>
-              <TableCell align="right">{t('mappings.columns.actions')}</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {mappings.rate_plans.map((mapping) => (
-              <TableRow key={mapping.id} hover>
-                <TableCell>{mapping.rate_plan_name ?? `#${mapping.rate_plan_id}`}</TableCell>
-                <TableCell>{mapping.external_rate_plan_id ?? '—'}</TableCell>
-                <TableCell>{mapping.external_rate_plan_name ?? '—'}</TableCell>
-                <TableCell>
-                  <Switch
-                    size="small"
-                    checked={mapping.is_enabled}
-                    disabled={!canWrite}
-                    onChange={(event) =>
-                      mutations.upsertPlanMapping.mutate({
-                        rate_plan_id: mapping.rate_plan_id,
-                        external_rate_plan_id: mapping.external_rate_plan_id,
-                        external_rate_plan_name: mapping.external_rate_plan_name,
-                        is_enabled: event.target.checked,
-                      })
-                    }
-                  />
-                </TableCell>
-                <TableCell align="right">
-                  {canWrite && (
-                    <Tooltip title={t('common:actions.delete')}>
-                      <IconButton size="small" onClick={() => removePlan(mapping)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {mappings.rate_plans.length === 0 && (
+        <TableScroll stickyFirstColumn>
+          <Table size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={5}>
-                  <Typography variant="body2" color="text.secondary">
-                    {t('mappings.empty')}
-                  </Typography>
-                </TableCell>
+                <TableCell>{t('mappings.columns.ratePlan')}</TableCell>
+                <TableCell>{t('mappings.columns.externalId')}</TableCell>
+                <TableCell>{t('mappings.columns.externalName')}</TableCell>
+                <TableCell>{t('mappings.columns.enabled')}</TableCell>
+                <TableCell align="right">{t('mappings.columns.actions')}</TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {mappings.rate_plans.map((mapping) => (
+                <TableRow key={mapping.id} hover>
+                  <TableCell>{mapping.rate_plan_name ?? `#${mapping.rate_plan_id}`}</TableCell>
+                  <TableCell>{mapping.external_rate_plan_id ?? '—'}</TableCell>
+                  <TableCell>{mapping.external_rate_plan_name ?? '—'}</TableCell>
+                  <TableCell>
+                    <Switch
+                      size="small"
+                      checked={mapping.is_enabled}
+                      disabled={!canWrite}
+                      onChange={(event) =>
+                        mutations.upsertPlanMapping.mutate({
+                          rate_plan_id: mapping.rate_plan_id,
+                          external_rate_plan_id: mapping.external_rate_plan_id,
+                          external_rate_plan_name: mapping.external_rate_plan_name,
+                          is_enabled: event.target.checked,
+                        })
+                      }
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    {canWrite && (
+                      <Tooltip title={t('common:actions.delete')}>
+                        <IconButton size="small" onClick={() => removePlan(mapping)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {mappings.rate_plans.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5}>
+                    <Typography variant="body2" color="text.secondary">
+                      {t('mappings.empty')}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableScroll>
       </Box>
 
       <Dialog open={roomForm !== null} onClose={() => setRoomForm(null)} maxWidth="xs" fullWidth>

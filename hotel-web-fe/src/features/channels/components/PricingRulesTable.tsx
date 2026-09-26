@@ -12,6 +12,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 
+import { TableScroll } from '../../../components/data-table/TableScroll';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { formatStatusLabel } from '../../../utils/formatters';
 import { useRatePlans, useRateRoomTypes } from '../../rates/hooks/useRatePlans';
@@ -55,74 +56,76 @@ export const PricingRulesTable = ({
   };
 
   return (
-    <Table size="small">
-      <TableHead>
-        <TableRow>
-          <TableCell>{t('rules.columns.type')}</TableCell>
-          <TableCell>{t('rules.columns.value')}</TableCell>
-          <TableCell>{t('rules.columns.roomType')}</TableCell>
-          <TableCell>{t('rules.columns.ratePlan')}</TableCell>
-          <TableCell>{t('rules.columns.window')}</TableCell>
-          <TableCell>{t('rules.columns.bounds')}</TableCell>
-          <TableCell>{t('rules.columns.priority')}</TableCell>
-          <TableCell>{t('rules.columns.status')}</TableCell>
-          <TableCell align="right">{t('rules.columns.actions')}</TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {rules.map((rule) => (
-          <TableRow key={rule.id} hover>
-            <TableCell>
-              {tOr(`ruleTypes.${rule.rule_type}`, formatStatusLabel(rule.rule_type))}
-            </TableCell>
-            <TableCell>{valueLabel(rule)}</TableCell>
-            <TableCell>{roomTypeName(rule.room_type_id)}</TableCell>
-            <TableCell>{planName(rule.rate_plan_id)}</TableCell>
-            <TableCell>
-              {rule.effective_from} → {rule.effective_to ?? t('rules.openEnded')}
-            </TableCell>
-            <TableCell>
-              {rule.min_price !== null || rule.max_price !== null
-                ? `${rule.min_price ?? '—'} / ${rule.max_price ?? '—'}`
-                : '—'}
-            </TableCell>
-            <TableCell>{rule.priority}</TableCell>
-            <TableCell>
-              <Chip
-                size="small"
-                label={rule.is_active ? t('status.active') : t('status.inactive')}
-                color={rule.is_active ? 'success' : 'default'}
-                variant={rule.is_active ? 'filled' : 'outlined'}
-              />
-            </TableCell>
-            <TableCell align="right">
-              {canWrite && (
-                <>
-                  <Tooltip title={t('list.edit')}>
-                    <IconButton size="small" onClick={() => onEdit(rule)}>
-                      <EditIcon fontSize="small" />
+    <TableScroll stickyFirstColumn>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>{t('rules.columns.type')}</TableCell>
+            <TableCell>{t('rules.columns.value')}</TableCell>
+            <TableCell>{t('rules.columns.roomType')}</TableCell>
+            <TableCell>{t('rules.columns.ratePlan')}</TableCell>
+            <TableCell>{t('rules.columns.window')}</TableCell>
+            <TableCell>{t('rules.columns.bounds')}</TableCell>
+            <TableCell>{t('rules.columns.priority')}</TableCell>
+            <TableCell>{t('rules.columns.status')}</TableCell>
+            <TableCell align="right">{t('rules.columns.actions')}</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {rules.map((rule) => (
+            <TableRow key={rule.id} hover>
+              <TableCell>
+                {tOr(`ruleTypes.${rule.rule_type}`, formatStatusLabel(rule.rule_type))}
+              </TableCell>
+              <TableCell>{valueLabel(rule)}</TableCell>
+              <TableCell>{roomTypeName(rule.room_type_id)}</TableCell>
+              <TableCell>{planName(rule.rate_plan_id)}</TableCell>
+              <TableCell>
+                {rule.effective_from} → {rule.effective_to ?? t('rules.openEnded')}
+              </TableCell>
+              <TableCell>
+                {rule.min_price !== null || rule.max_price !== null
+                  ? `${rule.min_price ?? '—'} / ${rule.max_price ?? '—'}`
+                  : '—'}
+              </TableCell>
+              <TableCell>{rule.priority}</TableCell>
+              <TableCell>
+                <Chip
+                  size="small"
+                  label={rule.is_active ? t('status.active') : t('status.inactive')}
+                  color={rule.is_active ? 'success' : 'default'}
+                  variant={rule.is_active ? 'filled' : 'outlined'}
+                />
+              </TableCell>
+              <TableCell align="right">
+                {canWrite && (
+                  <>
+                    <Tooltip title={t('list.edit')}>
+                      <IconButton size="small" onClick={() => onEdit(rule)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={rule.is_active ? t('rules.disable') : t('rules.enable')}>
+                      <Switch
+                        size="small"
+                        checked={rule.is_active}
+                        onChange={(event) => onToggleActive(rule, event.target.checked)}
+                      />
+                    </Tooltip>
+                  </>
+                )}
+                {canManage && (
+                  <Tooltip title={t('common:actions.delete')}>
+                    <IconButton size="small" onClick={() => onDelete(rule)}>
+                      <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={rule.is_active ? t('rules.disable') : t('rules.enable')}>
-                    <Switch
-                      size="small"
-                      checked={rule.is_active}
-                      onChange={(event) => onToggleActive(rule, event.target.checked)}
-                    />
-                  </Tooltip>
-                </>
-              )}
-              {canManage && (
-                <Tooltip title={t('common:actions.delete')}>
-                  <IconButton size="small" onClick={() => onDelete(rule)}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableScroll>
   );
 };

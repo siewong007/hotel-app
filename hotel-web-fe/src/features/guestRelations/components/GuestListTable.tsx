@@ -97,7 +97,17 @@ const GuestRowActions: React.FC<GuestRowActionsProps> = ({
   };
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.25 }}>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: 0.25,
+        // 18px icons + the theme's touch padding land at 42px — lift the
+        // phone row actions to the full 44px floor.
+        '& .MuiIconButton-root': { minWidth: { xs: 44 }, minHeight: { xs: 44 } },
+      }}
+    >
       <Tooltip title={t('list.editTooltip')}>
         <IconButton size="small" aria-label={t('list.editAria', { name: guest.nick_name })} onClick={() => onEdit(guest)}>
           <EditIcon sx={{ fontSize: 18 }} />
