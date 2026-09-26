@@ -5,6 +5,7 @@ import {
   Button,
   Container,
   Paper,
+  Portal,
   Snackbar,
   Stack,
   Typography,
@@ -161,7 +162,12 @@ const OnlineInventoryPage = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3.5 }, pb: { xs: 14, md: 6 } }}>
+    <Container
+      maxWidth="xl"
+      // The app shell's <main> already pads 16px on phones; a second gutter
+      // here squeezed the day strips and toolbar to ~296px on a 360px screen.
+      sx={{ py: { xs: 2, md: 3.5 }, pb: { xs: 17, md: 6 }, px: { xs: 0, sm: 3 } }}
+    >
       <Stack spacing={2.5}>
         <Box>
           <Stack
@@ -301,47 +307,67 @@ const OnlineInventoryPage = () => {
       />
 
       {inv.changedCount > 0 && (
-        <Paper
-          elevation={8}
-          sx={{
-            position: 'fixed',
-            zIndex: (theme) => theme.zIndex.appBar - 1,
-            left: { xs: 12, md: '50%' },
-            right: { xs: 12, md: 'auto' },
-            // Below md the 60px bottom nav (+ --sab home indicator) covers a
-            // bar pinned at bottom:16 — lift it clear; while phone select
-            // mode's StickyActionBar (~64px) is up, stack above it instead.
-            bottom: {
-              xs: `calc(${selectMode ? 136 : 76}px + var(--sab))`,
-              sm: 'calc(76px + var(--sab))',
-              md: 16,
-            },
-            transform: { md: 'translateX(-50%)' },
-            width: { md: 'min(680px, calc(100vw - 48px))' },
-            p: 1.25,
-            pl: 2,
-            borderRadius: 3,
-            border: 1,
-            borderColor: 'divider',
-          }}
-          aria-live="polite"
-        >
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-            <Typography sx={{ fontWeight: 750, flex: 1 }}>
-              {t('changedBar', { count: inv.changedCount })}
-            </Typography>
-            <Button onClick={inv.discardChanges} disabled={inv.isSaving} color="inherit">
-              {t('discard')}
-            </Button>
-            <Button
-              variant="contained"
-              onClick={() => setReviewOpen(true)}
-              disabled={inv.isSaving}
+        // Portalled: <main> has `contain: layout` and the route wrapper a
+        // `transform`, both of which make `position: fixed` relative to the
+        // page box — the bar used to render below the content, off-screen.
+        <Portal>
+          <Paper
+            elevation={8}
+            sx={{
+              position: 'fixed',
+              zIndex: (theme) => theme.zIndex.appBar - 1,
+              left: { xs: 12, md: '50%' },
+              right: { xs: 12, md: 'auto' },
+              // Below sm the 60px bottom nav (+ --sab home indicator) covers a
+              // bar pinned at bottom:16 — lift it clear; while phone select
+              // mode's StickyActionBar (~64px) is up, stack above it instead.
+              bottom: {
+                xs: `calc(${selectMode ? 136 : 76}px + var(--sab))`,
+                sm: 'calc(16px + var(--sab))',
+                md: 16,
+              },
+              transform: { md: 'translateX(-50%)' },
+              width: { md: 'min(680px, calc(100vw - 48px))' },
+              p: 1.25,
+              pl: 2,
+              borderRadius: 3,
+              border: 1,
+              borderColor: 'divider',
+            }}
+            role="region"
+            aria-label={t('changedBarAria')}
+            aria-live="polite"
+          >
+            <Stack
+              direction="row"
+              spacing={1}
+              useFlexGap
+              sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}
             >
-              {t('reviewApply')}
-            </Button>
-          </Stack>
-        </Paper>
+              <Typography sx={{ fontWeight: 750, flex: '1 1 auto', minWidth: 0 }}>
+                {t('changedBar', { count: inv.changedCount })}
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ ml: 'auto', flexShrink: 0 }}>
+                <Button
+                  onClick={inv.discardChanges}
+                  disabled={inv.isSaving}
+                  color="inherit"
+                  sx={{ minHeight: 44, whiteSpace: 'nowrap' }}
+                >
+                  {t('discard')}
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={() => setReviewOpen(true)}
+                  disabled={inv.isSaving}
+                  sx={{ minHeight: 44, whiteSpace: 'nowrap' }}
+                >
+                  {t('reviewApply')}
+                </Button>
+              </Stack>
+            </Stack>
+          </Paper>
+        </Portal>
       )}
 
       {isPhone && selectMode && (

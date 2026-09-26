@@ -17,6 +17,7 @@
   "changedBar_other": "{{count}} sel diubah",
   "discard": "Buang",
   "reviewApply": "Semak & laksanakan",
+  "changedBarAria": "Perubahan inventori belum disimpan",
   "toolbar": {
     "aria": "Kawalan tetingkap inventori",
     "backDays": "Undur {{days}} hari",
@@ -29,7 +30,8 @@
     "selected": "{{count}} dipilih",
     "controlsAria": "Kawalan tetingkap inventori",
     "refresh": "Muat semula",
-    "select": "Pilih"
+    "select": "Pilih",
+    "windowAria": "Tetingkap tarikh"
   },
   "grid": {
     "aria": "Inventori dalam talian mengikut jenis bilik dan tarikh",
@@ -138,5 +140,12 @@
   "success": {
     "updated_one": "{{count}} sel dikemas kini.",
     "updated_other": "{{count}} sel dikemas kini."
+  },
+  "phone": {
+    "freeToday_one": "{{count}} kosong hari ini",
+    "freeToday_other": "{{count}} kosong hari ini",
+    "stripAria": "Ketersediaan {{name}} mengikut hari",
+    "hint": "Ketik satu hari untuk menyuntingnya · leret ke sisi untuk tarikh lain",
+    "hintSelect": "Ketik hari untuk memilih, kemudian pilih Sunting yang dipilih"
   }
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Paper, Typography } from '@mui/material';
+import { Box, Paper, Portal, Typography } from '@mui/material';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { ActionsMenu } from './ActionsMenu';
 import type { ActionMenuItem } from './ActionsMenu';
@@ -28,6 +28,11 @@ const MOBILE_NAV_HEIGHT_PX = 60;
  * the summary takes the slack and truncates, actions stay right-packed; a
  * spacer keeps them right when no summary is given. `overflowActions` feeds
  * the shared `ActionsMenu` (Menu on desktop, BottomSheet on phone).
+ *
+ * The phone bar is portalled to `document.body`: the app shell's `<main>` uses
+ * `contain: layout` and route wrappers animate with `transform`, and either
+ * one turns a descendant's `position: fixed` into "fixed to that box" — the
+ * bar then sat below the page content instead of above the bottom nav.
  */
 export const StickyActionBar: React.FC<StickyActionBarProps> = ({
   primary,
@@ -38,51 +43,53 @@ export const StickyActionBar: React.FC<StickyActionBarProps> = ({
   const isPhone = useIsPhone();
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1.25,
-        px: 2,
-        py: 1.25,
-        bgcolor: 'background.paper',
-        ...(isPhone
-          ? {
-              position: 'fixed',
-              bottom: `calc(${MOBILE_NAV_HEIGHT_PX}px + var(--sab))`,
-              left: 0,
-              right: 0,
-              zIndex: (theme) => theme.zIndex.appBar - 1,
-              borderTop: '1px solid',
-              borderColor: 'divider',
-            }
-          : {
-              position: 'static',
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 2,
-            }),
-      }}
-    >
-      {summary ? (
-        <Typography
-          variant="body2"
-          component="div"
-          noWrap
-          sx={{ flex: 1, minWidth: 0, fontWeight: 600 }}
-        >
-          {summary}
-        </Typography>
-      ) : (
-        <Box sx={{ flex: 1 }} />
-      )}
-      {secondary}
-      {primary}
-      {overflowActions && overflowActions.length > 0 ? (
-        <ActionsMenu actions={overflowActions} />
-      ) : null}
-    </Paper>
+    <Portal disablePortal={!isPhone}>
+      <Paper
+        elevation={0}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.25,
+          px: 2,
+          py: 1.25,
+          bgcolor: 'background.paper',
+          ...(isPhone
+            ? {
+                position: 'fixed',
+                bottom: `calc(${MOBILE_NAV_HEIGHT_PX}px + var(--sab))`,
+                left: 0,
+                right: 0,
+                zIndex: (theme) => theme.zIndex.appBar - 1,
+                borderTop: '1px solid',
+                borderColor: 'divider',
+              }
+            : {
+                position: 'static',
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 2,
+              }),
+        }}
+      >
+        {summary ? (
+          <Typography
+            variant="body2"
+            component="div"
+            noWrap
+            sx={{ flex: 1, minWidth: 0, fontWeight: 600 }}
+          >
+            {summary}
+          </Typography>
+        ) : (
+          <Box sx={{ flex: 1 }} />
+        )}
+        {secondary}
+        {primary}
+        {overflowActions && overflowActions.length > 0 ? (
+          <ActionsMenu actions={overflowActions} />
+        ) : null}
+      </Paper>
+    </Portal>
   );
 };
 

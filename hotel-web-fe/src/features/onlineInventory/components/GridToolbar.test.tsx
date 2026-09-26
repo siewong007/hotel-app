@@ -91,15 +91,27 @@ describe('GridToolbar on a phone', () => {
     mocks.isPhone = true;
   });
 
-  it('renders one compact row and drops the ±window jumps', () => {
-    renderToolbar();
+  it('renders a full-width date stepper including the ±window jumps', () => {
+    const props = renderToolbar();
     expect(screen.getByRole('toolbar')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Back 14 days' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Forward 14 days' })).toBeNull();
-    // ±1-day nav and the date field survive.
-    expect(screen.getByRole('button', { name: 'Previous day' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Next day' })).toBeTruthy();
-    expect(screen.getByLabelText('Start date')).toBeTruthy();
+    const stepper = screen.getByRole('group', { name: 'Date window' });
+    for (const name of ['Back 14 days', 'Previous day', 'Next day', 'Forward 14 days']) {
+      expect(stepper.contains(screen.getByRole('button', { name }))).toBe(true);
+    }
+    expect(stepper.contains(screen.getByLabelText('Start date'))).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Back 14 days' }));
+    expect(props.onStartChange).toHaveBeenLastCalledWith(shiftDate(START, -14));
+    fireEvent.click(screen.getByRole('button', { name: 'Forward 14 days' }));
+    expect(props.onStartChange).toHaveBeenLastCalledWith(shiftDate(START, 14));
+  });
+
+  it('puts the actions on their own wrapping row, outside the stepper', () => {
+    renderToolbar({ selectMode: false, onToggleSelectMode: vi.fn() });
+    const stepper = screen.getByRole('group', { name: 'Date window' });
+    for (const name of ['Select', 'Refresh', 'Today']) {
+      expect(stepper.contains(screen.getByRole('button', { name }))).toBe(false);
+    }
+    expect(stepper.contains(screen.getByRole('button', { name: /overrides only/i }))).toBe(false);
   });
 
   it('steps a single day and offers Today when away from it', () => {

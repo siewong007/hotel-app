@@ -16,6 +16,7 @@
   "changedBar_other": "已變更 {{count}} 個儲存格",
   "discard": "捨棄",
   "reviewApply": "檢閱並套用",
+  "changedBarAria": "尚未儲存的庫存變更",
   "toolbar": {
     "aria": "庫存視窗控制",
     "backDays": "往前 {{days}} 天",
@@ -28,7 +29,8 @@
     "selected": "已選取 {{count}} 項",
     "controlsAria": "庫存視窗控制",
     "refresh": "重新整理",
-    "select": "選取"
+    "select": "選取",
+    "windowAria": "日期範圍"
   },
   "grid": {
     "aria": "按房型與日期的線上庫存",
@@ -131,5 +133,11 @@
   },
   "success": {
     "updated_other": "已更新 {{count}} 個儲存格。"
+  },
+  "phone": {
+    "freeToday_other": "今天空房 {{count}} 間",
+    "stripAria": "{{name}} 每日可售狀況",
+    "hint": "點選日期即可編輯 · 左右滑動查看更多日期",
+    "hintSelect": "點選日期加以選取，再點「編輯選取項」"
   }
 }
