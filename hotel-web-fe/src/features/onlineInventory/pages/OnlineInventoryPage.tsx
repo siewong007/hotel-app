@@ -6,7 +6,6 @@ import {
   Button,
   Container,
   Paper,
-  Portal,
   Snackbar,
   Stack,
   Typography,
@@ -25,6 +24,7 @@ import { LogoLoader } from '../../../components';
 import { BottomSheet } from '../../../components/common/BottomSheet';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { StickyActionBar } from '../../../components/common/StickyActionBar';
+import { mobileActionBarProps } from '../../../components/common/mobileActionBar';
 import { GRID_DAYS, START_MAX_OFFSET_DAYS, START_MIN_OFFSET_DAYS } from '../constants';
 import type { CellKey, GridCellView } from '../types';
 import { cellKey, dateRange, shiftDate, summarizeEdits } from '../utils';
@@ -422,67 +422,66 @@ const OnlineInventoryPage = () => {
       />
 
       {canEdit && inv.changedCount > 0 && (
-        // Portalled: <main> has `contain: layout` and the route wrapper a
-        // `transform`, both of which make `position: fixed` relative to the
-        // page box — the bar used to render below the content, off-screen.
-        <Portal>
-          <Paper
-            elevation={8}
-            sx={{
-              position: 'fixed',
-              zIndex: (theme) => theme.zIndex.appBar - 1,
-              left: { xs: 12, md: '50%' },
-              right: { xs: 12, md: 'auto' },
-              // Below sm the 60px bottom nav (+ --sab home indicator) covers a
-              // bar pinned at bottom:16 — lift it clear; while phone select
-              // mode's StickyActionBar (~64px) is up, stack above it instead.
-              bottom: {
-                xs: `calc(${selectMode ? 136 : 76}px + var(--sab))`,
-                sm: 'calc(16px + var(--sab))',
-                md: 16,
-              },
-              transform: { md: 'translateX(-50%)' },
-              width: { md: 'min(680px, calc(100vw - 48px))' },
-              p: 1.25,
-              pl: 2,
-              borderRadius: 3,
-              border: 1,
-              borderColor: 'divider',
-            }}
-            role="region"
-            aria-label={t('changedBarAria')}
-            aria-live="polite"
+        // Pinned to the viewport: the app shell keeps `contain: layout` and
+        // lingering transforms off <main> and the route wrapper, so plain
+        // `position: fixed` works here without a portal.
+        <Paper
+          {...mobileActionBarProps}
+          elevation={8}
+          sx={{
+            position: 'fixed',
+            zIndex: (theme) => theme.zIndex.appBar - 1,
+            left: { xs: 12, md: '50%' },
+            right: { xs: 12, md: 'auto' },
+            // Below sm the 60px bottom nav (+ --sab home indicator) covers a
+            // bar pinned at bottom:16 — lift it clear; while phone select
+            // mode's StickyActionBar (~64px) is up, stack above it instead.
+            bottom: {
+              xs: `calc(${selectMode ? 136 : 76}px + var(--sab))`,
+              sm: 'calc(16px + var(--sab))',
+              md: 16,
+            },
+            transform: { md: 'translateX(-50%)' },
+            width: { md: 'min(680px, calc(100vw - 48px))' },
+            p: 1.25,
+            pl: 2,
+            borderRadius: 3,
+            border: 1,
+            borderColor: 'divider',
+          }}
+          role="region"
+          aria-label={t('changedBarAria')}
+          aria-live="polite"
+        >
+          <Stack
+            direction="row"
+            spacing={1}
+            useFlexGap
+            sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}
           >
-            <Stack
-              direction="row"
-              spacing={1}
-              useFlexGap
-              sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}
-            >
-              <Typography sx={{ fontWeight: 750, flex: '1 1 auto', minWidth: 0 }}>
-                {t('changedBar', { count: inv.changedCount })}
-              </Typography>
-              <Stack direction="row" spacing={1} sx={{ ml: 'auto', flexShrink: 0 }}>
-                <Button
-                  onClick={inv.discardChanges}
-                  disabled={inv.isSaving}
-                  color="inherit"
-                  sx={{ minHeight: 44, whiteSpace: 'nowrap' }}
-                >
-                  {t('discard')}
-                </Button>
-                <Button
-                  variant="contained"
-                  onClick={() => setReviewOpen(true)}
-                  disabled={inv.isSaving}
-                  sx={{ minHeight: 44, whiteSpace: 'nowrap' }}
-                >
-                  {t('reviewApply')}
-                </Button>
-              </Stack>
+            <Typography sx={{ fontWeight: 750, flex: '1 1 auto', minWidth: 0 }}>
+              {t('changedBar', { count: inv.changedCount })}
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ ml: 'auto', flexShrink: 0 }}>
+              <Button
+                onClick={inv.discardChanges}
+                disabled={inv.isSaving}
+                color="inherit"
+                sx={{ minHeight: 44, whiteSpace: 'nowrap' }}
+              >
+                {t('discard')}
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => setReviewOpen(true)}
+                disabled={inv.isSaving}
+                sx={{ minHeight: 44, whiteSpace: 'nowrap' }}
+              >
+                {t('reviewApply')}
+              </Button>
             </Stack>
-          </Paper>
-        </Portal>
+          </Stack>
+        </Paper>
       )}
 
       {canEdit && isPhone && selectMode && (

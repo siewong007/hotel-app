@@ -747,7 +747,7 @@ const RoomConfigurationPage: React.FC = () => {
                   <IconButton
                     size="small"
                     aria-label={t('card.openActionsAria', { room: room.room_number, status: t(`config.roomStatus.${st}`) })}
-                    sx={{ width: 26, height: 26, border: `1px solid ${C.border}`, bgcolor: C.surface }}
+                    sx={{ width: { xs: 44, sm: 26 }, height: { xs: 44, sm: 26 }, border: `1px solid ${C.border}`, bgcolor: C.surface }}
                   >
                     <MoreVertIcon sx={{ fontSize: 15, color: C.ink3 }} />
                   </IconButton>
@@ -1364,7 +1364,9 @@ const RoomConfigurationPage: React.FC = () => {
 
           <SectionHeader>{t('config.secBedSetup')}</SectionHeader>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.borderHi}`, borderRadius: '8px', overflow: 'hidden' }}>
+            {/* flexShrink 0: the full-width bed-type select used to squeeze the
+                stepper on phones until its "+" was clipped away. */}
+            <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, border: `1px solid ${C.borderHi}`, borderRadius: '8px', overflow: 'hidden' }}>
               <IconButton size="small" onClick={() => setTF({ bed_count: Math.max(1, typeForm.bed_count - 1) })} aria-label={t('config.decreaseBeds')}>
                 <MinusIcon sx={{ fontSize: 18 }} />
               </IconButton>

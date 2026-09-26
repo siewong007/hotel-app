@@ -128,7 +128,9 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
       )}
       <Card>
         <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+          {/* Wraps on phones: the Cancel/Save pair used to push Save past the
+              right edge of a 390px screen. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 2, mb: 4 }}>
             <Avatar
               src={formData.avatar_url || profile.avatar_url}
               sx={{
@@ -144,8 +146,8 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
                 !profile.avatar_url &&
                 (profile.full_name?.charAt(0) || profile.username?.charAt(0))}
             </Avatar>
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            <Box sx={{ flexGrow: 1, flexBasis: 0, minWidth: 0 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>
                 {profile.full_name || profile.username}
               </Typography>
               <Typography variant="body2" sx={{
@@ -164,11 +166,19 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
                 variant="contained"
                 startIcon={<PersonIcon />}
                 onClick={() => onEditingChange(true)}
+                sx={{ width: { xs: '100%', sm: 'auto' } }}
               >
                 {t('profile.editProfile')}
               </Button>
             ) : (
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 1,
+                  width: { xs: '100%', sm: 'auto' },
+                  '& > .MuiButton-root': { flex: { xs: 1, sm: 'none' } },
+                }}
+              >
                 <Button variant="outlined" startIcon={<CancelIcon />} onClick={handleCancel}>
                   {t('common:actions.cancel')}
                 </Button>
@@ -261,7 +271,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
             </Grid>
             {editing && (
               <Grid size={12}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                   <Button variant="outlined" component="label">
                     {t('profile.uploadAvatar')}
                     <input

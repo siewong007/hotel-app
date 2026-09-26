@@ -10,6 +10,7 @@ import {
   Typography,
 } from '@mui/material';
 
+import { TableScroll } from '../../../components/data-table/TableScroll';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { formatCurrency, toNumber } from '../../../utils/currency';
 import { useRateRoomTypes } from '../../rates/hooks/useRatePlans';
@@ -65,7 +66,7 @@ export const ChannelMatrix = ({ matrix }: Props) => {
   }
 
   return (
-    <Box sx={{ overflowX: 'auto' }}>
+    <TableScroll stickyFirstColumn>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -124,6 +125,6 @@ export const ChannelMatrix = ({ matrix }: Props) => {
           ))}
         </TableBody>
       </Table>
-    </Box>
+    </TableScroll>
   );
 };
