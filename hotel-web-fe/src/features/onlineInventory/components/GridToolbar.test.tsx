@@ -146,4 +146,35 @@ describe('GridToolbar on a phone', () => {
     renderToolbar({ selectMode: true, onToggleSelectMode: vi.fn() });
     expect(screen.getByRole('button', { name: 'Done', pressed: true })).toBeTruthy();
   });
+
+  it('only commits a start date inside the allowed range', () => {
+    const minStart = shiftDate(START, -10);
+    const maxStart = shiftDate(START, 10);
+    const props = renderToolbar({ minStart, maxStart });
+    const input = screen.getByLabelText('Start date');
+    expect(input.getAttribute('min')).toBe(minStart);
+    expect(input.getAttribute('max')).toBe(maxStart);
+
+    // A half-typed year never moves the window; the hint names the range.
+    fireEvent.change(input, { target: { value: '0002-12-08' } });
+    expect(props.onStartChange).not.toHaveBeenCalled();
+    expect(screen.getByText(`Pick a date between ${minStart} and ${maxStart}.`)).toBeTruthy();
+    fireEvent.change(input, { target: { value: shiftDate(maxStart, 1) } });
+    expect(props.onStartChange).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: shiftDate(START, 3) } });
+    expect(props.onStartChange).toHaveBeenLastCalledWith(shiftDate(START, 3));
+
+    // Leaving the field snaps an out-of-range draft back to the start.
+    fireEvent.change(input, { target: { value: '0002-12-08' } });
+    fireEvent.blur(input);
+    expect((input as HTMLInputElement).value).toBe(START);
+  });
+
+  it('disables the steps that lead past the range edge', () => {
+    renderToolbar({ minStart: START, maxStart: shiftDate(START, 30) });
+    expect(screen.getByRole('button', { name: 'Previous day' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Back 14 days' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Next day' })).toHaveProperty('disabled', false);
+  });
 });

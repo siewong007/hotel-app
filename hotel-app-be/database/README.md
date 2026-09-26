@@ -44,11 +44,11 @@ make db-patch DATABASE_URL="$DATABASE_URL"
 The final `make db-patch` step reads `patches/manifest.tsv` and applies its
 catalog in order. The original V1 convergence catalog (versions 2 through 23)
 was folded into the baseline and the catalog republished from empty; it now
-carries eight converge-style patches (versions 2–9 — `deposit-forfeited`,
+carries nine converge-style patches (versions 2–10 — `deposit-forfeited`,
 `guest-relations-phase2`, `consent-locale-zh`, `data-transfer-permissions`,
 `channel-pricing`, `consent-locale-zh-tw`, `distributed-state`,
-`booking-smoking-preference`), so a fresh install records revisions 1
-through 9.
+`booking-smoking-preference`, `online-inventory-manage-permission`), so a
+fresh install records revisions 1 through 10.
 A database that still records the pre-fold 1.2+ lineage aborts on a
 checksum-mismatch guard; the one-time lineage reset runbook is in
 `docs/guides/deployment.md`. An empty catalog is also valid state: the
@@ -164,7 +164,7 @@ and always attribute the bootstrap admin (the real actor is recorded inside
 The catalog is live: every V1 convergence patch from the original lineage
 (versions 2–23) was folded into `migrations/0001_v1_baseline.sql` and
 `seed.sql`, and the catalog was republished from empty. It currently ships
-seven patches, versions 2–8 (see `patches/manifest.tsv` — it is the catalog of
+nine patches, versions 2–10 (see `patches/manifest.tsv` — it is the catalog of
 record; do not hardcode its contents elsewhere). Fresh installs get
 every patched object from the baseline, so each patch body is a no-op there —
 but the patch still runs and records its revision row, keeping fresh and

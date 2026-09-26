@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useBlocker } from '@tanstack/react-router';
 import {
   Alert,
   Box,
@@ -11,8 +12,11 @@ import {
   Typography,
 } from '@mui/material';
 import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import SettingsSuggestOutlinedIcon from '@mui/icons-material/SettingsSuggestOutlined';
 
+import { useAuth } from '../../../auth/AuthContext';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { formatLocalDate } from '../../../utils/date';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -21,9 +25,10 @@ import { LogoLoader } from '../../../components';
 import { BottomSheet } from '../../../components/common/BottomSheet';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { StickyActionBar } from '../../../components/common/StickyActionBar';
-import { GRID_DAYS } from '../constants';
+import { GRID_DAYS, START_MAX_OFFSET_DAYS, START_MIN_OFFSET_DAYS } from '../constants';
 import type { CellKey, GridCellView } from '../types';
-import { dateRange, summarizeEdits } from '../utils';
+import { cellKey, dateRange, shiftDate, summarizeEdits } from '../utils';
+import { FULL_DATE } from '../constants';
 import { useOnlineInventory } from '../hooks/useOnlineInventory';
 import { useGridSelection } from '../hooks/useGridSelection';
 import { BulkEditFields, BulkEditPanel } from '../components/BulkEditPanel';
@@ -35,6 +40,12 @@ import { InventorySummary } from '../components/InventorySummary';
 import { PhoneInventoryView } from '../components/PhoneInventoryView';
 import { ReviewChangesDialog } from '../components/ReviewChangesDialog';
 
+/** Writes need this; viewing stays on the route's `rooms:update`. */
+export const ONLINE_INVENTORY_MANAGE = 'online_inventory:manage';
+
+/** How many conflicting days the conflict banner names before "+N more". */
+const CONFLICT_LIST_LIMIT = 6;
+
 const OnlineInventoryPage = () => {
   const { t } = useTranslation('onlineInventory');
   const today = formatLocalDate();
@@ -42,6 +53,10 @@ const OnlineInventoryPage = () => {
   const confirm = useConfirm();
   const { format } = useCurrency();
   const formatPrice = (value: string) => format(Number(value));
+  const { hasPermission } = useAuth();
+  const canEdit = hasPermission(ONLINE_INVENTORY_MANAGE);
+  const minStart = shiftDate(today, START_MIN_OFFSET_DAYS);
+  const maxStart = shiftDate(today, START_MAX_OFFSET_DAYS);
 
   const [start, setStart] = useState(today);
   const dates = useMemo(() => dateRange(start, GRID_DAYS), [start]);
@@ -101,8 +116,12 @@ const OnlineInventoryPage = () => {
       severity: 'warning',
     });
 
-  const changeStart = async (next: string) => {
-    if (!next || next === start) return;
+  const changeStart = async (requested: string) => {
+    if (!requested) return;
+    // A jump past either edge lands on the edge instead.
+    const next =
+      requested < minStart ? minStart : requested > maxStart ? maxStart : requested;
+    if (next === start) return;
     if (
       inv.changedCount > 0 &&
       !(await confirmDiscard(t('confirm.discardMove')))
@@ -124,7 +143,28 @@ const OnlineInventoryPage = () => {
     void inv.reload();
   };
 
+  // Leaving the page (in-app navigation) with staged edits asks first, in the
+  // same dialog the date/Refresh prompts use; closing or reloading the tab
+  // falls back to the browser's own "leave site?" prompt.
+  const dirty = inv.changedCount > 0;
+  useBlocker({
+    shouldBlockFn: async () => !(await confirmDiscard(t('confirm.discardLeave'))),
+    disabled: !dirty,
+    enableBeforeUnload: false,
+  });
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Legacy browsers only show the prompt when returnValue is set.
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
   const openEditor = (key: CellKey, anchor: HTMLElement) => {
+    if (!canEdit) return;
     setEditorKey(key);
     setEditorAnchor(anchor);
   };
@@ -147,7 +187,9 @@ const OnlineInventoryPage = () => {
     setSelectMode((current) => !current);
   };
 
-  const openCellSheet = (key: CellKey) => setEditorKey(key);
+  const openCellSheet = (key: CellKey) => {
+    if (canEdit) setEditorKey(key);
+  };
 
   // Resizing across the phone breakpoint swaps the editor host (popover ↔
   // sheet) — a stale anchor would point at an unmounted grid cell.
@@ -160,6 +202,19 @@ const OnlineInventoryPage = () => {
   const confirmSave = async () => {
     if (await inv.saveChanges()) setReviewOpen(false);
   };
+
+  // A conflict closes the review so the banner (and its Reload) is visible;
+  // other failures stay in the dialog next to the Apply button.
+  useEffect(() => {
+    if (inv.conflicts !== null) setReviewOpen(false);
+  }, [inv.conflicts]);
+
+  const conflictLabels = (inv.conflicts ?? []).map((conflict) => {
+    const name =
+      inv.savedCells.get(cellKey(conflict.room_type_id, conflict.stay_date))?.room_type_name ??
+      t('lines.roomTypeFallback', { id: conflict.room_type_id });
+    return `${name} · ${FULL_DATE.format(new Date(`${conflict.stay_date}T12:00:00`))}`;
+  });
 
   return (
     <Container
@@ -206,9 +261,56 @@ const OnlineInventoryPage = () => {
             sel.clear();
           }}
           selectedCount={sel.selected.size}
-          selectMode={selectMode}
-          onToggleSelectMode={toggleSelectMode}
+          selectMode={canEdit ? selectMode : undefined}
+          onToggleSelectMode={canEdit ? toggleSelectMode : undefined}
+          minStart={minStart}
+          maxStart={maxStart}
         />
+
+        {!canEdit && (
+          <Alert
+            severity="info"
+            variant="outlined"
+            icon={<VisibilityOutlinedIcon fontSize="inherit" />}
+            sx={{ py: 0.25 }}
+          >
+            {t('readOnly.note')}
+          </Alert>
+        )}
+
+        {inv.conflicts !== null && (
+          <Alert
+            severity="warning"
+            role="alert"
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => void inv.reloadAfterConflict()}
+                sx={{ fontWeight: 700 }}
+              >
+                {t('conflict.reload')}
+              </Button>
+            }
+          >
+            <Typography sx={{ fontWeight: 700 }}>{t('conflict.title')}</Typography>
+            <Typography variant="body2">{t('conflict.message')}</Typography>
+            {conflictLabels.length > 0 && (
+              <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
+                {conflictLabels.slice(0, CONFLICT_LIST_LIMIT).map((label) => (
+                  <Typography component="li" variant="body2" key={label}>
+                    {label}
+                  </Typography>
+                ))}
+                {conflictLabels.length > CONFLICT_LIST_LIMIT && (
+                  <Typography component="li" variant="body2">
+                    {t('conflict.more', { count: conflictLabels.length - CONFLICT_LIST_LIMIT })}
+                  </Typography>
+                )}
+              </Box>
+            )}
+          </Alert>
+        )}
 
         {inv.error && <Alert severity="error">{inv.error}</Alert>}
 
@@ -218,6 +320,17 @@ const OnlineInventoryPage = () => {
             sx={{ display: 'grid', placeItems: 'center', minHeight: 280, borderRadius: 3 }}
           >
             <LogoLoader variant="inline" size={32} label={t('loading')} />
+          </Paper>
+        ) : inv.loadError !== null ? (
+          <Paper variant="outlined" sx={{ p: 5, textAlign: 'center', borderRadius: 3 }} role="alert">
+            <ErrorOutlineIcon sx={{ fontSize: 44, color: 'error.main', mb: 1 }} />
+            <Typography variant="h6" component="h2" sx={{ fontWeight: 750 }}>
+              {t('errors.loadTitle')}
+            </Typography>
+            <Typography sx={{ color: 'text.secondary', mb: 2 }}>{inv.loadError}</Typography>
+            <Button variant="outlined" onClick={() => void inv.reload()}>
+              {t('errors.retry')}
+            </Button>
           </Paper>
         ) : inv.roomTypes.length === 0 ? (
           <Paper variant="outlined" sx={{ p: 5, textAlign: 'center', borderRadius: 3 }}>
@@ -246,6 +359,7 @@ const OnlineInventoryPage = () => {
                 onToggleSelect={toggleSelect}
                 onOpenCell={openCellSheet}
                 formatPrice={formatPrice}
+                readOnly={!canEdit}
               />
             ) : (
               <>
@@ -266,7 +380,7 @@ const OnlineInventoryPage = () => {
                   onClearSelection={sel.clear}
                   formatPrice={formatPrice}
                 />
-                {sel.selected.size > 0 && (
+                {canEdit && sel.selected.size > 0 && (
                   <BulkEditPanel
                     targets={selectedViews}
                     onApply={inv.stageMany}
@@ -279,7 +393,7 @@ const OnlineInventoryPage = () => {
         )}
       </Stack>
 
-      {!isPhone && (
+      {canEdit && !isPhone && (
         <CellEditorPopover
           view={editorKey !== null ? inv.cells.get(editorKey) ?? null : null}
           anchorEl={editorAnchor}
@@ -289,7 +403,7 @@ const OnlineInventoryPage = () => {
         />
       )}
 
-      {isPhone && (
+      {canEdit && isPhone && (
         <CellEditorSheet
           view={editorKey !== null ? inv.cells.get(editorKey) ?? null : null}
           onClose={closeEditor}
@@ -302,11 +416,12 @@ const OnlineInventoryPage = () => {
         groups={reviewGroups}
         totalCount={inv.changedCount}
         isSaving={inv.isSaving}
+        error={inv.error}
         onClose={() => setReviewOpen(false)}
         onConfirm={() => void confirmSave()}
       />
 
-      {inv.changedCount > 0 && (
+      {canEdit && inv.changedCount > 0 && (
         // Portalled: <main> has `contain: layout` and the route wrapper a
         // `transform`, both of which make `position: fixed` relative to the
         // page box — the bar used to render below the content, off-screen.
@@ -370,7 +485,7 @@ const OnlineInventoryPage = () => {
         </Portal>
       )}
 
-      {isPhone && selectMode && (
+      {canEdit && isPhone && selectMode && (
         <StickyActionBar
           summary={<span aria-live="polite">{t('bulk.selectedCount', { count: sel.selected.size })}</span>}
           secondary={
@@ -392,7 +507,7 @@ const OnlineInventoryPage = () => {
       )}
 
       <BottomSheet
-        open={bulkOpen}
+        open={canEdit && bulkOpen}
         onClose={() => setBulkOpen(false)}
         title={t('bulk.editSelectedCells')}
       >

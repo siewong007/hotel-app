@@ -14,6 +14,7 @@ export const PERMISSION_CATEGORIES: Record<string, { labelKey: string; icon: str
   rewards: { labelKey: 'admin:rbac.permCat.rewards', icon: 'Star', color: 'var(--hotel-warning)' },
   ledgers: { labelKey: 'admin:rbac.permCat.ledgers', icon: 'AccountBalance', color: 'var(--hotel-neutral)' },
   analytics: { labelKey: 'admin:rbac.permCat.analytics', icon: 'Assessment', color: 'var(--hotel-info)' },
+  online_inventory: { labelKey: 'admin:rbac.permCat.online_inventory', icon: 'Language', color: 'var(--hotel-success)' },
 };
 
 // Role colors for visual distinction

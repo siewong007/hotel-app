@@ -24,6 +24,8 @@ export interface PhoneInventoryViewProps {
   onToggleSelect(key: CellKey): void; // page-owned toggler
   onOpenCell(key: CellKey): void; // opens the editor sheet
   formatPrice(value: string): string;
+  /** View-only users: taps do nothing and the hint drops "tap to edit". */
+  readOnly?: boolean;
 }
 
 interface PhoneDayCellProps {
@@ -214,6 +216,7 @@ export const PhoneInventoryView = ({
   onToggleSelect,
   onOpenCell,
   formatPrice,
+  readOnly = false,
 }: PhoneInventoryViewProps) => {
   const { t } = useTranslation('onlineInventory');
   // Every room card's day strip scrolls together, so the same dates line up
@@ -243,6 +246,7 @@ export const PhoneInventoryView = ({
   };
 
   const handleTap = (key: CellKey) => {
+    if (readOnly) return;
     if (selectMode) onToggleSelect(key);
     else onOpenCell(key);
   };
@@ -250,7 +254,7 @@ export const PhoneInventoryView = ({
   return (
     <Stack spacing={1.5}>
       <Typography variant="caption" sx={{ color: 'text.secondary', px: 0.5 }}>
-        {selectMode ? t('phone.hintSelect') : t('phone.hint')}
+        {readOnly ? t('phone.hintReadOnly') : selectMode ? t('phone.hintSelect') : t('phone.hint')}
       </Typography>
       {roomTypes.map((room) => {
         const todayView = cells.get(cellKey(room.room_type_id, today));

@@ -3,8 +3,30 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Phone branch: pin useIsPhone (jsdom has no matchMedia).
-const mocks = vi.hoisted(() => ({ isPhone: false }));
+const mocks = vi.hoisted(() => ({
+  isPhone: false,
+  canEdit: true,
+  blocker: null as null | {
+    shouldBlockFn: () => boolean | Promise<boolean>;
+    disabled?: boolean;
+  },
+}));
 vi.mock('../../../hooks/useIsPhone', () => ({ useIsPhone: () => mocks.isPhone }));
+// Viewing is route-gated elsewhere; the page itself only asks for the write
+// permission, which the tests flip to cover the read-only mode.
+vi.mock('../../../auth/AuthContext', () => ({
+  useAuth: () => ({
+    hasPermission: (permission: string) =>
+      permission === 'online_inventory:manage' ? mocks.canEdit : true,
+  }),
+}));
+// The page renders outside a router here; capture the blocker options so the
+// leave-guard can be driven directly.
+vi.mock('@tanstack/react-router', () => ({
+  useBlocker: (opts: typeof mocks.blocker) => {
+    mocks.blocker = opts;
+  },
+}));
 
 import type { OnlineInventoryAllocation } from '../types';
 import { dateRange, cellKey } from '../utils';
@@ -12,6 +34,7 @@ import { formatLocalDate } from '../../../utils/date';
 import { ConfirmProvider } from '../../../components/common/ConfirmProvider';
 import OnlineInventoryPage from './OnlineInventoryPage';
 import { expectNoAxeViolations } from '../../../test/axe';
+import { buildKyHttpError } from '../../../api/testSupport/httpError';
 
 vi.mock('../api', () => ({
   getOnlineInventoryRange: vi.fn(),
@@ -39,6 +62,7 @@ const rows = (): OnlineInventoryAllocation[] =>
       standard_price: '280.00',
       is_override: false,
       online_available_rooms: 4,
+      updated_at: null,
     },
     {
       room_type_id: 2,
@@ -52,6 +76,7 @@ const rows = (): OnlineInventoryAllocation[] =>
       standard_price: '180.00',
       is_override: true,
       online_available_rooms: 3,
+      updated_at: `${stay_date}T01:02:03.456789Z`,
     },
   ]);
 
@@ -64,6 +89,8 @@ const renderPage = () =>
 
 beforeEach(() => {
   mocks.isPhone = false;
+  mocks.canEdit = true;
+  mocks.blocker = null;
   rangeMock.mockResolvedValue(rows());
   bulkMock.mockImplementation(async (cells) => rows().slice(0, cells.length));
 });
@@ -114,8 +141,173 @@ describe('OnlineInventoryPage', () => {
         walk_in_reserved_rooms: 2,
         online_booking_enabled: true,
         custom_price: null,
+        // No stored row when the window loaded: another admin creating
+        // one meanwhile is a conflict too.
+        expected_updated_at: null,
       },
     ]);
+  });
+
+  it('refreshes the window after a successful save', async () => {
+    renderPage();
+    await stageDeluxeHold();
+    fireEvent.click(await screen.findByRole('button', { name: /review & apply/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply 1 change' }));
+    await waitFor(() => expect(bulkMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(rangeMock).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows the conflict message with a Reload action on a stale save', async () => {
+    bulkMock.mockRejectedValueOnce(
+      buildKyHttpError(409, {
+        error: 'Someone else changed these days since you loaded them. Reload to see the latest.',
+        code: 'stale_write',
+        conflicts: [{ room_type_id: 1, stay_date: TODAY }],
+      }),
+    );
+    renderPage();
+    await stageDeluxeHold();
+    fireEvent.click(await screen.findByRole('button', { name: /review & apply/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply 1 change' }));
+
+    const banner = await screen.findByText(
+      'Someone else changed these days since you loaded them. Reload to see the latest.',
+    );
+    expect(screen.getByText('Your changes were not saved')).toBeTruthy();
+    expect(banner.closest('[role="alert"]')?.textContent).toMatch(/Deluxe King ·/);
+    // Nothing was applied, so the edit is still staged until Reload.
+    expect(screen.getByText(/1 cell changed/)).toBeTruthy();
+
+    // The review dialog closes so the banner and its Reload are reachable.
+    fireEvent.click(await screen.findByRole('button', { name: 'Reload' }));
+    await waitFor(() => expect(rangeMock).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByText('Your changes were not saved')).toBeNull(),
+    );
+    // The conflicting day's staged edit is dropped in favour of the latest.
+    expect(screen.queryByText(/1 cell changed/)).toBeNull();
+  });
+
+  it("shows the server's message when a save is refused", async () => {
+    bulkMock.mockRejectedValueOnce(
+      buildKyHttpError(400, {
+        error: 'Custom online price can have at most two decimal places',
+        code: 'bad_request',
+      }),
+    );
+    renderPage();
+    await stageDeluxeHold();
+    fireEvent.click(await screen.findByRole('button', { name: /review & apply/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply 1 change' }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() =>
+      expect(dialog.textContent).toMatch(/at most two decimal places/),
+    );
+    expect(screen.queryByText('Unable to save the inventory changes.')).toBeNull();
+  });
+
+  it('blocks a price with more than 2 decimals inline', async () => {
+    renderPage();
+    fireEvent.keyDown(await firstDeluxeCell(), { key: 'Enter' });
+    fireEvent.change(await screen.findByRole('spinbutton', { name: /custom online price/i }), {
+      target: { value: '199.999' },
+    });
+    expect(screen.getByText(/Use at most 2 decimal places/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Apply' })).toHaveProperty('disabled', true);
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: /custom online price/i }), {
+      target: { value: '199.99' },
+    });
+    expect(screen.queryByText(/Use at most 2 decimal places/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Apply' })).toHaveProperty('disabled', false);
+  });
+
+  it('sends a reset when an edit brings a cell back to the defaults', async () => {
+    renderPage();
+    // Standard Queen carries only a custom price; clearing it = defaults.
+    const cell = (await screen.findAllByRole('gridcell', { name: /^Standard Queen,/ }))[0];
+    fireEvent.keyDown(cell, { key: 'Enter' });
+    fireEvent.change(await screen.findByRole('spinbutton', { name: /custom online price/i }), {
+      target: { value: '' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    fireEvent.click(await screen.findByRole('button', { name: /review & apply/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply 1 change' }));
+    await waitFor(() => expect(bulkMock).toHaveBeenCalledTimes(1));
+    expect(bulkMock.mock.calls[0][0]).toEqual([
+      {
+        room_type_id: 2,
+        stay_date: TODAY,
+        reset: true,
+        expected_updated_at: `${TODAY}T01:02:03.456789Z`,
+      },
+    ]);
+  });
+
+  it('asks before leaving with unsaved changes, in-app and on tab close', async () => {
+    renderPage();
+    await firstDeluxeCell();
+    // Nothing staged: no in-app blocker and no browser prompt.
+    expect(mocks.blocker?.disabled).toBe(true);
+    const clean = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(clean);
+    expect(clean.defaultPrevented).toBe(false);
+
+    await stageDeluxeHold();
+    await screen.findByText(/1 cell changed/);
+    expect(mocks.blocker?.disabled).toBe(false);
+
+    const dirty = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(dirty);
+    expect(dirty.defaultPrevented).toBe(true);
+
+    // Staying: the confirm is cancelled, so navigation stays blocked.
+    const stay = Promise.resolve(mocks.blocker!.shouldBlockFn());
+    expect(
+      await screen.findByText('Leave this page and discard your unsaved inventory changes?'),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await stay).toBe(true);
+
+    // Leaving: confirming the discard lets navigation through.
+    const leave = Promise.resolve(mocks.blocker!.shouldBlockFn());
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }));
+    expect(await leave).toBe(false);
+  });
+
+  it('shows the load error instead of an empty grid', async () => {
+    rangeMock.mockRejectedValueOnce(
+      buildKyHttpError(400, { error: "Invalid 'from' date", code: 'bad_request' }),
+    );
+    renderPage();
+    expect(await screen.findByText("Couldn't load online availability")).toBeTruthy();
+    expect(screen.getByText("Invalid 'from' date")).toBeTruthy();
+    expect(screen.queryByText('No room types to configure')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('rowheader', { name: /Deluxe King/ })).toBeTruthy();
+  });
+
+  describe('without online_inventory:manage', () => {
+    beforeEach(() => {
+      mocks.canEdit = false;
+    });
+
+    it('shows the grid read-only with a note and no editing controls', async () => {
+      renderPage();
+      const cell = await firstDeluxeCell();
+      expect(screen.getByText(/View only/)).toBeTruthy();
+
+      // Neither Enter nor double-click opens the editor.
+      fireEvent.keyDown(cell, { key: 'Enter' });
+      fireEvent.doubleClick(cell);
+      expect(screen.queryByRole('spinbutton', { name: /walk-in hold/i })).toBeNull();
+
+      // Selecting still works for the summary, but no bulk panel appears.
+      fireEvent.click(cell);
+      expect(screen.queryByRole('region', { name: /bulk edit/i })).toBeNull();
+      expect(screen.queryByRole('region', { name: 'Unsaved inventory changes' })).toBeNull();
+      expect(mocks.blocker?.disabled).toBe(true);
+    });
   });
   it('has no axe violations on the populated inventory grid', async () => {
     const { container } = renderPage();
@@ -230,5 +422,17 @@ describe('OnlineInventoryPage on a phone', () => {
     ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Close online' }));
     expect(await screen.findByText(/1 cell changed/)).toBeTruthy();
+  });
+
+  it('hides Select and the editor sheet for view-only users', async () => {
+    mocks.canEdit = false;
+    renderPage();
+    await screen.findByText('Deluxe King');
+    expect(screen.getByText(/View only — you can see/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Select' })).toBeNull();
+    expect(screen.getByText(/View only · swipe sideways/)).toBeTruthy();
+    fireEvent.click(firstDeluxeDay());
+    expect(screen.queryByText(/Deluxe King ·/)).toBeNull();
+    expect(screen.queryByRole('spinbutton', { name: /walk-in hold/i })).toBeNull();
   });
 });

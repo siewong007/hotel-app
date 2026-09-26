@@ -10,6 +10,12 @@ export interface OnlineInventoryAllocation {
   standard_price: string;
   is_override: boolean;
   online_available_rooms: number;
+  /**
+   * Version of the stored override row (`null` when the cell has no row and
+   * runs on standard rules). Sent back as `expected_updated_at` so the server
+   * can reject a save built on a stale read.
+   */
+  updated_at?: string | null;
 }
 
 export interface EditableCell {
@@ -46,4 +52,15 @@ export interface CellUpdateInput {
   walk_in_reserved_rooms?: number;
   online_booking_enabled?: boolean;
   custom_price?: string | null;
+  /**
+   * Optimistic-concurrency precondition: the `updated_at` the client loaded
+   * (`null` = "I saw no row"). A mismatch makes the whole save a 409.
+   */
+  expected_updated_at?: string | null;
+}
+
+/** One cell the server refused because it changed since it was loaded. */
+export interface InventoryConflict {
+  room_type_id: number;
+  stay_date: string;
 }

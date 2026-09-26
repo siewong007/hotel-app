@@ -748,7 +748,8 @@
       "loyalty": "Loyalty",
       "rewards": "Rewards",
       "ledgers": "Ledgers",
-      "analytics": "Analytics"
+      "analytics": "Analytics",
+      "online_inventory": "Online Inventory"
     },
     "roles": "Roles",
     "users": {

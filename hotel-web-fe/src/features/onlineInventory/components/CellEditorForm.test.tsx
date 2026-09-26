@@ -92,4 +92,9 @@ describe('CellEditorForm', () => {
     renderForm({ draft: draft({ walk_in_reserved_rooms: 9 }), overHeld: true });
     expect(screen.getByText(/higher than the physical availability/i)).toBeTruthy();
   });
+
+  it('explains a price with too many decimals inline', () => {
+    renderForm({ draft: draft({ custom_price: '199.999' }), priceInvalid: true, priceError: 'decimals' });
+    expect(screen.getByText('Use at most 2 decimal places, e.g. 199.99.')).toBeTruthy();
+  });
 });

@@ -75,6 +75,11 @@ pub fn to_status(err: ApiError) -> Status {
             block_code,
             message,
         } => Status::with_error_details(Code::FailedPrecondition, message, info(&block_code)),
+        // A failed optimistic-concurrency precondition is gRPC's ABORTED:
+        // the client should re-read and retry.
+        ApiError::StaleWrite { message, .. } => {
+            Status::with_error_details(Code::Aborted, message, info("STALE_WRITE"))
+        }
         // Internal failures keep REST's rule verbatim: a generic client-facing
         // message, never the underlying detail (which is logged server-side).
         ApiError::Database(_) | ApiError::Internal(_) => {

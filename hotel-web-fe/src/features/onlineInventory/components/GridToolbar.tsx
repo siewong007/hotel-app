@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   Button,
   Chip,
@@ -31,7 +32,63 @@ interface GridToolbarProps {
   /** Phone select-mode state — the Select/Done toggle renders only when both are given. */
   selectMode?: boolean;
   onToggleSelectMode?(): void;
+  /** Inclusive bounds for the window start (YYYY-MM-DD). */
+  minStart?: string;
+  maxStart?: string;
 }
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+interface StartDateFieldProps {
+  start: string;
+  minStart?: string;
+  maxStart?: string;
+  onStartChange(start: string): void;
+  sx: object;
+}
+
+/**
+ * The start-date input. Keeps its own draft so a half-typed year ("0002…")
+ * never moves the window: only a complete date inside the allowed range is
+ * committed; anything else shows an inline hint and snaps back on blur.
+ */
+const StartDateField = ({ start, minStart, maxStart, onStartChange, sx }: StartDateFieldProps) => {
+  const { t } = useTranslation('onlineInventory');
+  const [draft, setDraft] = useState(start);
+  useEffect(() => setDraft(start), [start]);
+
+  const inRange = (value: string) =>
+    ISO_DATE.test(value) &&
+    (minStart === undefined || value >= minStart) &&
+    (maxStart === undefined || value <= maxStart);
+  const outOfRange = draft !== '' && draft !== start && !inRange(draft);
+
+  return (
+    <TextField
+      type="date"
+      size="small"
+      label={t('toolbar.startDate')}
+      value={draft}
+      onChange={(event) => {
+        const value = event.target.value;
+        setDraft(value);
+        if (value && inRange(value)) onStartChange(value);
+      }}
+      onBlur={() => setDraft(start)}
+      error={outOfRange}
+      helperText={
+        outOfRange && minStart && maxStart
+          ? t('toolbar.dateRange', { min: minStart, max: maxStart })
+          : undefined
+      }
+      slotProps={{
+        inputLabel: { shrink: true },
+        htmlInput: { min: minStart, max: maxStart },
+      }}
+      sx={sx}
+    />
+  );
+};
 
 const NAV_SX = { border: 1, borderColor: 'divider', borderRadius: 2, minWidth: 44, minHeight: 44 };
 // Phone stepper buttons: a hard 44×44 box so four of them plus a readable date
@@ -49,10 +106,16 @@ export const GridToolbar = ({
   selectedCount,
   selectMode,
   onToggleSelectMode,
+  minStart,
+  maxStart,
 }: GridToolbarProps) => {
   const { t } = useTranslation('onlineInventory');
   const today = formatLocalDate();
   const isPhone = useIsPhone();
+  // The page clamps a jump that would overshoot; at the edge itself the
+  // buttons that lead further out are disabled.
+  const atMin = minStart !== undefined && start <= minStart;
+  const atMax = maxStart !== undefined && start >= maxStart;
 
   if (isPhone) {
     // Two rows on phones. Row 1 is a full-width date stepper (±window jumps,
@@ -71,6 +134,7 @@ export const GridToolbar = ({
           <IconButton
             aria-label={t('toolbar.backDays', { days: GRID_DAYS })}
             onClick={() => onStartChange(shiftDate(start, -GRID_DAYS))}
+            disabled={atMin}
             sx={PHONE_NAV_SX}
           >
             <KeyboardDoubleArrowLeftIcon />
@@ -78,20 +142,17 @@ export const GridToolbar = ({
           <IconButton
             aria-label={t('toolbar.prevDay')}
             onClick={() => onStartChange(shiftDate(start, -1))}
+            disabled={atMin}
             sx={PHONE_NAV_SX}
           >
             <ChevronLeftIcon />
           </IconButton>
 
-          <TextField
-            type="date"
-            size="small"
-            label={t('toolbar.startDate')}
-            value={start}
-            onChange={(event) => {
-              if (event.target.value) onStartChange(event.target.value);
-            }}
-            slotProps={{ inputLabel: { shrink: true } }}
+          <StartDateField
+            start={start}
+            minStart={minStart}
+            maxStart={maxStart}
+            onStartChange={onStartChange}
             sx={{
               flex: 1,
               minWidth: 116,
@@ -103,6 +164,7 @@ export const GridToolbar = ({
           <IconButton
             aria-label={t('toolbar.nextDay')}
             onClick={() => onStartChange(shiftDate(start, 1))}
+            disabled={atMax}
             sx={PHONE_NAV_SX}
           >
             <ChevronRightIcon />
@@ -110,6 +172,7 @@ export const GridToolbar = ({
           <IconButton
             aria-label={t('toolbar.forwardDays', { days: GRID_DAYS })}
             onClick={() => onStartChange(shiftDate(start, GRID_DAYS))}
+            disabled={atMax}
             sx={PHONE_NAV_SX}
           >
             <KeyboardDoubleArrowRightIcon />
@@ -177,53 +240,61 @@ export const GridToolbar = ({
       aria-label={t('toolbar.aria')}
     >
       <Tooltip title={t('toolbar.backDays', { days: GRID_DAYS })}>
-        <IconButton
-          aria-label={t('toolbar.backDays', { days: GRID_DAYS })}
-          onClick={() => onStartChange(shiftDate(start, -GRID_DAYS))}
-          sx={NAV_SX}
-        >
-          <KeyboardDoubleArrowLeftIcon />
-        </IconButton>
+        <span>
+          <IconButton
+            aria-label={t('toolbar.backDays', { days: GRID_DAYS })}
+            onClick={() => onStartChange(shiftDate(start, -GRID_DAYS))}
+            disabled={atMin}
+            sx={NAV_SX}
+          >
+            <KeyboardDoubleArrowLeftIcon />
+          </IconButton>
+        </span>
       </Tooltip>
       <Tooltip title={t('toolbar.prevDay')}>
-        <IconButton
-          aria-label={t('toolbar.prevDay')}
-          onClick={() => onStartChange(shiftDate(start, -1))}
-          sx={NAV_SX}
-        >
-          <ChevronLeftIcon />
-        </IconButton>
+        <span>
+          <IconButton
+            aria-label={t('toolbar.prevDay')}
+            onClick={() => onStartChange(shiftDate(start, -1))}
+            disabled={atMin}
+            sx={NAV_SX}
+          >
+            <ChevronLeftIcon />
+          </IconButton>
+        </span>
       </Tooltip>
 
-      <TextField
-        type="date"
-        size="small"
-        label={t('toolbar.startDate')}
-        value={start}
-        onChange={(event) => {
-          if (event.target.value) onStartChange(event.target.value);
-        }}
-        slotProps={{ inputLabel: { shrink: true } }}
+      <StartDateField
+        start={start}
+        minStart={minStart}
+        maxStart={maxStart}
+        onStartChange={onStartChange}
         sx={{ width: 168 }}
       />
 
       <Tooltip title={t('toolbar.nextDay')}>
-        <IconButton
-          aria-label={t('toolbar.nextDay')}
-          onClick={() => onStartChange(shiftDate(start, 1))}
-          sx={NAV_SX}
-        >
-          <ChevronRightIcon />
-        </IconButton>
+        <span>
+          <IconButton
+            aria-label={t('toolbar.nextDay')}
+            onClick={() => onStartChange(shiftDate(start, 1))}
+            disabled={atMax}
+            sx={NAV_SX}
+          >
+            <ChevronRightIcon />
+          </IconButton>
+        </span>
       </Tooltip>
       <Tooltip title={t('toolbar.forwardDays', { days: GRID_DAYS })}>
-        <IconButton
-          aria-label={t('toolbar.forwardDays', { days: GRID_DAYS })}
-          onClick={() => onStartChange(shiftDate(start, GRID_DAYS))}
-          sx={NAV_SX}
-        >
-          <KeyboardDoubleArrowRightIcon />
-        </IconButton>
+        <span>
+          <IconButton
+            aria-label={t('toolbar.forwardDays', { days: GRID_DAYS })}
+            onClick={() => onStartChange(shiftDate(start, GRID_DAYS))}
+            disabled={atMax}
+            sx={NAV_SX}
+          >
+            <KeyboardDoubleArrowRightIcon />
+          </IconButton>
+        </span>
       </Tooltip>
 
       {start !== today && (

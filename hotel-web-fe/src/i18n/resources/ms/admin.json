@@ -736,7 +736,8 @@
       "loyalty": "Kesetiaan",
       "rewards": "Ganjaran",
       "ledgers": "Lejar",
-      "analytics": "Analitik"
+      "analytics": "Analitik",
+      "online_inventory": "Inventori Dalam Talian"
     },
     "roles": "Peranan",
     "users": {

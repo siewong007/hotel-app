@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -19,6 +20,8 @@ interface ReviewChangesDialogProps {
   groups: EditSummaryGroup[];
   totalCount: number;
   isSaving: boolean;
+  /** A failed save's message (the server's own text) — shown in the dialog. */
+  error?: string | null;
   onClose(): void;
   onConfirm(): void;
 }
@@ -35,6 +38,7 @@ export const ReviewChangesDialog = ({
   groups,
   totalCount,
   isSaving,
+  error = null,
   onClose,
   onConfirm,
 }: ReviewChangesDialogProps) => {
@@ -72,6 +76,7 @@ export const ReviewChangesDialog = ({
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
           {t('review.atomicNote', { count: totalCount })}
         </Typography>
+        {error && <Alert severity="error">{error}</Alert>}
       </Stack>
     </DialogContent>
     <DialogActions sx={{ px: 3, py: 2 }}>

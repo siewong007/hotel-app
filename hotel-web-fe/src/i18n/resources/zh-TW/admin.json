@@ -737,7 +737,8 @@
       "loyalty": "忠誠計畫",
       "rewards": "獎勵",
       "ledgers": "帳冊",
-      "analytics": "分析"
+      "analytics": "分析",
+      "online_inventory": "線上庫存"
     },
     "roles": "角色",
     "users": {
