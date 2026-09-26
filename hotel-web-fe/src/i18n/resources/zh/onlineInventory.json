@@ -16,6 +16,7 @@
   "changedBar_other": "已修改 {{count}} 个单元格",
   "discard": "放弃",
   "reviewApply": "检查并应用",
+  "changedBarAria": "未保存的库存更改",
   "toolbar": {
     "aria": "库存窗口控件",
     "backDays": "后退 {{days}} 天",
@@ -28,7 +29,8 @@
     "selected": "已选 {{count}} 项",
     "controlsAria": "库存窗口控制",
     "refresh": "刷新",
-    "select": "选择"
+    "select": "选择",
+    "windowAria": "日期范围"
   },
   "grid": {
     "aria": "按房型和日期查看的线上库存",
@@ -132,5 +134,11 @@
   },
   "success": {
     "updated_other": "已更新 {{count}} 个单元格。"
+  },
+  "phone": {
+    "freeToday_other": "今天空闲 {{count}} 间",
+    "stripAria": "{{name}} 每日可售情况",
+    "hint": "点按日期进行编辑 · 左右滑动查看更多日期",
+    "hintSelect": "点按日期进行选择，然后点“编辑所选”"
   }
 }

@@ -209,3 +209,35 @@ describe('CellEditorSheet', () => {
     expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
   });
 });
+
+describe('PhoneInventoryView mobile polish', () => {
+  beforeEach(() => {
+    mocks.isPhone = true;
+  });
+  afterEach(cleanup);
+
+  it('shows each day\'s online price under the count, highlighting custom prices', () => {
+    const cells = fixtureCells();
+    const key = cellKey(1, '2026-09-13');
+    const saved = allocation({ stay_date: '2026-09-13', custom_price: '199.00', is_override: true });
+    cells.set(key, buildCellView(saved, undefined));
+    renderView({ cells });
+    expect(screen.getAllByText('RM 280.00').length).toBeGreaterThan(0);
+    expect(screen.getByText('RM 199.00')).toBeTruthy();
+  });
+
+  it('labels each strip through i18n and shows the swipe hint', () => {
+    renderView();
+    expect(screen.getByRole('group', { name: 'Deluxe King availability by day' })).toBeTruthy();
+    expect(screen.getByText(/swipe sideways for more dates/)).toBeTruthy();
+  });
+
+  it('scrolls every room strip together so dates stay aligned', () => {
+    renderView();
+    const deluxe = screen.getByRole('group', { name: 'Deluxe King availability by day' });
+    const suite = screen.getByRole('group', { name: 'Suite availability by day' });
+    deluxe.scrollLeft = 152;
+    fireEvent.scroll(deluxe);
+    expect(suite.scrollLeft).toBe(152);
+  });
+});

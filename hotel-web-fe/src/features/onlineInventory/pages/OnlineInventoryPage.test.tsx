@@ -140,9 +140,44 @@ describe('OnlineInventoryPage on a phone', () => {
     expect(screen.getByText('Standard Queen')).toBeTruthy();
     expect(screen.getByText('DLXK')).toBeTruthy();
     expect(screen.queryByRole('grid')).toBeNull();
-    // The ±GRID_DAYS window jumps are desktop-only.
-    expect(screen.queryByRole('button', { name: 'Back 14 days' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Forward 14 days' })).toBeNull();
+    // The ±GRID_DAYS window jumps are reachable on phones too.
+    expect(screen.getByRole('button', { name: 'Back 14 days' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Forward 14 days' })).toBeTruthy();
+  });
+
+  it('keeps Select out of the date stepper row so it cannot be pushed off-screen', async () => {
+    renderPage();
+    await screen.findByText('Deluxe King');
+    const stepper = screen.getByRole('group', { name: 'Date window' });
+    expect(stepper.contains(screen.getByLabelText('Start date'))).toBe(true);
+    expect(stepper.contains(screen.getByRole('button', { name: 'Select' }))).toBe(false);
+  });
+
+  it('portals the pending-changes bar to <body> so it pins to the viewport', async () => {
+    const { container } = renderPage();
+    await screen.findByText('Deluxe King');
+
+    fireEvent.click(firstDeluxeDay());
+    fireEvent.change(await screen.findByRole('spinbutton', { name: /walk-in hold/i }), {
+      target: { value: '2' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    const bar = await screen.findByRole('region', { name: 'Unsaved inventory changes' });
+    // Outside the page subtree: <main>'s contain/transform can't trap it.
+    expect(container.contains(bar)).toBe(false);
+    expect(getComputedStyle(bar).position).toBe('fixed');
+    expect(bar.textContent).toMatch(/1 cell changed/);
+    fireEvent.click(screen.getByRole('button', { name: /review & apply/i }));
+    expect(await screen.findByRole('button', { name: 'Apply 1 change' })).toBeTruthy();
+  });
+
+  it('shows the tap/select hint that matches the current mode', async () => {
+    renderPage();
+    await screen.findByText('Deluxe King');
+    expect(screen.getByText(/Tap a day to edit it/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }));
+    expect(screen.getByText(/Tap days to select them/)).toBeTruthy();
   });
 
   it('opens the cell editor sheet on tap and stages the edit', async () => {

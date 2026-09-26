@@ -17,6 +17,7 @@
   "changedBar_other": "{{count}} cells changed",
   "discard": "Discard",
   "reviewApply": "Review & apply",
+  "changedBarAria": "Unsaved inventory changes",
   "toolbar": {
     "aria": "Inventory window controls",
     "backDays": "Back {{days}} days",
@@ -29,7 +30,8 @@
     "selected": "{{count}} selected",
     "controlsAria": "Inventory window controls",
     "refresh": "Refresh",
-    "select": "Select"
+    "select": "Select",
+    "windowAria": "Date window"
   },
   "grid": {
     "aria": "Online inventory by room type and date",
@@ -138,5 +140,12 @@
   "success": {
     "updated_one": "{{count}} cell updated.",
     "updated_other": "{{count}} cells updated."
+  },
+  "phone": {
+    "freeToday_one": "{{count}} free today",
+    "freeToday_other": "{{count}} free today",
+    "stripAria": "{{name}} availability by day",
+    "hint": "Tap a day to edit it · swipe sideways for more dates",
+    "hintSelect": "Tap days to select them, then choose Edit selected"
   }
 }

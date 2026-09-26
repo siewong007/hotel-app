@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Alert,
+  Box,
   Button,
   Divider,
   InputAdornment,
@@ -19,6 +20,17 @@ import { useCurrency } from '../../../hooks/useCurrency';
 
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const WEEKDAY_COUNT = 7;
+
+// Touch sizing below `md` (phones use this cluster in a bottom sheet, tablets
+// under the grid): 44px controls; desktop keeps the compact small size.
+const TOUCH_BUTTON_SX = { minHeight: { xs: 44, md: 'auto' }, whiteSpace: 'nowrap' } as const;
+const touchFieldSx = (width: number) => ({
+  width: { xs: 'auto', sm: width },
+  flex: { xs: 1, sm: 'none' },
+  '& .MuiInputBase-root': { minHeight: { xs: 44, md: 'auto' } },
+});
+/** Keeps a field and its action button on one line, even in the phone column. */
+const PAIR_SX = { display: 'flex', alignItems: 'center', gap: 1 } as const;
 
 interface BulkEditPanelProps {
   targets: GridCellView[];
@@ -51,7 +63,7 @@ export const BulkEditPanel = ({ targets, onApply, onClear }: BulkEditPanelProps)
           <Typography sx={{ fontWeight: 800 }}>
             {t('bulk.cellsSelected', { count: targets.length })}
           </Typography>
-          <Button size="small" onClick={onClear} sx={{ ml: 'auto' }}>
+          <Button size="small" onClick={onClear} sx={{ ml: 'auto', minHeight: { xs: 44, md: 'auto' } }}>
             {t('bulk.clearSelection')}
           </Button>
         </Stack>
@@ -133,102 +145,116 @@ export const BulkEditFields = ({ targets, onApply }: BulkEditFieldsProps) => {
         sx={{ alignItems: { xs: 'stretch', sm: 'center' }, flexWrap: 'wrap' }}
         useFlexGap
       >
-        <Button variant="outlined" size="small" onClick={() => run({ kind: 'set_enabled', enabled: true })}>
-          {t('bulk.openOnline')}
-        </Button>
-        <Button variant="outlined" size="small" onClick={() => run({ kind: 'set_enabled', enabled: false })}>
-          {t('bulk.closeOnline')}
-        </Button>
+        <Box sx={{ ...PAIR_SX, '& > *': { flex: { xs: 1, sm: 'none' } } }}>
+          <Button variant="outlined" size="small" sx={TOUCH_BUTTON_SX} onClick={() => run({ kind: 'set_enabled', enabled: true })}>
+            {t('bulk.openOnline')}
+          </Button>
+          <Button variant="outlined" size="small" sx={TOUCH_BUTTON_SX} onClick={() => run({ kind: 'set_enabled', enabled: false })}>
+            {t('bulk.closeOnline')}
+          </Button>
+        </Box>
 
         <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
 
-        <TextField
-          type="number"
-          size="small"
-          label={t('bulk.hold')}
-          value={hold}
-          onChange={(event) => setHold(event.target.value)}
-          sx={{ width: { xs: '100%', sm: 88 } }}
-          slotProps={{ htmlInput: { min: 0, step: 1, 'aria-label': t('bulk.setHold') } }}
-        />
-        <Button
-          variant="outlined"
-          size="small"
-          disabled={numeric(hold) === null}
-          onClick={() => run({ kind: 'set_hold', rooms: Number(hold) })}
-        >
-          {t('bulk.setHold')}
-        </Button>
+        <Box sx={PAIR_SX}>
+          <TextField
+            type="number"
+            size="small"
+            label={t('bulk.hold')}
+            value={hold}
+            onChange={(event) => setHold(event.target.value)}
+            sx={touchFieldSx(88)}
+            slotProps={{ htmlInput: { min: 0, step: 1, 'aria-label': t('bulk.setHold') } }}
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            sx={TOUCH_BUTTON_SX}
+            disabled={numeric(hold) === null}
+            onClick={() => run({ kind: 'set_hold', rooms: Number(hold) })}
+          >
+            {t('bulk.setHold')}
+          </Button>
+        </Box>
 
         <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
 
-        <TextField
-          type="number"
-          size="small"
-          label={t('bulk.price')}
-          value={price}
-          onChange={(event) => setPrice(event.target.value)}
-          sx={{ width: { xs: '100%', sm: 120 } }}
-          slotProps={{
-            input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> },
-            htmlInput: { min: 0.01, step: 0.01, 'aria-label': t('bulk.setPrice') },
-          }}
-        />
-        <Button
-          variant="outlined"
-          size="small"
-          disabled={numeric(price) === null || Number(price) <= 0}
-          onClick={() => run({ kind: 'set_price', price: Number(price).toFixed(2) })}
-        >
-          {t('bulk.setPrice')}
-        </Button>
+        <Box sx={PAIR_SX}>
+          <TextField
+            type="number"
+            size="small"
+            label={t('bulk.price')}
+            value={price}
+            onChange={(event) => setPrice(event.target.value)}
+            sx={touchFieldSx(120)}
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> },
+              htmlInput: { min: 0.01, step: 0.01, 'aria-label': t('bulk.setPrice') },
+            }}
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            sx={TOUCH_BUTTON_SX}
+            disabled={numeric(price) === null || Number(price) <= 0}
+            onClick={() => run({ kind: 'set_price', price: Number(price).toFixed(2) })}
+          >
+            {t('bulk.setPrice')}
+          </Button>
+        </Box>
 
         <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
 
-        <TextField
-          type="number"
-          size="small"
-          label={t('bulk.percentLabel')}
-          value={percent}
-          onChange={(event) => setPercent(event.target.value)}
-          sx={{ width: { xs: '100%', sm: 88 } }}
-          slotProps={{
-            input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
-            htmlInput: { step: 1, 'aria-label': t('bulk.adjustPercentAria') },
-          }}
-        />
-        <Button
-          variant="outlined"
-          size="small"
-          disabled={numeric(percent) === null}
-          onClick={() => run({ kind: 'adjust_price_percent', percent: Number(percent) })}
-        >
-          {t('bulk.applyPercent')}
-        </Button>
-        <TextField
-          type="number"
-          size="small"
-          label={t('bulk.amountLabel')}
-          value={amount}
-          onChange={(event) => setAmount(event.target.value)}
-          sx={{ width: { xs: '100%', sm: 112 } }}
-          slotProps={{
-            input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> },
-            htmlInput: { step: 1, 'aria-label': t('bulk.adjustAmountAria') },
-          }}
-        />
-        <Button
-          variant="outlined"
-          size="small"
-          disabled={numeric(amount) === null}
-          onClick={() => run({ kind: 'adjust_price_amount', amount: Number(amount).toFixed(2) })}
-        >
-          {t('bulk.applyAmount')}
-        </Button>
+        <Box sx={PAIR_SX}>
+          <TextField
+            type="number"
+            size="small"
+            label={t('bulk.percentLabel')}
+            value={percent}
+            onChange={(event) => setPercent(event.target.value)}
+            sx={touchFieldSx(88)}
+            slotProps={{
+              input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
+              htmlInput: { step: 1, 'aria-label': t('bulk.adjustPercentAria') },
+            }}
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            sx={TOUCH_BUTTON_SX}
+            disabled={numeric(percent) === null}
+            onClick={() => run({ kind: 'adjust_price_percent', percent: Number(percent) })}
+          >
+            {t('bulk.applyPercent')}
+          </Button>
+        </Box>
+        <Box sx={PAIR_SX}>
+          <TextField
+            type="number"
+            size="small"
+            label={t('bulk.amountLabel')}
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            sx={touchFieldSx(112)}
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> },
+              htmlInput: { step: 1, 'aria-label': t('bulk.adjustAmountAria') },
+            }}
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            sx={TOUCH_BUTTON_SX}
+            disabled={numeric(amount) === null}
+            onClick={() => run({ kind: 'adjust_price_amount', amount: Number(amount).toFixed(2) })}
+          >
+            {t('bulk.applyAmount')}
+          </Button>
+        </Box>
 
         <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
 
-        <Button variant="outlined" size="small" color="warning" onClick={() => run({ kind: 'reset' })}>
+        <Button variant="outlined" size="small" color="warning" sx={TOUCH_BUTTON_SX} onClick={() => run({ kind: 'reset' })}>
           {t('bulk.clearOverrides')}
         </Button>
       </Stack>

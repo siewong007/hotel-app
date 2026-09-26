@@ -30,10 +30,12 @@ const SummaryItem = ({
 }) => {
   const { t } = useTranslation('onlineInventory');
   return (
-    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+    <Stack direction="row" spacing={{ xs: 0, sm: 1.5 }} sx={{ alignItems: 'center', minWidth: 0 }}>
       <Box
         sx={{
-          display: 'grid',
+          // Phones show three compact columns — the icon tiles would squeeze
+          // the numbers, so they only appear from `sm` up.
+          display: { xs: 'none', sm: 'grid' },
           placeItems: 'center',
           width: 42,
           height: 42,
@@ -48,13 +50,28 @@ const SummaryItem = ({
       <Box sx={{ minWidth: 0 }}>
         <Typography
           variant="caption"
-          sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: 0.3 }}
+          sx={(theme) => ({
+            color: 'text.secondary',
+            fontWeight: 700,
+            letterSpacing: 0.3,
+            [theme.breakpoints.down('sm')]: { display: 'block', lineHeight: 1.25, fontSize: '0.66rem' },
+          })}
         >
           {label.toUpperCase()}
         </Typography>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
-          <Typography variant="h5" component="div" sx={{ fontWeight: 800 }}>{value}</Typography>
-          <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>
+          <Typography
+            variant="h5"
+            component="div"
+            sx={(theme) => ({ fontWeight: 800, [theme.breakpoints.down('sm')]: { fontSize: '1.3rem' } })}
+          >
+            {value}
+          </Typography>
+          <Typography
+            variant="body2"
+            noWrap
+            sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}
+          >
             {t('summary.roomNights')}
           </Typography>
         </Stack>
@@ -81,22 +98,32 @@ export const InventorySummary = ({ cells, label }: InventorySummaryProps) => {
     <Paper
       variant="outlined"
       sx={{
-        p: 2,
+        p: { xs: 1.5, sm: 2 },
         borderRadius: 3,
       }}
       aria-label={t('summary.aria', { label: scopeLabel })}
     >
-      <Typography
-        variant="caption"
-        sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: 0.4, display: 'block', mb: 1 }}
-      >
-        {scopeLabel.toUpperCase()}
-      </Typography>
+      <Stack direction="row" spacing={0.75} sx={{ alignItems: 'baseline', mb: 1 }}>
+        <Typography
+          variant="caption"
+          sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: 0.4, display: 'block' }}
+        >
+          {scopeLabel.toUpperCase()}
+        </Typography>
+        {/* Phones drop the per-figure unit; name it once beside the scope. */}
+        <Typography
+          variant="caption"
+          aria-hidden
+          sx={{ color: 'text.secondary', display: { xs: 'block', sm: 'none' } }}
+        >
+          · {t('summary.roomNights')}
+        </Typography>
+      </Stack>
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
-          gap: { xs: 2, sm: 1 },
+          gridTemplateColumns: { xs: 'repeat(3, minmax(0, 1fr))', sm: 'repeat(3, 1fr)' },
+          gap: { xs: 1.5, sm: 1 },
         }}
       >
         <SummaryItem label={t('summary.physical')} value={totals.physical} icon={<BedOutlinedIcon />} color={theme.palette.info.main} />

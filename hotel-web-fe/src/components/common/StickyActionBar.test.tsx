@@ -32,8 +32,20 @@ describe('StickyActionBar', () => {
 
   it('phone: the bar carries position: fixed (pinned above the bottom nav)', () => {
     mocks.isPhone = true;
-    const { container } = render(<StickyActionBar primary={primary} />);
-    expect(getComputedStyle(rootBar(container)).position).toBe('fixed');
+    render(<StickyActionBar primary={primary} />);
+    const bar = screen.getByRole('button', { name: 'Check in' }).parentElement as HTMLElement;
+    expect(getComputedStyle(bar).position).toBe('fixed');
+  });
+
+  it('phone: the bar is portalled out of the page so contain/transform ancestors cannot trap it', () => {
+    mocks.isPhone = true;
+    const { container } = render(
+      <div style={{ contain: 'layout', transform: 'translateZ(0)' }}>
+        <StickyActionBar primary={primary} />
+      </div>,
+    );
+    expect(container.querySelector('button')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Check in' }).closest('body')).toBe(document.body);
   });
 
   it('desktop: the bar stays inline (position: static)', () => {

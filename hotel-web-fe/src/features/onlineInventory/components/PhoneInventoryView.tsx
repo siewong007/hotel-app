@@ -1,3 +1,4 @@
+import { useCallback, useRef } from 'react';
 import { Box, Chip, Paper, Stack, Typography, alpha, useTheme } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
@@ -5,11 +6,13 @@ import type { CellKey, GridCellView } from '../types';
 import type { InventoryRoomTypeRow } from '../hooks/useOnlineInventory';
 import { cellKey } from '../utils';
 import { useTranslation } from '../../../i18n/useTranslation';
-import { t as ti18n } from '../../../i18n';
 import { DAY_NUM, FULL_DATE, WEEKDAY_SHORT } from '../constants';
 import { cellAriaLabel } from './GridCell';
 
 const asDate = (date: string) => new Date(`${date}T12:00:00`);
+
+/** Day-cell width — wide enough for the count plus a compact price line. */
+export const PHONE_DAY_WIDTH = 76;
 
 export interface PhoneInventoryViewProps {
   roomTypes: InventoryRoomTypeRow[];
@@ -70,7 +73,7 @@ const PhoneDayCell = ({
       }}
       sx={{
         position: 'relative',
-        flex: '0 0 64px',
+        flex: `0 0 ${PHONE_DAY_WIDTH}px`,
         scrollSnapAlign: 'start',
         display: 'flex',
         flexDirection: 'column',
@@ -127,11 +130,11 @@ const PhoneDayCell = ({
         sx={{
           width: '100%',
           flex: 1,
-          minHeight: 44,
+          minHeight: 36,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          py: 0.5,
+          pt: 0.75,
         }}
       >
         {view === undefined ? (
@@ -158,6 +161,24 @@ const PhoneDayCell = ({
           </Typography>
         )}
       </Box>
+      {view !== undefined && (
+        <Typography
+          component="div"
+          aria-hidden
+          noWrap
+          sx={{
+            width: '100%',
+            px: 0.5,
+            pb: 0.75,
+            fontSize: '0.68rem',
+            fontWeight: view.current.custom_price !== null ? 800 : 500,
+            lineHeight: 1.2,
+            color: view.current.custom_price !== null ? 'primary.main' : 'text.secondary',
+          }}
+        >
+          {formatPrice(view.current.custom_price ?? view.standard_price)}
+        </Typography>
+      )}
       {view !== undefined && (view.changed || view.is_override) && (
         <Box
           aria-hidden
@@ -195,13 +216,42 @@ export const PhoneInventoryView = ({
   formatPrice,
 }: PhoneInventoryViewProps) => {
   const { t } = useTranslation('onlineInventory');
+  // Every room card's day strip scrolls together, so the same dates line up
+  // down the page — swiping one card no longer leaves the others behind.
+  const strips = useRef(new Map<number, HTMLDivElement>());
+  const syncing = useRef(false);
+  const registerStrip = useCallback(
+    (id: number) => (node: HTMLDivElement | null) => {
+      if (node) strips.current.set(id, node);
+      else strips.current.delete(id);
+    },
+    [],
+  );
+  const syncScroll = (id: number) => {
+    if (syncing.current) return;
+    const source = strips.current.get(id);
+    if (!source) return;
+    syncing.current = true;
+    for (const [otherId, node] of strips.current) {
+      if (otherId !== id && node.scrollLeft !== source.scrollLeft) {
+        node.scrollLeft = source.scrollLeft;
+      }
+    }
+    requestAnimationFrame(() => {
+      syncing.current = false;
+    });
+  };
+
   const handleTap = (key: CellKey) => {
     if (selectMode) onToggleSelect(key);
     else onOpenCell(key);
   };
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
+      <Typography variant="caption" sx={{ color: 'text.secondary', px: 0.5 }}>
+        {selectMode ? t('phone.hintSelect') : t('phone.hint')}
+      </Typography>
       {roomTypes.map((room) => {
         const todayView = cells.get(cellKey(room.room_type_id, today));
         return (
@@ -229,19 +279,25 @@ export const PhoneInventoryView = ({
                   variant="caption"
                   sx={{ color: 'text.secondary', fontWeight: 600, flexShrink: 0 }}
                 >
-                  {todayView.online_available} free today
+                  {t('phone.freeToday', { count: todayView.online_available })}
                 </Typography>
               )}
             </Stack>
             <Box
               role="group"
-              aria-label={`${room.room_type_name} availability by day`}
+              aria-label={t('phone.stripAria', { name: room.room_type_name })}
+              ref={registerStrip(room.room_type_id)}
+              onScroll={() => syncScroll(room.room_type_id)}
               sx={{
                 display: 'flex',
                 overflowX: 'auto',
+                overscrollBehaviorX: 'contain',
                 scrollSnapType: 'x proximity',
-                scrollbarWidth: 'none',
-                '&::-webkit-scrollbar': { display: 'none' },
+                // A thin visible scrollbar is the only cue that more days sit
+                // off to the right — the old strip hid it entirely.
+                scrollbarWidth: 'thin',
+                '&::-webkit-scrollbar': { height: 4 },
+                '&::-webkit-scrollbar-thumb': { bgcolor: 'divider', borderRadius: 2 },
                 borderTop: 1,
                 borderColor: 'divider',
               }}

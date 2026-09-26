@@ -42,7 +42,13 @@ export const CellEditorForm = ({
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* The whole row is the label, so the text is a tap target too — the
+          bare switch is only ~38px tall on a phone. */}
+      <Stack
+        component="label"
+        direction="row"
+        sx={{ alignItems: 'center', justifyContent: 'space-between', minHeight: 44, cursor: 'pointer' }}
+      >
         <Box>
           <Typography sx={{ fontWeight: 700 }}>{t('editor.bookable')}</Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
