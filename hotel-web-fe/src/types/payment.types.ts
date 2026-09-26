@@ -114,6 +114,13 @@ export interface PendingPaymentEntry {
   processed_at: string | null;
   processed_by_name: string | null;
   decision_reason: string | null;
+  /** Stay window of the claimed booking (`YYYY-MM-DD`). */
+  check_in_date: string;
+  check_out_date: string;
+  /** Room the booking holds; null only for legacy data without a room. */
+  room_number: string | null;
+  /** Current booking status (e.g. `pending_confirmation`, or `confirmed` when staff confirmed it by hand). */
+  booking_status: string;
 }
 
 /** Paginated wrapper for `GET /admin/payments/pending`. */

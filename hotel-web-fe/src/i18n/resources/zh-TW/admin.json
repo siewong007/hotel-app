@@ -205,7 +205,10 @@
       "method": "方式",
       "submitted": "提交",
       "reviewed": "審核",
-      "receipt": "收據"
+      "receipt": "收據",
+      "stay": "入住",
+      "room": "房間",
+      "bookingStatus": "預訂狀態"
     },
     "tabs": {
       "pending": "待處理聲明",
@@ -292,7 +295,21 @@
     "paypalCancelSuccess": "預訂 {{booking}} 的 PayPal 嘗試已取消。",
     "rejectSuccess": "預訂 {{booking}} 的付款已被拒絕。",
     "previewTitle": "付款收據 — 預訂 {{booking}}",
-    "previewIframeTitle": "預訂 {{booking}} 的付款收據"
+    "previewIframeTitle": "預訂 {{booking}} 的付款收據",
+    "stayRange": "{{from}} – {{to}}",
+    "roomLabel": "房間 {{room}}",
+    "bookingHandledTooltip": "員工已將此預訂設為{{status}}。請核准付款，或作廢/退款該預訂。",
+    "rejectBlockedTooltip": "此預訂已是{{status}}，因此無法再拒絕該付款申請。請核准付款，或作廢/退款該預訂。",
+    "approveDialog": {
+      "title": "核准付款",
+      "body": "核准後，此付款將標記為已收到，並確認預訂。系統會寄送付款確認郵件給客人。",
+      "receiptPresent": "已上傳",
+      "receiptMissing": "未上傳",
+      "noReceiptWarning": "未上傳收據。只有在銀行帳戶中確認已收到轉帳時才可核准。",
+      "alreadyHandled": "此預訂已是{{status}}。核准只會記錄付款，不會變更預訂狀態。",
+      "confirm": "核准付款",
+      "approving": "正在核准…"
+    }
   },
   "audit": {
     "title": "稽核紀錄",

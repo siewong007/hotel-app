@@ -74,6 +74,17 @@ pub struct PendingPaymentEntry {
     pub processed_at: Option<String>,
     pub processed_by_name: Option<String>,
     pub decision_reason: Option<String>,
+    /// Stay window of the claimed booking (`YYYY-MM-DD`), so staff can see how
+    /// soon the guest arrives without opening the booking.
+    pub check_in_date: String,
+    pub check_out_date: String,
+    /// Room the booking currently holds; `None` only for a booking without a
+    /// room row (legacy/imported data).
+    pub room_number: Option<String>,
+    /// Current booking status. A claim whose booking is no longer awaiting
+    /// payment (e.g. staff confirmed it by hand) can still be approved but no
+    /// longer rejected.
+    pub booking_status: String,
 }
 
 /// Paginated wrapper for the staff pending-payments queue.
