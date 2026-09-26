@@ -1035,10 +1035,13 @@ impl PaymentRepository {
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
                        p.processed_at::text AS processed_at, reviewer.full_name AS processed_by_name,
-                       p.failure_reason AS decision_reason
+                       p.failure_reason AS decision_reason,
+                       b.check_in_date::text AS check_in_date, b.check_out_date::text AS check_out_date,
+                       rm.room_number AS room_number, b.status AS booking_status
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 LEFT JOIN guests g ON g.id = b.guest_id
+                LEFT JOIN rooms rm ON rm.id = b.room_id
                 LEFT JOIN users reviewer ON reviewer.id = p.processed_by
                 WHERE p.id = $1
             "#;
@@ -1066,10 +1069,13 @@ impl PaymentRepository {
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
                        p.processed_at::text AS processed_at, reviewer.full_name AS processed_by_name,
-                       p.failure_reason AS decision_reason
+                       p.failure_reason AS decision_reason,
+                       b.check_in_date::text AS check_in_date, b.check_out_date::text AS check_out_date,
+                       rm.room_number AS room_number, b.status AS booking_status
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 LEFT JOIN guests g ON g.id = b.guest_id
+                LEFT JOIN rooms rm ON rm.id = b.room_id
                 LEFT JOIN users reviewer ON reviewer.id = p.processed_by
                 WHERE p.status = 'pending'
                 ORDER BY p.created_at DESC
@@ -1105,9 +1111,12 @@ impl PaymentRepository {
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
-                       p.processed_at::text AS processed_at, reviewer.full_name AS processed_by_name, p.failure_reason AS decision_reason
+                       p.processed_at::text AS processed_at, reviewer.full_name AS processed_by_name, p.failure_reason AS decision_reason,
+                       b.check_in_date::text AS check_in_date, b.check_out_date::text AS check_out_date,
+                       rm.room_number AS room_number, b.status AS booking_status
                 FROM payments p JOIN bookings b ON b.id = p.booking_id
-                LEFT JOIN guests g ON g.id = b.guest_id LEFT JOIN users reviewer ON reviewer.id = p.processed_by
+                LEFT JOIN guests g ON g.id = b.guest_id LEFT JOIN rooms rm ON rm.id = b.room_id
+                LEFT JOIN users reviewer ON reviewer.id = p.processed_by
                 WHERE p.payment_method IN ('bank_transfer', 'paypal') AND p.status IN ('completed', 'void')
                 ORDER BY p.processed_at DESC NULLS LAST, p.created_at DESC LIMIT $1 OFFSET $2
             "#;

@@ -205,7 +205,10 @@
       "method": "Method",
       "submitted": "Submitted",
       "reviewed": "Reviewed",
-      "receipt": "Receipt"
+      "receipt": "Receipt",
+      "stay": "Stay",
+      "room": "Room",
+      "bookingStatus": "Booking status"
     },
     "tabs": {
       "pending": "Pending claims",
@@ -294,7 +297,21 @@
     "paypalCancelSuccess": "PayPal attempt for booking {{booking}} was cancelled.",
     "rejectSuccess": "Payment for booking {{booking}} was rejected.",
     "previewTitle": "Payment receipt — booking {{booking}}",
-    "previewIframeTitle": "Payment receipt for booking {{booking}}"
+    "previewIframeTitle": "Payment receipt for booking {{booking}}",
+    "stayRange": "{{from}} – {{to}}",
+    "roomLabel": "Room {{room}}",
+    "bookingHandledTooltip": "Staff already set this booking to {{status}}. Approve the payment, or void/refund the booking instead.",
+    "rejectBlockedTooltip": "This booking is already {{status}}, so the claim can no longer be rejected. Approve the payment, or void/refund the booking instead.",
+    "approveDialog": {
+      "title": "Approve payment",
+      "body": "Approving marks this payment as received and confirms the booking. The guest is emailed a payment confirmation.",
+      "receiptPresent": "Uploaded",
+      "receiptMissing": "Not uploaded",
+      "noReceiptWarning": "No receipt uploaded. Only approve if you have seen the transfer in the bank account.",
+      "alreadyHandled": "This booking is already {{status}}. Approving records the payment without changing the booking status.",
+      "confirm": "Approve payment",
+      "approving": "Approving…"
+    }
   },
   "audit": {
     "title": "Audit Log",

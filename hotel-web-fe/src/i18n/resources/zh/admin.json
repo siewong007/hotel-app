@@ -205,7 +205,10 @@
       "method": "方式",
       "submitted": "提交时间",
       "reviewed": "审核时间",
-      "receipt": "收据"
+      "receipt": "收据",
+      "stay": "入住",
+      "room": "房间",
+      "bookingStatus": "预订状态"
     },
     "tabs": {
       "pending": "待处理申请",
@@ -292,7 +295,21 @@
     "paypalCancelSuccess": "预订 {{booking}} 的 PayPal 尝试已取消。",
     "rejectSuccess": "预订 {{booking}} 的付款已被拒绝。",
     "previewTitle": "付款收据 — 预订 {{booking}}",
-    "previewIframeTitle": "预订 {{booking}} 的付款收据"
+    "previewIframeTitle": "预订 {{booking}} 的付款收据",
+    "stayRange": "{{from}} – {{to}}",
+    "roomLabel": "房间 {{room}}",
+    "bookingHandledTooltip": "员工已将此预订设为{{status}}。请批准付款，或作废/退款该预订。",
+    "rejectBlockedTooltip": "此预订已是{{status}}，因此无法再拒绝该付款申请。请批准付款，或作废/退款该预订。",
+    "approveDialog": {
+      "title": "批准付款",
+      "body": "批准后，此付款将标记为已收到，并确认预订。系统会向客人发送付款确认邮件。",
+      "receiptPresent": "已上传",
+      "receiptMissing": "未上传",
+      "noReceiptWarning": "未上传收据。只有在银行账户中确认已收到转账时才可批准。",
+      "alreadyHandled": "此预订已是{{status}}。批准只会记录付款，不会更改预订状态。",
+      "confirm": "批准付款",
+      "approving": "正在批准…"
+    }
   },
   "audit": {
     "title": "审计日志",

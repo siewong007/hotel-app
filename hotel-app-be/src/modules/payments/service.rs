@@ -2378,6 +2378,11 @@ async fn complete_and_confirm(
 ) -> Result<PaymentActionResponse, ApiError> {
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
+    // Read under the booking lock so the history row records the status the
+    // booking actually left (normally `pending_confirmation` for a bank claim),
+    // not an assumed one.
+    let previous_booking_status =
+        PaymentRepository::booking_status_for_payment_tx(&mut tx, booking_id).await?;
     let status = PaymentRepository::lock_payment_status_tx(&mut tx, payment_id, booking_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
@@ -2411,7 +2416,7 @@ async fn complete_and_confirm(
         crate::modules::bookings::record_booking_history_tx(
             &mut tx,
             booking_id,
-            Some("pending_payment"),
+            Some(&previous_booking_status),
             "confirmed",
             actor_user_id,
             Some("Payment approved"),
@@ -2684,6 +2689,30 @@ pub async fn reject_expired_paypal_attempts(pool: &DbPool) -> Result<usize, ApiE
     Ok(rejected)
 }
 
+/// Booking states in which a staff rejection is allowed: the booking is still
+/// waiting on this payment, so rejecting returns it to `pending_payment`.
+const STAFF_REJECTABLE_BOOKING_STATUSES: [&str; 3] =
+    ["pending", "pending_payment", "pending_confirmation"];
+
+/// Why staff may not reject a pending claim on a booking in `booking_status`,
+/// or `None` when the rejection may proceed. Pure so the rule and its copy are
+/// unit-tested without a database.
+pub fn staff_reject_block_reason(booking_status: &str) -> Option<String> {
+    if STAFF_REJECTABLE_BOOKING_STATUSES.contains(&booking_status) {
+        return None;
+    }
+    const NEXT_STEP: &str = "Approve the payment, or void/refund the booking instead.";
+    Some(match booking_status {
+        "confirmed" => format!("This booking was already confirmed by staff. {NEXT_STEP}"),
+        "checked_in" | "auto_checked_in" => {
+            format!("This booking is already checked in. {NEXT_STEP}")
+        }
+        other => {
+            format!("This booking is no longer awaiting payment (status: {other}). {NEXT_STEP}")
+        }
+    })
+}
+
 async fn reject_payment_by(
     pool: &DbPool,
     actor_user_id: Option<i64>,
@@ -2715,6 +2744,19 @@ async fn reject_payment_by(
         return Err(ApiError::BadRequest(
             "Payment is no longer pending.".to_string(),
         ));
+    }
+    // A staff reviewer must not reject a claim once the booking has moved on
+    // by hand (confirmed, checked in, ...): the guest would be told their
+    // payment failed while the booking stays confirmed and unpaid. Returning
+    // here drops the transaction, so nothing changes and no mail is queued.
+    // The automated expiry sweeps (`actor_user_id == None`) keep their
+    // existing behaviour.
+    if actor_user_id.is_some() {
+        let booking_status =
+            PaymentRepository::booking_status_for_payment_tx(&mut tx, review.booking_id).await?;
+        if let Some(message) = staff_reject_block_reason(&booking_status) {
+            return Err(ApiError::Conflict(message));
+        }
     }
     let rejected =
         PaymentRepository::mark_payment_rejected_tx(&mut tx, payment_id, actor_user_id, reason)
@@ -2964,6 +3006,42 @@ mod receipt_tests {
             Some(("pdf", "application/pdf"))
         );
         assert_eq!(receipt_extension(b"not a receipt"), None);
+    }
+}
+
+#[cfg(test)]
+mod staff_reject_guard_tests {
+    use super::staff_reject_block_reason;
+
+    #[test]
+    fn claims_on_payment_awaiting_bookings_can_be_rejected() {
+        for status in ["pending", "pending_payment", "pending_confirmation"] {
+            assert_eq!(staff_reject_block_reason(status), None, "{status}");
+        }
+    }
+
+    #[test]
+    fn a_booking_confirmed_by_hand_refuses_rejection_with_next_steps() {
+        assert_eq!(
+            staff_reject_block_reason("confirmed").as_deref(),
+            Some(
+                "This booking was already confirmed by staff. Approve the payment, or void/refund the booking instead."
+            )
+        );
+    }
+
+    #[test]
+    fn checked_in_and_other_statuses_refuse_rejection() {
+        for status in ["checked_in", "auto_checked_in"] {
+            let message = staff_reject_block_reason(status).expect(status);
+            assert!(
+                message.starts_with("This booking is already checked in."),
+                "{message}"
+            );
+        }
+        let message = staff_reject_block_reason("checked_out").expect("checked_out");
+        assert!(message.contains("(status: checked_out)"), "{message}");
+        assert!(message.ends_with("Approve the payment, or void/refund the booking instead."));
     }
 }
 

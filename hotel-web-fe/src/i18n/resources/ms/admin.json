@@ -205,7 +205,10 @@
       "method": "Kaedah",
       "submitted": "Dihantar",
       "reviewed": "Disemak",
-      "receipt": "Resit"
+      "receipt": "Resit",
+      "stay": "Penginapan",
+      "room": "Bilik",
+      "bookingStatus": "Status tempahan"
     },
     "tabs": {
       "pending": "Tuntutan belum selesai",
@@ -292,7 +295,21 @@
     "paypalCancelSuccess": "Cubaan PayPal untuk tempahan {{booking}} telah dibatalkan.",
     "rejectSuccess": "Bayaran untuk tempahan {{booking}} telah ditolak.",
     "previewTitle": "Resit bayaran — tempahan {{booking}}",
-    "previewIframeTitle": "Resit bayaran untuk tempahan {{booking}}"
+    "previewIframeTitle": "Resit bayaran untuk tempahan {{booking}}",
+    "stayRange": "{{from}} – {{to}}",
+    "roomLabel": "Bilik {{room}}",
+    "bookingHandledTooltip": "Kakitangan telah menetapkan tempahan ini kepada {{status}}. Luluskan bayaran, atau batalkan/bayar balik tempahan.",
+    "rejectBlockedTooltip": "Tempahan ini sudah {{status}}, jadi tuntutan ini tidak boleh ditolak lagi. Luluskan bayaran, atau batalkan/bayar balik tempahan.",
+    "approveDialog": {
+      "title": "Luluskan bayaran",
+      "body": "Meluluskan akan menandakan bayaran ini sebagai diterima dan mengesahkan tempahan. Tetamu akan menerima e-mel pengesahan bayaran.",
+      "receiptPresent": "Dimuat naik",
+      "receiptMissing": "Tidak dimuat naik",
+      "noReceiptWarning": "Tiada resit dimuat naik. Luluskan hanya jika anda telah melihat pindahan dalam akaun bank.",
+      "alreadyHandled": "Tempahan ini sudah {{status}}. Meluluskan akan merekodkan bayaran tanpa mengubah status tempahan.",
+      "confirm": "Luluskan bayaran",
+      "approving": "Meluluskan…"
+    }
   },
   "audit": {
     "title": "Log Audit",

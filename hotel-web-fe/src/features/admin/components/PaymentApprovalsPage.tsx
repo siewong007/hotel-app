@@ -21,6 +21,7 @@ import {
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
@@ -44,8 +45,10 @@ import {
 } from '../hooks/usePaymentApprovalsQueries';
 import { receiptAsPdf } from '../utils/paymentReceiptPdf';
 import { useTranslation, statusLabel } from '../../../i18n';
-import { formatHotelDateTime } from '../../../utils/date';
+import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
 import { Link } from '../../../router';
+import ApprovePaymentDialog from './ApprovePaymentDialog';
+import { canRejectPaymentClaim } from '../utils/paymentApprovals';
 
 const CONFLICT_EVENTS_SHOWN = 10;
 
@@ -77,6 +80,7 @@ const PaymentApprovalsPage: React.FC = () => {
   const [receiptMessage, setReceiptMessage] = useState('');
   const [receiptPreview, setReceiptPreview] = useState<{ url: string; bookingNumber: string; file: Blob } | null>(null);
   const [rejectTarget, setRejectTarget] = useState<PendingPaymentEntry | null>(null);
+  const [approveTarget, setApproveTarget] = useState<PendingPaymentEntry | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
   const pendingQuery = usePendingPayments({ page: page + 1, pageSize });
@@ -123,6 +127,14 @@ const PaymentApprovalsPage: React.FC = () => {
     />
   );
 
+  // Approve never fires on one click: it opens a confirmation that shows the
+  // guest, booking, amount and whether proof was uploaded.
+  const openApproveDialog = (entry: PendingPaymentEntry) => {
+    setError(null);
+    setSuccess(null);
+    setApproveTarget(entry);
+  };
+
   const handleApprove = async (entry: PendingPaymentEntry) => {
     setError(null);
     setSuccess(null);
@@ -131,7 +143,65 @@ const PaymentApprovalsPage: React.FC = () => {
       setSuccess(t('paymentApprovals.toast.approved', { ref: entry.booking_number ?? entry.booking_id }));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('paymentApprovals.errors.approve'));
+    } finally {
+      setApproveTarget(null);
     }
+  };
+
+  const formatStay = (entry: PendingPaymentEntry) =>
+    entry.check_in_date
+      ? t('paymentApprovals.stayRange', {
+          from: formatHotelDate(entry.check_in_date),
+          to: formatHotelDate(entry.check_out_date),
+        })
+      : '—';
+
+  // In the pending queue, a booking staff already moved on by hand (e.g.
+  // confirmed) is highlighted: its claim can still be approved, not rejected.
+  const renderBookingStatus = (entry: PendingPaymentEntry) => {
+    if (!entry.booking_status) return null;
+    const label = statusLabel(t, 'booking', entry.booking_status);
+    const handledByStaff = view === 'pending' && !canRejectPaymentClaim(entry.booking_status);
+    const chip = (
+      <Chip
+        size="small"
+        label={label}
+        variant={handledByStaff ? 'filled' : 'outlined'}
+        color={handledByStaff ? 'warning' : 'default'}
+      />
+    );
+    return handledByStaff ? (
+      <Tooltip title={t('paymentApprovals.bookingHandledTooltip', { status: label })}>
+        {chip}
+      </Tooltip>
+    ) : chip;
+  };
+
+  const renderRejectButton = (entry: PendingPaymentEntry, isBusy: boolean, isPaypal: boolean) => {
+    const rejectBlocked = !canRejectPaymentClaim(entry.booking_status);
+    const button = (
+      <Button
+        size="small"
+        color="error"
+        variant="outlined"
+        disabled={isBusy || rejectBlocked}
+        onClick={() => openRejectDialog(entry)}
+      >
+        {isPaypal ? t('paymentApprovals.cancelPaypal') : t('paymentApprovals.reject')}
+      </Button>
+    );
+    if (!rejectBlocked) return button;
+    // A disabled button fires no pointer events; the span keeps the tooltip
+    // reachable so staff learn why Reject is unavailable.
+    return (
+      <Tooltip
+        title={t('paymentApprovals.rejectBlockedTooltip', {
+          status: statusLabel(t, 'booking', entry.booking_status),
+        })}
+      >
+        <span>{button}</span>
+      </Tooltip>
+    );
   };
 
   const openReceiptDialog = (entry: PendingPaymentEntry) => {
@@ -302,12 +372,20 @@ const PaymentApprovalsPage: React.FC = () => {
                 key={entry.id}
                 title={entry.guest_name ?? entry.booking_number ?? `#${entry.booking_id}`}
                 subtitle={`${entry.booking_number ?? `#${entry.booking_id}`} · ${formatCurrency(entry.amount)} · ${tOr(`finance:ledger.paymentMethod.${entry.payment_method}`, formatStatusLabel(entry.payment_method))}`}
-                meta={t('paymentApprovals.submittedAt', { at: formatHotelDateTime(entry.created_at) }) + (
+                meta={[
+                  formatStay(entry),
+                  entry.room_number ? t('paymentApprovals.roomLabel', { room: entry.room_number }) : null,
+                  t('paymentApprovals.submittedAt', { at: formatHotelDateTime(entry.created_at) }),
                   view === 'history' && entry.processed_at
-                    ? ` · ${t('paymentApprovals.reviewedAt', { at: formatHotelDateTime(entry.processed_at) })}`
-                    : ''
-                )}
-                status={<Chip label={statusLabel(t, 'payment', entry.status)} size="small" color={statusColor(entry.status)} />}
+                    ? t('paymentApprovals.reviewedAt', { at: formatHotelDateTime(entry.processed_at) })
+                    : null,
+                ].filter(Boolean).join(' · ')}
+                status={
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                    <Chip label={statusLabel(t, 'payment', entry.status)} size="small" color={statusColor(entry.status)} />
+                    {renderBookingStatus(entry)}
+                  </Box>
+                }
                 footer={
                   <>
                     {entry.receipt_file_available ? (
@@ -334,7 +412,7 @@ const PaymentApprovalsPage: React.FC = () => {
                               )
                             }
                             disabled={isBusy}
-                            onClick={() => void handleApprove(entry)}
+                            onClick={() => openApproveDialog(entry)}
                           >
                             {t('paymentApprovals.approve')}
                           </Button>
@@ -350,15 +428,7 @@ const PaymentApprovalsPage: React.FC = () => {
                             {entry.receipt_uploaded ? t('paymentApprovals.receiptUploaded') : entry.receipt_requested ? t('paymentApprovals.requestAgain') : t('paymentApprovals.requestReceipt')}
                           </Button>
                         ) : null}
-                        <Button
-                          size="small"
-                          color="error"
-                          variant="outlined"
-                          disabled={isBusy}
-                          onClick={() => openRejectDialog(entry)}
-                        >
-                          {isPaypal ? t('paymentApprovals.cancelPaypal') : t('paymentApprovals.reject')}
-                        </Button>
+                        {renderRejectButton(entry, isBusy, isPaypal)}
                       </>
                     ) : null}
                   </>
@@ -375,6 +445,9 @@ const PaymentApprovalsPage: React.FC = () => {
               <TableRow>
                 <TableCell>{t('paymentApprovals.col.booking')}</TableCell>
                 <TableCell>{t('paymentApprovals.col.guest')}</TableCell>
+                <TableCell>{t('paymentApprovals.col.stay')}</TableCell>
+                <TableCell>{t('paymentApprovals.col.room')}</TableCell>
+                <TableCell>{t('paymentApprovals.col.bookingStatus')}</TableCell>
                 <TableCell align="right">{t('common:field.amount')}</TableCell>
                 <TableCell>{t('paymentApprovals.col.method')}</TableCell>
                 <TableCell>{t('paymentApprovals.col.submitted')}</TableCell>
@@ -395,6 +468,9 @@ const PaymentApprovalsPage: React.FC = () => {
                   <TableRow key={entry.id} hover>
                     <TableCell>{entry.booking_number ?? `#${entry.booking_id}`}</TableCell>
                     <TableCell>{entry.guest_name ?? '—'}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatStay(entry)}</TableCell>
+                    <TableCell>{entry.room_number ?? '—'}</TableCell>
+                    <TableCell>{renderBookingStatus(entry) ?? '—'}</TableCell>
                     <TableCell align="right">{formatCurrency(entry.amount)}</TableCell>
                     <TableCell>{tOr(`finance:ledger.paymentMethod.${entry.payment_method}`, formatStatusLabel(entry.payment_method))}</TableCell>
                     <TableCell>{formatHotelDateTime(entry.created_at)}</TableCell>
@@ -434,7 +510,7 @@ const PaymentApprovalsPage: React.FC = () => {
                             )
                           }
                           disabled={isBusy}
-                          onClick={() => void handleApprove(entry)}
+                          onClick={() => openApproveDialog(entry)}
                           sx={{ mr: 1 }}
                         >
                           {t('paymentApprovals.approve')}
@@ -454,15 +530,7 @@ const PaymentApprovalsPage: React.FC = () => {
                           </Button>
                         </>
                       ) : null}
-                      <Button
-                        size="small"
-                        color="error"
-                        variant="outlined"
-                        disabled={isBusy}
-                        onClick={() => openRejectDialog(entry)}
-                      >
-                        {isPaypal ? t('paymentApprovals.cancelPaypal') : t('paymentApprovals.reject')}
-                      </Button>
+                      {renderRejectButton(entry, isBusy, isPaypal)}
                       </>}
                     </TableCell>
                   </TableRow>
@@ -473,6 +541,12 @@ const PaymentApprovalsPage: React.FC = () => {
           {paginationEl}
         </TableContainer>
       )}
+      <ApprovePaymentDialog
+        entry={approveTarget}
+        isApproving={approveMutation.isPending}
+        onCancel={() => setApproveTarget(null)}
+        onConfirm={(entry) => void handleApprove(entry)}
+      />
       <Dialog open={Boolean(receiptTarget)} onClose={() => setReceiptTarget(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{receiptTarget?.receipt_requested ? t('paymentApprovals.receiptDialog.titleAgain') : t('paymentApprovals.receiptDialog.title')}</DialogTitle>
         <DialogContent>
@@ -509,6 +583,13 @@ const PaymentApprovalsPage: React.FC = () => {
             : t('paymentApprovals.rejectDialog.title')}
         </DialogTitle>
         <DialogContent>
+          {error && rejectTarget ? (
+            // Keep the typed reason: show the server's refusal (e.g. the
+            // booking was confirmed by hand meanwhile) inside the dialog.
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          ) : null}
           <Typography sx={{ mb: 2 }}>
             {rejectTarget?.payment_method === 'paypal' ? (
               <>

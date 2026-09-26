@@ -329,6 +329,17 @@ async fn latest_booking_history(
     .unwrap()
 }
 
+/// How many guest mails were queued under an exact idempotency key (e.g.
+/// `payment-rejected:{payment_id}`), so a test can prove a mail was, or was
+/// not, sent.
+async fn email_delivery_count(pool: &PgPool, idempotency_key: &str) -> i64 {
+    sqlx::query_scalar("SELECT COUNT(*) FROM email_deliveries WHERE idempotency_key = $1")
+        .bind(idempotency_key)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
 async fn audit_log_exists(pool: &PgPool, action: &str, resource_id: i64) -> bool {
     sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM audit_logs \
@@ -2808,6 +2819,11 @@ async fn approve_payment_only_transitions_from_pending() {
     assert_eq!(status, "confirmed");
     assert_eq!(payment_status, "paid");
     assert!(audit_log_exists(&pool, "payment_approved", payment_id).await);
+    assert_eq!(
+        latest_booking_history(&pool, booking_id).await,
+        Some((Some("pending_payment".to_string()), "confirmed".to_string())),
+        "history records the status the booking actually left"
+    );
 
     let second = payments::approve_payment(&pool, actor_id, payment_id).await;
     assert!(
@@ -2925,11 +2941,316 @@ async fn reject_payment_requires_reason_and_never_moves_money() {
     );
 
     assert!(audit_log_exists(&pool, "payment_rejected", payment_id).await);
+    assert_eq!(
+        email_delivery_count(&pool, &format!("payment-rejected:{payment_id}")).await,
+        1,
+        "a rejection on a payment-awaiting booking notifies the guest"
+    );
 
     let second = payments::reject_payment(&pool, actor_id, payment_id, "Second attempt").await;
     assert!(
         matches!(second, Err(ApiError::BadRequest(_))),
         "rejecting an already-void payment must be refused: {second:?}"
+    );
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+}
+
+/// (3b) The staff approval queue carries the stay window, room and current
+/// booking status of each claim, and approving a `pending_confirmation`
+/// bank-transfer claim records `pending_confirmation -> confirmed` in the
+/// booking history (it used to hard-code `pending_payment`). The approval
+/// history listing keeps the same context.
+#[tokio::test]
+async fn approval_queue_shows_stay_context_and_approval_history_uses_actual_status() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_980;
+    let room_type_id = 940_981;
+    let room_id = 940_982;
+    let guest_id = 940_983;
+    let booking_id = 940_984;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "pending_confirmation",
+            check_in: "2031-07-01",
+            check_out: "2031-07-03",
+            base_price: d("100.00"),
+            subtotal: d("200.00"),
+            total_amount: d("200.00"),
+        },
+    )
+    .await;
+    let payment_id = insert_pending_payment(
+        &pool,
+        booking_id,
+        "bank_transfer",
+        "booking",
+        d("200.00"),
+        actor_id,
+    )
+    .await;
+
+    let (queue, _total) = PaymentRepository::list_pending_payments(&pool, 500, 0)
+        .await
+        .expect("listing the approval queue should succeed");
+    let entry = queue
+        .iter()
+        .find(|entry| entry.id == payment_id)
+        .expect("the pending claim must be in the approval queue");
+    assert_eq!(entry.check_in_date, "2031-07-01");
+    assert_eq!(entry.check_out_date, "2031-07-03");
+    assert_eq!(
+        entry.room_number.as_deref(),
+        Some(format!("PAY{room_id}").as_str())
+    );
+    assert_eq!(entry.booking_status, "pending_confirmation");
+
+    let review = PaymentRepository::get_payment_for_review(&pool, payment_id)
+        .await
+        .unwrap()
+        .expect("the claim must be reviewable");
+    assert_eq!(review.booking_status, "pending_confirmation");
+    assert_eq!(review.check_in_date, "2031-07-01");
+
+    payments::approve_payment(&pool, actor_id, payment_id)
+        .await
+        .expect("approving a pending bank-transfer claim should succeed");
+    assert_eq!(
+        latest_booking_history(&pool, booking_id).await,
+        Some((
+            Some("pending_confirmation".to_string()),
+            "confirmed".to_string()
+        )),
+        "the approval history row must record the status the booking left"
+    );
+
+    let (history, _total) = PaymentRepository::list_payment_approval_history(&pool, 500, 0)
+        .await
+        .expect("listing the approval history should succeed");
+    let decided = history
+        .iter()
+        .find(|entry| entry.id == payment_id)
+        .expect("the approved claim must be in the approval history");
+    assert_eq!(decided.status, "completed");
+    assert_eq!(decided.booking_status, "confirmed");
+    assert_eq!(decided.check_out_date, "2031-07-03");
+    assert_eq!(
+        decided.room_number.as_deref(),
+        Some(format!("PAY{room_id}").as_str())
+    );
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+}
+
+/// (3c) Staff confirmed the booking by hand while the guest's bank-transfer
+/// claim was still pending. Rejecting the claim now is refused with a
+/// conflict that tells staff what to do instead: nothing changes, no audit
+/// row is written, and the guest is NOT mailed "payment not confirmed" for a
+/// booking that stays confirmed. Approving the same claim still works:
+/// the payment completes, the booking reads `paid`, its status is not
+/// touched, and no misleading history transition is recorded.
+#[tokio::test]
+async fn staff_reject_is_refused_once_booking_confirmed_by_hand_but_approve_still_works() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_985;
+    let room_type_id = 940_986;
+    let room_id = 940_987;
+    let guest_id = 940_988;
+    let booking_id = 940_989;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "confirmed",
+            check_in: "2031-07-05",
+            check_out: "2031-07-06",
+            base_price: d("150.00"),
+            subtotal: d("150.00"),
+            total_amount: d("150.00"),
+        },
+    )
+    .await;
+    let payment_id = insert_pending_payment(
+        &pool,
+        booking_id,
+        "bank_transfer",
+        "booking",
+        d("150.00"),
+        actor_id,
+    )
+    .await;
+    let history_before = latest_booking_history(&pool, booking_id).await;
+
+    let refused = payments::reject_payment(&pool, actor_id, payment_id, "Transfer not found").await;
+    match refused {
+        Err(ApiError::Conflict(message)) => assert_eq!(
+            message,
+            "This booking was already confirmed by staff. Approve the payment, or void/refund the booking instead."
+        ),
+        other => panic!("rejecting a claim on a hand-confirmed booking must conflict: {other:?}"),
+    }
+    assert_eq!(
+        fetch_payment_status(&pool, payment_id).await,
+        "pending",
+        "a refused rejection must leave the claim pending for approval"
+    );
+    assert_eq!(
+        fetch_booking_status(&pool, booking_id).await,
+        ("confirmed".to_string(), "unpaid".to_string())
+    );
+    assert!(!audit_log_exists(&pool, "payment_rejected", payment_id).await);
+    assert_eq!(
+        email_delivery_count(&pool, &format!("payment-rejected:{payment_id}")).await,
+        0,
+        "the guest must not be told the payment failed"
+    );
+
+    let approved = payments::approve_payment(&pool, actor_id, payment_id)
+        .await
+        .expect("approving a claim on a hand-confirmed booking should succeed");
+    assert_eq!(approved.status, "completed");
+    assert_eq!(fetch_payment_status(&pool, payment_id).await, "completed");
+    assert_eq!(
+        fetch_booking_status(&pool, booking_id).await,
+        ("confirmed".to_string(), "paid".to_string())
+    );
+    assert_eq!(
+        latest_booking_history(&pool, booking_id).await,
+        history_before,
+        "an already-confirmed booking has no status transition to record"
+    );
+    assert!(audit_log_exists(&pool, "payment_approved", payment_id).await);
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+}
+
+/// (3d) A guest who is already checked in must not be downgraded when staff
+/// approve the outstanding claim afterwards; rejecting it is refused.
+#[tokio::test]
+async fn approving_a_claim_on_a_checked_in_booking_keeps_it_checked_in() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_990;
+    let room_type_id = 940_991;
+    let room_id = 940_992;
+    let guest_id = 940_993;
+    let booking_id = 940_994;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "checked_in",
+            check_in: "2031-07-08",
+            check_out: "2031-07-09",
+            base_price: d("120.00"),
+            subtotal: d("120.00"),
+            total_amount: d("120.00"),
+        },
+    )
+    .await;
+    let payment_id = insert_pending_payment(
+        &pool,
+        booking_id,
+        "bank_transfer",
+        "booking",
+        d("120.00"),
+        actor_id,
+    )
+    .await;
+
+    let refused = payments::reject_payment(&pool, actor_id, payment_id, "Not found").await;
+    assert!(
+        matches!(&refused, Err(ApiError::Conflict(message)) if message.starts_with("This booking is already checked in.")),
+        "rejecting a claim on a checked-in booking must conflict: {refused:?}"
+    );
+
+    payments::approve_payment(&pool, actor_id, payment_id)
+        .await
+        .expect("approving a claim on a checked-in booking should succeed");
+    assert_eq!(fetch_payment_status(&pool, payment_id).await, "completed");
+    assert_eq!(
+        fetch_booking_status(&pool, booking_id).await,
+        ("checked_in".to_string(), "paid".to_string()),
+        "approval must never move a checked-in booking back to confirmed"
     );
 
     cleanup(

@@ -48,7 +48,9 @@ export class PaymentApprovalsService {
   }
 
   /**
-   * Reject a pending payment claim. The booking stays in its current state.
+   * Reject a pending payment claim. A booking awaiting confirmation returns to
+   * `pending_payment` so the guest can pay again; the server refuses (409) when
+   * staff already moved the booking on by hand (e.g. confirmed it).
    */
   static async reject(paymentId: number, reason: string): Promise<PaymentActionResponse> {
     return await withRetry(
