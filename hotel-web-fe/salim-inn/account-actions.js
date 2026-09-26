@@ -28,9 +28,11 @@ const BOOKING_LINK = '/guest-portal?view=booking';
 function updateAccountActions() {
   const accountAction = document.getElementById('accountAction');
   const bookingAction = document.getElementById('bookingAction');
+  const mobileCta = document.getElementById('mobile-cta');
   const account = getCurrentAccount();
 
   bookingAction.hidden = false;
+  if (mobileCta) mobileCta.hidden = false;
   if (account === 'guest') {
     accountAction.textContent = 'My account';
     accountAction.href = '/guest-portal';
@@ -40,10 +42,11 @@ function updateAccountActions() {
     accountAction.textContent = 'Admin console';
     accountAction.href = '/admin-portal';
     bookingAction.hidden = true;
+    if (mobileCta) mobileCta.hidden = true;
   } else {
     accountAction.textContent = 'Sign in';
     accountAction.href = '/login';
-    bookingAction.textContent = 'Book stay';
+    bookingAction.textContent = 'Book direct';
     bookingAction.href = BOOKING_LINK;
   }
 }

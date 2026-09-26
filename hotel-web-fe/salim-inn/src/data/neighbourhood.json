@@ -1,0 +1,144 @@
+{
+  "_about": "Shops and services in and around Farley Commercial Centre, Jalan Salim, Sibu, compiled 26 Sep 2026 from the owner's Google Earth Street View recordings (imagery dated Oct 2024 / Mar 2025 unless noted) and public listings. Street View is almost two years old: every entry with verify_before_launch=true must be checked on site or with the owner before it appears on the live page. Use shop names as plain text only - never reproduce their logos.",
+  "hotel": {
+    "name": "Salim Inn",
+    "address": "Lot 21-22, Lorong Salim 17, Jalan Salim, Farley Commercial Centre, 96000 Sibu, Sarawak",
+    "approx_lat": 2.266,
+    "approx_lon": 111.8619,
+    "coordinate_note": "Approximate (from the Google Earth animation pack). Snap to the corner block seen in screenshot_2026-07-25_1510.jpg / farley-map-v14.png."
+  },
+  "places": [
+    {
+      "name": "Farley Sibu (supermarket)",
+      "category": "Groceries & daily needs",
+      "role": "Anchor of the community; the large green-facade building at the centre of the block",
+      "hours": "8am-10pm daily (per malaysiamall.my listing)",
+      "phone": "084-212666",
+      "walk_note": "About a 5-minute walk (stated on saliminn.my and OTA listings)",
+      "evidence": ["reference-frames/rec2_t040s.jpg", "reference-frames/rec2_t070s.jpg", "reference-frames/rec1_04.jpg", "https://www.malaysiamall.my/listing/farley-sibu/"],
+      "verify_before_launch": false
+    },
+    {
+      "name": "Farley cafe.cafe",
+      "category": "Cafe",
+      "role": "Ground floor of the Salim Inn building (two lots left of the hotel lobby)",
+      "evidence": ["reference-frames/rec2_t180s.jpg", "salim-inn-threejs-v16-three-shop-corrected/README.md"],
+      "verify_before_launch": false
+    },
+    {
+      "name": "Farley Food Court Sibu",
+      "category": "Food",
+      "address": "28, Lorong Salim 17",
+      "evidence": ["https://foursquare.com/v/farley-food-court/4d27235f068e8cfa6a95b74c", "farley-map-v14.png"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Farley Bakery",
+      "category": "Bakery",
+      "address": "11, Lorong Salim 17",
+      "evidence": ["https://farley-bakery-27004.baydimalaysia.com/"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Farley Malay Garden",
+      "category": "Food",
+      "note": "Open-sided food area seen in Street View; confirm stalls, halal status and hours",
+      "evidence": ["reference-frames/rec2_t270s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Farley Shoe Centre",
+      "category": "Shopping",
+      "note": "Farley Group business with a Sibu page; the school-shoes promo wall in rec2_t320s.jpg is likely this store - confirm location",
+      "evidence": ["https://www.facebook.com/shoesibu/", "reference-frames/rec2_t320s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "CCK Fresh Mart",
+      "category": "Groceries & daily needs",
+      "note": "Fresh and frozen food",
+      "evidence": ["reference-frames/rec2_t130s.jpg", "reference-frames/rec2_t140s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Bread Sense Bakery",
+      "category": "Bakery",
+      "note": "Cake and bread shop",
+      "evidence": ["reference-frames/rec2_t140s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Sunlight Pharmacy",
+      "category": "Pharmacy & health",
+      "evidence": ["reference-frames/rec2_t170s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Hometown Pharmacy",
+      "category": "Pharmacy & health",
+      "evidence": ["reference-frames/rec2_t150s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Watsons",
+      "category": "Pharmacy & health",
+      "note": "Health and beauty",
+      "evidence": ["reference-frames/rec2_t290s.jpg", "reference-frames/rec2_t300s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Klinik Pergigian Dr Ho",
+      "category": "Pharmacy & health",
+      "note": "Dental clinic",
+      "evidence": ["reference-frames/rec2_t140s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Hair Story",
+      "category": "Everyday services",
+      "note": "Hair salon",
+      "evidence": ["reference-frames/rec2_t140s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Maxis",
+      "category": "Everyday services",
+      "note": "Mobile line / prepaid SIM - useful for travellers. Confirm it is a Maxis store or dealer and that it sells prepaid SIMs",
+      "evidence": ["reference-frames/rec2_t140s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Car servicing (Wetrac Auto Services, Bosch Service, auto parts)",
+      "category": "Everyday services",
+      "note": "Useful for road-trippers; show as one grouped item",
+      "evidence": ["reference-frames/rec2_t240s.jpg", "reference-frames/rec2_t250s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Farley Cafe (older frontage)",
+      "category": "Food",
+      "note": "Only seen in Nov 2018 imagery - do not publish unless confirmed still operating",
+      "evidence": ["reference-frames/rec2_t110s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "B&W Mix & Match",
+      "category": "Shopping",
+      "note": "Home deco; Nov 2018 imagery - confirm",
+      "evidence": ["reference-frames/rec2_t110s.jpg"],
+      "verify_before_launch": true
+    },
+    {
+      "name": "Noor Satay Islamic Cafe 2 Salim",
+      "category": "Food",
+      "note": "Across the main road, north of the hotel (outside the Farley ring). Halal-certified status not verified",
+      "evidence": ["salim-inn-threejs-v16-three-shop-corrected/assets/farley-map-v14.png"],
+      "verify_before_launch": true
+    }
+  ],
+  "getting_here": [
+    { "name": "Sibu Airport (SBW)", "distance_km": 13.3, "source": "https://www.wego.fr/en/hotels/malaysia/sibu/salim-inn-1221340" },
+    { "name": "Sibu city centre", "distance_km": 4.2, "source": "https://www.wego.fr/en/hotels/malaysia/sibu/salim-inn-1221340" },
+    { "name": "Guest parking", "note": "Marked bays directly in front of the hotel frontage (per V16 and Street View)" }
+  ]
+}

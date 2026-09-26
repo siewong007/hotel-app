@@ -10,7 +10,7 @@ export default defineConfig({
     // load; 15s keeps hangs detectable without per-file timeout whack-a-mole.
     testTimeout: 15000,
     setupFiles: [],
-    include: ['src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}', 'salim-inn/src/**/*.test.ts'],
     exclude: ['node_modules', 'dist'],
     coverage: {
       provider: 'v8',

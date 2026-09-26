@@ -75,7 +75,9 @@ export default defineConfig(({ mode, command }) => {
         // The React Compiler only needs application source. Keeping standalone
         // JavaScript experiences out of this pass avoids Babel's 500 KB code
         // generator fallback without changing how Vite serves or bundles them.
-        include: /[/\\]src[/\\].*\.[jt]sx?$/,
+        // Only the React app. salim-inn/src is the landing film and must not
+        // go through the React compiler.
+        include: /[/\\]hotel-web-fe[/\\]src[/\\].*\.[jt]sx?$/,
         presets: [reactCompilerPreset()],
       }),
     ],

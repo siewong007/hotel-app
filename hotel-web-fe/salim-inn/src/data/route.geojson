@@ -1,0 +1,84 @@
+{
+  "type": "FeatureCollection",
+  "name": "Salim Inn Farley Cinematic Route",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Flying line \u2014 Farley to Salim Inn",
+        "purpose": "Camera planning and animated route overlay"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            111.851,
+            2.276
+          ],
+          [
+            111.858,
+            2.2732
+          ],
+          [
+            111.8672,
+            2.2712
+          ],
+          [
+            111.8695,
+            2.2668
+          ],
+          [
+            111.8668,
+            2.2614
+          ],
+          [
+            111.86,
+            2.2595
+          ],
+          [
+            111.8555,
+            2.263
+          ],
+          [
+            111.859,
+            2.265
+          ],
+          [
+            111.8619,
+            2.266
+          ],
+          [
+            111.8619,
+            2.2672
+          ],
+          [
+            111.8631,
+            2.266
+          ],
+          [
+            111.8619,
+            2.2648
+          ],
+          [
+            111.8609,
+            2.266
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Salim Inn",
+        "address": "Lot 21\u201322, Lorong Salim 17, Farley Commercial Centre, Sibu"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          111.8619,
+          2.266
+        ]
+      }
+    }
+  ]
+}

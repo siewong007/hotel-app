@@ -1,0 +1,433 @@
+{
+  "_source": "Sanitised from hotel-data-export-2026-08-20.json (PMS export). Contains NO guest, booking, payment, invoice or staff data. Use this file only; do not open the raw exports.",
+  "_exported_at": "2026-08-20T13:59:44.710956700+00:00",
+  "room_types": [
+    {
+      "id": 1,
+      "code": "STDQ",
+      "name": "Standard Queen",
+      "description": "1 Queen Bed",
+      "bed_type": "Queen",
+      "bed_count": 1,
+      "size_sqm": 25,
+      "max_occupancy": 2,
+      "allows_extra_bed": false,
+      "max_extra_beds": 0,
+      "extra_bed_charge": 0,
+      "base_price": 95,
+      "weekday_rate": 95,
+      "weekend_rate": 95,
+      "sort_order": 1,
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "code": "DLX",
+      "name": "Deluxe King",
+      "description": "1 king bed",
+      "bed_type": "King",
+      "bed_count": 1,
+      "size_sqm": 35,
+      "max_occupancy": 2,
+      "allows_extra_bed": true,
+      "max_extra_beds": 1,
+      "extra_bed_charge": 35,
+      "base_price": 105,
+      "weekday_rate": 105,
+      "weekend_rate": 104,
+      "sort_order": 2,
+      "is_active": true
+    },
+    {
+      "id": 34,
+      "code": "SUP",
+      "name": "Superior Room",
+      "description": "1 Single + 1 Single",
+      "bed_type": "Twin",
+      "bed_count": 2,
+      "size_sqm": null,
+      "max_occupancy": 2,
+      "allows_extra_bed": true,
+      "max_extra_beds": 1,
+      "extra_bed_charge": 35,
+      "base_price": 110,
+      "weekday_rate": 110,
+      "weekend_rate": 110,
+      "sort_order": 3,
+      "is_active": true
+    },
+    {
+      "id": 4,
+      "code": "FR",
+      "name": "Family Room",
+      "description": "1 King + 1 Single",
+      "bed_type": "King",
+      "bed_count": 1,
+      "size_sqm": 45,
+      "max_occupancy": 3,
+      "allows_extra_bed": true,
+      "max_extra_beds": 1,
+      "extra_bed_charge": 35,
+      "base_price": 130,
+      "weekday_rate": 130,
+      "weekend_rate": 130,
+      "sort_order": 4,
+      "is_active": true
+    },
+    {
+      "id": 3,
+      "code": "FS",
+      "name": "Family Suite (No Window)",
+      "description": "1 King + 1 Queen",
+      "bed_type": "King",
+      "bed_count": 2,
+      "size_sqm": 55,
+      "max_occupancy": 4,
+      "allows_extra_bed": true,
+      "max_extra_beds": 1,
+      "extra_bed_charge": 35,
+      "base_price": 155,
+      "weekday_rate": 155,
+      "weekend_rate": 155,
+      "sort_order": 5,
+      "is_active": true
+    }
+  ],
+  "room_inventory": {
+    "total_active_rooms": 29,
+    "count_by_type": {
+      "Superior Room": 5,
+      "Standard Queen": 10,
+      "Deluxe King": 7,
+      "Family Room": 6,
+      "Family Suite (No Window)": 1
+    },
+    "rooms_by_floor": {
+      "1": [
+        "101",
+        "102",
+        "103",
+        "104",
+        "105",
+        "106",
+        "107",
+        "108",
+        "109",
+        "110",
+        "111",
+        "112",
+        "113",
+        "114"
+      ],
+      "2": [
+        "201",
+        "202",
+        "203",
+        "204",
+        "205",
+        "206",
+        "207",
+        "208",
+        "209",
+        "210",
+        "211",
+        "212",
+        "213",
+        "214",
+        "215"
+      ]
+    },
+    "rooms": [
+      {
+        "room_number": "101",
+        "floor": 1,
+        "room_type": "Superior Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "102",
+        "floor": 1,
+        "room_type": "Standard Queen",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "103",
+        "floor": 1,
+        "room_type": "Standard Queen",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "104",
+        "floor": 1,
+        "room_type": "Standard Queen",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "105",
+        "floor": 1,
+        "room_type": "Superior Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "106",
+        "floor": 1,
+        "room_type": "Superior Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "107",
+        "floor": 1,
+        "room_type": "Deluxe King",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "108",
+        "floor": 1,
+        "room_type": "Family Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "109",
+        "floor": 1,
+        "room_type": "Family Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "110",
+        "floor": 1,
+        "room_type": "Deluxe King",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "111",
+        "floor": 1,
+        "room_type": "Standard Queen",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "112",
+        "floor": 1,
+        "room_type": "Family Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "113",
+        "floor": 1,
+        "room_type": "Deluxe King",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "114",
+        "floor": 1,
+        "room_type": "Standard Queen",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "201",
+        "floor": 2,
+        "room_type": "Deluxe King",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "202",
+        "floor": 2,
+        "room_type": "Standard Queen",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "203",
+        "floor": 2,
+        "room_type": "Standard Queen",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "204",
+        "floor": 2,
+        "room_type": "Standard Queen",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "205",
+        "floor": 2,
+        "room_type": "Superior Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "206",
+        "floor": 2,
+        "room_type": "Superior Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "207",
+        "floor": 2,
+        "room_type": "Deluxe King",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "208",
+        "floor": 2,
+        "room_type": "Family Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "209",
+        "floor": 2,
+        "room_type": "Family Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "210",
+        "floor": 2,
+        "room_type": "Deluxe King",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "211",
+        "floor": 2,
+        "room_type": "Standard Queen",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "212",
+        "floor": 2,
+        "room_type": "Family Room",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "213",
+        "floor": 2,
+        "room_type": "Family Suite (No Window)",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "214",
+        "floor": 2,
+        "room_type": "Deluxe King",
+        "is_accessible": false,
+        "is_smoking": false
+      },
+      {
+        "room_number": "215",
+        "floor": 2,
+        "room_type": "Standard Queen",
+        "is_accessible": false,
+        "is_smoking": false
+      }
+    ]
+  },
+  "public_settings": {
+    "hotel_name": "Salim Inn",
+    "hotel_address": "No.21 & 22, Lorong Salim 17,Jalan Salim,Farley Commercial Centre,96000 Sibu,Sarawak.",
+    "hotel_phone": "01110507083",
+    "hotel_email": "saliminnsibu@gmail.com",
+    "check_in_time": "08:00",
+    "check_out_time": "12:00",
+    "currency": "MYR",
+    "payment_methods": [
+      "Cash",
+      "Visa Card",
+      "Master Card",
+      "Debit Card",
+      "Sarawak Pay",
+      "Bank Transfer",
+      "Paypal",
+      "Boost",
+      "Agoda.com",
+      "Booking.com",
+      "Traveloka",
+      "Expedia.com",
+      "MAE",
+      "Qrpay",
+      "Complimentary Room"
+    ],
+    "booking_channels": [
+      {
+        "name": "Booking.com",
+        "abbreviation": "B.C"
+      },
+      {
+        "name": "Agoda",
+        "abbreviation": "A.C"
+      },
+      {
+        "name": "Traveloka",
+        "abbreviation": "T.C"
+      },
+      {
+        "name": "Expedia",
+        "abbreviation": "E.C"
+      }
+    ]
+  },
+  "tax_and_deposit_settings": {
+    "service_tax_rate": "8",
+    "deposit_amount": "50",
+    "tourism_tax_rate": "10"
+  },
+  "loyalty_program": {
+    "name": "Stay Rewards",
+    "tiers": [
+      {
+        "name": "Silver",
+        "min_points": 0,
+        "benefits": [
+          "Member rates",
+          "Points on eligible stays"
+        ]
+      },
+      {
+        "name": "Gold",
+        "min_points": 5000,
+        "benefits": [
+          "Priority support",
+          "Late checkout when available",
+          "Bonus earning"
+        ]
+      },
+      {
+        "name": "Platinum",
+        "min_points": 15000,
+        "benefits": [
+          "Room upgrade priority",
+          "Welcome amenity",
+          "Highest earning rate"
+        ]
+      }
+    ]
+  },
+  "_conflicts_to_confirm_with_owner": [
+    "check_in_time: PMS says 08:00, saliminn.my says from 2:00 pm (Wego/OTA listings also say 2:00 pm).",
+    "Rates: PMS rack rates are RM95/105/110/130/155; saliminn.my shows web rates RM75/85/95/105/110 for the same five types.",
+    "Email: PMS saliminnsibu@gmail.com; V16 page used reservation@saliminn.com.",
+    "Superior Room size_sqm is missing in the PMS; website calls it Superior Twin.",
+    "Family Suite is named \"Family Suite (No Window)\" in the PMS - the 3D model must not show a window."
+  ]
+}

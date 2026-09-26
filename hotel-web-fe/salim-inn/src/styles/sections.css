@@ -1,0 +1,146 @@
+/* The page below the film: welcome, highlights, rooms & web rates, gallery,
+   amenities, visit details, FAQ and the closing call to action. Carried over
+   from the previous Salim Inn landing page; every rule is scoped to .after so
+   it cannot collide with the film's own classes (.eyebrow, .pill…), and the
+   headings use the film's display face.
+
+   The section slides up over the film like a curtain: it sits above the fixed
+   canvas, scrim and chapter copy (z-index 15, opaque), below the top bar. */
+.after {
+  position: relative; z-index: 15; overflow: hidden;
+  background: var(--ivory); color: #0b1814;
+  padding: clamp(80px, 11vw, 150px) clamp(20px, 7vw, 108px);
+}
+.after::before {
+  content: ""; position: absolute; width: 520px; height: 520px; border-radius: 50%; right: -260px; top: 120px;
+  background: rgba(43, 107, 86, 0.07); pointer-events: none;
+}
+.after h2 { font: 500 clamp(3.2rem, 6.4vw, 6.6rem)/0.92 var(--display); margin: 0; }
+.after h2 em { color: #2b6b56; font-weight: 500; }
+.after p { color: rgba(11, 24, 20, 0.64); line-height: 1.85; }
+.after .after-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8vw; align-items: center; }
+.after .eyebrow { margin: 0 0 16px; color: #2b6b56; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; }
+.after .intro-copy { font-size: 1rem; }
+
+.after .trust-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 64px 0 96px;
+  background: rgba(11, 24, 20, 0.14); border: 1px solid rgba(11, 24, 20, 0.14);
+}
+.after .trust-item { padding: 28px; background: #f5efe4; }
+.after .trust-item strong { display: block; font: 500 2.2rem/1 var(--display); color: #123a2e; }
+.after .trust-item span { display: block; margin-top: 8px; color: rgba(11, 24, 20, 0.58); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.after .section-head { display: flex; justify-content: space-between; align-items: end; gap: 32px; margin-bottom: 32px; }
+.after .section-head h2 { font-size: clamp(2.8rem, 5.4vw, 5.4rem); }
+.after .section-head p { max-width: 440px; margin: 0; }
+
+.after .room-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+.after .room-card {
+  grid-column: span 4; min-height: 270px; padding: 28px; display: flex; flex-direction: column; justify-content: space-between;
+  background: #fffaf1; border: 1px solid rgba(11, 24, 20, 0.12); transition: 0.35s var(--ease);
+}
+.after .room-card:nth-child(4), .after .room-card:nth-child(5) { grid-column: span 6; }
+.after .room-card:hover { transform: translateY(-6px); box-shadow: 0 24px 54px rgba(18, 58, 46, 0.1); }
+.after .room-card .room-book {
+  display: inline-flex; align-items: center; align-self: flex-start; margin-top: 18px; padding: 9px 15px;
+  border: 1px solid rgba(11, 24, 20, 0.28); border-radius: 999px; color: #123a2e; text-decoration: none;
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; transition: 0.25s var(--ease);
+}
+.after .room-card .room-book:hover { background: #123a2e; border-color: #123a2e; color: #fffaf1; }
+.after .room-card .room-book:focus-visible { outline: 3px solid #c7a45b; outline-offset: 2px; }
+.after .room-card small { color: #2b6b56; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.after .room-card h3 { font: 500 2rem/1.1 var(--display); margin: 18px 0; }
+.after .price { display: flex; align-items: baseline; gap: 6px; }
+.after .price strong { font: 500 2.6rem/1 var(--display); color: #123a2e; }
+.after .price span { font-size: 0.72rem; color: rgba(11, 24, 20, 0.55); }
+.after .rate-note { margin: 16px 0 0; font-size: 0.7rem; color: rgba(11, 24, 20, 0.52); }
+
+.after .gallery-section { margin-top: 112px; }
+.after .photo-grid { display: grid; grid-template-columns: 1.15fr 0.85fr 0.85fr; grid-template-rows: 280px 280px; grid-auto-rows: 280px; gap: 12px; }
+.after .photo-card { position: relative; overflow: hidden; margin: 0; background: #d9dfdb; }
+.after .photo-card:first-child { grid-row: span 2; }
+.after .photo-card img { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform 0.7s var(--ease); }
+.after .photo-card:hover img { transform: scale(1.035); }
+.after .photo-card::after { content: ""; position: absolute; inset: 42% 0 0; background: linear-gradient(transparent, rgba(5, 18, 14, 0.82)); pointer-events: none; }
+.after .photo-card figcaption { position: absolute; z-index: 1; left: 22px; right: 22px; bottom: 20px; color: #fff; }
+.after .photo-card figcaption strong { display: block; font: 500 1.4rem/1.1 var(--display); }
+.after .photo-card figcaption span { display: block; margin-top: 5px; color: rgba(255, 255, 255, 0.68); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.after .amenities-section { margin-top: 112px; }
+.after .amenity-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.after .amenity { padding: 26px; border-top: 1px solid rgba(11, 24, 20, 0.16); }
+.after .amenity span {
+  display: grid; place-items: center; width: 38px; height: 38px; margin-bottom: 24px; border-radius: 50%;
+  background: #dce9e2; color: #174b39; font-size: 0.72rem; font-weight: 800;
+}
+.after .amenity h3 { font: 500 1.5rem/1.1 var(--display); margin: 0 0 10px; }
+.after .amenity p { font-size: 0.78rem; margin: 0; }
+
+.after .stay-panel { display: grid; grid-template-columns: 1.1fr 0.9fr; margin-top: 112px; background: #0b211a; color: #fffdf7; }
+.after .stay-copy { padding: clamp(32px, 5vw, 68px); }
+.after .stay-copy h2 { font-size: clamp(3rem, 5.4vw, 5.4rem); margin-bottom: 30px; }
+.after .stay-copy p { color: rgba(255, 255, 255, 0.66); }
+.after .stay-copy .eyebrow { color: var(--gold); }
+.after .stay-details { padding: clamp(32px, 5vw, 68px); background: rgba(255, 255, 255, 0.055); display: grid; align-content: center; gap: 24px; }
+.after .detail { padding-bottom: 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.after .detail:last-child { padding: 0; border: 0; }
+.after .detail small { display: block; margin-bottom: 7px; color: #d9b572; font-size: 0.58rem; letter-spacing: 0.15em; text-transform: uppercase; }
+.after .detail strong, .after .detail a { font: 500 1.15rem/1.5 var(--display); color: #fffdf7; text-decoration: none; }
+
+.after .faq-section { margin-top: 112px; display: grid; grid-template-columns: 0.75fr 1.25fr; gap: 8vw; align-items: start; }
+.after .faq-section h2 { font-size: clamp(3rem, 5.4vw, 5.4rem); }
+.after .faq-list { border-top: 1px solid rgba(11, 24, 20, 0.16); }
+.after .faq-list details { border-bottom: 1px solid rgba(11, 24, 20, 0.16); }
+.after .faq-list summary { position: relative; padding: 24px 46px 24px 0; cursor: pointer; list-style: none; font: 500 1.35rem/1.3 var(--display); }
+.after .faq-list summary::-webkit-details-marker { display: none; }
+.after .faq-list summary::after {
+  content: "+"; position: absolute; right: 4px; top: 20px; font: 300 1.7rem/1 sans-serif; color: #2b6b56; transition: transform 0.25s var(--ease);
+}
+.after .faq-list details[open] summary::after { transform: rotate(45deg); }
+.after .faq-list details p { margin: 0; padding: 0 48px 24px 0; font-size: 0.85rem; }
+.after .faq-list a { color: #235d49; }
+
+.after .cta { margin-top: 80px; padding: 40px; background: #0b211a; color: var(--white); display: flex; justify-content: space-between; align-items: center; gap: 30px; }
+.after .cta h3 { font: 500 clamp(2.2rem, 4.4vw, 4.4rem)/0.95 var(--display); margin: 0; }
+.after .cta-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.after .cta a { padding: 14px 20px; background: var(--gold); color: #132019; font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; }
+.after .cta a.secondary { background: transparent; color: var(--white); border: 1px solid rgba(255, 255, 255, 0.24); }
+
+@media (max-width: 900px) {
+  .after .after-grid { grid-template-columns: 1fr; }
+  .after .cta { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 800px) {
+  .after .trust-row { grid-template-columns: 1fr; margin: 48px 0 76px; }
+  .after .section-head { align-items: start; flex-direction: column; }
+  .after .room-card, .after .room-card:nth-child(4), .after .room-card:nth-child(5) { grid-column: span 12; }
+  .after .amenity-grid { grid-template-columns: 1fr 1fr; }
+  .after .stay-panel { grid-template-columns: 1fr; }
+  .after .photo-grid { grid-template-columns: 1fr 1fr; grid-template-rows: 360px 240px 240px; grid-auto-rows: 240px; }
+  .after .photo-card:first-child { grid-column: span 2; grid-row: auto; }
+  .after .faq-section { grid-template-columns: 1fr; gap: 28px; }
+}
+@media (max-width: 560px) {
+  .after { padding-inline: 18px; }
+  .after .cta { padding: 28px; }
+}
+@media (max-width: 520px) {
+  .after .amenity-grid { grid-template-columns: 1fr; }
+  .after .room-card { min-height: 230px; }
+  .after .cta-actions { width: 100%; }
+  .after .cta-actions a { width: 100%; text-align: center; }
+  .after .photo-grid { grid-template-columns: 1fr; grid-auto-rows: 250px; }
+  .after .photo-card:first-child { grid-column: auto; }
+  .after .faq-list summary { font-size: 1.15rem; }
+}
+
+/* Past the film: the fixed film layers step aside and the top bar gets its
+   own backing so it stays legible over the ivory sections. */
+html.film-past .chapter-nav,
+html.film-past .mobile-cta,
+html.film-past .chapter__copy { visibility: hidden !important; }
+.topbar { transition: background 0.5s var(--ease), box-shadow 0.5s var(--ease); }
+html.film-past .topbar {
+  background: rgba(6, 17, 14, 0.92); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}

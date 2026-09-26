@@ -1,0 +1,124 @@
+{
+  "project": "Salim Inn \u2014 From Skyview to Stay",
+  "duration_seconds": 38,
+  "frame_rate": 30,
+  "resolution": "3840x2160",
+  "camera_target": {
+    "name": "Salim Inn",
+    "lat": 2.266,
+    "lon": 111.8619,
+    "alt": 0
+  },
+  "keyframes": [
+    {
+      "time_seconds": 0.0,
+      "shot": "Sky establishing view",
+      "camera_latitude": 2.276,
+      "camera_longitude": 111.851,
+      "altitude_m": 1800,
+      "heading_deg": 125,
+      "tilt_deg": 42,
+      "field_of_view_deg": 58,
+      "target": "Farley commercial area"
+    },
+    {
+      "time_seconds": 4.0,
+      "shot": "Reveal the complete Farley community",
+      "camera_latitude": 2.2732,
+      "camera_longitude": 111.858,
+      "altitude_m": 1150,
+      "heading_deg": 150,
+      "tilt_deg": 48,
+      "field_of_view_deg": 54,
+      "target": "Farley commercial area"
+    },
+    {
+      "time_seconds": 8.0,
+      "shot": "Sweep around north-east side",
+      "camera_latitude": 2.2712,
+      "camera_longitude": 111.8672,
+      "altitude_m": 800,
+      "heading_deg": 220,
+      "tilt_deg": 54,
+      "field_of_view_deg": 50,
+      "target": "Salim Inn"
+    },
+    {
+      "time_seconds": 12.0,
+      "shot": "Pass the surrounding commercial blocks",
+      "camera_latitude": 2.2668,
+      "camera_longitude": 111.8695,
+      "altitude_m": 580,
+      "heading_deg": 260,
+      "tilt_deg": 58,
+      "field_of_view_deg": 47,
+      "target": "Salim Inn"
+    },
+    {
+      "time_seconds": 16.0,
+      "shot": "Curve through the south-east view",
+      "camera_latitude": 2.2614,
+      "camera_longitude": 111.8668,
+      "altitude_m": 450,
+      "heading_deg": 315,
+      "tilt_deg": 61,
+      "field_of_view_deg": 44,
+      "target": "Salim Inn"
+    },
+    {
+      "time_seconds": 20.0,
+      "shot": "Begin approach",
+      "camera_latitude": 2.263,
+      "camera_longitude": 111.8555,
+      "altitude_m": 280,
+      "heading_deg": 65,
+      "tilt_deg": 64,
+      "field_of_view_deg": 41,
+      "target": "Salim Inn"
+    },
+    {
+      "time_seconds": 24.0,
+      "shot": "Hotel location lock-on",
+      "camera_latitude": 2.265,
+      "camera_longitude": 111.859,
+      "altitude_m": 170,
+      "heading_deg": 78,
+      "tilt_deg": 67,
+      "field_of_view_deg": 38,
+      "target": "Salim Inn"
+    },
+    {
+      "time_seconds": 28.0,
+      "shot": "Salim Inn reveal",
+      "camera_latitude": 2.266,
+      "camera_longitude": 111.8609,
+      "altitude_m": 95,
+      "heading_deg": 90,
+      "tilt_deg": 70,
+      "field_of_view_deg": 35,
+      "target": "Salim Inn"
+    },
+    {
+      "time_seconds": 32.0,
+      "shot": "Half orbit around hotel",
+      "camera_latitude": 2.2672,
+      "camera_longitude": 111.8619,
+      "altitude_m": 70,
+      "heading_deg": 180,
+      "tilt_deg": 72,
+      "field_of_view_deg": 33,
+      "target": "Salim Inn"
+    },
+    {
+      "time_seconds": 36.0,
+      "shot": "Final hero angle",
+      "camera_latitude": 2.266,
+      "camera_longitude": 111.8609,
+      "altitude_m": 48,
+      "heading_deg": 90,
+      "tilt_deg": 74,
+      "field_of_view_deg": 31,
+      "target": "Salim Inn"
+    }
+  ]
+}
