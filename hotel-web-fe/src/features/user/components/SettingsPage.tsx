@@ -45,6 +45,12 @@ import {
 import { ReportsService } from "../../../api/reports.service";
 import { useConfirm } from "../../../components/common/ConfirmProvider";
 import { useTranslation } from "../../../i18n";
+import { mobileActionBarProps } from "../../../components/common/mobileActionBar";
+
+// Bottom-nav height — same value as MOBILE_NAV_HEIGHT in
+// components/layout/MobileNavBar.tsx (not imported: that module drags the
+// router in; StickyActionBar hardcodes it for the same reason).
+const MOBILE_NAV_HEIGHT_PX = 60;
 
 /** Settings keys owned by each workspace tab, for "Reset to defaults". */
 const SECTION_KEYS = {
@@ -649,12 +655,15 @@ const SettingsPage: React.FC = () => {
       {/* Sticky save bar — the dirty state was previously invisible anywhere
           but this bottom row, which a long form scrolls far away from. */}
       <Paper
+        {...mobileActionBarProps}
         elevation={8}
         role="status"
         aria-live="polite"
         sx={{
           position: 'sticky',
-          bottom: 0,
+          // Phones: stick above the fixed bottom nav — at `bottom: 0` the nav
+          // covered the Discard/Save row until the very end of the form.
+          bottom: { xs: `calc(${MOBILE_NAV_HEIGHT_PX}px + var(--sab))`, sm: 0 },
           zIndex: 10,
           display: 'flex',
           justifyContent: 'space-between',

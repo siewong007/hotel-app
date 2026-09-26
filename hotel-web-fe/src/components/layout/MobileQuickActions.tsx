@@ -15,6 +15,7 @@ import { useTranslation } from '../../i18n';
 import { BottomSheet } from '../common/BottomSheet';
 import { useCommandPalette } from './CommandPalette';
 import { MOBILE_NAV_HEIGHT } from './MobileNavBar';
+import { WHILE_MOBILE_ACTION_BAR } from '../common/mobileActionBar';
 import {
   canAccessNavigationRoute,
   navigationRouteDefinitions,
@@ -109,6 +110,9 @@ export const MobileQuickActions: React.FC = () => {
           bottom: `calc(${MOBILE_NAV_HEIGHT}px + 16px + var(--sab))`,
           zIndex: (theme) => theme.zIndex.appBar - 1,
           display: { xs: 'flex', sm: 'none' },
+          // Step aside for a pinned page action bar (save / pending changes):
+          // same corner, and the FAB would paint over the bar's primary button.
+          [WHILE_MOBILE_ACTION_BAR]: { display: 'none' },
         }}
       >
         <AddIcon />

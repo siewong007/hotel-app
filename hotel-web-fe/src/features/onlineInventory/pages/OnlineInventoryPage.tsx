@@ -24,6 +24,7 @@ import { LogoLoader } from '../../../components';
 import { BottomSheet } from '../../../components/common/BottomSheet';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { StickyActionBar } from '../../../components/common/StickyActionBar';
+import { mobileActionBarProps } from '../../../components/common/mobileActionBar';
 import { GRID_DAYS, START_MAX_OFFSET_DAYS, START_MIN_OFFSET_DAYS } from '../constants';
 import type { CellKey, GridCellView } from '../types';
 import { cellKey, dateRange, shiftDate, summarizeEdits } from '../utils';
@@ -425,6 +426,7 @@ const OnlineInventoryPage = () => {
         // lingering transforms off <main> and the route wrapper, so plain
         // `position: fixed` works here without a portal.
         <Paper
+          {...mobileActionBarProps}
           elevation={8}
           sx={{
             position: 'fixed',

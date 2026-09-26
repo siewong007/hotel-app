@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Paper, Typography } from '@mui/material';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { ActionsMenu } from './ActionsMenu';
+import { mobileActionBarProps } from './mobileActionBar';
 import type { ActionMenuItem } from './ActionsMenu';
 
 export interface StickyActionBarProps {
@@ -43,6 +44,7 @@ export const StickyActionBar: React.FC<StickyActionBarProps> = ({
 
   return (
     <Paper
+      {...(isPhone ? mobileActionBarProps : {})}
       elevation={0}
       sx={{
         display: 'flex',

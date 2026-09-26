@@ -43,6 +43,7 @@ import { UsersTab } from './UsersTab';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { errorMessage } from '../../../../utils/errorMessage';
 import { useTranslation } from '../../../../i18n';
+import { mobileActionBarProps } from '../../../../components/common/mobileActionBar';
 
 /* ---------- Design tokens — aliases onto the global --hotel-* vars ---------- */
 const T = {
@@ -769,7 +770,9 @@ const RBACManagementPage: React.FC = () => {
 
               {/* Save bar */}
               {dirty && !locked && (
-                <Box sx={{ position: 'sticky', bottom: 16, m: '14px 14px 0', bgcolor: T.ink, color: 'var(--hotel-bg)', borderRadius: '12px', p: '10px 14px 10px 18px', display: 'flex', alignItems: 'center', gap: 1.5, boxShadow: 'var(--hotel-shadow-lg)' }}>
+                // Phones: clear the fixed bottom nav and let the buttons wrap
+                // under the summary instead of running off a 360px screen.
+                <Box {...mobileActionBarProps} sx={{ position: 'sticky', bottom: { xs: 'calc(76px + var(--sab))', sm: 16 }, m: '14px 14px 0', bgcolor: T.ink, color: 'var(--hotel-bg)', borderRadius: '12px', p: '10px 14px 10px 18px', display: 'flex', alignItems: 'center', flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: 1.5, boxShadow: 'var(--hotel-shadow-lg)' }}>
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: T.amber, boxShadow: `0 0 0 4px color-mix(in srgb, ${T.amber} 22%, transparent)` }} />
                   <Box sx={{ fontSize: 13, fontWeight: 600 }}>
                     <Box component="em" sx={{ fontStyle: 'normal', color: T.amber }}>{t('rbac.unsavedChanges')}</Box> —{' '}

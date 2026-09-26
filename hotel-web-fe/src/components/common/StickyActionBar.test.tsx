@@ -47,11 +47,14 @@ describe('StickyActionBar', () => {
     const button = screen.getByRole('button', { name: 'Check in' });
     expect(container.contains(button)).toBe(true);
     expect(getComputedStyle(button.parentElement as HTMLElement).position).toBe('fixed');
+    // Flags itself so the Quick actions FAB steps out of its corner.
+    expect((button.parentElement as HTMLElement).hasAttribute('data-mobile-action-bar')).toBe(true);
   });
 
   it('desktop: the bar stays inline (position: static)', () => {
     const { container } = render(<StickyActionBar primary={primary} />);
     expect(getComputedStyle(rootBar(container)).position).toBe('static');
+    expect(rootBar(container).hasAttribute('data-mobile-action-bar')).toBe(false);
   });
 
   it('overflowActions renders a "More actions" trigger', () => {

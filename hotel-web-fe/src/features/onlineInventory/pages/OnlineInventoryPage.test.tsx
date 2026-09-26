@@ -359,6 +359,7 @@ describe('OnlineInventoryPage on a phone', () => {
     // Rendered inside the page: the shell no longer traps `position: fixed`.
     expect(container.contains(bar)).toBe(true);
     expect(getComputedStyle(bar).position).toBe('fixed');
+    expect(bar.hasAttribute('data-mobile-action-bar')).toBe(true);
     expect(bar.textContent).toMatch(/1 cell changed/);
     fireEvent.click(screen.getByRole('button', { name: /review & apply/i }));
     expect(await screen.findByRole('button', { name: 'Apply 1 change' })).toBeTruthy();
