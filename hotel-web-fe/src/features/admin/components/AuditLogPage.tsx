@@ -992,9 +992,9 @@ const AuditLogPage: React.FC = () => {
             {[25, 50, 100].map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
           </Select>
           <Box sx={{ display: 'inline-flex', gap: '2px', ml: 1.5 }}>
-            <IconButton size="small" sx={{ width: 40, height: 40 }} disabled={curPage <= 1} onClick={() => patchParams({ page: String(curPage - 1) })} aria-label={t('common:pagination.previous')}>‹</IconButton>
+            <IconButton size="small" sx={{ width: { xs: 44, sm: 40 }, height: { xs: 44, sm: 40 } }} disabled={curPage <= 1} onClick={() => patchParams({ page: String(curPage - 1) })} aria-label={t('common:pagination.previous')}>‹</IconButton>
             <Box sx={{ minWidth: 28, height: 28, borderRadius: '7px', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, bgcolor: T.ink, color: 'var(--hotel-bg)' }}>{curPage}</Box>
-            <IconButton size="small" sx={{ width: 40, height: 40 }} disabled={curPage >= totalPages} onClick={() => patchParams({ page: String(curPage + 1) })} aria-label={t('common:pagination.next')}>›</IconButton>
+            <IconButton size="small" sx={{ width: { xs: 44, sm: 40 }, height: { xs: 44, sm: 40 } }} disabled={curPage >= totalPages} onClick={() => patchParams({ page: String(curPage + 1) })} aria-label={t('common:pagination.next')}>›</IconButton>
           </Box>
         </Box>
       </Box>
