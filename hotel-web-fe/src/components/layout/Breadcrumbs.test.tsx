@@ -22,7 +22,7 @@ vi.mock('../../router', () => ({
   ),
 }));
 
-import { Breadcrumbs } from './Breadcrumbs';
+import { Breadcrumbs, CurrentPageTitle } from './Breadcrumbs';
 
 describe('Breadcrumbs', () => {
   afterEach(cleanup);
@@ -59,5 +59,23 @@ describe('Breadcrumbs', () => {
     const overview = screen.getByRole('link', { name: 'Overview' });
     expect(overview.getAttribute('href')).toBe('/');
     expect(screen.getByText('My Profile').getAttribute('aria-current')).toBe('page');
+  });
+
+  it.each([
+    ['/bookings/1002', 'Bookings'],
+    ['/channels/12', 'Channels'],
+    ['/guest-relations/guests/1', 'Guest Directory'],
+  ])('titles the detail page %s with its list page, not the bare id', (pathname, title) => {
+    mocks.pathname = pathname;
+    render(<CurrentPageTitle />);
+
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(title);
+  });
+
+  it('keeps a humanized slug for slug detail pages', () => {
+    mocks.pathname = '/help/create-a-booking';
+    render(<CurrentPageTitle />);
+
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Create a booking');
   });
 });

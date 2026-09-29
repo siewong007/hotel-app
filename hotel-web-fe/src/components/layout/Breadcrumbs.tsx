@@ -17,16 +17,27 @@ import { useRouteLabels } from '../../navigation/routeLabels';
  */
 const DASHBOARD_PATHS = new Set(['/', '/admin-portal']);
 
+/** A record id segment (`/bookings/1002`, `/channels/12`, a UUID) — not a label. */
+const ID_SEGMENT = /^(\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
 const resolveRoute = (pathname: string): AppRouteDefinition | undefined => {
   if (DASHBOARD_PATHS.has(pathname)) {
     return navigationRouteDefinitions.find((route) => route.id === 'dashboard');
   }
   // Prefer the navigation definition so crumbs carry nav metadata;
   // findRouteDefinition then covers non-nav auth pages such as /profile.
-  return (
+  const route =
     navigationRouteDefinitions.find((route) => route.path === pathname) ??
-    findRouteDefinition(pathname)
-  );
+    findRouteDefinition(pathname);
+  if (route) return route;
+  // Detail pages (`/bookings/1002`) are not in the registry; without this the
+  // phone header titled them with the bare id ("1002"). Use the list page's
+  // label instead. Slug pages (`/help/create-a-booking`) keep the humanized slug.
+  const segments = pathname.split('/').filter(Boolean);
+  const last = segments.pop();
+  return last && segments.length && ID_SEGMENT.test(last)
+    ? resolveRoute(`/${segments.join('/')}`)
+    : undefined;
 };
 
 /** A registry label can fall back to the raw path — render it as words instead. */
