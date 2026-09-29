@@ -32,6 +32,7 @@ import { useIsPhone } from '../../../../../hooks/useIsPhone';
 import { useTranslation } from '../../../../../i18n/useTranslation';
 import { BookingStatus } from '../../../../../constants/booking.constants';
 import { SmokingPreferenceChip } from '../../../../bookings/components/SmokingPreferenceChip';
+import { COARSE_HIT_AREA_SX } from '../../../../../components/common/touchTarget';
 
 // Ink and borders rendered ON the saturated status fill. The fill is the
 // status accent token, which inverts between modes (deep in light, pastel in
@@ -116,6 +117,8 @@ const CardMoreButton: React.FC<{
         onClick(e);
       }}
       sx={{
+        // Dense on the tile; the hit area still reaches 44px on touch tablets.
+        ...COARSE_HIT_AREA_SX,
         border: '1px solid',
         borderColor: onFill(55),
         borderRadius: 999,

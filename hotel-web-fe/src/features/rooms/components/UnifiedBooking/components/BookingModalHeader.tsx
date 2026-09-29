@@ -69,8 +69,9 @@ const BookingModalHeader: React.FC<BookingModalHeaderProps> = ({
       disabled={processing}
       aria-label={t('common:actions.close')}
       sx={{
-        width: 32,
-        height: 32,
+        // 44px touch floor on phones; the dense 32px square stays from sm up.
+        width: { xs: 44, sm: 32 },
+        height: { xs: 44, sm: 32 },
         borderRadius: 1,
         color: D.ink3,
         border: '1px solid transparent',

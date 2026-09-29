@@ -71,6 +71,7 @@ import { ActionsMenu } from '../../../components/common/ActionsMenu';
 import type { ActionMenuItem } from '../../../components/common/ActionsMenu';
 import { SearchAndFilters } from '../../../components/common/SearchAndFilters';
 import { useIsPhone } from '../../../hooks/useIsPhone';
+import { COARSE_HIT_AREA_SX } from '../../../components/common/touchTarget';
 
 /* ---------- Design tokens (Room Configuration) — aliases onto --hotel-* ---------- */
 const C = {
@@ -747,7 +748,7 @@ const RoomConfigurationPage: React.FC = () => {
                   <IconButton
                     size="small"
                     aria-label={t('card.openActionsAria', { room: room.room_number, status: t(`config.roomStatus.${st}`) })}
-                    sx={{ width: { xs: 44, sm: 26 }, height: { xs: 44, sm: 26 }, border: `1px solid ${C.border}`, bgcolor: C.surface }}
+                    sx={{ ...COARSE_HIT_AREA_SX, width: { xs: 44, sm: 26 }, height: { xs: 44, sm: 26 }, border: `1px solid ${C.border}`, bgcolor: C.surface }}
                   >
                     <MoreVertIcon sx={{ fontSize: 15, color: C.ink3 }} />
                   </IconButton>
@@ -1198,22 +1199,22 @@ const RoomConfigurationPage: React.FC = () => {
                     {isType && rt && canEdit && (
                       <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
                         <Tooltip title={rt.is_active ? t('config.hideFromBooking') : t('config.showInBooking')}>
-                          <IconButton size="small" onClick={() => handleToggleTypeActive(rt)}>
+                          <IconButton size="small" sx={COARSE_HIT_AREA_SX} onClick={() => handleToggleTypeActive(rt)}>
                             {rt.is_active ? <ActiveIcon sx={{ fontSize: 16, color: C.emerald }} /> : <InactiveIcon sx={{ fontSize: 16, color: C.amber }} />}
                           </IconButton>
                         </Tooltip>
                         <Tooltip title={t('common:actions.duplicate')}>
-                          <IconButton size="small" onClick={() => handleDuplicateType(rt)}>
+                          <IconButton size="small" sx={COARSE_HIT_AREA_SX} onClick={() => handleDuplicateType(rt)}>
                             <CopyIcon sx={{ fontSize: 15, color: C.ink3 }} />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title={t('common:actions.edit')}>
-                          <IconButton size="small" onClick={() => openEditType(rt)}>
+                          <IconButton size="small" sx={COARSE_HIT_AREA_SX} onClick={() => openEditType(rt)}>
                             <EditIcon sx={{ fontSize: 15, color: C.ink3 }} />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title={t('common:actions.delete')}>
-                          <IconButton size="small" onClick={() => setTypeDeleteTarget(rt)}>
+                          <IconButton size="small" sx={COARSE_HIT_AREA_SX} onClick={() => setTypeDeleteTarget(rt)}>
                             <DeleteIcon sx={{ fontSize: 15, color: C.rose }} />
                           </IconButton>
                         </Tooltip>
@@ -1292,7 +1293,7 @@ const RoomConfigurationPage: React.FC = () => {
               {editingType ? t('config.drawerEditing', { name: typeForm.name }) : t('config.drawerNewSubtitle')}
             </Typography>
           </Box>
-          <IconButton sx={{ ml: 'auto' }} onClick={() => setDrawerOpen(false)} aria-label={t('common:actions.close')}>
+          <IconButton sx={{ ml: 'auto', minWidth: { xs: 44 }, minHeight: { xs: 44 } }} onClick={() => setDrawerOpen(false)} aria-label={t('common:actions.close')}>
             <CloseIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Box>
@@ -1367,11 +1368,11 @@ const RoomConfigurationPage: React.FC = () => {
             {/* flexShrink 0: the full-width bed-type select used to squeeze the
                 stepper on phones until its "+" was clipped away. */}
             <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, border: `1px solid ${C.borderHi}`, borderRadius: '8px', overflow: 'hidden' }}>
-              <IconButton size="small" onClick={() => setTF({ bed_count: Math.max(1, typeForm.bed_count - 1) })} aria-label={t('config.decreaseBeds')}>
+              <IconButton size="small" sx={{ minWidth: { xs: 44 }, minHeight: { xs: 44 } }} onClick={() => setTF({ bed_count: Math.max(1, typeForm.bed_count - 1) })} aria-label={t('config.decreaseBeds')}>
                 <MinusIcon sx={{ fontSize: 18 }} />
               </IconButton>
               <Box sx={{ minWidth: 36, textAlign: 'center', fontWeight: 700, fontSize: 13 }}>{typeForm.bed_count}</Box>
-              <IconButton size="small" onClick={() => setTF({ bed_count: typeForm.bed_count + 1 })} aria-label={t('config.increaseBeds')}>
+              <IconButton size="small" sx={{ minWidth: { xs: 44 }, minHeight: { xs: 44 } }} onClick={() => setTF({ bed_count: typeForm.bed_count + 1 })} aria-label={t('config.increaseBeds')}>
                 <PlusIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Box>
