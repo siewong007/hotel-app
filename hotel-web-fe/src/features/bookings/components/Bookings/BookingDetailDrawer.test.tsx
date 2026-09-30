@@ -122,6 +122,31 @@ describe('BookingDetailDrawer', () => {
     await waitFor(() => expect(onCompleted).toHaveBeenCalled());
   });
 
+  it('scrolls the drawer body under a fixed guest header', () => {
+    mocks.bookingQuery.data = buildBooking({
+      special_requests: 'Late checkout',
+      remarks: 'Agoda prepaid',
+    });
+    renderDrawer({ isAdmin: true });
+
+    const scroller = screen.getByTestId('booking-details-scroll');
+    const style = getComputedStyle(scroller);
+    expect(style.overflowY).toBe('auto');
+    expect(style.overflowX).toBe('hidden');
+
+    const header = screen.getByRole('heading', { name: 'Alex Tan' });
+    expect(scroller.contains(header)).toBe(false);
+    expect(scroller.contains(screen.getByText('Quick edit'))).toBe(true);
+    expect(scroller.contains(screen.getByText('Notes & requests'))).toBe(true);
+
+    const paper = document.querySelector('.MuiDrawer-paper') as HTMLElement;
+    const paperStyle = getComputedStyle(paper);
+    expect(paperStyle.overflowX).toBe('hidden');
+    expect(paperStyle.overflowY).toBe('hidden');
+    expect(paperStyle.maxWidth).toBe('100%');
+    expect(paperStyle.display).toBe('flex');
+  });
+
   it('surfaces save failures through onError', async () => {
     const { onError } = renderDrawer({ isAdmin: true });
     mocks.updateBookingMutation.mutateAsync.mockRejectedValueOnce(new Error('nope'));
