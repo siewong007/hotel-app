@@ -33,6 +33,7 @@ import type { LegalDocument } from '../content';
 
 beforeAll(async () => {
   await ensureLocaleLoaded('ms');
+  await ensureLocaleLoaded('zh');
 });
 
 describe('LegalDocumentPage return control', () => {
@@ -147,30 +148,83 @@ const STUB_DOCUMENT: LegalDocument = {
   id: 'terms_of_service',
   version: '0.0-test',
   effectiveDate: '2026-09-13',
-  title: { en: 'Stub Terms', ms: 'Terma Stub' },
-  summary: { en: 'A short stub summary.', ms: 'Ringkasan stub pendek.' },
+  title: { en: 'Stub Terms', ms: 'Terma Stub', zh: '存根条款', 'zh-TW': '存根條款' },
+  summary: {
+    en: 'A short stub summary.',
+    ms: 'Ringkasan stub pendek.',
+    zh: '简短存根摘要。',
+    'zh-TW': '簡短存根摘要。',
+  },
   sections: [
     {
       id: 'alpha',
-      heading: { en: '1. Plain section heading', ms: '1. Tajuk bahagian biasa' },
-      body: [{ en: 'Alpha body text.', ms: 'Teks badan alfa.' }],
+      heading: {
+        en: '1. Plain section heading',
+        ms: '1. Tajuk bahagian biasa',
+        zh: '1. 普通章节标题',
+        'zh-TW': '1. 普通章節標題',
+      },
+      body: [
+        {
+          en: 'Alpha body text.',
+          ms: 'Teks badan alfa.',
+          zh: '阿尔法正文。',
+          'zh-TW': '阿爾法正文。',
+        },
+      ],
     },
     {
       id: 'beta',
-      heading: { en: '2. Obligations section heading', ms: '2. Tajuk bahagian kewajipan' },
+      heading: {
+        en: '2. Obligations section heading',
+        ms: '2. Tajuk bahagian kewajipan',
+        zh: '2. 义务章节标题',
+        'zh-TW': '2. 義務章節標題',
+      },
       emphasis: 'requirement',
-      body: [{ en: 'Beta body text.', ms: 'Teks badan beta.' }],
+      body: [
+        {
+          en: 'Beta body text.',
+          ms: 'Teks badan beta.',
+          zh: '贝塔正文。',
+          'zh-TW': '貝塔正文。',
+        },
+      ],
     },
     {
       id: 'gamma',
-      heading: { en: '3. Context section heading', ms: '3. Tajuk bahagian konteks' },
+      heading: {
+        en: '3. Context section heading',
+        ms: '3. Tajuk bahagian konteks',
+        zh: '3. 背景章节标题',
+        'zh-TW': '3. 背景章節標題',
+      },
       emphasis: 'info',
-      bullets: [{ en: 'Gamma bullet text.', ms: 'Teks bullet gama.' }],
+      bullets: [
+        {
+          en: 'Gamma bullet text.',
+          ms: 'Teks bullet gama.',
+          zh: '伽马项目符号。',
+          'zh-TW': '伽瑪項目符號。',
+        },
+      ],
     },
     {
       id: 'unnumbered',
-      heading: { en: 'Annex without a numeral', ms: 'Lampiran tanpa nombor' },
-      body: [{ en: 'Annex body text.', ms: 'Teks badan lampiran.' }],
+      heading: {
+        en: 'Annex without a numeral',
+        ms: 'Lampiran tanpa nombor',
+        zh: '无编号附件',
+        'zh-TW': '無編號附件',
+      },
+      body: [
+        {
+          en: 'Annex body text.',
+          ms: 'Teks badan lampiran.',
+          zh: '附件正文。',
+          'zh-TW': '附件正文。',
+        },
+      ],
     },
   ],
 };
@@ -277,6 +331,18 @@ describe('LegalDocumentPage reading experience', () => {
     expect(screen.queryByText('Important')).toBeNull();
     expect(screen.getByText('Teks badan beta.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: /Tajuk bahagian kewajipan/ })).toBeTruthy();
+  });
+
+  it('localizes into Simplified Chinese via the language toggle', () => {
+    render(<LegalDocumentPage documentId="terms_of_service" />);
+
+    fireEvent.click(screen.getByRole('button', { name: '简体中文' }));
+
+    expect(screen.getByText('重要提示')).toBeTruthy();
+    expect(screen.getByText('须知')).toBeTruthy();
+    expect(screen.queryByText('Important')).toBeNull();
+    expect(screen.getByText('贝塔正文。')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /义务章节标题/ })).toBeTruthy();
   });
 
   it('stamps the active language on the page element and swaps it on toggle', () => {

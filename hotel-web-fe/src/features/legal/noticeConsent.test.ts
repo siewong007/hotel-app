@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONSENT_DOCUMENT_VERSIONS, REGISTRATION_NOTICE } from './content';
+import { CONSENT_DOCUMENT_VERSIONS, LEGAL_LOCALES, REGISTRATION_NOTICE } from './content';
 import { buildNoticeConsentPayload } from './noticeConsent';
 
 describe('buildNoticeConsentPayload', () => {
@@ -34,7 +34,7 @@ describe('buildNoticeConsentPayload', () => {
   it('never opts a guest into marketing', () => {
     // Declining marketing must never mean declining an account, so a notice
     // covering the act of signing up cannot carry it.
-    for (const locale of ['en', 'ms'] as const) {
+    for (const locale of LEGAL_LOCALES) {
       expect(buildNoticeConsentPayload(REGISTRATION_NOTICE, locale).marketing_opt_in).toBe(false);
     }
   });
@@ -53,13 +53,14 @@ describe('REGISTRATION_NOTICE', () => {
     expect(REGISTRATION_NOTICE.documents).toEqual(['terms_of_service', 'privacy_notice']);
   });
 
-  it('says the same thing in both languages, linking the same two documents', () => {
+  it('says the same thing in every locale, linking the same two documents', () => {
     const placeholders = (text: string) =>
       [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]);
+    const expected = placeholders(REGISTRATION_NOTICE.text.en);
 
-    expect(placeholders(REGISTRATION_NOTICE.text.ms)).toEqual(
-      placeholders(REGISTRATION_NOTICE.text.en)
-    );
+    for (const locale of LEGAL_LOCALES) {
+      expect(placeholders(REGISTRATION_NOTICE.text[locale])).toEqual(expected);
+    }
   });
 
   it('carries no marketing document', () => {
