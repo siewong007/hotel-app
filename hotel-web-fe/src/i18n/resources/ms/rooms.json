@@ -109,7 +109,8 @@
     "pendingPayment": "Menunggu bayaran",
     "awaitingPaymentConfirmation": "Menunggu pengesahan bayaran",
     "openActionsAria": "Bilik {{room}}, {{status}} — buka tindakan",
-    "reservedRange": "Ditempah {{range}}"
+    "reservedRange": "Ditempah {{range}}",
+    "createdBy": "Dicipta oleh {{name}}"
   },
   "contextMenu": {
     "roomTitle": "Bilik {{room}}",

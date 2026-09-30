@@ -33,6 +33,7 @@ import { useTranslation } from '../../../../../i18n/useTranslation';
 import { BookingStatus } from '../../../../../constants/booking.constants';
 import { SmokingPreferenceChip } from '../../../../bookings/components/SmokingPreferenceChip';
 import { COARSE_HIT_AREA_SX } from '../../../../../components/common/touchTarget';
+import { CreatedByStaffIcon } from '../../CreatedByStaffIcon';
 
 // Ink and borders rendered ON the saturated status fill. The fill is the
 // status accent token, which inverts between modes (deep in light, pastel in
@@ -755,19 +756,23 @@ const RoomCard: React.FC<RoomCardProps> = ({
           {/* Guest Details for Occupied Rooms */}
           {booking?.guest_name && isOccupied ? (
             <Box sx={{ mt: 1 }}>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 800,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  fontSize: '0.95rem',
-                  lineHeight: 1.2,
-                }}
-              >
-                {booking.guest_name}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, minWidth: 0 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: 800,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontSize: '0.95rem',
+                    lineHeight: 1.2,
+                    minWidth: 0,
+                  }}
+                >
+                  {booking.guest_name}
+                </Typography>
+                <CreatedByStaffIcon name={booking.created_by_name} />
+              </Box>
               <Typography
                 sx={{
                   mt: 0.4,
@@ -867,19 +872,23 @@ const RoomCard: React.FC<RoomCardProps> = ({
             <>
               <Box sx={{ mt: 1 }}>
                 {reservedBooking.guest_name && (
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontWeight: 800,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontSize: '0.95rem',
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {reservedBooking.guest_name}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, minWidth: 0 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 800,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontSize: '0.95rem',
+                        lineHeight: 1.2,
+                        minWidth: 0,
+                      }}
+                    >
+                      {reservedBooking.guest_name}
+                    </Typography>
+                    <CreatedByStaffIcon name={reservedBooking.created_by_name} />
+                  </Box>
                 )}
                 <Typography
                   sx={{
@@ -947,8 +956,8 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 </Typography>
               </Box>
               {reservedBooking.guest_name && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                  <PersonIcon sx={{ fontSize: 12, color: onFill(80) }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, minWidth: 0 }}>
+                  <PersonIcon sx={{ fontSize: 12, color: onFill(80), flexShrink: 0 }} />
                   <Typography variant="caption" sx={{
                     color: ON_FILL,
                     fontWeight: 500,
@@ -956,9 +965,11 @@ const RoomCard: React.FC<RoomCardProps> = ({
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
+                    minWidth: 0,
                   }}>
                     {reservedBooking.guest_name}
                   </Typography>
+                  <CreatedByStaffIcon name={reservedBooking.created_by_name} />
                 </Box>
               )}
               {isAwaitingPayment && <AwaitingPaymentBadge status={reservedBooking.status} />}

@@ -109,7 +109,8 @@
     "pendingPayment": "Pending payment",
     "awaitingPaymentConfirmation": "Awaiting payment confirmation",
     "openActionsAria": "Room {{room}}, {{status}} — open actions",
-    "reservedRange": "Reserved {{range}}"
+    "reservedRange": "Reserved {{range}}",
+    "createdBy": "Created by {{name}}"
   },
   "contextMenu": {
     "roomTitle": "Room {{room}}",
