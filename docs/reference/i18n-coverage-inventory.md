@@ -1,8 +1,11 @@
 # i18n Coverage Inventory
 
 Full-coverage audit for `hotel-web-fe`, produced at the close of the
-`feat/i18n-coverage` branch (2026-09-15) and refreshed 2026-09-17 for the
-`zh-TW` locale and the namespaces added since. The design spec was removed
+`feat/i18n-coverage` branch (2026-09-15), refreshed 2026-09-17 for the
+`zh-TW` locale, and refreshed again 2026-10-01 for the `feat/i18n-leftovers`
+close-out: `?lang=` initial-locale links, the `default_locale` hotel
+setting, a Traditional Chinese help corpus, CJK-capable PDF exports, and the
+zh guestPortal translation pass. The design spec was removed
 with the shipped-plan cleanup (repo rule: plans delete on merge — git
 history has it); usage guide:
 [../guides/internationalization.md](../guides/internationalization.md).
@@ -12,11 +15,17 @@ history has it); usage guide:
   and bare `zh` resolve to `zh`)
 - Namespaces: **30** bundles per locale under
   `hotel-web-fe/src/i18n/resources/<locale>/`
-- Flattened leaf keys: **en 7,652 · ms 7,596 · zh 7,584 · zh-TW 7,532** —
+- Flattened leaf keys: **en 7,755 · ms 7,699 · zh 7,684 · zh-TW 7,632** —
   ms/zh/zh-TW counts are lower *by design*: `Intl.PluralRules` gives Malay
   and both Chinese locales only the `other` category, so `_one`/`_zero`
   variants legitimately do not exist there. The parity suite accounts for
   this.
+- Initial locale resolution (in precedence order): explicit stored choice →
+  `?lang=` link parameter (`matchLocale`, marks the choice explicit) →
+  hotel-configured `default_locale` system setting (applied from the
+  public-settings merge) → browser languages → `en`. `default_locale` is
+  editable under Settings → Hotel information and ships in
+  `seed.sql` + patch `0011`.
 
 ## Locale coverage matrix
 
@@ -42,18 +51,18 @@ Flattened leaf keys per bundle (generated: `node` script flattening each
 
 | Namespace | en | ms | zh | zh-TW | Primary consumers |
 |---|---|---|---|---|---|
-| `admin` | 800 | 779 | 779 | 780 | features/admin, features/user |
+| `admin` | 827 | 806 | 806 | 807 | features/admin, features/user |
 | `auth` | 276 | 272 | 272 | 272 | features/auth, features/user |
-| `bookings` | 518 | 515 | 515 | 514 | features/bookings (+ admin/rooms/dashboard) |
+| `bookings` | 523 | 520 | 520 | 519 | features/bookings (+ admin/rooms/dashboard) |
 | `channels` | 168 | 168 | 168 | 168 | features/channels, channel surfaces in bookings/rates |
-| `common` | 179 | 175 | 175 | 175 | shared chrome, src/components, src/desktop |
+| `common` | 205 | 201 | 201 | 201 | shared chrome, src/components, src/desktop |
 | `communications` | 86 | 86 | 86 | 85 | features/communications |
 | `dashboard` | 186 | 186 | 186 | 175 | features/dashboard, features/insights |
 | `dataTransfer` | 185 | 185 | 185 | 181 | features/admin/data-transfer |
 | `ekyc` | 261 | 261 | 261 | 261 | features/ekyc |
 | `errors` | 144 | 144 | 144 | 144 | src/api, shared error surfaces |
 | `finance` | 523 | 513 | 513 | 513 | features/admin (CustomerLedger), features/invoices |
-| `guestPortal` | 978 | 969 | 978 | 966 | features/guestPortal, features/bookings, features/paymentRecovery |
+| `guestPortal` | 984 | 975 | 984 | 972 | features/guestPortal, features/bookings, features/paymentRecovery |
 | `guests` | 580 | 580 | 580 | 568 | features/guestRelations |
 | `help` | 85 | 85 | 85 | 85 | features/help |
 | `housekeeping` | 204 | 204 | 204 | 204 | features/housekeeping |
@@ -61,13 +70,13 @@ Flattened leaf keys per bundle (generated: `node` script flattening each
 | `legal` | 11 | 11 | 11 | 11 | features/legal (chrome only — corpus exempt) |
 | `loyalty` | 236 | 236 | 236 | 236 | features/loyalty |
 | `nav` | 139 | 139 | 139 | 139 | src/navigation, src/components/layout |
-| `nightAudit` | 127 | 127 | 125 | 125 | features/admin (night audit) |
+| `nightAudit` | 137 | 137 | 135 | 135 | features/admin (night audit) |
 | `notifications` | 28 | 28 | 28 | 28 | src/components/layout, features/notifications |
-| `onlineInventory` | 114 | 114 | 108 | 107 | features/onlineInventory |
+| `onlineInventory` | 135 | 135 | 126 | 125 | features/onlineInventory |
 | `promotions` | 271 | 271 | 271 | 263 | features/promotions |
 | `rates` | 113 | 113 | 113 | 113 | features/rates |
 | `revenue` | 58 | 57 | 57 | 57 | features/revenue |
-| `rooms` | 670 | 668 | 655 | 655 | features/rooms (+ housekeeping consumers) |
+| `rooms` | 678 | 676 | 663 | 663 | features/rooms (+ housekeeping consumers) |
 | `segments` | 99 | 99 | 99 | 97 | features/segments |
 | `status` | 259 | 259 | 259 | 259 | status chip/label helpers, enum coverage |
 | `support` | 115 | 115 | 115 | 114 | features/support, features/guestRelations |
@@ -158,11 +167,11 @@ in review (`communications:campaigns.new/newTitle`, ms
 | Exception | Detail |
 |---|---|
 | Legal corpus | `features/legal/content/*` is fully four-locale: en/ms satisfy PDPA s.7(2); zh/zh-TW are authored drafts flagged `DRAFT — pending native/legal review` in each content file. `LegalLocale` = `LocaleCode`; the corpus toggle lists all four and consent records the actual locale read. |
-| Help corpus | `features/help/content/*` authored en/ms/zh; zh-TW reads the zh article set (`READS_FROM` in `features/help/content/index.ts`); `help` ns chrome is fully translated. |
-| PDF bodies | Night-audit and audit-log jsPDF export documents stay **English** — jsPDF's built-in `helvetica` covers Latin-1 only, so zh/ms copy would render as mojibake until a CJK-capable font is embedded via `addFont`. Translated lookups and dates in those paths are pinned to en (`translateFor('en', …)`, `formatHotelDateTime(…, 'en')`); CSV exports are translated. |
+| Help corpus | `features/help/content/*` authored en/ms/zh/zh-TW — each locale resolves its own article set (`ARTICLE_SETS` in `features/help/content/index.ts`); zh-TW was machine-converted (OpenCC `s2twp`) from the zh set then terminology-adjusted, so it still merits a native-speaker pass. |
+| PDF bodies | Night-audit and audit-log jsPDF exports follow the active locale. zh/zh-TW documents embed Noto Sans CJK SC (TrueType, `src/assets/fonts/`, SIL OFL) via `utils/pdfFont.ts` — fetched lazily per session, registered per document; en/ms stay on `helvetica` with no font download. Action/resource enum labels still humanize via `formatStatusLabel` (English) — server values, not UI copy. CSV exports are translated. |
 | DB/server content | Guest names, room names, rate descriptions, remarks, email bodies — backend email copy is covered by `hotel-app-be/src/core/locales/{en,ms,zh,zh-TW}.json`. |
 | `paymentRecovery` in `guestPortal` ns | Public guest-facing route `/booking/recover-payment/$token` shares the portal chrome; documented deviation from the domain→namespace map. |
-| zh guestPortal residual English | **699 prose values** remain byte-identical to en (dashboard 376, checkin 112, support 53, offers 27, vouchers 25, payment 24, notifications 23, book 21, preferences 18, smaller groups 20). zh-TW is fully translated (2 residuals). Parity-legal and load-bearing — zh users currently see English on those surfaces; needs a dedicated translation-quality pass. |
+| zh guestPortal residual English | **Resolved 2026-10-01** — 697 values translated; 2 remain byte-identical to en *correctly* (`checkin.account.nameSuffix` = ` · {{name}}`, `dashboard.devices.ip` = `IP {{address}}` — non-prose fragments). Translation is a machine-draft pass: a native review remains advisable but nothing user-facing reads English anymore. |
 | `tOr` survivors | 24 dynamic-key sites, all `// intentional:` — see retirement list above. |
 | Scanner blind spots | `i18n-scan.mjs` misses assignment-RHS literals, template-literal values, and call-arg strings beyond `hardcoded.test.ts`'s attribute set; `hardcoded.test.ts` is the durable gate. Its embedded ALLOWLIST is a superset of the scanner's FILE_ALLOWLIST (wider `>` lookbehind catches `⌘K`); both headers carry keep-in-sync notes. |
 
@@ -177,8 +186,8 @@ in review (`communications:campaigns.new/newTitle`, ms
   `conflictLine`-style composed sub-keys; `'·'`-joined metadata fragments
   (suppression subtitles, MiniList subs, `history.jobRef` trailing `…`).
 - `audit.service.ts` PDF export still uses the English `formatStatusLabel`
-  humanizer rather than `status:audit.*` keys (PDF English exception
-  overlaps).
+  humanizer rather than `status:audit.*` keys (server enum values, not UI
+  copy — the document chrome itself is fully localized).
 - `charts/format.ts` `fmtShortDate` and `reportsModel.ts` use day-first
   ordering that reads unnaturally in zh — `Intl.DateTimeFormat` would be
   the correct fix.
@@ -219,8 +228,8 @@ read directly.
 | Table headers | — | OK — `TableCell` text wraps by default; `nowrap` only on dates/IDs. |
 
 **Surfaces for a human visual pass** (highest residual risk, in order):
-guest-portal dashboard (`dashboard.*` zh strings are English — see
-exceptions), CheckoutInvoiceModal payment step on ≤360px, housekeeping task
+guest-portal dashboard (zh copy is a fresh machine-draft — see exceptions),
+CheckoutInvoiceModal payment step on ≤360px, housekeeping task
 cards with long ms task-type chips, night-audit report views on tablet,
 eKYC registration review card.
 
