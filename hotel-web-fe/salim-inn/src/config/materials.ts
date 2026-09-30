@@ -53,3 +53,60 @@ export const GROUND = {
   water: 0x2f4f5a,
   urbanFar: 0x8c857a,
 } as const;
+
+// Guest rooms — sampled from the owner's photos (brief §4.5: "sample actual
+// colours from the images; record the palette in src/config/materials.ts").
+// Albedos estimated from median samples of lit and shaded patches:
+//   walls        peach paint          lit #dfba97 / shade #b0896d → #e2b9a1
+//   floor        honey laminate       #ba9e86 (sunlit) … #7a4f33  → #b27a4b
+//   headboards   DLX black tufted #232625 · SUP brown #2c241d (gold piping)
+//                FR black, white stripes · FS olive channel #9a8a5c
+//   bed bases    rust valance #8a3f22 (DLX, FR) · quilted divan #b8b09b (SUP, FS)
+//   curtains     navy #25406b (DLX, SUP, FR, guest room) · sage #6c8e79 (FS)
+//   furniture    pale pink-beige wood laminate #d9bca8
+//   bathroom     wall tile #d8d4cc (30×60) · floor tile #5a4b40 (40×40)
+export const ROOM_COLOURS = {
+  wall: 0xe3c1ab,
+  wallGuest: 0xe6d6c6, // the lighter cream-peach of guest-room.jpg
+  ceiling: 0xf3f1ec,
+  skirting: 0x5a3a26,
+  floor: 0xa06a42,
+  sheet: 0xf6f5f1,
+  pillow: 0xfbfaf6,
+  headDLX: 0x232625,
+  headSUP: 0x2c241d,
+  headFRKing: 0x1c1d1d,
+  headFRSingle: 0x353134,
+  headFS: 0x9a8a5c,
+  skirt: 0x6b3d27, // darker and browner than a lit sample: the render lights it more evenly
+  divan: 0xb8b09b,
+  navy: 0x2b4467,
+  sage: 0x6c8e79,
+  laminate: 0xd9bca8,
+  gold: 0xc39a3a,
+  acCream: 0xe7e1c7,
+  phone: 0xd9cfae,
+  chairGreen: 0x6fbf1c,
+  tileWall: 0xd8d4cc,
+  tileFloor: 0x5a4b40,
+  showerBlue: 0x0a64a0,
+  showerWhite: 0xf1efe9,
+  frosted: 0x9fd9cf,
+} as const;
+
+// Lobby, counter, stair and corridor — designed, not sampled: no reception,
+// stair or corridor photo exists (OPEN_QUESTIONS in config/site.ts).
+export const PUBLIC_COLOURS = {
+  tile: 0xe6ddcc, // polished porcelain, warm ivory, 800 mm
+  grout: 0xb4a894,
+  walnut: 0x6b4d37, // a mid walnut: darker read murky under warm light and the grade
+  marble: 0xefe9df,
+  plaster: 0xe9e2d7,
+  corridorWall: 0xe8dfd1,
+  carpetField: 0x1f3e32, // brand forest, lifted so the pattern reads
+  carpetMotif: 0x2d5747,
+  carpetGold: 0xb59655,
+  door: 0x6a4d38,
+  frame: 0x3f2a1c,
+  terrazzo: 0xd8d2c6,
+} as const;

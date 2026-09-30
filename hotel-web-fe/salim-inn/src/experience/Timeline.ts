@@ -6,17 +6,20 @@ export interface ChapterDef {
   p0: number;
   p1: number;
   exposure: number; // tone-mapping exposure at the chapter's settled frame
+  /** The chapter's settled, well-composed frame: the still that reduced
+   *  motion cross-fades to, and the fallback page's poster. */
+  settle: number;
 }
 
 export const CHAPTERS: ChapterDef[] = [
-  { id: 1, key: 'establish', p0: 0.0, p1: 0.12, exposure: 1.2 },
-  { id: 2, key: 'community', p0: 0.12, p1: 0.35, exposure: 1.18 },
-  { id: 3, key: 'reveal', p0: 0.35, p1: 0.48, exposure: 1.18 },
-  { id: 4, key: 'arrive', p0: 0.48, p1: 0.58, exposure: 1.16 },
-  { id: 5, key: 'reception', p0: 0.58, p1: 0.72, exposure: 1.1 },
-  { id: 6, key: 'rooms', p0: 0.72, p1: 0.88, exposure: 1.0 },
-  { id: 7, key: 'footsteps', p0: 0.88, p1: 0.95, exposure: 1.05 },
-  { id: 8, key: 'book', p0: 0.95, p1: 1.0, exposure: 1.02 },
+  { id: 1, key: 'establish', p0: 0.0, p1: 0.12, exposure: 1.2, settle: 0.0 },
+  { id: 2, key: 'community', p0: 0.12, p1: 0.35, exposure: 1.18, settle: 0.26 },
+  { id: 3, key: 'reveal', p0: 0.35, p1: 0.48, exposure: 1.18, settle: 0.465 },
+  { id: 4, key: 'arrive', p0: 0.48, p1: 0.58, exposure: 1.16, settle: 0.5465 }, // the arrival point (path point 4·2)
+  { id: 5, key: 'reception', p0: 0.58, p1: 0.72, exposure: 1.1, settle: 0.705 },
+  { id: 6, key: 'rooms', p0: 0.72, p1: 0.88, exposure: 1.0, settle: 0.86 },
+  { id: 7, key: 'footsteps', p0: 0.88, p1: 0.95, exposure: 1.05, settle: 0.94 },
+  { id: 8, key: 'book', p0: 0.95, p1: 1.0, exposure: 1.02, settle: 0.992 },
 ];
 
 export function chapterAt(p: number): ChapterDef {

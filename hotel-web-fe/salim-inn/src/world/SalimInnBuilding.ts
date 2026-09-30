@@ -66,7 +66,8 @@ export const PLAN = {
   showcaseBay: 1,
   showcaseRight: BW + (GROUPS[0][1] + GROUPS[1][0]) / 2,
   showcaseDoor: { x0: BW + 2.2, x1: BW + 3.2 },
-  counter: { x: BW + 2.6, z: -9.3, length: 2.4, depth: 0.72 },
+  // centred on the back wall (6.4–9.8) and on the entrance, under the wall letters
+  counter: { x: BW + 1.8, z: -9.3, length: 2.4, depth: 0.72 },
   windowSill: 0.95,
   windowHead: 2.3,
   lobbyCeiling: 3.45,

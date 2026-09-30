@@ -64,11 +64,12 @@ export class Parking {
   /** World-space centres of the three guest bays in front of the lobby. */
   readonly guestBays: THREE.Vector3[] = [];
 
-  constructor() {
+  /** `models`: made ahead (cars.ts carModelMakers), a model a task. */
+  constructor(models: CarModel[] = buildCarModels()) {
     const lines: THREE.BufferGeometry[] = [];
     const kerbs: THREE.BufferGeometry[] = [];
     const rand = rng(99);
-    this.models = buildCarModels();
+    this.models = models;
     const pickModel = () => {
       let r = rand(), i = 0;
       while (i < MODEL_WEIGHTS.length - 1 && (r -= MODEL_WEIGHTS[i]) > 0) i++;
@@ -166,14 +167,22 @@ export class Parking {
     this.group.add(lineMesh, kerbMesh, this.paint, this.trim);
   }
 
+  private lodScale = 1;
+  /** Quality tier: the switch distances scale by k (brief §8 triangles). */
+  setLodScale(k: number): void {
+    if (k === this.lodScale) return;
+    this.lodScale = k;
+    this.lastCam.set(1e9, 0, 0);
+  }
+
   /** Swap each car's level of detail with its distance to the camera. */
   update(cam: THREE.Vector3): void {
     if (cam.distanceToSquared(this.lastCam) < 1) return;
     this.lastCam.copy(cam);
-    const [d0, d1] = CAR_LOD;
+    const [d0, d1, d2] = CAR_LOD.map((x) => x * this.lodScale);
     for (let i = 0; i < this.placed.length; i++) {
       const d = this.centres[i].distanceTo(cam);
-      const l = d < d0 ? 0 : d < d1 ? 1 : 2;
+      const l = d < d0 ? 0 : d < d1 ? 1 : d < d2 ? 2 : 3;
       if (l === this.lod[i]) continue;
       this.lod[i] = l;
       const id = this.lodIds[this.placed[i].model][l];

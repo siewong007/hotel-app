@@ -7,6 +7,7 @@ import { GROUND } from '../config/materials';
 import { footprints } from './layout';
 import { bufferConvex, convexHull, flatPolygon } from './geom';
 import { asphalt, grass } from './shaders';
+import { fitCanvas } from './textures';
 
 const EXT = site.extent; // half-size of the mapped square (m)
 const TEX = 2048;
@@ -106,7 +107,7 @@ export class Ground {
   readonly base: THREE.Mesh;
 
   constructor(anisotropy: number) {
-    const tex = new THREE.CanvasTexture(drawLandCover());
+    const tex = new THREE.CanvasTexture(fitCanvas(drawLandCover(), 'hero'));
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = anisotropy;
     tex.generateMipmaps = true;

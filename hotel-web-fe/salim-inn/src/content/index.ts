@@ -6,6 +6,7 @@ import { ms } from './ms';
 import { zh } from './zh';
 import { zhTW } from './zhTW';
 import { activeLang, type LangCode } from './lang';
+import type { RoomCode } from '../config/site';
 
 export type { Copy } from './en';
 export type { LangCode } from './lang';
@@ -14,6 +15,14 @@ const COPIES: Record<LangCode, Copy> = { en, ms, zh, 'zh-TW': zhTW };
 
 export const lang: LangCode = activeLang();
 export const copy: Copy = COPIES[lang];
+
+/** A room type's name in this language (the rooms list's order). */
+const ROOM_INDEX: Record<RoomCode, number> = { STDQ: 0, DLX: 1, SUP: 2, FR: 3, FS: 4 };
+export const roomName = (code: RoomCode): string => copy.rooms.items[ROOM_INDEX[code]].name;
+
+/** One or several: `[one, many]` templates with `{{n}}`. */
+export const count = (forms: readonly [string, string], n: number): string =>
+  (n === 1 ? forms[0] : forms[1]).replace(/\{\{n\}\}/g, String(n));
 
 /** Fills `{{name}}` slots — same placeholder convention as the app's i18n. */
 export const fill = (template: string, vars: Record<string, string | number>): string =>

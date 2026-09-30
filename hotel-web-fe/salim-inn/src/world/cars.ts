@@ -319,6 +319,38 @@ function buildTrim(s: Spec, D: Detail): THREE.BufferGeometry {
   return mergeGeometries(parts, false)!;
 }
 
+/** lod 3 (from ~450 m, a few pixels across): the lower body as one box
+ *  (black underneath) under the greenhouse as a glass box with a painted
+ *  roof — from the air a car park is its roof colours. */
+function coarseBody(s: Spec): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const box = (x0: number, x1: number, y0: number, y1: number, w: number, kindOf: (face: number) => number) => {
+    const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, w).translate((x0 + x1) / 2, (y0 + y1) / 2, 0).toNonIndexed();
+    g.deleteAttribute('uv');
+    // non-indexed box: faces +x, −x, +y, −y, +z, −z, six vertices each
+    const kind = new Float32Array(g.getAttribute('position').count);
+    for (let i = 0; i < kind.length; i++) kind[i] = kindOf(Math.floor(i / 6));
+    g.setAttribute('aKind', new THREE.BufferAttribute(kind, 1));
+    parts.push(g);
+  };
+  const belt = Math.max(...s.top.map((q) => q[1]));
+  box(0, s.L, s.clear, belt, s.W, (f) => (f === 3 ? 2 : 0));
+  const roof = Math.max(...s.cabin.map((q) => q[1]));
+  box(s.cabin[0][0] + 0.25, s.cabin[s.cabin.length - 1][0] - 0.35, belt, roof, s.W * (1 - s.tumble * 0.5), (f) => (f === 2 ? 0 : 1));
+  return mergeGeometries(parts, false)!;
+}
+
+/** lod 3 trim: a dark block for the wheels, and a van's cargo box. */
+function coarseTrim(s: Spec): THREE.BufferGeometry {
+  const [w0, w1] = s.wheels;
+  const parts = [colour(new THREE.BoxGeometry(w1 - w0 + 2 * s.r, 1.8 * s.r, s.W - 0.1).translate((w0 + w1) / 2, 0.9 * s.r, 0), 0x151617)];
+  if (s.box) {
+    const [x0, x1, top] = s.box;
+    parts.push(colour(new THREE.BoxGeometry(x1 - x0, top - 0.97, s.W + 0.06).translate((x0 + x1) / 2, 0.97 + (top - 0.97) / 2, 0), 0xdadcdd));
+  }
+  return mergeGeometries(parts, false)!;
+}
+
 export interface CarModel {
   name: string;
   /** per level of detail: body (paint / glass / trim kinds) and vertex-coloured trim */
@@ -335,18 +367,23 @@ function place(g: THREE.BufferGeometry, L: number): THREE.BufferGeometry {
   return g;
 }
 
-export function buildCarModels(): CarModel[] {
-  return SPECS.map((s) => ({
+/** The car models as makers, one per model: World builds one per task. */
+export function carModelMakers(): (() => CarModel)[] {
+  return SPECS.map((s) => () => ({
     name: s.name,
-    paint: DETAIL.map((D) => place(buildBody(s, D), s.L)),
-    trim: DETAIL.map((D) => place(buildTrim(s, D), s.L)),
+    paint: [...DETAIL.map((D) => buildBody(s, D)), coarseBody(s)].map((g) => place(g, s.L)),
+    trim: [...DETAIL.map((D) => buildTrim(s, D)), coarseTrim(s)].map((g) => place(g, s.L)),
     length: s.L,
     width: s.W,
   }));
 }
 
-/** LOD switch distances (metres from the camera). */
-export const CAR_LOD = [34, 130];
+export function buildCarModels(): CarModel[] {
+  return carModelMakers().map((make) => make());
+}
+
+/** LOD switch distances (metres from the camera, × the tier's lodScale). */
+export const CAR_LOD = [34, 130, 450];
 
 /** Weighted mix of models for a Sibu car park (pickups and compacts dominate). */
 export const MODEL_WEIGHTS = [0.18, 0.2, 0.2, 0.13, 0.14, 0.11, 0.04];
