@@ -37,6 +37,7 @@ const loadStore = async () => {
 beforeEach(() => {
   vi.stubGlobal('localStorage', createLocalStorageStub());
   setBrowserLanguages(['en-US']);
+  window.history.replaceState({}, '', '/');
 });
 
 afterEach(() => {
@@ -72,6 +73,31 @@ describe('initial locale', () => {
     const store = await loadStore();
     expect(store.getActiveLocale()).toBe('ms');
     expect(store.hasExplicitLocaleChoice()).toBe(false);
+  });
+
+  // A `?lang=` link is how the salim-inn picker's choice (and any shared
+  // language link) reaches the app — it counts as an explicit choice and is
+  // persisted so a refresh does not drop it.
+  it('honours a ?lang= link param above a persisted choice', async () => {
+    window.history.replaceState({}, '', '/?lang=zh-TW');
+    vi.stubGlobal('localStorage', createLocalStorageStub({ locale: 'ms' }));
+    const store = await loadStore();
+    expect(store.getActiveLocale()).toBe('zh-TW');
+    expect(store.hasExplicitLocaleChoice()).toBe(true);
+    expect(localStorage.setItem).toHaveBeenCalledWith('locale', 'zh-TW');
+  });
+
+  it('normalises a BCP-47 ?lang= value rather than requiring the storage code', async () => {
+    window.history.replaceState({}, '', '/?lang=zh-hant');
+    const store = await loadStore();
+    expect(store.getActiveLocale()).toBe('zh-TW');
+  });
+
+  it('ignores an unrecognised ?lang= value', async () => {
+    window.history.replaceState({}, '', '/?lang=klingon');
+    vi.stubGlobal('localStorage', createLocalStorageStub({ locale: 'ms' }));
+    const store = await loadStore();
+    expect(store.getActiveLocale()).toBe('ms');
   });
 });
 

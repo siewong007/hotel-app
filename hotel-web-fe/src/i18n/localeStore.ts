@@ -10,7 +10,8 @@
  * `hotelCurrency` already use for cross-cutting preferences in this app.
  *
  * Precedence, highest first:
- *   1. an explicit choice the user made in the switcher (persisted)
+ *   1. an explicit choice the user made — a `?lang=` link param, then the
+ *      persisted switcher choice
  *   2. the hotel's configured default, once settings have loaded
  *   3. the browser's `navigator.languages`
  *   4. `DEFAULT_LOCALE`
@@ -23,6 +24,7 @@ import { storage } from '../utils/storage';
 import {
   DEFAULT_LOCALE,
   isLocaleCode,
+  matchLocale,
   negotiateLocale,
   type LocaleCode,
 } from './locales';
@@ -47,11 +49,25 @@ const browserLocales = (): string[] => {
   return navigator.language ? [navigator.language] : [];
 };
 
+/**
+ * A `?lang=` link counts as an explicit choice — the salim-inn landing page's
+ * picker navigates with it, and a shared link should win over whatever the
+ * recipient previously stored. The value is persisted like a switcher pick so
+ * a refresh does not lose it.
+ */
+const queryLocale = (): LocaleCode | undefined => {
+  if (typeof location === 'undefined') return undefined;
+  return matchLocale(new URLSearchParams(location.search).get('lang'));
+};
+
 const initialLocale = (): LocaleCode => {
+  const fromQuery = queryLocale();
   const stored = readStoredLocale();
-  if (stored) {
+  const chosen = fromQuery ?? stored;
+  if (chosen) {
     hasExplicitChoice = true;
-    return stored;
+    if (fromQuery) storage.setItem('locale', fromQuery);
+    return chosen;
   }
   return negotiateLocale(browserLocales(), DEFAULT_LOCALE);
 };
