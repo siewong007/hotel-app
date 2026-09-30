@@ -49,6 +49,8 @@
     "currencyOther": "Mata Wang Lain",
     "timezone": "Zon Masa",
     "timezoneHint": "Pilih zon masa hotel anda untuk penjejakan masa yang tepat",
+    "defaultLocale": "Bahasa Lalai",
+    "defaultLocaleHint": "Bahasa yang dipaparkan kepada tetamu yang belum memilih bahasa; juga digunakan untuk e-mel tetamu",
     "tzGroup": {
       "asiaPacific": "Asia & Pasifik",
       "europe": "Eropah",

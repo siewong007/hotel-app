@@ -70,10 +70,12 @@ const baseSettings = (): HotelSettings =>
     night_audit_auto_enabled: false,
     currency: 'MYR',
     timezone: 'Asia/Kuala_Lumpur',
+    default_locale: 'ms',
     deposit_amount: 50,
     service_tax_rate: 8,
     tourism_tax_rate: 10,
     default_payment_terms_days: 30,
+    unpaid_hold_release_hours: 24,
     report_font_size: 14,
     report_font_family: 'Arial, Helvetica, sans-serif',
     report_heading_font_size: 24,
@@ -136,6 +138,9 @@ describe('SettingsPage', () => {
       'Grand Test Hotel',
     );
     expect((screen.getByLabelText('Hotel Name') as HTMLInputElement).disabled).toBe(false);
+    expect(
+      (screen.getByLabelText('Default Language') as HTMLSelectElement).value,
+    ).toBe('ms');
     // Booking channels live behind the Code Lists tab.
     fireEvent.click(screen.getByRole('tab', { name: 'Code Lists' }));
     expect(await screen.findByText('Booking.com (B.C)')).toBeTruthy();
@@ -155,6 +160,7 @@ describe('SettingsPage', () => {
     expect(payload.hotel_name).toBe('Renamed Hotel');
     // Untouched fields round-trip unchanged.
     expect(payload.check_in_time).toBe('15:00');
+    expect(payload.default_locale).toBe('ms');
     expect(payload.rate_codes).toEqual(['BAR']);
     expect(await screen.findByText('Settings saved successfully')).toBeTruthy();
   });

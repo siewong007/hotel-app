@@ -202,6 +202,7 @@ VALUES
     ('check_in_time'),
     ('check_out_time'),
     ('currency'),
+    ('default_locale'),
     ('default_payment_terms_days'),
     ('deposit_amount'),
     ('enable_2fa'),
@@ -883,6 +884,12 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('check_out_time', '11:00', 'string', 'general', 'Standard check-out time', true),
 ('night_shift_time', '23:00', 'string', 'operations', 'Scheduled night audit posting time', false),
 ('currency', 'USD', 'string', 'general', 'Default currency code', true),
+-- The backend mail-locale chain already falls back to this key when a guest
+-- has no language_preference, but the row was never seeded — so the setting
+-- could not be stored (update rejects unknown keys) and no Settings picker
+-- could reach it. Public because the frontend reads /settings/public at boot
+-- to apply the hotel's language to guests who have not chosen one.
+('default_locale', 'en', 'string', 'general', 'Fallback language for the interface and guest emails when a guest has no language preference. One of: en, ms, zh, zh-TW.', true),
 ('timezone', 'Asia/Kuala_Lumpur', 'string', 'general', 'Hotel timezone', false),
 ('unpaid_hold_release_hours', '24', 'number', 'booking', 'Hours an unpaid online booking keeps its room before it is released automatically. 0 disables automatic release. Front-desk bookings are never released automatically.', false),
 ('deposit_amount', '50', 'number', 'payments', 'Default room card or check-in deposit amount', false),

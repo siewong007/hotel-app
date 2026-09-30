@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdminService, type PublicSetting, type SystemSetting } from '../../../api/admin.service';
 import { queryKeys } from '../../../api/queryKeys';
+import { applyDefaultLocale, matchLocale } from '../../../i18n';
 import {
   REPORT_DISPLAY_FONT_SIZE_MAX,
   REPORT_DISPLAY_FONT_SIZE_MIN,
@@ -25,6 +26,7 @@ const DB_SETTING_KEYS = [
   'night_audit_auto_enabled',
   'currency',
   'timezone',
+  'default_locale',
   'deposit_amount',
   'service_tax_rate',
   'tourism_tax_rate',
@@ -129,6 +131,10 @@ const mergeSystemSettings = (
     ),
     currency: values.get('currency') ?? localSettings.currency,
     timezone: values.get('timezone') ?? localSettings.timezone,
+    // A stored value that is not a supported locale must not reach the
+    // interface — fall back to whatever the local settings already hold.
+    default_locale:
+      matchLocale(values.get('default_locale')) ?? localSettings.default_locale,
     deposit_amount: parseNumberSetting(values.get('deposit_amount'), localSettings.deposit_amount),
     service_tax_rate: parseNumberSetting(values.get('service_tax_rate'), localSettings.service_tax_rate),
     tourism_tax_rate: parseNumberSetting(values.get('tourism_tax_rate'), localSettings.tourism_tax_rate),
@@ -239,6 +245,7 @@ const loadSystemSettings = async () => {
   const rows = await AdminService.getSystemSettings();
   const settings = mergeSystemSettings(getHotelSettings(), rows);
   saveHotelSettings(settings);
+  applyDefaultLocale(settings.default_locale);
   return { rows, settings };
 };
 
@@ -257,6 +264,9 @@ export async function applyPublicHotelSettings(): Promise<HotelSettings | null> 
     const rows = await AdminService.getPublicSettings();
     const settings = mergeSystemSettings(getHotelSettings(), rows);
     saveHotelSettings(settings);
+    // The hotel's configured language is a default, not a choice — a guest who
+    // picked a language in the switcher keeps it (applyDefaultLocale no-ops).
+    applyDefaultLocale(settings.default_locale);
     window.dispatchEvent(new CustomEvent('hotelSettingsChange', { detail: settings }));
     return settings;
   } catch (error) {

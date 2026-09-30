@@ -1,5 +1,6 @@
 // Hotel settings utility functions
 
+import { DEFAULT_LOCALE, matchLocale, type LocaleCode } from '../i18n/locales';
 import { toMoneyNumber } from './money';
 
 export interface BookingChannel {
@@ -35,6 +36,7 @@ export interface HotelSettings {
   night_audit_auto_enabled: boolean; // When true, backend auto-runs the night audit at night_shift_time
   currency: string;
   timezone: string;
+  default_locale: LocaleCode; // Fallback language for guests without a language preference
   deposit_amount: number; // Default deposit amount for check-in
   service_tax_rate: number; // Percentage (e.g., 8 for 8%)
   tourism_tax_rate: number; // Per night tourism tax
@@ -80,6 +82,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   night_audit_auto_enabled: false, // Opt-in; manual night audit by default
   currency: 'MYR',
   timezone: 'Asia/Kuala_Lumpur',
+  default_locale: DEFAULT_LOCALE,
   deposit_amount: 50,
   service_tax_rate: 8, // 8% service tax
   tourism_tax_rate: 10, // RM 10 per night for tourists (Malaysia standard)
@@ -242,6 +245,7 @@ export const getHotelSettings = (): HotelSettings => {
           Math.max(reportBaseFontSize - 2, REPORT_FONT_SIZE_MIN)
         ),
         max_login_attempts: Number(merged.max_login_attempts) || DEFAULT_SETTINGS.max_login_attempts,
+        default_locale: matchLocale(merged.default_locale) ?? DEFAULT_SETTINGS.default_locale,
         support_enabled: normalizeBoolean(merged.support_enabled, DEFAULT_SETTINGS.support_enabled),
         support_categories: normalizeStringList(
           merged.support_categories,
