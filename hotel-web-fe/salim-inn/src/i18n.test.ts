@@ -1,9 +1,8 @@
 // Locale resolution, bundle parity and DOM application for the landing page.
 // The shared `locale` storage key is asserted here because the hotel app reads
 // the same key when the guest continues into the portal.
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import indexHtml from '../index.html?raw';
 import { en } from './content/en';
 import { ms } from './content/ms';
 import { zh } from './content/zh';
@@ -63,7 +62,7 @@ describe('copy bundles', () => {
   });
 
   it('resolve every data-i18n path in index.html in every locale', () => {
-    const html = readFileSync(resolve(import.meta.dirname, '../index.html'), 'utf8');
+    const html = indexHtml;
     const paths = new Set<string>();
     for (const m of html.matchAll(/data-i18n(?:-html|-alt|-aria)?="([^"]+)"/g)) paths.add(m[1]);
     expect(paths.size).toBeGreaterThan(80);
