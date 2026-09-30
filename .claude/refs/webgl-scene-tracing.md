@@ -52,3 +52,17 @@ Any fixed/sticky UI over a WebGL `<canvas>` or 3D-transformed layer must be GPU-
 (`-webkit-transform: translateZ(0)`, `will-change: transform`) or Safari composites the
 canvas above it and swallows the clicks regardless of `z-index`. Chromium's
 `elementFromPoint` hit-tests correctly and will NOT reveal this.
+
+## Measuring and changing frame cost (Salim Inn film, M5, 2026-10-01)
+
+- **Resizing a WebGL canvas blocks the main thread** until every frame already queued on
+  the GPU finishes. A quality step down fires when that queue is deepest: 120–190 ms
+  measured, plus ~100 ms reallocating render targets from a 2× pixel ratio. At run time,
+  change effects, not the pixel ratio.
+- **Switching an effect's resolution or structure mid-film recompiles shaders.** N8AO
+  `halfRes` cost 250–300 ms and postprocessing `MipmapBlurPass.levels` 150 ms. Disabling a
+  pass costs nothing.
+- **This M4 MacBook Air is fanless.** A cool start-up benchmark overstates sustained speed:
+  the same film held 60 fps for two minutes, then fell to 30 fps. Other desktop apps also
+  share the GPU. Idle before timing runs and record every loop, not the first.
+
