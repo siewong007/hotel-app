@@ -11,6 +11,15 @@
 -- written on insert so the settings-reset endpoint can restore 'en'; an
 -- existing row's recorded default is kept. `value` is never overwritten — a
 -- hotel that already set it keeps its choice. Idempotent.
+
+-- Convergence prerequisite: installed V1 databases predate the baseline's
+-- `system_settings.default_value` column (added to the baseline without a
+-- patch — this is the drift that ships it). Add it where absent, then
+-- backfill every row from its current value exactly as seed.sql does for
+-- fresh installs, so the reset endpoint has a recorded default everywhere.
+ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS default_value text;
+UPDATE system_settings SET default_value = value WHERE default_value IS NULL;
+
 INSERT INTO system_settings (key, value, value_type, category, description, is_public, default_value)
 VALUES (
     'default_locale',
