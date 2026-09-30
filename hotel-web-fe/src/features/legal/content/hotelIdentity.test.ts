@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getHotelSettings, saveHotelSettings } from '../../../utils/hotelSettings';
 import { HOTEL_LEGAL_IDENTITY, getHotelLegalIdentity } from './hotelIdentity';
 import { buildTermsOfService } from './termsOfService';
+import { LEGAL_LOCALES, type LegalLocale } from './types';
 
 function createLocalStorageStub() {
   const store = new Map<string, string>();
@@ -69,7 +70,7 @@ describe('buildTermsOfService', () => {
     vi.unstubAllGlobals();
   });
 
-  const partiesText = (locale: 'en' | 'ms', number: string) => {
+  const partiesText = (locale: LegalLocale, number: string) => {
     const document = buildTermsOfService({
       ...HOTEL_LEGAL_IDENTITY,
       companyRegistrationNumber: number,
@@ -79,10 +80,12 @@ describe('buildTermsOfService', () => {
   };
 
   // PDPA s.7(2) requires both languages, so a number that reaches only the
-  // English clause is still a compliance gap.
-  it('discloses the supplied number in both languages', () => {
-    expect(partiesText('en', 'SA9998887')).toContain('SA9998887');
-    expect(partiesText('ms', 'SA9998887')).toContain('SA9998887');
+  // English clause is still a compliance gap — and so is one missing from the
+  // Chinese translations.
+  it('discloses the supplied number in every locale', () => {
+    for (const locale of LEGAL_LOCALES) {
+      expect(partiesText(locale, 'SA9998887')).toContain('SA9998887');
+    }
   });
 
   it('defaults to the compiled-in identity when none is passed', () => {

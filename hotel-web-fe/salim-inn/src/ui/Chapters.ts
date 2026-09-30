@@ -1,10 +1,10 @@
 // Chapter sections (real DOM copy, in reading order), the chapter dots, and
 // the scroll geometry that maps page scroll to the master timeline.
-import { en } from '../content/en';
+import { copy, fill } from '../content';
 import { CHAPTERS, type ChapterDef } from '../experience/Timeline';
-import { SITE, SHOW_PRICES, WEB_RATES } from '../config/site';
+import { SITE, WEB_RATES } from '../config/site';
 
-const LABELS: Record<number, string> = { 1: 'Farley', 2: 'Neighbourhood', 3: 'Salim Inn', 4: 'Arrival', 5: 'Reception', 6: 'Rooms', 7: 'Footsteps', 8: 'Book' };
+const minRate = Math.min(...Object.values(WEB_RATES));
 
 export class Chapters {
   readonly sections: HTMLElement[] = [];
@@ -17,7 +17,7 @@ export class Chapters {
 
   constructor() {
     for (const def of CHAPTERS) {
-      const copy = en.chapters.find((c) => c.id === def.id)!;
+      const chapter = copy.chapters.find((c) => c.id === def.id)!;
       const sec = document.createElement('section');
       sec.className = `chapter chapter--${def.key}`;
       sec.id = `chapter-${def.id}`;
@@ -27,16 +27,16 @@ export class Chapters {
       const inner = document.createElement('div');
       inner.className = 'chapter__copy';
       inner.innerHTML = `
-        <p class="eyebrow line">${copy.eyebrow}</p>
-        <${tag} class="line" id="chapter-${def.id}-title">${copy.title}</${tag}>
-        <p class="chapter__body line">${copy.body}</p>`;
+        <p class="eyebrow line">${chapter.eyebrow}</p>
+        <${tag} class="line" id="chapter-${def.id}-title">${chapter.title}</${tag}>
+        <p class="chapter__body line">${chapter.body}</p>`;
       if (def.id === 8) {
         inner.insertAdjacentHTML(
           'beforeend',
           `<div class="booking-card line" id="book">
-            <p>Choose your dates and room on the Salim Inn booking portal. Check-in from ${SITE.checkIn.label}, check-out by ${SITE.checkOut.label}.</p>
-            <a class="pill pill--gold" href="${SITE.bookingUrl}" target="_top">Book direct</a>
-            <a class="pill" href="tel:${SITE.phoneE164}">Call ${SITE.phoneDisplay}</a>
+            <p>${copy.bookingCard.blurb}</p>
+            <a class="pill pill--gold" href="${SITE.bookingUrl}" target="_top">${copy.bookingCard.book}</a>
+            <a class="pill" href="tel:${SITE.phoneE164}">${fill(copy.bookingCard.call, { phone: SITE.phoneDisplay })}</a>
           </div>`,
         );
       }
@@ -47,12 +47,13 @@ export class Chapters {
 
     const ol = document.getElementById('chapter-dots')!;
     for (const def of CHAPTERS) {
+      const label = copy.chapterNav.labels[def.id - 1];
       const li = document.createElement('li');
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'chapter-dot';
-      b.innerHTML = `<span class="chapter-dot__label">${String(def.id).padStart(2, '0')} · ${LABELS[def.id]}</span><span class="chapter-dot__pip"></span>`;
-      b.setAttribute('aria-label', `Chapter ${def.id}: ${LABELS[def.id]}`);
+      b.innerHTML = `<span class="chapter-dot__label">${String(def.id).padStart(2, '0')} · ${label}</span><span class="chapter-dot__pip"></span>`;
+      b.setAttribute('aria-label', fill(copy.chapterNav.aria, { id: def.id, label }));
       b.addEventListener('click', () => this.onJump?.(def.p0 + (def.p1 - def.p0) * (def.id === 1 ? 0 : 0.02)));
       li.appendChild(b);
       ol.appendChild(li);
@@ -61,9 +62,9 @@ export class Chapters {
 
     const footer = document.querySelector('.footer-address')!;
     footer.textContent = `${SITE.name} · ${SITE.address.line1}, ${SITE.address.line2}, ${SITE.address.postcode} ${SITE.address.city}, ${SITE.address.state} · ${SITE.phoneDisplay}`;
-    document.querySelector('.footer-osm')!.textContent = en.footer.osm;
+    document.querySelector('.footer-osm')!.textContent = copy.footer.osm;
     const rate = document.querySelector('.mobile-cta__rate')!;
-    rate.innerHTML = SHOW_PRICES ? `from <strong>RM${Math.min(...Object.values(WEB_RATES))}</strong> / night` : 'Book direct';
+    rate.innerHTML = fill(copy.mobileCta.rate, { min: minRate });
     this.layout();
   }
 

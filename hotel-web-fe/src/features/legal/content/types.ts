@@ -1,26 +1,33 @@
+import type { LocaleCode } from '../../../i18n';
+
 /**
- * Bilingual legal content primitives.
+ * Legal content primitives, in all four interface languages.
  *
  * Malaysia's Personal Data Protection Act 2010 (Act 709) s.7(2) requires the
  * written notice given to a data subject to be in BOTH the national language
- * (Bahasa Malaysia) and English. Every string a guest can be shown as part of a
- * notice or consent therefore carries both languages — `LocalizedText` has no
- * optional side on purpose, so a missing translation is a type error rather
- * than a silent compliance gap.
+ * (Bahasa Malaysia) and English — en and ms are the mandatory pair; zh and
+ * zh-TW ride along because every supported interface language gets the corpus.
+ * `LocalizedText` has no optional side on purpose, so a missing translation is
+ * a type error rather than a silent compliance gap — and a consent record can
+ * never claim a language the text does not exist in.
  */
 
-export type LegalLocale = 'en' | 'ms';
+export type LegalLocale = LocaleCode;
 
-export const LEGAL_LOCALES: readonly LegalLocale[] = ['en', 'ms'] as const;
+export const LEGAL_LOCALES: readonly LegalLocale[] = ['en', 'ms', 'zh', 'zh-TW'] as const;
 
 export const LEGAL_LOCALE_LABELS: Record<LegalLocale, string> = {
   en: 'English',
   ms: 'Bahasa Malaysia',
+  zh: '简体中文',
+  'zh-TW': '繁體中文',
 };
 
 export interface LocalizedText {
   en: string;
   ms: string;
+  zh: string;
+  'zh-TW': string;
 }
 
 /**

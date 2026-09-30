@@ -157,7 +157,7 @@ in review (`communications:campaigns.new/newTitle`, ms
 
 | Exception | Detail |
 |---|---|
-| Legal corpus | `features/legal/content/*` stays **en/ms only** (PDPA s.7(2)); zh/zh-TW chrome keys exist for parity but are runtime-unreachable — corpus locale set is en/ms via `LegalLocaleContext` (zh and zh-TW both resolve to en). |
+| Legal corpus | `features/legal/content/*` is fully four-locale: en/ms satisfy PDPA s.7(2); zh/zh-TW are authored drafts flagged `DRAFT — pending native/legal review` in each content file. `LegalLocale` = `LocaleCode`; the corpus toggle lists all four and consent records the actual locale read. |
 | Help corpus | `features/help/content/*` authored en/ms/zh; zh-TW reads the zh article set (`READS_FROM` in `features/help/content/index.ts`); `help` ns chrome is fully translated. |
 | PDF bodies | Night-audit and audit-log jsPDF export documents stay **English** — jsPDF's built-in `helvetica` covers Latin-1 only, so zh/ms copy would render as mojibake until a CJK-capable font is embedded via `addFont`. Translated lookups and dates in those paths are pinned to en (`translateFor('en', …)`, `formatHotelDateTime(…, 'en')`); CSV exports are translated. |
 | DB/server content | Guest names, room names, rate descriptions, remarks, email bodies — backend email copy is covered by `hotel-app-be/src/core/locales/{en,ms,zh,zh-TW}.json`. |

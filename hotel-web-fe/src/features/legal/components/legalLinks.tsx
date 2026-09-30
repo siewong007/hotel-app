@@ -9,12 +9,29 @@ import {
 
 /** Link text for each placeholder a consent label or notice can contain. */
 export const PLACEHOLDER_LABELS: Record<string, LocalizedText> = {
-  '{terms}': { en: 'Booking Terms and Conditions', ms: 'Terma dan Syarat Tempahan' },
-  '{privacy}': { en: 'Privacy Notice', ms: 'Notis Privasi' },
-  '{payment}': { en: 'Payment Terms', ms: 'Terma Pembayaran' },
+  '{terms}': {
+    en: 'Booking Terms and Conditions',
+    ms: 'Terma dan Syarat Tempahan',
+    zh: '预订条款与条件',
+    'zh-TW': '預訂條款與條件',
+  },
+  '{privacy}': {
+    en: 'Privacy Notice',
+    ms: 'Notis Privasi',
+    zh: '隐私通知',
+    'zh-TW': '隱私通知',
+  },
+  '{payment}': {
+    en: 'Payment Terms',
+    ms: 'Terma Pembayaran',
+    zh: '付款条款',
+    'zh-TW': '付款條款',
+  },
   '{ekyc}': {
     en: 'the identity verification notice',
     ms: 'notis pengesahan identiti',
+    zh: '身份验证通知',
+    'zh-TW': '身分驗證通知',
   },
 };
 

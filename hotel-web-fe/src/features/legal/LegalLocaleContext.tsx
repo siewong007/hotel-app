@@ -16,12 +16,13 @@ const LegalLocaleContext = createContext<LegalLocaleValue | undefined>(undefined
 /**
  * Holds which language the legal text is displayed in.
  *
- * This is not cosmetic: the chosen locale is written into the consent record,
- * because PDPA s.7(2) requires the notice in both Bahasa Malaysia and English
- * and the evidence should say which one the guest actually read.
+ * This is not cosmetic: the chosen locale is written into the consent record —
+ * PDPA s.7(2) requires the notice in both Bahasa Malaysia and English, and the
+ * evidence should say which one the guest actually read. The corpus ships all
+ * four interface languages, so this is a straight pass-through.
  *
  * The interface language store is the single source of truth — a guest who
- * picks Bahasa Melayu in the header (or on these EN/MS toggles) must see the
+ * picks Bahasa Melayu in the header (or on the document toggles) must see the
  * terms in that language, and the payload must record that same code. A second
  * `legal-locale` store was what made the checkbox language and the recorded
  * locale diverge.
@@ -33,11 +34,7 @@ export const LegalLocaleProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
 function useSharedLegalLocale(): LegalLocaleValue {
   const interfaceLocale = useSyncExternalStore(subscribeToLocale, getActiveLocale, getActiveLocale);
-  // The legal corpus ships only the two PDPA languages. A guest whose
-  // interface language has no legal text (e.g. zh, pending its own
-  // translation task) reads the English notice — and English is what the
-  // consent record must name.
-  const locale: LegalLocale = interfaceLocale === 'ms' ? 'ms' : 'en';
+  const locale: LegalLocale = interfaceLocale;
   const setLocale = useCallback((next: LegalLocale) => {
     setActiveLocale(next);
   }, []);

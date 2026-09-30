@@ -37,5 +37,7 @@ export const REGISTRATION_NOTICE: ConsentNoticeContent = {
   text: {
     en: 'By creating an account and using this service, you agree to the {terms} and acknowledge the {privacy}, which describes how your personal data is processed.',
     ms: 'Dengan mencipta akaun dan menggunakan perkhidmatan ini, anda bersetuju dengan {terms} dan mengakui {privacy}, yang menerangkan cara data peribadi anda diproses.',
+    zh: '创建账户并使用本服务，即表示您同意{terms}并知悉{privacy}，其中说明了您的个人资料将如何被处理。',
+    'zh-TW': '建立帳戶並使用本服務，即表示您同意{terms}並知悉{privacy}，其中說明了您的個人資料將如何被處理。',
   },
 };

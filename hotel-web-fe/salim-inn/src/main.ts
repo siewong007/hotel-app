@@ -19,6 +19,9 @@ import { LOOK } from './world/Sky';
 import { salimLocal } from './world/layout';
 import { Chapters } from './ui/Chapters';
 import type { Tier } from './config/quality';
+import { copy, lang } from './content';
+import { selectLang, type LangCode } from './content/lang';
+import { applyCopy } from './applyCopy';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -37,9 +40,16 @@ function webglAvailable(): boolean {
 }
 
 async function boot(): Promise<void> {
+  applyCopy();
+  const picker = document.getElementById('langPicker') as HTMLSelectElement | null;
+  if (picker) {
+    picker.value = lang;
+    picker.addEventListener('change', () => selectLang(picker.value as LangCode));
+  }
+
   const pre = new Preloader();
   const chapters = new Chapters();
-  pre.set(0.04, 'Loading the neighbourhood');
+  pre.set(0.04, copy.preloader.loading);
 
   if (!webglAvailable()) {
     // Milestone 4 replaces this with the full poster-frame fallback page.
@@ -93,7 +103,7 @@ async function boot(): Promise<void> {
   let playing = false;
   const setPlaying = (v: boolean) => {
     playing = v;
-    playBtn.textContent = v ? 'Pause film' : timeline.progress > 0.99 ? 'Replay film' : 'Play film';
+    playBtn.textContent = v ? copy.nav.pause : timeline.progress > 0.99 ? copy.nav.replay : copy.nav.play;
     playBtn.setAttribute('aria-pressed', String(v));
   };
   playBtn.addEventListener('click', () => {
@@ -131,12 +141,12 @@ async function boot(): Promise<void> {
   };
 
   // Precompile every material before the preloader leaves (no first-use hitches).
-  pre.set(0.84, 'Warming up the lights');
+  pre.set(0.84, copy.preloader.warming);
   rig.update(0, 0);
   world.update(0, 0, camera, rig.lookTarget, tier);
   world.interior.visible = true;
   await renderer.gl.compileAsync(world.scene, camera);
-  pre.set(0.95, 'Almost there');
+  pre.set(0.95, copy.preloader.almost);
 
   // Debug overlay (dynamic import keeps stats-gl / three-mesh-bvh out of the main bundle).
   let debug: import('./experience/Debug').Debug | null = null;
