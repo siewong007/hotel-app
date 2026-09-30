@@ -1,18 +1,110 @@
-// English copy. Every string the page shows lives here so Bahasa Malaysia and
-// Chinese versions can be added later (phase 2 — no machine translation for
-// launch). Facts are interpolated from config/site.ts, never typed inline.
+// English copy. Every string the page shows lives here so the Bahasa Malaysia
+// and Chinese bundles can follow the same shape. Facts are interpolated from
+// config/site.ts, never typed inline; `{{name}}` slots are filled at runtime.
 import { SITE, WEB_RATES, SHOW_PRICES, CLAIM_ONLY_HOTEL } from '../config/site';
 
 const minRate = Math.min(...Object.values(WEB_RATES));
 
-export const en = {
+/** The whole page's copy. Every bundle implements this shape — a missing
+ *  string is a type error, not a silent English fallback. */
+export interface Copy {
+  meta: { title: string; description: string };
+  brand: { name: string; place: string; backToStart: string; logoAlt: string };
+  nav: {
+    /** aria-label for the top-actions group. */
+    aria: string;
+    /** aria-label for the chapter dot rail. */
+    label: string;
+    play: string;
+    pause: string;
+    replay: string;
+    book: string;
+    /** .skip-link text. */
+    skipLink: string;
+  };
+  /** Account-aware topbar pills (accountActions.ts). */
+  account: { signIn: string; myAccount: string; adminConsole: string; bookAnotherStay: string };
+  /** Language picker aria-label. Option names are native labels — never translated. */
+  lang: { aria: string };
+  preloader: { loading: string; warming: string; almost: string; ready: string };
+  /** Chapter dot rail: one short label per chapter id (index 0 = chapter 1)
+   *  plus the `{{id}}`/`{{label}}` aria template. */
+  chapterNav: { labels: string[]; aria: string };
+  chapters: { id: number; eyebrow: string; title: string; body: string }[];
+  /** The booking card inside chapter 8. `call` takes `{{phone}}`. */
+  bookingCard: { blurb: string; book: string; call: string };
+  welcome: { eyebrow: string; title: string; intro: string };
+  trust: { aria: string; items: { strong: string; span: string }[] };
+  rooms: {
+    eyebrow: string;
+    title: string;
+    blurb: string;
+    items: { tag: string; name: string }[];
+    perNight: string;
+    checkAvailability: string;
+    rateNote: string;
+  };
+  gallery: {
+    eyebrow: string;
+    title: string;
+    blurb: string;
+    /** In DOM order: the four room shots, then the six gallery figures. */
+    items: { alt: string; title: string; caption: string }[];
+  };
+  amenities: { eyebrow: string; title: string; blurb: string; items: { title: string; body: string }[] };
+  stay: {
+    eyebrow: string;
+    title: string;
+    body: string;
+    cta: string;
+    labels: { address: string; call: string; email: string };
+    /** Displayed postal address (may contain <br>). */
+    address: string;
+  };
+  faq: { eyebrow: string; title: string; blurb: string; items: { q: string; a: string }[] };
+  cta: { title: string; book: string; call: string };
+  footer: { osm: string; rights: string };
+  /** `rate` takes `{{min}}` and may contain <strong>. */
+  mobileCta: { rate: string };
+}
+
+export const en: Copy = {
   meta: {
     title: 'Salim Inn — Hotel in Farley Commercial Centre, Sibu',
     description: `Salim Inn is the hotel at the heart of Farley, Jalan Salim, Sibu: 29 air-conditioned rooms, free Wi-Fi, 24-hour reception and guest parking at the door. Book direct${SHOW_PRICES ? ` from RM${minRate} a night` : ''}.`,
   },
-  brand: { name: 'SALIM INN', place: 'Farley, Sibu' },
-  nav: { label: 'Chapters', play: 'Play film', pause: 'Pause film', replay: 'Replay film', book: 'Book direct', skip: 'Skip the film' },
-  preloader: { loading: 'Loading the neighbourhood', ready: 'Scroll to begin' },
+  brand: {
+    name: 'SALIM INN',
+    place: 'Farley, Sibu',
+    backToStart: 'Salim Inn — back to the start',
+    logoAlt: 'Salim Inn — Cozy, Clean, Affordable Comfort',
+  },
+  nav: {
+    aria: 'Primary navigation',
+    label: 'Chapters',
+    play: 'Play film',
+    pause: 'Pause film',
+    replay: 'Replay film',
+    book: 'Book direct',
+    skipLink: 'Skip the film and book',
+  },
+  account: {
+    signIn: 'Sign in',
+    myAccount: 'My account',
+    adminConsole: 'Admin console',
+    bookAnotherStay: 'Book another stay',
+  },
+  lang: { aria: 'Language' },
+  preloader: {
+    loading: 'Loading the neighbourhood',
+    warming: 'Warming up the lights',
+    almost: 'Almost there',
+    ready: 'Scroll to begin',
+  },
+  chapterNav: {
+    labels: ['Farley', 'Neighbourhood', 'Salim Inn', 'Arrival', 'Reception', 'Rooms', 'Footsteps', 'Book'],
+    aria: 'Chapter {{id}}: {{label}}',
+  },
   chapters: [
     {
       id: 1,
@@ -63,10 +155,120 @@ export const en = {
       body: SHOW_PRICES ? `From RM${minRate} a night · web rate` : 'Best when you book direct.',
     },
   ],
+  bookingCard: {
+    blurb: `Choose your dates and room on the Salim Inn booking portal. Check-in from ${SITE.checkIn.label}, check-out by ${SITE.checkOut.label}.`,
+    book: 'Book direct',
+    call: 'Call {{phone}}',
+  },
+  welcome: {
+    eyebrow: 'WELCOME TO SALIM INN',
+    title: 'Modern comfort.<br><em>Honest value.</em>',
+    intro:
+      'Since 2012, Salim Inn has welcomed travellers looking for a practical, comfortable stay in Sibu. Set within Farley Commercial Centre, shopping and places to eat are right outside—while a caring team is available around the clock.',
+  },
+  trust: {
+    aria: 'Hotel highlights',
+    items: [
+      { strong: '24 hours', span: 'Reception and CCTV' },
+      { strong: '5 minutes', span: 'Walk to Farley Supermarket' },
+      { strong: 'Since 2012', span: 'Welcoming guests in Sibu' },
+    ],
+  },
+  rooms: {
+    eyebrow: 'ROOMS & WEB RATES',
+    title: 'A room for every<br>kind of stay.',
+    blurb: 'From a simple queen room to a family suite, each stay includes the essentials for a comfortable night.',
+    items: [
+      { tag: '01 · COMFORT FOR TWO', name: 'Standard Queen' },
+      { tag: '02 · EXTRA SPACE', name: 'Deluxe King' },
+      { tag: '03 · TWO BEDS', name: 'Superior Twin' },
+      { tag: '04 · TRAVEL TOGETHER', name: 'Family Room' },
+      { tag: '05 · KING + QUEEN', name: 'Family Suite' },
+    ],
+    perNight: '/ night',
+    checkAvailability: 'Check availability',
+    rateNote:
+      'Promotional web rates shown by Salim Inn at the time of publication. Availability and final pricing are confirmed during booking.',
+  },
+  gallery: {
+    eyebrow: 'A LOOK INSIDE',
+    title: 'See where you’ll<br>settle in.',
+    blurb: 'Official Salim Inn photographs show the real room layouts, bathrooms, and Farley surroundings before you book.',
+    items: [
+      { alt: 'Salim Inn Deluxe King room with bed and bedside furniture', title: 'Deluxe King', caption: 'A larger bed and practical floor plan' },
+      { alt: 'Salim Inn Superior Twin room with two separate beds', title: 'Superior Twin', caption: 'Separate beds for a flexible stay' },
+      { alt: 'Salim Inn family room with multiple beds', title: 'Family Room', caption: 'Space to stay together' },
+      { alt: 'Salim Inn family suite with queen bed and work desk', title: 'Family Suite', caption: 'Room to spread out together' },
+      { alt: 'Salim Inn guest room with window, television, work desk and air-conditioning', title: 'Inside your room', caption: 'TV, workspace and air-conditioning' },
+      { alt: 'Salim Inn bathroom with fresh towels on a chrome rack above the toilet', title: 'Private bathroom', caption: 'Fresh towels, ready on arrival' },
+      { alt: 'Salim Inn bathroom with pedestal sink and frosted window', title: 'Ensuite bathroom', caption: 'Bright, clean and practical' },
+      { alt: 'Salim Inn bathroom with shower curtain, pedestal sink and bidet sprayer', title: 'Hot shower', caption: 'Shower, WC and bidet sprayer' },
+      { alt: 'Farley Commercial Centre exterior near Salim Inn', title: 'Farley at your doorstep', caption: 'Shops and food close by' },
+      { alt: 'Current street-facing facade of Salim Inn and cafe.cafe with cars parked outside', title: 'The Salim Inn frontage', caption: 'Easy to recognise from the road' },
+    ],
+  },
+  amenities: {
+    eyebrow: 'ESSENTIALS AS STANDARD',
+    title: 'Everything you need.<br>Nothing you don’t.',
+    blurb: 'Thoughtful basics keep your stay connected, comfortable, and secure.',
+    items: [
+      { title: 'Free high-speed Wi‑Fi', body: 'Stay connected throughout Salim Inn.' },
+      { title: 'Air-conditioned rooms', body: 'Your own cool, comfortable space.' },
+      { title: 'In-room LCD television', body: 'Relax with satellite television channels.' },
+      { title: '24-hour reception', body: 'Help is available whenever you need it.' },
+      { title: '24-hour CCTV', body: 'Round-the-clock on-site surveillance.' },
+      { title: 'Family-friendly rooms', body: 'Flexible options for travelling together.' },
+    ],
+  },
+  stay: {
+    eyebrow: 'PLAN YOUR VISIT',
+    title: 'Right at Farley.<br>Ready when you are.',
+    body: `Check in from ${SITE.checkIn.label} and check out by ${SITE.checkOut.label}. Book online or contact Salim Inn directly if you need help choosing a room.`,
+    cta: 'Check availability',
+    labels: { address: 'Address', call: 'Call', email: 'Email' },
+    address: 'Lot 21–22, Lorong Salim 17<br>96000 Sibu, Sarawak, Malaysia',
+  },
+  faq: {
+    eyebrow: 'GOOD TO KNOW',
+    title: 'Frequently<br>asked questions.',
+    blurb: 'Quick answers for a smoother arrival. Contact the 24-hour reception team if you need anything else.',
+    items: [
+      {
+        q: 'What time are check-in and check-out?',
+        a: `Check-in begins at ${SITE.checkIn.label} and check-out is by ${SITE.checkOut.label}. Late checkout is subject to room availability and additional charges; a full-day rate may apply after 3:00 pm.`,
+      },
+      {
+        q: 'How is my booking confirmed?',
+        a: 'Bookings are confirmed after full payment is received. Published payment methods include credit card, PayPal, and bank transfer.',
+      },
+      {
+        q: 'What is the cancellation policy?',
+        a: `A refund may be available when cancellation notice is provided at least three days before arrival. With less notice—or for a no-show—the first night may be charged.`,
+      },
+      {
+        q: 'Does every room have Wi‑Fi and air-conditioning?',
+        a: 'Yes. Free Wi‑Fi is available throughout Salim Inn, and guest rooms include air-conditioning and a television.',
+      },
+      {
+        q: 'Where is Salim Inn located?',
+        a: 'Salim Inn is at Lot 21–22, Lorong Salim 17 in Farley Commercial Centre, Sibu. Farley Supermarket is approximately a five-minute walk away.',
+      },
+      {
+        q: 'Can I speak to someone at any time?',
+        a: `Yes. Reception operates 24 hours. Call <a href="tel:${SITE.phoneE164}">${SITE.phoneDisplay}</a> or email <a href="mailto:${SITE.email}">${SITE.email}</a>.`,
+      },
+    ],
+  },
+  cta: {
+    title: 'Make Sibu feel<br>a little more like home.',
+    book: 'Book your stay',
+    call: 'Call Salim Inn',
+  },
   footer: {
     osm: 'Map data © OpenStreetMap contributors',
     rights: `© ${new Date().getFullYear()} Salim Inn, Sibu`,
   },
-} as const;
-
-export type Copy = typeof en;
+  mobileCta: {
+    rate: SHOW_PRICES ? 'from <strong>RM{{min}}</strong> / night' : 'Book direct',
+  },
+};

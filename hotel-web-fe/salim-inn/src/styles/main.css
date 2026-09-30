@@ -100,6 +100,12 @@ button { font: inherit; color: inherit; }
 .pill[hidden] { display: none; }
 .mobile-cta[hidden] { display: none !important; }
 
+/* The language select wears the same pill look as the buttons beside it. The
+   option list renders with native colors, so it is pinned to ink-on-paper to
+   stay readable where the select's own text is light-on-dark. */
+.lang-picker { color: inherit; padding-left: 16px; padding-right: 16px; }
+.lang-picker option { color: var(--ink); background: #f4f0e8; text-transform: none; }
+
 /* ---------------------------------------------------------------- chapter nav */
 .chapter-nav { position: fixed; right: calc(var(--gutter) - 8px); top: 50%; z-index: 20; -webkit-transform: translate3d(0, -50%, 0); transform: translate3d(0, -50%, 0); }
 .chapter-nav ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
