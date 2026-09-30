@@ -819,6 +819,8 @@ const EkycRegistrationPage: React.FC = () => {
               title={{
                 en: 'Consent to identity verification',
                 ms: 'Persetujuan pengesahan identiti',
+                zh: '同意身份验证',
+                'zh-TW': '同意身分驗證',
               }}
             />
           </Box>

@@ -30,12 +30,21 @@ import { returnToPreviousPage } from '../../../utils/returnNavigation';
 import { translateFor, type TranslationVars } from '../../../i18n';
 
 const SIBLING_LINKS: { id: LegalDocumentId; label: Record<LegalLocale, string> }[] = [
-  { id: 'terms_of_service', label: { en: 'Booking Terms', ms: 'Terma Tempahan' } },
-  { id: 'privacy_notice', label: { en: 'Privacy Notice', ms: 'Notis Privasi' } },
-  { id: 'payment_terms', label: { en: 'Payment Terms', ms: 'Terma Pembayaran' } },
+  {
+    id: 'terms_of_service',
+    label: { en: 'Booking Terms', ms: 'Terma Tempahan', zh: '预订条款', 'zh-TW': '預訂條款' },
+  },
+  {
+    id: 'privacy_notice',
+    label: { en: 'Privacy Notice', ms: 'Notis Privasi', zh: '隐私通知', 'zh-TW': '隱私通知' },
+  },
+  {
+    id: 'payment_terms',
+    label: { en: 'Payment Terms', ms: 'Terma Pembayaran', zh: '付款条款', 'zh-TW': '付款條款' },
+  },
   {
     id: 'ekyc_biometric',
-    label: { en: 'Identity Verification', ms: 'Pengesahan Identiti' },
+    label: { en: 'Identity Verification', ms: 'Pengesahan Identiti', zh: '身份验证', 'zh-TW': '身分驗證' },
   },
 ];
 

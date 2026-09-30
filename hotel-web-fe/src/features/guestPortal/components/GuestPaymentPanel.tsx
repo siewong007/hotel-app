@@ -328,7 +328,7 @@ export function GuestPaymentPanel({
           prompts={PAYMENT_CONSENTS}
           state={consent}
           keyPoints={PAYMENT_KEY_POINTS}
-          title={{ en: 'Before you pay', ms: 'Sebelum anda membayar' }}
+          title={{ en: 'Before you pay', ms: 'Sebelum anda membayar', zh: '付款前须知', 'zh-TW': '付款前須知' }}
         />
       ) : null}
 
