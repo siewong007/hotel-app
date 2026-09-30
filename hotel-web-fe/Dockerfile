@@ -52,7 +52,7 @@ RUN bun run build
 # Stage 2: Serve with Nginx
 # Version-pinned (was floating nginx:alpine) so two deploys of the
 # same commit cannot get different web servers.
-FROM nginx:1.29-alpine
+FROM nginx:1.31-alpine
 
 # Install curl for health checks
 RUN apk add --no-cache curl
