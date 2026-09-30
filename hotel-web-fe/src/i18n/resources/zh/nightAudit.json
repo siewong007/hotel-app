@@ -155,5 +155,17 @@
     "colNights": "晚数",
     "colPaymentMethod": "支付方式",
     "colPaymentStatus": "支付状态"
+  },
+  "pdf": {
+    "reportTitle": "夜审",
+    "auditDate": "审计日期 : {{date}}",
+    "roomCharge": "房费",
+    "colCheckIn": "入住",
+    "colCheckOut": "退房",
+    "colCredit": "贷方金额",
+    "colServiceTax": "服务税",
+    "totals": "合计 : {{amount}}",
+    "total": "合计",
+    "footer": "生成时间：{{time}} | 第 {{page}} 页，共 {{total}} 页"
   }
 }

@@ -157,5 +157,17 @@
     "colNights": "Nights",
     "colPaymentMethod": "Payment Method",
     "colPaymentStatus": "Payment Status"
+  },
+  "pdf": {
+    "reportTitle": "Night Audit",
+    "auditDate": "Audit Date : {{date}}",
+    "roomCharge": "Room Charge",
+    "colCheckIn": "Check-in",
+    "colCheckOut": "Check-out",
+    "colCredit": "Credit",
+    "colServiceTax": "Service Tax",
+    "totals": "Totals : {{amount}}",
+    "total": "Total",
+    "footer": "Generated: {{time}} | Page {{page}} of {{total}}"
   }
 }

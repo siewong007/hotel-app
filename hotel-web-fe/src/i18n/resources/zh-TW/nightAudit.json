@@ -155,5 +155,17 @@
     "colNights": "晚數",
     "colPaymentMethod": "付款方式",
     "colPaymentStatus": "付款狀態"
+  },
+  "pdf": {
+    "reportTitle": "夜間稽核",
+    "auditDate": "稽核日期 : {{date}}",
+    "roomCharge": "房費",
+    "colCheckIn": "入住",
+    "colCheckOut": "退房",
+    "colCredit": "貸方金額",
+    "colServiceTax": "服務稅",
+    "totals": "合計 : {{amount}}",
+    "total": "合計",
+    "footer": "產生時間：{{time}} | 第 {{page}} 頁，共 {{total}} 頁"
   }
 }

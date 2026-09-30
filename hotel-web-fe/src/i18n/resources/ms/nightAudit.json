@@ -157,5 +157,17 @@
     "colNights": "Malam",
     "colPaymentMethod": "Kaedah Bayaran",
     "colPaymentStatus": "Status Bayaran"
+  },
+  "pdf": {
+    "reportTitle": "Audit Malam",
+    "auditDate": "Tarikh Audit : {{date}}",
+    "roomCharge": "Caj Bilik",
+    "colCheckIn": "Daftar masuk",
+    "colCheckOut": "Daftar keluar",
+    "colCredit": "Kredit",
+    "colServiceTax": "Cukai Perkhidmatan",
+    "totals": "Jumlah : {{amount}}",
+    "total": "Jumlah",
+    "footer": "Dijana: {{time}} | Halaman {{page}} daripada {{total}}"
   }
 }

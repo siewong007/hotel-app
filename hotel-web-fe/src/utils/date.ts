@@ -125,8 +125,8 @@ export const formatHotelDate = (value: BusinessDateValue, fallback = '-'): strin
 // Date + time display: zoned instants render in the hotel timezone; zone-less
 // values keep their literal wall time; date-only values render as a date.
 // All three render in the active interface language (see src/i18n) unless a
-// `locale` is given — e.g. PDF exports pin 'en' because jsPDF's built-in
-// fonts are Latin-1 only.
+// `locale` is given — PDF exports pass the document's language explicitly so
+// dates match the document's other strings regardless of viewer locale.
 export const formatHotelDateTime = (
   value: BusinessDateValue,
   fallback = '-',

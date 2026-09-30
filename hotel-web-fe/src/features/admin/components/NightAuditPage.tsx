@@ -48,6 +48,8 @@ import { dateFormatter } from '../../../i18n/format';
 import { formatHotelDate, formatHotelDateTime } from '../../../utils/date';
 import { statusLabel } from '../../../i18n/statusLabel';
 import { useTranslation } from '../../../i18n/useTranslation';
+import { getActiveLocale, translateFor } from '../../../i18n';
+import { preparePdfDocument } from '../../../utils/pdfFont';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
@@ -285,6 +287,14 @@ const NightAuditPage: React.FC = () => {
 
       // Portrait orientation to match the printed format
       const doc = new jsPDF({ orientation: 'portrait' });
+      // The document language follows the reader's interface locale. Chinese
+      // needs the embedded CJK font — helvetica is Latin-1 only — while Latin
+      // locales keep helvetica (and its real bold) with no font download.
+      const locale = getActiveLocale();
+      const pdfFont = await preparePdfDocument(doc, locale);
+      const pdfT = (key: string, vars?: Record<string, string | number>) =>
+        translateFor(locale, `nightAudit:pdf.${key}`, vars);
+      const pdfBoldStyle = pdfFont === 'helvetica' ? 'bold' : 'normal';
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 14;
@@ -295,13 +305,13 @@ const NightAuditPage: React.FC = () => {
 
       // Title
       doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
+      doc.setFont(pdfFont, pdfBoldStyle);
       doc.setTextColor(0, 0, 0);
-      doc.text('Night Audit', pageWidth / 2, 20, { align: 'center' });
+      doc.text(pdfT('reportTitle'), pageWidth / 2, 20, { align: 'center' });
 
       doc.setFontSize(11);
-      doc.text(`Audit Date : ${auditDateFormatted}`, pageWidth / 2, 28, { align: 'center' });
-      doc.setFont('helvetica', 'normal');
+      doc.text(pdfT('auditDate', { date: auditDateFormatted }), pageWidth / 2, 28, { align: 'center' });
+      doc.setFont(pdfFont, 'normal');
 
       let currentY = 36;
 
@@ -324,7 +334,7 @@ const NightAuditPage: React.FC = () => {
             const taxEntry = taxSection?.entries.find(e => e.room_number === entry.room_number);
             const booking = bookings.find(b => b.room_number === entry.room_number);
             rows.push([
-              'Room Charge',
+              pdfT('roomCharge'),
               entry.room_number,
               booking ? fmtDate(booking.check_in_date) : '',
               booking ? fmtDate(booking.check_out_date) : '',
@@ -340,8 +350,8 @@ const NightAuditPage: React.FC = () => {
             '',
             '',
             '',
-            `Totals : ${totalCredit}`,
-            `Totals : ${totalTax}`,
+            pdfT('totals', { amount: totalCredit }),
+            pdfT('totals', { amount: totalTax }),
           ]);
 
           if (currentY + rows.length * 7 + 15 > pageHeight - 20) {
@@ -351,9 +361,16 @@ const NightAuditPage: React.FC = () => {
 
           autoTable(doc, {
             startY: currentY,
-            head: [['Description', 'Room', 'Check-in', 'Check-out', 'Credit', 'Service Tax']],
+            head: [[
+              translateFor(locale, 'nightAudit:journal.colDescription'),
+              translateFor(locale, 'nightAudit:journal.colRoom'),
+              pdfT('colCheckIn'),
+              pdfT('colCheckOut'),
+              pdfT('colCredit'),
+              pdfT('colServiceTax'),
+            ]],
             body: rows,
-            styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.3 },
+            styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.3, font: pdfFont },
             headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'italic', lineColor: [0, 0, 0], lineWidth: 0.3 },
             columnStyles: {
               0: { fontStyle: 'italic', cellWidth: 35 },
@@ -391,7 +408,7 @@ const NightAuditPage: React.FC = () => {
           ]);
         }
         const total = isCreditSideSection ? Number(section.total_credit) : Number(section.total_debit);
-        rows.push(['', `Totals : ${total.toFixed(2)}`, '']);
+        rows.push(['', pdfT('totals', { amount: total.toFixed(2) }), '']);
 
         if (currentY + rows.length * 7 + 15 > pageHeight - 20) {
           doc.addPage();
@@ -403,7 +420,7 @@ const NightAuditPage: React.FC = () => {
           head: [['', '', '']],
           body: rows,
           showHead: false,
-          styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.3 },
+          styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.3, font: pdfFont },
           columnStyles: {
             0: { fontStyle: 'italic', cellWidth: 50 },
             1: { halign: 'right', fontStyle: 'bold', cellWidth: 50 },
@@ -425,9 +442,9 @@ const NightAuditPage: React.FC = () => {
 
       // Guest Ledger title
       doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Guest Ledger', margin, currentY);
-      doc.setFont('helvetica', 'normal');
+      doc.setFont(pdfFont, pdfBoldStyle);
+      doc.text(translateFor(locale, 'nightAudit:ledger.title'), margin, currentY);
+      doc.setFont(pdfFont, 'normal');
       currentY += 8;
 
       // Build General Journal summary rows from the report's debit/credit totals.
@@ -448,10 +465,18 @@ const NightAuditPage: React.FC = () => {
 
       autoTable(doc, {
         startY: currentY,
-        head: [['Account', 'Debits', 'Credits']],
+        head: [[
+          translateFor(locale, 'nightAudit:ledger.colAccount'),
+          translateFor(locale, 'nightAudit:ledger.colDebits'),
+          translateFor(locale, 'nightAudit:ledger.colCredits'),
+        ]],
         body: journalRows,
-        foot: [['Total', journalTotalDebit.toFixed(2), journalTotalCredit.toFixed(2)]],
-        styles: { fontSize: 9, cellPadding: 3, lineColor: [0, 0, 0], lineWidth: 0.3 },
+        foot: [[
+          translateFor(locale, 'nightAudit:journal.total'),
+          journalTotalDebit.toFixed(2),
+          journalTotalCredit.toFixed(2),
+        ]],
+        styles: { fontSize: 9, cellPadding: 3, lineColor: [0, 0, 0], lineWidth: 0.3, font: pdfFont },
         headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.3 },
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right', lineColor: [0, 0, 0], lineWidth: 0.3 },
         columnStyles: {
@@ -465,9 +490,9 @@ const NightAuditPage: React.FC = () => {
 
       // Room Sold Detail by Date
       doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Room Sold Detail by Date', margin, currentY);
-      doc.setFont('helvetica', 'normal');
+      doc.setFont(pdfFont, pdfBoldStyle);
+      doc.text(translateFor(locale, 'nightAudit:roomSold.title'), margin, currentY);
+      doc.setFont(pdfFont, 'normal');
       currentY += 8;
 
       const roomSoldRows: string[][] = bookings.map(b => {
@@ -479,16 +504,20 @@ const NightAuditPage: React.FC = () => {
         ];
       });
       roomSoldRows.push([
-        'Total Room Sold',
+        translateFor(locale, 'nightAudit:roomSold.totalRow'),
         bookings.length.toString(),
         '',
       ]);
 
       autoTable(doc, {
         startY: currentY,
-        head: [['Room', 'Type', 'Guest Name']],
+        head: [[
+          translateFor(locale, 'nightAudit:roomSold.colRoom'),
+          translateFor(locale, 'nightAudit:roomSold.colType'),
+          translateFor(locale, 'nightAudit:roomSold.colGuest'),
+        ]],
         body: roomSoldRows,
-        styles: { fontSize: 9, cellPadding: 3, lineColor: [0, 0, 0], lineWidth: 0.3 },
+        styles: { fontSize: 9, cellPadding: 3, lineColor: [0, 0, 0], lineWidth: 0.3, font: pdfFont },
         headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.3 },
         columnStyles: {
           0: { fontStyle: 'bold', halign: 'center', cellWidth: 35 },
@@ -503,9 +532,10 @@ const NightAuditPage: React.FC = () => {
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(8);
+        doc.setFont(pdfFont, 'normal');
         doc.setTextColor(150, 150, 150);
         doc.text(
-          `Generated: ${formatHotelDateTime(new Date())} | Page ${i} of ${totalPages}`,
+          pdfT('footer', { time: formatHotelDateTime(new Date(), '-', locale), page: i, total: totalPages }),
           margin,
           pageHeight - 10
         );
