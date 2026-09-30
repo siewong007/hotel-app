@@ -130,6 +130,22 @@ describe('RoomReservationTimeline', () => {
     expect(await screen.findByRole('alert')).toBeTruthy();
   });
 
+  it('shows a staff-creator badge on a booking chip that has room', async () => {
+    // Fixture ids are non-numeric ('r-101'); the grid matches room ids with
+    // Number(), so this test uses numeric ids the way the API does.
+    const numericRooms = rooms.map((r) => ({ ...r, id: r.room_number }));
+    const numericBookings = bookings.map((b) => ({
+      ...b,
+      room_id: b.room_number,
+      created_by_name: b.id === 'bk-1' ? 'Siti Aminah' : null,
+    }));
+    mocks.rooms = { ...queryData(numericRooms), refetch: vi.fn().mockResolvedValue(undefined) } as never;
+    mocks.bookings = { ...queryData(numericBookings), refetch: vi.fn().mockResolvedValue(undefined) } as never;
+    renderPage(<RoomReservationTimeline />, { route: '/timeline' });
+    expect(await screen.findByRole('button', { name: 'Created by Siti Aminah' })).toBeTruthy();
+    expect(screen.queryAllByRole('button', { name: /Created by/ })).toHaveLength(1);
+  });
+
   it('reports no axe violations in the populated grid state', async () => {
     setPopulated();
     const { container } = renderPage(<RoomReservationTimeline />, { route: '/timeline' });

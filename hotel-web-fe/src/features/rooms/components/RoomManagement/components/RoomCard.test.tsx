@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingWithDetails, Room } from '../../../../../types';
@@ -217,5 +217,52 @@ describe('RoomCard reserved dates', () => {
     );
 
     expect(screen.getByText('Reserved Oct 14–16')).toBeTruthy();
+  });
+});
+
+describe('RoomCard staff creator', () => {
+  afterEach(() => cleanup());
+
+  it('shows a badge whose name is the staff creator on an in-house card', () => {
+    renderOccupied(buildBooking({ created_by_name: 'Siti Aminah' }));
+    expect(screen.getByRole('button', { name: 'Created by Siti Aminah' })).toBeTruthy();
+  });
+
+  it('shows the badge on a reserved card and a tap does not open the room menu', () => {
+    const onMenuOpen = vi.fn();
+    render(
+      <RoomCard
+        room={{ ...room, status: 'reserved' }}
+        computedStatus="reserved"
+        statusLabel="Reserved"
+        booking={undefined}
+        reservedBooking={buildBooking({ status: 'confirmed', created_by_name: 'Lee Wei' })}
+        hasReservationForToday
+        isOccupied={false}
+        isReservedToday
+        isComplimentary={false}
+        cardFill="var(--hotel-status-reserved)"
+        onMenuOpen={onMenuOpen}
+        onEditNotes={noop}
+        onEditBookingNotes={noop}
+        onCheckOut={noop}
+        onChangeRoom={noop}
+        onCheckIn={noop}
+        onNewBooking={noop}
+        onMarkAvailable={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Created by Lee Wei' }));
+    expect(onMenuOpen).not.toHaveBeenCalled();
+  });
+
+  it('does not show the badge when the creator name is absent', () => {
+    renderOccupied(buildBooking({ created_by_name: null }));
+    expect(screen.queryByRole('button', { name: /Created by/ })).toBeNull();
+
+    cleanup();
+    renderOccupied(buildBooking({ created_by_name: '   ' }));
+    expect(screen.queryByRole('button', { name: /Created by/ })).toBeNull();
   });
 });

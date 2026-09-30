@@ -446,6 +446,12 @@ pub struct BookingWithDetails {
     /// booking whose smoking preference the room does not satisfy.
     /// Tolerant: absent from most SELECT lists.
     pub room_is_smoking: Option<bool>,
+    /// `users.full_name` of the staff user who created the booking.
+    /// Null when `created_by` is null, the user is a guest, the account is
+    /// deleted, or `full_name` is blank. Room cards use this as the only
+    /// signal for the receptionist/staff badge — no per-card lookup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_by_name: Option<String>,
     /// Computed from the booking guest's latest eKYC verification and booking eligibility.
     #[serde(default)]
     pub ekyc_summary: GuestEkycStatusSummary,
@@ -609,6 +615,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
             cleaning_preference: row.try_get("cleaning_preference")?,
             smoking_preference: row.try_get("smoking_preference").ok().flatten(),
             room_is_smoking: row.try_get("room_is_smoking").ok().flatten(),
+            created_by_name: row.try_get("created_by_name").ok().flatten(),
             ekyc_summary: GuestEkycStatusSummary::not_submitted(guest_id),
         })
     }

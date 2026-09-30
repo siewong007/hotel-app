@@ -87,6 +87,9 @@ export interface Booking {
   is_posted?: boolean;
   posted_date?: string;
   posted_at?: string;
+  // Staff creator's users.full_name. Absent/null for website and guest-created
+  // bookings (created_by null, or the creator is not user_type staff).
+  created_by_name?: string | null;
 }
 
 export interface BookingWithDetails extends Booking {

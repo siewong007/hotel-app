@@ -52,6 +52,7 @@ import { dateFormatter } from '../../../i18n/format';
 import { statusLabel } from '../../../i18n/statusLabel';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 import { errorMessage } from '../../../utils/errorMessage';
+import { CreatedByStaffIcon } from './CreatedByStaffIcon';
 
 // ── Layout ────────────────────────────────────────────────────────────────
 const ROOM_COL = 220;
@@ -141,6 +142,7 @@ interface TimelineBooking {
   extra_bed_charge?: number | string;
   company_name?: string;
   rate_code?: string;
+  created_by_name?: string | null;
 }
 
 type TimelineBookingBar = TimelineBooking & {
@@ -297,6 +299,7 @@ const RoomReservationTimeline: React.FC = () => {
         extra_bed_charge: b.extra_bed_charge,
         company_name: b.company_name,
         rate_code: b.rate_code,
+        created_by_name: b.created_by_name,
       }));
 
     const syntheticBookings: TimelineBooking[] = [];
@@ -638,6 +641,7 @@ const RoomReservationTimeline: React.FC = () => {
                           </Typography>
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography
+                              component="div"
                               sx={{
                                 fontFamily: 'inherit',
                                 fontSize: 18,
@@ -649,7 +653,10 @@ const RoomReservationTimeline: React.FC = () => {
                                 textOverflow: 'ellipsis',
                               }}
                             >
-                              {b.guest_name}
+                              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, maxWidth: '100%', minWidth: 0 }}>
+                                <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.guest_name}</Box>
+                                <CreatedByStaffIcon name={b.created_by_name} sx={{ color: PALETTE.ink }} />
+                              </Box>
                             </Typography>
                             <Typography
                               sx={{
@@ -924,8 +931,9 @@ const RoomReservationTimeline: React.FC = () => {
                             overflow: 'hidden',
                             zIndex: 4,
                             display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 0.25,
                             transition: 'filter 0.15s',
                             background: isSynthetic
                               ? `repeating-linear-gradient(45deg, ${sc.bg} 0 8px, color-mix(in srgb, ${sc.bg} 55%, transparent) 8px 16px)`
@@ -934,7 +942,7 @@ const RoomReservationTimeline: React.FC = () => {
                           }}
                         >
                           {showText && (
-                            <>
+                            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                               <Typography
                                 sx={{
                                   fontFamily: "'Caveat', cursive",
@@ -975,7 +983,10 @@ const RoomReservationTimeline: React.FC = () => {
                                   {formatCurrency(toMoneyNumber(b.price_per_night))}{t('config.perNight')}
                                 </Typography>
                               )}
-                            </>
+                            </Box>
+                          )}
+                          {width >= 64 && (
+                            <CreatedByStaffIcon name={b.created_by_name} sx={{ color: PALETTE.ink }} />
                           )}
                         </Box>
                       );
@@ -1042,6 +1053,12 @@ const RoomReservationTimeline: React.FC = () => {
                 />
               )}
             </Box>
+
+            {hoveredBooking.created_by_name?.trim() && (
+              <Typography variant="body2" sx={{ color: PALETTE.inkSubtle, mb: 0.5 }}>
+                {t('card.createdBy', { name: hoveredBooking.created_by_name.trim() })}
+              </Typography>
+            )}
 
             <Divider sx={{ my: 1, borderColor: PALETTE.rowDivider }} />
 

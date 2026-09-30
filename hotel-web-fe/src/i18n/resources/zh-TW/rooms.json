@@ -108,7 +108,8 @@
     "pendingPayment": "待付款",
     "awaitingPaymentConfirmation": "等待付款確認",
     "openActionsAria": "客房 {{room}}，{{status}} — 開啟操作",
-    "reservedRange": "已預訂 {{range}}"
+    "reservedRange": "已預訂 {{range}}",
+    "createdBy": "由 {{name}} 建立"
   },
   "contextMenu": {
     "roomTitle": "客房 {{room}}",

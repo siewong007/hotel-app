@@ -75,12 +75,23 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
         b.cleaning_preference, b.smoking_preference, r.is_smoking AS room_is_smoking,
+        -- Staff who created this booking. Anonymous website bookings leave
+        -- created_by null; a logged-in guest stores their own user id with
+        -- user_type 'guest'. Only staff (receptionist, manager, admin, …)
+        -- get a name, and only when full_name is non-blank, so the room card
+        -- can show one icon without a second query. Not receptionist-only:
+        -- a manager-created booking should not look like a guest booking.
+        CASE
+            WHEN creator.user_type::text = 'staff' THEN NULLIF(BTRIM(creator.full_name), '')
+            ELSE NULL
+        END AS created_by_name,
         COALESCE(bk_inv.invoice_number, bk_cli.invoice_number) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
     INNER JOIN room_types rt ON r.room_type_id = rt.id
     LEFT JOIN booking_channels bc ON bc.id = b.booking_channel_id
+    LEFT JOIN users creator ON creator.id = b.created_by AND creator.deleted_at IS NULL
     LEFT JOIN LATERAL (
         SELECT cl.amount, cl.paid_amount
         FROM customer_ledgers cl
@@ -163,6 +174,11 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
         b.cleaning_preference, b.smoking_preference, r.is_smoking AS room_is_smoking,
+        -- Same staff-creator name as GET_BOOKINGS_BASE_QUERY.
+        CASE
+            WHEN creator.user_type::text = 'staff' THEN NULLIF(BTRIM(creator.full_name), '')
+            ELSE NULL
+        END AS created_by_name,
         COALESCE(
             (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
             (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
@@ -172,6 +188,7 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
     INNER JOIN rooms r ON b.room_id = r.id
     INNER JOIN room_types rt ON r.room_type_id = rt.id
     LEFT JOIN booking_channels bc ON bc.id = b.booking_channel_id
+    LEFT JOIN users creator ON creator.id = b.created_by AND creator.deleted_at IS NULL
     WHERE b.id = $1
 "#;
 
@@ -186,3 +203,21 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
 // =============================================================================
 // Active Bookings Query
 // =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::{GET_BOOKINGS_BASE_QUERY, GET_BOOKING_BY_ID_QUERY};
+
+    #[test]
+    fn booking_detail_payloads_name_staff_creators_only() {
+        for sql in [GET_BOOKINGS_BASE_QUERY, GET_BOOKING_BY_ID_QUERY] {
+            assert!(
+                sql.contains("creator.user_type::text = 'staff'"),
+                "staff user_type is the guest/staff split"
+            );
+            assert!(sql.contains("NULLIF(BTRIM(creator.full_name), '')"));
+            assert!(sql.contains("AS created_by_name"));
+            assert!(sql.contains("LEFT JOIN users creator ON creator.id = b.created_by"));
+        }
+    }
+}
