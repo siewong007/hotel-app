@@ -18,7 +18,12 @@ import {
 } from "@mui/icons-material";
 
 import { SUPPORTED_CURRENCIES } from "../../../../utils/currency";
-import { useTranslation } from "../../../../i18n";
+import {
+  LOCALE_CODES,
+  LOCALES,
+  useTranslation,
+  type LocaleCode,
+} from "../../../../i18n";
 
 // Common timezones for hotels — display names live in admin:settings.tz.*
 const TIMEZONES = [
@@ -81,6 +86,8 @@ interface HotelInfoCardProps {
   onCurrencyChange: React.Dispatch<React.SetStateAction<string>>;
   timezone: string;
   onTimezoneChange: React.Dispatch<React.SetStateAction<string>>;
+  defaultLocale: LocaleCode;
+  onDefaultLocaleChange: React.Dispatch<React.SetStateAction<LocaleCode>>;
 }
 
 /**
@@ -112,6 +119,8 @@ export function HotelInfoCard({
   onCurrencyChange,
   timezone,
   onTimezoneChange,
+  defaultLocale,
+  onDefaultLocaleChange,
 }: HotelInfoCardProps) {
   const { t } = useTranslation('admin');
 
@@ -345,6 +354,26 @@ export function HotelInfoCard({
                     ),
                   )}
                 </optgroup>
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                select
+                fullWidth
+                label={t('settings.defaultLocale')}
+                value={defaultLocale}
+                onChange={(e) => onDefaultLocaleChange(e.target.value as LocaleCode)}
+                helperText={t('settings.defaultLocaleHint')}
+                disabled={!isAdmin}
+                slotProps={{
+                  select: { native: true }
+                }}
+              >
+                {LOCALE_CODES.map((code) => (
+                  <option key={code} value={code}>
+                    {LOCALES[code].nativeName}
+                  </option>
+                ))}
               </TextField>
             </Grid>
           </Grid>

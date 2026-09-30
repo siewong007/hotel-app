@@ -49,6 +49,8 @@
     "currencyOther": "Other Currencies",
     "timezone": "Timezone",
     "timezoneHint": "Select your hotel's timezone for accurate time tracking",
+    "defaultLocale": "Default Language",
+    "defaultLocaleHint": "Language shown to guests who have not chosen one; also used for guest emails",
     "tzGroup": {
       "asiaPacific": "Asia & Pacific",
       "europe": "Europe",

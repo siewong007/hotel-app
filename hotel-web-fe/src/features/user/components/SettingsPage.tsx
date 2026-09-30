@@ -44,7 +44,7 @@ import {
 } from "../hooks/useSettingsQueries";
 import { ReportsService } from "../../../api/reports.service";
 import { useConfirm } from "../../../components/common/ConfirmProvider";
-import { useTranslation } from "../../../i18n";
+import { DEFAULT_LOCALE, useTranslation, type LocaleCode } from "../../../i18n";
 import { mobileActionBarProps } from "../../../components/common/mobileActionBar";
 
 // Bottom-nav height — same value as MOBILE_NAV_HEIGHT in
@@ -66,6 +66,7 @@ const SECTION_KEYS = {
     "night_audit_auto_enabled",
     "currency",
     "timezone",
+    "default_locale",
   ],
   finance: [
     "deposit_amount",
@@ -143,6 +144,7 @@ const SettingsPage: React.FC = () => {
   const [nightAuditAutoEnabled, setNightAuditAutoEnabled] = useState(false);
   const [currency, setCurrency] = useState("MYR");
   const [timezone, setTimezone] = useState("Asia/Kuala_Lumpur");
+  const [defaultLocale, setDefaultLocale] = useState<LocaleCode>(DEFAULT_LOCALE);
 
   // Charges Settings
   const [depositAmount, setDepositAmount] = useState(50);
@@ -235,6 +237,7 @@ const SettingsPage: React.FC = () => {
     setNightAuditAutoEnabled(Boolean(settings.night_audit_auto_enabled));
     setCurrency(settings.currency);
     setTimezone(settings.timezone);
+    setDefaultLocale(settings.default_locale);
     setDepositAmount(settings.deposit_amount);
     setServiceTaxRate(settings.service_tax_rate);
     setTourismTaxRate(settings.tourism_tax_rate);
@@ -312,6 +315,7 @@ const SettingsPage: React.FC = () => {
         night_audit_auto_enabled: nightAuditAutoEnabled,
         currency,
         timezone,
+        default_locale: defaultLocale,
         deposit_amount: depositAmount,
         service_tax_rate: serviceTaxRate,
         tourism_tax_rate: tourismTaxRate,
@@ -369,7 +373,7 @@ const SettingsPage: React.FC = () => {
   }, [
     hotelName, hotelAddress, hotelPhone, hotelEmail, hotelBusinessNumber,
     checkInTime, checkOutTime, nightShiftTime, nightAuditAutoEnabled,
-    currency, timezone, depositAmount, serviceTaxRate, tourismTaxRate,
+    currency, timezone, defaultLocale, depositAmount, serviceTaxRate, tourismTaxRate,
     defaultPaymentTermsDays, unpaidHoldReleaseHours, reportFontSize,
     reportFontFamily, reportHeadingFontSize, reportSectionHeadingFontSize,
     reportTableFontSize, reportCaptionFontSize, reportChipFontSize,
@@ -541,6 +545,8 @@ const SettingsPage: React.FC = () => {
             onCurrencyChange={setCurrency}
             timezone={timezone}
             onTimezoneChange={setTimezone}
+            defaultLocale={defaultLocale}
+            onDefaultLocaleChange={setDefaultLocale}
           />
         </>
       )}

@@ -49,6 +49,8 @@
     "currencyOther": "其他幣別",
     "timezone": "時區",
     "timezoneHint": "選擇酒店所在時區以準確追蹤時間",
+    "defaultLocale": "預設語言",
+    "defaultLocaleHint": "向未選擇語言的賓客顯示的語言；也用於賓客電郵",
     "tzGroup": {
       "asiaPacific": "亞太地區",
       "europe": "歐洲",

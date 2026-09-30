@@ -138,6 +138,14 @@ describe('getHotelSettings / saveHotelSettings', () => {
     expect(settings.deposit_amount).toBe(50); // untouched default
   });
 
+  it('keeps a supported stored default_locale and falls back for anything else', () => {
+    localStorage.setItem('hotelSettings', JSON.stringify({ default_locale: 'zh-TW' }));
+    expect(getHotelSettings().default_locale).toBe('zh-TW');
+
+    localStorage.setItem('hotelSettings', JSON.stringify({ default_locale: 'klingon' }));
+    expect(getHotelSettings().default_locale).toBe('en');
+  });
+
   it('coerces a stored unpaid-hold window and rejects nonsense', () => {
     localStorage.setItem(
       'hotelSettings',
