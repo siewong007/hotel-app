@@ -11,12 +11,15 @@ import * as THREE from 'three';
 import { site, pts } from '../data/site';
 import { roadClearance, insideAnyPolygon } from './spatial';
 import { POINTS, footprints } from './layout';
-import { mergeGeometries, mergeVertices, pointInPolygon, rng } from './geom';
+import { mergeGeometries, mergeVertices, pointInPolygon, rng, sectorInstances } from './geom';
 import { foliage } from './shaders';
 
 interface Tree { x: number; z: number; s: number; kind: 'rain' | 'palm' | 'small' }
 
 const NEAR_R = 520;
+/** Level-of-detail switch distances, in tree sizes from the camera (× the
+ *  tier's lodScale). From 420 up only the crown shows. */
+const TREE_LOD = [62, 210, 420];
 const FAR_R = 2400;
 
 function vcol(g: THREE.BufferGeometry, top: THREE.Color, bottom: THREE.Color, y0: number, y1: number): THREE.BufferGeometry {
@@ -44,21 +47,25 @@ function onlyPNC(g: THREE.BufferGeometry): THREE.BufferGeometry {
  * dome. Each clump's normals are blended with the crown's dome normal, so the
  * crown shades as one soft volume (not a bunch of separate balls), and the
  * vertex colours carry height, per-clump variation and cavity darkening.
- * lod 0: 30 clumps × 80 faces · lod 1: the same clumps × 20 faces · lod 2: 10 clumps.
+ * lod 0: 30 clumps × 80 faces · lod 1: the same clumps × 20 faces · lod 2: 10 clumps
+ * · lod 3: the crown alone in 4 clumps (from 400 m up the trunk is under it).
  */
-function rainTree(seed: number, lod: 0 | 1 | 2): THREE.BufferGeometry {
+function rainTree(seed: number, lod: 0 | 1 | 2 | 3): THREE.BufferGeometry {
   const r = rng(seed);
   const parts: THREE.BufferGeometry[] = [];
   const bark = new THREE.Color(0x3f3326), barkTop = new THREE.Color(0x5a4a3a);
-  const seg = lod === 2 ? 5 : 8;
+  const coarse = lod >= 2; // lod 3 draws the same crown as lod 2 (same random draws), so the swap does not jump
+  const seg = coarse ? 5 : 8;
   const trunkH = 2.6 + r() * 0.8;
-  parts.push(vcol(new THREE.CylinderGeometry(0.3, 0.46, trunkH, seg).translate(0, trunkH / 2, 0), barkTop, bark, 0, trunkH));
-  const nBr = lod === 2 ? 3 : 5;
+  if (lod < 3) parts.push(vcol(new THREE.CylinderGeometry(0.3, 0.46, trunkH, seg).translate(0, trunkH / 2, 0), barkTop, bark, 0, trunkH));
+  const nBr = coarse ? 3 : 5;
   for (let k = 0; k < nBr; k++) {
     const a = (k / nBr) * Math.PI * 2 + r() * 0.8;
     const len = 3.6 + r() * 1.6;
+    const tilt = 0.8 + r() * 0.35;
+    if (lod === 3) continue;
     const br = new THREE.CylinderGeometry(0.1, 0.24, len, seg - 2).translate(0, len / 2, 0);
-    br.rotateZ(0.8 + r() * 0.35).rotateY(a).translate(0, trunkH - 0.3, 0);
+    br.rotateZ(tilt).rotateY(a).translate(0, trunkH - 0.3, 0);
     parts.push(vcol(br, barkTop, bark, trunkH, trunkH + 3));
   }
   // crown
@@ -68,7 +75,7 @@ function rainTree(seed: number, lod: 0 | 1 | 2): THREE.BufferGeometry {
   const domeC = new THREE.Vector3(0, yRim - 1.3, 0);
   const domeR = new THREE.Vector3(Rc + 1.6, H + 2.6, Rc + 1.6);
   const top = new THREE.Color(0x86a14f), mid = new THREE.Color(0x4f7133), low = new THREE.Color(0x213219);
-  const N = lod === 2 ? 10 : 30;
+  const N = lod === 3 ? 4 : lod === 2 ? 10 : 30;
   const detail = lod === 0 ? 1 : 0;
   const nd = new THREE.Vector3(), nl = new THREE.Vector3(), pv = new THREE.Vector3();
   const c = new THREE.Color();
@@ -79,7 +86,7 @@ function rainTree(seed: number, lod: 0 | 1 | 2): THREE.BufferGeometry {
     const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
     const edge = rr / Rc;
     const y = yRim + H * Math.pow(Math.max(0, 1 - edge * edge), 0.75) + (r() - 0.5) * 0.45;
-    const sBase = lod === 2 ? 2.5 : 1.45;
+    const sBase = lod === 3 ? 3.7 : lod === 2 ? 2.5 : 1.45;
     const sc = (sBase + r() * 0.75) * (1.12 - 0.34 * edge);
     const lump = mergeVertices(new THREE.IcosahedronGeometry(1, detail));
     // irregular clumps: jitter each vertex along its radius
@@ -114,6 +121,22 @@ function rainTree(seed: number, lod: 0 | 1 | 2): THREE.BufferGeometry {
 }
 
 /** Palm: slightly curved trunk, 11 arching fronds with a V section. */
+/** The trees' geometry, a row per variant ([lod 0..3]; palms share one
+ *  detail level), as makers: World builds one per task, each ~10 ms, where
+ *  the whole table in one went past 50 ms (a long task, on a phone ×4). */
+export function treeTableRows(): (() => THREE.BufferGeometry[])[] {
+  const small = (g: THREE.BufferGeometry) => g.scale(0.62, 0.62, 0.62);
+  const lods = [0, 1, 2, 3] as const;
+  return [
+    () => lods.map((l) => rainTree(11, l)),
+    () => lods.map((l) => rainTree(29, l)),
+    () => lods.map((l) => rainTree(47, l)),
+    () => lods.map((l) => small(rainTree(83, l))),
+    () => { const g = palm(5, 7.5); return [g, g, g, g]; },
+    () => { const g = palm(9, 9.5); return [g, g, g, g]; },
+  ];
+}
+
 function palm(seed: number, height: number): THREE.BufferGeometry {
   const r = rng(seed);
   const parts: THREE.BufferGeometry[] = [];
@@ -151,13 +174,15 @@ function palm(seed: number, height: number): THREE.BufferGeometry {
 export class Vegetation {
   readonly group = new THREE.Group();
   readonly near: THREE.BatchedMesh;
-  readonly farCanopy: THREE.InstancedMesh;
+  /** Trees beyond the near ring, one blob each, a mesh per quarter (geom.sectorInstances). */
+  readonly farCanopy = new THREE.Group();
   count = 0;
   private ids: number[][] = [];
   private inst: { id: number; variant: number; pos: THREE.Vector3; size: number; lod: number }[] = [];
   private lastCam = new THREE.Vector3(1e9, 0, 0);
 
-  constructor(density = 1, sunDir = new THREE.Vector3(-0.99, 0.2, 0.14)) {
+  /** `rows`: the geometry table made ahead (treeTableRows), a row a task. */
+  constructor(density = 1, sunDir = new THREE.Vector3(-0.99, 0.2, 0.14), rows?: THREE.BufferGeometry[][]) {
     const rand = rng(4242);
     const trees: Tree[] = [];
     const ok = (x: number, z: number, pad: number) => roadClearance(x, z) > pad && !insideAnyPolygon(x, z);
@@ -228,15 +253,7 @@ export class Vegetation {
     this.count = trees.length;
 
     // geometry table: [variant][lod] (palms share one detail level)
-    const small = (g: THREE.BufferGeometry) => g.scale(0.62, 0.62, 0.62);
-    const table: THREE.BufferGeometry[][] = [
-      [rainTree(11, 0), rainTree(11, 1), rainTree(11, 2)],
-      [rainTree(29, 0), rainTree(29, 1), rainTree(29, 2)],
-      [rainTree(47, 0), rainTree(47, 1), rainTree(47, 2)],
-      [small(rainTree(83, 0)), small(rainTree(83, 1)), small(rainTree(83, 2))],
-    ];
-    const palms = [palm(5, 7.5), palm(9, 9.5)];
-    for (const pg of palms) table.push([pg, pg, pg]);
+    const table = rows ?? treeTableRows().map((make) => make());
     const vCount = table.flat().filter((g, i, a) => a.indexOf(g) === i).reduce((s2, g) => s2 + g.getAttribute('position').count, 0);
     const leafMat = foliage(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86 }), sunDir);
     this.near = new THREE.BatchedMesh(Math.max(1, near.length), vCount, 0, leafMat);
@@ -268,17 +285,18 @@ export class Vegetation {
     const farGeo = mergeVertices(new THREE.IcosahedronGeometry(1, 0));
     farGeo.scale(4.6, 2.0, 4.6).translate(0, 6.2, 0);
     farGeo.computeVertexNormals();
-    this.farCanopy = new THREE.InstancedMesh(farGeo, foliage(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92 }), sunDir), Math.max(1, far.length));
+    const farCanopy = new THREE.InstancedMesh(farGeo, foliage(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92 }), sunDir), Math.max(1, far.length));
     const leafCols = [0x3f5a2a, 0x4b6a2f, 0x56733a, 0x3a5227, 0x61803f];
     far.forEach((t, i) => {
       q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, rand() * Math.PI * 2);
       m.compose(new THREE.Vector3(t.x, 0, t.z), q, new THREE.Vector3(t.s * (0.9 + rand() * 0.2), t.s, t.s * (0.9 + rand() * 0.2)));
-      this.farCanopy.setMatrixAt(i, m);
-      this.farCanopy.setColorAt(i, tint.setHex(leafCols[Math.floor(rand() * leafCols.length)]));
+      farCanopy.setMatrixAt(i, m);
+      farCanopy.setColorAt(i, tint.setHex(leafCols[Math.floor(rand() * leafCols.length)]));
     });
-    this.farCanopy.count = far.length;
-    this.farCanopy.receiveShadow = true;
-    this.farCanopy.computeBoundingSphere();
+    farCanopy.count = far.length;
+    farCanopy.receiveShadow = true;
+    farCanopy.name = 'trees-far';
+    if (far.length) this.farCanopy.add(...sectorInstances(farCanopy, hotel, 4));
     this.farCanopy.name = 'trees-far';
     this.group.add(this.near, this.farCanopy);
   }
@@ -287,13 +305,22 @@ export class Vegetation {
     this.farCanopy.visible = v;
   }
 
+  private lodScale = 1;
+  /** Quality tier: the switch distances scale by k (brief §8 triangles). */
+  setLodScale(k: number): void {
+    if (k === this.lodScale) return;
+    this.lodScale = k;
+    this.lastCam.set(1e9, 0, 0);
+  }
+
   /** Per-tree level of detail from its distance to the camera (scaled by tree size). */
   update(cam: THREE.Vector3): void {
     if (cam.distanceToSquared(this.lastCam) < 1) return;
     this.lastCam.copy(cam);
+    const [d0, d1, d2] = TREE_LOD.map((x) => x * this.lodScale);
     for (const t of this.inst) {
       const d = t.pos.distanceTo(cam) / t.size;
-      const lod = d < 62 ? 0 : d < 210 ? 1 : 2;
+      const lod = d < d0 ? 0 : d < d1 ? 1 : d < d2 ? 2 : 3;
       if (lod === t.lod) continue;
       t.lod = lod;
       this.near.setGeometryIdAt(t.id, this.ids[t.variant][lod]);

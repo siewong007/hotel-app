@@ -11,30 +11,88 @@
      JavaScript and reach this page through nginx's 302 from "/", so these
      tags must stay static and the image URL absolute. nginx serves .jpg as
      immutable for a year: publish a replacement image under a NEW file name
-     and point og:image at it, never overwrite the file in place. -->
+     and point og:image at it, never overwrite the file in place.
+     salim-inn-hero-v2.jpg is the film's chapter-3 hero angle at 1200×630
+     (brief §9), rendered by the workshop's perf/posters.ts. -->
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Salim Inn" />
 <meta property="og:title" content="Salim Inn Sibu - Cozy stays at Farley" />
 <meta property="og:description" content="Explore Salim Inn at Farley Commercial Centre in Sibu, then book a clean, comfortable stay directly." />
-<meta property="og:image" content="https://saliminn.my/salim-inn/share/salim-inn-preview-v1.jpg" />
+<meta property="og:image" content="https://saliminn.my/salim-inn/share/salim-inn-hero-v2.jpg" />
 <meta property="og:image:type" content="image/jpeg" />
-<meta property="og:image:width" content="1024" />
-<meta property="og:image:height" content="536" />
-<meta property="og:image:alt" content="Family room at Salim Inn with a double bed and a single bed in white linen" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Illustration of Salim Inn at dusk, on the corner of the Farley Commercial Centre in Sibu" />
 <meta name="twitter:card" content="summary_large_image" />
+<!-- schema.org Hotel (brief §9). Static so crawlers that run no JavaScript
+     read it; salim-inn/src/seo.test.ts keeps it in step with config/site.ts
+     and hotel.json. A data block, not a script: the CSP does not apply. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Hotel",
+  "name": "Salim Inn",
+  "url": "https://saliminn.my/",
+  "image": "https://saliminn.my/salim-inn/share/salim-inn-hero-v2.jpg",
+  "telephone": "+601110507083",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "No. 21 & 22, Lorong Salim 17, Jalan Salim, Farley Commercial Centre",
+    "addressLocality": "Sibu",
+    "addressRegion": "Sarawak",
+    "postalCode": "96000",
+    "addressCountry": "MY"
+  },
+  "geo": { "@type": "GeoCoordinates", "latitude": 2.26633, "longitude": 111.86231 },
+  "checkinTime": "14:00",
+  "checkoutTime": "12:00",
+  "numberOfRooms": 29,
+  "amenityFeature": [
+    { "@type": "LocationFeatureSpecification", "name": "Free Wi-Fi", "value": true },
+    { "@type": "LocationFeatureSpecification", "name": "Air-conditioning", "value": true },
+    { "@type": "LocationFeatureSpecification", "name": "24-hour front desk", "value": true },
+    { "@type": "LocationFeatureSpecification", "name": "Parking", "value": true }
+  ],
+  "priceRange": "RM75–RM110"
+}
+</script>
 </head>
 <body>
 <a class="skip-link" href="#book" data-i18n="nav.skipLink">Skip the film and book</a>
 
-<!-- The film: one fixed canvas under real DOM copy. src/main.ts builds the
+<!-- The film: one fixed canvas under real DOM copy. src/film.ts builds the
      chapters into #story and maps page scroll onto one master timeline. -->
-<div class="poster" aria-hidden="true"></div>
+<!-- Chapter 0's poster: the film's first frame (perf/posters.ts), painted
+     before any script runs — the page's largest paint — with the preloader
+     over it and the canvas fading in on top once the film is ready. -->
+<picture class="poster" aria-hidden="true">
+<source media="(max-width: 760px)" type="image/webp" srcset="/salim-inn/posters/ch1-tall.webp" width="780" height="1688" />
+<source media="(max-width: 760px)" srcset="/salim-inn/posters/ch1-tall.jpg" width="780" height="1688" />
+<source type="image/webp" srcset="/salim-inn/posters/ch1-wide.webp" width="1440" height="900" />
+<img src="/salim-inn/posters/ch1-wide.jpg" width="1440" height="900" alt="" fetchpriority="high" />
+</picture>
 <canvas id="scene" aria-hidden="true"></canvas>
 <div class="scrim" aria-hidden="true"></div>
 
 <header class="topbar">
 <a class="brand" href="#top" aria-label="Salim Inn — back to the start" data-i18n-aria="brand.backToStart">
-<img class="brand-logo" src="/salim-inn/salim-inn-logo.svg" alt="Salim Inn — Cozy, Clean, Affordable Comfort" data-i18n-alt="brand.logoAlt" />
+<!-- the logo inline (public/salim-inn/salim-inn-logo.svg, same drawing): one
+     request fewer before the first paint. Its lettering keeps the fonts it
+     rendered in as an image (an SVG image cannot reach the page's fonts). -->
+<svg class="brand-logo" viewBox="0 0 440 96" width="440" height="96" role="img" aria-label="Salim Inn — Cozy, Clean, Affordable Comfort" data-i18n-aria="brand.logoAlt">
+<title>Salim Inn</title>
+<g fill="none" fill-rule="evenodd">
+<g transform="translate(4 4)" stroke="#d8b572" stroke-width="2">
+<path d="M8 26 36 7l28 19"/>
+<path d="M19 23v54h36V23M36 7v70"/>
+<path d="M26 43c0-9 20-9 20 0s-20 8-20 17 20 9 20 0"/>
+<path d="M12 76h48"/>
+</g>
+<text x="84" y="48" fill="#fffdf7" font-family="Georgia, 'Times New Roman', serif" font-size="42" font-weight="600">Salim Inn</text>
+<path d="M86 57h244M117 64c30-9 57-9 87 0 30 9 58 9 88 0" stroke="#b84d4d" stroke-width="2" stroke-linecap="round"/>
+<text x="86" y="83" fill="#c9d8d0" font-family="Arial, sans-serif" font-size="11" letter-spacing="2.4">COZY  •  CLEAN  •  AFFORDABLE COMFORT</text>
+</g>
+</svg>
 </a>
 <nav class="top-actions" aria-label="Primary navigation" data-i18n-aria="nav.aria">
 <select class="pill lang-picker" id="langPicker" aria-label="Language" data-i18n-aria="lang.aria">
@@ -97,7 +155,7 @@
 <strong>RM75</strong>
 <span data-i18n="rooms.perNight">/ night</span>
 </div>
-<a class="room-book" href="/guest-portal?view=booking" data-i18n="rooms.checkAvailability">Check availability</a>
+<a class="room-book" href="/guest-portal?view=booking" data-room="STDQ" data-i18n="rooms.checkAvailability">Check availability</a>
 </article>
 <article class="room-card">
 <div>
@@ -108,7 +166,7 @@
 <strong>RM85</strong>
 <span data-i18n="rooms.perNight">/ night</span>
 </div>
-<a class="room-book" href="/guest-portal?view=booking" data-i18n="rooms.checkAvailability">Check availability</a>
+<a class="room-book" href="/guest-portal?view=booking" data-room="DLX" data-i18n="rooms.checkAvailability">Check availability</a>
 </article>
 <article class="room-card">
 <div>
@@ -119,7 +177,7 @@
 <strong>RM95</strong>
 <span data-i18n="rooms.perNight">/ night</span>
 </div>
-<a class="room-book" href="/guest-portal?view=booking" data-i18n="rooms.checkAvailability">Check availability</a>
+<a class="room-book" href="/guest-portal?view=booking" data-room="SUP" data-i18n="rooms.checkAvailability">Check availability</a>
 </article>
 <article class="room-card">
 <div>
@@ -130,7 +188,7 @@
 <strong>RM105</strong>
 <span data-i18n="rooms.perNight">/ night</span>
 </div>
-<a class="room-book" href="/guest-portal?view=booking" data-i18n="rooms.checkAvailability">Check availability</a>
+<a class="room-book" href="/guest-portal?view=booking" data-room="FR" data-i18n="rooms.checkAvailability">Check availability</a>
 </article>
 <article class="room-card">
 <div>
@@ -141,7 +199,7 @@
 <strong>RM110</strong>
 <span data-i18n="rooms.perNight">/ night</span>
 </div>
-<a class="room-book" href="/guest-portal?view=booking" data-i18n="rooms.checkAvailability">Check availability</a>
+<a class="room-book" href="/guest-portal?view=booking" data-room="FS" data-i18n="rooms.checkAvailability">Check availability</a>
 </article>
 </div>
 <p class="rate-note" data-i18n="rooms.rateNote">Promotional web rates shown by Salim Inn at the time of publication. Availability and final pricing are confirmed during booking.</p>

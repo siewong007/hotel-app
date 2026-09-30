@@ -2,8 +2,12 @@
 // and Chinese bundles can follow the same shape. Facts are interpolated from
 // config/site.ts, never typed inline; `{{name}}` slots are filled at runtime.
 import { SITE, WEB_RATES, SHOW_PRICES, CLAIM_ONLY_HOTEL } from '../config/site';
+import { neighbourhoodTitle, places, type NeighbourhoodWords, type PlaceGroup } from '../data/neighbourhood';
 
 const minRate = Math.min(...Object.values(WEB_RATES));
+
+/** The scene build's steps (World.build), named as its perf marks are. */
+export type BuildStep = 'Sky and light' | 'Ground and rivers' | 'Roads' | 'Farley Commercial Centre' | 'Car parks' | 'Sibu' | 'Trees';
 
 /** The whole page's copy. Every bundle implements this shape — a missing
  *  string is a type error, not a silent English fallback. */
@@ -26,7 +30,16 @@ export interface Copy {
   account: { signIn: string; myAccount: string; adminConsole: string; bookAnotherStay: string };
   /** Language picker aria-label. Option names are native labels — never translated. */
   lang: { aria: string };
-  preloader: { loading: string; warming: string; almost: string; ready: string };
+  preloader: {
+    loading: string;
+    warming: string;
+    almost: string;
+    ready: string;
+    /** Start-up calibration (film.ts). */
+    tuning: string;
+    /** The scene build's steps, keyed by the English names its perf marks use (World.build). */
+    steps: Record<BuildStep, string>;
+  };
   /** Chapter dot rail: one short label per chapter id (index 0 = chapter 1)
    *  plus the `{{id}}`/`{{label}}` aria template. */
   chapterNav: { labels: string[]; aria: string };
@@ -66,7 +79,146 @@ export interface Copy {
   footer: { osm: string; rights: string };
   /** `rate` takes `{{min}}` and may contain <strong>. */
   mobileCta: { rate: string };
+  /** The front desk's facts: the registration card (chapter 5) and the booking panel. */
+  frontDesk: { checkIn: string; checkOut: string; hours: string };
+  /** Chapters 2 and 7 (Neighbourhood.ts): chips, cards, walking times, and the
+   *  words chapter 2's title is built from (data/neighbourhood.ts). */
+  neighbourhood: NeighbourhoodWords & {
+    chipsLabel: string;
+    walkLabel: string;
+    gettingHere: string;
+    airport: string;
+    city: string;
+    open: string;
+    call: string;
+    unverified: string;
+    /** A walking-time ring's label: `{{min}}`. */
+    ring: string;
+    placeOne: string;
+    /** `{{n}}` places. */
+    placeMany: string;
+    groups: Record<PlaceGroup, string>;
+  };
+  /** Chapter 6's room configurator and the still page's room picker. */
+  configurator: {
+    tabsAria: string;
+    beds: string;
+    size: string;
+    sleeps: string;
+    extraBed: string;
+    from: string;
+    /** `{{n}}` guests. */
+    upTo: string;
+    /** `{{charge}}`. */
+    extraBedYes: string;
+    extraBedNo: string;
+    /** `{{rate}}`. */
+    rate: string;
+    /** One and several of each bed, `{{n}}`. */
+    bed: Record<'single' | 'queen' | 'king', [one: string, many: string]>;
+    /** `{{bed}}` with its `{{w}}` × `{{l}}` in cm. */
+    bedSize: string;
+    bedJoin: string;
+    noWindow: string;
+    /** The Superior Twin's size, which the PMS lacks. */
+    sizeFlag: string;
+    /** The Standard Queen, which has no photo of its own. */
+    photoFlag: string;
+    seeReal: string;
+    back3d: string;
+    photoAria: string;
+    /** "Owner's photo", before a room name or a note. */
+    photo: string;
+  };
+  /** Chapter 8's booking panel and its messages (BookingPanel.ts, booking.ts). */
+  booking: {
+    formLabel: string;
+    checkIn: string;
+    checkOut: string;
+    adults: string;
+    children: string;
+    room: string;
+    submit: string;
+    whatsapp: string;
+    call: string;
+    /** `{{methods}}`, joined with `listSep`. */
+    payLine: string;
+    webRate: string;
+    summaryLabel: string;
+    copy: string;
+    copied: string;
+    selectToCopy: string;
+    continue: string;
+    reopen: string;
+    leadDesktop: string;
+    leadMobile: string;
+    /** A room select option: `{{room}}`, `{{n}}` guests; then `{{rate}}`. */
+    roomOption: string;
+    roomOptionRate: string;
+    errors: { checkIn: string; checkInPast: string; checkOut: string; checkOutOrder: string; adults: string; room: string };
+    /** Over a type's occupancy: `{{room}}` `{{base}}` `{{extra}}` `{{guests}}` `{{bigger}}`. */
+    tooMany: string;
+    /** `{{n}}` with the extra bed. */
+    tooManyExtra: string;
+    /** More than any one room takes: `{{max}}` `{{guests}}`. */
+    tooManyAll: string;
+    /** `{{room}}` `{{base}}` `{{charge}}` `{{bigger}}`. */
+    extraBedNote: string;
+    /** `{{bigger}}` `{{guests}}`. */
+    extraBedBigger: string;
+    adult: [one: string, many: string];
+    child: [one: string, many: string];
+    night: [one: string, many: string];
+    listSep: string;
+    /** `{{in}}` `{{out}}` `{{nights}}`. */
+    summaryStay: string;
+    summaryExtraBed: string;
+    /** `{{rate}}`. */
+    summaryRate: string;
+    /** `{{hotel}}` `{{summary}}`. */
+    whatsappText: string;
+    cancellation: string;
+    paymentMethods: string[];
+    /** Intl locale for the summary's dates. */
+    dateLocale: string;
+  };
+  /** The still version (Fallback.ts): its note, and each chapter poster's alt text. */
+  fallback: { note: string; alts: string[] };
 }
+
+const nb: Copy['neighbourhood'] = {
+  chipsLabel: 'Nearby, by category',
+  walkLabel: 'Walking times',
+  gettingHere: 'Getting here',
+  airport: `Sibu Airport (SBW) ≈ ${SITE.distances.airportKm} km`,
+  city: `Sibu city centre ≈ ${SITE.distances.cityCentreKm} km`,
+  open: 'Open',
+  call: 'Call',
+  unverified: 'Not yet verified',
+  ring: '{{min}} min · approx.',
+  placeOne: '1 place',
+  placeMany: '{{n}} places',
+  groups: { groceries: 'Groceries', food: 'Food & cafés', health: 'Pharmacies & clinic', services: 'Everyday services' },
+  title: '{{list}} — steps from your door.',
+  titleEmpty: 'Farley, right outside your door.',
+  listComma: ', ',
+  listAnd: ' and ',
+  phrases: {
+    supermarket: 'the Farley supermarket',
+    groceries: 'groceries',
+    cafeDownstairs: 'a café downstairs',
+    cafesBakeriesEat: 'cafés, bakeries and places to eat',
+    bakeries: 'bakeries',
+    cafesEat: 'cafés and places to eat',
+    cafe: 'a café',
+    pharmaciesClinic: 'pharmacies and a clinic',
+    pharmacy: 'a pharmacy',
+    services: 'everyday services',
+  },
+  walkStated: 'about {{min}} min walk',
+  walkApprox: 'approx. {{min}} min walk',
+  nextDoor: 'next door',
+};
 
 export const en: Copy = {
   meta: {
@@ -100,6 +252,16 @@ export const en: Copy = {
     warming: 'Warming up the lights',
     almost: 'Almost there',
     ready: 'Scroll to begin',
+    tuning: 'Tuning the picture',
+    steps: {
+      'Sky and light': 'Sky and light',
+      'Ground and rivers': 'Ground and rivers',
+      Roads: 'Roads',
+      'Farley Commercial Centre': 'Farley Commercial Centre',
+      'Car parks': 'Car parks',
+      Sibu: 'Sibu',
+      Trees: 'Trees',
+    },
   },
   chapterNav: {
     labels: ['Farley', 'Neighbourhood', 'Salim Inn', 'Arrival', 'Reception', 'Rooms', 'Footsteps', 'Book'],
@@ -115,8 +277,8 @@ export const en: Copy = {
     {
       id: 2,
       eyebrow: 'The neighbourhood',
-      title: 'Groceries, bakeries, cafés and pharmacies — steps from your door.',
-      body: 'Farley’s supermarket, food court and everyday shops ring the block around the hotel.',
+      title: neighbourhoodTitle(places(), nb),
+      body: 'Farley Commercial Centre wraps around the block, with the Farley supermarket at its heart.',
     },
     {
       id: 3,
@@ -146,7 +308,7 @@ export const en: Copy = {
       id: 7,
       eyebrow: 'Within footsteps',
       title: 'Everything within footsteps.',
-      body: `Sibu Airport (SBW) ≈ ${SITE.distances.airportKm} km · Sibu city centre ≈ ${SITE.distances.cityCentreKm} km · Farley supermarket ${SITE.distances.supermarketWalk}`,
+      body: 'Walking times from the hotel door. The rings are approximate: straight-line distance, allowing for the streets.',
     },
     {
       id: 8,
@@ -270,5 +432,93 @@ export const en: Copy = {
   },
   mobileCta: {
     rate: SHOW_PRICES ? 'from <strong>RM{{min}}</strong> / night' : 'Book direct',
+  },
+  frontDesk: {
+    checkIn: `Check-in from ${SITE.checkIn.label}`,
+    checkOut: `Check-out by ${SITE.checkOut.label}`,
+    hours: `Front desk ${SITE.frontDeskHours}`,
+  },
+  neighbourhood: nb,
+  configurator: {
+    tabsAria: 'Room types',
+    beds: 'Beds',
+    size: 'Size',
+    sleeps: 'Sleeps',
+    extraBed: 'Extra bed',
+    from: 'From',
+    upTo: 'Up to {{n}}',
+    extraBedYes: 'Available · RM{{charge}}',
+    extraBedNo: 'Not available',
+    rate: 'RM{{rate}} / night · web rate',
+    bed: { single: ['{{n}} single', '{{n}} singles'], queen: ['{{n}} queen', '{{n}} queens'], king: ['{{n}} king', '{{n}} kings'] },
+    bedSize: '{{bed}} ({{w}} × {{l}} cm)',
+    bedJoin: ' + ',
+    noWindow: 'No window: an inside room, curtained for the look of one.',
+    sizeFlag: 'Size not in the PMS — modelled at 28 m²',
+    photoFlag: 'No Standard Queen photo exists; shown with the generic guest-room photo.',
+    seeReal: 'See the real room',
+    back3d: 'Back to the 3D room',
+    photoAria: 'Owner’s photo of the room',
+    photo: 'Owner’s photo',
+  },
+  booking: {
+    formLabel: 'Check availability',
+    checkIn: 'Check-in',
+    checkOut: 'Check-out',
+    adults: 'Adults',
+    children: 'Children',
+    room: 'Room',
+    submit: 'Book direct',
+    whatsapp: 'WhatsApp',
+    call: 'Call',
+    payLine: 'Pay by {{methods}}',
+    webRate: 'Web rate — best when you book direct.',
+    summaryLabel: 'Your booking details',
+    copy: 'Copy details',
+    copied: 'Copied',
+    selectToCopy: 'Selected — copy it',
+    continue: 'Continue to booking',
+    reopen: 'Open the booking portal again',
+    leadDesktop: 'The booking portal opened in a new tab. It starts at its own search step — use these details there:',
+    leadMobile: 'The booking portal starts at its own search step. Copy your details, then continue:',
+    roomOption: '{{room}} · sleeps {{n}}',
+    roomOptionRate: ' · from RM{{rate}}',
+    errors: {
+      checkIn: 'Choose your check-in date.',
+      checkInPast: 'Check-in can’t be in the past.',
+      checkOut: 'Choose your check-out date.',
+      checkOutOrder: 'Check-out must be after check-in.',
+      adults: 'At least one adult checks in.',
+      room: 'Choose a room type.',
+    },
+    tooMany: 'The {{room}} fits {{base}}{{extra}}. For {{guests}}, choose the {{bigger}}.',
+    tooManyExtra: ' ({{n}} with an extra bed)',
+    tooManyAll: 'One room fits up to {{max}} guests. For {{guests}}, book two rooms or call us.',
+    extraBedNote: 'The {{room}} fits {{base}}; add an extra bed (RM{{charge}}){{bigger}}.',
+    extraBedBigger: ' or choose the {{bigger}} for {{guests}}',
+    adult: ['{{n}} adult', '{{n}} adults'],
+    child: ['{{n}} child', '{{n}} children'],
+    night: ['{{n}} night', '{{n}} nights'],
+    listSep: ', ',
+    summaryStay: 'Check-in {{in}} · Check-out {{out}} ({{nights}})',
+    summaryExtraBed: ' · extra bed',
+    summaryRate: 'From RM{{rate}} a night · web rate',
+    whatsappText: 'Hello {{hotel}}, I’d like to book:\n{{summary}}',
+    cancellation: 'Free cancellation with at least 3 days’ notice. Later cancellations or no-shows are charged the first night.',
+    paymentMethods: ['Cash', 'Visa', 'Mastercard', 'Debit card', 'Sarawak Pay', 'Bank transfer', 'PayPal', 'Boost', 'MAE', 'QRPay'],
+    dateLocale: 'en-GB',
+  },
+  fallback: {
+    note: 'This is the still version of the Salim Inn film. Your browser can’t show it in 3D, so every chapter is a single frame.',
+    alts: [
+      'Sibu from the air at dusk, the river beyond the town',
+      'The Farley Commercial Centre from above, its ring of shops around the supermarket',
+      'The Salim Inn corner block at dusk, the roof sign lit',
+      'The Salim Inn entrance under the canopy, with guest parking in front',
+      'The reservation counter in the lobby, with the SALIM INN letters on the stone wall behind',
+      'A Deluxe King guest room',
+      'The hotel and the Farley ring from above, with walking-time rings from the door',
+      'Salim Inn and the Farley ring at dusk',
+    ],
   },
 };

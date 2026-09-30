@@ -214,10 +214,14 @@ export class Atmosphere {
     return rt.texture;
   }
 
+  /** The sun always casts: turning its shadows off changes every lit
+   *  shader, and the governor dropping to the low tier then stalled for
+   *  seconds recompiling them. The low tier (size 0) keeps a 1024 map that
+   *  is drawn once and frozen instead (film.ts). */
   setShadowResolution(size: number): void {
-    this.sun.castShadow = size > 0;
-    if (size > 0 && this.sun.shadow.mapSize.x !== size) {
-      this.sun.shadow.mapSize.set(size, size);
+    const s = size > 0 ? size : 1024;
+    if (this.sun.shadow.mapSize.x !== s) {
+      this.sun.shadow.mapSize.set(s, s);
       this.sun.shadow.map?.dispose();
       this.sun.shadow.map = null;
     }

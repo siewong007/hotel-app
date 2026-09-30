@@ -25,7 +25,6 @@
     "@tanstack/react-table": "^9.2.4",
     "@tauri-apps/api": "^2.11.1",
     "detect-gpu": "5.0.70",
-    "gsap": "3.15.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "ky": "^2.1.0",
@@ -80,7 +79,7 @@
   },
   "overrides": {
     "zod-validation-error": "^4.0.2",
-    "dompurify": "^3.4.13",
+    "dompurify": "^3.4.16",
     "brace-expansion": "5.0.12"
   },
   "browserslist": {

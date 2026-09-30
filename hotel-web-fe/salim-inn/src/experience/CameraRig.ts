@@ -75,6 +75,8 @@ export class CameraRig {
 
   readonly frame: RigFrame = { pos: new THREE.Vector3(), target: new THREE.Vector3(), fov: 50, roll: 0 };
   private aspect = 16 / 9;
+  private vw = 1600;
+  private vh = 900;
   private tmp = new THREE.Vector3();
 
   constructor(camera: THREE.PerspectiveCamera, chapters: PathChapter[] = PATH) {
@@ -128,7 +130,22 @@ export class CameraRig {
 
   setAspect(aspect: number): void {
     this.aspect = aspect;
+    this.vw = 1000 * aspect;
+    this.vh = 1000;
   }
+
+  /** Viewport size in CSS pixels (the projection works in these units). */
+  setViewport(w: number, h: number): void {
+    this.aspect = w / h;
+    this.vw = w;
+    this.vh = h;
+  }
+
+  /** A pose to blend toward (the room configurator's photo-matched view):
+   *  world-space camera and target, the screen rectangle (CSS px) the photo
+   *  frame occupies, and the photo's vertical FOV. */
+  view: { pos: THREE.Vector3; target: THREE.Vector3; rect: { x: number; y: number; w: number; h: number }; vfov: number; roll?: number } | null = null;
+  viewWeight = 0;
 
   /** Curve parameter for a timeline progress value. */
   paramAt(p: number): number {
@@ -180,10 +197,28 @@ export class CameraRig {
   /** Snap the spring (after a jump, or before a screenshot). */
   snap(): void {
     this.primed = false;
+    this.focusPrimed = false;
+  }
+
+  /** Where the camera is pointed this frame. */
+  readonly aim = new THREE.Vector3();
+  /** What depth of field keeps sharp where that is not the aim, set before
+   *  update: in the room the path looks toward the window and the beds sit
+   *  to one side, 4–6 m nearer than the aim (World.subject). */
+  subject: THREE.Vector3 | null = null;
+  /** Distance to the subject (or the aim), pulled to it over about a third
+   *  of a second: brief §5 "shallow and slow". */
+  focus = 5;
+  private focusPrimed = false;
+
+  private pullFocus(dt: number): void {
+    const d = this.camera.position.distanceTo(this.subject ?? this.aim);
+    this.focus = this.focusPrimed ? THREE.MathUtils.damp(this.focus, d, 3, Math.min(dt, 0.1)) : d;
+    this.focusPrimed = true;
   }
 
   /** Debug/calibration: pin the camera (world space), bypassing the path. */
-  override: { pos: THREE.Vector3; target: THREE.Vector3; fov: number; noShift?: boolean } | null = null;
+  override: { pos: THREE.Vector3; target: THREE.Vector3; fov: number; noShift?: boolean; roll?: number } | null = null;
 
   update(progress: number, dt: number, idleWeight = 0): void {
     if (this.override) {
@@ -192,13 +227,16 @@ export class CameraRig {
       cam.position.copy(o.pos);
       cam.up.set(0, 1, 0);
       cam.lookAt(o.target);
+      if (o.roll) cam.rotateZ(THREE.MathUtils.degToRad(o.roll));
       this.look.copy(o.target);
-      if (o.noShift) {
-        if (cam.view) cam.clearViewOffset();
-        cam.aspect = this.aspect;
-        cam.fov = o.fov;
-        cam.updateProjectionMatrix();
-      } else this.applyProjection(o.fov);
+      this.aim.copy(o.target);
+      this.focusPrimed = false;
+      this.pullFocus(dt);
+      if (o.noShift) this.applyPrincipal(this.vw / 2, this.vh / 2, this.vh / (2 * Math.tan((o.fov * Math.PI) / 360)));
+      else {
+        const [cx, cy, k] = this.pathPrincipal(o.fov);
+        this.applyPrincipal(cx, cy, k);
+      }
       return;
     }
     const f = this.evaluate(progress);
@@ -229,38 +267,55 @@ export class CameraRig {
       this.lookVel.addScaledVector(temp, -omega).multiplyScalar(exp);
       this.look.copy(f.target).add(change.add(temp).multiplyScalar(exp));
     }
+    // blend toward the configurator's view (position, aim, roll, projection)
+    const w = this.view ? THREE.MathUtils.clamp(this.viewWeight, 0, 1) : 0;
+    const aim = this.tmp.copy(this.look);
+    if (w > 0) {
+      cam.position.lerp(this.view!.pos, w);
+      aim.lerp(this.view!.target, w);
+    }
     cam.up.set(0, 1, 0);
-    cam.lookAt(this.look);
-    if (Math.abs(f.roll) > 1e-3) cam.rotateZ(THREE.MathUtils.degToRad(f.roll));
+    cam.lookAt(aim);
+    this.aim.copy(aim);
+    this.pullFocus(dt);
+    const roll = f.roll * (1 - w) + (this.view?.roll ?? 0) * w;
+    if (Math.abs(roll) > 1e-3) cam.rotateZ(THREE.MathUtils.degToRad(roll));
 
-    this.applyProjection(this.effectiveFov(f.fov));
+    const [cx, cy, k] = this.pathPrincipal(this.effectiveFov(f.fov));
+    if (w > 0) {
+      const r = this.view!.rect;
+      const kv = r.h / (2 * Math.tan((this.view!.vfov * Math.PI) / 360));
+      this.applyPrincipal(
+        THREE.MathUtils.lerp(cx, r.x + r.w / 2, w),
+        THREE.MathUtils.lerp(cy, r.y + r.h / 2, w),
+        Math.exp(THREE.MathUtils.lerp(Math.log(k), Math.log(kv), w)),
+      );
+    } else this.applyPrincipal(cx, cy, k);
   }
 
-  /** Visible vertical FOV `fov`; on portrait screens the principal point is
-   *  shifted down (a lens shift, verticals stay vertical) so the subject sits
-   *  in the upper part of the frame, clear of the bottom copy panel. */
-  private applyProjection(fov: number): void {
-    const cam = this.camera;
-    const a = this.aspect;
-    // Portrait: subject in the upper part of the frame (copy panel below).
-    // Landscape: subject right of centre (copy column on the left).
+  /** The path's principal point (CSS px) and scale (px per unit tangent):
+   *  on portrait screens the principal point sits above centre (subject clear
+   *  of the bottom copy panel), on landscape right of centre (copy column on
+   *  the left) — a lens shift, so verticals stay vertical. */
+  private pathPrincipal(fov: number): [number, number, number] {
+    const a = this.aspect, W = this.vw, H = this.vh;
     const sy = a < 0.8 ? 0.11 : a < 1.2 ? 0.05 : 0;
     const sx = a >= 1.2 ? this.shiftX : 0;
-    if (sy === 0 && sx === 0) {
+    return [W / 2 + sx * W, H / 2 - sy * H, H / (2 * Math.tan((fov * Math.PI) / 360))];
+  }
+
+  /** Projection with the principal point at (cx, cy) CSS px and scale k:
+   *  a virtual frame centred on the principal point, of which the canvas is
+   *  one window (THREE's view offset). */
+  private applyPrincipal(cx: number, cy: number, k: number): void {
+    const cam = this.camera;
+    const W = this.vw, H = this.vh;
+    const hx = Math.max(cx, W - cx), hy = Math.max(cy, H - cy);
+    cam.aspect = hx / hy;
+    cam.fov = (2 * Math.atan(hy / k) * 180) / Math.PI;
+    if (Math.abs(hx - W / 2) < 0.5 && Math.abs(hy - H / 2) < 0.5) {
       if (cam.view) cam.clearViewOffset();
-      cam.aspect = a;
-      cam.fov = fov;
-    } else {
-      const h = 1000;
-      const w = h * a;
-      const ey = 2 * sy * h;
-      const ex = 2 * sx * w;
-      // camera.fov/aspect describe the full virtual frame; the canvas shows
-      // the bottom-right (portrait: bottom) window of it.
-      cam.aspect = (w + ex) / (h + ey);
-      cam.fov = (2 * Math.atan(Math.tan((fov * Math.PI) / 360) * ((h + ey) / h)) * 180) / Math.PI;
-      cam.setViewOffset(w + ex, h + ey, 0, ey, w, h);
-    }
+    } else cam.setViewOffset(2 * hx, 2 * hy, hx - cx, hy - cy, W, H);
     cam.updateProjectionMatrix();
   }
 

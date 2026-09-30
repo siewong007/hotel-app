@@ -3,6 +3,7 @@
 import { copy, fill } from '../content';
 import { CHAPTERS, type ChapterDef } from '../experience/Timeline';
 import { SITE, WEB_RATES } from '../config/site';
+import { regCardHtml } from './BookingPanel';
 
 const minRate = Math.min(...Object.values(WEB_RATES));
 
@@ -26,19 +27,17 @@ export class Chapters {
       const tag = def.id === 1 ? 'h1' : 'h2';
       const inner = document.createElement('div');
       inner.className = 'chapter__copy';
+      // chapter 5 prints the registration card (its twin heads the booking panel)
       inner.innerHTML = `
         <p class="eyebrow line">${chapter.eyebrow}</p>
         <${tag} class="line" id="chapter-${def.id}-title">${chapter.title}</${tag}>
-        <p class="chapter__body line">${chapter.body}</p>`;
+        ${def.id === 5 ? regCardHtml('line') : `<p class="chapter__body line">${chapter.body}</p>`}`;
+      if (def.id === 2) inner.insertAdjacentHTML('beforeend', '<div class="nb line" id="nb-ch2"></div>');
+      if (def.id === 6) inner.insertAdjacentHTML('beforeend', '<div class="configurator line" id="configurator"></div>');
+      if (def.id === 7) inner.insertAdjacentHTML('beforeend', '<div class="nb line" id="nb-ch7"></div>');
       if (def.id === 8) {
-        inner.insertAdjacentHTML(
-          'beforeend',
-          `<div class="booking-card line" id="book">
-            <p>${copy.bookingCard.blurb}</p>
-            <a class="pill pill--gold" href="${SITE.bookingUrl}" target="_top">${copy.bookingCard.book}</a>
-            <a class="pill" href="tel:${SITE.phoneE164}">${fill(copy.bookingCard.call, { phone: SITE.phoneDisplay })}</a>
-          </div>`,
-        );
+        inner.insertAdjacentHTML('beforeend', '<div class="booking-mount line" id="book"></div>');
+        inner.setAttribute('data-lenis-prevent', ''); // the panel's column scrolls on its own when it outgrows the screen
       }
       sec.appendChild(inner);
       this.story.appendChild(sec);

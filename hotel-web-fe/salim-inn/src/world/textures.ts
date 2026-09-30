@@ -5,15 +5,53 @@ import { rng } from './geom';
 
 const cache = new Map<string, THREE.Texture>();
 
-function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  return [c, c.getContext('2d', { willReadFrequently: true })!];
+/** Longest edge a generated texture keeps on the current quality tier (brief
+ *  §4.6/§8: 2K on the one hero surface, the aerial ground; 1K elsewhere on
+ *  high, half that on the lower tiers to keep phones inside 80 MB). Canvases
+ *  from canvas() are drawn at that size; others are scaled down (fitCanvas). */
+const limit = { hero: 2048, other: 1024 };
+export function setTextureLimits(hero: number, other: number): void {
+  limit.hero = hero;
+  limit.other = other;
 }
 
-function finish(c: HTMLCanvasElement, srgb: boolean, repeat = true): THREE.CanvasTexture {
-  const t = new THREE.CanvasTexture(c);
+/** A canvas drawn at less than its design size (see canvas). */
+type Scaled = HTMLCanvasElement & { designScale?: number };
+
+/** A texture canvas at the size the tier keeps (setTextureLimits): the
+ *  generators draw in their own design pixels and the context is scaled to
+ *  the canvas, so a phone's textures cost a quarter of the drawing and no
+ *  resampling, instead of being drawn at full size and shrunk. Generators
+ *  that write pixels directly (ImageData) stay under every limit. */
+export function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
+  const s = Math.min(1, limit.other / Math.max(w, h));
+  const c: Scaled = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * s));
+  c.height = Math.max(1, Math.round(h * s));
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  if (s < 1) {
+    c.designScale = s;
+    g.scale(c.width / w, c.height / h);
+  }
+  return [c, g];
+}
+
+export function fitCanvas(c: HTMLCanvasElement, role: 'hero' | 'other' = 'other'): HTMLCanvasElement {
+  const s = limit[role] / Math.max(c.width, c.height);
+  if (s >= 1) return c;
+  const d = document.createElement('canvas'); // (not canvas(): no design scaling here)
+  d.width = Math.max(1, Math.round(c.width * s));
+  d.height = Math.max(1, Math.round(c.height * s));
+  const g = d.getContext('2d', { willReadFrequently: true })!;
+  // halving: bilinear sampling at the new pixel centres is an exact 2×2 box
+  // filter, and far cheaper than the 'high' resampler
+  g.imageSmoothingQuality = s === 0.5 ? 'low' : 'medium';
+  g.drawImage(c, 0, 0, d.width, d.height);
+  return d;
+}
+
+export function finish(c: HTMLCanvasElement, srgb: boolean, repeat = true): THREE.CanvasTexture {
+  const t = new THREE.CanvasTexture(fitCanvas(c));
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.anisotropy = 8;
@@ -22,22 +60,33 @@ function finish(c: HTMLCanvasElement, srgb: boolean, repeat = true): THREE.Canva
   return t;
 }
 
-/** Normal map from a greyscale height canvas (Sobel). */
-function normalFrom(height: HTMLCanvasElement, strength = 2.0): THREE.CanvasTexture {
-  const w = height.width, h = height.height;
-  const src = height.getContext('2d')!.getImageData(0, 0, w, h).data;
+/** Normal map from a greyscale height canvas (central differences, wrapping).
+ *  Computed at the size the tier keeps (fitCanvas) — a normal map is no
+ *  sharper than the texture that carries it — with the strength scaled so
+ *  slopes per metre stay the same; and without allocating per pixel: this
+ *  pass was the costliest part of building the interiors. */
+export function normalFrom(height: HTMLCanvasElement, strength = 2.0): THREE.CanvasTexture {
+  const fitted = fitCanvas(height);
+  const w = fitted.width, h = fitted.height;
+  const src = fitted.getContext('2d')!.getImageData(0, 0, w, h).data;
+  const design = height.width / ((height as Scaled).designScale ?? 1);
+  const k = (strength * (w / design)) / 255;
   const [c, g] = canvas(w, h);
   const out = g.createImageData(w, h);
-  const H = (x: number, y: number) => src[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const dx = (H(x + 1, y) - H(x - 1, y)) * strength;
-    const dy = (H(x, y + 1) - H(x, y - 1)) * strength;
-    const n = new THREE.Vector3(-dx, -dy, 1).normalize();
-    const i = (y * w + x) * 4;
-    out.data[i] = (n.x * 0.5 + 0.5) * 255;
-    out.data[i + 1] = (n.y * 0.5 + 0.5) * 255;
-    out.data[i + 2] = (n.z * 0.5 + 0.5) * 255;
-    out.data[i + 3] = 255;
+  const d = out.data;
+  for (let y = 0; y < h; y++) {
+    const up = ((y + h - 1) % h) * w, down = ((y + 1) % h) * w, row = y * w;
+    for (let x = 0; x < w; x++) {
+      const left = (x + w - 1) % w, right = (x + 1) % w;
+      const dx = (src[(row + right) * 4] - src[(row + left) * 4]) * k;
+      const dy = (src[(down + x) * 4] - src[(up + x) * 4]) * k;
+      const inv = 1 / Math.sqrt(dx * dx + dy * dy + 1);
+      const i = (row + x) * 4;
+      d[i] = (-dx * inv * 0.5 + 0.5) * 255;
+      d[i + 1] = (-dy * inv * 0.5 + 0.5) * 255;
+      d[i + 2] = (inv * 0.5 + 0.5) * 255;
+      d[i + 3] = 255;
+    }
   }
   g.putImageData(out, 0, 0);
   return finish(c, false);

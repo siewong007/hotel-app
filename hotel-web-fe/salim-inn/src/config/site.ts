@@ -48,6 +48,7 @@ export const SITE = {
   checkIn: { label: '2:00 pm', iso: '14:00' },
   checkOut: { label: '12:00 noon', iso: '12:00' },
   frontDesk: '24-hour reception, CCTV',
+  frontDeskHours: '24 hours', // brief §2: 24-hour reception (saliminn.my)
   cancellation: 'Free cancellation with at least 3 days’ notice. Later cancellations or no-shows are charged the first night.',
   inRoom: ['Free high-speed Wi-Fi', 'Air-conditioning', 'LCD TV with satellite channels', 'Private ensuite bathroom', 'Fresh towels', 'Bidet sprayer'],
   // Trust row: PMS payment methods minus OTAs and "Complimentary Room".
@@ -61,6 +62,14 @@ export const SITE = {
   // two lots give. The upper-floor split is still an inference.
   occupancyInferred: true,
 } as const;
+
+/** The front-desk facts: chapter 5's copy and the registration card on the
+ *  counter both print these (brief §3 ch. 5). */
+export const FRONT_DESK_FACTS: readonly string[] = [
+  `Check-in from ${SITE.checkIn.label}`,
+  `Check-out by ${SITE.checkOut.label}`,
+  `Front desk ${SITE.frontDeskHours}`,
+];
 
 // CONFIRM WITH OWNER (conflict 1): web rates by room type (saliminn.my).
 export const WEB_RATES: Record<RoomCode, number> = { STDQ: 75, DLX: 85, SUP: 95, FR: 105, FS: 110 };
@@ -82,5 +91,16 @@ export const OPEN_QUESTIONS = [
   '“The only hotel in Farley”: not claimed unless confirmed (a short-let listing shares the street).',
   'Building occupancy: Salim Inn holds the corner and entrance lots (No. 21 & 22) and cafe.cafe the two southern lots; rooms are modelled on levels 1–2 across all four lots, which is an inference.',
   'Superior Twin size: not in the PMS; modelled at 28 m².',
-  'Reservation counter: no reception photo exists; designed from the entrance frames.',
+  'Reception, stair and corridor: no photos exist, so they are designed from the entrance frames and the rooms’ finishes (stone wall, walnut counter, forest-green carpet).',
+  'Room numbers: level 1 uses a placeholder sequence 101–114 (odd on the facade side, even behind); the configurator room is shown as 103.',
+  'Bed runner: the brief asks for a forest-green runner on every bed, but none of the owner’s photos shows one. Kept for now.',
+  'Bedside lamps: none appear in the owner’s photos, so none are modelled.',
+  'Family Suite: listed as having no window, but its photo shows sage curtains; modelled as curtains over a closed wall.',
+  'Standard Queen: no photo of this type exists; the configurator shows the generic guest-room photo, captioned as such, with the camera framed by eye.',
+  'Chinese name on the lobby wall: not legible in the frames, so the lobby letters read SALIM INN only.',
+  'Neighbourhood: 16 of the 18 places in neighbourhood.json are marked verify_before_launch and stay off the page until checked; clearing the flag adds each to the hotspots, cards and walking labels, and chapter 2’s title grows with them.',
+  'Supermarket walk: saliminn.my says about 5 minutes; the brief’s straight-line formula gives about 3 (165 m). The page shows the published 5.',
+  'Booking portal pre-fill: the portal ignores the dates, guests and room the panel sends, so guests re-enter them (the panel shows a copyable summary). A small portal change would make them carry over.',
+  'Link preview: replaced the room photo with the chapter 3 hero render (salim-inn-hero-v2.jpg); the old image is still published.',
+  'Extra bed: RM35 is shown without a unit (per night or per stay?), and children count towards each room’s maximum occupancy.',
 ];

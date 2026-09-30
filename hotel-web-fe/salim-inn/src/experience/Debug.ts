@@ -60,14 +60,22 @@ export class Debug {
   }
 }
 
-/** Sample the whole path and report samples within `threshold` of geometry. */
-export function clipCheck(rig: CameraRig, solids: THREE.Object3D[], samples = 3000, threshold = 0.3): ClipReport {
-  const frames: THREE.Vector3[] = [];
+export interface ClipPoint { p: number; pos: THREE.Vector3; label?: string }
+
+/** The camera path sampled evenly in timeline progress. */
+export function pathSamples(rig: CameraRig, samples = 3000): ClipPoint[] {
+  const out: ClipPoint[] = [];
   const f = { pos: new THREE.Vector3(), target: new THREE.Vector3(), fov: 0, roll: 0 };
   for (let i = 0; i <= samples; i++) {
     rig.evaluate(i / samples, f);
-    frames.push(f.pos.clone());
+    out.push({ p: i / samples, pos: f.pos.clone() });
   }
+  return out;
+}
+
+/** Report the points within `threshold` of geometry. */
+export function clipCheck(points: ClipPoint[], solids: THREE.Object3D[], threshold = 0.3): ClipReport {
+  const frames = points.map((q) => q.pos);
   // only geometry near the ground-level part of the path matters
   const low = frames.filter((v) => v.y < 60);
   const box = new THREE.Box3().setFromPoints(low.length ? low : frames).expandByScalar(40);
@@ -114,6 +122,7 @@ export function clipCheck(rig: CameraRig, solids: THREE.Object3D[], samples = 30
         const mesh = o as THREE.Mesh;
         const mat = mesh.material as THREE.Material;
         if (mat.transparent && (mat as THREE.MeshStandardMaterial).opacity < 0.5) return;
+        if (mat.blending === THREE.AdditiveBlending) return; // light washes are not surfaces
         addGeo(mesh.geometry, mesh.matrixWorld, mesh.name || mesh.parent?.name || 'mesh');
       }
     });
@@ -125,13 +134,13 @@ export function clipCheck(rig: CameraRig, solids: THREE.Object3D[], samples = 30
   const hits: ClipReport['hits'] = [];
   let minD = Infinity;
   const hit = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
-  frames.forEach((pos, i) => {
+  points.forEach(({ p, pos, label }) => {
     const r = bvh.closestPointToPoint(pos, hit as never, 0, 5);
     if (!r) return;
     const d = r.distance;
     if (d < minD) minD = d;
-    if (d < threshold) hits.push({ p: i / samples, d, pos: [pos.x, pos.y, pos.z], mesh: owners[r.faceIndex] ?? '?' });
+    if (d < threshold) hits.push({ p, d, pos: [pos.x, pos.y, pos.z], mesh: `${label ? `${label}: ` : ''}${owners[r.faceIndex] ?? '?'}` });
   });
   geo.dispose();
-  return { samples: frames.length, minDistance: minD, hits };
+  return { samples: points.length, minDistance: minD, hits };
 }

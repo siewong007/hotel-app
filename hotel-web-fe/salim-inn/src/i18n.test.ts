@@ -90,7 +90,9 @@ describe('applyCopy', () => {
     localStorage.clear();
     localStorage.setItem(STORAGE_KEY, stored);
     vi.resetModules();
-    return { applyCopy: (await import('./applyCopy')).applyCopy, copy: (await import('./content')).copy };
+    const content = await import('./content');
+    await content.ready; // a language other than English is fetched on its own
+    return { applyCopy: (await import('./applyCopy')).applyCopy, copy: content.copy };
   };
 
   it('swaps marked elements, title, description and <html lang> for a stored locale', async () => {

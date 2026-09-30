@@ -225,6 +225,177 @@ export function mergeAll(parts: THREE.BufferGeometry[], keep?: string[]): THREE.
   return g;
 }
 
+const DEFAULT_ON_BEFORE_COMPILE = THREE.Material.prototype.onBeforeCompile;
+
+/** A standard material that differs from its kind only in colour, roughness
+ *  and metalness: no textures, no emission, no shader patch, opaque, default
+ *  depth and blending. Nothing dims or tints these at runtime (the lit ones
+ *  are emissive or basic, which never qualify). */
+function isPlain(m: THREE.Material): m is THREE.MeshStandardMaterial {
+  const s = m as THREE.MeshStandardMaterial;
+  return m.type === 'MeshStandardMaterial' && !s.map && !s.normalMap && !s.roughnessMap && !s.metalnessMap && !s.emissiveMap
+    && !s.alphaMap && !s.aoMap && !s.bumpMap && !s.lightMap && !s.envMap && !s.displacementMap && s.emissive.getHex() === 0
+    && !m.transparent && m.opacity === 1 && m.blending === THREE.NormalBlending && m.onBeforeCompile === DEFAULT_ON_BEFORE_COMPILE
+    && !m.alphaTest && !s.wireframe && m.depthTest && m.depthWrite && m.colorWrite && !m.polygonOffset && m.shadowSide === null
+    && s.fog && m.toneMapped && !m.dithering;
+}
+
+const batchedMats = new Map<string, THREE.MeshStandardMaterial>();
+/** The shared material of batchPlain: colour from the vertex colours,
+ *  roughness and metalness from an `rm` attribute. */
+function batchedMaterial(side: THREE.Side, flat: boolean, envMapIntensity: number): THREE.MeshStandardMaterial {
+  const key = `${side}|${flat}|${envMapIntensity}`;
+  let m = batchedMats.get(key);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ vertexColors: true, side, flatShading: flat, envMapIntensity });
+    m.name = `plain-${key}`;
+    m.userData.batched = true;
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute vec2 rm;\nvarying vec2 vRM;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vRM = rm;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vRM;')
+        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vRM.x;')
+        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vRM.y;');
+    };
+    m.customProgramCacheKey = () => 'plain-rm';
+    batchedMats.set(key, m);
+  }
+  return m;
+}
+
+/** Give a static subtree's plain surfaces (isPlain) one shared material per
+ *  face-culling mode, their colour, roughness and metalness moved into
+ *  vertex attributes — so mergeStatic, which runs next, merges them all:
+ *  a dozen painted, lacquered and metal parts become one draw (brief §8).
+ *  Subtrees in `skip` (anything animated or toggled on its own) are left. */
+export function batchPlain(root: THREE.Object3D, skip: THREE.Object3D[] = []): void {
+  const skipped = new Set(skip);
+  const visit = (o: THREE.Object3D) => {
+    if (skipped.has(o)) return;
+    for (const c of o.children) visit(c);
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || (o as THREE.InstancedMesh).isInstancedMesh || (o as THREE.BatchedMesh).isBatchedMesh || Array.isArray(mesh.material) || !isPlain(mesh.material)) return;
+    const m = mesh.material;
+    const g = mesh.geometry.clone(); // geometry may be shared with meshes that keep their material
+    const n = g.getAttribute('position').count;
+    const src = m.vertexColors ? g.getAttribute('color') : undefined;
+    const col = new Float32Array(n * 3), rm = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) {
+      col[i * 3] = m.color.r * (src ? src.getX(i) : 1);
+      col[i * 3 + 1] = m.color.g * (src ? src.getY(i) : 1);
+      col[i * 3 + 2] = m.color.b * (src ? src.getZ(i) : 1);
+      rm[i * 2] = m.roughness;
+      rm[i * 2 + 1] = m.metalness;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.setAttribute('rm', new THREE.BufferAttribute(rm, 2));
+    mesh.geometry = g;
+    mesh.material = batchedMaterial(m.side, m.flatShading, Math.round(m.envMapIntensity * 20) / 20);
+  };
+  visit(root);
+}
+
+/** Which of `n` equal sectors, by bearing around a centre, an offset falls in. */
+export function sectorOf(dx: number, dz: number, n: number): number {
+  return Math.min(n - 1, Math.floor(((Math.atan2(dz, dx) + Math.PI) / (2 * Math.PI)) * n));
+}
+
+/** Split an instanced mesh into `n` sectors by bearing from `c`, one mesh
+ *  each sharing its geometry and material (empty sectors dropped). A mesh
+ *  spanning the whole map is drawn whole in every frame it touches; split,
+ *  frustum culling and the visibility audit skip the sectors out of sight —
+ *  most of them on a portrait phone, whose view is ~27° wide (brief §8). */
+export function sectorInstances(src: THREE.InstancedMesh, c: { x: number; z: number }, n: number): THREE.InstancedMesh[] {
+  const m = new THREE.Matrix4(), col = new THREE.Color();
+  const bins: number[][] = Array.from({ length: n }, () => []);
+  for (let i = 0; i < src.count; i++) {
+    src.getMatrixAt(i, m);
+    bins[sectorOf(m.elements[12] - c.x, m.elements[14] - c.z, n)].push(i);
+  }
+  return bins.filter((ids) => ids.length > 0).map((ids, k) => {
+    const out = new THREE.InstancedMesh(src.geometry, src.material, ids.length);
+    ids.forEach((i, j) => {
+      src.getMatrixAt(i, m);
+      out.setMatrixAt(j, m);
+      if (src.instanceColor) {
+        src.getColorAt(i, col);
+        out.setColorAt(j, col);
+      }
+    });
+    out.name = `${src.name}-${k}`;
+    out.castShadow = src.castShadow;
+    out.receiveShadow = src.receiveShadow;
+    out.computeBoundingSphere();
+    return out;
+  });
+}
+
+/** Merge a static subtree's meshes that share a material (and shadow flags
+ *  and render order) into one mesh each, baking their transforms relative to
+ *  `root`. Subtrees in `skip` (anything animated or toggled on its own),
+ *  hidden, multi-material and instanced meshes are left alone. Materials are
+ *  kept, so code that dims or tints them keeps working. Cuts draw calls for
+ *  furniture, decor and light washes (brief §8). */
+export function mergeStatic(root: THREE.Object3D, skip: THREE.Object3D[] = []): void {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const skipped = new Set(skip);
+  const groups = new Map<string, THREE.Mesh[]>();
+  const visit = (o: THREE.Object3D) => {
+    if (skipped.has(o)) return;
+    for (const c of o.children) visit(c);
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || (o as THREE.InstancedMesh).isInstancedMesh || Array.isArray(m.material) || !m.visible) return;
+    const key = `${m.material.uuid}|${m.castShadow}|${m.receiveShadow}|${m.renderOrder}`;
+    const list = groups.get(key) ?? [];
+    list.push(m);
+    groups.set(key, list);
+  };
+  visit(root);
+  const rel = new THREE.Matrix4();
+  for (const meshes of groups.values()) {
+    if (meshes.length < 2) continue;
+    const first = meshes[0];
+    const mat = first.material as THREE.Material;
+    const parts = meshes.map((m) => m.geometry.clone().applyMatrix4(rel.multiplyMatrices(inv, m.matrixWorld)));
+    const keep = ['position', 'normal', 'uv', ...((mat as THREE.MeshStandardMaterial).vertexColors ? ['color'] : []), ...(mat.userData.batched ? ['rm'] : [])];
+    const merged = new THREE.Mesh(mergeAll(parts, keep), mat);
+    parts.forEach((g) => g.dispose());
+    merged.name = first.name || first.parent?.name || 'merged';
+    merged.castShadow = first.castShadow;
+    merged.receiveShadow = first.receiveShadow;
+    merged.renderOrder = first.renderOrder;
+    for (const m of meshes) m.removeFromParent();
+    root.add(merged);
+  }
+}
+
+/** One draw per material. A multi-material mesh draws once per geometry
+ *  group, and a box with one printed face is six groups (a key card, a
+ *  headboard): reorder its index so each material's triangles are
+ *  contiguous, and keep one group per distinct material. */
+export function packGroups(mesh: THREE.Mesh): void {
+  const mats = mesh.material;
+  const g = mesh.geometry;
+  if (!Array.isArray(mats) || !g.index || g.groups.length < 2) return;
+  const unique = [...new Set(mats)];
+  if (unique.length === g.groups.length) return;
+  const src = g.index.array;
+  const out: number[] = [];
+  const groups: [number, number][] = [];
+  for (const m of unique) {
+    const start = out.length;
+    for (const gr of g.groups) if (mats[gr.materialIndex ?? 0] === m) for (let i = gr.start; i < gr.start + gr.count; i++) out.push(src[i]);
+    groups.push([start, out.length - start]);
+  }
+  g.setIndex(out);
+  g.clearGroups();
+  groups.forEach(([start, count], i) => g.addGroup(start, count, i));
+  mesh.material = unique;
+}
+
 /** Rounded box between two corners (bevelled edges, brief §4.3). */
 export function rbox(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, r = 0.02): THREE.BufferGeometry {
   const w = Math.abs(x1 - x0), h = Math.abs(y1 - y0), d = Math.abs(z1 - z0);

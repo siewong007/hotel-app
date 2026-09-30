@@ -6,23 +6,26 @@ import * as THREE from 'three';
 import { site, pts, FARLEY_IDS } from '../data/site';
 import { rectClear } from './spatial';
 import { POINTS } from './layout';
-import { mergeAll, paint, prism, rng } from './geom';
+import { mergeAll, paint, prism, rng, sectorInstances, sectorOf } from './geom';
 
 const ROWS_R = 2300;
+/** Quarters around the hotel, a mesh each per kind (geom.sectorInstances):
+ *  more would cost the aerial shots, which see them all, a draw apiece. */
+const SECTORS = 4;
 
 const HEIGHT_BY_KIND: Record<string, number> = { house: 7.2, residential: 7.2, apartments: 13, commercial: 11.5, retail: 11.5, office: 14, school: 10.5, industrial: 9, warehouse: 9, hospital: 16, mosque: 12, temple: 9, church: 11, hotel: 16, roof: 4.5, yes: 8.5 };
 
 export class FarField {
   readonly group = new THREE.Group();
-  readonly osm: THREE.Mesh;
-  readonly rowBodies: THREE.InstancedMesh;
-  readonly rowRoofs: THREE.InstancedMesh;
+  /** OSM buildings, merged per sector. */
+  readonly osm = new THREE.Group();
   rowCount = 0;
 
   constructor(density = 1) {
     const rand = rng(1337);
     const farley = new Set<number>(Object.values(FARLEY_IDS));
-    const geos: THREE.BufferGeometry[] = [];
+    const c = POINTS.hotelCentre;
+    const geos: THREE.BufferGeometry[][] = Array.from({ length: SECTORS }, () => []);
     for (const b of site.buildings) {
       if (farley.has(b.id)) continue;
       const ring = pts(b.p).map(([x, z]) => new THREE.Vector2(x, z));
@@ -36,16 +39,21 @@ export class FarField {
       const col = g.getAttribute('color') as THREE.BufferAttribute;
       const rc = new THREE.Color(roof);
       for (let i = 0; i < nrm.count; i++) if (nrm.getY(i) > 0.9) col.setXYZ(i, rc.r, rc.g, rc.b);
-      geos.push(g);
+      const mx = ring.reduce((a, v) => a + v.x, 0) / ring.length, mz = ring.reduce((a, v) => a + v.y, 0) / ring.length;
+      geos[sectorOf(mx - c.x, mz - c.z, SECTORS)].push(g);
     }
-    this.osm = new THREE.Mesh(mergeAll(geos, ['position', 'normal', 'color']), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 }));
-    this.osm.castShadow = true;
-    this.osm.receiveShadow = true;
-    this.osm.name = 'osm-buildings';
+    const osmMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 });
+    geos.forEach((list, k) => {
+      if (!list.length) return;
+      const mesh = new THREE.Mesh(mergeAll(list, ['position', 'normal', 'color']), osmMat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.name = `osm-buildings-${k}`;
+      this.osm.add(mesh);
+    });
 
     // Procedural terrace rows along residential streets.
     const rows: { x: number; z: number; yaw: number; L: number; D: number; H: number }[] = [];
-    const c = POINTS.hotelCentre;
     for (const r of site.roads) {
       if (r.c !== 'residential' && r.c !== 'unclassified') continue;
       const line = pts(r.p);
@@ -78,8 +86,8 @@ export class FarField {
     const roofShape = new THREE.Shape([new THREE.Vector2(-0.56, 0), new THREE.Vector2(0.56, 0), new THREE.Vector2(0, 0.28)]);
     const roof = new THREE.ExtrudeGeometry(roofShape, { depth: 1, bevelEnabled: false });
     roof.translate(0, 0, -0.5).rotateY(Math.PI / 2).translate(0, 0.72, 0);
-    this.rowBodies = new THREE.InstancedMesh(body, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), Math.max(1, rows.length));
-    this.rowRoofs = new THREE.InstancedMesh(roof, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75 }), Math.max(1, rows.length));
+    const rowBodies = new THREE.InstancedMesh(body, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), Math.max(1, rows.length));
+    const rowRoofs = new THREE.InstancedMesh(roof, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75 }), Math.max(1, rows.length));
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const bodyCols = [0xe8e2d4, 0xefe9dd, 0xd9d2c3, 0xe3d6bf, 0xf2efe6];
@@ -88,19 +96,19 @@ export class FarField {
     rows.forEach((r, i) => {
       q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, r.yaw);
       m.compose(new THREE.Vector3(r.x, 0, r.z), q, new THREE.Vector3(r.L, r.H, r.D));
-      this.rowBodies.setMatrixAt(i, m);
-      this.rowRoofs.setMatrixAt(i, m);
-      this.rowBodies.setColorAt(i, col.setHex(bodyCols[Math.floor(rand() * bodyCols.length)]));
-      this.rowRoofs.setColorAt(i, col.setHex(roofCols[Math.floor(rand() * roofCols.length)]));
+      rowBodies.setMatrixAt(i, m);
+      rowRoofs.setMatrixAt(i, m);
+      rowBodies.setColorAt(i, col.setHex(bodyCols[Math.floor(rand() * bodyCols.length)]));
+      rowRoofs.setColorAt(i, col.setHex(roofCols[Math.floor(rand() * roofCols.length)]));
     });
-    this.rowBodies.count = this.rowRoofs.count = rows.length;
-    for (const mesh of [this.rowBodies, this.rowRoofs]) {
+    rowBodies.count = rowRoofs.count = rows.length;
+    rowBodies.name = 'terrace-bodies';
+    rowRoofs.name = 'terrace-roofs';
+    this.group.add(this.osm);
+    for (const mesh of [rowBodies, rowRoofs]) {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      mesh.computeBoundingSphere();
+      if (rows.length) this.group.add(...sectorInstances(mesh, c, SECTORS));
     }
-    this.rowBodies.name = 'terrace-bodies';
-    this.rowRoofs.name = 'terrace-roofs';
-    this.group.add(this.osm, this.rowBodies, this.rowRoofs);
   }
 }

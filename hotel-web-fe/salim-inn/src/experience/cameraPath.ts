@@ -98,9 +98,10 @@ export const PATH: PathChapter[] = [
     id: 5,
     weight: 'even',
     points: [
-      { pos: L(lobbyCx, eyeW, -3.6), target: L(counter.x, 1.4, counter.z), fov: 51 },
-      { pos: L(counter.x + 0.1, 1.55, counter.z + 3.0), target: L(counter.x, 1.12, counter.z), fov: 52.5 },
-      { pos: L(counter.x + 1.25, 1.5, counter.z + 2.75), target: L(counter.x + 0.1, 1.2, counter.z - 0.2), fov: FOV.c5[1] },
+      { pos: L(lobbyCx, eyeW, -3.6), target: L(counter.x, 1.5, counter.z), fov: 51 },
+      { pos: L(counter.x - 0.15, 1.62, counter.z + 2.35), target: L(counter.x - 0.2, 1.2, counter.z + 0.1), fov: 52.5 },
+      // the arc ends close enough to read the registration card and the key cards
+      { pos: L(counter.x + 0.8, 1.58, counter.z + 1.95), target: L(counter.x + 0.05, 1.32, counter.z + 0.05), fov: FOV.c5[1] },
     ],
   },
   // 6 · Rooms: rise through the stair core to the level-1 corridor, the door
@@ -112,10 +113,12 @@ export const PATH: PathChapter[] = [
       { pos: L(stairCx, eye, -9.6), target: L(stairCx, 2.2, -15), fov: 54.5 },
       { pos: L(stairCx, eye + 0.3, -13.4), target: L(stairCx, y1 + 1.8, -14.6), fov: 55 },
       { pos: L(stairCx, y1 + eye, -13.6), target: L(stairCx + 0.2, y1 + 1.5, -8.4), fov: 55.5 },
-      { pos: L(stairCx + 0.2, y1 + eye, -10.4), target: L(doorCx, y1 + 1.4, -6), fov: 56 },
-      { pos: L(doorCx, y1 + eye, -8.4), target: L(doorCx - 0.2, y1 + 1.2, -4), fov: 56.5 },
+      // into the corridor before turning, clear of the landing's corner
+      { pos: L(stairCx - 0.3, y1 + eye, -8.75), target: L(doorCx, y1 + 1.4, -6), fov: 56 },
+      { pos: L(doorCx + 0.25, y1 + eye, -8.3), target: L(doorCx - 0.2, y1 + 1.2, -4), fov: 56.5 },
       { pos: L(doorCx - 0.1, y1 + eye, -6.6), target: L(winX, y1 + 1.0, -2.5), fov: 57 },
-      { pos: L(doorCx - 0.45, y1 + eye + 0.05, -5.6), target: L(winX - 0.5, y1 + 0.95, -2.2), fov: FOV.c6[1] },
+      // (kept on the door side: in the Standard Queen the ensuite wall is 0.5 m to the left)
+      { pos: L(doorCx - 0.1, y1 + eye + 0.05, -5.6), target: L(winX - 0.5, y1 + 0.95, -2.2), fov: FOV.c6[1] },
     ],
   },
   // 7 · Within footsteps: back out through the window, up to 60 m over the ring
