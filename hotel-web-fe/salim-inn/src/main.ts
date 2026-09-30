@@ -7,13 +7,16 @@
 // Lighthouse models a slow phone: LCP 6.8 s preloaded, 2.9 s like this.
 import './styles/main.css';
 import './styles/sections.css';
-import { lang } from './content';
+import { lang, ready } from './content';
 import { selectLang, type LangCode } from './content/lang';
 import { applyCopy } from './applyCopy';
 
 // The page's copy in the visitor's language before anything else runs (the
-// English static HTML stays the no-JS and crawler baseline; applyCopy.ts)
-applyCopy();
+// English static HTML stays the no-JS and crawler baseline; applyCopy.ts).
+// A language other than English is its own small chunk, fetched first.
+const copied = ready.then((ok) => {
+  if (ok) applyCopy();
+});
 const picker = document.getElementById('langPicker') as HTMLSelectElement | null;
 if (picker) {
   picker.value = lang;
@@ -24,7 +27,7 @@ let started = false;
 const start = () => {
   if (started) return;
   started = true;
-  import('./film').catch((err: unknown) => {
+  copied.then(() => import('./film')).catch((err: unknown) => {
     // no film (offline mid-load, a blocked chunk): the poster and the page's
     // own sections stay, and the preloader steps aside
     console.error(err);

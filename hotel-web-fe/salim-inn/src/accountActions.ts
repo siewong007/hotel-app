@@ -2,7 +2,7 @@
 // It lives under src/ so it can import the resolved copy bundle and stay
 // typechecked; served as an external module it keeps working under the desktop
 // webview CSP (script-src 'self', no inline).
-import { copy } from './content';
+import { copy, ready } from './content';
 
 type Account = 'guest' | 'admin' | null;
 
@@ -58,5 +58,6 @@ export function updateAccountActions(): void {
   }
 }
 
-updateAccountActions();
+// in the visitor's language: after its bundle has arrived (content/index.ts)
+void ready.then(updateAccountActions);
 window.addEventListener('pageshow', updateAccountActions);
