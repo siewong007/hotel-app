@@ -47,6 +47,27 @@ function guestHtmlFallback(): Plugin {
   };
 }
 
+// The Salim Inn landing page (salim-inn/index.html) paints its poster before
+// the film loads; its one stylesheet (~9 kB) was the only request between the
+// HTML and that paint. Inlined, the first paint needs the HTML alone
+// (Lighthouse mobile: render-blocking, est. 900 ms). nginx's CSP allows inline
+// styles (style-src 'unsafe-inline'); scripts stay external.
+function inlineLandingCss(): Plugin {
+  return {
+    name: 'salim-inn-inline-css',
+    apply: 'build',
+    enforce: 'post',
+    generateBundle(_options, bundle) {
+      const page = bundle['salim-inn/index.html'];
+      if (!page || page.type !== 'asset') return;
+      page.source = String(page.source).replace(/<link rel="stylesheet"[^>]*?href="\/(assets\/[^"]+\.css)"[^>]*>/g, (tag, file: string) => {
+        const css = bundle[file];
+        return css && css.type === 'asset' ? `<style>${String(css.source)}</style>` : tag;
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const isTauri = TAURI_MODES.has(mode);
@@ -63,6 +84,7 @@ export default defineConfig(({ mode, command }) => {
   return {
     plugins: [
       guestHtmlFallback(),
+      ...(isTauri ? [] : [inlineLandingCss()]),
       // Must come before React plugin to inject the generated route tree before TSX transform
       tanstackRouter({
         target: 'react',
