@@ -12,11 +12,9 @@
  * English, exactly as an unknown code always has, and `useHelpArticles`
  * subscribes to this registry so the page re-renders when the real set lands.
  *
- * zh-TW has no articles of its own and reads the Simplified Chinese set: same
- * language, different script, which a Traditional reader can follow where
- * English is no use at all. That is the ordinary BCP-47 walk (zh-TW -> zh ->
- * en) and matches how the translation bundles behave. Give it its own entry in
- * LOADERS when a Traditional set is authored.
+ * zh-TW ships its own Traditional Chinese set — authored from the Simplified
+ * corpus with Taiwan-standard terminology, so Traditional readers get native
+ * copy rather than a script they have to mentally convert.
  */
 
 import { DEFAULT_LOCALE, type LocaleCode } from '../../../i18n/locales';
@@ -27,12 +25,11 @@ import { ARTICLES_EN } from './articles.en';
 const LOADERS: Record<string, () => Promise<HelpArticle[]>> = {
   ms: () => import('./articles.ms').then((m) => m.ARTICLES_MS),
   zh: () => import('./articles.zh').then((m) => m.ARTICLES_ZH),
+  'zh-TW': () => import('./articles.zhTW').then((m) => m.ARTICLES_ZH_TW),
 };
 
 /** Locales that read another locale's set rather than shipping their own. */
-const READS_FROM: Partial<Record<LocaleCode, LocaleCode>> = {
-  'zh-TW': 'zh',
-};
+const READS_FROM: Partial<Record<LocaleCode, LocaleCode>> = {};
 
 /** Which locale's articles a reader actually gets. */
 const sourceLocale = (locale: LocaleCode): LocaleCode => READS_FROM[locale] ?? locale;

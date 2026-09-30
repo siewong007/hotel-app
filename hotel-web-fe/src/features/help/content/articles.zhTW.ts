@@ -1,0 +1,893 @@
+import type { HelpArticle } from '../types';
+
+/**
+ * 中文幫助中心文章（繁體中文，映象 articles.en.ts 的 slug 與區塊結構；
+ * content.test.ts 負責校驗結構一致性）。
+ *
+ * 以下每個流程都已在管理埠中核實：頁面名稱與導航登錄檔一致、按鈕標籤與
+ * 渲染 UI 一致、許可權標識與 seed.sql 一致。介面變更時，請同步更新對應文章並
+ * 更新 `lastReviewed`。
+ */
+export const ARTICLES_ZH_TW: HelpArticle[] = [
+  // ---------------------------------------------------------- 入門
+  {
+    slug: 'sign-in-and-security',
+    title: '登入並保護您的帳戶',
+    summary: '登入、新增通行金鑰或雙重驗證，並在共用工作站上安全退出。',
+    category: 'getting-started',
+    keywords: ['登入', '密碼', '通行金鑰', '2fa', '雙重驗證', '退出', '共用電腦'],
+    routePath: '/profile',
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['getting-around-admin-portal', 'page-missing-or-access-denied'],
+    blocks: [
+      { type: 'paragraph', text: '員工帳戶由管理員建立。獲得憑據後，從登入頁登入——門戶會恢復您最初嘗試開啟的頁面。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟登入頁', body: '輸入使用者名稱和密碼。如果會話已過期，系統會先帶您回到此頁，然後再跳轉到您想去的頁面。' },
+          { title: '按提示新增通行金鑰', body: '首次登入時，系統可能會要求您註冊通行金鑰（指紋、人臉或裝置 PIN）。通行金鑰是最快、最安全的再次登入方式——您可以暫時忽略提示，稍後在個人資料中設定。' },
+          { title: '註冊雙重驗證', body: '如果您的角色有此要求，系統會引導您完成 2FA 註冊。請準備好您的驗證器應用。' },
+          { title: '班次結束時退出登入', body: '開啟帳戶選單（右上角）並選擇“退出登入”。在共用的前臺工作站上，這不是可選項——下一位使用者會繼承您未退出的會話。' },
+        ],
+      },
+      { type: 'callout', tone: 'warning', title: '共用工作站', body: '切勿在前臺留下無人看管的已登入會話。退出登入會清除記憶體中的訪問令牌。' },
+      { type: 'callout', tone: 'tip', body: '如果頁面顯示“訪問被拒絕”，通常只是您的角色不包含該頁面——在懷疑係統故障之前，請先檢視“為什麼看不到某個頁面？”。' },
+    ],
+  },
+  {
+    slug: 'getting-around-admin-portal',
+    title: '熟悉管理門戶',
+    summary: '導航分組、命令面板、通知、語言與主題——每個班次都會用到的五個控制元件。',
+    category: 'getting-started',
+    keywords: ['導航', '選單', '命令面板', '搜尋', '主題', '語言', '深色模式', '馬來語'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['sign-in-and-security', 'cant-find-a-booking'],
+    blocks: [
+      { type: 'paragraph', text: '頂欄集中了您需要的一切。第一行是酒店名稱、搜尋欄、“新建預訂”快捷按鈕、語言、通知和帳戶選單。第二行是模組導航，分為“主要”、“運營”、“管理”和“配置”四組。' },
+      {
+        type: 'list',
+        items: [
+          '“主要”和“運營”模組（時間線、客人、預訂、房間、線上庫存、報表、客房服務、支援）以一鍵標籤的形式呈現。',
+          '“管理”和“配置”摺疊為下拉選單，讓頂欄適配任意螢幕寬度。',
+          '在手機或窄視窗中，所有分組都會移入通過選單按鈕開啟的側邊抽屜。',
+        ],
+      },
+      { type: 'heading', text: '用 ⌘K 找到任何東西' },
+      { type: 'paragraph', text: '按 ⌘K（Windows 上為 Ctrl+K）或點選搜尋欄開啟命令面板。它可以搜尋預訂、客人、賬條、房間、頁面——以及幫助文章。方向鍵瀏覽結果，回車開啟所選，Esc 關閉。輸入 / 可執行“新建預訂”等快捷操作。' },
+      { type: 'heading', text: '語言與主題' },
+      { type: 'paragraph', text: '地球圖示可在英語、馬來語和中文之間即時切換——無需重新整理。明亮、深色和夜間主題在“酒店設定”中配置；選擇會按工作站記住。' },
+      { type: 'callout', tone: 'tip', body: '命令面板會記住您最近去過的六個目的地，重複跳轉只需按兩下鍵盤。' },
+    ],
+  },
+  {
+    slug: 'page-missing-or-access-denied',
+    title: '為什麼看不到某個頁面？',
+    summary: '頁面根據您的角色和許可權顯示——選單項缺失或“訪問被拒絕”頁面幾乎都是許可權決定，而非故障。',
+    category: 'getting-started',
+    keywords: ['訪問被拒絕', '403', '許可權', '選單缺失', '角色', '看不到', '頁面缺失'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['roles-and-permissions', 'sign-in-and-security'],
+    blocks: [
+      { type: 'paragraph', text: '管理門戶中的每個模組都受路由訪問策略保護。您的導航只顯示角色和許可權允許的目的地——在同一螢幕上，兩位員工可能看到完全不同的選單。' },
+      {
+        type: 'list',
+        items: [
+          '選單項缺失 → 路由策略排除了您的角色，或您缺少相應許可權。',
+          '開啟連結後看到“訪問被拒絕”（403）→ 您可以訪問門戶，但不能訪問該模組。',
+          '昨天能用今天不行 → 您的角色或路由策略發生了變化。請檢視審計日誌或詢問管理員。',
+        ],
+      },
+      {
+        type: 'steps',
+        steps: [
+          { title: '確認模組存在', body: '詢問同事是否能看到該頁面。如果沒人能看到，可能是配置問題而非許可權問題。' },
+          { title: '詢問管理員', body: '許可權在“訪問控制 → 使用者”（分配角色）或“角色”（編輯角色允許的操作）中授予。只有管理員可以更改。' },
+        ],
+      },
+      { type: 'callout', tone: 'info', body: '*:manage 許可權隱含該資源的所有其他操作——例如 bookings:manage 涵蓋建立、讀取、更新和刪除。' },
+    ],
+  },
+
+  // ------------------------------------------------------------------ 預訂
+  {
+    slug: 'create-a-booking',
+    title: '建立預訂',
+    summary: '通過“新建預訂”按鈕建立預訂——在一個螢幕內選擇日期、房間、房價和支付方式。',
+    category: 'bookings',
+    keywords: ['預訂', '新建預訂', '上門客', '電話預訂', '手動預訂'],
+    routePath: '/bookings',
+    requiredPermissions: ['bookings:create'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['check-in-a-guest', 'find-a-reservation', 'void-reactivate-release'],
+    blocks: [
+      { type: 'paragraph', text: '上門、電話和回頭客預訂都通過同一個“新建預訂”介面建立。它把住宿日期、選房、客人資料和房價/支付合併為單一流程。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟“新建預訂”', body: '使用頂欄中的白色“新建預訂”按鈕，或開啟“預訂”頁面後在其中開始。' },
+          { title: '選擇住宿日期和模式', body: '選擇入住和退房日期。預訂模式選擇器會按預訂型別調整流程。' },
+          { title: '選擇房間', body: '先選房型，再選具體房間。系統只提供整個期間都空閒的房間。' },
+          { title: '填寫客人資料', body: '搜尋現有客人或錄入新客人——姓名、聯絡方式和國籍欄位會影響稅費和身份核驗。' },
+          { title: '設定房價和支付', body: '核對每晚價格和總價，選擇支付方式和押金方式，然後確認。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '客人國籍中的“本地/外籍”決定旅遊稅是否適用——它在客人區域選擇，而不是在支付時。' },
+      { type: 'callout', tone: 'important', title: '未付款的線上保留', body: '停留在 pending_payment 狀態的預訂屬於保留房。它們會在“酒店設定”中配置的時長（未付款保留釋放小時數）後自動釋放，也可以提前手動釋放。' },
+    ],
+  },
+  {
+    slug: 'find-a-reservation',
+    title: '查詢預訂',
+    summary: '通過編號、客人姓名或房間查詢任意預訂——使用“預訂”列表或 ⌘K 面板。',
+    category: 'bookings',
+    keywords: ['搜尋預訂', '查詢預訂', '預訂丟失', '預訂編號', 'bk-', '查詢'],
+    routePath: '/bookings',
+    requiredPermissions: ['bookings:read'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['cant-find-a-booking', 'check-in-a-guest', 'create-a-booking'],
+    blocks: [
+      { type: 'paragraph', text: '取決於您掌握的資訊，有兩條快速路徑：想瀏覽和篩選時用“預訂”列表；知道預訂編號或客人時用 ⌘K 面板。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟 ⌘K 面板', body: '按 ⌘K 或點選搜尋欄。選擇“預訂”範圍標籤以限定結果。' },
+          { title: '按編號或客人搜尋', body: '輸入預訂編號（例如 BK-…）或客人姓名。選擇結果會開啟已過濾到該預訂的“預訂”頁面。' },
+          { title: '或者篩選“預訂”列表', body: '在“預訂”頁面使用篩選欄——狀態、日期和房號可以在不離開頁面的情況下縮小範圍。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '把預訂編號貼上到面板是最快的查詢方式——結果會直接深鏈到過濾後的列表。' },
+      { type: 'callout', tone: 'info', title: '如果仍然找不到', body: '已作廢的預訂和已釋放的未付款保留不會出現在日常檢視中。完整排查清單見“找不到預訂？”。' },
+    ],
+  },
+  {
+    slug: 'check-in-a-guest',
+    title: '為客人辦理入住',
+    summary: '在入住當天標記到店——已確認和待確認的預訂都符合條件；提前入住會被提示而非阻止。',
+    category: 'bookings',
+    keywords: ['到店', '入住', '前臺', '提前入住', '客人到達'],
+    routePath: '/bookings',
+    requiredPermissions: ['bookings:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['check-out-a-guest', 'find-a-reservation', 'housekeeping-maintenance'],
+    blocks: [
+      { type: 'paragraph', text: '當預訂狀態為已確認或待確認且到達入住日期後，即可辦理入住。“入住”操作位於預訂本身。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟預訂', body: '通過 ⌘K 或“預訂”列表找到它並開啟詳情。' },
+          { title: '選擇“入住”', body: '該操作只在預訂符合條件時出現——狀態為已確認或待確認，且今天不早於入住日期。' },
+          { title: '檢視入住提示', body: '通常由公司結算的客人可能會在繼續前觸發提示——閱讀後確認。' },
+          { title: '確認', body: '預訂狀態變為 checked_in，房間在“房間”和“時間線”上顯示為已入住。' },
+        ],
+      },
+      { type: 'callout', tone: 'info', title: '提前入住', body: '早於配置的入住時間（酒店設定 → 入住時間，預設 15:00）到達會彈出提前入住提示，而不是硬性阻止。' },
+      { type: 'callout', tone: 'warning', body: '在到達日期之前不會出現“入住”按鈕——這是有意設計。如果客人提前一天到達，請先修改預訂日期。' },
+    ],
+  },
+  {
+    slug: 'check-out-a-guest',
+    title: '為客人辦理退房',
+    summary: '從預訂或房間看板結束住宿——只有已入住的預訂才能退房。',
+    category: 'bookings',
+    keywords: ['離店', '退房', '離開', '結賬', '逾期退房'],
+    routePath: '/room-management',
+    requiredPermissions: ['bookings:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['check-in-a-guest', 'refund-a-deposit', 'housekeeping-maintenance'],
+    blocks: [
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟預訂或房間看板', body: '退房可從預訂操作中進行；房間看板會顯示“逾期退房”，確保無一遺漏。' },
+          { title: '選擇“退房”', body: '該操作只在預訂狀態為 checked_in 時出現。' },
+          { title: '結清住宿', body: '超過退房日期且仍有餘額未付的預訂——包括超過付款期限的公司掛賬住宿——會被列出，以便您在離店前或離店時收款或安排付款。' },
+          { title: '把房間交給客房服務', body: '退房後，房間回到客房服務/維修流程，清潔後才能迎接下一位客人。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '如果收過押金，請在退房時退還——見“退還押金”。' },
+      { type: 'callout', tone: 'warning', body: '預訂必須處於 checked_in 狀態才能退房。如果狀態看起來不對，請檢視預訂時間線瞭解發生了什麼。' },
+    ],
+  },
+  {
+    slug: 'void-reactivate-release',
+    title: '作廢、恢復或釋放預訂',
+    summary: '作廢即取消預訂，恢復可還原已作廢的預訂，釋放可騰出未付款線上保留——三個操作，三套規則。',
+    category: 'bookings',
+    keywords: ['取消', '作廢', '恢復', '釋放', '未付款保留', '未付款', '爽約'],
+    routePath: '/bookings',
+    requiredPermissions: ['bookings:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['create-a-booking', 'refund-a-deposit', 'find-a-reservation'],
+    blocks: [
+      { type: 'paragraph', text: '每個操作針對不同情形，且只在預訂符合條件時出現——如果按鈕缺失，原因就在預訂狀態上。' },
+      {
+        type: 'list',
+        items: [
+          '作廢——取消預訂。任何未作廢的預訂都可使用，用於處理取消。',
+          '恢復——把已作廢的預訂還原。只在已作廢的預訂上提供。',
+          '釋放——騰出由未付款線上預訂佔用的房間。只在狀態為 pending_payment 且未收任何款項時提供。',
+        ],
+      },
+      { type: 'heading', text: '未付款保留會自動釋放' },
+      { type: 'paragraph', text: '後臺任務會在“酒店設定”配置的時長（未付款保留釋放小時數——預設 24，0 為停用）後自動釋放未付款保留。手動釋放用於更快騰出房間。' },
+      { type: 'callout', tone: 'important', title: '已收款？', body: '一旦存在任何付款，釋放就被有意停用——後端同樣強制此規則。請作廢預訂並向客人退款。' },
+      { type: 'callout', tone: 'tip', body: '這些狀態變化都會寫入預訂時間線和審計日誌——您始終可以檢視誰在何時做了什麼。' },
+    ],
+  },
+  {
+    slug: 'read-the-timeline',
+    title: '讀懂預訂時間線',
+    summary: '按房間和日期檢視誰將到達、在住或離店——一眼掌握入住率的最快方式。',
+    category: 'bookings',
+    keywords: ['時間線', '日曆', '入住率檢視', '房間排程', '到店離店'],
+    routePath: '/timeline',
+    requiredPermissions: ['bookings:read'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['daily-room-operations', 'check-in-a-guest', 'reports-and-metrics'],
+    blocks: [
+      { type: 'paragraph', text: '時間線把預訂鋪在房間和日期的網格上，讓到店、在住和離店像地圖一樣呈現，而不是列表。它是規劃換房和發現空檔的正確介面。' },
+      {
+        type: 'list',
+        items: [
+          '幾秒內掃完一週的入住情況——接待上門客之前很有用。',
+          '圍繞同一房間的緊挨預訂規劃換房。',
+          '不用逐個開啟預訂就能找到可提前入住的空房。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '與房間看板搭配使用：時間線回答“誰在何時住哪間”，房間看板回答“每個房間現在是什麼狀態”。' },
+    ],
+  },
+
+  // -------------------------------------------------------------------- 客人
+  {
+    slug: 'manage-guest-profiles',
+    title: '管理客人資料',
+    summary: '搜尋、編輯和維護客人檔案——包括資料完整度和門戶帳戶轉移。',
+    category: 'guests',
+    keywords: ['客人', '資料', '編輯客人', '客人歷史', '證件號碼', '門戶帳戶'],
+    routePath: '/guest-relations/guests',
+    requiredPermissions: ['guests:read', 'guests:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['create-a-booking', 'notifications-guest-support', 'import-export-data'],
+    blocks: [
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟“客人”', body: '客人管理列出所有客人檔案。搜尋可按姓名或聯絡方式縮小範圍。' },
+          { title: '開啟一份資料', body: '一覽聯絡方式、身份欄位、預訂歷史和資料完整度。' },
+          { title: '更新有變化的欄位', body: '保持電話和郵箱為最新——它們驅動收據、營銷活動和預入住流程。' },
+          { title: '謹慎處理門戶帳戶', body: '“轉移客人門戶帳戶”會把門戶登入移到另一份資料——只有在確定兩個帳戶屬於同一人時才使用。' },
+        ],
+      },
+      { type: 'callout', tone: 'warning', title: '刪除客人', body: '“刪除客人”會移除該資料。存在預訂時請優先編輯而非刪除——歷史記錄對賬目和報表很重要。' },
+      { type: 'callout', tone: 'tip', body: '資料完整度會標出缺失欄位（如電話），這些欄位會阻塞通知等流程——當客人“聯絡不上”時，先從這裡查起。' },
+    ],
+  },
+
+  // ----------------------------------------------------------- 房間與庫存
+  {
+    slug: 'room-types-and-rooms',
+    title: '設定房型和房間',
+    summary: '房型定義房間是什麼、價格多少；房間是客人實際入住的物理單元——兩者都在“房間配置”中管理。',
+    category: 'rooms-inventory',
+    keywords: ['房型', '新增房間', '新房間', '床型', '容納人數', '定價', '刪除房間'],
+    routePath: '/room-config',
+    requiredPermissions: ['rooms:create', 'rooms:update'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['daily-room-operations', 'online-inventory-grid', 'promotions-vouchers'],
+    blocks: [
+      { type: 'paragraph', text: '房間配置是物業模型的所在。房型承載共享定義——名稱、床型、容納人數、定價和狀態——每個房間都是某房型下的編號單元。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟“房間配置”', body: '在“配置”選單下找到它。' },
+          { title: '建立或編輯房型', body: '依次完成各區塊——基本資訊（名稱、描述）、床型、容納人數（最大入住）、定價（每晚價格）和狀態。' },
+          { title: '為房型新增房間', body: '每個房間有一個編號並歸屬某房型。房間繼承房型的定價和容納人數。' },
+          { title: '刪除前先檢查', body: '“刪除房間”移除一個單元；“刪除房型”移除整個定義——只在沒有任何依賴時可用。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '定價在這裡維護', body: '客人看到的房價來自房型的“定價”區塊。線上渠道的覆蓋價在“線上庫存”中單獨處理。' },
+      { type: 'callout', tone: 'tip', body: '“最大入住人數”同時驅動預訂校驗和客房服務規劃——請如實填寫。' },
+    ],
+  },
+  {
+    slug: 'daily-room-operations',
+    title: '日常房間運營',
+    summary: '房間看板：即時房態、入住與退房、換房、維修封房和逾期未退房。',
+    category: 'rooms-inventory',
+    keywords: ['房態', '已入住', '維修', '封房', '換房', '逾期退房', '髒房'],
+    routePath: '/room-management',
+    requiredPermissions: ['rooms:read', 'rooms:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['check-out-a-guest', 'housekeeping-maintenance', 'read-the-timeline'],
+    blocks: [
+      { type: 'paragraph', text: '“房間”是物業實體的運營看板——哪些房間已入住、哪些空閒、哪些被封、哪些退房已逾期。' },
+      {
+        type: 'list',
+        items: [
+          '“入住/退房”列一覽當天的進出動態。',
+          '“逾期退房”列出本該離店的客人——每個班次優先處理。',
+          '“維修/封房”把房間標記為不可售，直到解封。',
+          '“選擇新房間”可為客人換房而不作廢預訂。',
+        ],
+      },
+      {
+        type: 'steps',
+        steps: [
+          { title: '從房間看板開始', body: '開啟“房間”檢視物業全貌。' },
+          { title: '先處理逾期退房', body: '跟進或為每個逾期住宿辦理退房，讓房間得以清潔並重新銷售。' },
+          { title: '如實封房', body: '維修中的房間必須標記為“維修/封房”——否則線上庫存會繼續售賣它。' },
+          { title: '用“選擇新房間”換房', body: '需要換房時選擇新房間——預訂會跟隨客人。' },
+        ],
+      },
+      { type: 'callout', tone: 'warning', body: '被封的房間仍需要維修工單來跟蹤——見“客房服務與維修工單”。' },
+    ],
+  },
+  {
+    slug: 'online-inventory-grid',
+    title: '控制線上庫存',
+    summary: '在“線上庫存”網格上按房型按日期覆蓋可售量和價格——支援批次編輯。',
+    category: 'rooms-inventory',
+    keywords: ['線上庫存', '可售量', '線上售賣', '價格覆蓋', '關閉日期', '停售'],
+    routePath: '/online-inventory',
+    requiredPermissions: ['rooms:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['room-types-and-rooms', 'daily-room-operations', 'reports-and-metrics'],
+    blocks: [
+      { type: 'paragraph', text: '“線上庫存”是一個按日期×房型的網格，控制客人在線上能訂到什麼。每個單元格可以持有覆蓋值——基礎值來自房型。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟“線上庫存”', body: '網格中房型為行、未來日期為列。' },
+          { title: '編輯單個單元格', body: '點選單元格開啟編輯浮層，設定當天的值。' },
+          { title: '或批次編輯一段區間', body: '選中多個單元格，然後用“批次編輯”面板把同一修改應用到整個選擇。' },
+          { title: '儲存前先檢查', body: '修改會彙集到“檢查變更”中——在那裡確認，並用“僅覆蓋項”過濾器審計哪些與基礎配置不同。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '已修改和被覆蓋的單元格會有標記，您始終能區分基礎配置與一次性決定。' },
+      { type: 'callout', tone: 'important', body: '要停止某天的線上銷售，請覆蓋該單元格——除非房間真的停用，否則不要物理封房。' },
+    ],
+  },
+  {
+    slug: 'housekeeping-maintenance',
+    title: '客房服務與維修工單',
+    summary: '跟蹤房間狀態和維修工作——建立工單、指派人員，並把房間恢復為可售。',
+    category: 'rooms-inventory',
+    keywords: ['客房服務', '清潔', '維修工單', '維修', '髒房', '指派給'],
+    routePath: '/housekeeping',
+    requiredPermissions: ['housekeeping:read', 'housekeeping:create'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['daily-room-operations', 'check-out-a-guest', 'room-types-and-rooms'],
+    blocks: [
+      { type: 'paragraph', text: '“客房服務”按房間協調清潔與維修工作。維修問題以工單形式跟蹤，包含房間、類別、優先順序、負責人和狀態。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟“客房服務”', body: '按樓層、優先順序或狀態篩選看板，聚焦本班次。' },
+          { title: '建立維修工單', body: '“新建維修工單”記錄房間、類別、優先順序、標題和負責人。' },
+          { title: '處理佇列', body: '隨工作進展更新工單狀態；被封房間在解決前保持不可售。' },
+          { title: '恢復房間可售', body: '解決並清潔後，在房間看板上清除“維修/封房”狀態。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '先按優先順序篩選——房間在售賣時，漏水的空調比踢腳線劃痕更緊急。' },
+    ],
+  },
+
+  // ----------------------------------------------------------- 支付與賬目
+  {
+    slug: 'refund-a-deposit',
+    title: '退還押金',
+    summary: '從預訂中退還客人押金——退款是退房的常規操作；撤銷退款則被有意限制。',
+    category: 'payments-ledgers',
+    keywords: ['退款', '押金', '退錢', '退還押金', '撤銷退款'],
+    routePath: '/bookings',
+    requiredPermissions: ['payments:refund'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['check-out-a-guest', 'review-payment-approvals', 'payment-problems'],
+    blocks: [
+      { type: 'paragraph', text: '押金退款是退房時的前臺常規操作。退款操作位於預訂的支付操作中，需要 payments:refund 許可權，前臺和經理都持有該許可權。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟預訂', body: '找到該住宿並開啟其支付詳情。' },
+          { title: '選擇押金退款操作', body: '確認退還給客人的金額。' },
+          { title: '記錄退款方式', body: '除非有特殊原因，按收取押金時的方式退款——賬目和審計軌跡都以該記錄為準。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '撤銷退款受限', body: '撤銷押金退款會重新開放該押金供再次退款，且需要 payments:manage——前臺無法自行迴圈退款/撤銷。確認前請再次核對。' },
+      { type: 'callout', tone: 'tip', body: '如果看不到退款按鈕，說明您缺少 payments:refund——請找經理，而不是用手動調整繞過。' },
+    ],
+  },
+  {
+    slug: 'review-payment-approvals',
+    title: '稽核付款審批',
+    summary: '付款憑證在稽核佇列中等待——對照預訂核對收據，然後批准或拒絕。',
+    category: 'payments-ledgers',
+    keywords: ['付款審批', '收據', '付款憑證', '批准付款', '拒絕付款', '銀行轉賬'],
+    routePath: '/payment-approvals',
+    requiredPermissions: ['payments:approve'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['refund-a-deposit', 'company-ledgers', 'payment-problems'],
+    blocks: [
+      { type: 'paragraph', text: '“付款審批”列出已提交的付款憑證及其預訂、客人、金額、方式和收據。每個條目在您處理後從“已提交”變為“已稽核”。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟“付款審批”', body: '在“管理”選單下找到它。' },
+          { title: '檢查憑證', body: '開啟條目並下載收據——對照預訂核對金額和參考號。' },
+          { title: '批准或拒絕', body: '憑證相符時批准；不符時附理由拒絕。該決定會記錄到您的帳戶名下。' },
+        ],
+      },
+      { type: 'callout', tone: 'warning', body: '拒絕線上付款會觸發發給客人的付款挽回郵件流程——只在憑證確實有誤時拒絕。' },
+      { type: 'callout', tone: 'tip', body: '按提交時間從舊到新處理佇列：客人的入住可能正等著您的稽核。' },
+    ],
+  },
+  {
+    slug: 'company-ledgers',
+    title: '處理公司賬',
+    summary: '公司帳戶把掛賬住宿累積到賬上——核對餘額、付款期限和逾期帳戶。',
+    category: 'payments-ledgers',
+    keywords: ['賬目', '公司', '企業', '發票', '掛賬', '付款期限', '城市賬'],
+    routePath: '/company-ledger',
+    requiredPermissions: ['ledgers:read'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['review-payment-approvals', 'reports-and-metrics', 'manage-guest-profiles'],
+    blocks: [
+      { type: 'paragraph', text: '“公司賬”跟蹤掛到公司帳戶而非退房時支付的住宿。每本賬顯示公司、其預訂和滾動餘額。' },
+      {
+        type: 'list',
+        items: [
+          '公司掛賬預訂的客人在入住時可能觸發提示——賬單記到公司而非客人。',
+          '付款期限定義公司結賬的時限；超期且仍有餘額的帳戶會被自動列出。',
+          '“預訂”列表可以只篩選公司掛賬住宿。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '公司超期未結屬於經理層面的溝通——系統負責標記，人來負責解決。' },
+    ],
+  },
+  {
+    slug: 'complimentary-nights-credits',
+    title: '免費房晚與客人額度',
+    summary: '把住宿標記為免費、轉換為額度，並按客人和房型管理免費房晚餘額。',
+    category: 'payments-ledgers',
+    keywords: ['免費', '免費房晚', '額度', '免費房額度', '贈送額度', '招待住宿'],
+    routePath: '/complimentary',
+    requiredPermissions: ['bookings:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['create-a-booking', 'company-ledgers', 'loyalty-program'],
+    blocks: [
+      { type: 'paragraph', text: '免費管理涵蓋免費住宿：把預訂標記為免費、把免費住宿轉換為客人額度、以及用額度訂房——全部按客人和房型跟蹤。' },
+      {
+        type: 'list',
+        items: [
+          '從預訂操作中把預訂標記為免費。',
+          '把免費住宿轉換為額度——餘額記在客人名下，按房型限定。',
+          '用額度訂房，消耗客人的免費房晚餘額。',
+          '彙總檢視顯示未使用的免費和額度總量。',
+        ],
+      },
+      { type: 'callout', tone: 'important', body: '取消免費狀態或刪除額度會改變客人應得的權益——即使許可權允許，也請把兩者都當作經理級決定。' },
+    ],
+  },
+
+  // ---------------------------------------------------------- 價格與促銷
+  {
+    slug: 'promotions-vouchers',
+    title: '管理促銷與優惠券',
+    summary: '建立客人在公開“優惠”頁看到的促銷活動，以及可為預訂打折的優惠券。',
+    category: 'rates-promotions',
+    keywords: ['促銷', '優惠券', '折扣', '優惠碼', '優惠', '活動'],
+    routePath: '/campaigns',
+    requiredPermissions: ['promotions:manage', 'vouchers:manage'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['email-campaigns-templates', 'online-inventory-grid', 'room-types-and-rooms'],
+    blocks: [
+      { type: 'paragraph', text: '“促銷與優惠券”管理物業的優惠側：客人能在“優惠”頁看到的公開促銷，以及可用於預訂的優惠券。' },
+      {
+        type: 'list',
+        items: [
+          '促銷定義優惠本身——名稱、時間和內容。',
+          '優惠券是繫結到這些促銷的可兌換程式碼。',
+          '營銷郵件可以在“通訊”中直接引用促銷。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '促銷賣的是“線上庫存”所定價的東西——讓公開優惠、券規則和實際房價保持一致口徑。' },
+    ],
+  },
+  {
+    slug: 'loyalty-program',
+    title: '瞭解會員忠誠度計劃',
+    summary: '忠誠度模組跟蹤回頭客及其獎勵——在“管理”下的“忠誠度”區塊檢視。',
+    category: 'rates-promotions',
+    keywords: ['忠誠度', '獎勵', '積分', '回頭客', '會員'],
+    routePath: '/loyalty',
+    requiredPermissions: ['loyalty:read'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['complimentary-nights-credits', 'manage-guest-profiles', 'promotions-vouchers'],
+    blocks: [
+      { type: 'paragraph', text: '“忠誠度”區塊展示回頭客計劃側的資訊：會員狀態和獎勵情況。持有 loyalty:manage 的員工負責管理；loyalty:read 即可檢視。' },
+      { type: 'callout', tone: 'tip', body: '忠誠度、免費房晚和客人額度是三個不同的槓桿——使用任何一個之前先檢視客人資料，避免重複補償。' },
+    ],
+  },
+
+  // ------------------------------------------------------ 報表與夜審
+  {
+    slug: 'reports-and-metrics',
+    title: '讀懂報表與指標',
+    summary: '日常運營、入住率（含 ADR 與 RevPAR）和收入報表——每個數字的含義。',
+    category: 'reports-night-audit',
+    keywords: ['報表', '入住率', 'adr', 'revpar', '收入', '到店', '離店', '分析', '指標'],
+    routePath: '/reports',
+    requiredPermissions: ['reports:read'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['run-night-audit', 'audit-log', 'online-inventory-grid'],
+    blocks: [
+      { type: 'paragraph', text: '“報表”把原始運營資料彙總為摘要。三類報表覆蓋大部分需求：“日常運營”看當日進出，“入住率”看物業滿房程度，“收入”看錢。' },
+      {
+        type: 'list',
+        items: [
+          '日常運營——今日到店、今日離店、在住客人和入住率。',
+          '入住率——已售房間與總房間之比，外加 ADR（平均房價）和 RevPAR（每間可售房收入）。',
+          '收入——按房型和按預訂渠道拆分的總收入。',
+        ],
+      },
+      { type: 'heading', text: '最常被問到的兩個指標' },
+      {
+        type: 'list',
+        items: [
+          'ADR——每間已售房的平均成交價：客房收入 ÷ 已售房數。它回答“我們賣得夠不夠高”。',
+          'RevPAR——收入攤到每間可售房（無論售出與否）：客房收入 ÷ 總房數。它回答“我們是否在以好價格填滿房間”。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '只看入住率會掩蓋打折，只看 ADR 會掩蓋空房——兩個指標要一起讀。' },
+    ],
+  },
+  {
+    slug: 'run-night-audit',
+    title: '執行夜審',
+    summary: '結束營業日：確認夜審，它會鎖定當天預訂禁止編輯並快照房間狀態。',
+    category: 'reports-night-audit',
+    keywords: ['夜審', '日結', '關賬', '鎖定預訂', '營業日期'],
+    routePath: '/night-audit',
+    requiredPermissions: ['night_audit:execute'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['reports-and-metrics', 'audit-log', 'hotel-settings'],
+    blocks: [
+      { type: 'paragraph', text: '夜審結束酒店的營業日。確認夜審會記錄執行人和時間、鎖定當天預訂禁止再編輯，並可快照房間狀態供報表使用。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟“夜審”', body: '在“管理”選單下找到它，並核對審計日期。' },
+          { title: '檢視本次執行的內容', body: '確認框會列出選項——包括鎖定預訂和記錄房間狀態快照。' },
+          { title: '確認夜審', body: '執行會以您的帳戶和時間戳記錄；審計日誌會同步反映。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '鎖定是真實生效的', body: '夜審之後，當天的預訂會抵抗進一步編輯——請在當天真正結束時執行，或使用“酒店設定”中的自動執行選項。' },
+      { type: 'callout', tone: 'tip', body: '營業日期遵循“酒店設定”中的酒店時區——夜審關閉的是那一天，而不是 UTC 零點。' },
+    ],
+  },
+  {
+    slug: 'audit-log',
+    title: '使用審計日誌',
+    summary: '誰改了什麼的只讀記錄——發現與昨天不一樣時第一站該看的地方。',
+    category: 'reports-night-audit',
+    keywords: ['審計日誌', '歷史', '誰修改', '活動', '軌跡'],
+    routePath: '/audit-log',
+    requiredPermissions: ['audit:read'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['page-missing-or-access-denied', 'run-night-audit', 'roles-and-permissions'],
+    blocks: [
+      { type: 'paragraph', text: '審計日誌記錄全系統的變更操作——預訂修改、設定編輯、角色調整、夜審執行。它在設計上就是隻讀的。' },
+      {
+        type: 'list',
+        items: [
+          '調查被改動的預訂或設定 → 先來這裡，再到處打聽。',
+          '許可權審查 → 日誌顯示誰在何時授予了什麼。',
+          '每條記錄都標明操作者和時間戳，跟進能找到具體的人而不是謎。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '與預訂時間線搭配使用：日誌記錄動作，時間線講述住宿的故事。' },
+    ],
+  },
+
+  // ------------------------------------------------------------- 通訊
+  {
+    slug: 'email-campaigns-templates',
+    title: '傳送營銷郵件與管理模板',
+    summary: '構建可複用的郵件模板，然後向選定客人傳送活動——正式傳送前先測發。',
+    category: 'communications',
+    keywords: ['郵件', '活動', '模板', '公告', '營銷', '測發', '變數'],
+    routePath: '/communications',
+    requiredPermissions: ['communications:compose', 'communications:send'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['email-not-sending', 'promotions-vouchers', 'notifications-guest-support'],
+    blocks: [
+      { type: 'paragraph', text: '“通訊”分兩半：“郵件模板”（帶變數的可複用內容）和“活動”（真正發給收件人的郵件，例如關聯促銷的公告）。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '建立或選擇模板', body: '模板承載主題和正文，變數用於填入客人相關的值。' },
+          { title: '傳送測試郵件', body: '“傳送測試郵件”先驗證格式和送達，發到您自己的地址，客人還看不到。' },
+          { title: '建立活動', body: '選擇型別（例如“公告”）、收件人、主題和正文——可選地關聯一個促銷。' },
+          { title: '觀察傳送', body: '活動依次經過草稿 → 已排程 → 傳送中 → 已完成；“已傳送/失敗”計數和“最近錯誤”列會暴露問題。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '務必先發測試郵件——一個失效的變數在批次傳送時會很難堪。' },
+    ],
+  },
+  {
+    slug: 'notifications-guest-support',
+    title: '通知與客人支援收件箱',
+    summary: '通知鈴鐺是給您的；“支援”收件箱是給客人的——在那裡回覆他們的訊息。',
+    category: 'communications',
+    keywords: ['通知', '鈴鐺', '支援收件箱', '客人訊息', '會話', '回覆', '指派'],
+    routePath: '/support',
+    requiredPermissions: ['support:read', 'support:write'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['email-not-sending', 'manage-guest-profiles', 'getting-around-admin-portal'],
+    blocks: [
+      { type: 'paragraph', text: '存在兩個不同的“支援”入口。頂欄的鈴鐺是您的員工通知流；“運營”下的“支援”是接收客人門戶訊息的收件箱——那些需要員工回覆。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟“支援”', body: '會話列表顯示未關閉的客人會話。' },
+          { title: '閱讀並回復', body: '開啟會話檢視客人訊息並內聯回覆。' },
+          { title: '需要時指派', body: '會話可以指派給具體處理人——主動認領或移交，而不是多人並行回覆。' },
+          { title: '更新狀態', body: '關閉或更新會話狀態，讓佇列保持真實。' },
+        ],
+      },
+      { type: 'callout', tone: 'info', title: '不是員工 IT 支援', body: '這個收件箱面向向酒店求助的客人。關於管理門戶本身的幫助，請使用幫助中心的“獲取更多幫助”指引。' },
+      { type: 'callout', tone: 'tip', body: '支援收件箱可以在“酒店設定”中全物業關閉——如果整個模組消失了，那個開關是第一嫌疑人。' },
+    ],
+  },
+  {
+    slug: 'email-not-sending',
+    title: '郵件發不出去',
+    summary: '排查營銷與通知郵件的傳送失敗——多數原因都能在“最近錯誤”列或失敗的測發中看到。',
+    category: 'communications',
+    keywords: ['郵件失敗', 'smtp', '發不出', '郵件錯誤', '活動失敗', '最近錯誤'],
+    routePath: '/communications',
+    requiredPermissions: ['communications:read'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['email-campaigns-templates', 'notifications-guest-support', 'escalation'],
+    blocks: [
+      { type: 'paragraph', text: '郵件由後臺工作程序傳送，需要在伺服器上配置 SMTP 憑據。郵件停發時，證據幾乎都在“通訊”頁面本身。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '傳送測試郵件', body: '測發失敗證明問題出在基礎設施而非活動內容。' },
+          { title: '看“最近錯誤”列', body: '活動傳送會按收件人記錄失敗原因——認證、連線和地址錯誤各自對應不同的修法。' },
+          { title: '檢視“已傳送/失敗”計數', body: '部分失敗指向收件人地址；全部失敗指向 SMTP 配置。' },
+          { title: '上報 SMTP 問題', body: '伺服器郵件設定屬於環境配置而非門戶內的介面——交給管理部署的人。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', body: '如果根本沒有 SMTP 設定，郵件工作程序就是關閉的——您的螢幕沒有故障，是這項能力從未被配置。' },
+    ],
+  },
+
+  // -------------------------------------------------------------- 員工與許可權
+  {
+    slug: 'add-manage-staff',
+    title: '新增與管理員工帳戶',
+    summary: '為同事建立登入、分配角色，並在“訪問控制”中編輯或移除帳戶。',
+    category: 'staff-access',
+    keywords: ['新增使用者', '新員工', '員工帳戶', '建立使用者', '刪除使用者', '員工登入'],
+    routePath: '/rbac',
+    requiredPermissions: ['users:create', 'users:update'],
+    lastReviewed: '2026-09-13',
+    featured: true,
+    relatedSlugs: ['roles-and-permissions', 'sign-in-and-security', 'page-missing-or-access-denied'],
+    blocks: [
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟“訪問控制”', body: '在“配置”選單下找到它，然後開啟“使用者”標籤頁。' },
+          { title: '選擇“新增使用者”', body: '“建立新使用者”對話方塊收集新員工的帳戶資訊。' },
+          { title: '分配角色', body: '角色決定這個人能看什麼、能做什麼——前臺和經理看到的是不同的門戶。可在同一流程中分配，也可事後在使用者行上調整。' },
+          { title: '之後編輯或移除', body: '“編輯使用者”更新資訊；員工離職時“刪除使用者”會移除整個帳戶。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '先配角色再首次登入', body: '沒有角色的使用者幾乎什麼都看不到——如果同事反饋門戶是空的，先檢查角色分配。' },
+      { type: 'callout', tone: 'tip', body: '優先調整角色而不是建立一次性帳戶；無論哪種方式，審計日誌都會記錄每次變更。' },
+    ],
+  },
+  {
+    slug: 'roles-and-permissions',
+    title: '角色與許可權',
+    summary: '角色打包許可權；許可權控制頁面和操作。*:manage 許可權隱含其領域內的其他許可權。',
+    category: 'staff-access',
+    keywords: ['角色', '許可權', 'rbac', '訪問控制', 'manage 許可權', '前臺 經理'],
+    routePath: '/rbac',
+    requiredPermissions: ['roles:read', 'roles:manage'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['add-manage-staff', 'page-missing-or-access-denied', 'audit-log'],
+    blocks: [
+      { type: 'paragraph', text: '“訪問控制”有三個標籤頁：“使用者”（帳戶）、“角色”（如前臺、經理這樣的命名許可權包）和“許可權”（按領域分組的單項能力）。' },
+      {
+        type: 'list',
+        items: [
+          '許可權形如 資源:操作——例如 bookings:create 或 payments:refund。',
+          '資源:manage 許可權隱含該資源的所有操作。',
+          '路由策略把頁面對映到許可權，這就是不同使用者選單不同的原因。',
+          '系統角色自帶合理的授權；特殊配置可以建立自定義角色。',
+        ],
+      },
+      { type: 'callout', tone: 'warning', body: '修改系統角色會影響所有持有該角色的人——當只有一個人需要不同的許可權時，請新建角色。' },
+      { type: 'callout', tone: 'tip', body: '許可權在“許可權”標籤頁按類別分組——展開一個類別即可看到角色究竟能做什麼。' },
+    ],
+  },
+  {
+    slug: 'ekyc-reviews',
+    title: '稽核 eKYC 提交',
+    summary: '身份核驗工作在 eKYC 管理佇列中進行——被指派的稽核員按風險級別處理提交。',
+    category: 'staff-access',
+    keywords: ['ekyc', '身份', '核驗', 'kyc', '稽核員', '合規'],
+    routePath: '/ekyc-admin',
+    requiredPermissions: ['ekyc:review'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['roles-and-permissions', 'audit-log', 'manage-guest-profiles'],
+    blocks: [
+      { type: 'paragraph', text: '“eKYC 管理”是電子身份核驗的稽核佇列。專門角色——eKYC 稽核員、高階稽核員和合規管理員——處理提交，高風險個案升級到高階稽核。' },
+      {
+        type: 'list',
+        items: [
+          '稽核員處理指派給自己的申請；高階稽核員負責升級和高風險批准。',
+          '敏感操作（檢視證件、檢視供應商資料）有獨立許可權並會被記錄。',
+          '如果看不到該模組，說明您沒有任何 eKYC 角色——這是設計而非故障。',
+        ],
+      },
+      { type: 'callout', tone: 'info', body: 'eKYC 許可權被有意細分——只申請您的稽核級別所需的操作。' },
+    ],
+  },
+
+  // ------------------------------------------------------------- 設定與資料
+  {
+    slug: 'hotel-settings',
+    title: '配置酒店設定',
+    summary: '物業資料、入住/退房時間、時區、稅費、押金、報表字型和功能開關——其他介面繼承的預設值。',
+    category: 'settings-data',
+    keywords: ['設定', '酒店名稱', '時區', '入住時間', '稅', '押金', '旅遊稅', '服務稅', '配置'],
+    routePath: '/settings',
+    requiredPermissions: ['settings:update'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['run-night-audit', 'room-types-and-rooms', 'notifications-guest-support'],
+    blocks: [
+      { type: 'paragraph', text: '“酒店設定”儲存其他介面繼承的物業級預設值：名稱與聯絡方式、入住/退房時間、時區、押金金額、服務稅和旅遊稅率、付款期限、報表排版以及功能開關。' },
+      {
+        type: 'list',
+        items: [
+          '入住與退房時間驅動提前入住提示和客房服務目標。',
+          '時區定義營業日期——報表、夜審和“今天”都跟隨它。',
+          '押金金額、服務稅和旅遊稅計入預訂總額；外籍客人需付旅遊稅。',
+          '支援和客人取消開關可整體啟停對應功能。',
+          '報表字型設定決定列印輸出的版式。',
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '未付款保留視窗也在這裡', body: '“未付款保留釋放小時數”控制 pending_payment 預訂佔用房間的時長（預設 24；0 為停用）。' },
+      { type: 'callout', tone: 'warning', body: '設定儲存後立即生效——錯誤的稅率或時區會影響每一筆新預訂。' },
+    ],
+  },
+  {
+    slug: 'import-export-data',
+    title: '匯入與匯出資料',
+    summary: '“資料轉移”負責備份的進出——三個匯出檔位、先預覽，以及在任何特權或破壞性操作前重新驗證身份。',
+    category: 'settings-data',
+    keywords: ['匯入', '匯出', '備份', '恢復', '資料轉移', '遷移', '資料庫'],
+    routePath: '/data-transfer',
+    requiredPermissions: ['data_transfer:view'],
+    lastReviewed: '2026-09-15',
+    relatedSlugs: ['hotel-settings', 'audit-log', 'escalation'],
+    blocks: [
+      { type: 'paragraph', text: '“資料轉移”負責酒店資料的遷入遷出——用於備份、恢復和遷移。您能做什麼取決於資料轉移許可權：檢視頁面、匯出和匯入各自需要獨立授權，涉及機密或破壞性的操作還會要求您重新輸入密碼（如已啟用，還需驗證器驗證碼）。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '開啟“資料轉移”', body: '需要 data_transfer:view。“匯出”標籤頁有三個檔位：標準（僅運營資料）、完整，以及完整系統備份（所有可轉移資料，含關係後設資料）。' },
+          { title: '匯出', body: '標準檔需要 data_transfer:export。完整和完整系統備份包含機密的客人、支付和賬目資料——需要 data_transfer:export_sensitive 並重新驗證身份。' },
+          { title: '檢查匯入預覽', body: '上傳備份檔案（data_transfer:import）。預覽顯示檔案內容、在包含敏感資料時警告，並指明您仍缺少的許可權。' },
+          { title: '確認匯入', body: '“合併”只新增、不動現有行；“更新”式衝突處理需要 data_transfer:override。完整恢復會先刪除現有資料，需要 data_transfer:restore 並重新驗證身份。只在您信任的檔案上繼續。' },
+          { title: '檢視“轉移歷史”', body: '過去的匯入、匯出和提權嘗試都連同操作者一起列出——與審計日誌記錄的是同一批行。' },
+        ],
+      },
+      { type: 'callout', tone: 'important', title: '設計上即具破壞性', body: '“先刪除所有現有資料”是字面意思——完整恢復會替換整個資料庫。請與管理員確認檔案和時機。' },
+      { type: 'callout', tone: 'tip', title: '機密絕不外傳', body: '密碼、會話、令牌和身份核驗證據永遠不在任何匯出檔位中——任何許可權級別都無法解鎖它們。' },
+    ],
+  },
+
+  // ------------------------------------------------------------- 故障排查
+  {
+    slug: 'cant-find-a-booking',
+    title: '找不到預訂？',
+    summary: '按清單排查：搜尋詞、篩選器，以及讓預訂從日常檢視消失的兩種狀態（已作廢、已釋放）。',
+    category: 'troubleshooting',
+    keywords: ['預訂丟失', '預訂缺失', '找不到', '無結果', '消失了'],
+    routePath: '/bookings',
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['find-a-reservation', 'void-reactivate-release', 'page-missing-or-access-denied'],
+    blocks: [
+      {
+        type: 'checklist',
+        items: [
+          '在 ⌘K 中試預訂編號——BK- 編號和客人姓名都能搜。',
+          '清除“預訂”列表上的篩選——遺留的狀態或房間篩選是常見元兇。',
+          '檢查日期：住宿可能在您檢視的範圍之外。',
+          '詢問預訂是否已被作廢——已作廢的住宿會從日常檢視消失。',
+          '檢查是否為已釋放的未付款保留——始終未付款的線上預訂會自動釋放回庫存。',
+          '確認您能看到“預訂”模組本身——模組缺失是許可權問題，不是搜尋問題。',
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '預訂時間線和審計日誌在作廢後依然保留——只要預訂存在過，它的記錄就還在。' },
+    ],
+  },
+  {
+    slug: 'payment-problems',
+    title: '支付問題',
+    summary: '線上付款失敗、審批卡住和退款報錯——把症狀對應到正確的佇列。',
+    category: 'troubleshooting',
+    keywords: ['付款失敗', '支付錯誤', '被拒', '挽回付款', '審批卡住', '退款錯誤'],
+    routePath: '/payment-approvals',
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['refund-a-deposit', 'review-payment-approvals', 'email-not-sending'],
+    blocks: [
+      {
+        type: 'list',
+        items: [
+          '客人線上付款失敗 → 付款挽回郵件可以讓客人通過安全連結重試——在斷定錢丟了之前先檢視預訂狀態。',
+          '付款憑證在等待 → 它會留在“付款審批”中直到有人稽核；客人看到的是“已提交”而非“已確認”。',
+          '退款按鈕缺失 → 您需要 payments:refund；撤銷退款需要 payments:manage。',
+          '預訂卡在 pending_payment → 它是未付款保留；會自動釋放或可手動釋放。',
+        ],
+      },
+      { type: 'callout', tone: 'warning', body: '絕不要通過編輯預訂來“修好”卡住的付款——走審批佇列或上報；賬目和審計軌跡需要真實的理由。' },
+    ],
+  },
+  {
+    slug: 'session-and-stale-data',
+    title: '會話與過期資料問題',
+    summary: '當介面看起來過時或會話行為異常時——重新整理順序、空閒過期和營業日期陷阱。',
+    category: 'troubleshooting',
+    keywords: ['資料過期', '重新整理', '會話過期', '被退出', '日期不對', '時區'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['sign-in-and-security', 'hotel-settings', 'page-missing-or-access-denied'],
+    blocks: [
+      {
+        type: 'checklist',
+        items: [
+          '重新整理頁面——長時間空閒後會話令牌會自動續期；介面過時只需重新載入。',
+          '會話狀態不一致時退出並重新登入。',
+          '日期看起來不對 → 營業日期遵循“酒店設定”中的酒店時區，而不是您筆記本的時鐘。',
+          '設定改了但沒生效 → 有些變更只對新活動生效，不追溯。',
+          '另一臺裝置上看起來不同 → 主題和語言按工作站記憶，許可權按帳戶生效。',
+        ],
+      },
+      { type: 'callout', tone: 'info', body: '反覆被退出不是故障——訪問令牌有意設計為短時效，並會在後臺靜默續期。' },
+    ],
+  },
+  {
+    slug: 'escalation',
+    title: '獲取更多幫助',
+    summary: '當幫助中心解決不了時該怎麼辦——找誰問、帶上什麼。',
+    category: 'troubleshooting',
+    keywords: ['聯絡', '上報', '經理', '管理員', '更多幫助', '支援'],
+    lastReviewed: '2026-09-13',
+    relatedSlugs: ['page-missing-or-access-denied', 'payment-problems', 'audit-log'],
+    blocks: [
+      { type: 'paragraph', text: '幫助中心覆蓋門戶的使用方法。帳戶訪問、許可權變更以及任何疑似缺陷的問題，請沿物業自身的鏈路逐級上報。' },
+      {
+        type: 'steps',
+        steps: [
+          { title: '詢問您的管理員或經理', body: '許可權、角色和設定變更歸他們管——帶上頁面名稱和您預期看到的內容。' },
+          { title: '帶上證據', body: '審計日誌記錄、預訂編號、活動的“最近錯誤”文本——一條具體記錄勝過對症狀的描述。' },
+          { title: '客人側的問題', body: '如果是客人在反映問題，先到“支援”收件箱查詢現有會話，而不是另起一條並行線索。' },
+        ],
+      },
+      { type: 'callout', tone: 'tip', body: '截圖有幫助，但準確的錯誤文本和發生時間更有用——兩者都在應用自己的記錄裡。' },
+    ],
+  },
+];
