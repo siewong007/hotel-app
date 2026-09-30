@@ -24,7 +24,9 @@ import { getStatusAccentColor } from '../../../config';
 import { getRoomStatusColor, getRoomStatusLabel } from '../roomCardPresentation';
 import {
   getPositiveRatePerNight,
+  formatHoldRange,
   formatMenuBookingDate,
+  selectSoonestHoldingBooking,
 } from '../../../utils/roomManagementUtils';
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
 import { BottomSheet } from '../../../../../components/common/BottomSheet';
@@ -49,6 +51,7 @@ interface RoomMenuModel {
   activeBooking: BookingWithDetails | null;
   showAside: boolean;
   ratePerNight: number | null;
+  holdRange: string | null;
 }
 
 const deriveRoomMenuModel = (
@@ -65,6 +68,14 @@ const deriveRoomMenuModel = (
   const activeBooking = info.booking || info.reservedBooking || null;
   const showAside = info.isOccupied || info.isReservedToday;
   const ratePerNight = getPositiveRatePerNight(activeBooking);
+  // The aside already prints dates for an in-house or arriving-today stay.
+  // Reserved / dirty-reserve / future holds otherwise only say the status.
+  const holdingStay = info.isOccupied
+    ? undefined
+    : selectSoonestHoldingBooking(info.reservedBooking ? [info.reservedBooking] : []);
+  const holdRange = holdingStay?.check_in_date && holdingStay.check_out_date
+    ? formatHoldRange(holdingStay.check_in_date, holdingStay.check_out_date)
+    : null;
   return {
     selectedRoom: room,
     info,
@@ -74,11 +85,40 @@ const deriveRoomMenuModel = (
     activeBooking,
     showAside,
     ratePerNight,
+    holdRange,
   };
 };
 
 // Identical to the desktop header pill — flexShrink only matters on phone,
 // where the sheet title row can squeeze it against the close button.
+const StatusPill: React.FC<{ model: RoomMenuModel }> = ({ model }) => {
+  const { t } = useTranslation('rooms');
+  const showsDates = Boolean(
+    model.holdRange
+    && (model.info.computedStatus === 'reserved' || model.info.computedStatus === 'reserved_dirty'),
+  );
+  const label = showsDates
+    ? `${model.statusLabel.toLocaleUpperCase()} · ${model.holdRange}`
+    : model.statusLabel;
+  return (
+    <Box
+      title={model.holdRange ? t('card.reservedRange', { range: model.holdRange }) : model.statusLabel}
+      sx={{
+        ...statusPillSx(model),
+        flexShrink: 1,
+        minWidth: 0,
+        maxWidth: '58%',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        ...(showsDates ? { textTransform: 'none' } : {}),
+      }}
+    >
+      {label}
+    </Box>
+  );
+};
+
 const statusPillSx = (model: RoomMenuModel) => ({
   px: 0.85,
   py: 0.2,
@@ -108,7 +148,7 @@ const RoomMenuSheet: React.FC<{
     open={open}
     onClose={onClose}
     title={model ? t('contextMenu.roomTitle', { room: model.selectedRoom.room_number }) : undefined}
-    headerAction={model ? <Box sx={{ ...statusPillSx(model), flexShrink: 0 }}>{model.statusLabel}</Box> : undefined}
+    headerAction={model ? <StatusPill model={model} /> : undefined}
   >
     {model && (() => {
       const { selectedRoom, info, layout, statusColor, statusLabel, activeBooking, showAside, ratePerNight } = model;
@@ -121,6 +161,11 @@ const RoomMenuSheet: React.FC<{
             {selectedRoom.room_type}
             {info.isOccupied && info.booking?.guest_name && ` · ${info.booking.guest_name}`}
           </Typography>
+          {model.holdRange && !showAside && (
+            <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mt: 0.25 }}>
+              {t('card.reservedRange', { range: model.holdRange })}
+            </Typography>
+          )}
 
           {/* Aside facts folded inline as caption rows */}
           {showAside && activeBooking && (
@@ -287,14 +332,17 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
                   <Typography sx={{ fontWeight: 700, fontSize: '1.05rem' }}>
                     {t('contextMenu.roomTitle', { room: selectedRoom.room_number })}
                   </Typography>
-                  <Box sx={statusPillSx(model)}>
-                    {model.statusLabel}
-                  </Box>
+                  <StatusPill model={model} />
                 </Box>
                 <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.25 }}>
                   {selectedRoom.room_type}
                   {info.isOccupied && info.booking?.guest_name && ` · ${info.booking.guest_name}`}
                 </Typography>
+                {model.holdRange && !showAside && (
+                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mt: 0.25 }}>
+                    {t('card.reservedRange', { range: model.holdRange })}
+                  </Typography>
+                )}
               </Box>
 
               {/* Primary action */}

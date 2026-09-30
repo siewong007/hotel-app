@@ -107,7 +107,8 @@
     "reservedOn": "預訂：{{date}}",
     "pendingPayment": "待付款",
     "awaitingPaymentConfirmation": "等待付款確認",
-    "openActionsAria": "客房 {{room}}，{{status}} — 開啟操作"
+    "openActionsAria": "客房 {{room}}，{{status}} — 開啟操作",
+    "reservedRange": "已預訂 {{range}}"
   },
   "contextMenu": {
     "roomTitle": "客房 {{room}}",
@@ -621,7 +622,8 @@
     "errorLoad": "時間軸資料載入失敗",
     "depositCollected": "已收取",
     "complimentaryBar": "免費（{{count}} 晚）",
-    "complimentaryNights_other": "免費：{{count}} 晚"
+    "complimentaryNights_other": "免費：{{count}} 晚",
+    "reservedRange": "已預訂 {{range}}"
   },
   "unified": {
     "titleNew": "新預訂",

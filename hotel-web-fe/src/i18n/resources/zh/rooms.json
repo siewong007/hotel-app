@@ -107,7 +107,8 @@
     "reservedOn": "已预订：{{date}}",
     "pendingPayment": "待付款",
     "awaitingPaymentConfirmation": "等待付款确认",
-    "openActionsAria": "客房 {{room}}，{{status}} — 打开操作"
+    "openActionsAria": "客房 {{room}}，{{status}} — 打开操作",
+    "reservedRange": "已预订 {{range}}"
   },
   "contextMenu": {
     "roomTitle": "客房 {{room}}",
@@ -137,8 +138,7 @@
     "properties": "属性…",
     "sectionBooking": "预订",
     "sectionHousekeeping": "客房服务",
-    "sectionRoom": "客房",
-    "editBookingNotes": "编辑预订备注"
+    "sectionRoom": "客房"
   },
   "header": {
     "title": "酒店管理 — 客房",
@@ -622,7 +622,8 @@
     "errorLoad": "加载时间轴数据失败",
     "depositCollected": "已收取",
     "complimentaryBar": "免费（{{count}} 晚）",
-    "complimentaryNights_other": "免费：{{count}} 晚"
+    "complimentaryNights_other": "免费：{{count}} 晚",
+    "reservedRange": "已预订 {{range}}"
   },
   "unified": {
     "titleNew": "新建预订",

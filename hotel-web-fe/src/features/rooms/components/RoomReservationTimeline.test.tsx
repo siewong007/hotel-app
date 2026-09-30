@@ -34,6 +34,7 @@ import RoomReservationTimeline from './RoomReservationTimeline';
 const rooms: Room[] = [
   { id: 'r-101', room_number: '101', room_type: 'Deluxe King', price_per_night: 320, available: true, max_occupancy: 2, status: 'available' },
   { id: 'r-102', room_number: '102', room_type: 'Deluxe Twin', price_per_night: 300, available: true, max_occupancy: 2, status: 'occupied' },
+  { id: 'r-104', room_number: '104', room_type: 'Deluxe King', price_per_night: 320, available: false, max_occupancy: 2, status: 'reserved' },
 ];
 
 const bookings: BookingWithDetails[] = [
@@ -52,6 +53,51 @@ const bookings: BookingWithDetails[] = [
     total_amount: 640,
     status: 'checked_in',
   },
+  {
+    id: 'bk-104',
+    booking_number: 'BK-104',
+    guest_id: 'g-104',
+    guest_name: 'Future Guest',
+    guest_email: 'future@example.com',
+    room_id: 'r-104',
+    room_number: '104',
+    room_type: 'Deluxe King',
+    price_per_night: 320,
+    check_in_date: '2026-10-14',
+    check_out_date: '2026-10-16',
+    total_amount: 640,
+    status: 'confirmed',
+  },
+  {
+    id: 'bk-104-later',
+    booking_number: 'BK-104b',
+    guest_id: 'g-104b',
+    guest_name: 'Later Guest',
+    guest_email: 'later@example.com',
+    room_id: 'r-104',
+    room_number: '104',
+    room_type: 'Deluxe King',
+    price_per_night: 320,
+    check_in_date: '2026-11-02',
+    check_out_date: '2026-11-04',
+    total_amount: 640,
+    status: 'confirmed',
+  },
+  {
+    id: 'bk-104-void',
+    booking_number: 'BK-104v',
+    guest_id: 'g-104v',
+    guest_name: 'Void Guest',
+    guest_email: 'void@example.com',
+    room_id: 'r-104',
+    room_number: '104',
+    room_type: 'Deluxe King',
+    price_per_night: 320,
+    check_in_date: '2026-10-01',
+    check_out_date: '2026-10-03',
+    total_amount: 640,
+    status: 'voided',
+  },
 ];
 
 function setPopulated() {
@@ -65,6 +111,9 @@ describe('RoomReservationTimeline', () => {
     renderPage(<RoomReservationTimeline />, { route: '/timeline' });
     expect(await screen.findByText('101')).toBeTruthy();
     expect(screen.getByText('102')).toBeTruthy();
+    expect(screen.getByText(/Reserved Oct 14–16/)).toBeTruthy();
+    expect(screen.queryByText('Reserved Oct 1–3')).toBeNull();
+    expect(screen.queryByText('Reserved Nov 2–4')).toBeNull();
   });
 
   it('shows the loading state while queries are pending', async () => {

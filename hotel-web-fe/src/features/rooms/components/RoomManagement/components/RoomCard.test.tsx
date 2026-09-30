@@ -152,3 +152,70 @@ describe('RoomCard smoking preference chip', () => {
     expect(screen.queryByTestId('smoking-preference-chip')).toBeNull();
   });
 });
+
+describe('RoomCard reserved dates', () => {
+  afterEach(() => cleanup());
+
+  it('shows the holding stay on a dirty-reserve room even when arrival is not today', () => {
+    render(
+      <RoomCard
+        room={{ ...room, status: 'reserved_dirty', room_number: '104' }}
+        computedStatus="reserved_dirty"
+        statusLabel="Res Dirty"
+        booking={undefined}
+        reservedBooking={buildBooking({
+          status: 'confirmed',
+          check_in_date: '2026-10-14',
+          check_out_date: '2026-10-16',
+          guest_name: 'Lee',
+        })}
+        hasReservationForToday={false}
+        isOccupied={false}
+        isReservedToday={false}
+        isComplimentary={false}
+        cardFill="var(--hotel-status-reserved)"
+        onMenuOpen={noop}
+        onEditNotes={noop}
+        onEditBookingNotes={noop}
+        onCheckOut={noop}
+        onChangeRoom={noop}
+        onCheckIn={noop}
+        onNewBooking={noop}
+        onMarkAvailable={noop}
+      />,
+    );
+
+    expect(screen.getByText('Reserved Oct 14–16')).toBeTruthy();
+  });
+
+  it('shows a future hold on a room that still reads available for tonight', () => {
+    render(
+      <RoomCard
+        room={{ ...room, status: 'reserved', room_number: '107' }}
+        computedStatus="available"
+        statusLabel="Vacant"
+        booking={undefined}
+        reservedBooking={buildBooking({
+          status: 'confirmed',
+          check_in_date: '2026-10-14',
+          check_out_date: '2026-10-16',
+        })}
+        hasReservationForToday={false}
+        isOccupied={false}
+        isReservedToday={false}
+        isComplimentary={false}
+        cardFill="var(--hotel-status-available)"
+        onMenuOpen={noop}
+        onEditNotes={noop}
+        onEditBookingNotes={noop}
+        onCheckOut={noop}
+        onChangeRoom={noop}
+        onCheckIn={noop}
+        onNewBooking={noop}
+        onMarkAvailable={noop}
+      />,
+    );
+
+    expect(screen.getByText('Reserved Oct 14–16')).toBeTruthy();
+  });
+});

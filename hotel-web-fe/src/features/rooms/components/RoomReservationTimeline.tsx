@@ -46,6 +46,7 @@ import { useIsPhone } from '../../../hooks/useIsPhone';
 import { useBookingsWithDetails } from '../../bookings/hooks/useBookingQueries';
 import { useRooms } from '../hooks/useRoomQueries';
 import { formatLocalDate } from '../../../utils/date';
+import { formatHoldRange, selectSoonestHoldingBooking } from '../utils/roomManagementUtils';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { dateFormatter } from '../../../i18n/format';
 import { statusLabel } from '../../../i18n/statusLabel';
@@ -230,6 +231,26 @@ const RoomReservationTimeline: React.FC = () => {
       return na - nb;
     });
   }, [roomsQuery.data]);
+
+  // Soonest active hold per room, from the full booking payload — not the
+  // window-filtered bars — so a reservation past the visible grid still shows.
+  const holdRangeByRoomId = useMemo(() => {
+    const byRoom = new Map<string, BookingWithDetails[]>();
+    for (const booking of bookingsQuery.data ?? []) {
+      const roomId = String(booking.room_id);
+      const list = byRoom.get(roomId);
+      if (list) list.push(booking);
+      else byRoom.set(roomId, [booking]);
+    }
+    const ranges = new Map<string, string>();
+    for (const [roomId, list] of byRoom) {
+      const hold = selectSoonestHoldingBooking(list, roomId);
+      if (hold?.check_in_date && hold.check_out_date) {
+        ranges.set(roomId, formatHoldRange(hold.check_in_date, hold.check_out_date));
+      }
+    }
+    return ranges;
+  }, [bookingsQuery.data]);
 
   const bookings = useMemo(() => {
     const roomsData = roomsQuery.data ?? [];
@@ -648,7 +669,11 @@ const RoomReservationTimeline: React.FC = () => {
                             </Typography>
                           </Box>
                           <Chip
-                            label={b.is_complimentary ? t('timeline.legendComplimentary') : getLocalizedStatusLabel(t, b.status)}
+                            label={b.is_complimentary
+                              ? t('timeline.legendComplimentary')
+                              : (['confirmed', 'pending', 'pending_payment', 'pending_confirmation', 'reserved', 'reserved_dirty'].includes(b.status)
+                                ? t('timeline.reservedRange', { range: formatHoldRange(b.check_in_date, b.check_out_date) })
+                                : getLocalizedStatusLabel(t, b.status))}
                             size="small"
                             sx={{
                               fontFamily: "'Caveat', cursive",
@@ -707,7 +732,9 @@ const RoomReservationTimeline: React.FC = () => {
                         color: PALETTE.inkMuted,
                       }}
                     >
-                      {r.room_number}
+                      {holdRangeByRoomId.get(String(r.id))
+                        ? `${r.room_number} · ${t('timeline.reservedRange', { range: holdRangeByRoomId.get(String(r.id)) })}`
+                        : r.room_number}
                     </Box>
                   ))}
                 </Box>
@@ -824,6 +851,23 @@ const RoomReservationTimeline: React.FC = () => {
                       <Typography sx={{ fontFamily: 'inherit', fontSize: isPhone ? 12 : 14, color: PALETTE.todayAccent, fontWeight: 600, lineHeight: 1.1 }}>
                         {formatCurrency(toMoneyNumber(room.price_per_night))}{t('config.perNight')}
                       </Typography>
+                      {holdRangeByRoomId.get(String(room.id)) && !roomBookings.some((b) => ['checked_in', 'auto_checked_in', 'occupied'].includes(b.status)) && (
+                        <Typography
+                          title={t('timeline.reservedRange', { range: holdRangeByRoomId.get(String(room.id)) })}
+                          sx={{
+                            fontFamily: 'inherit',
+                            fontSize: isPhone ? 11 : 13,
+                            color: PALETTE.ink,
+                            fontWeight: 700,
+                            lineHeight: 1.15,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {t('timeline.reservedRange', { range: holdRangeByRoomId.get(String(room.id)) })}
+                        </Typography>
+                      )}
                     </Box>
 
                     {/* Day cell backgrounds */}
@@ -913,7 +957,11 @@ const RoomReservationTimeline: React.FC = () => {
                                   lineHeight: 1.1,
                                 }}
                               >
-                                {b.is_complimentary ? t('timeline.complimentaryBar', { count: b.complimentary_nights || 0 }) : getLocalizedStatusLabel(t, b.status)}
+                                {b.is_complimentary
+                                  ? t('timeline.complimentaryBar', { count: b.complimentary_nights || 0 })
+                                  : (['confirmed', 'pending', 'pending_payment', 'pending_confirmation', 'reserved', 'reserved_dirty'].includes(b.status)
+                                    ? t('timeline.reservedRange', { range: formatHoldRange(b.check_in_date, b.check_out_date) })
+                                    : getLocalizedStatusLabel(t, b.status))}
                               </Typography>
                               {showRate && isPositiveMoney(b.price_per_night) && !b.is_complimentary && (
                                 <Typography

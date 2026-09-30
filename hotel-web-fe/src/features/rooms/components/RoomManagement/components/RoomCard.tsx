@@ -27,7 +27,7 @@ import {
 } from '@mui/icons-material';
 import type { Room, BookingWithDetails } from '../../../../../types';
 import type { RoomMenuAnchor } from '../types';
-import { getRoomTypeCode, formatMenuBookingDate } from '../../../utils/roomManagementUtils';
+import { getRoomTypeCode, formatHoldRange, formatMenuBookingDate, selectSoonestHoldingBooking } from '../../../utils/roomManagementUtils';
 import { useIsPhone } from '../../../../../hooks/useIsPhone';
 import { useTranslation } from '../../../../../i18n/useTranslation';
 import { BookingStatus } from '../../../../../constants/booking.constants';
@@ -280,7 +280,6 @@ const RoomCard: React.FC<RoomCardProps> = ({
   statusLabel,
   booking,
   reservedBooking,
-  hasReservationForToday,
   isOccupied,
   isReservedToday,
   isAwaitingPayment = false,
@@ -301,6 +300,15 @@ const RoomCard: React.FC<RoomCardProps> = ({
   // Check-in is only offered once the reservation is payable-in-full or
   // confirmed; the backend refuses check-in for awaiting-payment holds.
   const canCheckInReservation = isReservedToday && !isAwaitingPayment;
+  // Dates of the booking holding this room. Omitted when the stay is already
+  // printed on an arriving-today card, and never invented when no active hold exists.
+  const holdingStay = !isOccupied && reservedBooking
+    ? selectSoonestHoldingBooking([reservedBooking])
+    : undefined;
+  const holdRange = holdingStay?.check_in_date && holdingStay.check_out_date
+    ? formatHoldRange(holdingStay.check_in_date, holdingStay.check_out_date)
+    : null;
+  const showStandaloneHold = Boolean(holdRange && !isReservedToday);
 
   // Phone: compact card — room identity, a status line, the guest when one is
   // attached, and ONE next-step action + More (which opens the same context
@@ -414,10 +422,29 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 letterSpacing: 0.7,
                 textTransform: 'uppercase',
                 color: onFill(85),
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
               {statusLabel}
             </Typography>
+            {showStandaloneHold && (
+              <Typography
+                title={t('card.reservedRange', { range: holdRange })}
+                sx={{
+                  mt: 0.2,
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {t('card.reservedRange', { range: holdRange })}
+              </Typography>
+            )}
 
             {/* Guest name + dates for occupied / arriving-today rooms */}
             {guestBooking && (
@@ -660,6 +687,23 @@ const RoomCard: React.FC<RoomCardProps> = ({
             </Typography>
           )}
 
+          {showStandaloneHold && computedStatus !== 'dirty' && computedStatus !== 'reserved_dirty' && (
+            <Typography
+              title={t('card.reservedRange', { range: holdRange })}
+              sx={{
+                mt: 0.75,
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                lineHeight: 1.2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {t('card.reservedRange', { range: holdRange })}
+            </Typography>
+          )}
+
           {isComplimentary && (
             <Box
               sx={{
@@ -874,7 +918,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
           )}
 
           {/* Upcoming Same-Day Reservation for Rooms That Need Cleaning */}
-          {(computedStatus === 'dirty' || computedStatus === 'reserved_dirty') && reservedBooking && hasReservationForToday && (
+          {(computedStatus === 'dirty' || computedStatus === 'reserved_dirty') && reservedBooking && holdRange && (
             <Box sx={{ mt: 1, pt: 1, borderTop: `1px solid ${onFill(30)}` }}>
               <Box sx={{
                 display: 'flex',
@@ -884,10 +928,22 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 py: 0.25,
                 bgcolor: onFill(15),
                 borderRadius: 1,
+                minWidth: 0,
               }}>
-                <CalendarIcon sx={{ fontSize: 14, color: onFill(80) }} />
-                <Typography variant="caption" sx={{ color: onFill(80), fontWeight: 600, fontSize: '0.65rem' }}>
-                  {t('card.reservedOn', { date: formatMenuBookingDate(reservedBooking.check_in_date) })}
+                <CalendarIcon sx={{ fontSize: 14, color: onFill(80), flexShrink: 0 }} />
+                <Typography
+                  variant="caption"
+                  title={t('card.reservedRange', { range: holdRange })}
+                  sx={{
+                    color: onFill(80),
+                    fontWeight: 700,
+                    fontSize: '0.68rem',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {t('card.reservedRange', { range: holdRange })}
                 </Typography>
               </Box>
               {reservedBooking.guest_name && (
