@@ -2,6 +2,7 @@ import { Suspense, useEffect, type ComponentType } from 'react';
 import { createRootRoute, createRoute, createRouter, useNavigate } from '@tanstack/react-router';
 import { LogoLoader, StatusPage } from '../components';
 import { lazyRoute } from '../navigation/lazyRoute';
+import { useLocation } from '../router';
 import { UnauthOnlyRoute } from '../router/RouteGuards';
 import { GuestRootLayout } from './GuestRootLayout';
 
@@ -61,18 +62,24 @@ const PortalBookingPage = lazyRoute(
   () => import('../features/guestPortal/booking/PortalBookingPage'),
 );
 
+// The booking/dashboard switch must read the reactive router location, not
+// window.location: same-route search navigations never re-render route
+// components, so a one-shot window read pins whichever page mounted first.
+export function GuestPortalRoute() {
+  const { search } = useLocation();
+  const view = new URLSearchParams(search).get('view');
+  const Page = view === 'booking' ? PortalBookingPage : PortalDashboardPage;
+  return (
+    <Suspense fallback={<LogoLoader variant="page" />}>
+      <Page />
+    </Suspense>
+  );
+}
+
 const guestPortalRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'guest-portal',
-  component: function GuestPortalRoute() {
-    const view = new URLSearchParams(window.location.search).get('view');
-    const Page = view === 'booking' ? PortalBookingPage : PortalDashboardPage;
-    return (
-      <Suspense fallback={<LogoLoader variant="page" />}>
-        <Page />
-      </Suspense>
-    );
-  },
+  component: GuestPortalRoute,
 });
 
 const routeTree = rootRoute.addChildren([
