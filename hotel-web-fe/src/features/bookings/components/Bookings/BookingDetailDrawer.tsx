@@ -53,7 +53,26 @@ const BookingDetailDrawer: React.FC<BookingDetailDrawerProps> = ({
       anchor="right"
       open={open}
       onClose={onClose}
-      slotProps={{ paper: { sx: { width: { xs: '100%', sm: 420 } } } }}
+      slotProps={{
+        paper: {
+          sx: {
+            // Fill the viewport and let BookingDetailsPanel scroll inside.
+            // A height:100% + overflow:hidden child used to clip Notes and
+            // Quick edit with no scrollbar. maxWidth 100% (not 100vw) keeps
+            // the phone drawer from forcing the page sideways.
+            width: { xs: '100%', sm: 420 },
+            maxWidth: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            // Longhands, not the `overflow` shorthand: MUI's paper sets
+            // overflowY: 'auto', which wins over a shorthand and leaves the
+            // drawer itself as the scrollport (header scrolls away).
+            overflowX: 'hidden',
+            overflowY: 'hidden',
+          },
+        },
+      }}
       aria-label={t('details.ariaLabel')}
     >
       {!bookingId ? null : bookingQuery.isPending ? (
@@ -79,6 +98,7 @@ const BookingDetailDrawer: React.FC<BookingDetailDrawerProps> = ({
             ) : undefined
           }
           {...callbacks}
+          scrollWithinParent
         />
       )}
     </Drawer>

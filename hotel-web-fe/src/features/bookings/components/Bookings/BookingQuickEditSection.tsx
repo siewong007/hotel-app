@@ -76,7 +76,7 @@ const BookingQuickEditSection: React.FC<{
         {t('details.quickEdit')}
       </Typography>
       <Stack spacing={1.5} sx={{ mt: 1 }}>
-        <Stack direction="row" spacing={1.5}>
+        <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap', minWidth: 0 }}>
           <TextField
             fullWidth
             size="small"
@@ -85,6 +85,7 @@ const BookingQuickEditSection: React.FC<{
             value={fields.check_in_date}
             onChange={(e) => setFields((prev) => ({ ...prev, check_in_date: e.target.value }))}
             slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ flex: '1 1 9rem', minWidth: 0 }}
           />
           <TextField
             fullWidth
@@ -94,6 +95,7 @@ const BookingQuickEditSection: React.FC<{
             value={fields.check_out_date}
             onChange={(e) => setFields((prev) => ({ ...prev, check_out_date: e.target.value }))}
             slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ flex: '1 1 9rem', minWidth: 0 }}
           />
         </Stack>
         <TextField

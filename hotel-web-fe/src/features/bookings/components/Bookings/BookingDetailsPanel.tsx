@@ -72,6 +72,11 @@ interface BookingDetailsPanelProps {
   onOpenFullDetails?: (booking: BookingWithDetails) => void;
   /** Drawer mode only — inline quick-edit section rendered between Charges and Actions. */
   quickEdit?: React.ReactNode;
+  /**
+   * Drawer mode. The panel fills its parent and scrolls the body (header stays
+   * put). The detail page leaves this off so the document scrolls instead.
+   */
+  scrollWithinParent?: boolean;
 }
 
 const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
@@ -89,6 +94,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
   onReactivate,
   onOpenFullDetails,
   quickEdit,
+  scrollWithinParent = false,
 }) => {
   const { format: formatCurrency } = useCurrency();
   const isPhone = useIsPhone();
@@ -172,9 +178,25 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
   ];
 
   return (
-    <Card elevation={0} sx={{ height: '100%', minHeight: 520, overflow: 'hidden' }}>
+    <Card
+      elevation={0}
+      sx={scrollWithinParent
+        ? {
+            // Parent drawer paper is a fixed-height flex column. minHeight 0
+            // lets this card shrink below its content so the body can scroll
+            // instead of being clipped by overflow:hidden.
+            height: '100%',
+            minHeight: 0,
+            maxWidth: '100%',
+            flex: '1 1 auto',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }
+        : { height: '100%', minHeight: 520, overflow: 'hidden' }}
+    >
       <>
-        <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
           <Stack
             direction="row"
             spacing={1}
@@ -253,7 +275,20 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
           </Stack>
         </Box>
 
-        <>
+        <Box
+          data-testid="booking-details-scroll"
+          sx={scrollWithinParent
+            ? {
+                flex: 1,
+                minHeight: 0,
+                minWidth: 0,
+                maxWidth: '100%',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                WebkitOverflowScrolling: 'touch',
+              }
+            : undefined}
+        >
           <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
             <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>{t('details.stay')}</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 2, alignItems: 'center', mt: 1 }}>
@@ -493,7 +528,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               </Box>
             </Box>
           </Box>
-        </>
+        </Box>
       </>
     </Card>
   );
