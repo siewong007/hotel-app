@@ -206,7 +206,7 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
 
 #[cfg(test)]
 mod tests {
-    use super::{GET_BOOKINGS_BASE_QUERY, GET_BOOKING_BY_ID_QUERY};
+    use super::{GET_BOOKING_BY_ID_QUERY, GET_BOOKINGS_BASE_QUERY};
 
     #[test]
     fn booking_detail_payloads_name_staff_creators_only() {
