@@ -2,7 +2,8 @@ import { api } from './client';
 import { withRetry } from '../utils/retry';
 import { formatHotelDateTime, formatLocalDate, getHotelTimeZone } from '../utils/date';
 import { formatStatusLabel } from '../utils/formatters';
-import { translateFor } from '../i18n';
+import { preparePdfDocument } from '../utils/pdfFont';
+import { getActiveLocale, translateFor } from '../i18n';
 import {
   AuditLogResponse,
   AuditLogQuery,
@@ -170,20 +171,23 @@ export class AuditService {
     const autoTable = (await import('jspdf-autotable')).default;
 
     const doc = new jsPDF();
-    // NOTE: document strings stay English on purpose — jsPDF's built-in
-    // helvetica covers Latin-1 only, so zh/ms copy would render as mojibake
-    // until a CJK-capable font is embedded via addFont. Dates are pinned to
-    // 'en' for the same reason (zh-CN month/meridiem names are non-Latin-1).
+    // The report follows the reader's interface language. Chinese locales get
+    // a CJK-capable embedded font; Latin locales stay on helvetica and never
+    // pay the font download. Dates follow the same locale so month/meridiem
+    // names match the document language.
+    const locale = getActiveLocale();
+    const pdfFont = await preparePdfDocument(doc, locale);
     const exportT = (key: string, vars?: Record<string, string | number>) =>
-      translateFor('en', `admin:audit.pdf.${key}`, vars);
+      translateFor(locale, `admin:audit.pdf.${key}`, vars);
 
     // Title
     doc.setFontSize(16);
+    doc.setFont(pdfFont, 'normal');
     doc.text(exportT('reportTitle'), 14, 20);
 
     // Generated date
     doc.setFontSize(10);
-    doc.text(exportT('generatedAt', { time: formatHotelDateTime(exported.exported_at, '-', 'en') }), 14, 28);
+    doc.text(exportT('generatedAt', { time: formatHotelDateTime(exported.exported_at, '-', locale) }), 14, 28);
     doc.text(exportT('exportedBy', { user: exported.exported_by }), 14, 33);
     // Row times are hotel-local like the screen — the label makes that
     // explicit so the export cannot be read as UTC.
@@ -194,7 +198,7 @@ export class AuditService {
 
     // Table data
     const tableData = response.data.map((log) => [
-      formatHotelDateTime(log.created_at, '-', 'en'),
+      formatHotelDateTime(log.created_at, '-', locale),
       log.username || exportT('systemUser'),
       formatStatusLabel(log.action, ''),
       log.category || '-',
@@ -220,8 +224,8 @@ export class AuditService {
         exportT('col.ip'),
       ]],
       body: tableData,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [16, 164, 124] },
+      styles: { fontSize: 8, font: pdfFont },
+      headStyles: { fillColor: [16, 164, 124], font: pdfFont },
     });
 
     doc.save(`audit_logs_${formatLocalDate()}.pdf`);

@@ -14,6 +14,7 @@ vi.mock('./client', async () => {
 // test never touches real canvas/PDF rendering (unsupported in jsdom).
 const jsPdfSave = vi.fn();
 const jsPdfSetFontSize = vi.fn();
+const jsPdfSetFont = vi.fn();
 const jsPdfText = vi.fn();
 vi.mock('jspdf', () => ({
   // `new jsPDF()` requires a real constructor — an arrow-function
@@ -21,6 +22,7 @@ vi.mock('jspdf', () => ({
   jsPDF: vi.fn(function mockJsPdf() {
     return {
       setFontSize: jsPdfSetFontSize,
+      setFont: jsPdfSetFont,
       text: jsPdfText,
       save: jsPdfSave,
     };
@@ -30,9 +32,18 @@ const autoTableMock = vi.fn();
 vi.mock('jspdf-autotable', () => ({
   default: (...args: any[]) => autoTableMock(...args),
 }));
+// Font embedding has its own coverage in utils/pdfFont.test.ts — here we only
+// care which font name the export draws with per locale, not the fetch itself.
+vi.mock('../utils/pdfFont', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/pdfFont')>()),
+  preparePdfDocument: vi.fn(async (_doc: unknown, locale: string) =>
+    locale === 'zh' || locale === 'zh-TW' ? 'NotoSansCJKsc' : 'helvetica'
+  ),
+}));
 
 import { AuditService } from './audit.service';
 import { resetLocaleStoreForTests, setActiveLocale } from '../i18n/localeStore';
+import { ensureLocaleLoaded } from '../i18n/resources';
 import type { AuditLogResponse } from '../types/audit.types';
 
 function mockJsonResponse(payload: unknown) {
@@ -269,10 +280,12 @@ describe('AuditService', () => {
       expect(jsPdfSave).toHaveBeenCalledWith(expect.stringMatching(/^audit_logs_\d{4}-\d{2}-\d{2}\.pdf$/));
     });
 
-    it('keeps the PDF strings in English when the active locale is zh', async () => {
-      // Regression guard: jsPDF's built-in helvetica covers Latin-1 only, so
-      // the export pins translateFor('en', …). A refactor back to the
-      // active-locale t() would emit zh copy here and render as mojibake.
+    it('renders the PDF in Simplified Chinese with the CJK font when the active locale is zh', async () => {
+      // jsPDF's built-in helvetica covers Latin-1 only — Chinese output goes
+      // through the embedded Noto Sans CJK font, so the strings can follow the
+      // active locale instead of being pinned to English. `translateFor` reads
+      // the lazy bundle, which must be loaded first like the boot path does.
+      await ensureLocaleLoaded('zh');
       setActiveLocale('zh');
       const response = {
         exported_by: 'admin',
@@ -300,21 +313,24 @@ describe('AuditService', () => {
 
       await AuditService.downloadPDF({ search: 'smith' });
 
-      expect(jsPdfText).toHaveBeenCalledWith('Audit Log Report', 14, 20);
-      expect(jsPdfText).toHaveBeenCalledWith(expect.stringMatching(/^Generated: /), 14, 28);
+      expect(jsPdfSetFont).toHaveBeenCalledWith('NotoSansCJKsc', 'normal');
+      expect(jsPdfText).toHaveBeenCalledWith('审计日志报告', 14, 20);
+      expect(jsPdfText).toHaveBeenCalledWith(expect.stringMatching(/^生成时间：/), 14, 28);
       expect(autoTableMock).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
           head: [[
-            'Timestamp',
-            'User',
-            'Action',
-            'Stream',
-            'Resource',
+            '时间戳',
+            '用户',
+            '操作',
+            '类别',
+            '资源',
             'ID',
-            'Change Type',
+            '变更类型',
             'IP',
           ]],
+          // Action/resource labels humanize the raw API enums and stay as
+          // received; only the translated pdf.* keys and the change kind swap.
           body: [[
             expect.any(String),
             'admin',
@@ -322,7 +338,7 @@ describe('AuditService', () => {
             'bookings',
             'Bookings',
             '5',
-            'Field changes',
+            '字段变更',
             '127.0.0.1',
           ]],
         }),
