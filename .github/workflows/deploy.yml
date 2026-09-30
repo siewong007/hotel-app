@@ -250,6 +250,14 @@ jobs:
             "$VPS_USER@$VPS_HOST" \
             "set -eu
              docker image prune -f >/dev/null 2>&1 || true
+             # Failed deploys leave per-SHA image tags behind; deploy.sh's
+             # cleanup_old_images only runs after a *successful* release, so
+             # they accumulate until this check fails. Docker refuses to
+             # remove images still referenced by a container, so the live
+             # release stays untouched.
+             for release_image in \$(docker image ls --format '{{.Repository}}:{{.Tag}}' | grep -E ':[0-9a-f]{40}\$' || true); do
+               docker image rm \"\$release_image\" >/dev/null 2>&1 || true
+             done
              find /tmp -maxdepth 1 -name 'saliminn-*.tar.gz*' -mmin +60 -delete 2>/dev/null || true
              failed=0
              for target in /tmp /opt; do
