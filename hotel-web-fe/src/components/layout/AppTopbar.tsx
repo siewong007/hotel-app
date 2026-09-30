@@ -27,9 +27,9 @@ export const AppTopbar: React.FC = () => {
   const navigate = useNavigate();
   const { t: tNav } = useTranslation('nav');
 
-  // Same path as the account menu's Sign Out: end the session, then leave the
-  // staff document for the login page. `logout` settles any in-flight attempt
-  // itself, so a double tap cannot wedge the session.
+  // The one logout control: end the session, then leave the staff document for
+  // the login page. `logout` settles any in-flight attempt itself, so a double
+  // tap cannot wedge the session.
   const handleLogout = () => {
     logout();
     navigate('/login');

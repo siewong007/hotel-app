@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Avatar,
   Box,
-  Divider,
   ListItemIcon,
   ListItemText,
   Menu,
@@ -11,7 +10,6 @@ import {
   useTheme,
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import LogoutIcon from '@mui/icons-material/Logout';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import PersonIcon from '@mui/icons-material/Person';
 import { useNavigate } from '../../router';
@@ -29,14 +27,15 @@ interface UserMenuProps {
 }
 
 /**
- * Account menu: profile, hotel settings (staff only), sign out.
+ * Account menu: profile and hotel settings (staff only). Sign Out stays in the
+ * topbar's dedicated icon button so there is exactly one logout control.
  * Extracted from the old top-navigation user pill — the trigger is a real <button>
  * so it is keyboard-focusable, which the div-onClick original was not.
  */
 export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { logout, user, hasRole, roles } = useAuth();
+  const { user, hasRole, roles } = useAuth();
   const { t: tNav, tOr } = useTranslation('nav');
   const isGuest = hasRole('guest') || user?.user_type === 'guest';
   const displayEmail = user?.email?.endsWith('@no-email.invalid') ? '' : user?.email;
@@ -48,12 +47,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
     handleUserMenuClose();
     navigate(path);
   };
-  const handleLogout = () => {
-    handleUserMenuClose();
-    logout();
-    navigate('/login');
-  };
-
   const getUserInitials = () => {
     if (user?.full_name) {
       const names = user.full_name.split(' ');
@@ -229,13 +222,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {
             <ListItemText>{tNav('routes.settings.breadcrumb')}</ListItemText>
           </MenuItem>
         )}
-        <Divider sx={{ my: 1 }} />
-        <MenuItem onClick={handleLogout} sx={{ py: 1.25, color: 'error.main' }}>
-          <ListItemIcon>
-            <LogoutIcon fontSize="small" sx={{ color: 'error.main' }} />
-          </ListItemIcon>
-          <ListItemText>{tNav('userMenu.logout')}</ListItemText>
-        </MenuItem>
       </Menu>
     </>
   );
