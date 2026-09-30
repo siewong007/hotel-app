@@ -108,7 +108,8 @@
     "reservedOn": "Reserved: {{date}}",
     "pendingPayment": "Pending payment",
     "awaitingPaymentConfirmation": "Awaiting payment confirmation",
-    "openActionsAria": "Room {{room}}, {{status}} — open actions"
+    "openActionsAria": "Room {{room}}, {{status}} — open actions",
+    "reservedRange": "Reserved {{range}}"
   },
   "contextMenu": {
     "roomTitle": "Room {{room}}",
@@ -138,8 +139,7 @@
     "properties": "Properties...",
     "sectionBooking": "Booking",
     "sectionHousekeeping": "Housekeeping",
-    "sectionRoom": "Room",
-    "editBookingNotes": "Edit booking notes"
+    "sectionRoom": "Room"
   },
   "header": {
     "title": "Hotel Manager — Rooms",
@@ -637,7 +637,8 @@
     "depositCollected": "Collected",
     "complimentaryBar": "Complimentary ({{count}}N)",
     "complimentaryNights_one": "Complimentary: {{count}} night",
-    "complimentaryNights_other": "Complimentary: {{count}} nights"
+    "complimentaryNights_other": "Complimentary: {{count}} nights",
+    "reservedRange": "Reserved {{range}}"
   },
   "unified": {
     "titleNew": "New Booking",

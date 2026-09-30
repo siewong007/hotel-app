@@ -1,5 +1,5 @@
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
-import { intlTag } from '../../../i18n/format';
+import { dateFormatter, intlTag } from '../../../i18n/format';
 import { getHotelSetting } from '../../../utils/hotelSettings';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 import {
@@ -335,6 +335,87 @@ export const deriveRoomStatusInfo = <
 const dateSerial = (dateString: string): number => {
   const date = parseLocalDate(dateString);
   return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / MS_PER_DAY;
+};
+
+/** Stays that no longer hold a room. Cancelled is included beside voided/checked_out. */
+const INACTIVE_HOLD_STATUSES = new Set([
+  'checked_out',
+  'voided',
+  'cancelled',
+  'canceled',
+  'no_show',
+  'expired',
+  'comp_void',
+]);
+
+export interface HoldingStay {
+  status?: string | null;
+  check_in_date?: string | null;
+  check_out_date?: string | null;
+  room_id?: string | number | null;
+}
+
+/**
+ * A reservation still holding the room: a room-holding status whose checkout
+ * is still ahead. In-house stays are occupancy, not the reservation date.
+ * Checkout day itself no longer holds the room.
+ */
+export const isActiveHoldingStay = (booking: HoldingStay, today: Date = new Date()): boolean => {
+  const status = booking.status ?? '';
+  if (!status || INACTIVE_HOLD_STATUSES.has(status)) return false;
+  if (isInHouseBookingStatus(status) || !isRoomHoldingReservationStatus(status)) return false;
+  if (!booking.check_in_date || !booking.check_out_date) return false;
+  return dateSerial(booking.check_out_date) > dateSerial(formatLocalDate(today));
+};
+
+/**
+ * Soonest upcoming hold for a room: earliest check-in among stays that are
+ * still active. Returns undefined when nothing qualifies — callers must not
+ * invent a date.
+ */
+export const selectSoonestHoldingBooking = <T extends HoldingStay>(
+  bookings: readonly T[],
+  roomId?: string | number | null,
+  today: Date = new Date(),
+): T | undefined => {
+  let best: T | undefined;
+  let bestCheckIn = Number.POSITIVE_INFINITY;
+  for (const booking of bookings) {
+    if (roomId != null && String(booking.room_id ?? '') !== String(roomId)) continue;
+    if (!isActiveHoldingStay(booking, today)) continue;
+    const checkIn = dateSerial(booking.check_in_date as string);
+    if (checkIn < bestCheckIn) {
+      best = booking;
+      bestCheckIn = checkIn;
+    }
+  }
+  return best;
+};
+
+/**
+ * Phone-width stay range in the active locale's month/day order.
+ * Same month collapses to "Oct 14–16" (en-US) or "14–16 Okt" (ms-MY).
+ */
+export const formatHoldRange = (checkIn: string, checkOut: string): string => {
+  const start = parseLocalDate(checkIn);
+  const end = parseLocalDate(checkOut);
+  const sameMonth = start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth();
+  if (!sameMonth) {
+    const options: Intl.DateTimeFormatOptions = start.getFullYear() === end.getFullYear()
+      ? { month: 'short', day: 'numeric' }
+      : { month: 'short', day: 'numeric', year: 'numeric' };
+    const full = dateFormatter(options);
+    return `${full.format(start)}–${full.format(end)}`;
+  }
+  const sample = dateFormatter({ month: 'short', day: 'numeric' }).formatToParts(start);
+  const monthIndex = sample.findIndex((part) => part.type === 'month');
+  const dayIndex = sample.findIndex((part) => part.type === 'day');
+  const month = dateFormatter({ month: 'short' }).format(start);
+  const startDay = dateFormatter({ day: 'numeric' }).format(start);
+  const endDay = dateFormatter({ day: 'numeric' }).format(end);
+  return monthIndex !== -1 && monthIndex < dayIndex
+    ? `${month} ${startDay}–${endDay}`
+    : `${startDay}–${endDay} ${month}`;
 };
 
 const normalizeText = (value?: string | null): string => (

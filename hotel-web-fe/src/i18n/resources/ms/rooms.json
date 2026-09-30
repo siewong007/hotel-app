@@ -108,7 +108,8 @@
     "reservedOn": "Ditempah: {{date}}",
     "pendingPayment": "Menunggu bayaran",
     "awaitingPaymentConfirmation": "Menunggu pengesahan bayaran",
-    "openActionsAria": "Bilik {{room}}, {{status}} — buka tindakan"
+    "openActionsAria": "Bilik {{room}}, {{status}} — buka tindakan",
+    "reservedRange": "Ditempah {{range}}"
   },
   "contextMenu": {
     "roomTitle": "Bilik {{room}}",
@@ -138,8 +139,7 @@
     "properties": "Sifat...",
     "sectionBooking": "Tempahan",
     "sectionHousekeeping": "Pengemasan",
-    "sectionRoom": "Bilik",
-    "editBookingNotes": "Edit nota tempahan"
+    "sectionRoom": "Bilik"
   },
   "header": {
     "title": "Pengurus Hotel — Bilik",
@@ -635,7 +635,8 @@
     "errorLoad": "Gagal memuatkan data garis masa",
     "depositCollected": "Dikutip",
     "complimentaryBar": "Komplimentari ({{count}}M)",
-    "complimentaryNights_other": "Komplimentari: {{count}} malam"
+    "complimentaryNights_other": "Komplimentari: {{count}} malam",
+    "reservedRange": "Ditempah {{range}}"
   },
   "unified": {
     "titleNew": "Tempahan Baharu",

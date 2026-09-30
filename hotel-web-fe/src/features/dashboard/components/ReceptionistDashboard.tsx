@@ -48,7 +48,6 @@ import { BookingsService, GuestsService, RoomsService } from '../../../api';
 import { useAuth } from '../../../auth/AuthContext';
 import { BookingWithDetails, Guest, Booking } from '../../../types';
 import { errorMessage } from '../../../utils';
-import { toHotelDateString } from '../../../utils/date';
 import { dateFormatter, statusLabel } from '../../../i18n';
 import { Room, BookingUpdateRequest, CheckInRequest } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -60,6 +59,8 @@ import RoomEventDialog from '../../rooms/components/RoomEventDialog';
 import { LogoLoader } from '../../../components';
 import CollapsibleSection from '../../../components/common/CollapsibleSection';
 import StatusChip from '../../../components/common/StatusChip';
+import { formatHoldRange, selectSoonestHoldingBooking } from '../../rooms/utils/roomManagementUtils';
+import { parseLocalDate, toHotelDateString } from '../../../utils/date';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { useTranslation } from '../../../i18n/useTranslation';
 
@@ -299,6 +300,19 @@ const ReceptionistDashboard: React.FC = () => {
 
         if (nextBooking) {
           nextCheckIn = nextBooking.check_in_date;
+        }
+
+        // Backend `reserved` / `reserved_dirty` is authoritative, but it does
+        // not carry the stay. Attach the soonest active hold already loaded
+        // with the dashboard bookings — don't invent dates when there is none.
+        if (status === 'reserved' || status === 'reserved_dirty') {
+          const holding = selectSoonestHoldingBooking(roomBookings, room.id, parseLocalDate(todayStr));
+          if (holding?.check_in_date && holding.check_out_date) {
+            checkInDate = checkInDate || holding.check_in_date;
+            checkOutDate = checkOutDate || holding.check_out_date;
+            currentGuest = currentGuest || holding.guest_name;
+            bookingId = bookingId || String(holding.id);
+          }
         }
 
         return {
@@ -874,7 +888,11 @@ const ReceptionistDashboard: React.FC = () => {
                         key={room.id}
                         title={`Room ${room.room_number}`}
                         subtitle={room.current_guest}
-                        status={<StatusChip status={room.status} label={getStatusLabel(room.status)} />}
+                        status={<StatusChip status={room.status} label={
+                          (room.status === 'reserved' || room.status === 'reserved_dirty') && room.check_in_date && room.check_out_date
+                            ? `${getStatusLabel(room.status)} · ${formatHoldRange(room.check_in_date, room.check_out_date)}`
+                            : getStatusLabel(room.status)
+                        } />}
                         onClick={() => handleRoomClick(room)}
                       />
                     ))}
@@ -1009,6 +1027,22 @@ const ReceptionistDashboard: React.FC = () => {
                     >
                       {getStatusLabel(room.status)}
                     </Typography>
+                    {(room.status === 'reserved' || room.status === 'reserved_dirty') && room.check_in_date && room.check_out_date && (
+                      <Typography
+                        variant="caption"
+                        title={formatHoldRange(room.check_in_date, room.check_out_date)}
+                        sx={{
+                          display: 'block',
+                          fontWeight: 700,
+                          fontSize: '0.62rem',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {formatHoldRange(room.check_in_date, room.check_out_date)}
+                      </Typography>
+                    )}
 
                     {/* Check-out date indicator */}
                     {room.check_out_date && room.status === 'occupied' && (
@@ -1061,7 +1095,7 @@ const ReceptionistDashboard: React.FC = () => {
                     )}
 
                     {/* Reserved period indicator */}
-                    {room.status === 'reserved' && (room.reserved_start_date || room.reserved_end_date) && (
+                    {room.status === 'reserved' && !room.check_in_date && (room.reserved_start_date || room.reserved_end_date) && (
                       <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         {room.reserved_start_date && (
                           <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>

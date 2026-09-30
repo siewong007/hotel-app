@@ -5,12 +5,14 @@ import {
   canCoverRoomsWithCredits,
   calculateNightCount,
   deriveRoomStatusInfo,
+  formatHoldRange,
   getCreditBookingDates,
   getNextAvailableDate,
   getPositiveRatePerNight,
   getRoomTypeCode,
   getRoomTypeCreditForRoom,
   getTotalCreditsForRoom,
+  selectSoonestHoldingBooking,
   isDateBlockedByRanges,
   validateCreditDateSelection,
 } from './roomManagementUtils';
@@ -315,5 +317,47 @@ describe('roomManagementUtils', () => {
     expect(getPositiveRatePerNight({ room_rate: '180.50' })).toBe(180.5);
     expect(getPositiveRatePerNight({ price_per_night: 'not-money', room_rate: 120 })).toBe(null);
     expect(getPositiveRatePerNight({ price_per_night: 0 })).toBe(null);
+  });
+});
+
+describe('holding reservation dates', () => {
+  const today = new Date(2026, 8, 30);
+
+  const stay = (overrides: Record<string, string>) => ({
+    room_id: '104',
+    status: 'confirmed',
+    check_in_date: '2026-10-20',
+    check_out_date: '2026-10-22',
+    ...overrides,
+  });
+
+  it('picks the earliest check-in that is still active', () => {
+    const chosen = selectSoonestHoldingBooking([
+      stay({ check_in_date: '2026-11-02', check_out_date: '2026-11-04' }),
+      stay({ check_in_date: '2026-10-14', check_out_date: '2026-10-16' }),
+      stay({ status: 'voided', check_in_date: '2026-10-01', check_out_date: '2026-10-03' }),
+      stay({ status: 'cancelled', check_in_date: '2026-10-05', check_out_date: '2026-10-08' }),
+      stay({ status: 'checked_out', check_in_date: '2026-09-01', check_out_date: '2026-09-03' }),
+      stay({ room_id: '105', check_in_date: '2026-10-02', check_out_date: '2026-10-04' }),
+    ], '104', today);
+
+    expect(chosen?.check_in_date).toBe('2026-10-14');
+    expect(chosen?.check_out_date).toBe('2026-10-16');
+  });
+
+  it('does not invent a date when every hold is inactive or already over', () => {
+    expect(selectSoonestHoldingBooking([
+      stay({ status: 'voided' }),
+      stay({ status: 'checked_in', check_in_date: '2026-09-28', check_out_date: '2026-10-02' }),
+      stay({ check_in_date: '2026-09-01', check_out_date: '2026-09-30' }),
+    ], '104', today)).toBeUndefined();
+  });
+
+  it('formats a same-month stay as a compact range', () => {
+    expect(formatHoldRange('2026-10-14', '2026-10-16')).toBe('Oct 14–16');
+  });
+
+  it('keeps both months when the stay crosses a month boundary', () => {
+    expect(formatHoldRange('2026-10-30', '2026-11-02')).toBe('Oct 30–Nov 2');
   });
 });
