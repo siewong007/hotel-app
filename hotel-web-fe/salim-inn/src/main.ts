@@ -10,6 +10,7 @@ import './styles/sections.css';
 import { lang, ready } from './content';
 import { selectLang, type LangCode } from './content/lang';
 import { applyCopy } from './applyCopy';
+import { watchPlayFit } from './ui/headerFit';
 
 // The page's copy in the visitor's language before anything else runs (the
 // English static HTML stays the no-JS and crawler baseline; applyCopy.ts).
@@ -22,6 +23,8 @@ if (picker) {
   picker.value = lang;
   picker.addEventListener('change', () => selectLang(picker.value as LangCode));
 }
+// Play film in the top bar only while its row has room (ui/headerFit.ts)
+watchPlayFit();
 
 let started = false;
 const start = () => {
