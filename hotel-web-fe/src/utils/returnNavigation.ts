@@ -3,26 +3,30 @@
  *
  * The legal documents, the sign-in page and the registration page are all
  * entered from many directions: an in-app link, a consent checkbox, a bookmark,
- * an email link, or a session-expiry redirect that replaced the history entry.
- * `history.back()` on its own is wrong for the last three — there is nothing to
- * go back to, and the control either does nothing or throws the reader out of
- * the app entirely.
+ * an email link, or a session-expiry redirect. `history.back()` is safe only
+ * when the entry behind this one is another page of this same document —
+ * and two ways of arriving here make that untrue in opposite ways:
  *
- * `document.referrer` is the signal that distinguishes the two cases. It is the
- * document that linked here, so a same-origin value means the reader arrived
- * from inside the app and the browser's own history is the most faithful
- * destination. Anything else — empty, cross-origin, or unparseable — means
- * there is no in-app history worth returning to, and an explicit fallback path
- * is the honest answer.
+ * - A `location.replace` bounce off a protected route swaps the guarded page's
+ *   entry for this one, so a same-origin `document.referrer` names an entry
+ *   that no longer exists — `back()` silently does nothing on a fresh tab.
+ * - A push bounce (session expiry navigates to `/login` without `replace`)
+ *   leaves the guarded page live one step back — `back()` reloads it, its
+ *   guard bounces the reader forward to sign-in again, and the control looks
+ *   like it never fired.
+ *
+ * `document.referrer` cannot tell either apart: it names the document that
+ * loaded this page, not what this window's history holds. The router's own
+ * index can — TanStack History stamps `__TSR_index` 0 on a fresh document
+ * load and counts up on each in-app push, so a value above 0 means a real
+ * page of this document sits behind the current one. A reader who arrived by
+ * document navigation (the marketing site, an emailed link, a replaced bounce)
+ * gets the explicit fallback instead — which resolves to the hotel landing
+ * page, the same place plain back-navigation would have gone.
  */
 export function hasInAppHistory(): boolean {
-  try {
-    const referrer = document.referrer;
-    return Boolean(referrer) && new URL(referrer).origin === window.location.origin;
-  } catch {
-    // Malformed referrer — treat as no in-app history.
-    return false;
-  }
+  const index = (window.history.state as { __TSR_index?: number } | null)?.__TSR_index;
+  return typeof index === 'number' && index > 0;
 }
 
 /**

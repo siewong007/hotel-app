@@ -1,40 +1,44 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hasInAppHistory, returnToPreviousPage } from './returnNavigation';
 
-const setReferrer = (value: string) => {
-  Object.defineProperty(document, 'referrer', { configurable: true, value });
+const setHistoryIndex = (index: number | null) => {
+  window.history.replaceState(index === null ? null : { __TSR_index: index }, '');
 };
 
 describe('returnNavigation', () => {
   beforeEach(() => {
     vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    setHistoryIndex(null);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    setReferrer('');
+    setHistoryIndex(null);
   });
 
-  it('treats a same-origin referrer as in-app history', () => {
-    setReferrer(`${window.location.origin}/portal/book`);
+  it('treats a stamped in-app entry as history to go back to', () => {
+    setHistoryIndex(1);
 
     expect(hasInAppHistory()).toBe(true);
   });
 
-  it('treats a cross-origin referrer as no in-app history', () => {
-    setReferrer('https://mail.google.com/');
+  it('treats a fresh document load as no in-app history', () => {
+    // The router stamps 0 on the entry a document navigation lands on, however
+    // the previous page referred to us — a `location.replace` bounce off a
+    // protected route is exactly this shape, and back() into it dead-ends.
+    setHistoryIndex(0);
 
     expect(hasInAppHistory()).toBe(false);
   });
 
-  it('treats an unparseable referrer as no in-app history', () => {
-    setReferrer('not a url');
+  it('treats an unstamped entry as no in-app history', () => {
+    setHistoryIndex(null);
 
     expect(hasInAppHistory()).toBe(false);
   });
 
   it('goes back through the browser when there is in-app history', () => {
-    setReferrer(`${window.location.origin}/register`);
+    setHistoryIndex(2);
     const navigate = vi.fn();
 
     returnToPreviousPage(navigate);
@@ -44,7 +48,7 @@ describe('returnNavigation', () => {
   });
 
   it('navigates to the default fallback when opened directly', () => {
-    setReferrer('');
+    setHistoryIndex(0);
     const navigate = vi.fn();
 
     returnToPreviousPage(navigate);
@@ -54,7 +58,7 @@ describe('returnNavigation', () => {
   });
 
   it('honours an explicit fallback', () => {
-    setReferrer('');
+    setHistoryIndex(0);
     const navigate = vi.fn();
 
     returnToPreviousPage(navigate, '/portal');

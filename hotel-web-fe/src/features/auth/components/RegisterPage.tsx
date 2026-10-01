@@ -214,22 +214,25 @@ const RegisterPage: React.FC = () => {
 
   return (
     <Box className="auth-page auth-page--register">
-      <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 2 }}>
-        <LanguageSwitcher color="default" size="small" />
-      </Box>
       <Container className="auth-container" maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
         <Fade in timeout={800}>
           <Paper
             className="auth-card"
             sx={{ p: { xs: 4, sm: 6 }, width: '100%', display: 'flex', flexDirection: 'column' }}
           >
-            <Button
-              startIcon={<ArrowBackIcon />}
-              onClick={handleBack}
-              sx={{ mb: 2, ml: -1, alignSelf: 'flex-start', color: 'var(--hotel-text-secondary)' }}
-            >
-              {t('common.back')}
-            </Button>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Button
+                startIcon={<ArrowBackIcon />}
+                onClick={handleBack}
+                sx={{ ml: -1, color: 'var(--hotel-text-secondary)' }}
+              >
+                {t('common.back')}
+              </Button>
+              {/* In the card's header row, not the page corner — see
+                  LoginPage: page-absolute placement straddles the card edge
+                  once the card fills a phone screen. */}
+              <LanguageSwitcher color="default" size="small" />
+            </Box>
             {/* Header - Modern Bold Typography */}
             <Box className="auth-heading" sx={{ mb: { xs: 3, sm: 4 } }}>
               <Typography variant="h1" sx={{ fontSize: { xs: '2.75rem', sm: '3.5rem' } }}>

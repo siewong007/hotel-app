@@ -444,12 +444,14 @@ describe('LoginPage return control', () => {
     mocks.googleAvailable = true;
     mocks.search = '';
     vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    window.history.replaceState({ __TSR_index: 0 }, '');
   });
 
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    window.history.replaceState(null, '');
     Object.defineProperty(document, 'referrer', { configurable: true, value: '' });
   });
 
@@ -475,16 +477,32 @@ describe('LoginPage return control', () => {
   });
 
   it('goes back through history when the reader came from inside the app', () => {
-    Object.defineProperty(document, 'referrer', {
-      configurable: true,
-      value: `${window.location.origin}/offers`,
-    });
+    // A pushed in-app entry: the router stamped the previous page's index
+    // above 0, so there is a real screen of this document behind this one.
+    window.history.replaceState({ __TSR_index: 1 }, '');
     renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(window.history.back).toHaveBeenCalled();
     expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it('does not trust a same-origin referrer left by a replace-bounce', () => {
+    // ProtectedRoute bounces a signed-out reader with location.replace: the
+    // guarded page's entry is gone, so back() would find nothing and the
+    // control would look dead. The fallback must take over instead.
+    Object.defineProperty(document, 'referrer', {
+      configurable: true,
+      value: `${window.location.origin}/admin-portal`,
+    });
+    window.history.replaceState({ __TSR_index: 0 }, '');
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(window.history.back).not.toHaveBeenCalled();
+    expect(mocks.navigate).toHaveBeenCalledWith('/');
   });
 
   it('falls back to the hotel home when sign-in was opened directly', () => {

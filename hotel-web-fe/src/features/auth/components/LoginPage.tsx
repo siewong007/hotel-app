@@ -344,13 +344,19 @@ const LoginPage: React.FC = () => {
   }
 
   const backControl = (
-    <Button
-      startIcon={<ArrowBackIcon />}
-      onClick={handleBack}
-      sx={{ mb: 2, ml: -1, alignSelf: 'flex-start', color: 'var(--hotel-text-secondary)' }}
-    >
-      {t('common.back')}
-    </Button>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+      <Button
+        startIcon={<ArrowBackIcon />}
+        onClick={handleBack}
+        sx={{ ml: -1, color: 'var(--hotel-text-secondary)' }}
+      >
+        {t('common.back')}
+      </Button>
+      {/* The language control lives in the card's header row rather than the
+          page's top-right corner: on phones the card fills the viewport and a
+          page-corner position left the button straddling the card's edge. */}
+      <LanguageSwitcher color="default" size="small" />
+    </Box>
   );
 
   if (show2FAPrompt) {
@@ -504,9 +510,6 @@ const LoginPage: React.FC = () => {
 
   return (
     <Box className="auth-page auth-page--signin">
-      <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 2 }}>
-        <LanguageSwitcher color="default" size="small" />
-      </Box>
       <Container className="auth-container" maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
         <Fade in timeout={300}>
           <Paper
