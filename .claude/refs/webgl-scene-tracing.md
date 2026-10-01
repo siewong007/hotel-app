@@ -66,3 +66,22 @@ canvas above it and swallows the clicks regardless of `z-index`. Chromium's
   the same film held 60 fps for two minutes, then fell to 30 fps. Other desktop apps also
   share the GPU. Idle before timing runs and record every loop, not the first.
 
+## Flicker on buildings and roads is depth fighting (Salim Inn film, 2026-10-01)
+
+- **A still screenshot hides it.** Two surfaces that share a depth step read as blotchy
+  texture in a still and blink only when the camera moves. Even chapter 8's slow idle swing
+  was enough for the owner to catch it on production. Look at motion, not stills.
+- **Depth precision scales with the near plane.** One depth step is about z² / (near · 2²⁴).
+  With near at altitude / 250 (0.15 m at 38 m up), a 1 cm gap 150 m away is a single step;
+  from 277 m up, a 4 cm gap 800 m away is too. World.ts now sets near from the clearance
+  over the ~20 m skyline, so near is 0.1 × (h − 20), with a 0.15 m floor.
+  `perf/near.ts` (workshop folder) renders a depth pass at every 0.002 of the path to prove
+  the near plane never cuts anything visible.
+- **Layer stacked details at least 2 cm apart.** That means wall, colour panel, window pane
+  and frame. Never let a slab or floor run to the same plane as a neighbour's face.
+- **Find the pairs, don't guess.** In the workshop folder:
+  - `perf/zfight.ts` renders a mesh-ID buffer while nudging the camera and lists the pairs
+    whose IDs swap back and forth (A→B→A). Nudge 0.5 mm near street level, or a moving edge
+    reads as a swap.
+  - `perf/flicker.ts` maps pixels that blink and return on the real render.
+

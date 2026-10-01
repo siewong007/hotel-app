@@ -194,7 +194,10 @@ export class FarleyBlocks {
       const ground = inset ?? f.outer;
       body.push(paint(prism(ground, 0, Y1, f.holes), 0xe9e4d8));
       body.push(paint(prism(f.outer, Y1, YR, f.holes), 0xece6da));
-      roofs.push(paint(prism(f.outer, YR - 0.05, YR + 0.02, f.holes), [FACADE.roofMetalLight, 0x9aa3a8, FACADE.roofRust][Math.floor(rand() * 3)]));
+      // the flat roof stops 10 cm inside the walls, under the parapet: out to
+      // the wall line its edge shared the parapet's outer face
+      const deck = insetPolygon(f.outer, f.outer.map(() => 0.1)) ?? f.outer;
+      roofs.push(paint(prism(deck, YR - 0.05, YR + 0.02, f.holes), [FACADE.roofMetalLight, 0x9aa3a8, FACADE.roofRust][Math.floor(rand() * 3)]));
 
       edges.forEach((e, i) => {
         const front = isFront[i] && !!inset;
@@ -222,8 +225,12 @@ export class FarleyBlocks {
         for (let k = 0; k < bays; k++) {
           const u0 = k * bw, u1 = u0 + bw;
           const colour = rand() < 0.45 ? tone : FACADE.rowPalette[Math.floor(rand() * FACADE.rowPalette.length)];
-          // colour-blocked upper facade
-          body.push(paint(edgeBox(e, u0 + 0.18, u1 - 0.18, Y1 + 0.02, YR, 0.0, 0.03), colour));
+          // colour-blocked upper facade: 2 cm proud of the wall, each window
+          // pane 2 cm proud of that, the frames 2 cm proud of the pane — any
+          // closer and two layers share a depth step from a distance and
+          // take turns on screen (the panel used to stand 1 cm in front of
+          // the panes, so the windows only showed where depth precision gave)
+          body.push(paint(edgeBox(e, u0 + 0.18, u1 - 0.18, Y1 + 0.02, YR, 0.0, 0.02), colour));
           trim.push(edgeBox(e, u0 - 0.18, u0 + 0.18, Y1, YP - 0.25, -0.02, 0.1)); // pilaster
           for (const yf of [Y1, Y2]) {
             const s0 = yf + 0.95, s1 = yf + 2.3;
@@ -231,7 +238,7 @@ export class FarleyBlocks {
             const ww = (bw - 0.9 - (nw - 1) * 0.5) / nw;
             for (let j = 0; j < nw; j++) {
               const a = u0 + 0.45 + j * (ww + 0.5), b = a + ww;
-              windows.push(edgePane(e, a, b, s0, s1, 0.02, nextSeed()));
+              windows.push(edgePane(e, a, b, s0, s1, 0.04, nextSeed()));
               trim.push(edgeBox(e, a - 0.06, b + 0.06, s0 - 0.08, s0, 0.02, 0.1), edgeBox(e, a - 0.06, b + 0.06, s1, s1 + 0.06, 0.02, 0.08));
               trim.push(edgeBox(e, a - 0.05, a, s0, s1, 0.02, 0.07), edgeBox(e, b, b + 0.05, s0, s1, 0.02, 0.07), edgeBox(e, (a + b) / 2 - 0.025, (a + b) / 2 + 0.025, s0, s1, 0.02, 0.06));
             }

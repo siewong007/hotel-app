@@ -557,9 +557,17 @@ export class World {
       this.trees.setFarVisible(!inside && tier.farTrees);
     }
 
-    // near/far planes follow altitude (keeps depth precision everywhere)
+    // near/far planes follow altitude. Depth precision scales with the near
+    // distance, and at h / 250 (what this was) a 4 cm step between two
+    // surfaces 800 m away fell inside one depth step: paving, window panes and
+    // roofs took turns with what lay behind them, flickering as the camera
+    // moved. Nothing near the path stands taller than ~20 m, so from above
+    // that the near plane sits at a tenth of the height left over; low down
+    // and indoors it stays at 0.15 m (the path's closest approach is 0.32 m,
+    // Debug.ts clip check). perf/near.ts checks it against the depth the
+    // camera actually sees along the whole path.
     const h = Math.max(0.5, camera.position.y);
-    const near = THREE.MathUtils.clamp(h * 0.004, 0.05, 7);
+    const near = THREE.MathUtils.clamp((h - 20) * 0.1, 0.15, 500);
     const far = THREE.MathUtils.clamp(2600 + h * 26, 2600, 52000);
     if (Math.abs(camera.near - near) > 1e-3 || Math.abs(camera.far - far) > 1) {
       camera.near = near;
