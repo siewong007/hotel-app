@@ -373,8 +373,11 @@ async function boot(): Promise<void> {
 
     // Indoors the sun is a sliver and nothing outside moves: the shadow map
     // keeps the frame it had at the door instead of being redrawn each frame.
-    // The low tier's map is drawn once (at start and at a tier change) and kept.
+    // The low tier's map is drawn once (at start and at a tier change) and kept;
+    // the page names the tier so a scrim can stand in for the shadows it misses
+    // (main.css, chapter 4).
     renderer.gl.shadowMap.autoUpdate = tier.shadowMap > 0 && !(p > 0.6 && p < 0.87);
+    if (document.documentElement.dataset.tier !== tier.name) document.documentElement.dataset.tier = tier.name;
 
     const idle = REDUCED ? 0 : THREE.MathUtils.smoothstep(p, 0.965, 1);
     rig.subject = world.subject(p);

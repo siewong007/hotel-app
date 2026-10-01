@@ -324,7 +324,11 @@ html.is-booking .scrim::after { opacity: 1; }
   background: linear-gradient(90deg, rgba(6, 17, 14, 0.5) 0%, rgba(6, 17, 14, 0.4) 36%, rgba(6, 17, 14, 0) 56%);
 }
 html[data-chapter='5'] .scrim::before { opacity: 1; }
-@media (max-width: 760px) { html[data-chapter='5'] .scrim::before { opacity: 0; } }
+/* and some of it in chapter 4 on the low tier, which keeps the shadow map it
+   drew at the start (film.ts): the canopy leaves the white wall behind the copy
+   unshaded there, lit up to the eyebrow's line */
+html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0.4; }
+@media (max-width: 760px) { html[data-chapter='5'] .scrim::before, html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0; } }
 
 /* ---------------------------------------------------------------- preloader */
 .preloader {
