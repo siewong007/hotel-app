@@ -190,8 +190,11 @@ export class SalimInnBuilding {
     // ---------------------------------------------------------------- ground floor
     const zf = -FFW; // shopfront inner face; the wall occupies [zf, zf + T]
     const zs = zf + T; // shopfront outer face
-    floorTiles.push(metricUV(boxAt(-S.dropOffCanopy - 0.4, 0, zf - 0.2, W, GY, 0.3)));
-    concrete.push(boxAt(-S.dropOffCanopy - 0.4, 0, 0.3, W, GY, 0.42)); // step nosing
+    // the hotel's tiles stand 2 cm above the neighbouring five-foot way they
+    // overlap under the drop-off canopy (both were at GY, and took turns on
+    // screen); whatever stands on them sinks 2 cm into the tiles
+    floorTiles.push(metricUV(boxAt(-S.dropOffCanopy - 0.4, 0, zf - 0.2, W, GY + 0.02, 0.3)));
+    concrete.push(boxAt(-S.dropOffCanopy - 0.4, 0, 0.3, W, GY + 0.02, 0.42)); // step nosing
     charcoal.push(boxAt(-S.dropOffCanopy - 0.4, 0.0, 0.42, W, 0.035, 0.72)); // drain grating strip
 
     // bay 0 — solid tiled frontage: stacked-stone panel, glass-block vent, wall lamp
@@ -316,8 +319,12 @@ export class SalimInnBuilding {
     // parapet: the charcoal band (10.35 → 11.8) over a sliver of cream
     cream.push(boxAt(0, YR, -T, W, YCAP, 0));
     cream.push(boxAt(0, YR, -D, T, YCAP, 0), boxAt(W - T, YR, -D, W, YCAP, 0), boxAt(0, YR, -D, W, YCAP, -D + T));
-    charcoal.push(rbox(-0.18, YCAP, -0.35, W + 0.18, YP, 0.2, 0.03));
-    charcoal.push(rbox(-0.18, YCAP, -D - 0.05, 0.35, YP, -0.35, 0.03), rbox(W - 0.35, YCAP, -D - 0.05, W + 0.18, YP, -0.35, 0.03), rbox(-0.18, YCAP, -D - 0.05, W + 0.18, YP, -D + 0.35, 0.03));
+    // The cap stands 2 cm above the shared parapet datum: its 18 cm overhang
+    // lies over the next row's parapet capping, whose top is also at YP, and
+    // the two took turns along the whole party wall from the air.
+    const YC = YP + 0.02;
+    charcoal.push(rbox(-0.18, YCAP, -0.35, W + 0.18, YC, 0.2, 0.03));
+    charcoal.push(rbox(-0.18, YCAP, -D - 0.05, 0.35, YC, -0.35, 0.03), rbox(W - 0.35, YCAP, -D - 0.05, W + 0.18, YC, -0.35, 0.03), rbox(-0.18, YCAP, -D - 0.05, W + 0.18, YC, -D + 0.35, 0.03));
 
     // pilasters on the bay lines, and fins wrapping both ends (rec2_t180s right end)
     for (const x of PILASTERS) charcoal.push(rbox(x - PIL / 2, CAN_TOP - 0.05, -0.02, x + PIL / 2, YCAP, 0.16, 0.02));

@@ -81,8 +81,11 @@ export class FarField {
       }
     }
     this.rowCount = rows.length;
-    // unit geometry: body box (0..0.72) and a gabled roof prism (0.72..1)
-    const body = new THREE.BoxGeometry(1, 0.74, 1).translate(0, 0.37, 0);
+    // unit geometry: body box (0..0.72) and a gabled roof prism (0.72..1).
+    // The body stops where the roof starts: run on into it, its end walls
+    // shared a plane with the gables for a band 15–20 cm tall, which
+    // flickered from the air.
+    const body = new THREE.BoxGeometry(1, 0.72, 1).translate(0, 0.36, 0);
     const roofShape = new THREE.Shape([new THREE.Vector2(-0.56, 0), new THREE.Vector2(0.56, 0), new THREE.Vector2(0, 0.28)]);
     const roof = new THREE.ExtrudeGeometry(roofShape, { depth: 1, bevelEnabled: false });
     roof.translate(0, 0, -0.5).rotateY(Math.PI / 2).translate(0, 0.72, 0);
