@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { HTTPError } from 'ky';
 import { useSearchParams } from '../../../router';
 import { Alert, Box, Card, Tab, Tabs, Typography } from '@mui/material';
 import { LogoLoader } from '../../../components';
@@ -109,7 +110,16 @@ const UserProfilePage: React.FC = () => {
       await updatePassword.mutateAsync(data);
       notify(t('security.passwordUpdated'), 'success');
     } catch (error) {
-      notify(errorMessage(error, t('security.passwordUpdateFailed')), 'error');
+      // The backend returns 401 when the current password is wrong; the
+      // generic coded-error message would misread that as a sign-in prompt.
+      const isWrongCurrentPassword =
+        error instanceof HTTPError && error.response.status === 401;
+      notify(
+        isWrongCurrentPassword
+          ? t('security.currentPasswordIncorrect')
+          : errorMessage(error, t('security.passwordUpdateFailed')),
+        isWrongCurrentPassword ? 'warning' : 'error'
+      );
       throw error;
     }
   };

@@ -20,6 +20,7 @@ vi.mock('./client', async () => {
   };
 });
 
+import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import { UsersService } from './users.service';
 
 function mockJsonResponse(payload: unknown) {
@@ -67,7 +68,10 @@ describe('UsersService', () => {
 
       await UsersService.updatePassword(input);
 
-      expect(post).toHaveBeenCalledWith('profile/password', { json: input });
+      expect(post).toHaveBeenCalledWith('profile/password', {
+        json: input,
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+      });
     });
   });
 

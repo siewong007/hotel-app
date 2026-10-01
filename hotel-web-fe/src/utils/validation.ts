@@ -82,3 +82,59 @@ export const isValidEmail = (email: string): boolean => {
 export const isValidPhone = (phone: string): boolean => {
   return validatePhone(phone) === '';
 };
+
+// Password policy — mirrors AuthService::validate_password in
+// hotel-app-be/src/core/auth.rs so the form rejects with a specific,
+// localized message instead of round-tripping a generic 400.
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 128;
+
+const PASSWORD_SPECIAL_RE = /[!@#$%^&*(),.?":{}|<>_\-+=[\]\\';/~`]/;
+const WEAK_PASSWORD_PARTS = [
+  'password',
+  'password123',
+  '12345678',
+  'qwerty123',
+  'abc123456',
+  'password1',
+  'welcome123',
+  'admin123',
+  'letmein123',
+  'monkey123',
+];
+
+export type PasswordValidationKey =
+  | 'passwordTooShort'
+  | 'passwordTooLong'
+  | 'passwordNeedsUppercase'
+  | 'passwordNeedsLowercase'
+  | 'passwordNeedsDigit'
+  | 'passwordNeedsSpecial'
+  | 'passwordTooCommon'
+  | '';
+
+export const validatePasswordKey = (password: string): PasswordValidationKey => {
+  // The backend measures bytes (Rust String::len); match it so a multibyte
+  // password cannot pass here and fail there.
+  const byteLength = new TextEncoder().encode(password).length;
+  if (byteLength < PASSWORD_MIN_LENGTH) return 'passwordTooShort';
+  if (byteLength > PASSWORD_MAX_LENGTH) return 'passwordTooLong';
+  if (!/[A-Z]/.test(password)) return 'passwordNeedsUppercase';
+  if (!/[a-z]/.test(password)) return 'passwordNeedsLowercase';
+  if (!/\d/.test(password)) return 'passwordNeedsDigit';
+  if (!PASSWORD_SPECIAL_RE.test(password)) return 'passwordNeedsSpecial';
+  const lower = password.toLowerCase();
+  if (WEAK_PASSWORD_PARTS.some(part => lower.includes(part))) {
+    return 'passwordTooCommon';
+  }
+  return '';
+};
+
+export const validatePassword = (password: string): string => {
+  const key = validatePasswordKey(password);
+  if (!key) return '';
+  return t(`validation:${key}`, {
+    min: PASSWORD_MIN_LENGTH,
+    max: PASSWORD_MAX_LENGTH,
+  });
+};

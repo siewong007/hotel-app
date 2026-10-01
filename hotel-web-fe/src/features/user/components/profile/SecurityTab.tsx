@@ -3,8 +3,7 @@ import { Box, Button, Card, CardContent, Grid, TextField, Typography } from '@mu
 import { Lock as LockIcon } from '@mui/icons-material';
 import { ApiNotificationSeverity } from '../../../../utils/apiNotifications';
 import { useTranslation } from '../../../../i18n';
-
-const MIN_PASSWORD_LENGTH = 8;
+import { PASSWORD_MIN_LENGTH, validatePassword } from '../../../../utils/validation';
 
 const EMPTY_FORM = {
   current_password: '',
@@ -48,16 +47,21 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
       notify(t('security.passwordsMismatch'), 'warning');
       return;
     }
-    if (passwordData.new_password.length < MIN_PASSWORD_LENGTH) {
-      notify(t('validation:passwordTooShort', { min: MIN_PASSWORD_LENGTH }), 'warning');
+    const passwordError = validatePassword(passwordData.new_password);
+    if (passwordError) {
+      notify(passwordError, 'warning');
       return;
     }
 
-    await onUpdatePassword({
-      current_password: passwordData.current_password,
-      new_password: passwordData.new_password,
-    });
-    reset();
+    try {
+      await onUpdatePassword({
+        current_password: passwordData.current_password,
+        new_password: passwordData.new_password,
+      });
+      reset();
+    } catch {
+      // The parent notifies; keep the entered fields so they can be fixed.
+    }
   };
 
   return (
@@ -108,7 +112,7 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
                   onChange={e =>
                     setPasswordData({ ...passwordData, new_password: e.target.value })
                   }
-                  helperText={t('security.minChars', { min: MIN_PASSWORD_LENGTH })}
+                  helperText={t('security.passwordRequirements', { min: PASSWORD_MIN_LENGTH })}
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>

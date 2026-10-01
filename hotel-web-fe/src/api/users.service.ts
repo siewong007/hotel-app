@@ -1,4 +1,5 @@
 import { api } from './client';
+import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import {
   AssignRoleInput,
   PasswordUpdate,
@@ -46,7 +47,12 @@ export class UsersService {
   }
 
   static async updatePassword(data: PasswordUpdate): Promise<void> {
-    await api.post('profile/password', { json: data });
+    // The profile page renders its own specific message (wrong current
+    // password, policy violations), so suppress the generic global toast.
+    await api.post('profile/password', {
+      json: data,
+      headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+    });
   }
 
   // User administration
