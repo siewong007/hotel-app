@@ -395,10 +395,33 @@ html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0.4; }
 
 /* ---------------------------------------------------------------- mobile */
 @media (max-width: 760px) {
-  :root { --topbar: 64px; }
+  /* Two rows, so every label stays whole: the brand with the account pill,
+     then the language picker with Play film (Book is the bottom bar).
+     9 + 46 + 6 + 38 + 9 px. */
+  :root { --topbar: 108px; }
+  .topbar { flex-direction: column; align-items: stretch; justify-content: center; gap: 6px; }
+  .brand { align-self: flex-start; min-height: 46px; }
   .brand-logo { width: 150px; }
-  .top-actions .pill { min-height: 38px; padding: 0 14px; font-size: 0.72rem; }
-  .top-actions #play { display: none; }
+  .top-actions { min-width: 0; justify-content: space-between; }
+  .top-actions .pill { min-height: 38px; padding: 0 14px; font-size: 0.72rem; white-space: nowrap; flex: none; }
+  /* the account pill sits up in the brand's row, centred in its 46 px */
+  .top-actions .sign-in { position: absolute; right: 0; bottom: calc(100% + 10px); }
+  /* A select is as wide as its longest option ("Bahasa Melayu") whatever is
+     chosen; field-sizing fits it to the chosen one where supported, and past
+     that it is elided rather than pushing Play film off the screen. Native
+     names read best in their own case. */
+  .top-actions .lang-picker {
+    flex: 0 1 auto; min-width: 0; text-transform: none; letter-spacing: 0; text-overflow: ellipsis; field-sizing: content;
+    -webkit-appearance: none; appearance: none; padding-right: 32px;
+    background-image: var(--picker-chevron); background-repeat: no-repeat; background-position: right 14px center; background-size: 10px 6px;
+  }
+  /* a play or pause glyph beside the label, which film.ts rewrites */
+  .top-actions #play { gap: 7px; }
+  .top-actions #play::before {
+    content: ''; flex: none; width: 0; height: 0;
+    border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent currentColor;
+  }
+  .top-actions #play[aria-pressed='true']::before { width: 8px; height: 10px; border-width: 0 3px; border-color: currentColor; }
   .top-actions .pill--gold { display: none; }
   .chapter-nav { right: 4px; }
   .chapter-dot { width: 30px; height: 26px; }
@@ -442,6 +465,19 @@ html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0.4; }
   .booking { padding: 14px; }
   .bk-grid { gap: 8px 10px; }
   .bk-field input, .bk-field select { padding: 0 8px; font-size: 0.88rem; }
+}
+
+/* Phones up to 480 px. The logo becomes its compact lockup: the tagline
+   (under 4 px tall at this size) drops out and the drawing is cropped just
+   after the wordmark's rule, x = 334 of its 440
+   (preserveAspectRatio="xMinYMid slice" in index.html). */
+@media (max-width: 480px) {
+  .topbar { padding-inline: 16px; } /* the mobile CTA bar's inset */
+  .brand-logo { height: 31px; width: calc(31px * 334 / 96); }
+  .brand-logo__tagline { display: none; }
+  .top-actions { gap: 6px; }
+  .top-actions .pill { padding: 0 12px; letter-spacing: 0.04em; }
+  .top-actions .lang-picker { padding: 0 30px 0 12px; letter-spacing: 0; background-position: right 12px center; }
 }
 
 #scene.is-cut { opacity: 0; }

@@ -152,10 +152,17 @@ async function boot(): Promise<void> {
     playBtn.textContent = v ? copy.nav.pause : timeline.progress > 0.99 ? copy.nav.replay : copy.nav.play;
     playBtn.setAttribute('aria-pressed', String(v));
   };
+  // Lenis keeps its target on the animated value while it plays a scroll, so
+  // an immediate scrollTo to where the page already is returns early and the
+  // scroll runs on: stop() halts it where it is, and start() hands it back.
+  const pause = () => {
+    lenis.stop();
+    lenis.start();
+    setPlaying(false);
+  };
   playBtn.addEventListener('click', () => {
     if (playing) {
-      lenis.scrollTo(lenis.animatedScroll, { immediate: true });
-      setPlaying(false);
+      pause();
       return;
     }
     const from = timeline.progress > 0.99 ? 0 : timeline.progress;
@@ -164,7 +171,13 @@ async function boot(): Promise<void> {
     lenis.scrollTo(scrollForProgress(1), { duration: 60 * (1 - from), easing: (t) => t, lock: false, onComplete: () => setPlaying(false) });
   });
   window.addEventListener('wheel', () => playing && setPlaying(false), { passive: true });
-  window.addEventListener('touchstart', () => playing && setPlaying(false), { passive: true });
+  // A touch on the button itself is not the visitor taking over the scroll:
+  // its click pauses. Counting it here would mark the film stopped first, and
+  // that click would then start it again. Anywhere else a touch pauses, and has
+  // to halt the scroll itself: Lenis leaves a tap alone and stops only a drag.
+  window.addEventListener('touchstart', (e) => {
+    if (playing && !playBtn.contains(e.target as Node)) pause();
+  }, { passive: true });
 
   // Resize
   const onResize = () => {
@@ -333,7 +346,8 @@ async function boot(): Promise<void> {
     const reading = chapterAt(pScroll); // the copy always follows the scroll
     chapters.setActive(reading.id);
     if (document.documentElement.dataset.chapter !== String(reading.id)) document.documentElement.dataset.chapter = String(reading.id);
-    document.getElementById('mobile-cta')?.classList.toggle('is-visible', pScroll > 0.02 && pScroll < 0.95);
+    // phones: the booking bar from the first screen until chapter 8's own panel
+    document.getElementById('mobile-cta')?.classList.toggle('is-visible', pScroll < 0.95);
     // chapter 8: the booking panel slides in over a dimmed scene
     if ((reading.id === 8) !== booking) {
       booking = reading.id === 8;
