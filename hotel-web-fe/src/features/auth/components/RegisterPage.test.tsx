@@ -108,7 +108,7 @@ describe('RegisterPage return control', () => {
     cleanup();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-    Object.defineProperty(document, 'referrer', { configurable: true, value: '' });
+    window.history.replaceState(null, '');
   });
 
   it('returns a guest to the booking flow they came from', () => {
@@ -121,6 +121,8 @@ describe('RegisterPage return control', () => {
   });
 
   it('falls back to the hotel home when opened directly', () => {
+    // A fresh document load: the router stamps the first entry 0.
+    window.history.replaceState({ __TSR_index: 0 }, '');
     render(<RegisterPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));

@@ -46,7 +46,7 @@ describe('LegalDocumentPage return control', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
-    Object.defineProperty(document, 'referrer', { configurable: true, value: '' });
+    window.history.replaceState(null, '');
   });
 
   it('shows a Back control on every legal document', () => {
@@ -55,11 +55,10 @@ describe('LegalDocumentPage return control', () => {
     expect(screen.getAllByRole('button', { name: 'Back' }).length).toBeGreaterThan(0);
   });
 
-  it('returns to the previous same-origin page when there is one', () => {
-    Object.defineProperty(document, 'referrer', {
-      configurable: true,
-      value: `${window.location.origin}/register`,
-    });
+  it('returns to the previous in-app page when there is one', () => {
+    // The router stamps each in-app push with a rising `__TSR_index`, so a
+    // value above 0 means a page of this document sits behind this one.
+    window.history.replaceState({ __TSR_index: 1 }, '');
 
     render(<LegalDocumentPage documentId="privacy_notice" />);
     fireEvent.click(screen.getAllByRole('button', { name: 'Back' })[0]);
@@ -69,7 +68,9 @@ describe('LegalDocumentPage return control', () => {
   });
 
   it('goes to the hotel home when the page was opened with no in-app history', () => {
-    Object.defineProperty(document, 'referrer', { configurable: true, value: '' });
+    // A consent link opens the document in a new tab, and a bookmark or an
+    // emailed link loads it fresh: the router stamps that first entry 0.
+    window.history.replaceState({ __TSR_index: 0 }, '');
 
     render(<LegalDocumentPage documentId="payment_terms" />);
     fireEvent.click(screen.getAllByRole('button', { name: 'Back' })[0]);
