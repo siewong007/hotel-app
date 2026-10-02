@@ -21,7 +21,7 @@ import { startFallback } from './ui/Fallback';
 import { wireBookingCtas } from './ui/StickyCta';
 import { ROOM_VIEWS, viewToWorld } from './interiors/roomViews';
 import { ROOM_ORDER } from './interiors/roomLayouts';
-import { neighbourhoodTitle, places } from './data/neighbourhood';
+import { dishes, neighbourhoodTitle, places } from './data/neighbourhood';
 import { copy } from './content';
 import type { BuildStep } from './content/en';
 import { placeAnchor } from './world/placeAnchors';
@@ -77,7 +77,7 @@ async function boot(): Promise<void> {
     door: POINTS.lobbyDoor,
     anchorOf: placeAnchor,
     titleFor: PREVIEW_PLACES ? (list) => neighbourhoodTitle(list, copy.neighbourhood) : undefined,
-  });
+  }, dishes({ includeUnverified: PREVIEW_PLACES }));
   await yieldToMain();
   const panel = new BookingPanel(el('book'));
   const still = (why: string) => {

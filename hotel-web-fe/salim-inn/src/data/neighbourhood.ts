@@ -8,11 +8,23 @@ import raw from './neighbourhood.json';
 
 export type PlaceGroup = 'groceries' | 'food' | 'health' | 'services';
 
+/** What a place is, for its card line in the visitor's language (content's
+ *  `neighbourhood.kinds`): the file's own notes are research, in English. */
+export const PLACE_KINDS = ['supermarket', 'cafeDownstairs', 'foodCourt', 'foodCourtOld', 'kopitiam', 'cakes', 'bakery', 'pharmacy', 'healthBeauty', 'dental', 'clinic', 'gp', 'hardware', 'barber'] as const;
+export type PlaceKind = (typeof PLACE_KINDS)[number];
+
+/** The food card's must-try dishes (neighbourhood.json `dishes`). */
+export const DISH_KEYS = ['kampua', 'kompia', 'redWineMeeSua', 'dimSum', 'redKoloMee'] as const;
+export type DishKey = (typeof DISH_KEYS)[number];
+
 /** The words the neighbourhood's generated copy is built from, one set per
  *  language (content/*.ts): chapter 2's title and the walking labels. */
 export interface NeighbourhoodWords {
   /** Chapter 2's title: `{{list}}` is the categories shown, joined. */
   title: string;
+  /** With three or more categories: the first two, then "and more" (a
+   *  title naming all four ran to six lines). */
+  titleMore: string;
   titleEmpty: string;
   /** Between the listed categories, and before the last. */
   listComma: string;
@@ -25,10 +37,20 @@ export interface NeighbourhoodWords {
     bakeries: string;
     cafesEat: string;
     cafe: string;
+    /** The food group in a two-item title (titleMore). */
+    kopitiams: string;
+    kopitiamsCafes: string;
+    kopitiamsBakery: string;
+    kopitiamsBakeries: string;
     pharmaciesClinic: string;
+    pharmaciesClinics: string;
     pharmacy: string;
     services: string;
   };
+  /** A place's card line, by kind. */
+  kinds: Record<PlaceKind, string>;
+  /** The food card's must-try dishes: name and one line each. */
+  mustTry: { title: string; dishes: Record<DishKey, { name: string; note: string }> };
   /** The hotel's own published time, `{{min}}`. */
   walkStated: string;
   /** The estimate, `{{min}}`. */
@@ -61,7 +83,10 @@ export interface Place {
   name: string; // as displayed ("Farley Sibu supermarket")
   category: string;
   group: PlaceGroup;
-  detail?: string; // role or note from the file
+  kind?: PlaceKind;
+  /** The OpenStreetMap point to anchor to, where the shop's own name differs. */
+  osm?: string;
+  detail?: string; // role or note from the file (English research notes)
   hours?: string;
   phone?: string;
   address?: string;
@@ -73,6 +98,8 @@ export interface Place {
 interface RawPlace {
   name: string;
   category: string;
+  kind?: string;
+  osm?: string;
   role?: string;
   note?: string;
   hours?: string;
@@ -87,6 +114,8 @@ export function displayName(name: string): string {
   return name.replace(/\s*\(([^)]+)\)\s*$/, ' $1').trim();
 }
 
+const isKind = (k: string | undefined): k is PlaceKind => (PLACE_KINDS as readonly string[]).includes(k ?? '');
+
 function fromRaw(p: RawPlace): Place | null {
   const group = GROUP_OF[p.category];
   if (!group) return null;
@@ -95,6 +124,8 @@ function fromRaw(p: RawPlace): Place | null {
     name: displayName(p.name),
     category: p.category,
     group,
+    kind: isKind(p.kind) ? p.kind : undefined,
+    osm: p.osm,
     detail: p.role ?? p.note,
     hours: p.hours?.replace(/\s*\(per [^)]*\)/, ''),
     phone: p.phone,
@@ -109,6 +140,24 @@ export function places(opts: { includeUnverified?: boolean } = {}): Place[] {
   return (raw.places as RawPlace[])
     .map(fromRaw)
     .filter((p): p is Place => p !== null && (p.verified || !!opts.includeUnverified));
+}
+
+export interface Dish {
+  key: DishKey;
+  verified: boolean;
+}
+
+interface RawDish {
+  key: string;
+  verify_before_launch: boolean;
+}
+
+/** The must-try dishes: the owner's picks, and review picks once confirmed. */
+export function dishes(opts: { includeUnverified?: boolean } = {}): Dish[] {
+  return ((raw as { dishes?: RawDish[] }).dishes ?? [])
+    .filter((d): d is RawDish & { key: DishKey } => (DISH_KEYS as readonly string[]).includes(d.key))
+    .map((d) => ({ key: d.key, verified: !d.verify_before_launch }))
+    .filter((d) => d.verified || !!opts.includeUnverified);
 }
 
 /** The hotspot categories that have at least one place to show. */
@@ -134,8 +183,8 @@ export function ringRadius(minutes: number): number {
 export function walkLabel(p: Pick<Place, 'walkStated'>, straightMetres: number, w: NeighbourhoodWords): string {
   if (p.walkStated) return withMin(w.walkStated, p.walkStated);
   const m = walkMinutes(straightMetres);
-  if (m < 1) return w.nextDoor;
-  return withMin(w.walkApprox, Math.round(m));
+  if (m < 0.5) return w.nextDoor;
+  return withMin(w.walkApprox, Math.max(1, Math.round(m)));
 }
 
 // ---------------------------------------------------------------- copy
@@ -143,12 +192,18 @@ type Phrase = keyof NeighbourhoodWords['phrases'];
 const PHRASE: Record<PlaceGroup, (list: Place[]) => Phrase> = {
   groceries: (l) => (l.some((p) => /supermarket/i.test(p.name)) ? 'supermarket' : 'groceries'),
   food: (l) => {
-    const bakery = l.some((p) => p.category === 'Bakery');
+    const bakeries = l.filter((p) => p.category === 'Bakery').length;
+    const bakery = bakeries > 0;
     const eat = l.filter((p) => p.category !== 'Bakery');
+    if (l.some((p) => p.kind === 'foodCourt' || p.kind === 'foodCourtOld' || p.kind === 'kopitiam')) return bakeries > 1 ? 'kopitiamsBakeries' : bakery ? 'kopitiamsBakery' : 'kopitiamsCafes';
     if (eat.length === 1 && /cafe\.cafe/i.test(eat[0].name) && !bakery) return 'cafeDownstairs';
     return bakery && eat.length ? 'cafesBakeriesEat' : bakery ? 'bakeries' : eat.length > 1 ? 'cafesEat' : 'cafe';
   },
-  health: (l) => (l.length > 1 ? 'pharmaciesClinic' : 'pharmacy'),
+  health: (l) => {
+    const clinics = l.filter((p) => p.kind === 'dental' || p.kind === 'clinic' || p.kind === 'gp' || /klinik|clinic/i.test(p.name)).length;
+    if (clinics > 1 && clinics < l.length) return 'pharmaciesClinics';
+    return l.length > 1 ? 'pharmaciesClinic' : 'pharmacy';
+  },
   services: () => 'services',
 };
 
@@ -157,10 +212,18 @@ function sentenceList(parts: string[], w: NeighbourhoodWords): string {
   return `${parts.slice(0, -1).join(w.listComma)}${w.listAnd}${parts[parts.length - 1]}`;
 }
 
+const capital = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+
 /** Chapter 2's title, from the categories actually shown, in `w`'s language. */
 export function neighbourhoodTitle(list: Place[], w: NeighbourhoodWords): string {
-  const parts = groupsWith(list).map((g) => w.phrases[PHRASE[g.key](g.places)]);
-  if (!parts.length) return w.titleEmpty;
-  const s = sentenceList(parts, w);
-  return w.title.replace('{{list}}', `${s.charAt(0).toUpperCase()}${s.slice(1)}`);
+  const groups = groupsWith(list);
+  if (!groups.length) return w.titleEmpty;
+  if (groups.length > 2) {
+    const short = (g: (typeof groups)[number]): string => {
+      const phrase = PHRASE[g.key](g.places);
+      return /^kopitiams/.test(phrase) ? w.phrases.kopitiams : w.phrases[phrase];
+    };
+    return w.titleMore.replace('{{list}}', capital(groups.slice(0, 2).map(short).join(w.listComma)));
+  }
+  return w.title.replace('{{list}}', capital(sentenceList(groups.map((g) => w.phrases[PHRASE[g.key](g.places)]), w)));
 }
