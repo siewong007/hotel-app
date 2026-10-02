@@ -9,7 +9,7 @@ import hotel from './data/hotel.json';
 import { BATH, DOOR, ROOM_DEPTH, ROOM_HEIGHT, ROOM_ORDER, Z_CORRIDOR, Z_FACADE, roomLayouts, type LayoutItem } from './interiors/roomLayouts';
 import { floorFootprint } from './interiors/roomProps';
 import { ROOM_VIEWS } from './interiors/roomViews';
-import { BACK_DOORS, DOOR_W, FRONT_DOORS, SHOWCASE_NUMBER } from './interiors/Corridor';
+import { BACK_DOORS, DOOR_W, FRONT_DOORS, SHOWCASE_NUMBER, landingPlates, roomRanges } from './interiors/Corridor';
 import { PLAN } from './world/SalimInnBuilding';
 import { FLOOR_Y } from './config/dimensions';
 import { FRONT_DESK_FACTS, SITE } from './config/site';
@@ -141,6 +141,48 @@ describe('level-1 corridor (brief §4.5)', () => {
       const clear = x + DOOR_W / 2 < PLAN.stair.x0 - 0.2 || x - DOOR_W / 2 > PLAN.stair.x1 + 0.2;
       expect(clear, `door ${n}`).toBe(true);
     }
+  });
+});
+
+describe('reception and stair (the owner’s photos, 2 Oct 2026)', () => {
+  it('sets the reception against the frontage beside the entrance, its counter facing into the lobby', () => {
+    const { lobby, door, reception: r, counter: c } = PLAN;
+    expect(r.z0).toBe(lobby.z1); // the frontage's inner face
+    expect(r.x0).toBeGreaterThan(door.x1); // beside the entrance, not across it
+    expect(r.x0).toBeGreaterThanOrEqual(lobby.x0);
+    expect(r.x1).toBeLessThanOrEqual(lobby.x1);
+    // across the alcove's mouth, its guest face towards −z
+    expect(c.length).toBeCloseTo(r.x1 - r.x0, 9);
+    expect(c.x).toBeCloseTo((r.x0 + r.x1) / 2, 9);
+    expect(c.z - c.depth / 2).toBeCloseTo(r.z1, 9);
+    expect(Math.cos(c.rotY)).toBeCloseTo(-1, 9);
+  });
+
+  it('puts the stair opposite the counter, across the lobby', () => {
+    const { lobby, reception: r, stair: s } = PLAN;
+    expect(s.z1).toBe(lobby.z0); // it opens off the lobby's back wall …
+    const overlap = Math.min(r.x1, s.x1) - Math.max(r.x0, s.x0);
+    expect(overlap / (r.x1 - r.x0)).toBeGreaterThan(0.9); // … facing the counter
+  });
+});
+
+describe('level-1 landing plates', () => {
+  it('writes room ranges the way the hotel’s plates do', () => {
+    expect(roomRanges([106, 101, 102, 103, 104])).toBe('101–104, 106');
+    expect(roomRanges([113])).toBe('113');
+  });
+
+  it('lists every door once, on the hand it lies to from the top of the stair', () => {
+    const expand = (t: string) => t.split(', ').flatMap((r) => {
+      const [a, b = a] = r.split('–').map(Number);
+      return Array.from({ length: b - a + 1 }, (_, i) => a + i);
+    });
+    const { left, right } = landingPlates();
+    const midX = (PLAN.stair.x0 + PLAN.stair.x1) / 2;
+    const xOf = new Map([...FRONT_DOORS, ...BACK_DOORS].map(([x, n]) => [n, x]));
+    expect([...expand(left), ...expand(right)].sort((a, b) => a - b)).toEqual(Array.from({ length: 14 }, (_, i) => 101 + i));
+    for (const n of expand(left)) expect(xOf.get(n)!, `${n}`).toBeGreaterThan(midX);
+    for (const n of expand(right)) expect(xOf.get(n)!, `${n}`).toBeLessThan(midX);
   });
 });
 

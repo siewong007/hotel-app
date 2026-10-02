@@ -1,26 +1,28 @@
-// Lobby (the entrance lot, ground floor; brief §4.4). No reception photo
-// exists, so the room is designed from the entrance frames and flagged:
-//   · polished 800 mm porcelain floor, warm plaster walls, walnut skirting;
-//   · a tray ceiling: a drop band round the edge with downlights that throw
-//     scallops down the side walls, and a warm LED cove in the recess;
-//   · the wall behind the counter in the facade's stacked stone, with backlit
-//     3D SALIM INN letters (red on warm stone), a clock on Sibu time and a
-//     small key-card rack;
-//   · a pendant pair over the counter (2,800 K), a seating corner with a
-//     practical table lamp, and two plants.
-// Lighting is two real lights (a spot on the counter, a soft fill); the cove,
-// scallops, halo and lamp are emissive surfaces and additive washes.
+// Lobby (the entrance lot, ground floor; brief §4.4), from the owner's photos
+// of the reception (2026-10-02):
+//   · light cream 600 mm polished porcelain, a flat white ceiling with
+//     recessed downlights and a CCTV camera;
+//   · walls of striated grey-brown laminate in tall panels between thin white
+//     strips, with a laminate door in the right-hand wall;
+//   · the reception: an alcove against the inside of the tiled frontage beside
+//     the entrance — white laminate pillars, a laminate bulkhead between white
+//     bands, the painted mural of Malaysia on its back wall and the black
+//     granite-topped counter across its mouth (ReservationCounter);
+//   · a three-seat stainless bench along the right-hand wall, artificial
+//     cherry blossom by the entrance glass, plain notices on the pillars
+//     (the photos' third-party badges and stickers are not reproduced);
+//   · the stair core at the back, opposite the counter, under a KELUAR sign.
+// Lighting is two real lights (a spot on the counter, a soft fill); the
+// downlights and their wall scallops are emissive surfaces and additive washes.
 import * as THREE from 'three';
 import { PLAN } from '../world/SalimInnBuilding';
-import { batchPlain, boxAt, mergeStatic, metricUV, rbox } from '../world/geom';
-import { buildText } from '../world/letters';
+import { batchPlain, boxAt, mergeAll, mergeStatic, metricUV } from '../world/geom';
 import { ReservationCounter } from './ReservationCounter';
-import { clockFace, glowTexture, haloTexture, PublicMats, scallopWash, stripWash } from './lobbyMaterials';
-import { RoomMats } from './roomMaterials';
+import { exitTexture, noticeTexture, PublicMats, scallopWash } from './lobbyMaterials';
 
-const WARM = 0xffc58a; // ≈ 2,800 K
-const BAND = 0.55; // ceiling drop band width
-const BAND_Y = 3.12; // its underside
+const LIGHT = 0xffe2bd; // ≈ 3,500 K: the photos' neutral-warm downlights
+const PANEL = 1.2; // laminate panel width between the white strips
+const LINES = [1.15, 2.35]; // the white grooves across the panels
 
 function mesh(g: THREE.BufferGeometry, m: THREE.Material, name = '', shadow = true): THREE.Mesh {
   const o = new THREE.Mesh(g, m);
@@ -44,229 +46,174 @@ export class Lobby {
   readonly counter: ReservationCounter;
   private spot: THREE.SpotLight;
   private fill: THREE.PointLight;
-  private letters: THREE.Mesh;
   private lit: THREE.Material[] = []; // emissive / additive materials that follow the lights
   private litBase = new Map<THREE.Material, THREE.Color>();
-  private clock: { hour: THREE.Object3D; minute: THREE.Object3D; second: THREE.Object3D };
 
   /** `counter` may be built first (World builds the interior in slices). */
   constructor(counter: ReservationCounter = new ReservationCounter(), merge = true) {
     this.counter = counter;
     const L = PLAN.lobby;
-    const c = PLAN.counter;
+    const R = PLAN.reception;
+    const s = PLAN.stair;
     const H = PLAN.lobbyCeiling;
     const zBack = L.z0; // face of the back wall
-    const xBackR = PLAN.stair.x0 - 0.2; // the back wall ends at the stair core's side wall
+    const laminate = PublicMats.laminate();
+    const white = PublicMats.laminateWhite();
 
-    // ------------------------------------------------------------ floor, walls, skirting
+    // ------------------------------------------------------------ floors
     // the finish sits 12 mm proud of the slab (coplanar faces z-fight)
     this.group.add(mesh(metricUV(boxAt(L.x0, -0.02, L.z0, L.x1, 0.012, L.z1)), PublicMats.porcelain(), 'lobby-floor', false));
-    // and under the stair core behind it
-    this.group.add(mesh(metricUV(boxAt(PLAN.stair.x0, -0.02, PLAN.stair.z0, PLAN.stair.x1, 0.012, PLAN.stair.z1)), PublicMats.porcelain(), 'stair-floor', false));
-    const plaster = PublicMats.plaster();
-    this.group.add(
-      mesh(boxAt(L.x0, 0, L.z0, L.x0 + 0.01, BAND_Y, L.z1 - 0.2), plaster, 'lobby-wall-left'),
-      mesh(boxAt(L.x1 - 0.01, 0, PLAN.stair.z1, L.x1, BAND_Y, L.z1 - 0.2), plaster, 'lobby-wall-right'),
-    );
-    const skirt = PublicMats.walnut();
-    this.group.add(
-      mesh(boxAt(L.x0 + 0.01, 0.012, L.z0, L.x0 + 0.025, 0.1, L.z1 - 0.2), skirt, 'skirt-left', false),
-      mesh(boxAt(L.x1 - 0.025, 0.012, PLAN.stair.z1, L.x1 - 0.01, 0.1, L.z1 - 0.2), skirt, 'skirt-right', false),
-    );
+    // the stair core's ground floor: the corridors' carpet starts at the stair
+    this.group.add(mesh(metricUV(boxAt(s.x0, -0.02, s.z0, s.x1, 0.014, s.z1)), PublicMats.carpet(), 'stair-floor', false));
 
-    // ------------------------------------------------------------ feature wall: stone, letters, clock, rack
-    this.group.add(mesh(metricUV(boxAt(L.x0 + 0.01, 0, zBack, xBackR, BAND_Y, zBack + 0.06)), PublicMats.stone(), 'feature-stone'));
-    this.group.add(mesh(boxAt(L.x0 + 0.01, 0.012, zBack + 0.06, xBackR, 0.1, zBack + 0.075), skirt, 'skirt-back', false));
-    const wallZ = zBack + 0.06;
-    const CAP = 0.26;
-    const text = buildText('SALIM INN', { size: CAP, weight: 0.21, depth: 0.045, case: 'upper', tracking: 0.07 });
-    const letterBase = 2.1;
-    text.geo.translate(c.x - text.width / 2, letterBase, wallZ + 0.04);
-    this.letters = mesh(text.geo, PublicMats.signRed(), 'lobby-letters');
-    this.group.add(this.letters);
-    const haloMat = PublicMats.glow(haloTexture('SALIM INN'), 0xffc4a0, 3.2, 'halo');
-    const halo = wash(text.width * 1.22, CAP * 2.6, haloMat, 'letters-halo');
-    halo.position.set(c.x, letterBase + CAP / 2, wallZ + 0.004);
-    this.group.add(halo);
-    this.lit.push(haloMat);
-
-    // clock (Sibu keeps UTC+8 all year), left of the letters
-    const clock = new THREE.Group();
-    clock.add(new THREE.Mesh(new THREE.CircleGeometry(0.17, 48), new THREE.MeshStandardMaterial({ map: clockFace(), roughness: 0.5 })));
-    clock.add(mesh(new THREE.TorusGeometry(0.176, 0.012, 10, 64), PublicMats.brass(), 'clock-rim', false));
-    const hand = (len: number, w: number, m: THREE.Material, z: number) => {
-      const pivot = new THREE.Group();
-      pivot.add(new THREE.Mesh(boxAt(-w / 2, -len * 0.18, z, w / 2, len, z + 0.003), m));
-      clock.add(pivot);
-      return pivot;
+    // ------------------------------------------------------------ panelled walls
+    const lam: THREE.BufferGeometry[] = [], strips: THREE.BufferGeometry[] = [];
+    /** Laminate panels on a wall running along z (x fixed, facing ±x). */
+    const wallZ = (x: number, face: 1 | -1, z0: number, z1: number, y1: number) => {
+      const xa = face > 0 ? x : x - 0.012, xb = face > 0 ? x + 0.012 : x;
+      lam.push(boxAt(xa, 0, z0, xb, y1, z1));
+      const sa = face > 0 ? x + 0.012 : x - 0.022, sb = face > 0 ? x + 0.022 : x - 0.012;
+      for (let z = z1 - PANEL; z > z0 + 0.3; z -= PANEL) strips.push(boxAt(sa, 0, z - 0.05, sb, y1, z + 0.05));
+      for (const y of LINES) strips.push(boxAt(sa, y - 0.006, z0, sb, y + 0.006, z1));
+      strips.push(boxAt(sa, 0, z0, sb, 0.08, z1)); // white kick
     };
-    const ink = PublicMats.black();
-    this.clock = { hour: hand(0.095, 0.014, ink, 0.004), minute: hand(0.14, 0.009, ink, 0.008), second: hand(0.15, 0.003, new THREE.MeshStandardMaterial({ color: 0xb0282c, roughness: 0.4 }), 0.012) };
-    clock.position.set(L.x0 + 0.4, letterBase + CAP / 2, wallZ + 0.015);
-    this.group.add(clock);
-
-    // key-card rack: a walnut pigeonhole box, some slots holding cards
-    const rack = new THREE.Group();
-    const rw = 0.34, rh = 0.42, rd = 0.07;
-    rack.add(mesh(boxAt(-rw / 2, 0, 0, rw / 2, rh, 0.01), PublicMats.walnut(), 'rack-back'));
-    const dividers: THREE.BufferGeometry[] = [];
-    for (let i = 0; i <= 3; i++) dividers.push(boxAt(-rw / 2 + (i * rw) / 3 - 0.006, 0, 0, -rw / 2 + (i * rw) / 3 + 0.006, rh, rd));
-    for (let j = 0; j <= 4; j++) dividers.push(boxAt(-rw / 2, (j * rh) / 4 - 0.006, 0, rw / 2, (j * rh) / 4 + 0.006, rd));
-    for (const d of dividers) rack.add(mesh(d, PublicMats.walnut(), 'rack-divider'));
-    const keyMat = new THREE.MeshStandardMaterial({ color: 0x1f4436, roughness: 0.35 });
-    for (const [i, j] of [[0, 0], [2, 0], [1, 1], [0, 2], [2, 2], [1, 3], [2, 3]]) {
-      const x = -rw / 2 + ((i + 0.5) * rw) / 3, y = (j * rh) / 4 + 0.012;
-      rack.add(mesh(boxAt(x - 0.043, y, 0.02, x + 0.043, y + 0.07, 0.022), keyMat, 'rack-card', false));
-    }
-    rack.position.set(xBackR - 0.35, 1.18, wallZ);
-    this.group.add(rack);
-
-    // ------------------------------------------------------------ tray ceiling, cove, downlights, scallops
-    const ceil = PublicMats.ceiling();
-    const bx0 = L.x0, bx1 = L.x1, bz0 = zBack + 0.06, bz1 = L.z1 - 0.2;
-    // the band stops 10 cm short of the recess ceiling: the cove slot
-    const top = H - 0.1;
-    const ix0 = bx0 + BAND, ix1 = bx1 - BAND, iz0 = bz0 + BAND, iz1 = bz1 - BAND;
-    for (const g of [
-      boxAt(bx0, BAND_Y, bz0, bx1, top, iz0), boxAt(bx0, BAND_Y, iz1, bx1, top, bz1),
-      boxAt(bx0, BAND_Y, iz0, ix0, top, iz1), boxAt(ix1, BAND_Y, iz0, bx1, top, iz1),
-      // lips hiding the LED strips
-      boxAt(ix0 - 0.015, top, iz0 - 0.015, ix1 + 0.015, top + 0.045, iz0), boxAt(ix0 - 0.015, top, iz1, ix1 + 0.015, top + 0.045, iz1 + 0.015),
-      boxAt(ix0 - 0.015, top, iz0, ix0, top + 0.045, iz1), boxAt(ix1, top, iz0, ix1 + 0.015, top + 0.045, iz1),
-      // the band's outer edge meets the walls up to the slab
-      boxAt(bx0, top, bz0, bx1, H, bz0 + 0.02), boxAt(bx0, top, bz1 - 0.02, bx1, H, bz1),
-      boxAt(bx0, top, bz0, bx0 + 0.02, H, bz1), boxAt(bx1 - 0.02, top, bz0, bx1, H, bz1),
-    ]) this.group.add(mesh(g, ceil, 'ceiling-band', false));
-    // LED strip along the inner top edge of the band, and its wash on the recess
-    const cove = PublicMats.emissive(0xffd3a0, 2.6, 'cove');
-    this.lit.push(cove);
-    const coveWash = PublicMats.glow(stripWash(), 0xffe2c2, 0.55, 'coveWash');
-    this.lit.push(coveWash);
-    // [strip centre x, z, length, along x?, wash rotation]: the wash lies on
-    // the recess ceiling, brightest at the strip and fading inwards
-    const xc = (ix0 + ix1) / 2, zc = (iz0 + iz1) / 2;
-    const strips: [number, number, number, boolean, number, number, number][] = [
-      [xc, iz0 + 0.03, ix1 - ix0, true, Math.PI, xc, iz0 + 0.45],
-      [xc, iz1 - 0.03, ix1 - ix0, true, 0, xc, iz1 - 0.45],
-      [ix0 + 0.03, zc, iz1 - iz0, false, Math.PI / 2, ix0 + 0.45, zc],
-      [ix1 - 0.03, zc, iz1 - iz0, false, -Math.PI / 2, ix1 - 0.45, zc],
+    /** …and on a wall running along x (z fixed, facing ±z). */
+    const wallX = (z: number, face: 1 | -1, x0: number, x1: number, y1: number) => {
+      const za = face > 0 ? z : z - 0.012, zb = face > 0 ? z + 0.012 : z;
+      lam.push(boxAt(x0, 0, za, x1, y1, zb));
+      const sa = face > 0 ? z + 0.012 : z - 0.022, sb = face > 0 ? z + 0.022 : z - 0.012;
+      for (let x = x0 + PANEL; x < x1 - 0.3; x += PANEL) strips.push(boxAt(x - 0.05, 0, sa, x + 0.05, y1, sb));
+      for (const y of LINES) strips.push(boxAt(x0, y - 0.006, sa, x1, y + 0.006, sb));
+      strips.push(boxAt(x0, 0, sa, x1, 0.08, sb));
+    };
+    wallZ(L.x0, 1, zBack, L.z1 - 0.02, H); // left (stair-core side of the entrance)
+    wallZ(L.x1, -1, zBack, R.z1, H); // right, behind the reception pillar
+    wallX(zBack, 1, L.x0, s.x0 - 0.2, H); // back, beside the stair core
+    // the right-hand wall's door (back office): a laminate leaf with a narrow
+    // frosted strip and a steel pull, in a white frame
+    const dz0 = R.z1 - 0.25, dz1 = dz0 - 0.92;
+    const frame: THREE.BufferGeometry[] = [
+      boxAt(L.x1 - 0.05, 0, dz1 - 0.06, L.x1 - 0.012, 2.16, dz1),
+      boxAt(L.x1 - 0.05, 0, dz0, L.x1 - 0.012, 2.16, dz0 + 0.06),
+      boxAt(L.x1 - 0.05, 2.1, dz1 - 0.06, L.x1 - 0.012, 2.16, dz0 + 0.06),
     ];
-    for (const [x, z, len, alongX, rot, wx, wz] of strips) {
-      const led = mesh(alongX ? boxAt(-len / 2, 0, -0.01, len / 2, 0.02, 0.01) : boxAt(-0.01, 0, -len / 2, 0.01, 0.02, len / 2), cove, 'cove-led', false);
-      led.position.set(x, top + 0.005, z);
-      const w = wash(len, 0.9, coveWash, 'cove-wash');
-      w.rotation.set(Math.PI / 2, 0, rot);
-      w.position.set(wx, H - 0.006, wz);
-      this.group.add(led, w);
-    }
-    // downlights in the band, each throwing a scallop down its wall
-    const disc = new THREE.CircleGeometry(0.06, 24).rotateX(Math.PI / 2);
-    const discMat = PublicMats.emissive(WARM, 3.2, 'downlight');
+    lam.push(boxAt(L.x1 - 0.045, 0.01, dz1, L.x1 - 0.022, 2.1, dz0));
+    const frosted = new THREE.MeshPhysicalMaterial({ color: 0xcfe0d8, roughness: 0.35, transmission: 0, transparent: true, opacity: 0.85 });
+    this.group.add(mesh(boxAt(L.x1 - 0.047, 0.35, dz0 - 0.24, L.x1 - 0.043, 1.95, dz0 - 0.14), frosted, 'office-door-glass', false));
+    this.group.add(mesh(boxAt(L.x1 - 0.08, 0.95, dz1 + 0.08, L.x1 - 0.045, 1.25, dz1 + 0.11), PublicMats.stainless(), 'office-door-pull', false));
+    this.group.add(mesh(merged(frame), white, 'office-door-frame'));
+
+    // the frontage's inner face left of and above the entrance door
+    this.group.add(mesh(merged([
+      boxAt(L.x0, 0, L.z1 - 0.012, PLAN.door.x0 - 0.06, H, L.z1),
+      boxAt(PLAN.door.x0 - 0.06, PLAN.door.h + 0.06, L.z1 - 0.012, R.x0 - 0.34, H, L.z1),
+    ]), PublicMats.plaster(), 'lobby-front-inner', false));
+
+    // ------------------------------------------------------------ reception alcove
+    const wx0 = R.x0 - 0.34, wx1 = L.x1; // outer faces of the two pillars
+    // pillars, floor to ceiling
+    const pillars = [boxAt(wx0, 0, R.z1, R.x0, H, R.z0), boxAt(R.x1, 0, R.z1, wx1, H, R.z0)];
+    // the volume above the alcove: soffit, and the bulkhead's face in bands —
+    // white, striated laminate, white again up to the ceiling
+    const soffit = boxAt(R.x0, R.soffit, R.z1, R.x1, R.soffit + 0.05, R.z0);
+    const bandZ0 = R.z1 - 0.02, bandZ1 = R.z1;
+    const bands = [
+      boxAt(wx0, R.soffit, bandZ0, wx1, R.soffit + 0.09, bandZ1),
+      boxAt(wx0, R.soffit + 0.6, bandZ0, wx1, H, bandZ1),
+    ];
+    lam.push(boxAt(wx0, R.soffit + 0.09, bandZ0 + 0.004, wx1, R.soffit + 0.6, bandZ1));
+    this.group.add(mesh(merged([...pillars, ...bands]), white, 'reception-pillars'));
+    this.group.add(mesh(soffit, PublicMats.ceiling(), 'reception-soffit', false));
+    // the mural on the frontage's inner face, from just behind the counter up
+    // to the soffit; its texture runs 0.23 m further down (behind the counter)
+    const muralH = R.soffit - 0.67;
+    const mural = new THREE.Mesh(new THREE.PlaneGeometry(R.x1 - R.x0, muralH), PublicMats.mural());
+    const uv = mural.geometry.getAttribute('uv') as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setX(i, 0.05 + uv.getX(i) * 0.9); // 5 % trimmed each side
+    mural.rotation.y = Math.PI; // facing into the lobby (−z)
+    mural.position.set((R.x0 + R.x1) / 2, 0.67 + muralH / 2, R.z0 - 0.004);
+    mural.name = 'reception-mural';
+    mural.receiveShadow = true;
+    this.group.add(mural);
+    // the wall under the mural, behind the counter
+    this.group.add(mesh(boxAt(R.x0, 0, R.z0 - 0.012, R.x1, 0.67, R.z0), PublicMats.plaster(), 'reception-wall', false));
+    // soffit fittings: a downlight, the CCTV dome and the air-conditioning slot
+    const downDisc = new THREE.CircleGeometry(0.065, 24).rotateX(Math.PI / 2);
+    const discMat = PublicMats.emissive(LIGHT, 3.0, 'downlight');
     this.lit.push(discMat);
-    const scallop = PublicMats.glow(scallopWash(), 0xffd2a0, 0.5, 'scallop');
-    this.lit.push(scallop);
-    const downlight = (x: number, z: number, wx: number, wz: number, rotY: number) => {
-      const d = new THREE.Mesh(disc, discMat);
-      d.position.set(x, BAND_Y - 0.002, z);
-      const sc = wash(1.1, 2.3, scallop, 'scallop');
-      sc.rotation.y = rotY;
-      sc.position.set(wx, BAND_Y - 1.15, wz);
-      this.group.add(d, sc);
+    const alcoveLight = new THREE.Mesh(downDisc, discMat);
+    alcoveLight.position.set(R.x0 + 0.8, R.soffit - 0.002, (R.z0 + R.z1) / 2);
+    this.group.add(alcoveLight);
+    this.group.add(cctvDome().translateX(R.x1 - 0.6).translateY(R.soffit).translateZ(R.z1 + 0.35));
+    const ac = new THREE.Group();
+    ac.add(mesh(boxAt(-0.42, -0.012, -0.1, 0.42, 0, 0.1), PublicMats.white(), 'ac-face', false));
+    ac.add(mesh(boxAt(-0.38, -0.014, -0.03, 0.38, -0.011, 0.03), PublicMats.black(), 'ac-slot', false));
+    ac.position.set(R.x0 + 1.5, R.soffit, R.z1 + 0.42);
+    this.group.add(ac);
+    // plain notices taped to the pillars' faces (the photos' rating badges
+    // and payment stickers are third-party marks, not reproduced)
+    const notice = (x: number, y: number, w: number, seed: number) => {
+      const n = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 1.375), PublicMats.print(noticeTexture(seed), `notice-${seed}`));
+      n.rotation.y = Math.PI;
+      n.position.set(x, y, R.z1 - 0.003);
+      n.name = 'notice';
+      this.group.add(n);
     };
-    for (const z of [-3.6, -5.2, -6.8, -8.4, -10.0]) {
-      downlight(bx0 + 0.3, z, bx0 + 0.012, z, Math.PI / 2);
-      downlight(bx1 - 0.3, z, bx1 - 0.012, z, -Math.PI / 2);
-    }
-    // two grazing the stone behind the counter, over the clock and the rack
-    downlight(L.x0 + 0.4, bz0 + 0.28, L.x0 + 0.4, wallZ + 0.006, 0);
-    downlight(xBackR - 0.35, bz0 + 0.28, xBackR - 0.35, wallZ + 0.006, 0);
+    notice(R.x1 + 0.15, 1.75, 0.2, 11);
+    notice(R.x1 + 0.15, 1.38, 0.2, 12);
+    notice(wx0 + 0.17, 1.82, 0.24, 13);
 
-    // ------------------------------------------------------------ pendant pair over the counter
-    const outer = PublicMats.darkMetal();
-    const inner = new THREE.MeshStandardMaterial({ color: 0xd9b572, roughness: 0.3, metalness: 1, side: THREE.BackSide });
-    const bulbMat = PublicMats.emissive(0xffd6a4, 5, 'bulb');
-    this.lit.push(bulbMat);
-    const glowMat = PublicMats.glow(glowTexture(), 0xffc890, 1.1, 'pendantGlow');
-    this.lit.push(glowMat);
-    const domeProfile: THREE.Vector2[] = [];
-    for (let i = 0; i <= 14; i++) {
-      const a = (i / 14) * (Math.PI / 2);
-      domeProfile.push(new THREE.Vector2(0.03 + 0.19 * Math.sin(a), 0.17 * Math.cos(a)));
+    // ------------------------------------------------------------ ceiling lights, CCTV
+    const scallop = PublicMats.glow(scallopWash(), 0xffe0bc, 0.42, 'scallop');
+    this.lit.push(scallop);
+    for (const z of [-4.9, -7.1, -9.3, -11.0]) {
+      for (const x of [L.x0 + 1.0, L.x1 - 1.0]) {
+        const d = new THREE.Mesh(downDisc, discMat);
+        d.position.set(x, H - 0.002, z);
+        this.group.add(d);
+      }
+      // each side wall takes a soft scallop from its nearer light
+      for (const [x, rot] of [[L.x0 + 0.025, Math.PI / 2], [L.x1 - 0.025, -Math.PI / 2]] as const) {
+        if (x > L.x1 - 0.1 && z > dz1 - 0.6) continue; // not over the office door
+        const sc = wash(1.3, 2.6, scallop, 'scallop');
+        sc.rotation.y = rot;
+        sc.position.set(x, H - 1.3, z);
+        this.group.add(sc);
+      }
     }
-    const pendantY = 2.28;
-    for (const dx of [-0.62, 0.62]) {
-      const p = new THREE.Group();
-      p.add(mesh(new THREE.LatheGeometry(domeProfile.slice().reverse(), 40), outer, 'pendant-shade'));
-      p.add(new THREE.Mesh(new THREE.LatheGeometry(domeProfile.slice().reverse().map((v) => new THREE.Vector2(v.x - 0.004, v.y)), 40), inner));
-      p.add(new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 10).translate(0, 0.05, 0), bulbMat));
-      const g = wash(0.5, 0.5, glowMat, 'pendant-glow');
-      g.rotation.x = Math.PI / 2; // facing down
-      g.position.y = 0.012;
-      p.add(g);
-      p.add(mesh(new THREE.CylinderGeometry(0.004, 0.004, H - pendantY - 0.17, 6).translate(0, 0.17 + (H - pendantY - 0.17) / 2, 0), outer, 'pendant-cord', false));
-      p.position.set(c.x + dx, pendantY, c.z + 0.2);
-      this.group.add(p);
-    }
+    this.group.add(cctvBullet().translateX(L.x1 - 0.12).translateY(H - 0.02).translateZ(R.z1 - 0.35));
 
-    // ------------------------------------------------------------ seating corner, lamp, plants, art
-    const velvet = new THREE.MeshPhysicalMaterial({ color: 0x1f4a3b, roughness: 0.85, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color(0x5f8f7a) });
-    const sofa = new THREE.Group();
-    const sw = 1.6, sd = 0.82;
-    sofa.add(mesh(rbox(0, 0.12, -sw / 2, sd, 0.42, sw / 2, 0.06), velvet, 'sofa-base'));
-    sofa.add(mesh(rbox(0, 0.42, -sw / 2 + 0.16, 0.2, 0.86, sw / 2 - 0.16, 0.07), velvet, 'sofa-back'));
-    for (const s of [-1, 1]) sofa.add(mesh(rbox(0, 0.12, s * (sw / 2) - (s > 0 ? 0.16 : 0), sd, 0.64, s * (sw / 2) + (s > 0 ? 0 : 0.16), 0.06), velvet, 'sofa-arm'));
-    for (const s of [-1, 1]) sofa.add(mesh(rbox(0.2, 0.42, s > 0 ? 0.01 : -sw / 2 + 0.16, sd - 0.03, 0.54, s > 0 ? sw / 2 - 0.16 : -0.01, 0.05), velvet, 'sofa-cushion'));
-    for (const [x, z] of [[0.06, -sw / 2 + 0.06], [0.06, sw / 2 - 0.06], [sd - 0.06, -sw / 2 + 0.06], [sd - 0.06, sw / 2 - 0.06]]) {
-      sofa.add(mesh(new THREE.CylinderGeometry(0.018, 0.012, 0.12, 10).translate(x, 0.06, z), PublicMats.brass(), 'sofa-leg'));
-    }
-    sofa.position.set(L.x0 + 0.06, 0, -6.0);
-    this.group.add(sofa);
-    // side table + practical lamp beside it
-    const table = new THREE.Group();
-    table.add(mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.025, 36).translate(0, 0.56, 0), PublicMats.marble(), 'table-top'));
-    table.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.55, 12).translate(0, 0.275, 0), PublicMats.brass(), 'table-stem'));
-    table.add(mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.012, 32).translate(0, 0.006, 0), PublicMats.brass(), 'table-foot'));
-    table.add(mesh(new THREE.CylinderGeometry(0.07, 0.085, 0.24, 24).translate(0, 0.69, 0), new THREE.MeshPhysicalMaterial({ color: 0xe9e2d4, roughness: 0.2, clearcoat: 0.8 }), 'lamp-base'));
-    const shadeMat = new THREE.MeshStandardMaterial({ color: 0xf2e6d0, emissive: new THREE.Color(0xffc98e), emissiveIntensity: 0, roughness: 0.9, side: THREE.DoubleSide });
-    this.lit.push(shadeMat);
-    table.add(mesh(new THREE.CylinderGeometry(0.13, 0.17, 0.2, 32, 1, true).translate(0, 0.92, 0), shadeMat, 'lamp-shade', false));
-    const lampGlow = PublicMats.glow(glowTexture(), 0xffc790, 0.6, 'lampGlow');
-    this.lit.push(lampGlow);
-    const lg = wash(1.3, 1.3, lampGlow, 'lamp-wall-glow');
-    lg.rotation.y = Math.PI / 2;
-    lg.position.set(-0.32, 0.95, 0); // on the wall behind the lamp
-    table.add(lg);
-    table.position.set(L.x0 + 0.34, 0, -7.1);
-    this.group.add(table);
-    // plants: a tall one by the counter, one at the stair approach
-    const plantAt = (x: number, z: number, h: number, seed: number) => this.group.add(tallPlant(h, seed).translateX(x).translateZ(z));
-    plantAt(L.x0 + 0.42, zBack + 0.55, 1.7, 1);
-    plantAt(L.x1 - 0.42, -8.7, 1.5, 2);
-    // gold-leaf art on the right wall (the rooms' motif, larger)
-    const art = new THREE.Group();
-    art.add(mesh(boxAt(-0.012, -0.55, -0.42, 0, 0.55, 0.42), PublicMats.brass(), 'art-frame', false));
-    art.add(mesh(boxAt(-0.016, -0.53, -0.4, -0.012, 0.53, 0.4), new THREE.MeshStandardMaterial({ color: 0xf1ebe0, roughness: 0.9 }), 'art-mount', false));
-    const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.93), RoomMats.goldLeaf('banana'));
-    leaf.rotation.y = -Math.PI / 2;
-    leaf.position.x = -0.02;
-    art.add(leaf);
-    art.position.set(L.x1 - 0.012, 1.65, -5.6);
-    this.group.add(art);
+    // ------------------------------------------------------------ the stair core opening, KELUAR
+    lam.push(boxAt(s.x0, 2.35, zBack - 0.01, s.x1, H, zBack + 0.012)); // lintel over the opening
+    const arch: THREE.BufferGeometry[] = [
+      boxAt(s.x0 - 0.06, 0, zBack, s.x0, 2.35, zBack + 0.03),
+      boxAt(s.x0 - 0.06, 2.35, zBack, s.x1, 2.41, zBack + 0.03),
+    ];
+    this.group.add(mesh(merged(arch), white, 'stair-architrave'));
+    const exitMat = new THREE.MeshBasicMaterial({ map: exitTexture(), color: new THREE.Color(1.5, 1.5, 1.5), toneMapped: false });
+    const exit = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.113, 0.03), [PublicMats.white(), PublicMats.white(), PublicMats.white(), PublicMats.white(), exitMat, PublicMats.white()]);
+    exit.position.set((s.x0 + s.x1) / 2, 2.62, zBack + 0.03);
+    exit.name = 'keluar';
+    this.group.add(exit);
+
+    // ------------------------------------------------------------ bench, blossom
+    this.group.add(steelBench().translateX(L.x1 - 0.06).translateZ(-7.4));
+    this.group.add(blossom().translateX(R.x0 - 0.62).translateZ(R.z0 - 0.45));
+
+    this.group.add(mesh(merged(lam), laminate, 'lobby-laminate'));
+    this.group.add(mesh(merged(strips), white, 'lobby-strips', false));
 
     // ------------------------------------------------------------ lights
-    // an accent downlight in the recess in front of the counter: it lights the
-    // ledge and props and rakes the fluted front (straight overhead it only
-    // grazed the front, which fell to a murky purple under the grade)
-    this.spot = new THREE.SpotLight(WARM, 0, 8, 0.62, 0.75, 1.4);
-    this.spot.position.set(c.x, H - 0.06, c.z + 1.55);
-    this.spot.target.position.set(c.x, 0.55, c.z + 0.25);
-    const accent = new THREE.Mesh(disc, discMat);
-    accent.position.set(c.x, H - 0.004, c.z + 1.55);
+    // an accent downlight in front of the alcove, raking the counter and the
+    // mural; a soft fill at head height in the middle of the room
+    this.spot = new THREE.SpotLight(LIGHT, 0, 9, 0.7, 0.75, 1.4);
+    this.spot.position.set((R.x0 + R.x1) / 2, H - 0.06, R.z1 - 1.1);
+    this.spot.target.position.set((R.x0 + R.x1) / 2, 0.9, R.z0 - 0.2);
+    const accent = new THREE.Mesh(downDisc, discMat);
+    accent.position.set((R.x0 + R.x1) / 2, H - 0.004, R.z1 - 1.1);
     this.group.add(accent);
-    // soft fill at head height: far enough below the ceiling not to hot-spot it
-    // (a spot's cone edge drew a hard ellipse on the side walls)
-    this.fill = new THREE.PointLight(0xffd7ae, 0, 12, 1.6);
-    this.fill.position.set((L.x0 + L.x1) / 2, 2.0, -6.2);
+    this.fill = new THREE.PointLight(0xffe6c8, 0, 13, 1.6);
+    this.fill.position.set((L.x0 + L.x1) / 2, 2.0, -7.0);
     this.lights.push(this.spot, this.fill);
     this.group.add(this.spot, this.spot.target, this.fill, this.counter.group);
     this.group.name = 'lobby';
@@ -280,14 +227,14 @@ export class Lobby {
   /** One draw per material for everything that never moves on its own (a
    *  step of its own when the interior is built in slices). */
   merge(): void {
-    const moving = [...this.counter.dynamic, this.clock.hour, this.clock.minute, this.clock.second];
+    const moving = [...this.counter.dynamic];
     batchPlain(this.group, moving);
     mergeStatic(this.group, moving);
   }
 
   setLights(v: number): void {
     this.spot.intensity = 26 * v;
-    this.fill.intensity = 4.5 * v;
+    this.fill.intensity = 9 * v;
     for (const m of this.lit) {
       if ((m as THREE.MeshStandardMaterial).emissiveIntensity !== undefined && !(m as THREE.MeshBasicMaterial).isMeshBasicMaterial) {
         (m as THREE.MeshStandardMaterial).emissiveIntensity = 1.4 * v;
@@ -296,40 +243,91 @@ export class Lobby {
       const base = this.litBase.get(m);
       if (base) (m as THREE.MeshBasicMaterial).color.copy(base).multiplyScalar(v);
     }
-    const letters = this.letters.material as THREE.MeshStandardMaterial;
-    letters.emissiveIntensity = 0.35 * v;
   }
 
-  /** Clock hands on Sibu time (UTC+8, no daylight saving). */
-  update(): void {
-    const t = (Date.now() / 1000 + 8 * 3600) % 86400;
-    this.clock.second.rotation.z = -((t % 60) / 60) * Math.PI * 2;
-    this.clock.minute.rotation.z = -((t % 3600) / 3600) * Math.PI * 2;
-    this.clock.hour.rotation.z = -((t % 43200) / 43200) * Math.PI * 2;
-  }
+  /** Nothing in the lobby animates on its own now (World still calls it). */
+  update(): void {}
 }
 
-/** A tall potted plant: a ceramic planter and broad leaves on thin stems. */
-function tallPlant(h: number, seed: number): THREE.Group {
+/** One geometry from plain parts, with metric UVs for the textured finishes. */
+const merged = (parts: THREE.BufferGeometry[]) => metricUV(mergeAll(parts, ['position', 'normal']));
+
+/** The ceiling's dome camera: a white base and a smoked dome. */
+function cctvDome(): THREE.Group {
   const g = new THREE.Group();
-  const pot = [new THREE.Vector2(0, 0), new THREE.Vector2(0.2, 0), new THREE.Vector2(0.25, 0.45), new THREE.Vector2(0.235, 0.45), new THREE.Vector2(0.23, 0.42), new THREE.Vector2(0, 0.42)];
-  g.add(mesh(new THREE.LatheGeometry(pot, 40), new THREE.MeshPhysicalMaterial({ color: 0x2c2f2d, roughness: 0.35, clearcoat: 0.5 }), 'planter'));
-  const leafGeo = new THREE.SphereGeometry(1, 12, 6).scale(0.09, 0.012, 0.16).translate(0, 0, 0.15);
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x3c6b35, roughness: 0.55, side: THREE.DoubleSide });
-  const stemMat = new THREE.MeshStandardMaterial({ color: 0x5a4a32, roughness: 0.8 });
-  let s = seed * 9301 + 49297;
-  const r = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
-  for (let i = 0; i < 26; i++) {
-    const y = 0.5 + (h - 0.5) * Math.pow(i / 26, 0.8);
-    const lf = new THREE.Mesh(leafGeo, leafMat);
-    lf.rotation.order = 'YXZ';
-    lf.rotation.y = r() * Math.PI * 2;
-    lf.rotation.x = -0.2 - r() * 0.7;
-    lf.scale.setScalar(0.75 + r() * 0.5);
-    lf.position.set((r() - 0.5) * 0.18, y, (r() - 0.5) * 0.18);
-    lf.castShadow = true;
-    g.add(lf);
+  g.add(mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.02, 24).translate(0, -0.01, 0), PublicMats.white(), 'cctv-base', false));
+  g.add(mesh(new THREE.SphereGeometry(0.055, 20, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2).translate(0, -0.02, 0), new THREE.MeshPhysicalMaterial({ color: 0x1a1c1f, roughness: 0.08, clearcoat: 1 }), 'cctv-dome', false));
+  g.name = 'cctv';
+  return g;
+}
+
+/** A bullet camera on a short arm, at the room's front corner. */
+function cctvBullet(): THREE.Group {
+  const g = new THREE.Group();
+  g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 8).translate(0, -0.06, 0), PublicMats.white(), 'cctv-arm', false));
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.2, 16).rotateZ(Math.PI / 2).translate(-0.06, -0.13, 0), PublicMats.white());
+  body.rotation.y = -0.6;
+  g.add(body);
+  g.name = 'cctv';
+  return g;
+}
+
+/** The three-seat stainless bench along the right-hand wall, seats facing −x:
+ *  slatted seats and backs on a steel beam, armrests at the ends. */
+function steelBench(): THREE.Group {
+  const g = new THREE.Group();
+  const steel = PublicMats.stainless();
+  const parts: THREE.BufferGeometry[] = [];
+  const seatW = 0.56, n = 3, len = n * seatW + 0.1;
+  const z0 = -len / 2;
+  for (let i = 0; i < n; i++) {
+    const a = z0 + 0.05 + i * seatW;
+    // seat: five slats, front to back (x towards the wall)
+    for (let k = 0; k < 5; k++) parts.push(boxAt(-0.52 + k * 0.09, 0.43, a + 0.02, -0.52 + k * 0.09 + 0.07, 0.45, a + seatW - 0.02));
+    // back: four slats, leaning slightly towards the wall
+    for (let k = 0; k < 4; k++) {
+      const y = 0.52 + k * 0.1;
+      parts.push(boxAt(-0.1 + k * 0.012, y, a + 0.02, -0.08 + k * 0.012, y + 0.07, a + seatW - 0.02));
+    }
   }
-  g.add(mesh(new THREE.CylinderGeometry(0.012, 0.018, h - 0.4, 6).translate(0, 0.42 + (h - 0.4) / 2, 0), stemMat, 'trunk'));
+  // beam, legs and armrests
+  parts.push(boxAt(-0.35, 0.36, z0, -0.29, 0.42, -z0));
+  for (const z of [z0 + 0.12, -z0 - 0.12]) {
+    parts.push(boxAt(-0.36, 0, z - 0.025, -0.3, 0.36, z + 0.025), boxAt(-0.5, 0, z - 0.025, -0.14, 0.03, z + 0.025));
+    parts.push(boxAt(-0.5, 0.6, z - 0.02, -0.08, 0.63, z + 0.02), boxAt(-0.48, 0.45, z - 0.015, -0.45, 0.6, z + 0.015));
+  }
+  g.add(mesh(merged(parts), steel, 'bench'));
+  g.name = 'bench';
+  return g;
+}
+
+/** Artificial cherry blossom in a tall clear vase. */
+function blossom(): THREE.Group {
+  const g = new THREE.Group();
+  const vase = [new THREE.Vector2(0, 0), new THREE.Vector2(0.09, 0), new THREE.Vector2(0.1, 0.06), new THREE.Vector2(0.08, 0.5), new THREE.Vector2(0.072, 0.5), new THREE.Vector2(0.09, 0.06), new THREE.Vector2(0, 0.012)];
+  g.add(mesh(new THREE.LatheGeometry(vase, 24), new THREE.MeshPhysicalMaterial({ color: 0xe8f0f0, roughness: 0.06, transparent: true, opacity: 0.45, depthWrite: false }), 'vase', false));
+  const stem = PublicMats.frame();
+  const flower = new THREE.MeshStandardMaterial({ color: 0xf2a6c3, roughness: 0.7 });
+  const flowerDeep = new THREE.MeshStandardMaterial({ color: 0xd9577f, roughness: 0.7 });
+  let seed = 41;
+  const r = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  const blossoms: THREE.BufferGeometry[] = [], deep: THREE.BufferGeometry[] = [], stems: THREE.BufferGeometry[] = [];
+  for (let b = 0; b < 7; b++) {
+    const a = r() * Math.PI * 2, tilt = 0.12 + r() * 0.3, h = 0.8 + r() * 0.5;
+    const dir = new THREE.Vector3(Math.cos(a) * Math.sin(tilt), Math.cos(tilt), Math.sin(a) * Math.sin(tilt));
+    const st = new THREE.CylinderGeometry(0.006, 0.009, h, 6).translate(0, h / 2, 0);
+    st.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir));
+    st.translate(0, 0.35, 0);
+    stems.push(st);
+    for (let k = 0; k < 46; k++) {
+      const t = 0.3 + r() * 0.7;
+      const p = dir.clone().multiplyScalar(h * t).add(new THREE.Vector3((r() - 0.5) * 0.1, 0.35 + (r() - 0.5) * 0.06, (r() - 0.5) * 0.1));
+      (k % 4 === 0 ? deep : blossoms).push(new THREE.IcosahedronGeometry(0.009 + r() * 0.008, 1).translate(p.x, p.y, p.z));
+    }
+  }
+  g.add(mesh(merged(stems), stem, 'blossom-stems', false));
+  g.add(mesh(merged(blossoms), flower, 'blossom', false));
+  g.add(mesh(merged(deep), flowerDeep, 'blossom-deep', false));
+  g.name = 'blossom';
   return g;
 }

@@ -66,8 +66,14 @@ export const PLAN = {
   showcaseBay: 1,
   showcaseRight: BW + (GROUPS[0][1] + GROUPS[1][0]) / 2,
   showcaseDoor: { x0: BW + 2.2, x1: BW + 3.2 },
-  // centred on the back wall (6.4–9.8) and on the entrance, under the wall letters
-  counter: { x: BW + 1.8, z: -9.3, length: 2.4, depth: 0.72 },
+  // The reception (owner's photos, 2026-10-02): an alcove against the inside
+  // of the tiled frontage beside the entrance — white pillars either side, a
+  // striated laminate bulkhead over it, the painted mural on its back wall
+  // (the frontage's inner face) — with the counter across its mouth, facing
+  // into the lobby. The stair core is opposite it, at the back.
+  reception: { x0: S.entrance.x1 + 0.4, x1: 2 * BW - T / 2 - 0.3, z0: -FFW, z1: -FFW - 1.35, soffit: 2.25 },
+  // across the alcove's mouth, guest side towards −z (rotY π)
+  counter: { x: (S.entrance.x1 + 0.4 + 2 * BW - T / 2 - 0.3) / 2, z: -FFW - 1.35 + 0.325, length: 2 * BW - T / 2 - 0.3 - (S.entrance.x1 + 0.4), depth: 0.65, rotY: Math.PI },
   windowSill: 0.95,
   windowHead: 2.3,
   lobbyCeiling: 3.45,

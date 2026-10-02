@@ -337,7 +337,7 @@ export const ms: Copy = {
       'Farley Commercial Centre dari atas, dengan deretan kedainya mengelilingi pasar raya',
       'Blok sudut Salim Inn pada waktu senja, dengan papan tanda bumbungnya menyala',
       'Pintu masuk Salim Inn di bawah kanopi, dengan tempat letak kereta tetamu di hadapan',
-      'Kaunter tempahan di lobi, dengan huruf SALIM INN pada dinding batu di belakangnya',
+      'Kaunter tempahan di lobi: granit hitam di hadapan mural yang berwarna-warni',
       'Sebuah bilik tetamu Deluxe King',
       'Hotel dan lingkaran Farley dari atas, dengan gelang masa berjalan kaki dari pintu',
       'Salim Inn dan lingkaran Farley pada waktu senja',

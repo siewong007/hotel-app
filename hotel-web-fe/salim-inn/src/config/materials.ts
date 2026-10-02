@@ -94,19 +94,23 @@ export const ROOM_COLOURS = {
   frosted: 0x9fd9cf,
 } as const;
 
-// Lobby, counter, stair and corridor — designed, not sampled: no reception,
-// stair or corridor photo exists (OPEN_QUESTIONS in config/site.ts).
+// Lobby, counter, stair and corridor — sampled from the owner's photos of the
+// reception, the stair and the level-1 and level-2 corridors (2026-10-02).
 export const PUBLIC_COLOURS = {
-  tile: 0xe6ddcc, // polished porcelain, warm ivory, 800 mm
-  grout: 0xb4a894,
-  walnut: 0x6b4d37, // a mid walnut: darker read murky under warm light and the grade
+  tile: 0xe7e0d2, // polished porcelain, light cream, 600 mm
+  grout: 0xc9c0ae,
+  laminate: 0x7d766f, // striated grey-brown laminate: wall panels, bulkhead, counter front
+  laminateDark: 0x4a4440,
+  laminateLight: 0x8f877e,
+  pillar: 0xf1f0ec, // white laminate pillars and trims
+  granite: 0x0e0e10, // black granite counter top and front band
+  walnut: 0x6b4d37, // the key-card sleeve and pen keep their timber
   marble: 0xefe9df,
-  plaster: 0xe9e2d7,
-  corridorWall: 0xe8dfd1,
-  carpetField: 0x1f3e32, // brand forest, lifted so the pattern reads
-  carpetMotif: 0x2d5747,
-  carpetGold: 0xb59655,
-  door: 0x6a4d38,
-  frame: 0x3f2a1c,
-  terrazzo: 0xd8d2c6,
+  plaster: 0xeeeae2, // lobby ceiling and white wall above the bulkhead
+  corridorWall: 0xede4cc, // the stair and corridors' cream
+  carpetField: 0x6d1c26, // burgundy loop pile, stair and corridors
+  door: 0x3d2b23, // dark chocolate room doors and frames
+  frame: 0x34251e,
+  signRed: 0xc0222c, // wayfinding plates and the Wi-Fi sign
+  exitGreen: 0x0d8a43, // KELUAR
 } as const;

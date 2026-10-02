@@ -28,6 +28,9 @@ const L = (x: number, y: number, z: number) => salimLocal(x, y, z);
 const lobbyCx = (PLAN.door.x0 + PLAN.door.x1) / 2 + 0.2;
 const winX = SHOWCASE_WINDOW.centre; // the open panes the camera exits through
 const stairCx = (PLAN.stair.x0 + PLAN.stair.x1) / 2;
+// the two flights' centre lines (Corridor.ts: 1.0 m flights against either wall)
+const stair1Cx = PLAN.stair.x1 - 0.5; // first flight, party-wall side, climbing −z
+const stair2Cx = PLAN.stair.x0 + 0.5; // second flight, lobby side, climbing +z
 const doorCx = (PLAN.showcaseDoor.x0 + PLAN.showcaseDoor.x1) / 2;
 const counter = PLAN.counter;
 const y1 = FLOOR_Y.level1;
@@ -93,26 +96,39 @@ export const PATH: PathChapter[] = [
       { pos: L(lobbyCx, eyeW, -1.4), target: L(lobbyCx, 1.7, -9.5), fov: FOV.c4[1] },
     ],
   },
-  // 5 · Reception: push to the counter, then a gentle 20° arc
+  // 5 · Reception: through the door, turning right and round to the counter
+  // beside the entrance (it faces into the lobby), then in close
   {
     id: 5,
     weight: 'even',
     points: [
-      { pos: L(lobbyCx, eyeW, -3.6), target: L(counter.x, 1.5, counter.z), fov: 51 },
-      { pos: L(counter.x - 0.15, 1.62, counter.z + 2.35), target: L(counter.x - 0.2, 1.2, counter.z + 0.1), fov: 52.5 },
-      // the arc ends close enough to read the registration card and the key cards
-      { pos: L(counter.x + 0.8, 1.58, counter.z + 1.95), target: L(counter.x + 0.05, 1.32, counter.z + 0.05), fov: FOV.c5[1] },
+      { pos: L(lobbyCx + 0.35, eyeW, -4.6), target: L(counter.x + 1.6, 1.55, -6.6), fov: 50.5 },
+      // the reception: pillars, bulkhead, the mural and the counter
+      { pos: L(counter.x - 1.1, eye, counter.z - 3.2), target: L(counter.x + 0.1, 1.45, counter.z + 0.2), fov: 51.5 },
+      { pos: L(counter.x - 0.3, 1.64, counter.z - 2.1), target: L(counter.x + 0.08, 1.3, counter.z - 0.1), fov: 52.5 },
+      // close enough to read the registration card and the key cards
+      { pos: L(counter.x - 0.45, 1.68, counter.z - 1.75), target: L(counter.x + 0.06, 1.18, counter.z - 0.12), fov: FOV.c5[1] },
     ],
   },
-  // 6 · Rooms: rise through the stair core to the level-1 corridor, the door
-  // swings open, into the room above the lobby
+  // 6 · Rooms: turn to the stair opposite the counter, up its two flights to
+  // the level-1 landing and the corridor, the door swings open, into the room
+  // above the lobby
   {
     id: 6,
     weight: 'even',
     points: [
-      { pos: L(stairCx, eye, -9.6), target: L(stairCx, 2.2, -15), fov: 54.5 },
-      { pos: L(stairCx, eye + 0.3, -13.4), target: L(stairCx, y1 + 1.8, -14.6), fov: 55 },
-      { pos: L(stairCx, y1 + eye, -13.6), target: L(stairCx + 0.2, y1 + 1.5, -8.4), fov: 55.5 },
+      // turning away from the counter (round by the bench wall)
+      { pos: L(counter.x - 0.2, eye, counter.z - 2.0), target: L(counter.x + 2.2, 1.5, counter.z - 3.4), fov: 54.2 },
+      { pos: L(counter.x + 0.1, eye, counter.z - 3.2), target: L(stair1Cx - 0.4, 1.9, -12.5), fov: 54.5 },
+      // the foot of the first flight, looking up it
+      { pos: L(stair1Cx - 0.25, eye, -10.7), target: L(stair1Cx, 2.4, -16), fov: 54.7 },
+      { pos: L(stair1Cx, eye + 0.9, -13.4), target: L(stair1Cx - 0.2, 3.6, -17.5), fov: 54.9 },
+      // the half landing: round to the second flight
+      { pos: L(stair1Cx - 0.1, y1 / 2 + eye, -15.9), target: L(stairCx - 0.15, y1 / 2 + 1.45, -18.3), fov: 55.1 },
+      { pos: L(stairCx, y1 / 2 + eye, -16.9), target: L(stair2Cx, y1 / 2 + 2.4, -13), fov: 55.3 },
+      { pos: L(stair2Cx, y1 / 2 + eye + 1.0, -14.5), target: L(stair2Cx + 0.1, y1 + 1.6, -10.5), fov: 55.5 },
+      // the level-1 landing, facing the wayfinding plates across the corridor
+      { pos: L(stair2Cx, y1 + eye, -12.3), target: L(stairCx - 0.5, y1 + 1.5, -8.4), fov: 55.7 },
       // into the corridor before turning, clear of the landing's corner
       { pos: L(stairCx - 0.3, y1 + eye, -8.75), target: L(doorCx, y1 + 1.4, -6), fov: 56 },
       { pos: L(doorCx + 0.25, y1 + eye, -8.3), target: L(doorCx - 0.2, y1 + 1.2, -4), fov: 56.5 },

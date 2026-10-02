@@ -85,3 +85,19 @@ canvas above it and swallows the clicks regardless of `z-index`. Chromium's
     reads as a swap.
   - `perf/flicker.ts` maps pixels that blink and return on the real render.
 
+
+## A colour that ignores every light is post-processing (Salim Inn film, 2026-10-02)
+
+- **Read the raw render before blaming the material.** The black granite counter rendered as
+  a flat navy, exactly (0, 13, 41) in sRGB. Turning off every light, the environment, the fog
+  and the clearcoat changed nothing, and so did a pure-black `MeshBasicMaterial`. The raw
+  `renderer.render` gave a correct (33, 32, 31). The cause was the grade's "cool shadows" split
+  tone, `+(−0.012, 0.004, 0.022)` added in LINEAR light. sRGB-encoded, `0.022` is 41/255,
+  so every near-black turns navy. `Post.setSplit` now eases it off between the lobby door and
+  the room door.
+- **A changed constant must change the pixel, or it isn't what you hit.** Recolouring a
+  material whose map is near-black multiplies black, so the test proves nothing. Raycast the
+  pixel to name the mesh (`perf/eval.ts` in the workshop folder), then swap the material outright.
+- **A coverage audit must not filter what it measures.** `perf/probe.ts audit` used to measure
+  with `World.ts` SEEN already applied, so a part hidden by an old span could never be seen
+  there and the spans confirmed themselves. It now shows every zoned part while measuring.

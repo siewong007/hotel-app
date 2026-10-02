@@ -3,7 +3,7 @@
 // them is most of the interior's cost, and the parts' constructors, which
 // reach for them, then find them cached. Every room type's variants are
 // here too, so a configurator switch only builds geometry.
-import { PublicMats, clockFace, featureStone, glowTexture, scallopWash, sconceWash, stripWash } from './lobbyMaterials';
+import { PublicMats, abstractTexture, blossomTexture, exitTexture, glowTexture, hexArtTexture, monsteraTexture, muralTexture, noSmokingTexture, scallopWash, wifiTexture } from './lobbyMaterials';
 import { RoomMats, chevronTextures, damaskTextures, laminateTextures, weaveNormal, woodLaminate, wrinkleNormal, type HeadStyle } from './roomMaterials';
 
 const HEADS: HeadStyle[] = ['tufted', 'goldPiping', 'whiteStripes', 'thinStripes', 'channel'];
@@ -11,10 +11,12 @@ const HEADS: HeadStyle[] = ['tufted', 'goldPiping', 'whiteStripes', 'thinStripes
 export function interiorMaterials(): (() => unknown)[] {
   return [
     // lobby, counter, stair and corridor
-    PublicMats.porcelain, PublicMats.terrazzo, PublicMats.carpet, PublicMats.walnutFluted, PublicMats.walnut,
-    PublicMats.door, PublicMats.frame, PublicMats.marble, PublicMats.stone, PublicMats.brass, PublicMats.brushed,
-    PublicMats.plaster, PublicMats.corridorWall, PublicMats.ceiling, PublicMats.darkMetal, PublicMats.black,
-    PublicMats.paper, PublicMats.signRed, featureStone, glowTexture, sconceWash, scallopWash, stripWash, clockFace,
+    PublicMats.porcelain, PublicMats.carpet, PublicMats.laminate, PublicMats.laminateWhite, PublicMats.granite,
+    PublicMats.mural, muralTexture, PublicMats.door, PublicMats.frame, PublicMats.brushed, PublicMats.stainless,
+    PublicMats.acrylic, PublicMats.plaster, PublicMats.corridorWall, PublicMats.ceiling, PublicMats.darkMetal,
+    PublicMats.black, PublicMats.white, PublicMats.red, PublicMats.paper, PublicMats.brass, glowTexture, scallopWash,
+    exitTexture, wifiTexture, noSmokingTexture, monsteraTexture, abstractTexture, blossomTexture,
+    () => hexArtTexture('navy'), () => hexArtTexture('green'),
     // rooms
     laminateTextures, damaskTextures, weaveNormal, wrinkleNormal, chevronTextures, woodLaminate,
     RoomMats.wall, RoomMats.ceiling, RoomMats.skirting, RoomMats.floor, RoomMats.sheet, RoomMats.pillow,
