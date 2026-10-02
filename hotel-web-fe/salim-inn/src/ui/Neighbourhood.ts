@@ -7,7 +7,7 @@
 // Everything a marker or label says is also in the copy, so the floating
 // layer is aria-hidden and pointer-only.
 import * as THREE from 'three';
-import { groupsWith, walkLabel, type Place, type PlaceGroup } from '../data/neighbourhood';
+import { groupsWith, openingText, walkLabel, type Dish, type Place, type PlaceGroup } from '../data/neighbourhood';
 import { RING_MINUTES } from '../world/WalkRings';
 import { copy, count, fill } from '../content';
 
@@ -30,8 +30,15 @@ export class Neighbourhood {
   private open: PlaceGroup | null = null;
   private v = new THREE.Vector3();
   private widths = new WeakMap<HTMLElement, number>();
+  private menu: Dish[];
+  /** Top of chapter 2's copy on a phone (markers stay above it): measured
+   *  when the layout changes, never per frame. */
+  private copyTop = Infinity;
+  private copyStale = true;
 
-  constructor(list: Place[], hosts: NeighbourhoodHosts, geo: { door: THREE.Vector3; anchorOf: (p: Place) => THREE.Vector3 | null; titleFor?: (list: Place[]) => string }) {
+  /** `menu`: the must-try dishes, listed under the food card's places. */
+  constructor(list: Place[], hosts: NeighbourhoodHosts, geo: { door: THREE.Vector3; anchorOf: (p: Place) => THREE.Vector3 | null; titleFor?: (list: Place[]) => string }, menu: Dish[] = []) {
+    this.menu = menu;
     const c = copy.neighbourhood;
     this.placed = list.map((place) => {
       const world = geo.anchorOf(place);
@@ -52,7 +59,7 @@ export class Neighbourhood {
       <div class="nb-chips" role="group" aria-label="${c.chipsLabel}">
         ${this.groups.map((g) => `<button type="button" class="nb-chip" data-group="${g.key}" aria-expanded="false" aria-controls="nb-card">${esc(g.label)} <span>${count([c.placeOne, c.placeMany], g.places.length)}</span></button>`).join('')}
       </div>
-      <div class="nb-card" id="nb-card" role="region" aria-live="polite" hidden></div>`;
+      <div class="nb-card" id="nb-card" role="region" aria-live="polite" aria-labelledby="nb-card-title" tabindex="0" data-lenis-prevent hidden></div>`;
     this.card = hosts.ch2.querySelector('.nb-card')!;
     hosts.ch2.querySelectorAll<HTMLButtonElement>('.nb-chip').forEach((b) => {
       const key = b.dataset.group as PlaceGroup;
@@ -60,6 +67,7 @@ export class Neighbourhood {
       b.addEventListener('click', () => this.toggle(key));
     });
     hosts.ch2.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.open) { const k = this.open; this.toggle(k); this.chips.get(k)?.focus(); } });
+    window.addEventListener('resize', () => { this.fitCard(); this.copyStale = true; });
 
     // ---------------------------------------------------------------- chapter 7 copy: getting here + walking times
     const walkers = this.placed.filter((x) => x.walk);
@@ -108,13 +116,49 @@ export class Neighbourhood {
     for (const [k, m] of this.markers) m.classList.toggle('is-open', k === this.open);
     const g = this.groups.find((x) => x.key === this.open);
     this.card.hidden = !g;
+    this.copyStale = true;
     if (!g) return;
-    this.card.innerHTML = `<h3 class="nb-card__title">${esc(g.label)}</h3><ul>${g.places.map(({ place: p, walk }) => `
+    const badge = (verified: boolean) => (verified ? '' : ` <em class="nb-badge">${c.unverified}</em>`);
+    const hoursOf = (p: Place) => (p.opening ? openingText(p.opening, c, copy.booking.dateLocale) : p.hours);
+    // the must-try dishes lead the food card (they are its draw), then its places
+    const dishes = g.key === 'food' && this.menu.length ? `
+      <h4 class="nb-card__sub">${esc(c.mustTry.title)}</h4>
+      <ul class="nb-dishes">${this.menu.map((d) => `
+        <li><strong>${esc(c.mustTry.dishes[d.key].name)}</strong>${badge(d.verified)}<span>${esc(c.mustTry.dishes[d.key].note)}</span></li>`).join('')}
+      </ul>` : '';
+    this.card.scrollTop = 0;
+    this.card.innerHTML = `<h3 class="nb-card__title" id="nb-card-title">${esc(g.label)}</h3>${dishes}<ul${dishes ? ' class="nb-places"' : ''}>${g.places.map(({ place: p, walk }) => `
       <li>
-        <strong>${esc(p.name)}</strong>${p.verified ? '' : ` <em class="nb-badge">${c.unverified}</em>`}
-        ${p.detail ? `<span>${esc(p.detail)}</span>` : ''}
-        ${[walk, p.hours ? `${c.open} ${esc(p.hours)}` : '', p.phone ? `<a href="tel:${telOf(p.phone)}">${c.call} ${esc(p.phone)}</a>` : ''].filter(Boolean).map((t) => `<span class="nb-meta">${t}</span>`).join('')}
+        <strong>${esc(p.name)}</strong>${badge(p.verified)}
+        ${p.kind ? `<span>${esc(c.kinds[p.kind])}</span>` : p.detail ? `<span>${esc(p.detail)}</span>` : ''}
+        ${[walk, hoursOf(p) ? `${c.open} ${esc(hoursOf(p)!)}` : '', p.phone ? `<a href="tel:${telOf(p.phone)}">${c.call} ${esc(p.phone)}</a>` : ''].filter(Boolean).map((t) => `<span class="nb-meta">${t}</span>`).join('')}
       </li>`).join('')}</ul>`;
+    this.fitCard();
+  }
+
+  private measureCopy(): void {
+    this.copyStale = false;
+    const col = this.card.closest<HTMLElement>('.chapter__copy');
+    const tops = col ? [...col.children].map((c) => c.getBoundingClientRect()).filter((r) => r.height > 0).map((r) => r.top) : [];
+    this.copyTop = tops.length ? Math.min(...tops) : Infinity;
+  }
+
+  /** The open card takes the room the copy column has left, and scrolls on
+   *  its own past that: the food card with its dishes outgrew the screen, and
+   *  the centred column then ran off its top. */
+  private fitCard(): void {
+    if (this.card.hidden) return;
+    const col = this.card.closest<HTMLElement>('.chapter__copy');
+    this.card.style.maxHeight = '';
+    if (!col) return;
+    // measured from the content itself: a bottom-aligned column (phones)
+    // overflows off its top, which scrollHeight never sees
+    const cs = getComputedStyle(col);
+    const room = col.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const boxes = [...col.children].map((c) => c.getBoundingClientRect()).filter((r) => r.height > 0);
+    const used = Math.max(...boxes.map((r) => r.bottom)) - Math.min(...boxes.map((r) => r.top));
+    const over = used - room;
+    if (over > 0) this.card.style.maxHeight = `${Math.max(160, this.card.offsetHeight - over - 4)}px`;
   }
 
   /** Project the markers and labels; chapter windows decide what shows. */
@@ -127,14 +171,15 @@ export class Neighbourhood {
     const phone = W < 760;
     const top = phone ? 120 : 110;
     const bottom = phone ? H * 0.52 : H - 40;
-    const left = phone ? -40 : Math.min(640, W * 0.54) * 0.92;
-    const put = (el: HTMLElement, w: THREE.Vector3, a: number) => {
-      if (a < 0.01) { el.style.opacity = '0'; el.style.visibility = 'hidden'; return; }
+    // (on a phone the dot must be on screen: a label whose dot is not points nowhere)
+    const left = phone ? 6 : Math.min(640, W * 0.54) * 0.92;
+    const put = (el: HTMLElement, w: THREE.Vector3, a: number, below = bottom): { x: number; y: number; width: number } | null => {
+      if (a < 0.01) { el.style.opacity = '0'; el.style.visibility = 'hidden'; return null; }
       this.v.copy(w).project(camera);
       const x = ((this.v.x + 1) / 2) * W, y = ((1 - this.v.y) / 2) * H;
-      const on = this.v.z < 1 && x > left && x < W + 40 && y > top && y < bottom;
+      const on = this.v.z < 1 && x > left && x < W + 40 && y > top && y < below;
       el.style.visibility = on ? 'visible' : 'hidden';
-      if (!on) return;
+      if (!on) return null;
       el.style.opacity = a.toFixed(3);
       // a label that would run off the right edge slides back in (its dot stays put)
       let width = this.widths.get(el);
@@ -142,9 +187,34 @@ export class Neighbourhood {
       const shift = Math.min(0, W - 12 - (x + width));
       el.style.setProperty('--shift', `${shift.toFixed(1)}px`);
       el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
+      return { x: x + shift, y, width };
     };
-    for (const g of this.groups) { const m = this.markers.get(g.key); if (m && g.world) put(m, g.world, ch2); }
-    for (const l of this.placeLabels) put(l.el, l.world, ch7);
+    // phones: the markers stay above the copy, and step aside while a card
+    // is open (it fills the screen); a marker that would cover one placed
+    // before it stays hidden (its chip is in the copy)
+    if (phone && ch2 > 0.01 && this.copyStale) this.measureCopy();
+    const markerBottom = phone ? Math.min(bottom, this.copyTop - 12) : bottom;
+    const taken: { x0: number; x1: number; y0: number; y1: number }[] = [];
+    for (const g of this.groups) {
+      const m = this.markers.get(g.key);
+      if (!m || !g.world) continue;
+      const at = put(m, g.world, phone && this.open ? 0 : ch2, markerBottom);
+      if (!at) continue;
+      const box = { x0: at.x - 9, x1: at.x + at.width, y0: at.y - 18, y1: at.y + 18 };
+      const covers = taken.some((b) => box.x0 < b.x1 && b.x0 < box.x1 && box.y0 < b.y1 && b.y0 < box.y1);
+      if (covers) m.style.visibility = 'hidden';
+      else taken.push(box);
+    }
+    // chapter 7's labels: one that would cover a label placed before it stays
+    // hidden (a clinic shares the hardware shop's point; the list has both)
+    const labelled: { x0: number; x1: number; y0: number; y1: number }[] = [];
+    for (const l of this.placeLabels) {
+      const at = put(l.el, l.world, ch7);
+      if (!at) continue;
+      const box = { x0: at.x, x1: at.x + at.width, y0: at.y - 24, y1: at.y + 24 };
+      if (labelled.some((b) => box.x0 < b.x1 && b.x0 < box.x1 && box.y0 < b.y1 && b.y0 < box.y1)) l.el.style.visibility = 'hidden';
+      else labelled.push(box);
+    }
     // ring labels sit on each ring, on the side facing the view
     const dx = rings.look.x - rings.centre.x, dz = rings.look.z - rings.centre.z;
     const len = Math.hypot(dx, dz) || 1;

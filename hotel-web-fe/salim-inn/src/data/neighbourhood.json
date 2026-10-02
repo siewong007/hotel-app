@@ -1,5 +1,5 @@
 {
-  "_about": "Shops and services in and around Farley Commercial Centre, Jalan Salim, Sibu, compiled 26 Sep 2026 from the owner's Google Earth Street View recordings (imagery dated Oct 2024 / Mar 2025 unless noted) and public listings. Street View is almost two years old: every entry with verify_before_launch=true must be checked on site or with the owner before it appears on the live page. Use shop names as plain text only - never reproduce their logos.",
+  "_about": "Shops and services in and around Farley Commercial Centre, Jalan Salim, Sibu, compiled 26 Sep 2026 from the owner's Google Earth Street View recordings (imagery dated Oct 2024 / Mar 2025 unless noted) and public listings. Street View is almost two years old: every entry with verify_before_launch=true must be checked on site or with the owner before it appears on the live page. Use shop names as plain text only - never reproduce their logos. On 3 Oct 2026 the owner confirmed the old and new Farley food courts, 二鱼粮食站, Secret Recipe, Farley Bakery, Alpro, Sunlight and Watsons pharmacies, Klinik Komuniti Sentosa, Klinik Pergigian Dr Ho, Ekoway Hardware and Hair Story, and named kampua mee, kompia and red wine mee sua as the must-try dishes. Dishes taken from public reviews stay unverified until the owner confirms the stall still serves them. 'kind' picks the translated card line (content/*.ts neighbourhood.kinds); 'osm' names the OpenStreetMap point to anchor to when the shop's own name differs. The owner then named Dr Low's clinic (Low Medical Clinic, beside Ekoway Hardware), placed the old food court in the supermarket's row, and confirmed the dim sum and red kolo mee are still served. 'opening' holds a place's hours as days (0 = Sunday, 'a-b' a range) and 24-hour times; the page writes them out in the visitor's language.",
   "hotel": {
     "name": "Salim Inn",
     "address": "Lot 21-22, Lorong Salim 17, Jalan Salim, Farley Commercial Centre, 96000 Sibu, Sarawak",
@@ -11,8 +11,9 @@
     {
       "name": "Farley Sibu (supermarket)",
       "category": "Groceries & daily needs",
+      "kind": "supermarket",
       "role": "Anchor of the community; the large green-facade building at the centre of the block",
-      "hours": "8am-10pm daily (per malaysiamall.my listing)",
+      "opening": [{ "days": "0-6", "times": ["08:00-22:00"] }],
       "phone": "084-212666",
       "walk_note": "About a 5-minute walk (stated on saliminn.my and OTA listings)",
       "evidence": ["reference-frames/rec2_t040s.jpg", "reference-frames/rec2_t070s.jpg", "reference-frames/rec1_04.jpg", "https://www.malaysiamall.my/listing/farley-sibu/"],
@@ -21,23 +22,50 @@
     {
       "name": "Farley cafe.cafe",
       "category": "Cafe",
+      "kind": "cafeDownstairs",
       "role": "Ground floor of the Salim Inn building (two lots left of the hotel lobby)",
       "evidence": ["reference-frames/rec2_t180s.jpg", "salim-inn-threejs-v16-three-shop-corrected/README.md"],
       "verify_before_launch": false
     },
     {
-      "name": "Farley Food Court Sibu",
+      "name": "Farley Old Food Court",
       "category": "Food",
-      "address": "28, Lorong Salim 17",
-      "evidence": ["https://foursquare.com/v/farley-food-court/4d27235f068e8cfa6a95b74c", "farley-map-v14.png"],
-      "verify_before_launch": true
+      "kind": "foodCourtOld",
+      "note": "The owner: the old food court is in the same row as the Farley supermarket. No OpenStreetMap point matches it (Medan Selera Farley stands about 130 m from the supermarket, in no mapped building), so it has no pin and no walking time",
+      "evidence": ["https://foursquare.com/v/farley-food-court/4d27235f068e8cfa6a95b74c", "https://foursquare.com/v/farley-food-court/4cdd0e8d3f6a8cfad16ef5ea", "Owner, 3 Oct 2026"],
+      "verify_before_launch": false
+    },
+    {
+      "name": "Farley New Food Court",
+      "category": "Food",
+      "kind": "foodCourt",
+      "note": "Where it stands is not given, so it has no pin and no walking time. Foursquare lists two Farley Food Court venues, one at 28, Lorong Salim 17",
+      "evidence": ["https://foursquare.com/v/farley-food-court/4d27235f068e8cfa6a95b74c", "https://foursquare.com/v/farley-food-court/4cdd0e8d3f6a8cfad16ef5ea", "Owner, 3 Oct 2026"],
+      "verify_before_launch": false
+    },
+    {
+      "name": "二鱼粮食站",
+      "category": "Food",
+      "kind": "kopitiam",
+      "note": "Kopitiam named by the owner; no public listing found and no map pin",
+      "evidence": ["Owner, 3 Oct 2026"],
+      "verify_before_launch": false
+    },
+    {
+      "name": "Secret Recipe",
+      "category": "Cafe",
+      "kind": "cakes",
+      "note": "Cake and cafe chain",
+      "evidence": ["https://www.openstreetmap.org (amenity=fast_food 'Secret Recipe', inside the Farley ring)", "Owner, 3 Oct 2026"],
+      "verify_before_launch": false
     },
     {
       "name": "Farley Bakery",
       "category": "Bakery",
+      "kind": "bakery",
       "address": "11, Lorong Salim 17",
-      "evidence": ["https://farley-bakery-27004.baydimalaysia.com/"],
-      "verify_before_launch": true
+      "evidence": ["https://farley-bakery-27004.baydimalaysia.com/", "https://www.openstreetmap.org (shop=bakery 'Farley Bakery')", "Owner, 3 Oct 2026"],
+      "verify_before_launch": false
     },
     {
       "name": "Farley Malay Garden",
@@ -63,42 +91,83 @@
     {
       "name": "Bread Sense Bakery",
       "category": "Bakery",
-      "note": "Cake and bread shop",
+      "note": "Cake and bread shop. The owner did not list it on 3 Oct 2026 - confirm it is still open",
       "evidence": ["reference-frames/rec2_t140s.jpg"],
       "verify_before_launch": true
     },
     {
+      "name": "Alpro Pharmacy",
+      "category": "Pharmacy & health",
+      "kind": "pharmacy",
+      "note": "Named by the owner; no map pin",
+      "evidence": ["Owner, 3 Oct 2026"],
+      "verify_before_launch": false
+    },
+    {
       "name": "Sunlight Pharmacy",
       "category": "Pharmacy & health",
-      "evidence": ["reference-frames/rec2_t170s.jpg"],
-      "verify_before_launch": true
+      "kind": "pharmacy",
+      "evidence": ["reference-frames/rec2_t170s.jpg", "Owner, 3 Oct 2026"],
+      "verify_before_launch": false
     },
     {
       "name": "Hometown Pharmacy",
       "category": "Pharmacy & health",
+      "note": "The owner did not list it on 3 Oct 2026 (Alpro Pharmacy was named instead) - it may have closed or been renamed",
       "evidence": ["reference-frames/rec2_t150s.jpg"],
       "verify_before_launch": true
     },
     {
       "name": "Watsons",
       "category": "Pharmacy & health",
+      "kind": "healthBeauty",
       "note": "Health and beauty",
-      "evidence": ["reference-frames/rec2_t290s.jpg", "reference-frames/rec2_t300s.jpg"],
-      "verify_before_launch": true
+      "evidence": ["reference-frames/rec2_t290s.jpg", "reference-frames/rec2_t300s.jpg", "Owner, 3 Oct 2026"],
+      "verify_before_launch": false
     },
     {
       "name": "Klinik Pergigian Dr Ho",
       "category": "Pharmacy & health",
+      "kind": "dental",
       "note": "Dental clinic",
-      "evidence": ["reference-frames/rec2_t140s.jpg"],
-      "verify_before_launch": true
+      "evidence": ["reference-frames/rec2_t140s.jpg", "Owner, 3 Oct 2026"],
+      "verify_before_launch": false
+    },
+    {
+      "name": "Klinik Komuniti Sentosa",
+      "category": "Pharmacy & health",
+      "kind": "clinic",
+      "note": "Community clinic, about 140 m from the centre of the Farley ring",
+      "evidence": ["https://www.openstreetmap.org (amenity=hospital 'Klinik Komuniti Sentosa')", "Owner, 3 Oct 2026"],
+      "verify_before_launch": false
+    },
+    {
+      "name": "Low Medical Clinic",
+      "category": "Pharmacy & health",
+      "kind": "gp",
+      "osm": "Eco Hardware",
+      "note": "Dr Low's clinic, beside Ekoway Hardware (owner). Pinned at Eco Hardware's OpenStreetMap point for that reason. Phone and hours from the polomap listing, confirmed by the owner; that listing gives no hours for Friday or Saturday",
+      "opening": [{ "days": "1-4", "times": ["08:30-12:00", "14:00-17:00", "19:00-20:30"] }, { "days": "0", "times": ["08:30-12:00"] }],
+      "phone": "084-214 098",
+      "evidence": ["https://dir.alltrack.org/view/298262-9-low-medical-clinic", "https://my.polomap.com/sibu/3700", "https://malaysia.worldplaces.me/medical-centers-in-sibu/54639923-dr-low-clinic-farley.html", "Owner, 3 Oct 2026: 'it's called dr.low', beside Ekoway Hardware", "Owner, 3 Oct 2026: the phone number and the polomap hours are correct"],
+      "verify_before_launch": false
+    },
+    {
+      "name": "Ekoway Hardware",
+      "category": "Shopping",
+      "kind": "hardware",
+      "osm": "Eco Hardware",
+      "note": "OpenStreetMap still names it 'Eco Hardware'; the owner confirms that is this shop, now called Ekoway Hardware",
+      "evidence": ["https://www.openstreetmap.org (shop=hardware 'Eco Hardware')", "Owner, 3 Oct 2026"],
+      "verify_before_launch": false
     },
     {
       "name": "Hair Story",
       "category": "Everyday services",
-      "note": "Hair salon",
-      "evidence": ["reference-frames/rec2_t140s.jpg"],
-      "verify_before_launch": true
+      "kind": "barber",
+      "note": "Hair salon and barber",
+      "evidence": ["reference-frames/rec2_t140s.jpg", "Owner, 3 Oct 2026"],
+      "verify_before_launch": false
     },
     {
       "name": "Maxis",
@@ -140,5 +209,39 @@
     { "name": "Sibu Airport (SBW)", "distance_km": 13.3, "source": "https://www.wego.fr/en/hotels/malaysia/sibu/salim-inn-1221340" },
     { "name": "Sibu city centre", "distance_km": 4.2, "source": "https://www.wego.fr/en/hotels/malaysia/sibu/salim-inn-1221340" },
     { "name": "Guest parking", "note": "Marked bays directly in front of the hotel frontage (per V16 and Street View)" }
+  ],
+  "dishes": [
+    {
+      "key": "kampua",
+      "name": "Kampua mee",
+      "evidence": ["Owner, 3 Oct 2026: must-try at the Farley food courts", "https://foursquare.com/v/farley-food-court/4cdd0e8d3f6a8cfad16ef5ea (tips praise the kampua)"],
+      "verify_before_launch": false
+    },
+    {
+      "key": "kompia",
+      "name": "Kompia",
+      "evidence": ["Owner, 3 Oct 2026: must-try at the Farley food courts"],
+      "verify_before_launch": false
+    },
+    {
+      "key": "redWineMeeSua",
+      "name": "Red wine mee sua",
+      "evidence": ["Owner, 3 Oct 2026: must-try at the Farley food courts"],
+      "verify_before_launch": false
+    },
+    {
+      "key": "dimSum",
+      "name": "Dim sum",
+      "note": "Foursquare tips rate the Farley Food Court dim sum among the best in town",
+      "evidence": ["https://foursquare.com/v/farley-food-court/4cdd0e8d3f6a8cfad16ef5ea", "Owner, 3 Oct 2026: still served"],
+      "verify_before_launch": false
+    },
+    {
+      "key": "redKoloMee",
+      "name": "Red kolo mee",
+      "note": "A Sibu food guide recommends the red kolo mee with char siu at Farley Food Court (undated)",
+      "evidence": ["https://chiefeater.com/best-eats-in-sibu/", "Owner, 3 Oct 2026: still served"],
+      "verify_before_launch": false
+    }
   ]
 }

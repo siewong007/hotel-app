@@ -1,8 +1,9 @@
 // Where each neighbourhood place is, for its hotspot and walking label.
 // neighbourhood.json carries no coordinates, so a place is anchored to the
 // modelled cafe.cafe (it is on the hotel's own ground floor) or to the
-// OpenStreetMap point (ODbL, already in data/site.json) whose name matches it.
-// A place with no match still appears in the cards, just without a label.
+// OpenStreetMap point (ODbL, already in data/site.json) whose name matches it
+// — or that its `osm` field names, where the map knows the shop by another
+// name. A place with no match still appears in the cards, just without a label.
 import * as THREE from 'three';
 import { site, type Poi } from '../data/site';
 import { DIM } from '../config/dimensions';
@@ -11,7 +12,7 @@ import type { Place } from '../data/neighbourhood';
 
 const STOP = new Set(['sibu', 'sdn', 'bhd', 'the', 'and', 'co', 'trading', 'older', 'frontage', 'services', 'service', 'parts', 'salim', 'lorong', 'jalan']);
 /** Words that name a kind of shop, not a particular one. */
-const GENERIC = new Set(['farley', 'pharmacy', 'cafe', 'bakery', 'supermarket', 'restaurant', 'clinic', 'klinik', 'centre', 'center', 'shop', 'food', 'court', 'mart', 'fresh', 'auto']);
+const GENERIC = new Set(['farley', 'pharmacy', 'cafe', 'bakery', 'supermarket', 'restaurant', 'clinic', 'klinik', 'centre', 'center', 'shop', 'food', 'court', 'mart', 'fresh', 'auto', 'hardware']);
 const tokens = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter((t) => t.length > 1 && !STOP.has(t));
 
 /** Search radius around the ring centre (the Farley block), metres. */
@@ -42,7 +43,7 @@ export function placeAnchor(p: Place): THREE.Vector3 | null {
     const l = DIM.salim.cafeLetters;
     return salimLocal((l.x0 + l.x1) / 2, 6.2, 0.6); // just above its letters on the canopy
   }
-  const poi = matchPoi(p.name);
+  const poi = p.osm ? site.pois.find((q) => q.n === p.osm) ?? null : matchPoi(p.name);
   if (!poi) return null;
   const h = /supermarket/i.test(p.name) ? DIM.supermarket.height + 2.5 : 9;
   return new THREE.Vector3(poi.x, h, poi.z);

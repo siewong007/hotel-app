@@ -174,6 +174,12 @@ html.film-live .poster { visibility: hidden; }
 .chapter.is-active .line:nth-child(3) { transition-delay: 0.14s; }
 .chapter.is-active .line:nth-child(4) { transition-delay: 0.21s; }
 .chapter--book .chapter__copy { width: min(580px, 92vw); }
+/* chapter 2's open card makes its column taller than the screen: never centre
+   it off the top (Neighbourhood.fitCard then shrinks the card to the room left;
+   phones keep their bottom-aligned column) */
+@media (min-width: 761px) {
+  .chapter__copy:has(.nb-card) { justify-content: safe center; }
+}
 /* the panel grows when the summary shows: never centre it off the top of the
    screen, and let it scroll inside itself (lenis leaves it alone) */
 @media (min-width: 761px) {
@@ -239,8 +245,13 @@ html.film-live .poster { visibility: hidden; }
 .nb-card {
   width: min(440px, 100%); padding: 14px 18px; border: 1px solid var(--line); border-radius: 16px;
   background: rgba(6, 17, 14, 0.62); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  /* the food card outgrew the screen: it scrolls on its own (data-lenis-prevent) */
+  max-height: min(46vh, 430px); overflow-y: auto; overscroll-behavior: contain;
 }
 .nb-card__title { margin: 0 0 8px; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
+.nb-card__sub { margin: 0 0 6px; font-size: 0.82rem; font-weight: 600; color: var(--ivory); }
+.nb-dishes strong { color: var(--gold-soft); }
+.nb-card .nb-places { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
 .nb-card ul, .nb-walk, .nb-getting { list-style: none; margin: 0; padding: 0; }
 .nb-card li { display: grid; gap: 2px; padding: 8px 0; border-top: 1px solid var(--line); }
 .nb-card li:first-child { border-top: 0; padding-top: 0; }
@@ -254,6 +265,20 @@ html.film-live .poster { visibility: hidden; }
 .nb-walk li span { color: var(--muted); }
 .nb-getting { display: flex; flex-wrap: wrap; gap: 8px; }
 .nb-getting li { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: rgba(6, 17, 14, 0.5); font-size: 0.82rem; }
+/* phones: six walking times outgrew the dark lower half of the screen and
+   lifted chapter 7's eyebrow over the bright frame (m4 contrast check): a
+   tighter list, one row of "getting here", and no intro (as chapter 6) */
+@media (max-width: 759.98px) {
+  .chapter__copy:has(#nb-ch7) .chapter__body { display: none; }
+  .nb-walk li { font-size: 0.88rem; line-height: 1.4; }
+  .nb-getting { gap: 6px; }
+  .nb-getting li { padding: 6px 11px; font-size: 0.74rem; }
+}
+
+/* chapter 2: its generated title runs long, so it is set smaller; and an open
+   card takes the intro's place (Neighbourhood.fitCard sizes the card) */
+@media (min-width: 761px) { .chapter__copy:has(.nb-card) h2 { font-size: clamp(1.9rem, 3.4vw, 3.4rem); } }
+.chapter__copy:has(.nb-card:not([hidden])) .chapter__body { display: none; }
 
 /* markers and labels over the scene: pointer-only twins of the copy above */
 .nb-layer { position: fixed; inset: 0; z-index: 4; pointer-events: none; visibility: hidden; -webkit-transform: translateZ(0); transform: translateZ(0); }
