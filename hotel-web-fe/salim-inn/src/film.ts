@@ -10,7 +10,7 @@ import { Timeline, CHAPTERS, chapterAt } from './experience/Timeline';
 import { Post } from './experience/Post';
 import { Preloader, nextFrame } from './experience/Preloader';
 import { detectTier, FpsGovernor, lowerTier } from './experience/Quality';
-import { World, yieldToMain } from './world/World';
+import { DOOR_OPEN, World, yieldToMain } from './world/World';
 import { LOOK } from './world/Sky';
 import { salimLocal } from './world/layout';
 import { Chapters } from './ui/Chapters';
@@ -38,6 +38,11 @@ const NO_GOVERNOR = params.get('governor') === '0';
 const FORCED_QUALITY = params.has('quality') || params.has('dpr');
 /** Depth of field: the counter close-up (ch. 5) and the rooms (ch. 6). */
 const dofWeight = (p: number) => THREE.MathUtils.smoothstep(p, 0.6, 0.63) * (1 - THREE.MathUtils.smoothstep(p, 0.86, 0.88));
+/** The grade's cool shadows (Post) lift black to navy — the dusk look outside,
+ *  but indoors they turned the black granite counter and the burgundy stair
+ *  carpet blue. Eased off from the lobby door to the room door; the rooms keep
+ *  the film's grade. */
+const gradeSplit = (p: number) => 1 - 0.8 * THREE.MathUtils.smoothstep(p, 0.565, 0.585) * (1 - THREE.MathUtils.smoothstep(p, DOOR_OPEN[0], DOOR_OPEN[1] + 0.012));
 // Reduced motion (brief §6.9): no camera flights — each chapter holds its
 // settled frame and chapters cross-fade (400 ms) when the scroll crosses them.
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -246,6 +251,7 @@ async function boot(): Promise<void> {
     world.update(p, 1 / 60, camera, rig.lookTarget, tier);
     renderer.gl.toneMappingExposure = timeline.exposure();
     post.setDof(dofWeight(p), rig.focus);
+    post.setSplit(gradeSplit(p));
   };
   // Start-up calibration (brief §8 tiers): detect-gpu names a tier from a
   // benchmark table; before the preloader leaves, that tier is timed on the
@@ -402,6 +408,7 @@ async function boot(): Promise<void> {
     const h = camera.position.y;
     post.setAORadius(h > 150 ? 8 : h > 20 ? 3.2 : p > 0.56 && p < 0.9 ? 0.7 : 1.6);
     post.setDof(dofWeight(p), rig.focus);
+    post.setSplit(gradeSplit(p));
 
     debug?.begin();
     renderer.gl.info.reset();

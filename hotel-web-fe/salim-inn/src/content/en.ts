@@ -515,7 +515,7 @@ export const en: Copy = {
       'The Farley Commercial Centre from above, its ring of shops around the supermarket',
       'The Salim Inn corner block at dusk, the roof sign lit',
       'The Salim Inn entrance under the canopy, with guest parking in front',
-      'The reservation counter in the lobby, with the SALIM INN letters on the stone wall behind',
+      'The reception counter in the lobby: black granite in front of a colourful mural',
       'A Deluxe King guest room',
       'The hotel and the Farley ring from above, with walking-time rings from the door',
       'Salim Inn and the Farley ring at dusk',

@@ -175,6 +175,12 @@ export class Post {
     this.dof.cocMaterial.adoptCameraSettings(this.camera);
   }
 
+  /** Strength of the grade's split toning: 1 is the film's dusk look. */
+  setSplit(v: number): void {
+    const u = this.grade.uniforms.get('uSplit')!;
+    if (u.value !== v) u.value = v;
+  }
+
   /** Scale AO to the shot: metres-wide contact shading on the street,
    *  finer in the rooms. */
   setAORadius(r: number): void {

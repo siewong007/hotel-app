@@ -1,14 +1,16 @@
 // Public-area finishes: lobby, reservation counter, stair and the level-1
-// corridor. No reception, stair or corridor photo exists (flagged in
-// OPEN_QUESTIONS), so these are designed rather than sampled: the stone of
-// the facade's lobby wall, the timber and brass of the rooms, and the brand's
-// forest green and gold (brief §4.4: "the most 'hospitality' moment — give it
-// the richest materials"). The palette is PUBLIC_COLOURS in config/materials.ts.
-// Everything is generated on a canvas (brief §4.6).
+// corridor, sampled from the owner's photos (2026-10-02): the reception's
+// striated grey laminate, white pillars and black granite counter in front of
+// the painted mural; cream walls, burgundy loop-pile carpet with aluminium
+// nosings and stainless rails on the stair; dark brown doors with acrylic
+// red-number plates and red wayfinding plates in the corridors. The palette
+// is PUBLIC_COLOURS in config/materials.ts. Everything is generated on a
+// canvas (brief §4.6) except the mural, which is the owner's photo of it.
 import * as THREE from 'three';
-import { canvas, finish, normalFrom, stoneCladding } from '../world/textures';
+import { canvas, finish, normalFrom } from '../world/textures';
 import { rng } from '../world/geom';
 import { BRAND, PUBLIC_COLOURS } from '../config/materials';
+import muralUrl from './reception-mural.jpg';
 
 const texCache = new Map<string, THREE.Texture>();
 function cached<T extends THREE.Texture>(key: string, make: () => T): T {
@@ -25,7 +27,7 @@ function noMips<T extends THREE.Texture>(t: T): T {
 }
 
 // ---------------------------------------------------------------- floors
-/** Polished 800 mm porcelain with soft veining; one texture = 1.6 m. */
+/** Polished 600 mm porcelain, light cream, soft veining; one texture = 1.2 m. */
 export function porcelainTextures(): { map: THREE.Texture; roughnessMap: THREE.Texture; normalMap: THREE.Texture } {
   const map = cached('porc', () => {
     const S = 1024, T = S / 2;
@@ -74,64 +76,25 @@ export function porcelainTextures(): { map: THREE.Texture; roughnessMap: THREE.T
   return { map, roughnessMap: texCache.get('porcR')!, normalMap: texCache.get('porcN')! };
 }
 
-/** Terrazzo stair treads: ivory ground, grey, black and ochre chips. 1 tex = 1 m. */
-export function terrazzoTexture(): THREE.Texture {
-  return cached('terrazzo', () => {
-    const S = 512;
-    const [c, g] = canvas(S, S);
-    const r = rng(47);
-    g.fillStyle = hex(PUBLIC_COLOURS.terrazzo);
-    g.fillRect(0, 0, S, S);
-    const chips = ['#8d887f', '#5c5750', '#2a2826', '#b9a27a', '#f4f1ea', '#a39e95'];
-    for (let k = 0; k < 2600; k++) {
-      const x = r() * S, y = r() * S, s = 1 + r() * r() * 7;
-      g.fillStyle = chips[Math.floor(r() * chips.length)];
-      g.beginPath();
-      const n = 4 + Math.floor(r() * 3);
-      for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2 + r() * 0.6;
-        g.lineTo(x + Math.cos(a) * s * (0.6 + r() * 0.6), y + Math.sin(a) * s * (0.6 + r() * 0.6));
-      }
-      g.fill();
-    }
-    return finish(c, true);
-  });
-}
-
-/** Corridor carpet: forest-green ground, a tone-on-tone trellis and small
- *  gold dots where it crosses, over a fine pile. One texture = 0.8 m. */
+/** Burgundy loop pile (stair and corridors): a plain field with a fine
+ *  speckle in tone and height. One texture = 0.5 m. */
 export function carpetTextures(): { map: THREE.Texture; normalMap: THREE.Texture } {
   const map = cached('carpet', () => {
-    const S = 512, cell = S / 4;
+    const S = 512;
     const [c, g] = canvas(S, S);
     const [hc, hg] = canvas(S, S);
     const r = rng(3);
     g.fillStyle = hex(PUBLIC_COLOURS.carpetField);
     g.fillRect(0, 0, S, S);
     hg.fillStyle = '#808080'; hg.fillRect(0, 0, S, S);
-    // ogee trellis: two families of sine curves
-    g.strokeStyle = hex(PUBLIC_COLOURS.carpetMotif);
-    g.lineWidth = 7;
-    for (let k = -1; k <= 4; k++) {
-      for (const dir of [1, -1]) {
-        g.beginPath();
-        for (let y = 0; y <= S; y += 4) g.lineTo(k * cell + (dir * cell * 0.5 * Math.sin((y / cell) * Math.PI)) + cell / 2, y);
-        g.stroke();
-      }
-    }
-    g.fillStyle = hex(PUBLIC_COLOURS.carpetGold);
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
-      g.beginPath(); g.arc(i * cell + cell / 2, j * cell, 5, 0, Math.PI * 2); g.fill();
-      g.beginPath(); g.arc(i * cell, j * cell + cell / 2, 3, 0, Math.PI * 2); g.fill();
-    }
-    // pile: speckle in colour and height — gathered into one path per style
-    // and filled once (32,000 separate fills with a style change each were
-    // the slowest texture in the interior)
+    // loops: speckle in colour and height, gathered into one path per style
+    // and filled once (separate fills with a style change each were the
+    // slowest texture in the interior)
     const light: number[] = [], dark: number[] = [];
     const byHeight = new Map<number, number[]>();
-    for (let k = 0; k < 16000; k++) {
+    for (let k = 0; k < 18000; k++) {
       const x = r() * S, y = r() * S;
-      (r() > 0.5 ? light : dark).push(x, y);
+      (r() > 0.45 ? light : dark).push(x, y);
       const v = Math.floor(90 + r() * 90);
       const list = byHeight.get(v) ?? [];
       list.push(x, y);
@@ -140,111 +103,357 @@ export function carpetTextures(): { map: THREE.Texture; normalMap: THREE.Texture
     const speckles = (ctx: CanvasRenderingContext2D, style: string, xy: number[]) => {
       ctx.fillStyle = style;
       ctx.beginPath();
-      for (let i = 0; i < xy.length; i += 2) ctx.rect(xy[i], xy[i + 1], 1.5, 1.5);
+      for (let i = 0; i < xy.length; i += 2) ctx.rect(xy[i], xy[i + 1], 1.6, 1.6);
       ctx.fill();
     };
-    speckles(g, 'rgba(255,255,255,0.035)', light);
-    speckles(g, 'rgba(0,0,0,0.06)', dark);
+    speckles(g, 'rgba(255,170,170,0.05)', light);
+    speckles(g, 'rgba(20,0,4,0.12)', dark);
     for (const [v, xy] of byHeight) speckles(hg, `rgb(${v},${v},${v})`, xy);
-    texCache.set('carpetN', normalFrom(hc, 1.2));
+    texCache.set('carpetN', normalFrom(hc, 1.4));
     return finish(c, true);
   });
   return { map, normalMap: texCache.get('carpetN')! };
 }
 
 // ---------------------------------------------------------------- joinery & stone
-/** Fluted walnut: 3 cm vertical flutes with the grain running along them.
- *  One texture = 0.48 m square (16 flutes). */
-export function walnutTextures(): { map: THREE.Texture; normalMap: THREE.Texture } {
-  const map = cached('walnut', () => {
-    const S = 512, n = 16, fw = S / n;
-    const [c, g] = canvas(S, S);
-    const [hc, hg] = canvas(S, S);
-    const r = rng(19);
-    g.fillStyle = hex(PUBLIC_COLOURS.walnut);
-    g.fillRect(0, 0, S, S);
-    for (let k = 0; k < 220; k++) {
-      const x = r() * S;
-      g.strokeStyle = r() < 0.65 ? `rgba(35,20,10,${0.08 + r() * 0.16})` : `rgba(190,140,95,${0.05 + r() * 0.1})`;
-      g.lineWidth = 0.6 + r() * 2.4;
-      g.beginPath();
-      const ph = r() * 6.28, amp = 1 + r() * 4;
-      for (let y = 0; y <= S; y += 8) g.lineTo(x + Math.sin(y * 0.013 + ph) * amp, y);
-      g.stroke();
-    }
-    // flutes: rounded profile (height) and a soft shade in the grooves
-    for (let i = 0; i < n; i++) {
-      for (let x = 0; x < fw; x++) {
-        const t = x / fw;
-        const h = Math.sqrt(Math.max(0, 1 - Math.pow(2 * t - 1, 2)));
-        const v = Math.round(40 + 215 * h);
-        hg.fillStyle = `rgb(${v},${v},${v})`;
-        hg.fillRect(i * fw + x, 0, 1, S);
-        if (h < 0.35) { g.fillStyle = `rgba(20,10,5,${0.16 * (1 - h / 0.35)})`; g.fillRect(i * fw + x, 0, 1, S); }
-      }
-    }
-    texCache.set('walnutN', normalFrom(hc, 3.2));
-    return finish(c, true);
-  });
-  return { map, normalMap: texCache.get('walnutN')! };
-}
-
-/** Plain walnut veneer (grain only) for ends, doors and trims. 1 tex = 1 m. */
-export function veneerTexture(tone: number, seed = 23): THREE.Texture {
-  return cached(`veneer-${tone}-${seed}`, () => {
-    const S = 512;
-    const [c, g] = canvas(S, S);
-    const r = rng(seed);
-    g.fillStyle = hex(tone);
-    g.fillRect(0, 0, S, S);
-    for (let k = 0; k < 200; k++) {
-      const x = r() * S;
-      g.strokeStyle = r() < 0.6 ? `rgba(30,18,8,${0.04 + r() * 0.08})` : `rgba(200,150,105,${0.03 + r() * 0.05})`;
-      g.lineWidth = 0.6 + r() * 2.2;
-      g.beginPath();
-      const ph = r() * 6.28, amp = 2 + r() * 8;
-      for (let y = 0; y <= S; y += 8) g.lineTo(x + Math.sin(y * 0.01 + ph) * amp + Math.sin(y * 0.043 + ph * 2) * 1.5, y);
-      g.stroke();
-    }
-    return finish(c, true);
-  });
-}
-
-/** Warm white marble with grey veins (counter top). One texture = 1.2 × 0.6 m. */
-export function marbleTexture(): THREE.Texture {
-  return cached('marble', () => {
+/** Striated grey-brown laminate, the grain running along u (horizontal on
+ *  walls, the bulkhead and the counter front). One texture = 1.2 × 0.6 m. */
+export function laminateTexture(): THREE.Texture {
+  return cached('laminate', () => {
     const W = 1024, H = 512;
     const [c, g] = canvas(W, H);
-    const r = rng(1311);
-    g.fillStyle = hex(PUBLIC_COLOURS.marble);
+    const r = rng(611);
+    g.fillStyle = hex(PUBLIC_COLOURS.laminate);
     g.fillRect(0, 0, W, H);
-    for (let k = 0; k < 14; k++) {
-      const gr = g.createRadialGradient(r() * W, r() * H, 0, r() * W, r() * H, 60 + r() * 220);
-      gr.addColorStop(0, r() > 0.5 ? 'rgba(255,253,248,0.35)' : 'rgba(205,196,182,0.22)');
-      gr.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = gr; g.fillRect(0, 0, W, H);
+    // broad bands of tone across the board
+    for (let y = 0; y < H; ) {
+      const h = 3 + r() * 24;
+      g.fillStyle = r() < 0.5 ? `rgba(40,36,33,${0.06 + r() * 0.16})` : `rgba(175,166,156,${0.04 + r() * 0.12})`;
+      g.fillRect(0, y, W, h);
+      y += h;
     }
-    const vein = (x: number, y: number, a: number, len: number, main: boolean) => {
-      for (const [lw, al] of (main ? [[10, 0.03], [5, 0.07], [1.8, 0.28]] : [[3, 0.04], [0.9, 0.2]]) as [number, number][]) {
-        const rr = rng(Math.floor(x * 7 + y * 3 + len));
-        let xx = x, yy = y, aa = a;
-        g.strokeStyle = `rgba(118,110,100,${al})`;
-        g.lineWidth = lw;
-        g.beginPath();
-        g.moveTo(xx, yy);
-        for (let s = 0; s < len; s++) { aa += (rr() - 0.5) * 0.45; xx += Math.cos(aa) * 6; yy += Math.sin(aa) * 6; g.lineTo(xx, yy); }
-        g.stroke();
-      }
-    };
-    for (let k = 0; k < 5; k++) vein(r() * W * 0.3 - 60, r() * H, -0.35 + r() * 0.5, 170 + r() * 60, true);
-    for (let k = 0; k < 16; k++) vein(r() * W, r() * H, r() * 6.28, 20 + r() * 50, false);
+    // fine streaks along the grain, wrapped at the seam
+    for (let k = 0; k < 2200; k++) {
+      const y = r() * H, x = r() * W, len = 40 + r() * 420, h = 0.6 + r() * 1.6;
+      g.fillStyle = r() < 0.55 ? `rgba(30,27,25,${0.08 + r() * 0.22})` : `rgba(200,192,182,${0.04 + r() * 0.14})`;
+      g.fillRect(x, y, len, h);
+      if (x + len > W) g.fillRect(x - W, y, len, h);
+    }
     return finish(c, true);
   });
 }
 
-/** The facade's stacked stone, for the wall behind the counter. */
-export function featureStone(): { map: THREE.Texture; normalMap: THREE.Texture } {
-  return stoneCladding();
+/** White laminate for the pillars and trims: the faintest vertical grain. */
+export function whiteLaminateTexture(): THREE.Texture {
+  return cached('laminateWhite', () => {
+    const W = 256, H = 512;
+    const [c, g] = canvas(W, H);
+    const r = rng(907);
+    g.fillStyle = hex(PUBLIC_COLOURS.pillar);
+    g.fillRect(0, 0, W, H);
+    for (let k = 0; k < 500; k++) {
+      const x = r() * W, y = r() * H, len = 30 + r() * 220;
+      g.fillStyle = r() < 0.5 ? `rgba(150,148,142,${0.04 + r() * 0.07})` : `rgba(255,255,255,${0.05 + r() * 0.08})`;
+      g.fillRect(x, y, 0.8 + r(), len);
+      if (y + len > H) g.fillRect(x, y - H, 0.8 + r(), len);
+    }
+    return finish(c, true);
+  });
+}
+
+/** Black granite: a near-black ground with grey and white flecks. One
+ *  texture = 0.6 m. */
+export function graniteTexture(): THREE.Texture {
+  return cached('granite', () => {
+    const S = 512;
+    const [c, g] = canvas(S, S);
+    const r = rng(1201);
+    g.fillStyle = hex(PUBLIC_COLOURS.granite);
+    g.fillRect(0, 0, S, S);
+    for (let k = 0; k < 3200; k++) {
+      const x = r() * S, y = r() * S, s = 0.6 + r() * r() * 2.0;
+      const v = r();
+      g.fillStyle = v < 0.85 ? `rgba(48,49,52,${0.2 + r() * 0.35})` : v < 0.99 ? `rgba(92,93,96,${0.15 + r() * 0.3})` : `rgba(170,172,176,${0.2 + r() * 0.3})`;
+      g.fillRect(x, y, s, s);
+    }
+    return finish(c, true);
+  });
+}
+
+// ---------------------------------------------------------------- signs & plates
+const SIGN_FONT = '"Arial Narrow", "Helvetica Neue", Arial, sans-serif';
+
+/** A red wayfinding plate: white room numbers and a white arrow (the
+ *  corridors' "◀ 209–212", "201–208 213–215 ▶" plates). */
+export function wayfindingTexture(text: string, arrow: 'left' | 'right'): THREE.Texture {
+  return cached(`way-${arrow}-${text}`, () => {
+    const W = 512, H = 128;
+    const [c, g] = canvas(W, H);
+    g.fillStyle = hex(PUBLIC_COLOURS.signRed);
+    g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(255,255,255,0.9)';
+    g.lineWidth = 4;
+    g.strokeRect(6, 6, W - 12, H - 12);
+    g.fillStyle = '#ffffff';
+    const ax = arrow === 'left' ? 46 : W - 46;
+    const d = arrow === 'left' ? -1 : 1;
+    g.beginPath();
+    g.moveTo(ax + d * 24, H / 2);
+    g.lineTo(ax - d * 16, H / 2 - 30);
+    g.lineTo(ax - d * 16, H / 2 + 30);
+    g.closePath();
+    g.fill();
+    g.font = `700 ${text.length > 9 ? 54 : 64}px ${SIGN_FONT}`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text, W / 2 - d * 26, H / 2 + 3, W - 130);
+    return finish(c, true, false);
+  });
+}
+
+/** The green KELUAR exit sign: the word and a running figure. */
+export function exitTexture(): THREE.Texture {
+  return cached('keluar', () => {
+    const W = 512, H = 144;
+    const [c, g] = canvas(W, H);
+    g.fillStyle = hex(PUBLIC_COLOURS.exitGreen);
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#f4fff6';
+    g.font = `700 82px ${SIGN_FONT}`;
+    g.textAlign = 'left';
+    g.textBaseline = 'middle';
+    g.fillText('KELUAR', 26, H / 2 + 4);
+    // a white tile with the running figure
+    const x0 = 360, y0 = 18, s = 108;
+    g.fillRect(x0, y0, s, s);
+    g.strokeStyle = hex(PUBLIC_COLOURS.exitGreen);
+    g.fillStyle = hex(PUBLIC_COLOURS.exitGreen);
+    g.lineCap = 'round';
+    g.lineWidth = 11;
+    const P = (x: number, y: number): [number, number] => [x0 + x * s, y0 + y * s];
+    g.beginPath(); g.arc(...P(0.62, 0.2), 9, 0, Math.PI * 2); g.fill();
+    for (const seg of [[[0.55, 0.32], [0.42, 0.58]], [[0.42, 0.58], [0.6, 0.72], [0.55, 0.9]], [[0.42, 0.58], [0.3, 0.78], [0.14, 0.8]], [[0.52, 0.36], [0.36, 0.42], [0.26, 0.36]], [[0.52, 0.36], [0.66, 0.48], [0.8, 0.44]]] as [number, number][][]) {
+      g.beginPath();
+      seg.forEach(([x, y], i) => (i ? g.lineTo(...P(x, y)) : g.moveTo(...P(x, y))));
+      g.stroke();
+    }
+    return finish(c, true, false);
+  });
+}
+
+/** Round red Wi-Fi sign (transparent outside the disc). */
+export function wifiTexture(): THREE.Texture {
+  return cached('wifi', () => {
+    const S = 256;
+    const [c, g] = canvas(S, S);
+    g.fillStyle = hex(PUBLIC_COLOURS.signRed);
+    g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 4, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#ffffff';
+    g.fillStyle = '#ffffff';
+    g.lineCap = 'round';
+    g.lineWidth = 13;
+    for (const rr of [26, 52, 78]) { g.beginPath(); g.arc(S / 2, S * 0.6, rr, -Math.PI * 0.78, -Math.PI * 0.22); g.stroke(); }
+    g.beginPath(); g.arc(S / 2, S * 0.6, 9, 0, Math.PI * 2); g.fill();
+    g.font = `700 34px ${SIGN_FONT}`;
+    g.textAlign = 'center';
+    g.fillText('Wi-Fi', S / 2, S * 0.83);
+    return finish(c, true, false);
+  });
+}
+
+/** No-smoking notice: the pictogram over DILARANG MEROKOK, with a yellow
+ *  strip of small print (unreadable at any distance the film reaches). */
+export function noSmokingTexture(): THREE.Texture {
+  return cached('noSmoking', () => {
+    const W = 256, H = 320;
+    const [c, g] = canvas(W, H);
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, W, H);
+    // cigarette
+    g.fillStyle = '#1b1b1b'; g.fillRect(58, 112, 120, 22);
+    g.fillStyle = '#e9e2d6'; g.fillRect(178, 112, 22, 22);
+    g.strokeStyle = '#8a8a8a'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(196, 106); g.bezierCurveTo(208, 92, 186, 82, 200, 66); g.stroke();
+    // red ring and bar
+    g.strokeStyle = '#d0202a'; g.lineWidth = 16;
+    g.beginPath(); g.arc(W / 2, 122, 86, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.moveTo(W / 2 - 61, 61); g.lineTo(W / 2 + 61, 183); g.stroke();
+    g.fillStyle = '#d0202a';
+    g.font = `700 30px ${SIGN_FONT}`;
+    g.textAlign = 'center';
+    g.fillText('DILARANG MEROKOK', W / 2, 248);
+    g.fillStyle = '#f2c230'; g.fillRect(0, 266, W, 54);
+    g.fillStyle = 'rgba(0,0,0,0.65)';
+    for (let i = 0; i < 3; i++) g.fillRect(70, 276 + i * 13, 150 - i * 30, 5);
+    g.fillRect(16, 274, 40, 40);
+    return finish(c, true, false);
+  });
+}
+
+/** A room number in red on clear acrylic (transparent ground), with the four
+ *  stand-off screws. */
+export function acrylicNumberTexture(n: number): THREE.Texture {
+  return cached(`acrylic-${n}`, () => {
+    const W = 256, H = 112;
+    const [c, g] = canvas(W, H);
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = 'rgba(255,255,255,0.10)';
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#d3242d';
+    g.font = `700 ${H * 0.72}px ${SIGN_FONT}`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(String(n), W / 2, H / 2 + 4);
+    g.fillStyle = '#c9cdd1';
+    for (const [x, y] of [[12, 12], [W - 12, 12], [12, H - 12], [W - 12, H - 12]]) { g.beginPath(); g.arc(x, y, 6, 0, Math.PI * 2); g.fill(); }
+    return finish(c, true, false);
+  });
+}
+
+/** Generic notice papers taped to the reception pillars: a heading bar and
+ *  lines of small print (no logos, no legible text). */
+export function noticeTexture(seed: number): THREE.Texture {
+  return cached(`notice-${seed}`, () => {
+    const W = 256, H = 352;
+    const [c, g] = canvas(W, H);
+    const r = rng(seed);
+    g.fillStyle = '#fbfaf6';
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = 'rgba(30,30,30,0.85)';
+    g.fillRect(70, 30, 116, 14);
+    for (let i = 0; i < 9; i++) g.fillRect(36 + r() * 12, 72 + i * 26, 150 + r() * 30, 6);
+    return finish(c, true, false);
+  });
+}
+
+// ---------------------------------------------------------------- art
+/** Hexagonal canvases in the corridors: blossom on navy, gold sprays on deep
+ *  green. Square texture; the geometry cuts the hexagon. */
+export function hexArtTexture(kind: 'navy' | 'green'): THREE.Texture {
+  return cached(`hex-${kind}`, () => {
+    const S = 512;
+    const [c, g] = canvas(S, S);
+    const r = rng(kind === 'navy' ? 71 : 73);
+    g.fillStyle = kind === 'navy' ? '#1c2438' : '#1f3a2c';
+    g.fillRect(0, 0, S, S);
+    // branches
+    g.strokeStyle = kind === 'navy' ? 'rgba(90,70,60,0.9)' : 'rgba(150,120,60,0.9)';
+    g.lineCap = 'round';
+    for (let b = 0; b < 4; b++) {
+      let x = r() * S * 0.3, y = S * (0.3 + r() * 0.5), a = -0.4 - r() * 0.5;
+      g.lineWidth = 6;
+      g.beginPath(); g.moveTo(x, y);
+      for (let s = 0; s < 22; s++) { a += (r() - 0.5) * 0.4; x += Math.cos(a) * 16; y += Math.sin(a) * 16; g.lineTo(x, y); }
+      g.stroke();
+    }
+    // flowers: clusters of dots
+    for (let k = 0; k < 90; k++) {
+      const x = r() * S, y = r() * S * 0.9;
+      const col = kind === 'navy' ? (r() < 0.8 ? '#f4f2ee' : '#c9d6ea') : (r() < 0.7 ? '#e0b44c' : '#f2dd8f');
+      g.fillStyle = col;
+      for (let p = 0; p < 5; p++) { g.beginPath(); g.arc(x + Math.cos(p * 1.26) * 6, y + Math.sin(p * 1.26) * 6, 5 + r() * 2, 0, Math.PI * 2); g.fill(); }
+    }
+    return finish(c, true, false);
+  });
+}
+
+/** A monstera leaf print on white canvas (stair). */
+export function monsteraTexture(): THREE.Texture {
+  return cached('monstera', () => {
+    const W = 384, H = 512;
+    const [c, g] = canvas(W, H);
+    g.fillStyle = '#f6f5f1';
+    g.fillRect(0, 0, W, H);
+    g.save();
+    g.translate(W / 2, H * 0.55);
+    g.rotate(-0.25);
+    g.fillStyle = '#2f5a3a';
+    g.beginPath();
+    g.ellipse(0, 0, 130, 170, 0, 0, Math.PI * 2);
+    g.fill();
+    // slits cut in from both edges towards the midrib
+    g.fillStyle = '#f6f5f1';
+    for (let i = 0; i < 8; i++) {
+      for (const side of [-1, 1]) {
+        g.beginPath();
+        g.ellipse(side * 96, -126 + i * 34, 56, 6, side * 0.35, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    g.strokeStyle = '#8fb08a';
+    g.lineWidth = 4;
+    g.beginPath(); g.moveTo(0, 175); g.lineTo(0, -160); g.stroke();
+    g.restore();
+    return finish(c, true, false);
+  });
+}
+
+/** A loose abstract canvas in blue, yellow and orange (stair landing). */
+export function abstractTexture(): THREE.Texture {
+  return cached('abstract', () => {
+    const W = 256, H = 512;
+    const [c, g] = canvas(W, H);
+    const r = rng(331);
+    g.fillStyle = '#e9e4d6';
+    g.fillRect(0, 0, W, H);
+    const cols = ['#2b5c9e', '#3f7fc4', '#e6b52f', '#e07a2a', '#f4f1ea', '#1d3a66'];
+    for (let k = 0; k < 40; k++) {
+      g.fillStyle = cols[Math.floor(r() * cols.length)];
+      g.globalAlpha = 0.55 + r() * 0.4;
+      g.fillRect(r() * W - 40, r() * H - 40, 30 + r() * 140, 16 + r() * 110);
+    }
+    g.globalAlpha = 1;
+    return finish(c, true, false);
+  });
+}
+
+/** A long canvas of white blossom on pale blue (level-1 corridor). */
+export function blossomTexture(): THREE.Texture {
+  return cached('blossom', () => {
+    const W = 1024, H = 256;
+    const [c, g] = canvas(W, H);
+    const r = rng(517);
+    const gr = g.createLinearGradient(0, 0, W, H);
+    gr.addColorStop(0, '#9fb3c4'); gr.addColorStop(1, '#c3d0d8');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(70,60,55,0.8)';
+    g.lineCap = 'round';
+    for (let b = 0; b < 7; b++) {
+      let x = r() * W, y = H, a = -1.2 - r() * 0.7;
+      g.lineWidth = 3;
+      g.beginPath(); g.moveTo(x, y);
+      for (let s = 0; s < 18; s++) { a += (r() - 0.5) * 0.5; x += Math.cos(a) * 14; y += Math.sin(a) * 14; g.lineTo(x, y); }
+      g.stroke();
+    }
+    for (let k = 0; k < 900; k++) {
+      g.fillStyle = r() < 0.85 ? 'rgba(250,250,252,0.9)' : 'rgba(230,214,224,0.9)';
+      g.beginPath(); g.arc(r() * W, r() * H, 1.5 + r() * 4, 0, Math.PI * 2); g.fill();
+    }
+    return finish(c, true, false);
+  });
+}
+
+/** The reception mural: the owner's photo of it, squared to the wall
+ *  (perf workshop: cropped between the pillar edges and under the soffit;
+ *  the price stand in front of its lower left painted out). The texture
+ *  object exists from the start and receives the image when it arrives, so
+ *  the material never recompiles. */
+export function muralTexture(): THREE.Texture {
+  return cached('mural', () => {
+    const [c, g] = canvas(4, 4);
+    g.fillStyle = '#d8d3c8';
+    g.fillRect(0, 0, 4, 4);
+    const t = new THREE.Texture<HTMLCanvasElement | HTMLImageElement>(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    t.needsUpdate = true;
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => { t.image = img; t.needsUpdate = true; };
+    img.src = muralUrl;
+    return t;
+  });
 }
 
 // ---------------------------------------------------------------- graphics
@@ -260,26 +469,6 @@ export function glowTexture(): THREE.Texture {
     gr.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = gr;
     g.fillRect(0, 0, S, S);
-    return noMips(finish(c, true, false));
-  });
-}
-
-/** Wall-sconce wash: a light cone up and down the wall from the fitting. */
-export function sconceWash(): THREE.Texture {
-  return cached('sconceWash', () => {
-    const W = 128, H = 256;
-    const [c, g] = canvas(W, H);
-    const img = g.createImageData(W, H);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const v = Math.abs(y - H / 2) / (H / 2); // 0 at the fitting
-      const spread = 0.18 + 0.82 * v; // the cone widens away from it
-      const u = Math.abs(x - W / 2) / (W / 2) / spread;
-      const a = Math.max(0, 1 - u * u) * Math.pow(1 - v, 1.6) * (0.55 + 0.45 * v);
-      const i = (y * W + x) * 4;
-      img.data[i] = img.data[i + 1] = img.data[i + 2] = Math.round(255 * Math.min(1, a * 1.4));
-      img.data[i + 3] = 255;
-    }
-    g.putImageData(img, 0, 0);
     return noMips(finish(c, true, false));
   });
 }
@@ -303,94 +492,6 @@ export function scallopWash(): THREE.Texture {
     }
     g.putImageData(img, 0, 0);
     return noMips(finish(c, true, false));
-  });
-}
-
-/** Linear falloff across a strip (cove light spreading over the ceiling). */
-export function stripWash(): THREE.Texture {
-  return cached('stripWash', () => {
-    const [c, g] = canvas(8, 128);
-    const gr = g.createLinearGradient(0, 0, 0, 128);
-    gr.addColorStop(0, 'rgba(255,255,255,1)');
-    gr.addColorStop(0.25, 'rgba(255,255,255,0.45)');
-    gr.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = gr;
-    g.fillRect(0, 0, 8, 128);
-    const t = finish(c, true, false);
-    t.wrapS = THREE.RepeatWrapping;
-    return noMips(t);
-  });
-}
-
-/** Backlight halo for the wall letters: the word's glow on the stone. */
-export function haloTexture(text: string): THREE.Texture {
-  return cached(`halo-${text}`, () => {
-    const W = 1024, H = 256;
-    const [c, g] = canvas(W, H);
-    g.fillStyle = '#000';
-    g.fillRect(0, 0, W, H);
-    // draw the word off-canvas and keep only its blurred shadow
-    // (shadowBlur works in every browser; ctx.filter does not)
-    g.font = `800 ${H * 0.62}px "Arial Narrow", "Helvetica Neue", Arial, sans-serif`;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    const sx = Math.min(1, (W * 0.84) / g.measureText(text).width);
-    for (const [blur, col] of [[46, 'rgba(255,190,150,0.9)'], [16, 'rgba(255,225,200,0.9)']] as const) {
-      g.save();
-      g.shadowColor = col;
-      g.shadowBlur = blur;
-      g.shadowOffsetX = W * 4;
-      g.translate(W / 2 - W * 4, H / 2);
-      g.scale(sx, 1);
-      g.fillStyle = '#fff';
-      g.fillText(text, 0, 0);
-      g.restore();
-    }
-    return noMips(finish(c, true, false));
-  });
-}
-
-/** Clock dial: ivory face, black batons, brass rim drawn separately. */
-export function clockFace(): THREE.Texture {
-  return cached('clock', () => {
-    const S = 512;
-    const [c, g] = canvas(S, S);
-    g.fillStyle = '#f6f2ea';
-    g.fillRect(0, 0, S, S);
-    g.translate(S / 2, S / 2);
-    for (let i = 0; i < 60; i++) {
-      g.save();
-      g.rotate((i / 60) * Math.PI * 2);
-      g.fillStyle = '#1b1b1b';
-      if (i % 5 === 0) g.fillRect(-7, -S * 0.46, 14, 48);
-      else g.fillRect(-2, -S * 0.46, 4, 16);
-      g.restore();
-    }
-    g.fillStyle = '#1b1b1b';
-    g.font = `600 ${S * 0.1}px "Helvetica Neue", Arial, sans-serif`;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillText('SIBU', 0, S * 0.2);
-    return finish(c, true, false);
-  });
-}
-
-/** Brass-on-walnut room-number plaque. */
-export function plaqueTexture(n: number): THREE.Texture {
-  return cached(`plaque-${n}`, () => {
-    const W = 256, H = 128;
-    const [c, g] = canvas(W, H);
-    g.fillStyle = '#2e1f15';
-    g.fillRect(0, 0, W, H);
-    g.strokeStyle = hex(BRAND.gold, 0.9);
-    g.lineWidth = 4;
-    g.strokeRect(8, 8, W - 16, H - 16);
-    g.fillStyle = hex(BRAND.gold);
-    g.font = `600 ${H * 0.58}px "Helvetica Neue", Arial, sans-serif`;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillText(String(n), W / 2, H / 2 + 4);
-    return finish(c, true, false);
   });
 }
 
@@ -434,45 +535,48 @@ function mat<T extends THREE.Material>(key: string, make: () => T): T {
 export const PublicMats = {
   porcelain: () => mat('porcelain', () => {
     const t = porcelainTextures();
-    for (const x of [t.map, t.roughnessMap, t.normalMap]) x.repeat.set(1 / 1.6, 1 / 1.6);
-    const m = new THREE.MeshStandardMaterial({ color: 0xffffff, map: t.map, roughnessMap: t.roughnessMap, normalMap: t.normalMap, roughness: 0.6, envMapIntensity: 1.3 });
+    for (const x of [t.map, t.roughnessMap, t.normalMap]) x.repeat.set(1 / 1.2, 1 / 1.2);
+    const m = new THREE.MeshStandardMaterial({ color: 0xffffff, map: t.map, roughnessMap: t.roughnessMap, normalMap: t.normalMap, roughness: 0.4, envMapIntensity: 1.3 });
     m.normalScale.set(0.6, 0.6);
     return m;
   }),
-  terrazzo: () => mat('terrazzo', () => new THREE.MeshStandardMaterial({ color: 0xffffff, map: terrazzoTexture(), roughness: 0.38 })),
   carpet: () => mat('carpet', () => {
     const t = carpetTextures();
-    for (const x of [t.map, t.normalMap]) x.repeat.set(1 / 0.8, 1 / 0.8);
+    for (const x of [t.map, t.normalMap]) x.repeat.set(1 / 0.5, 1 / 0.5);
     return new THREE.MeshStandardMaterial({ color: 0xffffff, map: t.map, normalMap: t.normalMap, roughness: 1, envMapIntensity: 0.4 });
   }),
-  walnutFluted: () => mat('walnutFluted', () => {
-    const t = walnutTextures();
-    for (const x of [t.map, t.normalMap]) x.repeat.set(1 / 0.48, 1 / 0.48);
-    const m = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: t.map, normalMap: t.normalMap, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.35 });
-    m.normalScale.set(0.9, 0.9);
-    return m;
-  }),
-  walnut: () => mat('walnut', () => new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: veneerTexture(PUBLIC_COLOURS.walnut), roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.4 })),
-  door: () => mat('doorVeneer', () => new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: veneerTexture(PUBLIC_COLOURS.door, 31), roughness: 0.5, clearcoat: 0.2, clearcoatRoughness: 0.5 })),
-  frame: () => mat('doorFrame', () => new THREE.MeshStandardMaterial({ color: 0xffffff, map: veneerTexture(PUBLIC_COLOURS.frame, 37), roughness: 0.5 })),
-  marble: () => mat('marble', () => {
-    const t = marbleTexture();
+  laminate: () => mat('laminate', () => {
+    const t = laminateTexture();
     t.repeat.set(1 / 1.2, 1 / 0.6);
-    return new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: t, roughness: 0.14, clearcoat: 0.7, clearcoatRoughness: 0.1 });
+    return new THREE.MeshStandardMaterial({ color: 0xffffff, map: t, roughness: 0.55, envMapIntensity: 0.7 });
   }),
-  stone: () => mat('featureStone', () => {
-    const t = featureStone();
-    return new THREE.MeshStandardMaterial({ color: 0xd9cbb6, map: t.map, normalMap: t.normalMap, roughness: 0.9 });
+  laminateWhite: () => mat('laminateWhite', () => {
+    const t = whiteLaminateTexture();
+    t.repeat.set(1 / 0.3, 1 / 0.6);
+    return new THREE.MeshStandardMaterial({ color: 0xffffff, map: t, roughness: 0.5 });
   }),
-  brass: () => mat('brass', () => new THREE.MeshStandardMaterial({ color: BRAND.gold, roughness: 0.26, metalness: 1, envMapIntensity: 1.4 })),
+  granite: () => mat('granite', () => {
+    const t = graniteTexture();
+    t.repeat.set(1 / 0.6, 1 / 0.6);
+    return new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: t, roughness: 0.32, clearcoat: 0.8, clearcoatRoughness: 0.2, envMapIntensity: 0.55 });
+  }),
+  mural: () => mat('mural', () => new THREE.MeshStandardMaterial({ color: 0xffffff, map: muralTexture(), roughness: 0.82 })),
+  door: () => mat('doorDark', () => new THREE.MeshStandardMaterial({ color: PUBLIC_COLOURS.door, roughness: 0.42, envMapIntensity: 0.8 })),
+  frame: () => mat('doorFrame', () => new THREE.MeshStandardMaterial({ color: PUBLIC_COLOURS.frame, roughness: 0.5 })),
   brushed: () => mat('brushed', () => new THREE.MeshStandardMaterial({ color: 0xc9cdd0, roughness: 0.32, metalness: 1 })),
+  stainless: () => mat('stainless', () => new THREE.MeshStandardMaterial({ color: 0xd6d9dc, roughness: 0.2, metalness: 1, envMapIntensity: 1.2 })),
+  acrylic: () => mat('acrylic', () => new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transparent: true, opacity: 0.22, depthWrite: false, clearcoat: 1 })),
   plaster: () => mat('plaster', () => new THREE.MeshStandardMaterial({ color: PUBLIC_COLOURS.plaster, roughness: 0.92 })),
   corridorWall: () => mat('corridorWall', () => new THREE.MeshStandardMaterial({ color: PUBLIC_COLOURS.corridorWall, roughness: 0.9 })),
-  ceiling: () => mat('publicCeiling', () => new THREE.MeshStandardMaterial({ color: 0xf5f3ee, roughness: 0.95 })),
+  ceiling: () => mat('publicCeiling', () => new THREE.MeshStandardMaterial({ color: 0xf5f4f0, roughness: 0.95 })),
   darkMetal: () => mat('darkMetal', () => new THREE.MeshStandardMaterial({ color: 0x1d1e1f, roughness: 0.4, metalness: 0.7 })),
   black: () => mat('publicBlack', () => new THREE.MeshStandardMaterial({ color: 0x121314, roughness: 0.5 })),
+  white: () => mat('publicWhite', () => new THREE.MeshStandardMaterial({ color: 0xf4f4f2, roughness: 0.45 })),
+  red: () => mat('publicRed', () => new THREE.MeshStandardMaterial({ color: 0xb7151f, roughness: 0.35, metalness: 0.1 })),
   paper: () => mat('paper', () => new THREE.MeshStandardMaterial({ color: 0xf7f3ea, roughness: 0.85 })),
-  signRed: () => mat('signRed', () => new THREE.MeshStandardMaterial({ color: BRAND.signalRed, emissive: new THREE.Color(BRAND.signalRed), emissiveIntensity: 0, roughness: 0.35 })),
+  brass: () => mat('brass', () => new THREE.MeshStandardMaterial({ color: BRAND.gold, roughness: 0.26, metalness: 1, envMapIntensity: 1.4 })),
+  /** A printed plate or canvas: its own texture, matte. */
+  print: (tex: THREE.Texture, key: string, transparent = false) => mat(`print-${key}`, () => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, transparent, alphaTest: transparent ? 0.02 : 0 })),
   /** Additive light: washes, glows, halos. `k` scales the colour (HDR). */
   glow: (tex: THREE.Texture, color: number, k: number, key: string) => mat(`glow-${key}`, () => new THREE.MeshBasicMaterial({
     map: tex, color: new THREE.Color(color).multiplyScalar(k), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,

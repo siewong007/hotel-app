@@ -46,10 +46,11 @@ export function duskAt(p: number): number {
 export type Step = (label: string, fraction: number) => Promise<void>;
 
 /** Timeline span over which the showcase room's door swings open (ch. 6). */
-const DOOR_OPEN: [number, number] = [0.784, 0.796];
+export const DOOR_OPEN: [number, number] = [0.79, 0.8];
 
 /** Where each part can be seen at all — measured, not guessed: perf/probe.ts
- *  `audit` renders the film with and without each part, at desktop and phone
+ *  `audit` renders the film with and without each part (every zoned part
+ *  shown, so a span cannot hide what it is measuring), at desktop and phone
  *  framing, every 0.0025 of the timeline and from every room type's
  *  configurator view. Outside these spans a part adds draw calls and no
  *  pixels, so it is hidden (the lobby from the street, the room from the
@@ -58,17 +59,21 @@ const DOOR_OPEN: [number, number] = [0.784, 0.796];
  *  camera path. Trees and cars cast live shadows, so they stay until the
  *  shadow map freezes indoors (0.6; see film.ts). */
 const SEEN: Record<string, [number, number][]> = {
-  ground: [[0, 0.5725], [0.785, 1]],
-  roads: [[0, 0.5625], [0.785, 1]],
+  // [0.6375, 0.66]: the street through the entrance glazing as the camera
+  // turns from the lobby to the counter beside it
+  ground: [[0, 0.5725], [0.6375, 0.66], [0.7875, 1]],
+  roads: [[0, 0.5625], [0.6375, 0.66], [0.7875, 1]],
   'farley-blocks': [[0, 0.5725], [0.895, 1]],
   mart: [[0, 0.5325], [0.9, 1]],
-  parking: [[0, 0.6175], [0.8875, 1]],
-  'far-field': [[0, 0.5525], [0.8825, 1]],
-  'street-lights': [[0, 0.5525], [0.805, 1]],
-  trees: [[0, 0.6], [0.785, 1]],
-  lobby: [[0.46, 0.7625]],
-  corridor: [[0.5375, 0.675], [0.7225, 0.805]],
-  room: [[0.46, 0.56], [0.7575, 0.97]],
+  parking: [[0, 0.6], [0.6375, 0.66], [0.8875, 1]],
+  'far-field': [[0, 0.5525], [0.6375, 0.66], [0.79, 1]],
+  // (0.8 … 0.885 for the Family Room's configurator view)
+  'street-lights': [[0, 0.5525], [0.8, 1]],
+  trees: [[0, 0.6], [0.6375, 0.66], [0.7875, 1]],
+  lobby: [[0.46, 0.785]],
+  // the stair is the corridor's: seen down the lobby, then climbed
+  corridor: [[0.5375, 0.64], [0.725, 0.8075]],
+  room: [[0.46, 0.56], [0.76, 0.97]],
 };
 const seenAt = (spans: [number, number][], p: number) => spans.some(([a, b]) => p >= a && p <= b);
 /** Beyond this (metres from the room's centre) the room seen from outside
@@ -496,9 +501,9 @@ export class World {
     const sc = this.scene;
     if (envIn > 0 && this.roomEnv) {
       sc.environment = this.roomEnv;
-      // the lobby keeps less ambient than the rooms, so its lamps, scallops
-      // and cove carry the light (brief §4.4: the most "hospitality" moment)
-      sc.environmentIntensity = envIn * THREE.MathUtils.lerp(0.36, 0.55, ramp(p, 0.735, 0.785));
+      // the lobby keeps a little less ambient than the rooms, so its
+      // downlights and scallops carry the light
+      sc.environmentIntensity = envIn * THREE.MathUtils.lerp(0.46, 0.55, ramp(p, 0.735, 0.785));
     } else {
       sc.environment = this.atmosphere.envMap;
       sc.environmentIntensity *= Math.min(1, envOut);
@@ -528,10 +533,11 @@ export class World {
     const inLight = ramp(p, 0.52, 0.56) * (1 - ramp(p, 0.915, 0.945));
     this.interior.visible = this.interiorReady && p > 0.47 && p < 0.96;
     if (this.lobby && this.corridor && this.room) {
-      // the lobby drops out once the camera is upstairs, the corridor once it
-      // has left through the room window
-      const lobbyOn = p < 0.795, corridorOn = p < 0.9;
-      this.lobby.setLights(lobbyOn ? inLight : 0);
+      // the lobby fades out as the camera climbs the second flight (its lamps
+      // reach the corridor through the slab, so a switch would show there);
+      // the corridor drops out once the camera has left through the room window
+      const corridorOn = p < 0.9;
+      this.lobby.setLights(inLight * (1 - ramp(p, 0.772, 0.79)));
       this.lobby.update();
       // chapter 5: the key cards fan out of their sleeve as we reach the counter
       this.lobby.counter.setFan(ramp(p, 0.655, 0.7));

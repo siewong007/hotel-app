@@ -13,7 +13,8 @@ import type { RoomCode } from '../config/site';
 import { batchPlain, boxAt, mergeStatic, metricUV, packGroups, rbox, wallWithOpenings } from '../world/geom';
 import { CULLED_LAYER } from '../world/Visibility';
 import { RoomMats } from './roomMaterials';
-import { PublicMats } from './lobbyMaterials';
+import { acrylicNumberTexture, PublicMats } from './lobbyMaterials';
+import { SHOWCASE_NUMBER } from './Corridor';
 import {
   Curtains, makeArt, makeAC, makeBasin, makeBed, makeChair, makeDesk, makeLuggageRack, makeMirror, makeNightstand,
   makePlate, makeToilet, makeTowelRack, makeTV, makeWardrobe, NIGHTSTAND_WIDTH,
@@ -23,6 +24,10 @@ import { BATH, DOOR, ROOM_HEIGHT, WINDOW, Z_CORRIDOR, Z_FACADE, roomLayouts, typ
 const W_MAX = 7.9; // wide enough for the Family Suite; the left wall hides the rest
 const BULK = 0.3; // bulkhead ring width
 const BULK_Y = 2.8;
+/** The recessed ceiling's underside, 2 cm under the room's full height: that
+ *  plane is also the underside of the building's level-2 slab, and the two
+ *  took turns in the depth buffer (the ceiling flickered; perf/zfight.ts). */
+const CEIL_Y = ROOM_HEIGHT - 0.02;
 const DUR = 0.85;
 
 interface Pose { x: number; y: number; z: number; rotY: number; s: number }
@@ -109,7 +114,7 @@ export class RoomBuilder {
     for (const t of [lam.map, lam.normalMap, lam.roughnessMap]) if (t) t.repeat.set(1 / 2.4, 1 / 2.4);
     floor.receiveShadow = true;
     floor.name = 'room-floor';
-    const ceiling = new THREE.Mesh(boxAt(-W_MAX, ROOM_HEIGHT, Z_CORRIDOR, 0.1, ROOM_HEIGHT + 0.03, Z_FACADE), RoomMats.ceiling());
+    const ceiling = new THREE.Mesh(boxAt(-W_MAX, CEIL_Y, Z_CORRIDOR, 0.1, CEIL_Y + 0.03, Z_FACADE), RoomMats.ceiling());
     ceiling.name = 'room-ceiling';
     const right = new THREE.Mesh(boxAt(0, 0, Z_CORRIDOR, 0.12, ROOM_HEIGHT, Z_FACADE), RoomMats.wall());
     right.name = 'room-wall-right';
@@ -281,13 +286,18 @@ export class RoomBuilder {
     hinge.position.set(DOOR.x1 - 0.02, 0, Z_CORRIDOR - 0.1);
     hinge.name = 'room-door';
     const w = DOOR.x1 - DOOR.x0 - 0.04;
-    // the corridor doors' walnut veneer (lobbyMaterials)
+    // the corridor doors' dark brown finish (lobbyMaterials)
     const leaf = new THREE.Mesh(metricUV(rbox(-w, 0.01, -0.02, 0, DOOR.h - 0.01, 0.02, 0.006)), PublicMats.door());
     leaf.castShadow = true;
     const lever = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.13, 8).rotateZ(Math.PI / 2).translate(-w + 0.12, 1.02, 0.05), RoomMats.chrome());
     const lever2 = lever.clone();
     lever2.position.z = -0.1;
-    hinge.add(leaf, lever, lever2);
+    // its number in red on clear acrylic, on the corridor face like its neighbours'
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.17, 0.075), PublicMats.print(acrylicNumberTexture(SHOWCASE_NUMBER), `acrylic-${SHOWCASE_NUMBER}`, true));
+    plate.rotation.y = Math.PI;
+    plate.position.set(-w / 2, 1.66, -0.026);
+    plate.name = `plaque-${SHOWCASE_NUMBER}`;
+    hinge.add(leaf, lever, lever2, plate);
     return hinge;
   }
 
@@ -429,12 +439,12 @@ export class RoomBuilder {
     }
     // lights follow the room's centre
     const zc = (Z_FACADE + Z_CORRIDOR) / 2 + 0.6;
-    this.light.position.set(-this.width / 2, ROOM_HEIGHT - 0.05, zc);
+    this.light.position.set(-this.width / 2, CEIL_Y - 0.05, zc);
     this.light.target.position.set(-this.width / 2, 0, zc);
-    this.fill.position.set(-this.width / 2, ROOM_HEIGHT - 0.05, Z_FACADE - 1.4);
+    this.fill.position.set(-this.width / 2, CEIL_Y - 0.05, Z_FACADE - 1.4);
     this.fill.target.position.set(-this.width / 2, 0, Z_FACADE - 1.4);
-    this.fittings[0]?.position.set(-this.width / 2, ROOM_HEIGHT - 0.01, zc);
-    this.fittings[1]?.position.set(-this.width / 2, ROOM_HEIGHT - 0.01, Z_FACADE - 1.4);
+    this.fittings[0]?.position.set(-this.width / 2, CEIL_Y - 0.01, zc);
+    this.fittings[1]?.position.set(-this.width / 2, CEIL_Y - 0.01, Z_FACADE - 1.4);
   }
 
   private streetView = false;
