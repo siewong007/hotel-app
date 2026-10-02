@@ -3,7 +3,7 @@
 // formula unless the hotel publishes its own.
 import { describe, expect, it } from 'vitest';
 import raw from './data/neighbourhood.json';
-import { DISH_KEYS, PLACE_KINDS, dishes, displayName, groupsWith, neighbourhoodTitle, places, ringRadius, walkLabel, walkMinutes } from './data/neighbourhood';
+import { DISH_KEYS, PLACE_KINDS, dishes, displayName, groupsWith, neighbourhoodTitle, openingText, places, ringRadius, walkLabel, walkMinutes } from './data/neighbourhood';
 import { matchPoi, placeAnchor } from './world/placeAnchors';
 import { POINTS } from './world/layout';
 import { en } from './content/en';
@@ -79,6 +79,17 @@ describe('what the cards say', () => {
         expect(bundle.neighbourhood.mustTry.dishes[k].note, k).toBeTruthy();
       }
     }
+  });
+
+  it('writes opening hours in the visitor’s language, Monday first', () => {
+    const low = places().find((p) => p.name === 'Low Medical Clinic')!;
+    expect(low.phone).toBe('084-214 098');
+    expect(openingText(low.opening!, en.neighbourhood, en.booking.dateLocale)).toBe('Mon–Thu 08:30–12:00, 14:00–17:00, 19:00–20:30 · Sun 08:30–12:00');
+    expect(openingText(low.opening!, zh.neighbourhood, zh.booking.dateLocale)).toBe('周一–周四 08:30–12:00、14:00–17:00、19:00–20:30 · 周日 08:30–12:00');
+    expect(openingText(low.opening!, ms.neighbourhood, ms.booking.dateLocale)).toBe('Isn–Kha 08:30–12:00, 14:00–17:00, 19:00–20:30 · Ahd 08:30–12:00');
+    const market = places().find((p) => /supermarket/.test(p.name))!;
+    expect(openingText(market.opening!, en.neighbourhood, en.booking.dateLocale)).toBe('08:00–22:00 daily');
+    expect(openingText(market.opening!, zhTW.neighbourhood, zhTW.booking.dateLocale)).toBe('每天 08:00–22:00');
   });
 
   it('says which dishes contain pork or alcohol, in every language', () => {

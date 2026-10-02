@@ -43,6 +43,7 @@ const nb: Copy['neighbourhood'] = {
     pharmacy: 'sebuah farmasi',
     services: 'perkhidmatan harian',
   },
+  dailyHours: '{{times}} setiap hari',
   walkStated: 'kira-kira {{min}} minit berjalan kaki',
   walkApprox: 'anggaran {{min}} minit berjalan kaki',
   nextDoor: 'bersebelahan',

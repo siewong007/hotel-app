@@ -221,6 +221,7 @@ const nb: Copy['neighbourhood'] = {
     pharmacy: 'a pharmacy',
     services: 'everyday services',
   },
+  dailyHours: '{{times}} daily',
   walkStated: 'about {{min}} min walk',
   walkApprox: 'approx. {{min}} min walk',
   nextDoor: 'next door',

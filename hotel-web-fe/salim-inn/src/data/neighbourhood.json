@@ -1,5 +1,5 @@
 {
-  "_about": "Shops and services in and around Farley Commercial Centre, Jalan Salim, Sibu, compiled 26 Sep 2026 from the owner's Google Earth Street View recordings (imagery dated Oct 2024 / Mar 2025 unless noted) and public listings. Street View is almost two years old: every entry with verify_before_launch=true must be checked on site or with the owner before it appears on the live page. Use shop names as plain text only - never reproduce their logos. On 3 Oct 2026 the owner confirmed the old and new Farley food courts, 二鱼粮食站, Secret Recipe, Farley Bakery, Alpro, Sunlight and Watsons pharmacies, Klinik Komuniti Sentosa, Klinik Pergigian Dr Ho, Ekoway Hardware and Hair Story, and named kampua mee, kompia and red wine mee sua as the must-try dishes. Dishes taken from public reviews stay unverified until the owner confirms the stall still serves them. 'kind' picks the translated card line (content/*.ts neighbourhood.kinds); 'osm' names the OpenStreetMap point to anchor to when the shop's own name differs. The owner then named Dr Low's clinic (Low Medical Clinic, beside Ekoway Hardware), placed the old food court in the supermarket's row, and confirmed the dim sum and red kolo mee are still served.",
+  "_about": "Shops and services in and around Farley Commercial Centre, Jalan Salim, Sibu, compiled 26 Sep 2026 from the owner's Google Earth Street View recordings (imagery dated Oct 2024 / Mar 2025 unless noted) and public listings. Street View is almost two years old: every entry with verify_before_launch=true must be checked on site or with the owner before it appears on the live page. Use shop names as plain text only - never reproduce their logos. On 3 Oct 2026 the owner confirmed the old and new Farley food courts, 二鱼粮食站, Secret Recipe, Farley Bakery, Alpro, Sunlight and Watsons pharmacies, Klinik Komuniti Sentosa, Klinik Pergigian Dr Ho, Ekoway Hardware and Hair Story, and named kampua mee, kompia and red wine mee sua as the must-try dishes. Dishes taken from public reviews stay unverified until the owner confirms the stall still serves them. 'kind' picks the translated card line (content/*.ts neighbourhood.kinds); 'osm' names the OpenStreetMap point to anchor to when the shop's own name differs. The owner then named Dr Low's clinic (Low Medical Clinic, beside Ekoway Hardware), placed the old food court in the supermarket's row, and confirmed the dim sum and red kolo mee are still served. 'opening' holds a place's hours as days (0 = Sunday, 'a-b' a range) and 24-hour times; the page writes them out in the visitor's language.",
   "hotel": {
     "name": "Salim Inn",
     "address": "Lot 21-22, Lorong Salim 17, Jalan Salim, Farley Commercial Centre, 96000 Sibu, Sarawak",
@@ -13,7 +13,7 @@
       "category": "Groceries & daily needs",
       "kind": "supermarket",
       "role": "Anchor of the community; the large green-facade building at the centre of the block",
-      "hours": "8am-10pm daily (per malaysiamall.my listing)",
+      "opening": [{ "days": "0-6", "times": ["08:00-22:00"] }],
       "phone": "084-212666",
       "walk_note": "About a 5-minute walk (stated on saliminn.my and OTA listings)",
       "evidence": ["reference-frames/rec2_t040s.jpg", "reference-frames/rec2_t070s.jpg", "reference-frames/rec1_04.jpg", "https://www.malaysiamall.my/listing/farley-sibu/"],
@@ -146,8 +146,10 @@
       "category": "Pharmacy & health",
       "kind": "gp",
       "osm": "Eco Hardware",
-      "note": "Dr Low's clinic, beside Ekoway Hardware (owner). Pinned at Eco Hardware's OpenStreetMap point for that reason. Directories give No. 45, Lorong Salim 17, phone 084-214 098 and partial opening hours - not published until the owner confirms them",
-      "evidence": ["https://dir.alltrack.org/view/298262-9-low-medical-clinic", "https://my.polomap.com/sibu/3700", "https://malaysia.worldplaces.me/medical-centers-in-sibu/54639923-dr-low-clinic-farley.html", "Owner, 3 Oct 2026: 'it's called dr.low', beside Ekoway Hardware"],
+      "note": "Dr Low's clinic, beside Ekoway Hardware (owner). Pinned at Eco Hardware's OpenStreetMap point for that reason. Phone and hours from the polomap listing, confirmed by the owner; that listing gives no hours for Friday or Saturday",
+      "opening": [{ "days": "1-4", "times": ["08:30-12:00", "14:00-17:00", "19:00-20:30"] }, { "days": "0", "times": ["08:30-12:00"] }],
+      "phone": "084-214 098",
+      "evidence": ["https://dir.alltrack.org/view/298262-9-low-medical-clinic", "https://my.polomap.com/sibu/3700", "https://malaysia.worldplaces.me/medical-centers-in-sibu/54639923-dr-low-clinic-farley.html", "Owner, 3 Oct 2026: 'it's called dr.low', beside Ekoway Hardware", "Owner, 3 Oct 2026: the phone number and the polomap hours are correct"],
       "verify_before_launch": false
     },
     {

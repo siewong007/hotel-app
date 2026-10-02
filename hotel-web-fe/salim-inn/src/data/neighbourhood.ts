@@ -51,6 +51,8 @@ export interface NeighbourhoodWords {
   kinds: Record<PlaceKind, string>;
   /** The food card's must-try dishes: name and one line each. */
   mustTry: { title: string; dishes: Record<DishKey, { name: string; note: string }> };
+  /** Opening hours that cover the whole week: `{{times}}`. */
+  dailyHours: string;
   /** The hotel's own published time, `{{min}}`. */
   walkStated: string;
   /** The estimate, `{{min}}`. */
@@ -88,11 +90,19 @@ export interface Place {
   osm?: string;
   detail?: string; // role or note from the file (English research notes)
   hours?: string;
+  /** Opening hours, written out in the visitor's language (openingText). */
+  opening?: Opening[];
   phone?: string;
   address?: string;
   /** A walking time the hotel itself publishes (minutes), if any. */
   walkStated?: number;
   verified: boolean;
+}
+
+/** Days a place keeps the same hours: 0 is Sunday; times are 24-hour "HH:MM-HH:MM". */
+export interface Opening {
+  days: number[];
+  times: string[];
 }
 
 interface RawPlace {
@@ -103,6 +113,7 @@ interface RawPlace {
   role?: string;
   note?: string;
   hours?: string;
+  opening?: { days: string; times: string[] }[];
   phone?: string;
   address?: string;
   walk_note?: string;
@@ -116,6 +127,29 @@ export function displayName(name: string): string {
 
 const isKind = (k: string | undefined): k is PlaceKind => (PLACE_KINDS as readonly string[]).includes(k ?? '');
 
+/** "1-4" → [1, 2, 3, 4]; "0" → [0]. */
+function dayRange(spec: string): number[] {
+  const [a, b = a] = spec.split('-').map(Number);
+  return Array.from({ length: b - a + 1 }, (_, i) => a + i);
+}
+
+/** Opening hours in the visitor's language, Monday first: "Mon–Thu 08:30–12:00,
+ *  14:00–17:00 · Sun 08:30–12:00" (en-GB), "周一–周四 08:30–12:00、…" (zh-CN).
+ *  Day names come from Intl; times stay 24-hour, which every language reads. */
+export function openingText(opening: Opening[], w: NeighbourhoodWords, locale: string): string {
+  const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
+  const day = (d: number) => weekday.format(new Date(Date.UTC(2026, 0, 4 + d))); // 4 Jan 2026 was a Sunday
+  const times = (t: string[]) => t.map((x) => x.replace('-', '–')).join(w.listComma);
+  return [...opening]
+    .sort((a, b) => ((a.days[0] + 6) % 7) - ((b.days[0] + 6) % 7))
+    .map((o) => {
+      if (o.days.length === 7) return w.dailyHours.replace('{{times}}', times(o.times));
+      const span = o.days.length > 1 ? `${day(o.days[0])}–${day(o.days[o.days.length - 1])}` : day(o.days[0]);
+      return `${span} ${times(o.times)}`;
+    })
+    .join(' · ');
+}
+
 function fromRaw(p: RawPlace): Place | null {
   const group = GROUP_OF[p.category];
   if (!group) return null;
@@ -128,6 +162,7 @@ function fromRaw(p: RawPlace): Place | null {
     osm: p.osm,
     detail: p.role ?? p.note,
     hours: p.hours?.replace(/\s*\(per [^)]*\)/, ''),
+    opening: p.opening?.map((o) => ({ days: dayRange(o.days), times: o.times })),
     phone: p.phone,
     address: p.address,
     walkStated: stated ? Number(stated[1]) : undefined,

@@ -7,7 +7,7 @@
 // Everything a marker or label says is also in the copy, so the floating
 // layer is aria-hidden and pointer-only.
 import * as THREE from 'three';
-import { groupsWith, walkLabel, type Dish, type Place, type PlaceGroup } from '../data/neighbourhood';
+import { groupsWith, openingText, walkLabel, type Dish, type Place, type PlaceGroup } from '../data/neighbourhood';
 import { RING_MINUTES } from '../world/WalkRings';
 import { copy, count, fill } from '../content';
 
@@ -119,6 +119,7 @@ export class Neighbourhood {
     this.copyStale = true;
     if (!g) return;
     const badge = (verified: boolean) => (verified ? '' : ` <em class="nb-badge">${c.unverified}</em>`);
+    const hoursOf = (p: Place) => (p.opening ? openingText(p.opening, c, copy.booking.dateLocale) : p.hours);
     // the must-try dishes lead the food card (they are its draw), then its places
     const dishes = g.key === 'food' && this.menu.length ? `
       <h4 class="nb-card__sub">${esc(c.mustTry.title)}</h4>
@@ -130,7 +131,7 @@ export class Neighbourhood {
       <li>
         <strong>${esc(p.name)}</strong>${badge(p.verified)}
         ${p.kind ? `<span>${esc(c.kinds[p.kind])}</span>` : p.detail ? `<span>${esc(p.detail)}</span>` : ''}
-        ${[walk, p.hours ? `${c.open} ${esc(p.hours)}` : '', p.phone ? `<a href="tel:${telOf(p.phone)}">${c.call} ${esc(p.phone)}</a>` : ''].filter(Boolean).map((t) => `<span class="nb-meta">${t}</span>`).join('')}
+        ${[walk, hoursOf(p) ? `${c.open} ${esc(hoursOf(p)!)}` : '', p.phone ? `<a href="tel:${telOf(p.phone)}">${c.call} ${esc(p.phone)}</a>` : ''].filter(Boolean).map((t) => `<span class="nb-meta">${t}</span>`).join('')}
       </li>`).join('')}</ul>`;
     this.fitCard();
   }
