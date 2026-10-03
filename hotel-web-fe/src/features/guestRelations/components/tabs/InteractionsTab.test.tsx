@@ -155,4 +155,49 @@ describe('InteractionsTab', () => {
       expect(mocks.updateInteraction).toHaveBeenCalledWith(7, 11, { follow_up_completed: true });
     });
   });
+
+  it('does not keep the pre-create empty fetch after adding the first note', async () => {
+    const created = buildInteraction({ id: 42, content: 'Late checkout approved' });
+    let releaseInitial: (value: { data: GuestInteraction[]; total: number; page: number; page_size: number }) => void = () => {};
+    const initial = new Promise<{ data: GuestInteraction[]; total: number; page: number; page_size: number }>((resolve) => {
+      releaseInitial = resolve;
+    });
+    let calls = 0;
+    mocks.getInteractions.mockImplementation(() => {
+      calls += 1;
+      if (calls === 1) return initial;
+      return Promise.resolve({ data: [created], total: 1, page: 1, page_size: 20 });
+    });
+    mocks.createInteraction.mockResolvedValue(created);
+    renderTab();
+    fireEvent.change(await screen.findByLabelText(/Note content/), {
+      target: { value: 'Late checkout approved' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add note' }));
+    await waitFor(() => {
+      expect(mocks.createInteraction).toHaveBeenCalled();
+    });
+    releaseInitial({ data: [], total: 0, page: 1, page_size: 20 });
+    expect(await screen.findByText('Late checkout approved')).toBeTruthy();
+    expect(screen.queryByText(/No interactions recorded yet/)).toBeNull();
+  });
+
+  it('shows a newly created note on the timeline without a reload', async () => {
+    const created = buildInteraction({ id: 42, content: 'Late checkout approved' });
+    let list = { data: [] as GuestInteraction[], total: 0, page: 1, page_size: 20 };
+    mocks.getInteractions.mockImplementation(async () => list);
+    mocks.createInteraction.mockImplementation(async () => {
+      list = { data: [created], total: 1, page: 1, page_size: 20 };
+      return created;
+    });
+    renderTab();
+    expect(await screen.findByText(/No interactions recorded yet/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(/Note content/), {
+      target: { value: 'Late checkout approved' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add note' }));
+    expect(await screen.findByText('Late checkout approved')).toBeTruthy();
+    expect(screen.queryByText(/No interactions recorded yet/)).toBeNull();
+  });
+
 });
