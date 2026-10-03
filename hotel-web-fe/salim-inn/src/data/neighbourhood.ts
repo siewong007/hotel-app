@@ -127,10 +127,10 @@ export function displayName(name: string): string {
 
 const isKind = (k: string | undefined): k is PlaceKind => (PLACE_KINDS as readonly string[]).includes(k ?? '');
 
-/** "1-4" → [1, 2, 3, 4]; "0" → [0]. */
+/** "1-4" → [1, 2, 3, 4]; "0" → [0]; "5-0" → [5, 6, 0] (a range may wrap past Saturday). */
 function dayRange(spec: string): number[] {
   const [a, b = a] = spec.split('-').map(Number);
-  return Array.from({ length: b - a + 1 }, (_, i) => a + i);
+  return Array.from({ length: ((b - a + 7) % 7) + 1 }, (_, i) => (a + i) % 7);
 }
 
 /** Opening hours in the visitor's language, Monday first: "Mon–Thu 08:30–12:00,
