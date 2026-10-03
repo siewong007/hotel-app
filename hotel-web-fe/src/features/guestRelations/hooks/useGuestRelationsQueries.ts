@@ -4,6 +4,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
 } from '@tanstack/react-query';
 import { GuestRelationsService } from '../../../api/guestRelations.service';
 import { queryStaleTime } from '../../../api/queryConfig';
@@ -15,6 +16,7 @@ import type { PreferenceUpdateInput } from '../../communications/types';
 import type {
   CreateStaffSupportConversationRequest,
   FollowUpDue,
+  GuestInteraction,
   GuestInteractionInput,
   GuestInteractionListParams,
   GuestInteractionUpdate,
@@ -78,13 +80,77 @@ export function useGuestInteractionsFeed(
   });
 }
 
+/** Prefix of every per-guest interactions query (paged list and the timeline feed). */
+const guestInteractionQueries = (guestId: number | string) =>
+  ['guests', 'interactions', String(guestId)] as const;
+
+interface InteractionListPage {
+  data: GuestInteraction[];
+  total: number;
+}
+
+interface InteractionFeedData {
+  pages: InteractionListPage[];
+  pageParams: unknown[];
+}
+
+const isInteractionFeed = (value: object): value is InteractionFeedData =>
+  'pages' in value && Array.isArray((value as InteractionFeedData).pages);
+
+const isInteractionListPage = (value: object): value is InteractionListPage =>
+  'data' in value && Array.isArray((value as InteractionListPage).data);
+
+const pageWithCreatedInteraction = (
+  page: InteractionListPage,
+  created: GuestInteraction,
+): InteractionListPage => {
+  if (page.data.some((note) => note.id === created.id)) return page;
+  return { ...page, data: [created, ...page.data], total: page.total + 1 };
+};
+
+/**
+ * Show the note the POST just returned without waiting for the list refetch.
+ * No-ops when the cache has no page yet (the initial fetch was still in flight).
+ */
+const prependCreatedInteraction = (
+  queryClient: QueryClient,
+  guestId: number,
+  created: GuestInteraction,
+) => {
+  queryClient.setQueriesData(
+    { queryKey: guestInteractionQueries(guestId) },
+    (current: unknown) => {
+      if (!current || typeof current !== 'object') return current;
+      if (isInteractionFeed(current)) {
+        const [first, ...rest] = current.pages;
+        if (!first || !isInteractionListPage(first)) return current;
+        if (current.pages.some((page) => page.data.some((note) => note.id === created.id))) {
+          return current;
+        }
+        return { ...current, pages: [pageWithCreatedInteraction(first, created), ...rest] };
+      }
+      if (isInteractionListPage(current)) return pageWithCreatedInteraction(current, created);
+      return current;
+    },
+  );
+};
+
 export function useCreateInteraction() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ guestId, data }: { guestId: number; data: GuestInteractionInput }) =>
       GuestRelationsService.createInteraction(guestId, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.guests.interactions(variables.guestId) });
+    onSuccess: async (created, variables) => {
+      const queryKey = guestInteractionQueries(variables.guestId);
+      // The add form is usable while the timeline's first fetch is still in
+      // flight. invalidateQueries will not cancel that fetch when the query
+      // has no data yet, so the pre-create empty page resolves afterwards and
+      // the timeline stays on "No interactions recorded yet" until a reload.
+      // Delete does not hit this: the row is already on screen, so the query
+      // has data and invalidation starts a real refetch.
+      await queryClient.cancelQueries({ queryKey });
+      prependCreatedInteraction(queryClient, variables.guestId, created);
+      await queryClient.invalidateQueries({ queryKey });
       invalidateGuestDependencies(queryClient);
     },
   });
