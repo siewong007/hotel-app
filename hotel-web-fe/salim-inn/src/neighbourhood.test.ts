@@ -84,9 +84,11 @@ describe('what the cards say', () => {
   it('writes opening hours in the visitor’s language, Monday first', () => {
     const low = places().find((p) => p.name === 'Low Medical Clinic')!;
     expect(low.phone).toBe('084-214 098');
-    expect(openingText(low.opening!, en.neighbourhood, en.booking.dateLocale)).toBe('Mon–Thu 08:30–12:00, 14:00–17:00, 19:00–20:30 · Sun 08:30–12:00');
-    expect(openingText(low.opening!, zh.neighbourhood, zh.booking.dateLocale)).toBe('周一–周四 08:30–12:00、14:00–17:00、19:00–20:30 · 周日 08:30–12:00');
-    expect(openingText(low.opening!, ms.neighbourhood, ms.booking.dateLocale)).toBe('Isn–Kha 08:30–12:00, 14:00–17:00, 19:00–20:30 · Ahd 08:30–12:00');
+    expect(openingText(low.opening!, en.neighbourhood, en.booking.dateLocale)).toBe('Mon–Thu 08:30–12:00, 14:00–17:00, 19:00–20:30 · Fri–Sun 08:30–12:00');
+    expect(openingText(low.opening!, zh.neighbourhood, zh.booking.dateLocale)).toBe('周一–周四 08:30–12:00、14:00–17:00、19:00–20:30 · 周五–周日 08:30–12:00');
+    expect(openingText(low.opening!, ms.neighbourhood, ms.booking.dateLocale)).toBe('Isn–Kha 08:30–12:00, 14:00–17:00, 19:00–20:30 · Jum–Ahd 08:30–12:00');
+    // every day of the week, once
+    expect(low.opening!.flatMap((o) => o.days).sort()).toEqual([0, 1, 2, 3, 4, 5, 6]);
     const market = places().find((p) => /supermarket/.test(p.name))!;
     expect(openingText(market.opening!, en.neighbourhood, en.booking.dateLocale)).toBe('08:00–22:00 daily');
     expect(openingText(market.opening!, zhTW.neighbourhood, zhTW.booking.dateLocale)).toBe('每天 08:00–22:00');
