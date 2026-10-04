@@ -313,6 +313,7 @@
     "event": {
       "update": "更新",
       "payment": "付款",
+      "paymentPendingApproval": "付款待核准",
       "checkIn": "入住",
       "void": "作廢",
       "checkout": "退房",

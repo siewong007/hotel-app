@@ -18,6 +18,9 @@
     "clearAll": "全部清除",
     "viewAllAria": "查看所有通知",
     "noSystemAlerts": "沒有系統提醒",
+    "bankTransferPendingTitle": "付款待核准",
+    "bankTransferPendingBody": "客人提交了預訂 {{booking}} 的銀行轉帳，正在等待核准。",
+    "reviewPayment": "審核付款",
     "allCaughtUp": "全部已讀完畢",
     "dismiss": "關閉通知",
     "unreadAria": "通知（{{count}} 則未讀）"

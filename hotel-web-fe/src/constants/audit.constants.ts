@@ -11,6 +11,7 @@ export const AUDIT_ACTION_LABELS: Record<string, { labelKey: string; color: stri
   booking_checkin: { labelKey: 'admin:audit.action.booking_checkin', color: 'var(--hotel-success)' },
   booking_checkout: { labelKey: 'admin:audit.action.booking_checkout', color: 'var(--hotel-chart-4)' },
   payment_created: { labelKey: 'admin:audit.action.payment_created', color: 'var(--hotel-success)' },
+  payment_pending_approval: { labelKey: 'admin:audit.action.payment_pending_approval', color: 'var(--hotel-warning)' },
   payment_recorded: { labelKey: 'admin:audit.action.payment_recorded', color: 'var(--hotel-success)' },
   payment_voided: { labelKey: 'admin:audit.action.payment_voided', color: 'var(--hotel-danger)' },
   payment_refunded: { labelKey: 'admin:audit.action.payment_refunded', color: 'var(--hotel-warning)' },

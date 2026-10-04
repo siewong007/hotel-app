@@ -450,6 +450,7 @@
       "booking_checkin": "賓客已入住",
       "booking_checkout": "賓客已退房",
       "payment_created": "已建立付款",
+      "payment_pending_approval": "付款待核准",
       "payment_recorded": "已記錄付款",
       "payment_voided": "已作廢付款",
       "payment_refunded": "已退款",

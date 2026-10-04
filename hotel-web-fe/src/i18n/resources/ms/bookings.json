@@ -314,6 +314,7 @@
     "event": {
       "update": "Kemas Kini",
       "payment": "Pembayaran",
+      "paymentPendingApproval": "Bayaran menunggu kelulusan",
       "checkIn": "Daftar masuk",
       "void": "Batal",
       "checkout": "Daftar keluar",

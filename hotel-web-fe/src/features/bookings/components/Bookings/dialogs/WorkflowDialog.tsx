@@ -18,6 +18,7 @@ import {
   Block as VoidIcon,
   Login as LoginIcon,
   Edit as EditIcon,
+  WarningAmber as WarningAmberIcon,
 } from '@mui/icons-material';
 import { LogoLoader } from '../../../../../components';
 import type { BookingTimelineEntry, BookingWithDetails, PaymentWorkflowSummary } from '../../../../../types';
@@ -72,6 +73,18 @@ const getWorkflowEventIndicator = (event: BookingTimelineEntry, t: (key: string)
       backgroundColor: 'var(--hotel-warning-bg)',
       borderColor: 'var(--hotel-warning-border)',
       icon: <LoginIcon fontSize="small" />,
+    };
+  }
+
+  // Guest bank-transfer claims stay unpaid until staff approve them. The
+  // server title is the stable English marker; the chip label is translated.
+  if (source === 'payments' && title === 'payment pending approval') {
+    return {
+      label: t('workflow.event.paymentPendingApproval'),
+      color: 'var(--hotel-warning)',
+      backgroundColor: 'var(--hotel-warning-bg)',
+      borderColor: 'var(--hotel-warning-border)',
+      icon: <WarningAmberIcon fontSize="small" />,
     };
   }
 
@@ -230,7 +243,9 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                         <Box sx={{ minWidth: 0, flex: 1 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                             <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                              {event.title}
+                              {event.title === 'Payment pending approval'
+                                ? t('workflow.event.paymentPendingApproval')
+                                : event.title}
                               {event.amount && compareMoney(event.amount, 0) !== 0 && (
                                 <Typography component="span" variant="body2" sx={{
                                   color: "text.secondary"

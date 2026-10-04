@@ -454,6 +454,7 @@
       "booking_checkin": "Guest Checked In",
       "booking_checkout": "Guest Checked Out",
       "payment_created": "Payment Created",
+      "payment_pending_approval": "Payment pending approval",
       "payment_recorded": "Payment Recorded",
       "payment_voided": "Payment Voided",
       "payment_refunded": "Payment Refunded",

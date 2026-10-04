@@ -373,6 +373,11 @@ pub async fn get_booking_timeline_handler(
                    CASE
                        WHEN COALESCE(payment_type, '') = 'refund' THEN 'Refund recorded'
                        WHEN status = 'failed' THEN 'Payment failed'
+                       -- A guest bank-transfer claim is not money collected.
+                       -- Staff record_payment inserts a completed row, so it
+                       -- keeps the "Payment recorded" title.
+                       WHEN status = 'pending' AND payment_method = 'bank_transfer'
+                           THEN 'Payment pending approval'
                        ELSE 'Payment recorded'
                    END AS title,
                    notes AS description, NULL::text AS status_from, status AS status_to,

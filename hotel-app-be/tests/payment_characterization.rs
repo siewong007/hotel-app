@@ -27,12 +27,15 @@
 //!     gateway capture, so it can confirm a payment for which no money was
 //!     ever actually collected.
 
+use axum::extract::{Extension, Path, State};
 use hotel_app_be::constants::PaymentMethod;
 use hotel_app_be::core::error::ApiError;
 use hotel_app_be::models::{PaymentRequest, RecordPaymentRequest, UpdatePaymentRequest};
+use hotel_app_be::modules::bookings::get_booking_timeline_handler;
 use hotel_app_be::modules::bookings::repository::BookingRepository;
 use hotel_app_be::modules::payments::repository::PaymentRepository;
 use hotel_app_be::modules::payments::service as payments;
+use hotel_app_be::modules::system::repository as system_repository;
 use rust_decimal::Decimal;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::str::FromStr;
@@ -2754,6 +2757,179 @@ async fn create_payment_rolls_back_when_booking_recompute_fails_then_retry_repai
     assert_eq!(payment_status, "paid");
 }
 
+/// A guest bank-transfer claim stays unpaid and pending confirmation. It must
+/// not look like collected money (timeline title, audit action) and must not
+/// send the guest a payment-confirmed email. Reception is told immediately
+/// through the staff bell, addressed to `payments:read`.
+#[tokio::test]
+async fn bank_transfer_claim_stays_unpaid_and_alerts_reception() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 941_010;
+    let room_type_id = 941_011;
+    let room_id = 941_012;
+    let guest_id = 941_013;
+    let booking_id = 941_014;
+    let booking_number = format!("BK-PAY-{booking_id}");
+
+    sqlx::query("DELETE FROM staff_notifications WHERE subject = $1")
+        .bind(&booking_number)
+        .execute(&pool)
+        .await
+        .ok();
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    grant_role(&pool, actor_id, "receptionist").await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "pending_payment",
+            check_in: "2031-07-01",
+            check_out: "2031-07-02",
+            base_price: d("180.00"),
+            subtotal: d("180.00"),
+            total_amount: d("180.00"),
+        },
+    )
+    .await;
+
+    let booking = BookingRepository::find_by_id(&pool, booking_id)
+        .await
+        .unwrap()
+        .expect("booking");
+    let claimed = payments::create_bank_transfer_claim(&pool, &booking)
+        .await
+        .expect("guest bank-transfer claim");
+    assert_eq!(claimed.status, "pending");
+    assert_eq!(
+        claimed.booking_status.as_deref(),
+        Some("pending_confirmation")
+    );
+
+    let (status, payment_status) = fetch_booking_status(&pool, booking_id).await;
+    assert_eq!(status, "pending_confirmation");
+    assert_eq!(payment_status, "unpaid", "a claim is not collected money");
+    assert_eq!(
+        fetch_payment_status(&pool, claimed.payment_id).await,
+        "pending"
+    );
+    assert!(
+        audit_log_exists(&pool, "payment_pending_approval", claimed.payment_id).await,
+        "the claim is pending approval, not a created/collected payment"
+    );
+    assert!(
+        !audit_log_exists(&pool, "payment_created", claimed.payment_id).await,
+        "guest submit must not write the green payment_created audit action"
+    );
+    assert_eq!(
+        email_delivery_count(&pool, &format!("payment-confirmed:{}", claimed.payment_id)).await,
+        0,
+        "the payment-confirmed email waits for approval"
+    );
+
+    let note: Option<String> = sqlx::query_scalar(
+        "SELECT title FROM staff_notifications WHERE kind = 'bank_transfer_pending' AND subject = $1",
+    )
+    .bind(&booking_number)
+    .fetch_optional(&pool)
+    .await
+    .unwrap();
+    assert_eq!(note.as_deref(), Some("Payment pending approval"));
+
+    let audience: String = sqlx::query_scalar(
+        "SELECT audience_permission FROM staff_notifications WHERE kind = 'bank_transfer_pending' AND subject = $1",
+    )
+    .bind(&booking_number)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(audience, "payments:read");
+
+    let visible =
+        system_repository::list_notifications(&pool, actor_id, &["payments:read".to_string()], 20)
+            .await
+            .unwrap();
+    assert!(
+        visible
+            .iter()
+            .any(|n| n.subject.as_deref() == Some(booking_number.as_str()))
+    );
+    let via_manage = system_repository::list_notifications(
+        &pool,
+        actor_id,
+        &["payments:manage".to_string()],
+        20,
+    )
+    .await
+    .unwrap();
+    assert!(
+        via_manage
+            .iter()
+            .any(|n| n.subject.as_deref() == Some(booking_number.as_str())),
+        "payments:manage implies payments:read for the bell"
+    );
+    let hidden = system_repository::list_notifications(
+        &pool,
+        actor_id,
+        &["housekeeping:read".to_string()],
+        20,
+    )
+    .await
+    .unwrap();
+    assert!(
+        !hidden
+            .iter()
+            .any(|n| n.subject.as_deref() == Some(booking_number.as_str()))
+    );
+
+    // A completed desk payment on the same booking must keep the collected-money title.
+    insert_completed_payment(&pool, booking_id, "booking", d("180.00"), actor_id).await;
+    let timeline =
+        get_booking_timeline_handler(State(pool.clone()), Extension(actor_id), Path(booking_id))
+            .await
+            .expect("timeline")
+            .0;
+    let titles: Vec<&str> = timeline.iter().map(|e| e.title.as_str()).collect();
+    assert!(
+        titles.contains(&"Payment pending approval"),
+        "guest claim title: {titles:?}"
+    );
+    assert!(
+        titles.contains(&"Payment recorded"),
+        "staff completed payment title: {titles:?}"
+    );
+
+    sqlx::query("DELETE FROM staff_notifications WHERE subject = $1")
+        .bind(&booking_number)
+        .execute(&pool)
+        .await
+        .ok();
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+}
+
 /// (2) `approve_payment`: only transitions a `pending` payment to
 /// `completed`, confirms the booking, and recomputes `payment_status`. A
 /// second approval attempt on the now-`completed` payment must be refused.
@@ -2819,6 +2995,11 @@ async fn approve_payment_only_transitions_from_pending() {
     assert_eq!(status, "confirmed");
     assert_eq!(payment_status, "paid");
     assert!(audit_log_exists(&pool, "payment_approved", payment_id).await);
+    assert_eq!(
+        email_delivery_count(&pool, &format!("payment-confirmed:{payment_id}")).await,
+        1,
+        "approving a claim is what sends the payment-confirmed email"
+    );
     assert_eq!(
         latest_booking_history(&pool, booking_id).await,
         Some((Some("pending_payment".to_string()), "confirmed".to_string())),

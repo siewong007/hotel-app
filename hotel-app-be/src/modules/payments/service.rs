@@ -1393,7 +1393,7 @@ async fn create_bank_transfer_claim_inner(
         &mut tx,
         AuditEvent {
             user_id: None,
-            action: "payment_created",
+            action: "payment_pending_approval",
             resource_type: "payment",
             resource_id: Some(payment_id),
             details: Some(serde_json::json!({
@@ -1406,6 +1406,11 @@ async fn create_bank_transfer_claim_inner(
         },
     )
     .await?;
+
+    // Reception already holds payments:read. The bell lists by audience
+    // permission, so this reaches the front desk without a new grant and
+    // without emailing the guest. Approval still sends the confirmation mail.
+    notify_bank_transfer_claim_tx(&mut tx, &booking.booking_number).await?;
 
     if let Some(capability_id) = capability_id {
         let spent = crate::modules::payment_retry::repository::PaymentRetryRepository::consume_tx(
@@ -1430,6 +1435,27 @@ async fn create_bank_transfer_claim_inner(
         status: "pending".to_string(),
         booking_status: Some("pending_confirmation".to_string()),
     })
+}
+
+/// Staff-bell row for a guest bank-transfer claim. Addressed to
+/// `payments:read`, which reception already holds. `:manage` holders see it
+/// too, via the notification audience rule.
+async fn notify_bank_transfer_claim_tx(
+    tx: &mut crate::core::db::DbTransaction<'_>,
+    booking_number: &str,
+) -> Result<(), ApiError> {
+    sqlx::query(
+        "INSERT INTO staff_notifications (audience_permission, kind, subject, title, body)
+         VALUES ('payments:read', 'bank_transfer_pending', $1, 'Payment pending approval', $2)",
+    )
+    .bind(booking_number)
+    .bind(format!(
+        "A guest submitted a bank transfer for booking {booking_number}. It is waiting for approval."
+    ))
+    .execute(&mut **tx)
+    .await
+    .map_err(ApiError::from)?;
+    Ok(())
 }
 
 /// Create a PayPal order for a booking and return the order id + our internal
