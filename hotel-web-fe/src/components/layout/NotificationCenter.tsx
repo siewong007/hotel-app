@@ -75,9 +75,10 @@ export const NotificationCenter: React.FC = () => {
   );
   const serverUnread = canReadFeed ? feed.data?.unread ?? null : null;
 
-  // Persisted staff alerts (job failures today) are addressed to permission
-  // holders — gated on settings:manage, matching the producer's audience.
-  const canSeeStaffAlerts = hasPermission('settings:manage');
+  // Persisted staff alerts are addressed to permission holders. Job failures
+  // use settings:manage; a guest bank-transfer claim uses payments:read,
+  // which reception already holds (and payments:manage implies).
+  const canSeeStaffAlerts = hasPermission('settings:manage') || hasPermission('payments:read');
   const staffAlerts = useStaffNotifications(canSeeStaffAlerts, open);
   const markAllStaffRead = useMarkAllStaffNotificationsRead();
   const staffUnread = canSeeStaffAlerts ? staffAlerts.data?.unread ?? 0 : 0;
@@ -195,8 +196,10 @@ export const NotificationCenter: React.FC = () => {
                     '&:last-of-type': { borderBottom: 'none' },
                   }}
                 >
-                  <Box sx={{ color: 'var(--hotel-danger)', display: 'flex', mt: '2px' }}>
-                    <ErrorOutlineIcon fontSize="small" />
+                  <Box sx={{ color: item.kind === 'bank_transfer_pending' ? 'var(--hotel-warning)' : 'var(--hotel-danger)', display: 'flex', mt: '2px' }}>
+                    {item.kind === 'bank_transfer_pending'
+                      ? <WarningAmberIcon fontSize="small" />
+                      : <ErrorOutlineIcon fontSize="small" />}
                   </Box>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography
@@ -206,12 +209,27 @@ export const NotificationCenter: React.FC = () => {
                         fontWeight: item.read_at ? 400 : 600,
                       }}
                     >
-                      {item.title}
+                      {item.kind === 'bank_transfer_pending'
+                        ? t('center.bankTransferPendingTitle')
+                        : item.title}
                     </Typography>
-                    {item.body && (
+                    {(item.kind === 'bank_transfer_pending' || item.body) && (
                       <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.25 }}>
-                        {item.body}
+                        {item.kind === 'bank_transfer_pending'
+                          ? t('center.bankTransferPendingBody', { booking: item.subject ?? '' })
+                          : item.body}
                       </Typography>
+                    )}
+                    {item.kind === 'bank_transfer_pending' && (
+                      <Button
+                        size="small"
+                        component={Link}
+                        to="/payment-approvals"
+                        onClick={handleClose}
+                        sx={{ textTransform: 'none', fontSize: '0.75rem', px: 0, minWidth: 0 }}
+                      >
+                        {t('center.reviewPayment')}
+                      </Button>
                     )}
                     <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 0.25 }}>
                       {formatRelativeMs(Date.parse(item.created_at), t)}

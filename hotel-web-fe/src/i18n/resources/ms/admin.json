@@ -450,6 +450,7 @@
       "booking_checkin": "Tetamu Daftar Masuk",
       "booking_checkout": "Tetamu Daftar Keluar",
       "payment_created": "Bayaran Dicipta",
+      "payment_pending_approval": "Bayaran menunggu kelulusan",
       "payment_recorded": "Bayaran Direkod",
       "payment_voided": "Bayaran Dibatalkan",
       "payment_refunded": "Bayaran Dipulangkan",

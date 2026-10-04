@@ -314,6 +314,7 @@
     "event": {
       "update": "更新",
       "payment": "支付",
+      "paymentPendingApproval": "付款待批准",
       "checkIn": "入住",
       "void": "作废",
       "checkout": "退房",

@@ -3,7 +3,7 @@ import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  hasPermission: true,
+  hasPermission: true as boolean | ((permission: string) => boolean),
   serverUnread: 3,
   staffUnread: 0,
   staffItems: [] as Array<Record<string, unknown>>,
@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../auth/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 1 },
-    hasPermission: () => mocks.hasPermission,
+    hasPermission: (permission: string) =>
+      typeof mocks.hasPermission === 'function' ? mocks.hasPermission(permission) : mocks.hasPermission,
   }),
 }));
 
@@ -162,5 +163,33 @@ describe('NotificationCenter', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'System' }));
     expect(screen.getByText('Background job failed: night_audit')).toBeTruthy();
     expect(screen.getByText('db timeout')).toBeTruthy();
+  });
+
+  it('shows a guest bank-transfer claim to reception without communications access', () => {
+    mocks.hasPermission = (permission: string) => permission === 'payments:read';
+    mocks.serverUnread = 0;
+    mocks.staffUnread = 1;
+    mocks.staffItems = [
+      {
+        id: 9,
+        kind: 'bank_transfer_pending',
+        subject: 'BK-200',
+        title: 'Payment pending approval',
+        body: 'raw english body',
+        created_at: new Date().toISOString(),
+        read_at: null,
+      },
+    ];
+
+    render(<NotificationCenter />);
+
+    expect(screen.getByLabelText('Notifications (1 unread)')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Notifications/ }));
+    fireEvent.click(screen.getByRole('tab', { name: 'System' }));
+    expect(screen.getByText('Payment pending approval')).toBeTruthy();
+    expect(screen.getByText('A guest submitted a bank transfer for BK-200. It is waiting for approval.')).toBeTruthy();
+    expect(screen.queryByText('raw english body')).toBeNull();
+    const review = screen.getByRole('link', { name: 'Review payment' });
+    expect(review.getAttribute('href')).toBe('/payment-approvals');
   });
 });

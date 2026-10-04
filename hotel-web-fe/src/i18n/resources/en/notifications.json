@@ -18,6 +18,9 @@
     "clearAll": "Clear all",
     "viewAllAria": "View all notifications",
     "noSystemAlerts": "No system alerts",
+    "bankTransferPendingTitle": "Payment pending approval",
+    "bankTransferPendingBody": "A guest submitted a bank transfer for {{booking}}. It is waiting for approval.",
+    "reviewPayment": "Review payment",
     "allCaughtUp": "You're all caught up",
     "dismiss": "Dismiss notification",
     "unreadAria": "Notifications ({{count}} unread)"

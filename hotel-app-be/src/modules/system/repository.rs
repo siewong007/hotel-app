@@ -91,8 +91,9 @@ pub async fn email_queue_health(pool: &DbPool) -> Result<EmailQueueHealth, ApiEr
 
 /// Notifications addressed to any of `permissions` (the caller's effective
 /// permission names), newest first, with the caller's read state joined in.
-/// `staff_notifications` shares its install with `job_runs`, so callers gate
-/// on [`table_present`] the same way.
+/// A `<resource>:manage` grant also matches audiences on that resource, the
+/// same implication as `has_permission`. `staff_notifications` shares its
+/// install with `job_runs`, so callers gate on [`table_present`] the same way.
 pub async fn list_notifications(
     pool: &DbPool,
     user_id: i64,
@@ -105,6 +106,7 @@ pub async fn list_notifications(
          LEFT JOIN staff_notification_reads r
            ON r.notification_id = n.id AND r.user_id = $1
          WHERE n.audience_permission = ANY($2)
+            OR (split_part(n.audience_permission, ':', 1) || ':manage') = ANY($2)
          ORDER BY n.created_at DESC
          LIMIT $3",
     )
@@ -128,7 +130,11 @@ pub async fn mark_notification_read(
     sqlx::query(
         "INSERT INTO staff_notification_reads (notification_id, user_id)
          SELECT n.id, $2 FROM staff_notifications n
-         WHERE n.id = $1 AND n.audience_permission = ANY($3)
+         WHERE n.id = $1
+           AND (
+             n.audience_permission = ANY($3)
+             OR (split_part(n.audience_permission, ':', 1) || ':manage') = ANY($3)
+           )
          ON CONFLICT DO NOTHING",
     )
     .bind(notification_id)
@@ -150,6 +156,7 @@ pub async fn mark_all_notifications_read(
         "INSERT INTO staff_notification_reads (notification_id, user_id)
          SELECT n.id, $1 FROM staff_notifications n
          WHERE n.audience_permission = ANY($2)
+            OR (split_part(n.audience_permission, ':', 1) || ':manage') = ANY($2)
          ON CONFLICT DO NOTHING",
     )
     .bind(user_id)

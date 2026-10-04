@@ -315,6 +315,7 @@
     "event": {
       "update": "Update",
       "payment": "Payment",
+      "paymentPendingApproval": "Payment pending approval",
       "checkIn": "Check-in",
       "void": "Void",
       "checkout": "Checkout",

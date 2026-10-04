@@ -18,6 +18,9 @@
     "clearAll": "Kosongkan semua",
     "viewAllAria": "Lihat semua pemberitahuan",
     "noSystemAlerts": "Tiada makluman sistem",
+    "bankTransferPendingTitle": "Bayaran menunggu kelulusan",
+    "bankTransferPendingBody": "Seorang tetamu menghantar pindahan bank untuk {{booking}}. Ia menunggu kelulusan.",
+    "reviewPayment": "Semak bayaran",
     "allCaughtUp": "Semua sudah dibaca",
     "dismiss": "Ketepikan pemberitahuan",
     "unreadAria": "Pemberitahuan ({{count}} belum dibaca)"
