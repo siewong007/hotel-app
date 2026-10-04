@@ -35,6 +35,8 @@
     "timesTitle": "入住与退房时间",
     "checkInTime": "入住时间",
     "checkInTimeHint": "客人可办理入住的标准时间",
+    "newReservationVisibleTime": "新预订显示时间",
+    "newReservationVisibleTimeHint": "今天的新预订出现在“新预订”条上的酒店当地时间。当天在该时间之后创建的预订会立即显示。时间线、房格和预订列表始终显示全部预订。",
     "checkOutTime": "退房时间",
     "checkOutTimeHint": "客人须退房的标准时间",
     "nightShiftTime": "夜班 / 夜审时间",

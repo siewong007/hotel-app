@@ -53,6 +53,7 @@ import { Room, BookingUpdateRequest, CheckInRequest } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { Link } from '../../../router';
+import { NewReservationsStrip } from './NewReservationsStrip';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { getBookingChannelInfo } from '../../bookings/utils/bookingChannel';
 import RoomEventDialog from '../../rooms/components/RoomEventDialog';
@@ -142,6 +143,7 @@ const ReceptionistDashboard: React.FC = () => {
     departures: [],
   });
   const [loading, setLoading] = useState(true);
+  const [newReservationsRefresh, setNewReservationsRefresh] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<RoomStatus | null>(null);
@@ -614,7 +616,7 @@ const ReceptionistDashboard: React.FC = () => {
             {t('dashboard:frontDesk.subtitle')}
           </Typography>
         </Box>
-        <IconButton onClick={loadDashboardData} color="primary" size="large" aria-label={t('dashboard:frontDesk.ariaRefresh')}>
+        <IconButton onClick={() => { setNewReservationsRefresh((key) => key + 1); void loadDashboardData(); }} color="primary" size="large" aria-label={t('dashboard:frontDesk.ariaRefresh')}>
           <RefreshIcon />
         </IconButton>
       </Box>
@@ -845,6 +847,7 @@ const ReceptionistDashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+      <NewReservationsStrip refreshKey={newReservationsRefresh} />
       {/* Room Status Grid */}
       <Card>
         <CardContent>
@@ -1128,6 +1131,7 @@ const ReceptionistDashboard: React.FC = () => {
           onSuccess={() => {
             setStatusDialogOpen(false);
             // Reload dashboard data after successful status change
+            setNewReservationsRefresh((key) => key + 1);
             loadDashboardData();
           }}
         />

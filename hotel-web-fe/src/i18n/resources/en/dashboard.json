@@ -35,6 +35,13 @@
       "viewAllDepartures_one": "View all {{count}} departure",
       "viewAllDepartures_other": "View all {{count}} departures"
     },
+    "newReservations": {
+      "title": "New reservations",
+      "hint": "Reservations checking in today show here from {{time}} (hotel time). A booking made today after that time shows immediately. The timeline, room grid and booking list are not filtered.",
+      "empty": "No new reservations to show yet.",
+      "loadFailed": "Could not load new reservations",
+      "stay": "{{checkIn}} to {{checkOut}}"
+    },
     "legend": {
       "cleaningAuto": "Cleaning (Auto)"
     },

@@ -89,6 +89,22 @@ export const currentStayWindow = (): { check_in_from: string; check_in_to: strin
   };
 };
 
+
+export interface NewReservationRow {
+  id: number;
+  booking_number?: string | null;
+  guest_name: string;
+  room_number: string;
+  check_in_date: string;
+  check_out_date: string;
+  status: string;
+}
+
+export interface NewReservationsResponse {
+  visible_from: string;
+  reservations: NewReservationRow[];
+}
+
 export class BookingsService {
   static async getAllBookings(filters?: BookingListFilters): Promise<BookingWithDetails[]> {
     try {
@@ -603,6 +619,16 @@ export class BookingsService {
   }> {
     try {
       return await api.delete(`guests/${guestId}/credits/${roomTypeId}`).json();
+    } catch (error) {
+      throw toApiError(error, t('generic', undefined, 'errors'));
+    }
+  }
+
+
+  /** Today's new reservations that have reached the hotel's appearance time. */
+  static async getNewReservations(): Promise<NewReservationsResponse> {
+    try {
+      return await api.get('bookings/new-reservations').json<NewReservationsResponse>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
     }
