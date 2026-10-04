@@ -933,6 +933,39 @@ pub async fn get_guest_conversation(
     })
 }
 
+/// Staff bell for guest support. Addressed to `support:read`, which the
+/// support desk already holds. `support:manage` sees it too, via the same
+/// audience rule that lets `payments:manage` see a `payments:read` bell.
+/// No guest email, and no new permission.
+///
+/// `subject` is stable for the event. A request that inserts the same bell
+/// twice (the opening writes a conversation and its first message; a retry
+/// can race the insert) keeps a single row.
+async fn notify_guest_support_tx(
+    tx: &mut crate::core::db::DbTransaction<'_>,
+    kind: &str,
+    subject: &str,
+    title: &str,
+    body: &str,
+) -> Result<(), ApiError> {
+    sqlx::query(
+        "INSERT INTO staff_notifications (audience_permission, kind, subject, title, body)
+         SELECT 'support:read', $1, $2, $3, $4
+         WHERE NOT EXISTS (
+             SELECT 1 FROM staff_notifications
+             WHERE kind = $1 AND subject = $2
+         )",
+    )
+    .bind(kind)
+    .bind(subject)
+    .bind(title)
+    .bind(body)
+    .execute(&mut **tx)
+    .await
+    .map_err(ApiError::from)?;
+    Ok(())
+}
+
 pub async fn create_guest_conversation(
     pool: &DbPool,
     hub: &SupportHub,
@@ -1022,6 +1055,17 @@ pub async fn create_guest_conversation(
             to_status: Some("waiting_for_staff"),
             details: Some(json!({"category": category})),
         },
+    )
+    .await?;
+    // The first guest message is part of this request. One bell for the new
+    // conversation; send_guest_message raises the next one. Staff replies do
+    // not come through here.
+    notify_guest_support_tx(
+        &mut transaction,
+        "guest_support_conversation",
+        &number,
+        "Guest support request",
+        &format!("A guest opened support conversation {number}."),
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
@@ -1143,6 +1187,19 @@ pub async fn open_cancellation_request(
         },
     )
     .await?;
+    // This path does not call create_guest_conversation, so the desk bell is
+    // written here. A repeat request returns the open conversation above and
+    // does not insert a second row. The opening message is the same request.
+    notify_guest_support_tx(
+        &mut transaction,
+        "guest_support_conversation",
+        &number,
+        "Cancellation request",
+        &format!(
+            "A guest asked to cancel booking {booking_number}. Support conversation {number}."
+        ),
+    )
+    .await?;
     transaction.commit().await.map_err(ApiError::from)?;
     hub.publish(SupportEvent::conversation_changed(
         guest_id,
@@ -1241,7 +1298,7 @@ pub async fn send_guest_message(
             "This conversation changed. Refresh it before sending another message".to_string(),
         ));
     }
-    SupportRepository::insert_message(
+    let message_id = SupportRepository::insert_message(
         &mut *transaction,
         conversation_id,
         "guest",
@@ -1262,6 +1319,19 @@ pub async fn send_guest_message(
             to_status: Some(&mutation.status),
             details: None,
         },
+    )
+    .await?;
+    let conversation_number = current.summary.conversation_number.as_str();
+    let message_subject = match request.client_message_id.as_deref() {
+        Some(client_message_id) => format!("{conversation_number}:{client_message_id}"),
+        None => format!("{conversation_number}:message:{message_id}"),
+    };
+    notify_guest_support_tx(
+        &mut transaction,
+        "guest_support_message",
+        &message_subject,
+        "New guest support message",
+        &format!("A guest sent a message in support conversation {conversation_number}."),
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
