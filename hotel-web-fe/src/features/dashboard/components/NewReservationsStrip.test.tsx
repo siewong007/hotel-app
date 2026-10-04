@@ -22,7 +22,7 @@ describe('NewReservationsStrip', () => {
 
   it('lists only what the new-reservations endpoint returns', async () => {
     getNewReservations.mockResolvedValue({
-      visible_from: '14:00',
+      visible_from: '07:00',
       reservations: [
         {
           id: 9,
@@ -38,12 +38,12 @@ describe('NewReservationsStrip', () => {
     render(<NewReservationsStrip />);
 
     expect(await screen.findByText(/Aisha Rahman/)).toBeTruthy();
-    expect(screen.getByText(/14:00/)).toBeTruthy();
+    expect(screen.getByText(/07:00/)).toBeTruthy();
     expect(screen.getByRole('link').getAttribute('href')).toBe('/bookings/9');
   });
 
   it('says when nothing has appeared yet', async () => {
-    getNewReservations.mockResolvedValue({ visible_from: '14:00', reservations: [] });
+    getNewReservations.mockResolvedValue({ visible_from: '07:00', reservations: [] });
 
     render(<NewReservationsStrip />);
 

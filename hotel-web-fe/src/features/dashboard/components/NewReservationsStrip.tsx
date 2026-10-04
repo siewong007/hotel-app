@@ -16,7 +16,7 @@ import { formatHotelDate } from '../../../utils/date';
 export const NewReservationsStrip: React.FC<{ refreshKey?: number }> = ({ refreshKey = 0 }) => {
   const { t } = useTranslation('dashboard');
   const [rows, setRows] = useState<NewReservationRow[]>([]);
-  const [visibleFrom, setVisibleFrom] = useState('14:00');
+  const [visibleFrom, setVisibleFrom] = useState('07:00');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export const NewReservationsStrip: React.FC<{ refreshKey?: number }> = ({ refres
       .then((response) => {
         if (cancelled) return;
         setRows(response.reservations);
-        setVisibleFrom(response.visible_from || '14:00');
+        setVisibleFrom(response.visible_from || '07:00');
         setError('');
       })
       .catch(() => {
