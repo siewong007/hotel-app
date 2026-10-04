@@ -73,6 +73,7 @@ required_payload=(
   database/patches/0010_online_inventory_manage_permission.sql
   database/patches/0011_default_locale.sql
   database/patches/0012_new_reservation_visible_time.sql
+  database/patches/0013_staff_notifications.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -356,6 +357,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/0010_online_inventory_manage_permission.sql" "$APP_DIR/database/patches/0010_online_inventory_manage_permission.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0011_default_locale.sql" "$APP_DIR/database/patches/0011_default_locale.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0012_new_reservation_visible_time.sql" "$APP_DIR/database/patches/0012_new_reservation_visible_time.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0013_staff_notifications.sql" "$APP_DIR/database/patches/0013_staff_notifications.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.
