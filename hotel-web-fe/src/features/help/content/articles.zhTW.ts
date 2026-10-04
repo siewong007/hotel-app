@@ -44,7 +44,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
     featured: true,
     relatedSlugs: ['sign-in-and-security', 'cant-find-a-booking'],
     blocks: [
-      { type: 'paragraph', text: '門戶由兩個區域承載。側邊欄是酒店名稱、“新預訂”按鈕和模組導航，分為“總覽”、“前檯作業”、“賓客”、“營收與行銷”、“財務”、“分析洞察”、“行政管理”和“工具”八組。頂欄是搜尋、通知鈴鐺、語言、帳戶選單和“登出”圖示。' },
+      { type: 'paragraph', text: '門戶由兩個區域承載。側邊欄是酒店名稱、“新增預訂”按鈕和模組導航，分為“總覽”、“前檯作業”、“賓客”、“營收與行銷”、“財務”、“分析洞察”、“行政管理”和“工具”八組。頂欄是搜尋、通知鈴鐺、語言、帳戶選單和“登出”圖示。' },
       {
         type: 'list',
         items: [
@@ -56,9 +56,9 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
         ],
       },
       { type: 'heading', text: '用 ⌘K 找到任何東西' },
-      { type: 'paragraph', text: '按 ⌘K（Windows 上為 Ctrl+K）或點選搜尋欄——手機上為搜尋圖示——開啟命令面板。它可以搜尋預訂、賓客、帳條、客房、頁面——以及說明文章。方向鍵瀏覽結果，回車開啟所選，Esc 關閉。輸入 / 可執行“新預訂”等快捷操作。' },
+      { type: 'paragraph', text: '按 ⌘K（Windows 上為 Ctrl+K）或點選搜尋欄——手機上為搜尋圖示——開啟命令面板。它可以搜尋預訂、賓客、帳條、客房、頁面——以及說明文章。方向鍵瀏覽結果，回車開啟所選，Esc 關閉。輸入 / 可執行“新增預訂”等快捷操作。' },
       { type: 'heading', text: '語言與主題' },
-      { type: 'paragraph', text: '地球圖示可在 English、Bahasa Melayu、简体中文和繁體中文之間即時切換——無需重新整理；在手機上它位於“更多”面板底部。酒店設定 → 外觀只有淺色和深色。已儲存的 Night 會以深色開啟，選擇按這台工作站記住。' },
+      { type: 'paragraph', text: '地球圖示可在 English、Bahasa Melayu、简体中文和繁體中文之間即時切換——無需重新整理；在手機上它位於“更多”面板底部。飯店設定 → 外觀只有淺色和深色。已儲存的夜間模式會以深色開啟，選擇按這台工作站記住。' },
       { type: 'callout', tone: 'tip', body: '命令面板會記住您最近去過的六個目的地，重複跳轉只需按兩下鍵盤。' },
     ],
   },
@@ -130,7 +130,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
       {
         type: 'steps',
         steps: [
-          { title: '開啟「新預訂」', body: '使用側邊欄頂部的「新預訂」按鈕，或「預訂」頁面上的「新預訂」按鈕。在手機上它也在快捷操作面板中。' },
+          { title: '開啟「新增預訂」', body: '使用側邊欄頂部的「新增預訂」按鈕，或「預訂」頁面上的「新增預訂」按鈕。在手機上它也在快捷操作面板中。' },
           { title: '選擇住宿日期和模式', body: '選擇入住和退房日期。預訂模式選擇器會按預訂型別調整流程。' },
           { title: '選擇房間', body: '先選房型，再選具體房間。系統只提供整個期間都空閒的房間。' },
           { title: '填寫客人資料', body: '搜尋現有客人或錄入新客人——姓名、聯絡方式和國籍欄位會影響稅費和身份核驗。' },
@@ -138,7 +138,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
         ],
       },
       { type: 'callout', tone: 'tip', body: '客人國籍中的“本地/外籍”決定旅遊稅是否適用——它在客人區域選擇，而不是在支付時。' },
-      { type: 'callout', tone: 'important', title: '未付款的線上保留', body: '停留在 pending_payment 狀態的預訂屬於保留房。它們會在“酒店設定”中配置的時長（未付款保留釋放小時數）後自動釋放，也可以提前手動釋放。' },
+      { type: 'callout', tone: 'important', title: '未付款的線上保留', body: '停留在 pending_payment 狀態的預訂屬於保留房。它們會在“飯店設定”中配置的時長（未付款保留釋放小時數）後自動釋放，也可以提前手動釋放。' },
     ],
   },
   {
@@ -187,7 +187,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
           { title: '確認', body: '預訂狀態變為 checked_in，房間在“房間”和“時間線”上顯示為已入住。' },
         ],
       },
-      { type: 'callout', tone: 'info', title: '提前入住', body: '早於配置的入住時間（酒店設定 → 入住時間，預設 15:00）到達會彈出提前入住提示，而不是硬性阻止。' },
+      { type: 'callout', tone: 'info', title: '提前入住', body: '早於配置的入住時間（飯店設定 → 入住時間，預設 15:00）到達會彈出提前入住提示，而不是硬性阻止。' },
       { type: 'callout', tone: 'warning', body: '在到達日期之前不會出現“入住”按鈕——這是有意設計。如果客人提前一天到達，請先修改預訂日期。' },
     ],
   },
@@ -236,7 +236,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
         ],
       },
       { type: 'heading', text: '未付款保留會自動釋放' },
-      { type: 'paragraph', text: '後臺任務會在“酒店設定”配置的時長（未付款保留釋放小時數——預設 24，0 為停用）後自動釋放未付款保留。手動釋放用於更快騰出房間。' },
+      { type: 'paragraph', text: '後臺任務會在“飯店設定”配置的時長（未付款保留釋放小時數——預設 24，0 為停用）後自動釋放未付款保留。手動釋放用於更快騰出房間。' },
       { type: 'callout', tone: 'important', title: '已收款？', body: '一旦存在任何付款，釋放就被有意停用——後端同樣強制此規則。請作廢預訂並向客人退款。' },
       { type: 'callout', tone: 'tip', body: '這些狀態變化都會寫入預訂時間線和審計日誌——您始終可以檢視誰在何時做了什麼。' },
     ],
@@ -709,8 +709,8 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
           { title: '確認夜審', body: '執行會以您的帳戶和時間戳記錄；審計日誌會同步反映。' },
         ],
       },
-      { type: 'callout', tone: 'important', title: '鎖定是真實生效的', body: '夜審之後，當天的預訂會抵抗進一步編輯——請在當天真正結束時執行，或使用“酒店設定”中的自動執行選項。' },
-      { type: 'callout', tone: 'tip', body: '營業日期遵循“酒店設定”中的酒店時區——夜審關閉的是那一天，而不是 UTC 零點。' },
+      { type: 'callout', tone: 'important', title: '鎖定是真實生效的', body: '夜審之後，當天的預訂會抵抗進一步編輯——請在當天真正結束時執行，或使用“飯店設定”中的自動執行選項。' },
+      { type: 'callout', tone: 'tip', body: '營業日期遵循“飯店設定”中的酒店時區——夜審關閉的是那一天，而不是 UTC 零點。' },
     ],
   },
   {
@@ -913,7 +913,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
   // ------------------------------------------------------------- 設定與資料
   {
     slug: 'hotel-settings',
-    title: '配置酒店設定',
+    title: '配置飯店設定',
     summary: '物業資料、入住/退房時間、時區、稅費、押金、報表字型和功能開關——其他介面繼承的預設值。',
     category: 'settings-data',
     keywords: ['設定', '酒店名稱', '時區', '入住時間', '稅', '押金', '旅遊稅', '服務稅', '配置'],
@@ -922,7 +922,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
     lastReviewed: '2026-10-04',
     relatedSlugs: ['run-night-audit', 'room-types-and-rooms', 'notifications-guest-support'],
     blocks: [
-      { type: 'paragraph', text: '“酒店設定”儲存其他介面繼承的物業級預設值：名稱與聯絡方式、入住/退房時間、時區、押金金額、服務稅和旅遊稅率、付款期限、報表排版以及功能開關。' },
+      { type: 'paragraph', text: '“飯店設定”儲存其他介面繼承的物業級預設值：名稱與聯絡方式、入住/退房時間、時區、押金金額、服務稅和旅遊稅率、付款期限、報表排版以及功能開關。' },
       {
         type: 'list',
         items: [
@@ -1048,7 +1048,7 @@ export const ARTICLES_ZH_TW: HelpArticle[] = [
         items: [
           '重新整理頁面——長時間空閒後會話令牌會自動續期；介面過時只需重新載入。',
           '會話狀態不一致時登出並重新登入——「登出」圖示在頂欄最右端（手機寬度的螢幕不顯示）。',
-          '日期看起來不對 → 營業日期遵循“酒店設定”中的酒店時區，而不是您筆記本的時鐘。',
+          '日期看起來不對 → 營業日期遵循“飯店設定”中的酒店時區，而不是您筆記本的時鐘。',
           '設定改了但沒生效 → 有些變更只對新活動生效，不追溯。',
           '另一臺裝置上看起來不同 → 主題和語言按工作站記憶，許可權按帳戶生效。',
         ],
