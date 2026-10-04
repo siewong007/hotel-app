@@ -187,6 +187,8 @@ jobs:
             "$bundle_dir/database/patches/0012_new_reservation_visible_time.sql"
           cp hotel-app-be/database/postgres/patches/0013_staff_notifications.sql \
             "$bundle_dir/database/patches/0013_staff_notifications.sql"
+          cp hotel-app-be/database/postgres/patches/0014_new_reservation_visible_time_default.sql \
+            "$bundle_dir/database/patches/0014_new_reservation_visible_time_default.sql"
 
           (
             cd "$bundle_dir"
@@ -215,6 +217,7 @@ jobs:
               database/patches/0011_default_locale.sql \
               database/patches/0012_new_reservation_visible_time.sql \
               database/patches/0013_staff_notifications.sql \
+              database/patches/0014_new_reservation_visible_time_default.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

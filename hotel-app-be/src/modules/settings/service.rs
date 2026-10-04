@@ -51,8 +51,8 @@ pub async fn list_public_settings(pool: &DbPool) -> Result<Vec<PublicSetting>, A
 pub const NEW_RESERVATION_VISIBLE_TIME_KEY: &str = "new_reservation_visible_time";
 
 /// No existing setting is a morning "show new bookings" clock (check-in is
-/// 15:00, check-out 11:00, night audit 23:00), so the product default is 14:00.
-pub const DEFAULT_NEW_RESERVATION_VISIBLE_TIME: &str = "14:00";
+/// 15:00, check-out 11:00, night audit 23:00), so the product default is 07:00.
+pub const DEFAULT_NEW_RESERVATION_VISIBLE_TIME: &str = "07:00";
 
 /// Accept `HH:MM` only, 00:00 through 23:59.
 pub fn normalize_clock_time(raw: &str) -> Result<String, ApiError> {

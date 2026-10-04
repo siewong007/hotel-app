@@ -145,7 +145,7 @@ const SettingsPage: React.FC = () => {
 
   // Operational Settings
   const [checkInTime, setCheckInTime] = useState("15:00");
-  const [newReservationVisibleTime, setNewReservationVisibleTime] = useState("14:00");
+  const [newReservationVisibleTime, setNewReservationVisibleTime] = useState("07:00");
   const [checkOutTime, setCheckOutTime] = useState("11:00");
   const [nightShiftTime, setNightShiftTime] = useState("23:00");
   const [nightAuditAutoEnabled, setNightAuditAutoEnabled] = useState(false);
@@ -239,7 +239,7 @@ const SettingsPage: React.FC = () => {
     setHotelEmail(settings.hotel_email);
     setHotelBusinessNumber(settings.hotel_business_number);
     setCheckInTime(settings.check_in_time);
-    setNewReservationVisibleTime(settings.new_reservation_visible_time || "14:00");
+    setNewReservationVisibleTime(settings.new_reservation_visible_time || "07:00");
     setCheckOutTime(settings.check_out_time);
     setNightShiftTime(settings.night_shift_time || "23:00");
     setNightAuditAutoEnabled(Boolean(settings.night_audit_auto_enabled));

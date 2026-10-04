@@ -89,7 +89,7 @@ fn appearance_time(raw: &str) -> NaiveTime {
     let normalized = normalize_clock_time(raw)
         .unwrap_or_else(|_| DEFAULT_NEW_RESERVATION_VISIBLE_TIME.to_string());
     NaiveTime::parse_from_str(&normalized, "%H:%M")
-        .unwrap_or_else(|_| NaiveTime::from_hms_opt(14, 0, 0).expect("14:00"))
+        .unwrap_or_else(|_| NaiveTime::from_hms_opt(7, 0, 0).expect("07:00"))
 }
 
 pub async fn list_new_reservations(pool: &DbPool) -> Result<NewReservationsResponse, ApiError> {
@@ -171,7 +171,7 @@ mod tests {
     }
 
     fn gate() -> NaiveTime {
-        NaiveTime::from_hms_opt(14, 0, 0).unwrap()
+        NaiveTime::from_hms_opt(7, 0, 0).unwrap()
     }
 
     #[test]
@@ -179,8 +179,8 @@ mod tests {
         assert!(!visible_on_new_reservations_strip(
             "confirmed",
             day(),
-            at(9, 0),
-            at(10, 30),
+            at(5, 0),
+            at(6, 30),
             gate(),
         ));
     }
@@ -191,7 +191,7 @@ mod tests {
             "confirmed",
             day(),
             at(9, 0),
-            at(14, 0),
+            at(7, 0),
             gate(),
         ));
     }
@@ -234,15 +234,15 @@ mod tests {
         assert!(!visible_on_new_reservations_strip(
             "pending_payment",
             day(),
-            at(8, 0),
-            at(11, 0),
+            at(5, 0),
+            at(6, 0),
             gate(),
         ));
         assert!(visible_on_new_reservations_strip(
             "pending_confirmation",
             day(),
             at(8, 0),
-            at(14, 1),
+            at(7, 1),
             gate(),
         ));
     }

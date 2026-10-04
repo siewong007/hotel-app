@@ -79,7 +79,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   hotel_email: 'info@grandhotel.com',
   hotel_business_number: 'SA2012724',
   check_in_time: '15:00',
-  new_reservation_visible_time: '14:00',
+  new_reservation_visible_time: '07:00',
   check_out_time: '11:00',
   night_shift_time: '23:00', // Default night audit time at 11 PM
   night_audit_auto_enabled: false, // Opt-in; manual night audit by default
@@ -203,8 +203,8 @@ const normalizeBoolean = (raw: unknown, fallback: boolean): boolean => {
 };
 
 
-/** HH:MM, 00:00-23:59. Anything else falls back to 14:00. */
-export const DEFAULT_NEW_RESERVATION_VISIBLE_TIME = '14:00';
+/** HH:MM, 00:00-23:59. Anything else falls back to 07:00. */
+export const DEFAULT_NEW_RESERVATION_VISIBLE_TIME = '07:00';
 
 export const normalizeClockTime = (raw: unknown): string => {
   if (typeof raw !== 'string') return DEFAULT_NEW_RESERVATION_VISIBLE_TIME;
