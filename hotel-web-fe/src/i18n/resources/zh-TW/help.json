@@ -14,7 +14,7 @@
     "escalationTitle": "取得更多協助",
     "escalationBody": "存取權變更、權限問題及疑似系統缺陷，請聯絡您的管理員或主管。請提供頁面名稱、確切的錯誤訊息，以及稽核紀錄條目（如有）。",
     "escalationLink": "閱讀呈報指南",
-    "supportInboxNote": "是要協助賓客嗎？他們的訊息在「營運」下的客服收件匣。",
+    "supportInboxNote": "是要協助賓客嗎？他們的訊息在「賓客」下的「客服支援」收件匣。",
     "articlesCount": "{{count}} 篇文章"
   },
   "search": {

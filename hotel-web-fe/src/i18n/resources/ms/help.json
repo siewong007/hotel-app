@@ -4,7 +4,7 @@
     "title": "Bagaimana kami boleh membantu?",
     "subtitle": "Panduan dan jawapan untuk mengendalikan hartanah — cari, atau semak mengikut topik.",
     "searchPlaceholder": "Cari artikel bantuan…",
-    "searchHint": "Cuba “refund”, “check in” atau “tambah kakitangan”",
+    "searchHint": "Cuba “bayaran balik”, “daftar masuk” atau “tambah kakitangan”",
     "quickTasksTitle": "Tugas pantas",
     "quickTasksSubtitle": "Terus ke panduan untuk kerja paling biasa.",
     "categoriesTitle": "Semak mengikut topik",
@@ -12,9 +12,9 @@
     "troubleshootingTitle": "Ada yang tidak berfungsi?",
     "troubleshootingSubtitle": "Penyelesaian langkah demi langkah untuk masalah paling biasa.",
     "escalationTitle": "Dapatkan lebih bantuan",
-    "escalationBody": "Perubahan akses, soalan kebenaran dan kecacatan yang disyaki melalui pentadbir atau manager anda. Bawa nama halaman, teks ralat tepat dan entri Audit Log jika ada.",
+    "escalationBody": "Perubahan akses, soalan kebenaran dan kecacatan yang disyaki melalui pentadbir atau pengurus anda. Bawa nama halaman, teks ralat tepat dan entri Log Audit jika ada.",
     "escalationLink": "Baca panduan eskalasi",
-    "supportInboxNote": "Membantu tetamu pula? Mesej mereka berada dalam peti masuk Support di bawah Operations.",
+    "supportInboxNote": "Membantu tetamu pula? Mesej mereka berada dalam peti masuk Sokongan di bawah Tetamu.",
     "articlesCount": "{{count}} artikel"
   },
   "search": {
@@ -26,19 +26,19 @@
     "resultsLabel": "Artikel",
     "suggestionsLabel": "Cuba",
     "suggestions": {
-      "refund": "refund",
-      "checkIn": "check in",
+      "refund": "bayaran balik",
+      "checkIn": "daftar masuk",
       "staff": "tambah kakitangan"
     }
   },
   "categories": {
     "getting-started": { "name": "Mula menggunakan", "desc": "Log masuk, keselamatan dan mengenali portal" },
-    "bookings": { "name": "Tempahan & kaunter hadapan", "desc": "Cipta, cari, check in, check out dan void tempahan" },
+    "bookings": { "name": "Tempahan & kaunter hadapan", "desc": "Cipta, cari, daftar masuk, daftar keluar dan batal tempahan" },
     "guests": { "name": "Tetamu", "desc": "Profil tetamu, sejarah dan akaun portal" },
-    "rooms-inventory": { "name": "Bilik & inventori", "desc": "Jenis bilik, papan Rooms, inventori dalam talian dan housekeeping" },
+    "rooms-inventory": { "name": "Bilik & inventori", "desc": "Jenis bilik, papan Bilik, inventori dalam talian dan pengemasan" },
     "payments-ledgers": { "name": "Bayaran & lejar", "desc": "Deposit, bayaran balik, kelulusan, lejar syarikat dan kredit" },
     "rates-promotions": { "name": "Kadar & promosi", "desc": "Tawaran, baucar dan program kesetiaan" },
-    "reports-night-audit": { "name": "Laporan & night audit", "desc": "Laporan harian, metrik, tutup hari dan audit log" },
+    "reports-night-audit": { "name": "Laporan & audit malam", "desc": "Laporan harian, metrik, tutup hari dan log audit" },
     "communications": { "name": "Komunikasi", "desc": "Kempen e-mel, notifikasi dan peti masuk sokongan tetamu" },
     "staff-access": { "name": "Kakitangan & akses", "desc": "Akaun pengguna, peranan, kebenaran dan semakan eKYC" },
     "settings-data": { "name": "Tetapan & data", "desc": "Tetapan hotel, lalai dan pemindahan data" },
@@ -46,11 +46,11 @@
   },
   "quickTasks": {
     "create-a-booking": { "label": "Cipta tempahan", "desc": "Walk-in, telefon dan tetamu berulang" },
-    "check-in-a-guest": { "label": "Daftar masuk tetamu", "desc": "Peraturan hari ketibaan dan check-in awal" },
+    "check-in-a-guest": { "label": "Daftar masuk tetamu", "desc": "Peraturan hari ketibaan dan daftar masuk awal" },
     "find-a-reservation": { "label": "Cari tempahan", "desc": "Mengikut kod, nama tetamu atau bilik" },
-    "refund-a-deposit": { "label": "Bayar balik deposit", "desc": "Bayaran balik checkout dan peraturan revert" },
+    "refund-a-deposit": { "label": "Bayar balik deposit", "desc": "Bayaran balik daftar keluar dan peraturan balikkan" },
     "add-manage-staff": { "label": "Tambah ahli kakitangan", "desc": "Akaun dan lantikan peranan" },
-    "run-night-audit": { "label": "Jalankan night audit", "desc": "Menutup hari perniagaan dengan selamat" }
+    "run-night-audit": { "label": "Jalankan audit malam", "desc": "Menutup hari perniagaan dengan selamat" }
   },
   "troubleshootingLinks": {
     "cant-find-a-booking": "Saya tidak jumpa tempahan",

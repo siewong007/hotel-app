@@ -14,7 +14,7 @@
     "escalationTitle": "Get more help",
     "escalationBody": "Access changes, permission questions and suspected defects go through your administrator or manager. Bring the page name, the exact error text and the Audit Log entry if you have one.",
     "escalationLink": "Read the escalation guide",
-    "supportInboxNote": "Helping a guest instead? Their messages live in the Support inbox under Operations.",
+    "supportInboxNote": "Helping a guest instead? Their messages live in the Support inbox under Guests.",
     "articlesCount": "{{count}} articles"
   },
   "search": {

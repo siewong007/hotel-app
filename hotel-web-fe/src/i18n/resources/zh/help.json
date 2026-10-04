@@ -14,7 +14,7 @@
     "escalationTitle": "获取更多帮助",
     "escalationBody": "权限变更、访问问题和疑似系统缺陷，请联系您的管理员或经理处理。请提供页面名称、准确的错误文本，以及审计日志条目（如有）。",
     "escalationLink": "阅读上报指南",
-    "supportInboxNote": "是要协助客人？客人的消息在“运营”下的客服收件箱中。",
+    "supportInboxNote": "是要协助客人？他们的消息在“客人”下的“客服”收件箱中。",
     "articlesCount": "{{count}} 篇文章"
   },
   "search": {
