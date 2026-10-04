@@ -76,6 +76,9 @@ interface HotelInfoCardProps {
   onHotelBusinessNumberChange: React.Dispatch<React.SetStateAction<string>>;
   checkInTime: string;
   onCheckInTimeChange: React.Dispatch<React.SetStateAction<string>>;
+  newReservationVisibleTime: string;
+  onNewReservationVisibleTimeChange: React.Dispatch<React.SetStateAction<string>>;
+  canEditNewReservationTime: boolean;
   checkOutTime: string;
   onCheckOutTimeChange: React.Dispatch<React.SetStateAction<string>>;
   nightShiftTime: string;
@@ -109,6 +112,9 @@ export function HotelInfoCard({
   onHotelBusinessNumberChange,
   checkInTime,
   onCheckInTimeChange,
+  newReservationVisibleTime,
+  onNewReservationVisibleTimeChange,
+  canEditNewReservationTime,
   checkOutTime,
   onCheckOutTimeChange,
   nightShiftTime,
@@ -215,6 +221,20 @@ export function HotelInfoCard({
                 value={checkInTime}
                 onChange={(e) => onCheckInTimeChange(e.target.value)}
                 helperText={t('settings.checkInTimeHint')}
+                slotProps={{
+                  inputLabel: { shrink: true }
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                label={t('settings.newReservationVisibleTime')}
+                type="time"
+                value={newReservationVisibleTime}
+                onChange={(e) => onNewReservationVisibleTimeChange(e.target.value)}
+                helperText={t('settings.newReservationVisibleTimeHint')}
+                disabled={!canEditNewReservationTime}
                 slotProps={{
                   inputLabel: { shrink: true }
                 }}

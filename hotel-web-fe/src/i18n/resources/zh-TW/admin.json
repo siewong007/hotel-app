@@ -35,6 +35,8 @@
     "timesTitle": "入住與退房時間",
     "checkInTime": "入住時間",
     "checkInTimeHint": "賓客可辦理入住的標準時間",
+    "newReservationVisibleTime": "新訂房顯示時間",
+    "newReservationVisibleTimeHint": "今日新訂房出現在「新訂房」列上的飯店當地時間。當天在這個時間之後建立的訂房會立刻顯示。時間軸、房格和訂房清單一律顯示全部訂房。",
     "checkOutTime": "退房時間",
     "checkOutTimeHint": "賓客須辦理退房的標準時間",
     "nightShiftTime": "夜班／夜間稽核時間",

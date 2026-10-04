@@ -35,6 +35,13 @@
       "viewAllDepartures_one": "Lihat semua {{count}} perlepasan",
       "viewAllDepartures_other": "Lihat semua {{count}} perlepasan"
     },
+    "newReservations": {
+      "title": "Tempahan baharu",
+      "hint": "Tempahan yang daftar masuk hari ini muncul di sini mulai {{time}} (masa hotel). Tempahan dibuat hari ini selepas masa itu muncul serta-merta. Garis masa, grid bilik dan senarai tempahan tidak ditapis.",
+      "empty": "Belum ada tempahan baharu untuk ditunjukkan.",
+      "loadFailed": "Tidak dapat memuatkan tempahan baharu",
+      "stay": "{{checkIn}} hingga {{checkOut}}"
+    },
     "legend": {
       "cleaningAuto": "Pembersihan (Auto)"
     },

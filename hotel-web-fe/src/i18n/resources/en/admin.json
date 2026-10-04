@@ -35,6 +35,8 @@
     "timesTitle": "Check-in & Check-out Times",
     "checkInTime": "Check-in Time",
     "checkInTimeHint": "Standard time when guests can check in",
+    "newReservationVisibleTime": "New reservations appear at",
+    "newReservationVisibleTimeHint": "Hotel time when today's new reservations show on the New reservations strip. A booking made today after this time shows straight away. The timeline, room grid and booking list always show every reservation.",
     "checkOutTime": "Check-out Time",
     "checkOutTimeHint": "Standard time when guests must check out",
     "nightShiftTime": "Night Shift / Night Audit Time",

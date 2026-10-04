@@ -21,6 +21,7 @@ import { AGEING_TONE, Delta } from './charts';
 import { ReportsFormatProvider, useReportsFormat } from './formatContext';
 import { useReportsModel, Kpi, KpiKind, Unit, CompareMode, RangeDays, ReportsQuery } from './reportsModel';
 import { OutstandingDrawer, OccupancyDrawer, RevenueDrawer, FlowDrawer, DrawerState } from './drawers';
+import { NewReservationsStrip } from '../NewReservationsStrip';
 import { useTranslation, type UseTranslationResult } from '../../../../i18n';
 import { formatStatusLabel } from '../../../../utils/formatters';
 import './reports.css';
@@ -304,6 +305,8 @@ const ReportsAnalyticsInner: React.FC = () => {
               <LiveTile icon="door" n={model.live.unassigned} label={t('reports.live.unassigned')} tone="neutral" />
             </div>
           </section>
+
+          <NewReservationsStrip />
 
           {/* KPI CARDS */}
           <div className="kpis">

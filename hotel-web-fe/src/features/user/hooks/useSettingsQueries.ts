@@ -9,6 +9,7 @@ import {
   getHotelSettings,
   normalizeReportFontFamily,
   normalizeReportFontSize,
+  normalizeClockTime,
   normalizeStringList,
   saveHotelSettings,
   type HotelSettings,
@@ -21,6 +22,7 @@ const DB_SETTING_KEYS = [
   'hotel_email',
   'hotel_business_number',
   'check_in_time',
+  'new_reservation_visible_time',
   'check_out_time',
   'night_shift_time',
   'night_audit_auto_enabled',
@@ -123,6 +125,9 @@ const mergeSystemSettings = (
     hotel_business_number:
       values.get('hotel_business_number')?.trim() || localSettings.hotel_business_number,
     check_in_time: values.get('check_in_time') ?? localSettings.check_in_time,
+    new_reservation_visible_time: normalizeClockTime(
+      values.get('new_reservation_visible_time') ?? localSettings.new_reservation_visible_time
+    ),
     check_out_time: values.get('check_out_time') ?? localSettings.check_out_time,
     night_shift_time: values.get('night_shift_time') ?? localSettings.night_shift_time,
     night_audit_auto_enabled: parseBooleanSetting(

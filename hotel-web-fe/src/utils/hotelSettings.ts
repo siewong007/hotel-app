@@ -31,6 +31,8 @@ export interface HotelSettings {
   hotel_email: string;
   hotel_business_number: string; // Registered business (SSM) number shown in the booking terms
   check_in_time: string;
+  /** Hotel-local HH:MM when today's new reservations appear on the strip. */
+  new_reservation_visible_time: string;
   check_out_time: string;
   night_shift_time: string; // Time when night audit runs and data gets posted for reporting
   night_audit_auto_enabled: boolean; // When true, backend auto-runs the night audit at night_shift_time
@@ -77,6 +79,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   hotel_email: 'info@grandhotel.com',
   hotel_business_number: 'SA2012724',
   check_in_time: '15:00',
+  new_reservation_visible_time: '14:00',
   check_out_time: '11:00',
   night_shift_time: '23:00', // Default night audit time at 11 PM
   night_audit_auto_enabled: false, // Opt-in; manual night audit by default
@@ -199,6 +202,20 @@ const normalizeBoolean = (raw: unknown, fallback: boolean): boolean => {
   return ['true', '1', 'yes', 'on'].includes(raw.trim().toLowerCase());
 };
 
+
+/** HH:MM, 00:00-23:59. Anything else falls back to 14:00. */
+export const DEFAULT_NEW_RESERVATION_VISIBLE_TIME = '14:00';
+
+export const normalizeClockTime = (raw: unknown): string => {
+  if (typeof raw !== 'string') return DEFAULT_NEW_RESERVATION_VISIBLE_TIME;
+  const match = /^(\d{2}):(\d{2})$/.exec(raw.trim());
+  if (!match) return DEFAULT_NEW_RESERVATION_VISIBLE_TIME;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return DEFAULT_NEW_RESERVATION_VISIBLE_TIME;
+  return `${match[1]}:${match[2]}`;
+};
+
 // Get hotel settings from localStorage or return defaults
 export const getHotelSettings = (): HotelSettings => {
   try {
@@ -245,6 +262,7 @@ export const getHotelSettings = (): HotelSettings => {
           Math.max(reportBaseFontSize - 2, REPORT_FONT_SIZE_MIN)
         ),
         max_login_attempts: Number(merged.max_login_attempts) || DEFAULT_SETTINGS.max_login_attempts,
+        new_reservation_visible_time: normalizeClockTime(merged.new_reservation_visible_time),
         default_locale: matchLocale(merged.default_locale) ?? DEFAULT_SETTINGS.default_locale,
         support_enabled: normalizeBoolean(merged.support_enabled, DEFAULT_SETTINGS.support_enabled),
         support_categories: normalizeStringList(

@@ -51,7 +51,8 @@ async fn update_setting(
     headers: HeaderMap,
     Json(input): Json<models::SystemSettingUpdate>,
 ) -> Result<Json<models::SystemSetting>, ApiError> {
-    let user_id = require_permission_helper(&pool, &headers, "settings:update").await?;
+    let user_id = require_auth(&headers).await?;
+    super::service::authorize_setting_editor(&pool, user_id, path.as_str()).await?;
     handlers::update_system_setting_handler(State(pool), path, user_id, Json(input)).await
 }
 
@@ -60,7 +61,8 @@ async fn reset_setting(
     path: Path<String>,
     headers: HeaderMap,
 ) -> Result<Json<models::SystemSetting>, ApiError> {
-    let user_id = require_permission_helper(&pool, &headers, "settings:update").await?;
+    let user_id = require_auth(&headers).await?;
+    super::service::authorize_setting_editor(&pool, user_id, path.as_str()).await?;
     handlers::reset_system_setting_handler(State(pool), path, user_id).await
 }
 

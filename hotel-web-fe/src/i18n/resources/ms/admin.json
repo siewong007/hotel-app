@@ -35,6 +35,8 @@
     "timesTitle": "Masa Daftar Masuk & Daftar Keluar",
     "checkInTime": "Masa Daftar Masuk",
     "checkInTimeHint": "Masa standard tetamu boleh daftar masuk",
+    "newReservationVisibleTime": "Tempahan baharu muncul pada",
+    "newReservationVisibleTimeHint": "Masa hotel apabila tempahan baharu hari ini muncul pada jalur Tempahan baharu. Tempahan dibuat hari ini selepas masa ini muncul serta-merta. Garis masa, grid bilik dan senarai tempahan sentiasa menunjukkan setiap tempahan.",
     "checkOutTime": "Masa Daftar Keluar",
     "checkOutTimeHint": "Masa standard tetamu mesti daftar keluar",
     "nightShiftTime": "Masa Syif Malam / Audit Malam",
