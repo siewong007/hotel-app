@@ -26,9 +26,12 @@ import { useThemeMode } from "../../../router/ThemeModeContext";
 import { useGlassBlur } from "../../../router/GlassBlurContext";
 import { setCurrentCurrency } from "../../../utils/currency";
 import { useCurrency } from "../../../hooks/useCurrency";
+import { AdminService } from "../../../api/admin.service";
 import {
   HotelSettings,
   BookingChannel,
+  getHotelSettings,
+  saveHotelSettings,
   REPORT_DISPLAY_FONT_SIZE_MAX,
   REPORT_DISPLAY_FONT_SIZE_MIN,
   REPORT_FONT_FAMILY_OPTIONS,
@@ -61,6 +64,7 @@ const SECTION_KEYS = {
     "hotel_email",
     "hotel_business_number",
     "check_in_time",
+    "new_reservation_visible_time",
     "check_out_time",
     "night_shift_time",
     "night_audit_auto_enabled",
@@ -114,11 +118,13 @@ const comparableSettings = (settings: HotelSettings) =>
 
 const SettingsPage: React.FC = () => {
   const { t } = useTranslation('admin');
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasRole } = useAuth();
   const { themeMode, onThemeModeChange } = useThemeMode();
   const { glassBlur, onGlassBlurChange } = useGlassBlur();
   const isAdmin =
     hasPermission("settings:update") || hasPermission("settings:manage");
+  const isManager = hasRole("manager");
+  const canEditNewReservationTime = isAdmin || isManager;
   const { symbol: currencySymbol } = useCurrency();
   const settingsQuery = useHotelSettingsQuery();
   const saveSettingsMutation = useSaveHotelSettingsMutation();
@@ -139,6 +145,7 @@ const SettingsPage: React.FC = () => {
 
   // Operational Settings
   const [checkInTime, setCheckInTime] = useState("15:00");
+  const [newReservationVisibleTime, setNewReservationVisibleTime] = useState("14:00");
   const [checkOutTime, setCheckOutTime] = useState("11:00");
   const [nightShiftTime, setNightShiftTime] = useState("23:00");
   const [nightAuditAutoEnabled, setNightAuditAutoEnabled] = useState(false);
@@ -232,6 +239,7 @@ const SettingsPage: React.FC = () => {
     setHotelEmail(settings.hotel_email);
     setHotelBusinessNumber(settings.hotel_business_number);
     setCheckInTime(settings.check_in_time);
+    setNewReservationVisibleTime(settings.new_reservation_visible_time || "14:00");
     setCheckOutTime(settings.check_out_time);
     setNightShiftTime(settings.night_shift_time || "23:00");
     setNightAuditAutoEnabled(Boolean(settings.night_audit_auto_enabled));
@@ -310,6 +318,7 @@ const SettingsPage: React.FC = () => {
         hotel_email: hotelEmail,
         hotel_business_number: hotelBusinessNumber,
         check_in_time: checkInTime,
+        new_reservation_visible_time: newReservationVisibleTime,
         check_out_time: checkOutTime,
         night_shift_time: nightShiftTime,
         night_audit_auto_enabled: nightAuditAutoEnabled,
@@ -372,7 +381,7 @@ const SettingsPage: React.FC = () => {
     };
   }, [
     hotelName, hotelAddress, hotelPhone, hotelEmail, hotelBusinessNumber,
-    checkInTime, checkOutTime, nightShiftTime, nightAuditAutoEnabled,
+    checkInTime, newReservationVisibleTime, checkOutTime, nightShiftTime, nightAuditAutoEnabled,
     currency, timezone, defaultLocale, depositAmount, serviceTaxRate, tourismTaxRate,
     defaultPaymentTermsDays, unpaidHoldReleaseHours, reportFontSize,
     reportFontFamily, reportHeadingFontSize, reportSectionHeadingFontSize,
@@ -410,6 +419,22 @@ const SettingsPage: React.FC = () => {
     setSuccess("");
 
     try {
+      if (!isAdmin && isManager) {
+        await AdminService.updateSystemSetting(
+          "new_reservation_visible_time",
+          newReservationVisibleTime,
+        );
+        const next = {
+          ...getHotelSettings(),
+          new_reservation_visible_time: newReservationVisibleTime,
+        };
+        saveHotelSettings(next);
+        window.dispatchEvent(new CustomEvent("hotelSettingsChange", { detail: next }));
+        await loadSettings();
+        setSuccess(t("settings.saved"));
+        setTimeout(() => setSuccess(""), 3000);
+        return;
+      }
       const settings = buildSettings();
       const result = await saveSettingsMutation.mutateAsync(settings);
       const savedSettings = result.settings;
@@ -535,6 +560,9 @@ const SettingsPage: React.FC = () => {
             onHotelBusinessNumberChange={setHotelBusinessNumber}
             checkInTime={checkInTime}
             onCheckInTimeChange={setCheckInTime}
+            newReservationVisibleTime={newReservationVisibleTime}
+            onNewReservationVisibleTimeChange={setNewReservationVisibleTime}
+            canEditNewReservationTime={canEditNewReservationTime}
             checkOutTime={checkOutTime}
             onCheckOutTimeChange={setCheckOutTime}
             nightShiftTime={nightShiftTime}

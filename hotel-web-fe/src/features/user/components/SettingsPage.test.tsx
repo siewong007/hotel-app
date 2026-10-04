@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../auth/AuthContext', () => ({
-  useAuth: () => ({ hasPermission: (p: string) => mocks.permissions.has(p) }),
+  useAuth: () => ({ hasPermission: (p: string) => mocks.permissions.has(p), hasRole: () => false }),
 }));
 
 vi.mock('../../../router/ThemeModeContext', () => ({

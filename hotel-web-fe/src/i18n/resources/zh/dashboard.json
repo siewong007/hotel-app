@@ -35,6 +35,13 @@
       "viewAllDepartures_one": "查看全部 {{count}} 个离店",
       "viewAllDepartures_other": "查看全部 {{count}} 个离店"
     },
+    "newReservations": {
+      "title": "新预订",
+      "hint": "今天入住的预订从 {{time}}（酒店时间）起显示在这里。当天在该时间之后创建的预订会立即显示。时间线、房格和预订列表不会被过滤。",
+      "empty": "还没有要显示的新预订。",
+      "loadFailed": "无法加载新预订",
+      "stay": "{{checkIn}} 至 {{checkOut}}"
+    },
     "legend": {
       "cleaningAuto": "清洁中（自动）"
     },

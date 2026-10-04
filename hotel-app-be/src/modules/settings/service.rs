@@ -47,12 +47,79 @@ pub async fn list_public_settings(pool: &DbPool) -> Result<Vec<PublicSetting>, A
     SettingsRepository::find_public(pool).await
 }
 
+/// Hotel-local clock when today's new reservations appear on the strip.
+pub const NEW_RESERVATION_VISIBLE_TIME_KEY: &str = "new_reservation_visible_time";
+
+/// No existing setting is a morning "show new bookings" clock (check-in is
+/// 15:00, check-out 11:00, night audit 23:00), so the product default is 14:00.
+pub const DEFAULT_NEW_RESERVATION_VISIBLE_TIME: &str = "14:00";
+
+/// Accept `HH:MM` only, 00:00 through 23:59.
+pub fn normalize_clock_time(raw: &str) -> Result<String, ApiError> {
+    let trimmed = raw.trim();
+    let mut parts = trimmed.split(':');
+    let hour_text = parts.next().unwrap_or("");
+    let minute_text = parts.next().unwrap_or("");
+    let extra = parts.next();
+    let bad = || ApiError::BadRequest("Time must be HH:MM in 24-hour form".to_string());
+    if extra.is_some()
+        || hour_text.len() != 2
+        || minute_text.len() != 2
+        || !hour_text.chars().all(|c| c.is_ascii_digit())
+        || !minute_text.chars().all(|c| c.is_ascii_digit())
+    {
+        return Err(bad());
+    }
+    let hour: u32 = hour_text.parse().map_err(|_| bad())?;
+    let minute: u32 = minute_text.parse().map_err(|_| bad())?;
+    if hour > 23 || minute > 59 {
+        return Err(bad());
+    }
+    Ok(format!("{hour:02}:{minute:02}"))
+}
+
+/// `settings:update` covers every ordinary setting (admins). The new-reservation
+/// clock is also editable by a manager, and by nobody else.
+pub async fn authorize_setting_editor(
+    pool: &DbPool,
+    user_id: i64,
+    key: &str,
+) -> Result<(), ApiError> {
+    let can_update =
+        crate::core::auth::AuthService::check_permission(pool, user_id, "settings:update")
+            .await
+            .map_err(|err| ApiError::Database(err.to_string()))?;
+    if can_update {
+        return Ok(());
+    }
+    if key == NEW_RESERVATION_VISIBLE_TIME_KEY {
+        let roles = crate::core::auth::AuthService::get_user_roles(pool, user_id)
+            .await
+            .map_err(|err| ApiError::Database(err.to_string()))?;
+        if roles
+            .iter()
+            .any(|role| matches!(role.as_str(), "admin" | "manager" | "super_admin"))
+        {
+            return Ok(());
+        }
+        return Err(ApiError::Forbidden(
+            "Only an admin or a manager can change when new reservations appear".to_string(),
+        ));
+    }
+    Err(ApiError::Forbidden(
+        "Missing permission: settings:update".to_string(),
+    ))
+}
+
 pub async fn update_system_setting(
     pool: &DbPool,
     key: &str,
-    input: SystemSettingUpdate,
+    mut input: SystemSettingUpdate,
     user_id: i64,
 ) -> Result<SystemSetting, ApiError> {
+    if key == NEW_RESERVATION_VISIBLE_TIME_KEY {
+        input.value = normalize_clock_time(&input.value)?;
+    }
     // Read before the write: `system_settings` keeps only `updated_by`/`updated_at`,
     // so the row itself cannot say what a value was replaced with. Two admins
     // racing the same key could make the recorded `old_value` one revision stale,
@@ -192,4 +259,22 @@ pub async fn get_setting_value(pool: &DbPool, key: &str) -> Result<String, ApiEr
         .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
 
     Ok(value)
+}
+
+#[cfg(test)]
+mod clock_time_tests {
+    use super::normalize_clock_time;
+
+    #[test]
+    fn accepts_a_24_hour_clock() {
+        assert_eq!(normalize_clock_time("14:00").unwrap(), "14:00");
+        assert_eq!(normalize_clock_time(" 09:05 ").unwrap(), "09:05");
+    }
+
+    #[test]
+    fn rejects_anything_that_is_not_hh_mm() {
+        for raw in ["2pm", "14", "14:00:00", "24:00", "14:60", "9:00"] {
+            assert!(normalize_clock_time(raw).is_err(), "{raw}");
+        }
+    }
 }

@@ -33,6 +33,13 @@
       "viewAllArrivals_other": "查看全部 {{count}} 筆抵達",
       "viewAllDepartures_other": "查看全部 {{count}} 筆退房"
     },
+    "newReservations": {
+      "title": "新訂房",
+      "hint": "今天入住的訂房從 {{time}}（飯店時間）起顯示在這裡。當天在這個時間之後建立的訂房會立刻顯示。時間軸、房格和訂房清單不會被篩掉。",
+      "empty": "還沒有要顯示的新訂房。",
+      "loadFailed": "無法載入新訂房",
+      "stay": "{{checkIn}} 至 {{checkOut}}"
+    },
     "legend": {
       "cleaningAuto": "清潔中（自動）"
     },

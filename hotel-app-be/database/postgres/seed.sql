@@ -215,6 +215,7 @@ VALUES
     ('hotel_phone'),
     ('market_codes'),
     ('max_login_attempts'),
+    ('new_reservation_visible_time'),
     ('night_shift_time'),
     ('passkey_relying_party_name'),
     ('payment_methods'),
@@ -614,6 +615,8 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
     'maintenance:read', 'maintenance:write', 'maintenance:manage', 'navigation_housekeeping:read',
     'support:read', 'support:write', 'support:assign', 'support:escalate', 'support:manage',
     'navigation_support:read',
+    -- Hotel Settings, so a manager can change when new reservations appear.
+    'settings:read',
     -- audit:read powers the Payment Approvals conflict banner managers own.
     'audit:read',
     'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
@@ -935,6 +938,7 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('support_resolution_high_minutes', '120', 'number', 'support', 'Resolution SLA for high priority support conversations in minutes', false),
 ('support_resolution_urgent_minutes', '30', 'number', 'support', 'Resolution SLA for urgent priority support conversations in minutes', false),
 ('support_reopen_window_days', '7', 'number', 'support', 'Days a resolved guest support conversation can be reopened by its guest', false),
+('new_reservation_visible_time', '14:00', 'string', 'general', 'Hotel-local time when a new reservation for today first appears on the New reservations strip. Same-day bookings created after this time appear immediately. Does not hide reservations from the timeline, room grid, guest stays or the booking list.', false),
 ('guest_titles', '["Mr","Mrs","Ms","Miss","Dr","Prof","Rev"]', 'json', 'guests', 'Guest title options', true)
 -- NOTE: `value` is intentionally NOT updated here. This seed re-runs on every
 -- desktop restart (see hotel-desktop/src-tauri/src/postgres.rs::run_database_setup),

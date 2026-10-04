@@ -4,6 +4,7 @@ mod checkin_advisory;
 mod complimentary;
 mod credits;
 mod lifecycle;
+mod new_reservations;
 mod summary;
 
 pub mod auto_checkin;
@@ -22,4 +23,5 @@ pub use checkin_advisory::*;
 pub use complimentary::*;
 pub use credits::*;
 pub use lifecycle::*;
+pub use new_reservations::*;
 pub use summary::*;

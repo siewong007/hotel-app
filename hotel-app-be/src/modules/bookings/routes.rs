@@ -24,6 +24,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/bookings/checkin-advisory", get(guest_checkin_advisory))
         .route("/bookings/stats", get(get_booking_stats))
         .route("/bookings/summary", get(get_booking_board_summary))
+        .route("/bookings/new-reservations", get(get_new_reservations))
         .route("/bookings/complimentary", get(get_complimentary_bookings))
         .route("/bookings/book-with-credits", post(book_with_credits))
         .route("/bookings/void", post(void_booking))
@@ -81,6 +82,14 @@ async fn create_booking(
 ) -> Result<Json<models::Booking>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:create").await?;
     handlers::create_booking_handler(State(pool), Extension(user_id), Json(input)).await
+}
+
+async fn get_new_reservations(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<super::NewReservationsResponse>, ApiError> {
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    handlers::get_new_reservations_handler(State(pool)).await
 }
 
 async fn get_booking_stats(

@@ -339,6 +339,9 @@
     "/api/bookings/complimentary": {
       "GET": {}
     },
+    "/api/bookings/new-reservations": {
+      "GET": {}
+    },
     "/api/bookings/stats": {
       "GET": {}
     },

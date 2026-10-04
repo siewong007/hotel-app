@@ -266,3 +266,9 @@ pub async fn reactivate_booking_handler(
         booking_service::reactivate_booking(&pool, user_id, booking_id).await?,
     ))
 }
+
+pub async fn get_new_reservations_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<super::NewReservationsResponse>, ApiError> {
+    super::list_new_reservations(&pool).await.map(Json)
+}
