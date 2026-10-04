@@ -183,8 +183,8 @@ jobs:
             "$bundle_dir/database/patches/0010_online_inventory_manage_permission.sql"
           cp hotel-app-be/database/postgres/patches/0011_default_locale.sql \
             "$bundle_dir/database/patches/0011_default_locale.sql"
-          cp hotel-app-be/database/postgres/patches/0012_staff_notifications.sql \
-            "$bundle_dir/database/patches/0012_staff_notifications.sql"
+          cp hotel-app-be/database/postgres/patches/0013_staff_notifications.sql \
+            "$bundle_dir/database/patches/0013_staff_notifications.sql"
 
           (
             cd "$bundle_dir"
@@ -211,7 +211,7 @@ jobs:
               database/patches/0009_booking_smoking_preference.sql \
               database/patches/0010_online_inventory_manage_permission.sql \
               database/patches/0011_default_locale.sql \
-              database/patches/0012_staff_notifications.sql \
+              database/patches/0013_staff_notifications.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .
