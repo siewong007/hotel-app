@@ -1,5 +1,6 @@
 //! Seed engine: one connection, one transaction — guard, prelude, wipe,
-//! selected sections, sequence resync, counts, commit.
+//! generated-id sequence restart, selected sections, sequence resync, counts,
+//! commit.
 //!
 //! The prelude mirrors what staging.sql established for psql: an advisory lock
 //! so concurrent seed/patch runs serialize, the audit-mutation escape hatch
@@ -132,6 +133,14 @@ pub async fn run(
 
     sqlx::raw_sql(WIPE_SQL).execute(&mut *tx).await?;
 
+    // Rows a section creates through a function or trigger take their id from
+    // the identity sequence. Restart it at the band floor before any section
+    // runs, or those rows land below the band on a fresh database (missing
+    // from the counts) and at the previous run's max+1 on every rerun.
+    sqlx::raw_sql(RESTART_GENERATED_IDS_SQL)
+        .execute(&mut *tx)
+        .await?;
+
     for key in module_keys {
         run_section(key, &mut tx).await?;
     }
@@ -159,6 +168,23 @@ pub async fn run(
         counts,
     })
 }
+
+/// Sequences the sections draw ids from without naming them, restarted at the
+/// band floor right after the wipe has emptied the band. Today that is only
+/// housekeeping_tasks: update_room_status() adds a task for each room
+/// rooms_state marks dirty or reserved_dirty, so those rows get the same ids
+/// (800001 up) on every run; the explicit task ids sit above them. ALTER
+/// SEQUENCE ... RESTART rather than setval(): it is transactional, so a failed
+/// run rolls it back instead of leaving the sequence under the rows the
+/// rollback restores.
+const RESTART_GENERATED_IDS_SQL: &str = r#"
+DO $$
+BEGIN
+    EXECUTE format('ALTER SEQUENCE public.housekeeping_tasks_id_seq RESTART WITH %s',
+                   (SELECT GREATEST(MAX(id), 800000) + 1 FROM public.housekeeping_tasks));
+END;
+$$;
+"#;
 
 /// Identity-sequence resync after OVERRIDING SYSTEM VALUE inserts (ported from
 /// staging.sql §90). Sequences live below the band, so max(seq, 800000) is safe.

@@ -113,9 +113,21 @@ Rerun semantics: the binary opens one transaction, takes an advisory lock,
 guards on the recorded V1 revision and the environment (refuses production),
 wipes every staging-owned row (child-first) inside the fixed id band
 **800000-899999** (plus generated-id children and marker-tagged `job_runs`),
-then inserts the selected sections. A rerun therefore yields identical counts
-— it is a reset of the staging dataset, never an append. It never touches
-bootstrap rows or ids outside the band.
+restarts the housekeeping-task id sequence at the band floor, inserts the
+selected sections, then resyncs the band's identity sequences past the
+inserted ids. The restart is what makes a fresh database's first run match
+every rerun: `update_room_status()` gives each room it marks dirty or
+reserved-dirty a housekeeping task whose id comes from that sequence, so those
+rows get the same in-band ids (800001 up) every time. Every run therefore
+yields the same in-band rows, ids included, and the same printed summary — a
+reset of the staging dataset, never an append. CI applies it twice to a fresh
+database and fails on any difference in the summary or in any table's in-band
+ids; a section that starts generating rows in another table needs that
+table's sequence added to `RESTART_GENERATED_IDS_SQL` in `src/bin/seed/engine.rs`.
+Wall-clock values (`created_at` defaults, UUIDv7 columns such as
+`bookings.uuid`) and the ids of out-of-band child rows such as `room_history`
+still change between runs. It never touches bootstrap rows or ids outside the
+band.
 
 Scenarios: `cargo run --bin seed -- --list` shows the named subsets
 (`basic`, `availability`, `frontdesk`, `payments`, …). Apply one or more with

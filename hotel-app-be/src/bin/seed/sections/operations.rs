@@ -1,7 +1,7 @@
 //! Operations board: housekeeping tasks and maintenance tickets. Ported from
-//! staging.sql §60. (room_events live in rooms_state; the dirty/cleaning rooms
-//! there already auto-created two housekeeping rows via update_room_status —
-//! these add the rest of the board.)
+//! staging.sql §60. (room_events live in rooms_state; its dirty and
+//! reserved_dirty rooms already auto-created two housekeeping rows via
+//! update_room_status — these add the rest of the board.)
 
 use crate::engine::Tx;
 

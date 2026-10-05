@@ -19,8 +19,9 @@ pub async fn seed(tx: &mut Tx<'_>) -> Result<(), sqlx::Error> {
 const SQL: &str = r#"
 -- States no booking can produce, applied through update_room_status():
 --   806 maintenance (in progress), 805 out_of_order, 706 dirty (+auto HK task),
---   506 cleaning (+auto in-progress HK task), 302 reserved_dirty (booked for
---   arrival, still needs a clean — no active booking produces this state).
+--   302 reserved_dirty (+auto HK task; booked for arrival, still needs a clean —
+--   no active booking produces this state). 506 cleaning is a plain UPDATE, so
+--   no auto task: its in-progress clean is operations' explicit 806009.
 SELECT public.update_room_status(800324, 'maintenance', 'Scheduled elevator-shaft inspection — seed', 800008,
         (SELECT today FROM staging_ref)::timestamptz - interval '1 day',
         (SELECT today FROM staging_ref)::timestamptz + interval '3 days');
