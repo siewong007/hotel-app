@@ -63,6 +63,8 @@ export interface Copy {
     blurb: string;
     /** In DOM order: the four room shots, then the six gallery figures. */
     items: { alt: string; title: string; caption: string }[];
+    /** Label for the Farley card's Google Maps link. */
+    maps: string;
   };
   amenities: { eyebrow: string; title: string; blurb: string; items: { title: string; body: string }[] };
   stay: {
@@ -71,6 +73,8 @@ export interface Copy {
     body: string;
     cta: string;
     labels: { address: string; call: string; email: string };
+    /** Text of the address block's Google Maps link. */
+    maps: string;
     /** Displayed postal address (may contain <br>). */
     address: string;
   };
@@ -401,6 +405,7 @@ export const en: Copy = {
       { alt: 'Farley Commercial Centre exterior near Salim Inn', title: 'Farley at your doorstep', caption: 'Shops and food close by' },
       { alt: 'Current street-facing facade of Salim Inn and cafe.cafe with cars parked outside', title: 'The Salim Inn frontage', caption: 'Easy to recognise from the road' },
     ],
+    maps: 'Open in Google Maps',
   },
   amenities: {
     eyebrow: 'ESSENTIALS AS STANDARD',
@@ -421,6 +426,7 @@ export const en: Copy = {
     body: `Check in from ${SITE.checkIn.label} and check out by ${SITE.checkOut.label}. Book online or contact Salim Inn directly if you need help choosing a room.`,
     cta: 'Check availability',
     labels: { address: 'Address', call: 'Call', email: 'Email' },
+    maps: 'Open in Google Maps',
     address: 'Lot 21–22, Lorong Salim 17<br>96000 Sibu, Sarawak, Malaysia',
   },
   faq: {
@@ -446,11 +452,23 @@ export const en: Copy = {
       },
       {
         q: 'Where is Salim Inn located?',
-        a: 'Salim Inn is at Lot 21–22, Lorong Salim 17 in Farley Commercial Centre, Sibu. Farley Supermarket is approximately a five-minute walk away.',
+        a: `Salim Inn is at Lot 21–22, Lorong Salim 17 in Farley Commercial Centre, Sibu. Farley Supermarket is approximately a five-minute walk away. <a href="${SITE.mapsUrl}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>.`,
       },
       {
         q: 'Can I speak to someone at any time?',
-        a: `Yes. Reception operates 24 hours. Call <a href="tel:${SITE.phoneE164}">${SITE.phoneDisplay}</a> or email <a href="mailto:${SITE.email}">${SITE.email}</a>.`,
+        a: `Yes. Reception operates 24 hours. Call <a href="tel:${SITE.phoneE164}">${SITE.phoneDisplay}</a> or email <a href="mailto:${SITE.email}">${SITE.email}</a>. Signed-in guests can also write from <a href="/guest-portal?section=support">Support</a> in the guest portal.`,
+      },
+      {
+        q: 'Can I change or cancel a booking?',
+        a: 'Open your booking in the guest portal to review it. A refund may be available when you cancel at least three days before arrival. With less notice, or for a no-show, the first night may be charged. Call reception to change the dates.',
+      },
+      {
+        q: 'What if I arrive late?',
+        a: `Reception is open 24 hours, so you can still check in after ${SITE.checkIn.label}. Call ahead if you will be much later. Late checkout is subject to availability, and a full-day rate may apply after 3:00 pm.`,
+      },
+      {
+        q: 'How do I confirm my identity?',
+        a: 'Use the same identification you booked with. In the guest portal, open <a href="/guest-portal?section=identity">Identity</a> and send the documents the hotel asks for before you arrive.',
       },
     ],
   },

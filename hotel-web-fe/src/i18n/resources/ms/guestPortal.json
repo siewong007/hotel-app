@@ -1044,6 +1044,48 @@
     "support": "Sokongan",
     "title": "Portal Tetamu"
   },
+  "faq": {
+    "title": "Perkara untuk diketahui",
+    "intro": "Jawapan ringkas sebelum anda menulis kepada hotel.",
+    "maps": "Buka dalam Google Maps",
+    "identityLink": "Buka Identiti",
+    "checkIn": {
+      "q": "Bila waktu daftar masuk dan daftar keluar?",
+      "a": "Daftar masuk bermula pada 2:00 pm dan daftar keluar sebelum 12:00 noon. Daftar keluar lewat tertakluk pada ketersediaan bilik dan caj tambahan; kadar sehari penuh mungkin dikenakan selepas 3:00 petang."
+    },
+    "confirmed": {
+      "q": "Bagaimana tempahan saya disahkan?",
+      "a": "Tempahan disahkan selepas bayaran penuh diterima. Kaedah pembayaran yang diterima termasuk kad kredit, PayPal dan pindahan bank."
+    },
+    "cancel": {
+      "q": "Apakah polisi pembatalan?",
+      "a": "Bayaran balik mungkin tersedia apabila notis pembatalan diberikan sekurang-kurangnya tiga hari sebelum ketibaan. Dengan notis lebih pendek, atau ketidakhadiran, malam pertama mungkin dicaj."
+    },
+    "wifi": {
+      "q": "Adakah setiap bilik mempunyai Wi-Fi dan penyaman udara?",
+      "a": "Ya. Wi-Fi percuma tersedia di seluruh Salim Inn, dan bilik tetamu termasuk penyaman udara dan televisyen."
+    },
+    "location": {
+      "q": "Di manakah Salim Inn terletak?",
+      "a": "Salim Inn terletak di Lot 21–22, Lorong Salim 17, Farley Commercial Centre, Sibu. Pasar Raya Farley kira-kira lima minit berjalan kaki."
+    },
+    "contact": {
+      "q": "Bolehkah saya berhubung dengan seseorang pada bila-bila masa?",
+      "a": "Ya. Resepsionis beroperasi 24 jam. Hubungi +60 11-1050 7083 atau e-mel saliminnsibu@gmail.com. Anda juga boleh menulis melalui Sokongan dalam portal ini."
+    },
+    "change": {
+      "q": "Bolehkah saya mengubah atau membatalkan tempahan?",
+      "a": "Buka tempahan anda dalam portal ini untuk menyemaknya. Bayaran balik mungkin tersedia apabila anda membatalkan sekurang-kurangnya tiga hari sebelum ketibaan. Dengan notis lebih pendek, atau ketidakhadiran, malam pertama mungkin dicaj. Hubungi resepsionis untuk menukar tarikh."
+    },
+    "late": {
+      "q": "Bagaimana jika saya tiba lewat?",
+      "a": "Resepsionis dibuka 24 jam, jadi anda masih boleh daftar masuk selepas 2:00 pm. Telefon lebih awal jika anda akan tiba jauh lebih lewat. Daftar keluar lewat tertakluk pada ketersediaan, dan kadar sehari penuh mungkin dikenakan selepas 3:00 petang."
+    },
+    "identity": {
+      "q": "Bagaimana saya mengesahkan identiti?",
+      "a": "Gunakan pengenalan yang sama seperti semasa menempah. Buka Identiti dalam portal ini dan hantar dokumen yang diminta hotel sebelum anda tiba."
+    }
+  },
   "support": {
     "backToConversations": "Kembali ke perbualan",
     "categories": {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { LogoLoader } from '../../../components';
+import { GuestFaq } from './GuestFaq';
 import { formatStatusLabel } from '../../../utils/formatters';
 import AddCommentOutlinedIcon from '@mui/icons-material/AddCommentOutlined';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
@@ -609,6 +610,7 @@ export function PortalSupportTab({ token }: { token: string }) {
       <Alert severity="warning" sx={{ mb: 3 }}>
         {t('support.emergencyNotice')}
       </Alert>
+      <GuestFaq />
       {conversationsQuery.isLoading ? (
         <LogoLoader variant="page" minHeight={280} />
       ) : conversationsQuery.error ? (

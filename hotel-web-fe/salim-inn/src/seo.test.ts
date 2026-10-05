@@ -25,6 +25,8 @@ describe('schema.org Hotel', () => {
       addressCountry: SITE.address.country,
     });
     expect(ld.geo).toMatchObject({ latitude: SITE.geo.lat, longitude: SITE.geo.lon });
+    expect(SITE.mapsUrl).toBe(`https://www.google.com/maps/search/?api=1&query=${SITE.geo.lat},${SITE.geo.lon}`);
+    expect(html).toContain(SITE.mapsUrl.replace(/&/g, '&amp;'));
     expect(ld.checkinTime).toBe(SITE.checkIn.iso);
     expect(ld.checkoutTime).toBe(SITE.checkOut.iso);
     expect(ld.numberOfRooms).toBe(hotel.room_inventory.total_active_rooms);

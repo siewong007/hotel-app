@@ -1053,6 +1053,48 @@
     "support": "Support",
     "title": "Guest Portal"
   },
+  "faq": {
+    "title": "Good to know",
+    "intro": "Quick answers before you write to the hotel.",
+    "maps": "Open in Google Maps",
+    "identityLink": "Open Identity",
+    "checkIn": {
+      "q": "What time are check-in and check-out?",
+      "a": "Check-in begins at 2:00 pm and check-out is by 12:00 noon. Late checkout is subject to room availability and additional charges; a full-day rate may apply after 3:00 pm."
+    },
+    "confirmed": {
+      "q": "How is my booking confirmed?",
+      "a": "Bookings are confirmed after full payment is received. Published payment methods include credit card, PayPal, and bank transfer."
+    },
+    "cancel": {
+      "q": "What is the cancellation policy?",
+      "a": "A refund may be available when cancellation notice is provided at least three days before arrival. With less notice, or for a no-show, the first night may be charged."
+    },
+    "wifi": {
+      "q": "Does every room have Wi-Fi and air-conditioning?",
+      "a": "Yes. Free Wi-Fi is available throughout Salim Inn, and guest rooms include air-conditioning and a television."
+    },
+    "location": {
+      "q": "Where is Salim Inn located?",
+      "a": "Salim Inn is at Lot 21–22, Lorong Salim 17 in Farley Commercial Centre, Sibu. Farley Supermarket is about a five-minute walk away."
+    },
+    "contact": {
+      "q": "Can I speak to someone at any time?",
+      "a": "Yes. Reception operates 24 hours. Call +60 11-1050 7083 or email saliminnsibu@gmail.com. You can also write from Support in this portal."
+    },
+    "change": {
+      "q": "Can I change or cancel a booking?",
+      "a": "Open your booking in this portal to review it. A refund may be available when you cancel at least three days before arrival. With less notice, or for a no-show, the first night may be charged. Call reception to change the dates."
+    },
+    "late": {
+      "q": "What if I arrive late?",
+      "a": "Reception is open 24 hours, so you can still check in after 2:00 pm. Call ahead if you will be much later. Late checkout is subject to availability, and a full-day rate may apply after 3:00 pm."
+    },
+    "identity": {
+      "q": "How do I confirm my identity?",
+      "a": "Use the same identification you booked with. Open Identity in this portal and send the documents the hotel asks for before you arrive."
+    }
+  },
   "support": {
     "backToConversations": "Back to conversations",
     "categories": {

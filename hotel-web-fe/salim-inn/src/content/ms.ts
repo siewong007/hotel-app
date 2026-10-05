@@ -223,6 +223,7 @@ export const ms: Copy = {
       { alt: 'Bahagian luar Farley Commercial Centre berhampiran Salim Inn', title: 'Farley di depan pintu anda', caption: 'Kedai dan makanan berdekatan' },
       { alt: 'Fasad menghadap jalan Salim Inn dan cafe.cafe dengan kereta diparkir di luar', title: 'Wajah hadapan Salim Inn', caption: 'Mudah dikenali dari jalan' },
     ],
+    maps: 'Buka dalam Google Maps',
   },
   amenities: {
     eyebrow: 'KEPERLUAN SEBAGAI STANDARD',
@@ -243,6 +244,7 @@ export const ms: Copy = {
     body: `Daftar masuk dari ${SITE.checkIn.label} dan daftar keluar sebelum ${SITE.checkOut.label}. Tempah dalam talian atau hubungi Salim Inn terus jika anda perlukan bantuan memilih bilik.`,
     cta: 'Semak ketersediaan',
     labels: { address: 'Alamat', call: 'Telefon', email: 'E-mel' },
+    maps: 'Buka dalam Google Maps',
     address: 'Lot 21–22, Lorong Salim 17<br>96000 Sibu, Sarawak, Malaysia',
   },
   faq: {
@@ -268,11 +270,23 @@ export const ms: Copy = {
       },
       {
         q: 'Di manakah Salim Inn terletak?',
-        a: 'Salim Inn terletak di Lot 21–22, Lorong Salim 17, Farley Commercial Centre, Sibu. Pasar Raya Farley kira-kira lima minit berjalan kaki.',
+        a: `Salim Inn terletak di Lot 21–22, Lorong Salim 17, Farley Commercial Centre, Sibu. Pasar Raya Farley kira-kira lima minit berjalan kaki. <a href="${SITE.mapsUrl}" target="_blank" rel="noopener noreferrer">Buka dalam Google Maps</a>.`,
       },
       {
         q: 'Bolehkah saya berhubung dengan seseorang pada bila-bila masa?',
-        a: `Ya. Resepsionis beroperasi 24 jam. Hubungi <a href="tel:${SITE.phoneE164}">${SITE.phoneDisplay}</a> atau e-mel <a href="mailto:${SITE.email}">${SITE.email}</a>.`,
+        a: `Ya. Resepsionis beroperasi 24 jam. Hubungi <a href="tel:${SITE.phoneE164}">${SITE.phoneDisplay}</a> atau e-mel <a href="mailto:${SITE.email}">${SITE.email}</a>. Tetamu yang telah log masuk juga boleh menulis melalui <a href="/guest-portal?section=support">Sokongan</a> dalam portal tetamu.`,
+      },
+      {
+        q: 'Bolehkah saya mengubah atau membatalkan tempahan?',
+        a: 'Buka tempahan anda dalam portal tetamu untuk menyemaknya. Bayaran balik mungkin tersedia apabila anda membatalkan sekurang-kurangnya tiga hari sebelum ketibaan. Dengan notis lebih pendek, atau ketidakhadiran, malam pertama mungkin dicaj. Hubungi resepsionis untuk menukar tarikh.',
+      },
+      {
+        q: 'Bagaimana jika saya tiba lewat?',
+        a: `Resepsionis dibuka 24 jam, jadi anda masih boleh daftar masuk selepas ${SITE.checkIn.label}. Telefon lebih awal jika anda akan tiba jauh lebih lewat. Daftar keluar lewat tertakluk pada ketersediaan, dan kadar sehari penuh mungkin dikenakan selepas 3:00 petang.`,
+      },
+      {
+        q: 'Bagaimana saya mengesahkan identiti?',
+        a: 'Gunakan pengenalan yang sama seperti semasa menempah. Dalam portal tetamu, buka <a href="/guest-portal?section=identity">Identiti</a> dan hantar dokumen yang diminta hotel sebelum anda tiba.',
       },
     ],
   },

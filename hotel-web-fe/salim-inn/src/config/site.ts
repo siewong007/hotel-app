@@ -35,6 +35,9 @@ export const SITE = {
   // Geo point of the entrance (the NW corner lot of the Farley ring). Derived
   // from OSM + Street View, see README "Hotel position".
   geo: { lat: 2.26633, lon: 111.86231 },
+  // Same coordinates as src/features/guestPortal/salimInnPlace.ts. A search
+  // URL with the lat,lon query drops a pin on that entrance.
+  mapsUrl: 'https://www.google.com/maps/search/?api=1&query=2.26633,111.86231',
   phoneDisplay: '+60 11-1050 7083',
   phoneE164: '+601110507083',
   whatsapp: '601110507083',

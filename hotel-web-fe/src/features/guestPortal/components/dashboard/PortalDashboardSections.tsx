@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { GuestFaq } from "../GuestFaq";
 import type { FormEvent } from "react";
 import { HTTPError } from "ky";
 import {
@@ -611,6 +612,7 @@ export function OverviewSection({
           </Stack>
         </Stack>
       </Paper>
+      <GuestFaq />
     </Stack>
   );
 }

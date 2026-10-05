@@ -221,6 +221,7 @@ export const zh: Copy = {
       { alt: 'Salim Inn附近的Farley商业中心外观', title: 'Farley就在门口', caption: '购物餐饮近在咫尺' },
       { alt: 'Salim Inn与cafe.cafe临街外观，门前有车辆停放', title: 'Salim Inn临街门脸', caption: '在路边一眼可辨' },
     ],
+    maps: '在 Google 地图中打开',
   },
   amenities: {
     eyebrow: '标准配备',
@@ -241,6 +242,7 @@ export const zh: Copy = {
     body: '下午2:00起入住，中午12:00前退房。可在线预订，如需帮助选择房型也可直接联系Salim Inn。',
     cta: '查询空房',
     labels: { address: '地址', call: '电话', email: '邮箱' },
+    maps: '在 Google 地图中打开',
     address: 'Lot 21–22, Lorong Salim 17<br>96000 Sibu, Sarawak, Malaysia',
   },
   faq: {
@@ -266,11 +268,23 @@ export const zh: Copy = {
       },
       {
         q: 'Salim Inn在哪里？',
-        a: 'Salim Inn位于诗巫Farley商业中心Lorong Salim 17号Lot 21–22。Farley超市步行约五分钟。',
+        a: `Salim Inn位于诗巫Farley商业中心Lorong Salim 17号Lot 21–22。Farley超市步行约五分钟。<a href="${SITE.mapsUrl}" target="_blank" rel="noopener noreferrer">在 Google 地图中打开</a>。`,
       },
       {
         q: '可以随时联系到人吗？',
-        a: `可以。前台24小时服务。致电<a href="tel:${SITE.phoneE164}">${SITE.phoneDisplay}</a>或发送邮件至<a href="mailto:${SITE.email}">${SITE.email}</a>。`,
+        a: `可以。前台24小时服务。致电<a href="tel:${SITE.phoneE164}">${SITE.phoneDisplay}</a>或发送邮件至<a href="mailto:${SITE.email}">${SITE.email}</a>。已登录的客人也可以在宾客门户的<a href="/guest-portal?section=support">客服</a>留言。`,
+      },
+      {
+        q: '可以更改或取消预订吗？',
+        a: '在宾客门户中打开预订即可查看。抵达前至少三天取消，可能获得退款。不足三天通知或未到店，可能收取首晚房费。如需更改日期，请致电前台。',
+      },
+      {
+        q: '如果晚到怎么办？',
+        a: '前台24小时开放，下午2:00之后仍可入住。如果会晚很多，请提前致电。延迟退房视房态而定，下午3:00后可能按全天房价收费。',
+      },
+      {
+        q: '如何确认身份？',
+        a: '请使用预订时的同一证件。在宾客门户中打开<a href="/guest-portal?section=identity">身份</a>，并在抵达前提交酒店要求的文件。',
       },
     ],
   },
