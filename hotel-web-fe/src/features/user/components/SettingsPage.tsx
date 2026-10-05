@@ -217,8 +217,12 @@ const SettingsPage: React.FC = () => {
   // The booking_channels table is the source of truth; the legacy JSON list
   // only fills in when the viewer lacks channel permissions.
   useEffect(() => {
+    // The request can outlive the page — and in tests, the jsdom environment,
+    // where a late setState throws "window is not defined".
+    let cancelled = false;
     ReportsService.listBookingChannels()
-      .then((channels) =>
+      .then((channels) => {
+        if (cancelled) return;
         setTableBookingChannels(
           channels
             .filter((channel) => channel.is_active)
@@ -226,9 +230,14 @@ const SettingsPage: React.FC = () => {
               name: channel.name,
               abbreviation: channel.abbreviation ?? "",
             })),
-        ),
-      )
-      .catch(() => setTableBookingChannels(null));
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setTableBookingChannels(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
   const bookingChannels: BookingChannel[] = tableBookingChannels ?? legacyBookingChannels;
 

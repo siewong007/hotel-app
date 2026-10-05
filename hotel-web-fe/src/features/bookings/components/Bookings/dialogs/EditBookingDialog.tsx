@@ -81,9 +81,17 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
 
   useEffect(() => {
     if (!isAdmin) return;
+    let cancelled = false;
     ReportsService.listBookingChannels()
-      .then((channels) => setBookingChannels(channels.filter((channel) => channel.is_active)))
-      .catch(() => setBookingChannels([]));
+      .then((channels) => {
+        if (!cancelled) setBookingChannels(channels.filter((channel) => channel.is_active));
+      })
+      .catch(() => {
+        if (!cancelled) setBookingChannels([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isAdmin]);
 
   const selectedEditBookingChannel = useMemo(() => {

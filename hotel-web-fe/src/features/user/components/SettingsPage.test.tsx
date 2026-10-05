@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   resetSettings: vi.fn(),
   confirm: vi.fn(),
   onThemeModeChange: vi.fn(),
+  listBookingChannels: vi.fn(),
 }));
 
 vi.mock('../../../auth/AuthContext', () => ({
@@ -53,6 +54,15 @@ vi.mock('../hooks/useSettingsQueries', () => ({
 // The page asks before resetting a section; tests auto-accept.
 vi.mock('../../../components/common/ConfirmProvider', () => ({
   useConfirm: () => mocks.confirm,
+}));
+
+// The page loads booking channels on mount. Unmocked, that real request fails
+// on its own schedule — after the test, sometimes after jsdom teardown, where
+// its setState surfaced as an unhandled "window is not defined" in CI.
+vi.mock('../../../api/reports.service', () => ({
+  ReportsService: {
+    listBookingChannels: (...args: unknown[]) => mocks.listBookingChannels(...args),
+  },
 }));
 
 import SettingsPage from './SettingsPage';
@@ -116,6 +126,9 @@ describe('SettingsPage', () => {
     mocks.onThemeModeChange.mockReset();
     mocks.resetSettings.mockReset().mockResolvedValue(undefined);
     mocks.confirm.mockReset().mockResolvedValue(true);
+    // Default: the channels table is unreadable for this viewer, so the page
+    // falls back to the legacy settings list.
+    mocks.listBookingChannels.mockReset().mockRejectedValue(new Error('Forbidden'));
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
@@ -128,6 +141,9 @@ describe('SettingsPage', () => {
 
     expect(screen.getByRole('status')).toBeTruthy();
     expect(screen.queryByText('Hotel Settings')).toBeNull();
+    // The channel lookup starts on mount even while loading; let it settle
+    // inside the test rather than after it.
+    await waitFor(() => expect(mocks.listBookingChannels).toHaveBeenCalledTimes(1));
   });
 
   it('hydrates every card from the fetched settings for an admin', async () => {
@@ -144,6 +160,21 @@ describe('SettingsPage', () => {
     // Booking channels live behind the Code Lists tab.
     fireEvent.click(screen.getByRole('tab', { name: 'Code Lists' }));
     expect(await screen.findByText('Booking.com (B.C)')).toBeTruthy();
+  });
+
+  it('lists active booking_channels table rows over the legacy settings list', async () => {
+    mocks.listBookingChannels.mockResolvedValue([
+      { name: 'Agoda', abbreviation: 'AGD', is_active: true },
+      { name: 'Retired OTA', abbreviation: 'RO', is_active: false },
+    ]);
+
+    render(<SettingsPage />);
+    await screen.findByText('Hotel Settings');
+    fireEvent.click(screen.getByRole('tab', { name: 'Code Lists' }));
+
+    expect(await screen.findByText('Agoda (AGD)')).toBeTruthy();
+    expect(screen.queryByText('Retired OTA (RO)')).toBeNull();
+    expect(screen.queryByText('Booking.com (B.C)')).toBeNull();
   });
 
   it('saves an edited hotel name through the mutation payload', async () => {
