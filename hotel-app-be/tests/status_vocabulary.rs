@@ -123,6 +123,34 @@ fn postgres_schema_omits_the_reverted_sql_pgq_property_graph() {
 }
 
 #[test]
+fn postgres_schema_guards_every_audit_partition() {
+    // A statement fires only the triggers of the table it names, so the
+    // append-only guard on audit_logs also needs a row trigger PostgreSQL
+    // clones onto every partition, and a TRUNCATE trigger on each partition
+    // (patch 0017).
+    for statement in [
+        "CREATE TRIGGER trg_audit_logs_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.audit_logs FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation();",
+        "CREATE TRIGGER trg_audit_logs_append_only_row BEFORE DELETE OR UPDATE ON public.audit_logs FOR EACH ROW EXECUTE FUNCTION public.prevent_audit_log_mutation();",
+        "CREATE TRIGGER trg_audit_logs_no_truncate BEFORE TRUNCATE ON public.audit_logs_default FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation();",
+        "CREATE FUNCTION public.ensure_audit_logs_truncate_guards() RETURNS integer",
+        "    PERFORM public.ensure_audit_logs_truncate_guards();",
+    ] {
+        assert!(
+            POSTGRES_SCHEMA.contains(statement),
+            "the audit_logs append-only guard needs: {statement}"
+        );
+    }
+    // A BEFORE ROW trigger that returns NULL silently skips its row, which
+    // would turn the app.allow_audit_mutation escape hatch into a no-op.
+    assert!(
+        POSTGRES_SCHEMA.contains(
+            "    IF TG_LEVEL = 'ROW' THEN\n        IF TG_OP = 'DELETE' THEN\n            RETURN OLD;\n        END IF;\n        RETURN NEW;\n    END IF;"
+        ),
+        "prevent_audit_log_mutation() must hand the row back when it runs per row"
+    );
+}
+
+#[test]
 fn postgres_schema_rebuilds_late_audit_partitions_and_drops_redundant_indexes() {
     // PostgreSQL 19 Beta 4 reverted SPLIT PARTITION, and RC and GA follow, so
     // a late month rebuilds the DEFAULT partition instead (patch 0016).
@@ -547,6 +575,48 @@ mod postgres_smoke {
                 kept, "audit_logs_default",
                 "rows for other months must stay in the DEFAULT partition"
             );
+
+            // Both partitions the late month produced carry the cloned row
+            // guard, and partition upkeep adds their TRUNCATE guards, so a
+            // statement that names either one is still refused.
+            sqlx::query("SELECT ensure_audit_logs_truncate_guards()")
+                .execute(&pool)
+                .await?;
+            let guards: Vec<(String, String)> = sqlx::query_as(
+                r#"
+                SELECT tgrelid::regclass::text, tgname::text
+                FROM pg_trigger
+                WHERE tgrelid IN ('audit_logs_2099_07'::regclass, 'audit_logs_default'::regclass)
+                  AND NOT tgisinternal
+                ORDER BY 1, 2
+                "#,
+            )
+            .fetch_all(&pool)
+            .await?;
+            assert_eq!(
+                guards,
+                [
+                    ("audit_logs_2099_07", "trg_audit_logs_append_only_row"),
+                    ("audit_logs_2099_07", "trg_audit_logs_no_truncate"),
+                    ("audit_logs_default", "trg_audit_logs_append_only_row"),
+                    ("audit_logs_default", "trg_audit_logs_no_truncate"),
+                ]
+                .map(|(table, trigger)| (table.to_owned(), trigger.to_owned()))
+                .to_vec()
+            );
+            for statement in [
+                "DELETE FROM audit_logs_2099_07 WHERE action = 'pg19_partition_test'",
+                "TRUNCATE audit_logs_default",
+            ] {
+                let refused = sqlx::query(statement)
+                    .execute(&pool)
+                    .await
+                    .expect_err("a statement naming an audit partition must be refused");
+                assert!(
+                    refused.to_string().contains("audit_logs is append-only"),
+                    "{statement}: {refused}"
+                );
+            }
 
             pool.close().await;
             Ok::<(), sqlx::Error>(())

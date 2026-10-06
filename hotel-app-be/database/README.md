@@ -345,6 +345,32 @@ they reject every `PROPERTY GRAPH` statement as a syntax error. Patch
 earlier. Apply it while a database is still on 19beta3: a beta3 `pg_dump` of a
 database that still holds the graph fails to restore onto beta4 or later.
 
+`audit_logs` is append-only in the database, not just by convention. A
+statement fires only the triggers of the table it names, so the guard has three
+parts, all running `prevent_audit_log_mutation()`:
+
+- a statement trigger on `audit_logs` (UPDATE, DELETE, TRUNCATE);
+- a row trigger on `audit_logs` that PostgreSQL clones onto every partition, so
+  an UPDATE or DELETE fails whether it names the parent or a partition;
+- a statement-level `BEFORE TRUNCATE` trigger on each partition. TRUNCATE
+  triggers cannot be row-level and are never cloned, so
+  `ensure_audit_logs_truncate_guards()` adds them. Partition upkeep
+  (`AuditRepository::ensure_upcoming_partitions`), the seed bin and the
+  install-time loop call it right after `ensure_audit_logs_partition()`, and
+  patch `0017_audit_logs_partition_guards.sql` ran it once on installed
+  databases. It sits next to that function rather than inside it because
+  patch 0016 accepts only its own two definitions of
+  `ensure_audit_logs_partition()`. A partition created any other way refuses
+  UPDATE and DELETE at once, and TRUNCATE from the next upkeep run.
+
+Integration tests and the seed bin open the guard with
+`SET app.allow_audit_mutation = 'on'`, which the users → `audit_logs`
+`ON DELETE SET NULL` key also needs: deleting any user runs an UPDATE on
+`audit_logs`. A data-transfer restore uses `ALTER TABLE … DISABLE TRIGGER USER`
+instead, which also switches off the cloned row triggers. DDL (`DETACH`, `DROP`,
+`DISABLE TRIGGER`) is out of scope: the guard stops accidental and
+application-level mutation, not the database owner.
+
 ## PostgreSQL 19 optimization
 
 The files under `postgres/optimization/` are opt-in, benchmark-gated profiles

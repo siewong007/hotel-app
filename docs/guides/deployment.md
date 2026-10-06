@@ -393,7 +393,7 @@ is the canonical reference for how it works.
 **The catalog was reset, then reopened.** The original 22-patch lineage
 (revisions 1.2–1.23) was folded into the V1 baseline and `manifest.tsv` was
 reset to empty; generation 1 then reopened at version 2 and has grown one
-converge-style patch at a time since (versions 2–16 on 2026-10-06; the
+converge-style patch at a time since (versions 2–17 on 2026-10-06; the
 `data_transfer:*` permission patch among them widens the `valid_action`
 check constraint, so it must run before any code that checks the new
 permissions; see `patches/manifest.tsv` for the full entry list — it is the

@@ -333,6 +333,58 @@ COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempot
 
 
 --
+-- Name: ensure_audit_logs_truncate_guards(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ensure_audit_logs_truncate_guards() RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    partition_row record;
+    guarded integer := 0;
+BEGIN
+    -- TRUNCATE triggers can only be statement-level, and PostgreSQL clones
+    -- row triggers to partitions but not statement triggers, so a TRUNCATE
+    -- that names a partition never reaches the guard on audit_logs. Give each
+    -- partition its own. Schema-qualify the DDL: the pinned search_path puts
+    -- pg_catalog first. OR REPLACE keeps two concurrent callers from failing
+    -- on the same partition.
+    FOR partition_row IN
+        SELECT partition_schema.nspname AS schema_name,
+               partition_table.relname AS table_name
+        FROM pg_inherits AS link
+        JOIN pg_class AS partition_table ON partition_table.oid = link.inhrelid
+        JOIN pg_namespace AS partition_schema
+          ON partition_schema.oid = partition_table.relnamespace
+        WHERE link.inhparent = 'public.audit_logs'::regclass
+          AND NOT EXISTS (
+              SELECT 1
+              FROM pg_trigger AS guard
+              WHERE guard.tgrelid = partition_table.oid
+                AND guard.tgname = 'trg_audit_logs_no_truncate'
+          )
+        ORDER BY partition_table.relname
+    LOOP
+        EXECUTE format(
+            'CREATE OR REPLACE TRIGGER trg_audit_logs_no_truncate BEFORE TRUNCATE ON %I.%I FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation()',
+            partition_row.schema_name, partition_row.table_name
+        );
+        guarded := guarded + 1;
+    END LOOP;
+    RETURN guarded;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION ensure_audit_logs_truncate_guards(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ensure_audit_logs_truncate_guards() IS 'Adds the statement-level BEFORE TRUNCATE trigger trg_audit_logs_no_truncate to every audit_logs partition that lacks it and returns how many it added. PostgreSQL does not clone statement triggers to partitions, so a TRUNCATE that names a partition skips the guard on audit_logs. Partition upkeep calls this after ensure_audit_logs_partition(); a partition created any other way is guarded on the next call.';
+
+
+--
 -- Name: prevent_audit_log_mutation(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -349,6 +401,15 @@ BEGIN
     IF current_setting('app.allow_audit_mutation', true) IS DISTINCT FROM 'on' THEN
         RAISE EXCEPTION 'audit_logs is append-only: UPDATE and DELETE are forbidden';
     END IF;
+    -- A BEFORE ROW trigger that returns NULL silently skips its row, so with
+    -- the escape hatch open the row must be handed back for the UPDATE or
+    -- DELETE to happen. Statement-level calls ignore the return value.
+    IF TG_LEVEL = 'ROW' THEN
+        IF TG_OP = 'DELETE' THEN
+            RETURN OLD;
+        END IF;
+        RETURN NEW;
+    END IF;
     RETURN NULL;
 END;
 $$;
@@ -358,7 +419,7 @@ $$;
 -- Name: FUNCTION prevent_audit_log_mutation(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.prevent_audit_log_mutation() IS 'Row-trigger body that makes audit_logs append-only even for the table owner. REVOKE cannot help here because the application connects as the owner, and owners bypass privilege checks; a BEFORE trigger is the only enforcement that applies.';
+COMMENT ON FUNCTION public.prevent_audit_log_mutation() IS 'Trigger body that makes audit_logs append-only even for the table owner. It runs per statement on audit_logs (UPDATE, DELETE, TRUNCATE), per row on every partition through the row trigger PostgreSQL clones from audit_logs (UPDATE, DELETE), and per statement on each partition for TRUNCATE, which ensure_audit_logs_truncate_guards() adds. A statement that names a partition fires only that partition''s triggers. REVOKE cannot help here because the application connects as the owner, and owners bypass privilege checks; a BEFORE trigger is the only enforcement that applies.';
 
 
 --
@@ -8558,6 +8619,20 @@ CREATE TRIGGER trg_audit_logs_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON
 
 
 --
+-- Name: audit_logs trg_audit_logs_append_only_row; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit_logs_append_only_row BEFORE DELETE OR UPDATE ON public.audit_logs FOR EACH ROW EXECUTE FUNCTION public.prevent_audit_log_mutation();
+
+
+--
+-- Name: audit_logs_default trg_audit_logs_no_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit_logs_no_truncate BEFORE TRUNCATE ON public.audit_logs_default FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation();
+
+
+--
 -- Name: bookings trg_enforce_booking_tourism_tax; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -10613,7 +10688,8 @@ ALTER TABLE ONLY public.vouchers
     ADD CONSTRAINT vouchers_revoked_by_fkey FOREIGN KEY (revoked_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
--- The partition function is defined above. Pre-create this month plus the next 11.
+-- The partition function is defined above. Pre-create this month plus the next 11,
+-- then give each new partition its TRUNCATE guard.
 DO $$
 DECLARE
     base_month date := date_trunc('month', CURRENT_DATE)::date;
@@ -10624,6 +10700,7 @@ BEGIN
             (base_month + make_interval(months => offset_month))::date
         );
     END LOOP;
+    PERFORM public.ensure_audit_logs_truncate_guards();
 END;
 $$;
 

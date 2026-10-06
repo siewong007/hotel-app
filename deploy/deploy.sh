@@ -77,6 +77,7 @@ required_payload=(
   database/patches/0014_new_reservation_visible_time_default.sql
   database/patches/0015_drop_hotel_property_graph.sql
   database/patches/0016_audit_partition_without_split.sql
+  database/patches/0017_audit_logs_partition_guards.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -364,6 +365,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/0014_new_reservation_visible_time_default.sql" "$APP_DIR/database/patches/0014_new_reservation_visible_time_default.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0015_drop_hotel_property_graph.sql" "$APP_DIR/database/patches/0015_drop_hotel_property_graph.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0016_audit_partition_without_split.sql" "$APP_DIR/database/patches/0016_audit_partition_without_split.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0017_audit_logs_partition_guards.sql" "$APP_DIR/database/patches/0017_audit_logs_partition_guards.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.

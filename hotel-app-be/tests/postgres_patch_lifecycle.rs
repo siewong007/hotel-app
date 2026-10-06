@@ -990,6 +990,206 @@ async fn postgres_v1_catalog_refuses_a_drifted_audit_partition_function() {
     databases.cleanup().await;
 }
 
+/// `prevent_audit_log_mutation()` exactly as every V1 database installed before
+/// patch 0017 defines it: pg_get_functiondef output, returning NULL for rows.
+const PRE_0017_AUDIT_GUARD_FUNCTION: &str = r#"CREATE OR REPLACE FUNCTION public.prevent_audit_log_mutation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+BEGIN
+    -- Escape hatch for fixture cleanup only: integration tests set this GUC
+    -- per pooled connection so they can purge rows they wrote. Nothing in the
+    -- application sets it. A principal that can run SET could equally drop the
+    -- trigger, so the GUC widens nothing -- the trigger exists to stop
+    -- accidental and application-level mutation, not the database owner.
+    IF current_setting('app.allow_audit_mutation', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'audit_logs is append-only: UPDATE and DELETE are forbidden';
+    END IF;
+    RETURN NULL;
+END;
+$function$
+"#;
+
+/// The function comment those databases carry.
+const PRE_0017_AUDIT_GUARD_COMMENT: &str = "COMMENT ON FUNCTION public.prevent_audit_log_mutation() IS 'Row-trigger body that makes audit_logs append-only even for the table owner. REVOKE cannot help here because the application connects as the owner, and owners bypass privilege checks; a BEFORE trigger is the only enforcement that applies.'";
+
+/// Removes what patch 0017 adds, so a database installed from the current
+/// baseline matches one installed before it: no row trigger, no TRUNCATE
+/// guards on the partitions, and no guard helper.
+const PRE_0017_TEARDOWN: &str = r#"
+DROP TRIGGER trg_audit_logs_append_only_row ON public.audit_logs;
+DO $$
+DECLARE
+    partition_row record;
+BEGIN
+    FOR partition_row IN
+        SELECT inhrelid::regclass AS partition_name
+        FROM pg_inherits
+        WHERE inhparent = 'public.audit_logs'::regclass
+    LOOP
+        EXECUTE format(
+            'DROP TRIGGER IF EXISTS trg_audit_logs_no_truncate ON %s',
+            partition_row.partition_name
+        );
+    END LOOP;
+END;
+$$;
+DROP FUNCTION public.ensure_audit_logs_truncate_guards();
+"#;
+
+/// Everything patch 0017 converges: the guard function and the helper with
+/// their comments, and every user trigger on audit_logs and its partitions.
+async fn audit_guard_snapshot(pool: &PgPool) -> Vec<(String, String)> {
+    sqlx::query_as(
+        r#"
+        SELECT 'function ' || routine_row.oid::regprocedure::text,
+               pg_get_functiondef(routine_row.oid) || '-- '
+                   || coalesce(obj_description(routine_row.oid, 'pg_proc'), '<no comment>')
+        FROM pg_proc AS routine_row
+        WHERE routine_row.oid IN (
+            to_regprocedure('public.prevent_audit_log_mutation()'),
+            to_regprocedure('public.ensure_audit_logs_truncate_guards()')
+        )
+        UNION ALL
+        SELECT 'trigger ' || trigger_row.tgrelid::regclass::text || '.' || trigger_row.tgname,
+               pg_get_triggerdef(trigger_row.oid)
+                   || ' enabled=' || trigger_row.tgenabled::text
+                   || ' cloned=' || (trigger_row.tgparentid <> 0)::text
+        FROM pg_trigger AS trigger_row
+        WHERE NOT trigger_row.tgisinternal
+          AND (
+              trigger_row.tgrelid = 'public.audit_logs'::regclass
+              OR trigger_row.tgrelid IN (
+                  SELECT inhrelid FROM pg_inherits
+                  WHERE inhparent = 'public.audit_logs'::regclass
+              )
+          )
+        ORDER BY 1
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .expect("read the audit guard snapshot")
+}
+
+/// Runs TRUNCATE on the DEFAULT partition in a transaction that is always
+/// rolled back, and returns whether the guard let it through.
+async fn default_partition_truncate_allowed(pool: &PgPool) -> Result<(), String> {
+    let mut probe = pool.begin().await.expect("begin the TRUNCATE probe");
+    let result = sqlx::query("TRUNCATE public.audit_logs_default")
+        .execute(&mut *probe)
+        .await;
+    probe
+        .rollback()
+        .await
+        .expect("roll back the TRUNCATE probe");
+    result.map(|_| ()).map_err(|error| error.to_string())
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_guards_every_audit_partition() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    // A baseline installed from a CRLF checkout keeps CR bytes in the stored
+    // function body, and patch 0017 must convert that copy too.
+    for (label, line_ending) in [("guard_lf", "\n"), ("guard_crlf", "\r\n")] {
+        let database = databases.create(label).await;
+        let pool = install_v1(&database).await;
+        let baseline = audit_guard_snapshot(&pool).await;
+        assert!(
+            baseline
+                .iter()
+                .any(|(name, _)| name == "trigger audit_logs_default.trg_audit_logs_no_truncate"),
+            "the baseline must guard its DEFAULT partition: {baseline:#?}"
+        );
+
+        // Rebuild a database installed before patch 0017.
+        sqlx::raw_sql(PRE_0017_TEARDOWN)
+            .execute(&pool)
+            .await
+            .expect("remove the patch 0017 guards");
+        let old_function = PRE_0017_AUDIT_GUARD_FUNCTION.replace('\n', line_ending);
+        for statement in [old_function.as_str(), PRE_0017_AUDIT_GUARD_COMMENT] {
+            sqlx::raw_sql(sqlx::AssertSqlSafe(statement))
+                .execute(&pool)
+                .await
+                .expect("restore the pre-0017 guard function");
+        }
+        assert_eq!(
+            default_partition_truncate_allowed(&pool).await,
+            Ok(()),
+            "a pre-0017 database lets a statement that names a partition skip the guard"
+        );
+
+        let first_run = run_patches(&database, None).await;
+        assert_runner_succeeded(&first_run);
+        assert_eq!(
+            audit_guard_snapshot(&pool).await,
+            baseline,
+            "patch 0017 must converge onto the baseline guards ({label})"
+        );
+        let revisions = revision_snapshot(&pool).await;
+        assert!(
+            revisions.iter().any(
+                |(version, name, _, _)| *version == 17 && name == "audit-logs-partition-guards"
+            ),
+            "patch 0017 must record its revision: {revisions:?}"
+        );
+        let refused = default_partition_truncate_allowed(&pool)
+            .await
+            .expect_err("a patched DEFAULT partition must refuse TRUNCATE");
+        assert!(refused.contains("audit_logs is append-only"), "{refused}");
+
+        let second_run = run_patches(&database, None).await;
+        assert_runner_succeeded(&second_run);
+        assert_eq!(revision_snapshot(&pool).await, revisions);
+        assert_eq!(audit_guard_snapshot(&pool).await, baseline);
+
+        pool.close().await;
+    }
+    databases.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_refuses_a_drifted_audit_guard_function() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let database = databases.create("guard_drift").await;
+    let pool = install_v1(&database).await;
+
+    sqlx::raw_sql(
+        r#"
+        CREATE OR REPLACE FUNCTION public.prevent_audit_log_mutation()
+        RETURNS trigger LANGUAGE plpgsql SET search_path TO 'pg_catalog', 'public'
+        AS $$ BEGIN RETURN NULL; END; $$
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("install a drifted audit guard function");
+
+    let output = run_patches(&database, None).await;
+    assert_runner_failed_with(
+        &output,
+        "prevent_audit_log_mutation() has incompatible definition",
+    );
+    let recorded: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM hotel_schema_revisions WHERE generation = 1 AND version = 17)",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read patch 0017 revision");
+    assert!(!recorded, "a refused patch must not record its revision");
+
+    pool.close().await;
+    databases.cleanup().await;
+}
+
 #[tokio::test]
 async fn schema_drift_report_is_read_only() {
     let Some(database_url) = database_url_or_skip() else {

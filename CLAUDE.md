@@ -63,7 +63,7 @@ Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lin
 the `seed` bin's demo dataset (`cargo run --bin seed -- --list`; refuses production; never deployed);
 `make db-patch` converges an existing V1 DB, and the backend refuses to start until it has
 (`core/schema_catalog.rs`). **No second migration file** — the only forward path is the checksum-verified
-`database/postgres/patches/` catalog (`manifest.tsv`, generation 1, head version 16 on 2026-10-06 — read
+`database/postgres/patches/` catalog (`manifest.tsv`, generation 1, head version 17 on 2026-10-06 — read
 it, never a remembered range), run by `apply-patches.sh` and `src-tauri/src/postgres/patches.rs`. Details: `hotel-app-be/database/README.md`.
 
 - **PG19 Beta 4 reverted SQL/PGQ and `SPLIT/MERGE PARTITION`** — patches 0015/0016 removed both from the schema; they must reach a database while it still runs `19beta3`, before any move off it (`docs/guides/postgres-engine-upgrade.md`).
