@@ -63,10 +63,10 @@ Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lin
 the `seed` bin's demo dataset (`cargo run --bin seed -- --list`; refuses production; never deployed);
 `make db-patch` converges an existing V1 DB, and the backend refuses to start until it has
 (`core/schema_catalog.rs`). **No second migration file** — the only forward path is the checksum-verified
-`database/postgres/patches/` catalog (`manifest.tsv`, generation 1, head version 14 on 2026-10-05 — read
+`database/postgres/patches/` catalog (`manifest.tsv`, generation 1, head version 16 on 2026-10-06 — read
 it, never a remembered range), run by `apply-patches.sh` and `src-tauri/src/postgres/patches.rs`. Details: `hotel-app-be/database/README.md`.
 
-- **PG19 Beta 4 reverted SQL/PGQ** — the baseline's `CREATE PROPERTY GRAPH public.hotel_graph` blocks any move off `19beta3` until it is dropped (`docs/guides/postgres-engine-upgrade.md`).
+- **PG19 Beta 4 reverted SQL/PGQ and `SPLIT/MERGE PARTITION`** — patches 0015/0016 removed both from the schema; they must reach a database while it still runs `19beta3`, before any move off it (`docs/guides/postgres-engine-upgrade.md`).
 - **Nothing discovers loose SQL.** A new `000N_*.sql` is dead until registered in `patches/manifest.tsv`, `deploy/deploy.sh`, `deploy/deploy-staging.sh`, **and both** `.github/workflows/deploy*.yml`. `tests/postgres_patch_catalog.rs` enforces that parity.
 - Additive change → baseline (fresh installs) **and** a new patch (installed DBs). A patch must converge *both* the current baseline and the previous one: guard on exact `pg_get_constraintdef`/`pg_get_functiondef` text like `0002` does, and `RAISE` otherwise.
 - Shipped versions/checksums are **immutable** — add a version, never edit a patch. The V1 baseline checksum in `_begin.sql`/`seed.sql` is a **frozen lineage token, not a file hash**; rotating it aborts every patch on every installed database.

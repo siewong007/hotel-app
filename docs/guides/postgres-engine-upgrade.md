@@ -5,8 +5,8 @@ the existing data directory: one beta to the next, beta to GA, or a major
 version. It works by dump and restore into a fresh volume. **Next planned use:
 the PostgreSQL 19 GA move**, targeted for October 2026 (go-live checklist row
 5). Beta on-disk formats have no supported upgrade path to GA, so the GA move
-needs this procedure too. That move is currently **blocked by the SQL/PGQ
-revert** described below.
+needs this procedure too. It first needs patches 0015 and 0016 applied on
+beta3 (see the prerequisite below).
 
 Written for the AIC host ([`vps-access.md`](vps-access.md)). Every command runs
 as `root` on the host, where `docker` takes no `sudo`. Rehearse on staging
@@ -20,29 +20,40 @@ and a rolled-back host's compose file still pinned the old image. That
 Lightsail-specific runbook was retired on 2026-10-05; recover it with
 `git log --all -- docs/guides/postgres-beta3-cutover.md`.
 
-## Blocker for 19beta4, RC, and GA: SQL/PGQ was reverted
+## Prerequisite for 19beta4, RC, and GA: patches 0015 and 0016 on beta3
 
-PostgreSQL 19 Beta 4 (released 2026-09-24) **reverted SQL/PGQ property-graph
-support**, and that revert carries into the release candidate and GA. Our
-schema uses the feature in exactly one place: the V1 baseline's
-`CREATE PROPERTY GRAPH public.hotel_graph`. A test pins it
-(`tests/status_vocabulary.rs`), and no application query uses `GRAPH_TABLE`.
-On any 19 build from Beta 4 onward:
+PostgreSQL 19 Beta 4 (released 2026-09-24) **reverted** SQL/PGQ, `ALTER TABLE …
+SPLIT/MERGE PARTITION`, `FOR PORTION OF`, online data-checksum toggling, and
+`pg_get_{role,tablespace,database}_ddl()`. The release candidate and GA keep
+those reverts. The schema used two of them:
 
-- a fresh install from the current baseline fails at that statement, and
-- a dump of the current production database (19beta3, which contains the
-  graph) fails to restore at step 11.
+- **SQL/PGQ:** the V1 baseline created `public.hotel_graph`. Patch 0015 drops
+  it, and the baseline no longer creates it.
+- **`SPLIT PARTITION`:** `ensure_audit_logs_partition` ran it, behind
+  `EXECUTE`, when a month's partition arrived after its rows. So the baseline
+  still installed on beta4, but the daily partition upkeep failed at runtime.
+  Patch 0016 rebuilds late partitions without it.
 
-So before this runbook can target 19beta4/RC/GA, the schema must stop
-depending on the graph. Three changes are needed: the baseline must stop
-creating it, a catalog patch must drop it from installed databases **while
-they still run beta3**, and the test must change. A drop is not an additive
-patch under the rules in `hotel-app-be/database/README.md`, so it needs an
-explicit decision first. Track it in [`../ongoing-dev.md`](../ongoing-dev.md).
+Both patches landed on 2026-10-06, and nothing in the repository uses any of
+the other reverted features. A 2026-10-05 check missed `SPLIT PARTITION`
+because it grepped the release notes' plural spelling, so grep a feature's own
+SQL syntax.
 
-The other Beta 4 reverts (`FOR PORTION OF`, `MERGE`/`SPLIT PARTITIONS`,
-online data-checksum toggling, `pg_get_{role,tablespace,database}_ddl()`) are
-not used anywhere in this repository (checked 2026-10-05).
+**Both patches must be applied while the database still runs 19beta3**, before
+step 3's dump. A beta3 dump that still holds the graph fails to restore on
+beta4 or later. Check on the stack you are about to move:
+
+```bash
+docker exec "$DB" psql -U hotel_admin -d hotel_management -Atc "
+  SELECT string_agg(version::text, ',' ORDER BY version) FROM hotel_schema_revisions
+   WHERE generation = 1 AND version IN (15, 16);
+  SELECT count(*) FROM pg_class WHERE relkind = 'g';"
+```
+
+Expect `15,16` and `0`. A backup taken before 0015 can still be restored onto
+beta4 or later with the graph's TOC entry filtered out:
+`pg_restore -l <dump> | grep -v 'PROPERTY GRAPH' > list.txt`, then
+`pg_restore -L list.txt …`.
 
 ## Why the data directory has to be rebuilt
 

@@ -110,25 +110,36 @@ fn postgres_schema_uses_identity_columns_not_serial_sequences() {
 }
 
 #[test]
-fn postgres_schema_defines_the_hotel_property_graph() {
-    assert!(
-        POSTGRES_SCHEMA.contains("CREATE PROPERTY GRAPH public.hotel_graph"),
-        "baseline must define the SQL/PGQ hotel_graph property graph"
-    );
+fn postgres_schema_omits_the_reverted_sql_pgq_property_graph() {
+    // PostgreSQL 19 Beta 4 reverted SQL/PGQ, and the revert carries into the
+    // release candidate and GA: a baseline using it cannot install there.
+    // Patch 0015 drops the graph from databases installed earlier.
+    for pgq in ["PROPERTY GRAPH", "GRAPH_TABLE"] {
+        assert!(
+            !POSTGRES_SCHEMA.contains(pgq),
+            "baseline must not use SQL/PGQ ({pgq}); PostgreSQL 19 Beta 4 and later reject it"
+        );
+    }
 }
 
 #[test]
-fn postgres_schema_uses_pg19_partition_split_and_drops_redundant_indexes() {
+fn postgres_schema_rebuilds_late_audit_partitions_and_drops_redundant_indexes() {
+    // PostgreSQL 19 Beta 4 reverted SPLIT PARTITION, and RC and GA follow, so
+    // a late month rebuilds the DEFAULT partition instead (patch 0016).
     assert!(
-        POSTGRES_SCHEMA.contains("SPLIT PARTITION audit_logs_default"),
-        "late audit partitions must use PostgreSQL 19 SPLIT PARTITION"
+        !POSTGRES_SCHEMA.contains("SPLIT PARTITION audit_logs_default"),
+        "late audit partitions must not use SPLIT PARTITION; PostgreSQL 19 Beta 4 and later reject it"
     );
-    assert!(
-        POSTGRES_SCHEMA.contains(
-            "INTO (PARTITION public.%I FOR VALUES FROM (%L) TO (%L), PARTITION public.audit_logs_default DEFAULT)"
-        ),
-        "partition split targets must remain in public when the function pins pg_catalog first"
-    );
+    for statement in [
+        "CREATE TABLE public.audit_logs_default PARTITION OF public.audit_logs DEFAULT;",
+        "INSERT INTO public.audit_logs OVERRIDING SYSTEM VALUE",
+        "'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)'",
+    ] {
+        assert!(
+            POSTGRES_SCHEMA.contains(statement),
+            "partition DDL must stay in public when the function pins pg_catalog first: {statement}"
+        );
+    }
     assert!(
         POSTGRES_SCHEMA.contains("CREATE INDEX idx_audit_logs_details_trgm")
             && POSTGRES_SCHEMA.contains(
@@ -482,15 +493,16 @@ mod postgres_smoke {
             sqlx::query(
                 r#"
                 INSERT INTO audit_logs (action, resource_type, details, created_at)
-                VALUES ('pg19_partition_test', 'schema_smoke', '{"source":"default"}', '2099-07-15T12:00:00Z')
+                VALUES ('pg19_partition_test', 'schema_smoke', '{"source":"default"}', '2099-07-15T12:00:00Z'),
+                       ('pg19_partition_keep', 'schema_smoke', '{"source":"default"}', '2099-09-15T12:00:00Z')
                 "#,
             )
             .execute(&pool)
             .await?;
 
-            let before_split: String = sqlx::query_scalar(
+            let (before_split, moved_id): (String, i64) = sqlx::query_as(
                 r#"
-                SELECT tableoid::regclass::text
+                SELECT tableoid::regclass::text, id
                 FROM audit_logs
                 WHERE action = 'pg19_partition_test'
                 "#,
@@ -503,14 +515,14 @@ mod postgres_smoke {
                 .execute(&pool)
                 .await?;
             // A second call verifies that the helper remains idempotent after
-            // PostgreSQL 19 has split and recreated the DEFAULT partition.
+            // the late month rebuilt and recreated the DEFAULT partition.
             sqlx::query("SELECT ensure_audit_logs_partition(DATE '2099-07-01')")
                 .execute(&pool)
                 .await?;
 
-            let after_split: String = sqlx::query_scalar(
+            let (after_split, id_after_split): (String, i64) = sqlx::query_as(
                 r#"
-                SELECT tableoid::regclass::text
+                SELECT tableoid::regclass::text, id
                 FROM audit_logs
                 WHERE action = 'pg19_partition_test'
                 "#,
@@ -518,6 +530,23 @@ mod postgres_smoke {
             .fetch_one(&pool)
             .await?;
             assert_eq!(after_split, "audit_logs_2099_07");
+            assert_eq!(
+                id_after_split, moved_id,
+                "a re-routed audit row must keep its id"
+            );
+            let kept: String = sqlx::query_scalar(
+                r#"
+                SELECT tableoid::regclass::text
+                FROM audit_logs
+                WHERE action = 'pg19_partition_keep'
+                "#,
+            )
+            .fetch_one(&pool)
+            .await?;
+            assert_eq!(
+                kept, "audit_logs_default",
+                "rows for other months must stay in the DEFAULT partition"
+            );
 
             pool.close().await;
             Ok::<(), sqlx::Error>(())

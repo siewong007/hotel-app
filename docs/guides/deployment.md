@@ -68,8 +68,9 @@ Oracle references: [Always Free resources](https://docs.oracle.com/en-us/iaas/Co
 > decision (H7, 2026-08-22), as an accepted risk recorded in the
 > [readiness assessment](../security/production-readiness-assessment.md). A new
 > deployment should not repeat that choice lightly. Moving to 19 GA is a dump and
-> restore ([`postgres-engine-upgrade.md`](postgres-engine-upgrade.md)), and it is
-> currently blocked: 19 Beta 4 reverted the SQL/PGQ feature the baseline uses.
+> restore ([`postgres-engine-upgrade.md`](postgres-engine-upgrade.md)), and patches
+> 0015/0016, which remove the schema's uses of features 19 Beta 4 reverted, must
+> run on beta3 first.
 
 ### Prerequisites
 
@@ -392,7 +393,7 @@ is the canonical reference for how it works.
 **The catalog was reset, then reopened.** The original 22-patch lineage
 (revisions 1.2–1.23) was folded into the V1 baseline and `manifest.tsv` was
 reset to empty; generation 1 then reopened at version 2 and has grown one
-converge-style patch at a time since (versions 2–14 on 2026-10-05; the
+converge-style patch at a time since (versions 2–16 on 2026-10-06; the
 `data_transfer:*` permission patch among them widens the `valid_action`
 check constraint, so it must run before any code that checks the new
 permissions; see `patches/manifest.tsv` for the full entry list — it is the

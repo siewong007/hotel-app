@@ -307,10 +307,13 @@ jobs:
 
       # The seed bin (`src/bin/seed`) is the canonical rerunnable staging
       # dataset. Apply it twice: the second run must be a no-op wipe+reinsert
-      # inside the 800000-899999 id band, so row counts must be identical
-      # across runs. It gets its own database: the fixtures intentionally stay
-      # in place, and tests sharing hotel_ci assert exact global counts (the
-      # delivery feed counted seed email_deliveries rows as its own).
+      # inside the 800000-899999 id band, so the bin's whole per-table summary
+      # and every table's in-band ids must be identical across runs (a
+      # bookings-only count missed a fresh database's first run reporting 9
+      # housekeeping tasks and every rerun 11). It gets its own database: the
+      # fixtures intentionally stay in place, and tests sharing hotel_ci assert
+      # exact global counts (the delivery feed counted seed email_deliveries
+      # rows as its own).
       - name: Verify staging dataset applies and reruns idempotently
         run: |
           STAGING_URL="${DATABASE_URL%/*}/hotel_ci_staging"
@@ -318,11 +321,35 @@ jobs:
                              -c "CREATE DATABASE hotel_ci_staging"
           psql "$STAGING_URL" -f database/postgres/migrations/0001_v1_baseline.sql
           psql "$STAGING_URL" -f database/postgres/seed.sql
-          APP_ENV=development DATABASE_URL="$STAGING_URL" cargo run --quiet --bin seed -- --all
-          first=$(psql "$STAGING_URL" -At -c "SELECT COUNT(*) FROM bookings WHERE id BETWEEN 800000 AND 899999")
-          APP_ENV=development DATABASE_URL="$STAGING_URL" cargo run --quiet --bin seed -- --all
-          second=$(psql "$STAGING_URL" -At -c "SELECT COUNT(*) FROM bookings WHERE id BETWEEN 800000 AND 899999")
-          test "$first" -gt 0 && test "$first" = "$second"
+          # One line per table with an integer id: in-band row count and an md5
+          # of the sorted in-band ids, so an id that moves between runs fails
+          # the step even when every count matches.
+          band_ids() {
+            psql "$STAGING_URL" -At -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT format('SELECT %L, count(*), md5(string_agg(id::text, '','' ORDER BY id)) FROM public.%I WHERE id BETWEEN 800000 AND 899999', c.relname, c.relname)
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'id' AND NOT a.attisdropped
+          WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relispartition
+            AND a.atttypid IN ('int4'::regtype, 'int8'::regtype)
+          ORDER BY c.relname
+          \gexec
+          SQL
+          }
+          APP_ENV=development DATABASE_URL="$STAGING_URL" cargo run --quiet --bin seed -- --all > "$RUNNER_TEMP/seed-first.txt"
+          band_ids > "$RUNNER_TEMP/ids-first.txt"
+          APP_ENV=development DATABASE_URL="$STAGING_URL" cargo run --quiet --bin seed -- --all > "$RUNNER_TEMP/seed-second.txt"
+          band_ids > "$RUNNER_TEMP/ids-second.txt"
+          cat "$RUNNER_TEMP/seed-first.txt"
+          # Explicit exits: bash -e does not stop on a failure left of && or ||.
+          grep -Eq '^  bookings: [1-9][0-9]*$' "$RUNNER_TEMP/seed-first.txt" \
+            || { echo "::error::the first seed run reported no bookings"; exit 1; }
+          grep -Eq '^bookings\|[1-9][0-9]*\|' "$RUNNER_TEMP/ids-first.txt" \
+            || { echo "::error::the in-band id check saw no seeded bookings"; exit 1; }
+          diff -u "$RUNNER_TEMP/seed-first.txt" "$RUNNER_TEMP/seed-second.txt" \
+            || { echo "::error::the seed rerun summary differs from the first run"; exit 1; }
+          diff -u "$RUNNER_TEMP/ids-first.txt" "$RUNNER_TEMP/ids-second.txt" \
+            || { echo "::error::the seed rerun produced different in-band ids"; exit 1; }
           psql "$STAGING_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           BEGIN

@@ -183,9 +183,9 @@ Schema changes go into the V1 baseline **and** a new checksum-verified patch und
   desktop app.
 - **In progress:** gRPC-Web migration (rooms, housekeeping, maintenance, guests done;
   368 REST paths remain in the OpenAPI document); desktop OS signing/notarization
-  (wired, awaiting certificates); the PostgreSQL 19 GA move. Production is on `19beta3`,
-  and leaving it first requires dropping the schema's SQL/PGQ property graph, a feature
-  PostgreSQL 19 Beta 4 reverted.
+  (wired, awaiting certificates); the PostgreSQL 19 GA move. Production is on `19beta3`;
+  patches 0015/0016 removed the schema's uses of the features PostgreSQL 19 Beta 4
+  reverted, and must run there before the move.
 - **Planned:** SMS notification channel. PayPal refund/dispute webhooks are verified and
   audit-logged but not auto-applied — manual reconciliation today.
 

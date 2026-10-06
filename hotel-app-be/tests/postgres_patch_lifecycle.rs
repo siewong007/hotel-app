@@ -748,6 +748,248 @@ async fn postgres_v1_patches_apply_record_and_skip_idempotently() {
     databases.cleanup().await;
 }
 
+/// The SQL/PGQ graph every V1 database installed before patch 0015 carries,
+/// exactly as the previous baseline created it.
+const PRE_0015_HOTEL_GRAPH: &str = r#"
+CREATE PROPERTY GRAPH public.hotel_graph
+    VERTEX TABLES (
+        public.companies KEY (id) LABEL company PROPERTIES (company_name, id),
+        public.guests KEY (id) LABEL guest PROPERTIES (email, id, nick_name),
+        public.rooms KEY (id) LABEL room PROPERTIES (id, room_number),
+        public.users KEY (id) LABEL staff PROPERTIES (id, username)
+    )
+    EDGE TABLES (
+        public.bookings KEY (id) SOURCE KEY (guest_id) REFERENCES guests (id) DESTINATION KEY (room_id) REFERENCES rooms (id) LABEL stayed_in PROPERTIES (check_in_date, check_out_date, id, status),
+        public.user_guests KEY (id) SOURCE KEY (user_id) REFERENCES users (id) DESTINATION KEY (guest_id) REFERENCES guests (id) LABEL manages PROPERTIES (id, relationship_type)
+    );
+"#;
+
+async fn property_graph_count(pool: &PgPool) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM pg_catalog.pg_class WHERE relkind = 'g'")
+        .fetch_one(pool)
+        .await
+        .expect("count property graphs")
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_drops_the_reverted_hotel_property_graph() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let database = databases.create("graph").await;
+    let pool = install_v1(&database).await;
+
+    // Rebuild a database installed from the previous baseline. Only a server
+    // that still ships SQL/PGQ (19beta3 and earlier) can hold the graph; from
+    // 19beta4 on the statement does not parse, and this test then proves that
+    // patch 0015 still applies on a server without SQL/PGQ.
+    let server_has_pgq: bool =
+        sqlx::query_scalar("SELECT to_regclass('pg_catalog.pg_propgraph_element') IS NOT NULL")
+            .fetch_one(&pool)
+            .await
+            .expect("probe for the SQL/PGQ catalogs");
+    if server_has_pgq {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(PRE_0015_HOTEL_GRAPH))
+            .execute(&pool)
+            .await
+            .expect("recreate the pre-0015 property graph");
+        assert_eq!(property_graph_count(&pool).await, 1);
+    } else {
+        eprintln!("server has no SQL/PGQ; checking that patch 0015 applies without it");
+    }
+
+    let first_run = run_patches(&database, None).await;
+    assert_runner_succeeded(&first_run);
+    // A 19beta3 pg_dump replays CREATE PROPERTY GRAPH, which 19beta4 and later
+    // reject, so a converged database must not hold any graph at all.
+    assert_eq!(
+        property_graph_count(&pool).await,
+        0,
+        "the patch catalog must leave no property graph behind"
+    );
+    let revisions = revision_snapshot(&pool).await;
+    assert!(
+        revisions
+            .iter()
+            .any(|(version, name, _, _)| *version == 15 && name == "drop-hotel-property-graph"),
+        "patch 0015 must record its revision: {revisions:?}"
+    );
+
+    let second_run = run_patches(&database, None).await;
+    assert_runner_succeeded(&second_run);
+    assert_eq!(revision_snapshot(&pool).await, revisions);
+
+    pool.close().await;
+    databases.cleanup().await;
+}
+
+/// `ensure_audit_logs_partition` exactly as every V1 database installed before
+/// patch 0016 defines it: pg_get_functiondef output, SPLIT PARTITION included.
+const PRE_0016_AUDIT_PARTITION_FUNCTION: &str = r#"CREATE OR REPLACE FUNCTION public.ensure_audit_logs_partition(p_month date)
+ RETURNS void
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+DECLARE
+    start_date date := date_trunc('month', p_month)::date;
+    end_date   date := (date_trunc('month', p_month) + INTERVAL '1 month')::date;
+    part_name  text := format('audit_logs_%s', to_char(start_date, 'YYYY_MM'));
+BEGIN
+    -- Schema-qualify the DDL: the pinned search_path puts pg_catalog first, so
+    -- an unqualified CREATE TABLE would (illegally) target the system catalog.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class
+        WHERE relname = part_name AND relnamespace = 'public'::regnamespace
+    ) THEN
+        IF EXISTS (
+            SELECT 1
+            FROM public.audit_logs_default
+            WHERE created_at >= start_date::timestamptz
+              AND created_at < end_date::timestamptz
+            LIMIT 1
+        ) THEN
+            -- PostgreSQL 19 can split the DEFAULT partition in place. Unlike a
+            -- late CREATE/ATTACH, this moves already-arrived rows into the new
+            -- month while copying the parent's indexes and triggers.
+            EXECUTE format(
+                'ALTER TABLE public.audit_logs SPLIT PARTITION audit_logs_default INTO (PARTITION public.%I FOR VALUES FROM (%L) TO (%L), PARTITION public.audit_logs_default DEFAULT)',
+                part_name, start_date, end_date
+            );
+        ELSE
+            EXECUTE format(
+                'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
+                part_name, start_date, end_date
+            );
+        END IF;
+    END IF;
+END;
+$function$
+"#;
+
+/// The function comment those databases carry.
+const PRE_0016_AUDIT_PARTITION_COMMENT: &str = "COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempotently creates the monthly audit_logs partition covering the given month. PostgreSQL 19 SPLIT PARTITION moves matching rows out of the DEFAULT partition when a month is created late. Pre-create months during maintenance because splitting takes exclusive locks and can move data.'";
+
+async fn audit_partition_function(pool: &PgPool) -> (String, Option<String>) {
+    sqlx::query_as(
+        r#"
+        SELECT pg_get_functiondef(routine_row.oid), obj_description(routine_row.oid, 'pg_proc')
+        FROM pg_proc AS routine_row
+        WHERE routine_row.oid = to_regprocedure('public.ensure_audit_logs_partition(date)')
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("read ensure_audit_logs_partition")
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_rebuilds_the_audit_partition_function_without_split() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let database = databases.create("split").await;
+    let pool = install_v1(&database).await;
+    let baseline = audit_partition_function(&pool).await;
+
+    // Rebuild a database installed before patch 0016.
+    for statement in [
+        PRE_0016_AUDIT_PARTITION_FUNCTION,
+        PRE_0016_AUDIT_PARTITION_COMMENT,
+    ] {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(statement))
+            .execute(&pool)
+            .await
+            .expect("restore the pre-0016 audit partition function");
+    }
+    let (old_definition, _) = audit_partition_function(&pool).await;
+    assert!(old_definition.contains("SPLIT PARTITION audit_logs_default"));
+
+    let output = run_patches(&database, None).await;
+    assert_runner_succeeded(&output);
+    assert_eq!(
+        audit_partition_function(&pool).await,
+        baseline,
+        "patch 0016 must converge onto the baseline definition and comment"
+    );
+
+    // The converged function moves a late month's rows on every 19 build,
+    // including those without SPLIT PARTITION.
+    sqlx::query(
+        r#"
+        INSERT INTO audit_logs (action, resource_type, created_at)
+        VALUES ('late_month', 'patch_0016', '2098-03-03T00:00:00Z'),
+               ('other_month', 'patch_0016', '2098-05-05T00:00:00Z')
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("insert audit rows into the DEFAULT partition");
+    sqlx::query("SELECT public.ensure_audit_logs_partition(DATE '2098-03-01')")
+        .execute(&pool)
+        .await
+        .expect("create a late audit partition");
+    let placement: Vec<(String, String)> = sqlx::query_as(
+        r#"
+        SELECT action::text, tableoid::regclass::text
+        FROM audit_logs
+        WHERE resource_type = 'patch_0016'
+        ORDER BY action
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("read audit row placement");
+    assert_eq!(
+        placement,
+        vec![
+            ("late_month".to_owned(), "audit_logs_2098_03".to_owned()),
+            ("other_month".to_owned(), "audit_logs_default".to_owned()),
+        ]
+    );
+
+    pool.close().await;
+    databases.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_refuses_a_drifted_audit_partition_function() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let database = databases.create("split_drift").await;
+    let pool = install_v1(&database).await;
+
+    sqlx::raw_sql(
+        r#"
+        CREATE OR REPLACE FUNCTION public.ensure_audit_logs_partition(p_month date)
+        RETURNS void LANGUAGE plpgsql SET search_path TO 'pg_catalog', 'public'
+        AS $$ BEGIN NULL; END; $$
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("install a drifted audit partition function");
+
+    let output = run_patches(&database, None).await;
+    assert_runner_failed_with(
+        &output,
+        "ensure_audit_logs_partition(date) has incompatible definition",
+    );
+    let recorded: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM hotel_schema_revisions WHERE generation = 1 AND version = 16)",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read patch 0016 revision");
+    assert!(!recorded, "a refused patch must not record its revision");
+
+    pool.close().await;
+    databases.cleanup().await;
+}
+
 #[tokio::test]
 async fn schema_drift_report_is_read_only() {
     let Some(database_url) = database_url_or_skip() else {

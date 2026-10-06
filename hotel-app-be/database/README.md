@@ -47,7 +47,7 @@ was folded into the baseline and the catalog republished from empty. Since
 then it has grown again, one converge-style patch at a time. A fresh install
 records revision 1 plus one row per manifest entry. The manifest is the only
 list; read it rather than repeating it (`grep -vc '^#' patches/manifest.tsv`
-counts the entries). As of 2026-10-05 it runs from version 2 to 14.
+counts the entries). As of 2026-10-06 it runs from version 2 to 16.
 A database that still records the pre-fold 1.2+ lineage aborts on a
 checksum-mismatch guard; the one-time lineage reset runbook is in
 `docs/guides/deployment.md`. An empty catalog is also valid state: the
@@ -118,17 +118,22 @@ Rerun semantics: the binary opens one transaction, takes an advisory lock,
 guards on the recorded V1 revision and the environment (refuses production),
 wipes every seed-owned row (child-first) inside the fixed id band
 **800000-899999** (plus generated-id children and marker-tagged `job_runs`),
-inserts the selected sections, then resyncs every touched sequence to at
-least 800000. Each run is a reset of the dataset, never an append, and it
-never touches bootstrap rows or ids outside the band. Explicit-id inserts use
-`OVERRIDING SYSTEM VALUE`, and nothing calls `random()`, so the data is
-deterministic.
-
-One known wrinkle: two housekeeping tasks are created by
-`update_room_status()` itself, not by the seed, and take sequence ids. On the
-very first run against a fresh database those ids fall *below* the band, so
-the printed summary shows 9 housekeeping tasks. Every later run shows 11. The
-rows themselves are equivalent, and they are removed with their rooms.
+restarts the housekeeping-task id sequence at the band floor, inserts the
+selected sections, then resyncs the band's identity sequences past the
+inserted ids. The restart is what makes a fresh database's first run match
+every rerun: `update_room_status()` gives each room it marks dirty or
+reserved-dirty a housekeeping task whose id comes from that sequence, so those
+rows get the same in-band ids (800001 up) every time. Every run therefore
+yields the same in-band rows, ids included, and the same printed summary — a
+reset of the staging dataset, never an append. CI applies it twice to a fresh
+database and fails on any difference in the summary or in any table's in-band
+ids; a section that starts generating rows in another table needs that
+table's sequence added to `RESTART_GENERATED_IDS_SQL` in `src/bin/seed/engine.rs`.
+Wall-clock values (`created_at` defaults, UUIDv7 columns such as
+`bookings.uuid`) and the ids of out-of-band child rows such as `room_history`
+still change between runs. It never touches bootstrap rows or ids outside the
+band.
+Explicit-id inserts use `OVERRIDING SYSTEM VALUE`, and nothing calls `random()`.
 
 Scenarios (`cargo run --bin seed -- --list` prints this registry from
 `registry.rs`). `--scenario` is repeatable and accepts comma lists. Each
@@ -177,10 +182,11 @@ these credentials outside development or staging. The 2FA-enabled user's
 TOTP secret is the public test vector `JBSWY3DPEHPK3PXP`. It is stored
 encrypted when `TOTP_ENCRYPTION_KEY` is set, and as plaintext otherwise.
 
-Coverage: `seed --all` printed this on 2026-10-05: 20 users, 3 room types, 24
+Coverage: `seed --all` printed this on a 2026-10-05 rerun (since the
+first-run fix, every run prints the same): 20 users, 3 room types, 24
 rooms, 11 amenities, 5 rate plans, 53 guests, 3 companies, 92 bookings, 74
-payments, 8 invoices, 5 city-ledger entries, 9 housekeeping tasks (11 on
-reruns, see above), 6 maintenance tickets, 14 night-audit runs, 10
+payments, 8 invoices, 5 city-ledger entries, 11 housekeeping tasks (9 seeded
+directly, 2 created by `update_room_status()`), 6 maintenance tickets, 14 night-audit runs, 10
 promotions, 10 vouchers, 9 email deliveries, 6 loyalty members, 5 staff
 notifications, and 10 audit events. Rerun it rather than trusting these
 numbers. The variety is deliberate:
@@ -331,15 +337,13 @@ must say `OVERRIDING SYSTEM VALUE`.
 The backend validates schema-critical columns and tables at startup. It refuses
 legacy layouts rather than mutating them automatically.
 
-The baseline also defines `public.hotel_graph`, a native SQL/PGQ property
-graph (guests/rooms/staff/companies vertices; bookings `stayed_in` and
-user_guests `manages` edges) for `GRAPH_TABLE` multi-hop queries. It is pure
-query surface over the existing tables — no storage, no application coupling.
-**PostgreSQL 19 Beta 4 reverted SQL/PGQ**, so this graph cannot be created on
-19beta4, the RC, or GA, and a dump that contains it will not restore there.
-Removing it, from the baseline plus a drop patch applied while installed
-databases still run beta3, is a prerequisite for leaving beta3. See
-`docs/guides/postgres-engine-upgrade.md`.
+The baseline defines no SQL/PGQ property graph. It used to create
+`public.hotel_graph` as pure query surface that no application code read, but
+PostgreSQL 19 Beta 4 reverted SQL/PGQ, and the release candidate and GA follow:
+they reject every `PROPERTY GRAPH` statement as a syntax error. Patch
+`0015_drop_hotel_property_graph.sql` drops the graph from databases installed
+earlier. Apply it while a database is still on 19beta3: a beta3 `pg_dump` of a
+database that still holds the graph fails to restore onto beta4 or later.
 
 ## PostgreSQL 19 optimization
 

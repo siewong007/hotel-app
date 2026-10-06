@@ -80,21 +80,24 @@ smoking-room preference.
 
 ### Upgrade and deployment notes
 
-- **Schema patches 0009–0014** run in the deploy step:
+- **Schema patches 0009–0016** run in the deploy step:
   - 0009: booking smoking preference
   - 0010: `online_inventory:manage`
   - 0011: `default_locale` plus `system_settings.default_value`
   - 0012 and 0014: the new-reservations clock and its 07:00 default
   - 0013: the staff-notifications table for databases created before it
+  - 0015: drops the SQL/PGQ `hotel_graph` property graph
+  - 0016: rebuilds late audit-log partitions without `SPLIT PARTITION`
 
   Because of the startup guard above, a server that skips the catalog will not
   start.
 - **`make db-seed` is now a Rust binary** (`cargo run --bin seed`, with named
   scenarios) instead of `psql -f staging.sql`. It needs a Rust toolchain and
   refuses production.
-- **PostgreSQL 19 GA is blocked.** 19 Beta 4 (2026-09-24) reverted SQL/PGQ,
-  and the V1 baseline creates a property graph with it. The schema must drop
-  that graph before any move off `19beta3`; see
+- **PostgreSQL 19 schema prerequisites.** 19 Beta 4 (2026-09-24) reverted SQL/PGQ
+  and `SPLIT/MERGE PARTITION`, both of which the schema used. Patches 0015 and
+  0016 remove those uses. Apply them while a database still runs `19beta3`,
+  before any dump-and-restore onto beta4, the RC or GA; see
   [docs/guides/postgres-engine-upgrade.md](docs/guides/postgres-engine-upgrade.md).
 - nginx sends relative redirects, so `/` no longer bounces through `http`.
   Deploys prune stale per-SHA release images during the disk pre-check.

@@ -85,8 +85,9 @@ than the wildcard. Embedded PostgreSQL is initialized through the same baseline
 > beta on-disk formats have no supported in-place upgrade, which is why the
 > build-identity gate refuses a mismatched `pgdata`. Tracked in
 > [`../ongoing-dev.md`](../ongoing-dev.md) under the PostgreSQL 19 GA item.
-> Neither surface can move past `19beta3` yet: 19 Beta 4 reverted the SQL/PGQ
-> feature the baseline's `hotel_graph` uses
+> 19 Beta 4 reverted SQL/PGQ and `SPLIT/MERGE PARTITION`. Patches 0015/0016 removed
+> the schema's uses of both, and they must run on `19beta3` before either surface
+> moves past it
 > ([`../guides/postgres-engine-upgrade.md`](../guides/postgres-engine-upgrade.md)).
 
 ## Repository structure

@@ -248,8 +248,9 @@ baseline that will not install.
 - ✅ Existing V1 databases avoid accidental seed or backfill rewrites at startup
 - ❌ Different from typical sqlx migration workflow
 - ❌ PostgreSQL 19 (currently `19beta3`) remains a testing target until general availability.
-  19 Beta 4 reverted SQL/PGQ, which the baseline's `hotel_graph` uses, so the GA move first
-  needs a schema change (`guides/postgres-engine-upgrade.md`)
+  19 Beta 4 reverted SQL/PGQ and `SPLIT/MERGE PARTITION`, which the schema used; patches
+  0015/0016 removed both (2026-10-06) and must run on beta3 before the GA dump-and-restore
+  (`guides/postgres-engine-upgrade.md`)
 
 ---
 

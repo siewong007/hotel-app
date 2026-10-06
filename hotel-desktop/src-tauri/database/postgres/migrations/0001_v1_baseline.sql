@@ -294,13 +294,26 @@ BEGIN
               AND created_at < end_date::timestamptz
             LIMIT 1
         ) THEN
-            -- PostgreSQL 19 can split the DEFAULT partition in place. Unlike a
-            -- late CREATE/ATTACH, this moves already-arrived rows into the new
-            -- month while copying the parent's indexes and triggers.
+            -- The month's rows already sit in the DEFAULT partition, and a new
+            -- partition cannot be created over them. PostgreSQL 19 Beta 4
+            -- reverted SPLIT PARTITION, so rebuild the DEFAULT partition
+            -- instead: copy its rows aside, drop and recreate it next to the
+            -- new month, and insert the rows back through the parent so each
+            -- lands in its partition with its id and timestamp. Only INSERT
+            -- and DROP run, so no audit row is updated or deleted. The lock
+            -- holds audit writes until the transaction commits.
+            LOCK TABLE public.audit_logs IN ACCESS EXCLUSIVE MODE;
+            CREATE TEMP TABLE audit_logs_default_rows AS TABLE public.audit_logs_default;
+            ALTER TABLE public.audit_logs DETACH PARTITION public.audit_logs_default;
+            DROP TABLE public.audit_logs_default;
             EXECUTE format(
-                'ALTER TABLE public.audit_logs SPLIT PARTITION audit_logs_default INTO (PARTITION public.%I FOR VALUES FROM (%L) TO (%L), PARTITION public.audit_logs_default DEFAULT)',
+                'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
                 part_name, start_date, end_date
             );
+            CREATE TABLE public.audit_logs_default PARTITION OF public.audit_logs DEFAULT;
+            INSERT INTO public.audit_logs OVERRIDING SYSTEM VALUE
+                TABLE pg_temp.audit_logs_default_rows;
+            DROP TABLE pg_temp.audit_logs_default_rows;
         ELSE
             EXECUTE format(
                 'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
@@ -316,7 +329,7 @@ $$;
 -- Name: FUNCTION ensure_audit_logs_partition(p_month date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempotently creates the monthly audit_logs partition covering the given month. PostgreSQL 19 SPLIT PARTITION moves matching rows out of the DEFAULT partition when a month is created late. Pre-create months during maintenance because splitting takes exclusive locks and can move data.';
+COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempotently creates the monthly audit_logs partition covering the given month. When a month is created late, it rebuilds the DEFAULT partition under an exclusive lock and re-inserts its rows through the parent, which moves the month''s rows into the new partition. Pre-create months during maintenance because that path blocks audit writes and copies the DEFAULT partition.';
 
 
 --
@@ -10598,23 +10611,6 @@ ALTER TABLE ONLY public.vouchers
 
 ALTER TABLE ONLY public.vouchers
     ADD CONSTRAINT vouchers_revoked_by_fkey FOREIGN KEY (revoked_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: hotel_graph; Type: PROPERTY GRAPH; Schema: public; Owner: -
---
-
-CREATE PROPERTY GRAPH public.hotel_graph
-    VERTEX TABLES (
-        public.companies KEY (id) LABEL company PROPERTIES (company_name, id),
-        public.guests KEY (id) LABEL guest PROPERTIES (email, id, nick_name),
-        public.rooms KEY (id) LABEL room PROPERTIES (id, room_number),
-        public.users KEY (id) LABEL staff PROPERTIES (id, username)
-    )
-    EDGE TABLES (
-        public.bookings KEY (id) SOURCE KEY (guest_id) REFERENCES guests (id) DESTINATION KEY (room_id) REFERENCES rooms (id) LABEL stayed_in PROPERTIES (check_in_date, check_out_date, id, status),
-        public.user_guests KEY (id) SOURCE KEY (user_id) REFERENCES users (id) DESTINATION KEY (guest_id) REFERENCES guests (id) LABEL manages PROPERTIES (id, relationship_type)
-    );
 
 
 -- The partition function is defined above. Pre-create this month plus the next 11.
