@@ -280,6 +280,7 @@ DECLARE
     start_date date := date_trunc('month', p_month)::date;
     end_date   date := (date_trunc('month', p_month) + INTERVAL '1 month')::date;
     part_name  text := format('audit_logs_%s', to_char(start_date, 'YYYY_MM'));
+    late_month boolean;
 BEGIN
     -- Schema-qualify the DDL: the pinned search_path puts pg_catalog first, so
     -- an unqualified CREATE TABLE would (illegally) target the system catalog.
@@ -287,25 +288,40 @@ BEGIN
         SELECT 1 FROM pg_class
         WHERE relname = part_name AND relnamespace = 'public'::regnamespace
     ) THEN
-        IF EXISTS (
+        -- A month created late already has rows in the DEFAULT partition, and
+        -- PostgreSQL will not create a partition over them. Detach the default,
+        -- create the month, move its rows across unchanged, and reattach: what
+        -- ALTER TABLE ... SPLIT PARTITION did until PostgreSQL 19 Beta 4
+        -- reverted it. DETACH holds ACCESS EXCLUSIVE on audit_logs until the
+        -- calling transaction ends, so no session sees a half-moved month.
+        late_month := EXISTS (
             SELECT 1
             FROM public.audit_logs_default
             WHERE created_at >= start_date::timestamptz
               AND created_at < end_date::timestamptz
-            LIMIT 1
-        ) THEN
-            -- PostgreSQL 19 can split the DEFAULT partition in place. Unlike a
-            -- late CREATE/ATTACH, this moves already-arrived rows into the new
-            -- month while copying the parent's indexes and triggers.
-            EXECUTE format(
-                'ALTER TABLE public.audit_logs SPLIT PARTITION audit_logs_default INTO (PARTITION public.%I FOR VALUES FROM (%L) TO (%L), PARTITION public.audit_logs_default DEFAULT)',
-                part_name, start_date, end_date
-            );
-        ELSE
-            EXECUTE format(
-                'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
-                part_name, start_date, end_date
-            );
+        );
+        IF late_month THEN
+            EXECUTE 'ALTER TABLE public.audit_logs DETACH PARTITION public.audit_logs_default';
+        END IF;
+        EXECUTE format(
+            'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
+            part_name, start_date, end_date
+        );
+        IF late_month THEN
+            -- One statement, so the rows inserted are exactly the rows removed.
+            -- The DELETE runs on the detached table, which no append-only
+            -- trigger guards, so app.allow_audit_mutation stays off. SELECT *
+            -- is positional: audit_logs_default was created in the parent's
+            -- column order, and ALTER TABLE on the parent changes both alike.
+            WITH moved AS (
+                DELETE FROM public.audit_logs_default
+                WHERE created_at >= start_date::timestamptz
+                  AND created_at < end_date::timestamptz
+                RETURNING *
+            )
+            INSERT INTO public.audit_logs OVERRIDING SYSTEM VALUE
+            SELECT * FROM moved;
+            EXECUTE 'ALTER TABLE public.audit_logs ATTACH PARTITION public.audit_logs_default DEFAULT';
         END IF;
     END IF;
 END;
@@ -316,7 +332,7 @@ $$;
 -- Name: FUNCTION ensure_audit_logs_partition(p_month date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempotently creates the monthly audit_logs partition covering the given month. PostgreSQL 19 SPLIT PARTITION moves matching rows out of the DEFAULT partition when a month is created late. Pre-create months during maintenance because splitting takes exclusive locks and can move data.';
+COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempotently creates the monthly audit_logs partition covering the given month. When a month is created late, its rows already in the DEFAULT partition move into it unchanged (detach the default, create the month, move the rows, reattach) without enabling app.allow_audit_mutation. Pre-create months during maintenance: that late path locks audit_logs exclusively and scans the default.';
 
 
 --

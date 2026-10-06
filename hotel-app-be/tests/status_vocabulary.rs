@@ -122,18 +122,60 @@ fn postgres_schema_omits_the_reverted_sql_pgq_property_graph() {
     }
 }
 
+/// `sql` with every `--` comment stripped, so prose that mentions a statement
+/// cannot satisfy or fail a check on the executable SQL.
+fn postgres_schema_code(sql: &str) -> String {
+    sql.lines()
+        .map(|line| line.split("--").next().unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
-fn postgres_schema_uses_pg19_partition_split_and_drops_redundant_indexes() {
+fn postgres_schema_moves_late_audit_months_without_split_partition() {
+    // PostgreSQL 19 Beta 4 reverted ALTER TABLE ... SPLIT/MERGE PARTITION, and
+    // the revert carries into the release candidate and GA. A reverted
+    // statement behind EXECUTE still installs and fails only when it runs.
+    let schema_code = postgres_schema_code(POSTGRES_SCHEMA);
+    for reverted in ["SPLIT PARTITION", "MERGE PARTITIONS"] {
+        assert!(
+            !schema_code.contains(reverted),
+            "baseline must not run {reverted}; PostgreSQL 19 Beta 4 and later reject it"
+        );
+    }
+
+    let start = POSTGRES_SCHEMA
+        .find("CREATE FUNCTION public.ensure_audit_logs_partition(")
+        .expect("baseline must define ensure_audit_logs_partition");
+    let length = POSTGRES_SCHEMA[start..]
+        .find("\n$$;")
+        .expect("ensure_audit_logs_partition body must close");
+    let function_code = postgres_schema_code(&POSTGRES_SCHEMA[start..start + length]);
+    // A late month detaches the default, creates the month, moves its rows and
+    // reattaches the default. Every target stays in public because the
+    // function pins pg_catalog first on its search_path.
+    for statement in [
+        "ALTER TABLE public.audit_logs DETACH PARTITION public.audit_logs_default",
+        "CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)",
+        "DELETE FROM public.audit_logs_default",
+        "INSERT INTO public.audit_logs OVERRIDING SYSTEM VALUE",
+        "ALTER TABLE public.audit_logs ATTACH PARTITION public.audit_logs_default DEFAULT",
+    ] {
+        assert!(
+            function_code.contains(statement),
+            "ensure_audit_logs_partition must run {statement:?}"
+        );
+    }
+    // The append-only escape hatch exists for test-fixture cleanup only; the
+    // move must not open it.
     assert!(
-        POSTGRES_SCHEMA.contains("SPLIT PARTITION audit_logs_default"),
-        "late audit partitions must use PostgreSQL 19 SPLIT PARTITION"
+        !function_code.contains("allow_audit_mutation"),
+        "ensure_audit_logs_partition must not touch app.allow_audit_mutation"
     );
-    assert!(
-        POSTGRES_SCHEMA.contains(
-            "INTO (PARTITION public.%I FOR VALUES FROM (%L) TO (%L), PARTITION public.audit_logs_default DEFAULT)"
-        ),
-        "partition split targets must remain in public when the function pins pg_catalog first"
-    );
+}
+
+#[test]
+fn postgres_schema_keeps_audit_trigram_index_and_drops_redundant_indexes() {
     assert!(
         POSTGRES_SCHEMA.contains("CREATE INDEX idx_audit_logs_details_trgm")
             && POSTGRES_SCHEMA.contains(
@@ -484,45 +526,92 @@ mod postgres_smoke {
                 "pg_trgm-backed audit detail index should exist in the PostgreSQL smoke image"
             );
 
+            // Rows for months without a partition land in the DEFAULT one.
+            // Creating July late must move the July row and leave August's.
             sqlx::query(
                 r#"
                 INSERT INTO audit_logs (action, resource_type, details, created_at)
-                VALUES ('pg19_partition_test', 'schema_smoke', '{"source":"default"}', '2099-07-15T12:00:00Z')
+                VALUES
+                    ('pg19_partition_test', 'schema_smoke', '{"source":"default"}', '2099-07-15T12:00:00Z'),
+                    ('pg19_partition_stays', 'schema_smoke', '{"source":"default"}', '2099-08-01T00:00:00Z')
                 "#,
             )
             .execute(&pool)
             .await?;
 
-            let before_split: String = sqlx::query_scalar(
-                r#"
-                SELECT tableoid::regclass::text
+            let audit_rows = r#"
+                SELECT action, tableoid::regclass::text, audit_logs::text
                 FROM audit_logs
-                WHERE action = 'pg19_partition_test'
-                "#,
-            )
-            .fetch_one(&pool)
-            .await?;
-            assert_eq!(before_split, "audit_logs_default");
+                WHERE resource_type = 'schema_smoke'
+                ORDER BY action
+            "#;
+            let before_move: Vec<(String, String, String)> =
+                sqlx::query_as(audit_rows).fetch_all(&pool).await?;
+            assert_eq!(
+                before_move
+                    .iter()
+                    .map(|(action, partition, _)| (action.as_str(), partition.as_str()))
+                    .collect::<Vec<_>>(),
+                [
+                    ("pg19_partition_stays", "audit_logs_default"),
+                    ("pg19_partition_test", "audit_logs_default"),
+                ]
+            );
 
+            // PostgreSQL 19 Beta 4 reverted SPLIT PARTITION, so the helper
+            // detaches the default, moves the rows and reattaches it. Calling it
+            // inside a transaction keeps any SET LOCAL it made visible here: the
+            // move must not open the append-only escape hatch.
+            let mut transaction = pool.begin().await?;
+            sqlx::query("SELECT ensure_audit_logs_partition(DATE '2099-07-01')")
+                .execute(&mut *transaction)
+                .await?;
+            let escape_hatch: Option<String> =
+                sqlx::query_scalar("SELECT current_setting('app.allow_audit_mutation', true)")
+                    .fetch_one(&mut *transaction)
+                    .await?;
+            assert_ne!(
+                escape_hatch.as_deref(),
+                Some("on"),
+                "moving late audit rows must not enable app.allow_audit_mutation"
+            );
+            transaction.commit().await?;
+            // A second call verifies that the helper is idempotent once the
+            // month exists and the default is attached again.
             sqlx::query("SELECT ensure_audit_logs_partition(DATE '2099-07-01')")
                 .execute(&pool)
                 .await?;
-            // A second call verifies that the helper remains idempotent after
-            // PostgreSQL 19 has split and recreated the DEFAULT partition.
-            sqlx::query("SELECT ensure_audit_logs_partition(DATE '2099-07-01')")
-                .execute(&pool)
-                .await?;
 
-            let after_split: String = sqlx::query_scalar(
-                r#"
-                SELECT tableoid::regclass::text
-                FROM audit_logs
-                WHERE action = 'pg19_partition_test'
-                "#,
+            let after_move: Vec<(String, String, String)> =
+                sqlx::query_as(audit_rows).fetch_all(&pool).await?;
+            assert_eq!(
+                after_move
+                    .iter()
+                    .map(|(action, partition, _)| (action.as_str(), partition.as_str()))
+                    .collect::<Vec<_>>(),
+                [
+                    ("pg19_partition_stays", "audit_logs_default"),
+                    ("pg19_partition_test", "audit_logs_2099_07"),
+                ]
+            );
+            // Every column value, id and created_at included, survives the move.
+            assert_eq!(
+                after_move
+                    .iter()
+                    .map(|(_, _, row)| row.as_str())
+                    .collect::<Vec<_>>(),
+                before_move
+                    .iter()
+                    .map(|(_, _, row)| row.as_str())
+                    .collect::<Vec<_>>()
+            );
+            let default_bound: String = sqlx::query_scalar(
+                "SELECT pg_get_expr(relpartbound, oid) FROM pg_class \
+                 WHERE oid = 'public.audit_logs_default'::regclass AND relispartition",
             )
             .fetch_one(&pool)
             .await?;
-            assert_eq!(after_split, "audit_logs_2099_07");
+            assert_eq!(default_bound, "DEFAULT");
 
             pool.close().await;
             Ok::<(), sqlx::Error>(())

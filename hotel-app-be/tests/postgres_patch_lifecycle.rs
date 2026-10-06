@@ -824,6 +824,179 @@ async fn postgres_v1_catalog_drops_the_reverted_hotel_property_graph() {
     databases.cleanup().await;
 }
 
+/// `ensure_audit_logs_partition` and its comment exactly as the previous
+/// baseline created them in every V1 database installed before patch 0016. Its
+/// late-month path runs SPLIT PARTITION, which PostgreSQL 19 Beta 4 reverted.
+const PRE_0016_ENSURE_AUDIT_LOGS_PARTITION: &str = r#"
+CREATE OR REPLACE FUNCTION public.ensure_audit_logs_partition(p_month date) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    start_date date := date_trunc('month', p_month)::date;
+    end_date   date := (date_trunc('month', p_month) + INTERVAL '1 month')::date;
+    part_name  text := format('audit_logs_%s', to_char(start_date, 'YYYY_MM'));
+BEGIN
+    -- Schema-qualify the DDL: the pinned search_path puts pg_catalog first, so
+    -- an unqualified CREATE TABLE would (illegally) target the system catalog.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class
+        WHERE relname = part_name AND relnamespace = 'public'::regnamespace
+    ) THEN
+        IF EXISTS (
+            SELECT 1
+            FROM public.audit_logs_default
+            WHERE created_at >= start_date::timestamptz
+              AND created_at < end_date::timestamptz
+            LIMIT 1
+        ) THEN
+            -- PostgreSQL 19 can split the DEFAULT partition in place. Unlike a
+            -- late CREATE/ATTACH, this moves already-arrived rows into the new
+            -- month while copying the parent's indexes and triggers.
+            EXECUTE format(
+                'ALTER TABLE public.audit_logs SPLIT PARTITION audit_logs_default INTO (PARTITION public.%I FOR VALUES FROM (%L) TO (%L), PARTITION public.audit_logs_default DEFAULT)',
+                part_name, start_date, end_date
+            );
+        ELSE
+            EXECUTE format(
+                'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
+                part_name, start_date, end_date
+            );
+        END IF;
+    END IF;
+END;
+$$;
+COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempotently creates the monthly audit_logs partition covering the given month. PostgreSQL 19 SPLIT PARTITION moves matching rows out of the DEFAULT partition when a month is created late. Pre-create months during maintenance because splitting takes exclusive locks and can move data.';
+"#;
+
+/// `pg_get_functiondef` and the comment of `ensure_audit_logs_partition(date)`.
+async fn audit_partition_function(pool: &PgPool) -> (String, Option<String>) {
+    sqlx::query_as(
+        r#"
+        SELECT pg_get_functiondef(routine.oid), obj_description(routine.oid, 'pg_proc')
+        FROM (SELECT 'public.ensure_audit_logs_partition(date)'::regprocedure AS oid) AS routine
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("read ensure_audit_logs_partition")
+}
+
+async fn audit_row_partition(pool: &PgPool, action: &str) -> String {
+    sqlx::query_scalar("SELECT tableoid::regclass::text FROM audit_logs WHERE action = $1")
+        .bind(action)
+        .fetch_one(pool)
+        .await
+        .expect("locate the audit row's partition")
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_replaces_the_split_partition_audit_function() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let fresh = databases.create("audit_fresh").await;
+    let fresh_pool = install_v1(&fresh).await;
+    assert_runner_succeeded(&run_patches(&fresh, None).await);
+    let current = audit_partition_function(&fresh_pool).await;
+    assert!(
+        current
+            .0
+            .contains("DETACH PARTITION public.audit_logs_default"),
+        "a fresh install must carry the detach-based definition: {}",
+        current.0
+    );
+    fresh_pool.close().await;
+
+    // Databases installed from the previous baseline. One installed from a
+    // CRLF checkout (Windows, before .gitattributes pinned SQL to LF) keeps CR
+    // bytes in the stored body, which an exact-text guard alone would refuse.
+    for (label, line_ending) in [("audit_lf", "\n"), ("audit_crlf", "\r\n")] {
+        let database = databases.create(label).await;
+        let pool = install_v1(&database).await;
+        sqlx::raw_sql(sqlx::AssertSqlSafe(
+            PRE_0016_ENSURE_AUDIT_LOGS_PARTITION.replace('\n', line_ending),
+        ))
+        .execute(&pool)
+        .await
+        .expect("recreate the pre-0016 audit partition function");
+        let previous = audit_partition_function(&pool).await;
+        assert!(previous.0.contains("SPLIT PARTITION audit_logs_default"));
+        assert_eq!(previous.0.contains('\r'), line_ending == "\r\n");
+
+        let first_run = run_patches(&database, None).await;
+        assert_runner_succeeded(&first_run);
+        assert_eq!(
+            audit_partition_function(&pool).await,
+            current,
+            "patch 0016 must converge the {label} definition and comment onto a fresh install's"
+        );
+        let revisions = revision_snapshot(&pool).await;
+        assert!(
+            revisions
+                .iter()
+                .any(|(version, name, _, _)| *version == 16
+                    && name == "audit-partition-without-split"),
+            "patch 0016 must record its revision: {revisions:?}"
+        );
+
+        // The late-month path now works on this server, 19beta4 and later
+        // included, where the replaced definition failed with a syntax error.
+        sqlx::query(
+            "INSERT INTO audit_logs (action, resource_type, created_at) \
+             VALUES ('patch_0016_late_row', 'patch_lifecycle', '2099-07-15T12:00:00Z')",
+        )
+        .execute(&pool)
+        .await
+        .expect("insert an audit row for a month without a partition");
+        assert_eq!(
+            audit_row_partition(&pool, "patch_0016_late_row").await,
+            "audit_logs_default"
+        );
+        sqlx::query("SELECT public.ensure_audit_logs_partition(DATE '2099-07-01')")
+            .execute(&pool)
+            .await
+            .expect("create the late month");
+        assert_eq!(
+            audit_row_partition(&pool, "patch_0016_late_row").await,
+            "audit_logs_2099_07"
+        );
+
+        let second_run = run_patches(&database, None).await;
+        assert_runner_succeeded(&second_run);
+        assert_eq!(revision_snapshot(&pool).await, revisions);
+        pool.close().await;
+    }
+
+    // Any other definition is drift that the patch must refuse, not overwrite.
+    let drifted = databases.create("audit_drift").await;
+    let drifted_pool = install_v1(&drifted).await;
+    sqlx::raw_sql(
+        "CREATE OR REPLACE FUNCTION public.ensure_audit_logs_partition(p_month date) \
+         RETURNS void LANGUAGE plpgsql SET search_path TO 'pg_catalog', 'public' \
+         AS $$ BEGIN END; $$",
+    )
+    .execute(&drifted_pool)
+    .await
+    .expect("install a drifted audit partition function");
+    let refused = run_patches(&drifted, None).await;
+    assert_runner_failed_with(
+        &refused,
+        "ensure_audit_logs_partition(date) has incompatible definition",
+    );
+    assert!(
+        !revision_snapshot(&drifted_pool)
+            .await
+            .iter()
+            .any(|(version, _, _, _)| *version == 16),
+        "a refused patch 0016 must not record its revision"
+    );
+    drifted_pool.close().await;
+
+    databases.cleanup().await;
+}
+
 #[tokio::test]
 async fn schema_drift_report_is_read_only() {
     let Some(database_url) = database_url_or_skip() else {
