@@ -9,6 +9,96 @@ refactors, dependency bumps and tooling changes are omitted unless they affect
 users, administrators, deployment or security. Published releases and downloads:
 [github.com/siewong007/hotel-app/releases](https://github.com/siewong007/hotel-app/releases).
 
+## Unreleased (since v0.3.0)
+
+Compiled 2026-10-05 from `git log v0.3.0..master`. The public face of the
+property arrives: a four-language landing page for Salim Inn. The legal pages
+now speak all four languages. Front-desk work gains a new-reservations strip,
+a staff bell for guest support and bank-transfer claims, and a soft
+smoking-room preference.
+
+### Highlights
+
+- **Public landing page** (`/salim-inn/`, where cookie-less visitors to `/` now
+  land):
+  - a calibrated flythrough film, real interiors from the owner's photos, and a
+    booking card
+  - a neighbourhood guide to Farley's kopitiams, clinics and shops, with
+    must-try dishes
+  - a Google Maps link and an extended FAQ
+  - link-preview tags and a real `robots.txt`
+  - English, Bahasa Melayu, Simplified and Traditional Chinese, with only the
+    visitor's language bundle loaded
+- **Four-language legal corpus** — terms, privacy notice, payment terms, eKYC
+  consent and consent prompts in all four languages. The Chinese text is
+  marked as a draft pending native/legal review, and no consent version
+  changed.
+- **Localization close-out:**
+  - a Traditional Chinese help-article set
+  - the remaining 697 Simplified Chinese guest-portal strings translated
+  - Night-audit and audit-log PDF exports in Chinese, with an embedded CJK font
+  - a hotel **default language** setting
+  - `?lang=` links that pick the language
+- **New reservations strip** on the front-desk board and reports dashboard. It
+  shows today's arrivals only after a hotel-set time (**07:00** by default),
+  and same-day bookings made later appear immediately.
+- **Staff bell:**
+  - a guest opening or writing to support, or requesting a paid cancellation,
+    rings the desk
+  - a guest bank transfer now shows as **Payment pending approval**, not as a
+    recorded payment, and rings reception
+- **Payment approvals** — the queue shows stay context. Staff rejects are
+  refused once a booking was confirmed by hand. Approval history shows the
+  actual status.
+- **Rooms and bookings:**
+  - a soft smoking/non-smoking preference steers online room allocation and
+    never blocks a booking
+  - room cards show the guest's requests next to staff remarks, the holding
+    stay, and who created it
+  - unpaid and awaiting-confirmation holds now count as holding a room
+  - the booking detail side panel scrolls
+- **Online inventory** — stale-write protection, so a concurrent edit is
+  rejected instead of overwritten. Changes now need
+  `online_inventory:manage`, and the tab works on phones.
+- **Phones and tablets** — fixed action bars no longer hide behind the bottom
+  navigation, broken staff pages were fixed on phones, touch targets are 44px,
+  and touch tablets get larger hit areas.
+- **Smaller fixes:**
+  - a working Back control and language picker on the sign-in card
+  - specific password-change errors
+  - one logout control in the staff header
+  - guest-timeline notes appear without a reload
+  - the guest app's book-stay button works for signed-in guests
+  - the help centre matches the admin portal's labels in each language
+
+### Security
+
+- The backend refuses to start on a database that lacks any schema patch the
+  build was compiled against, and names the missing revisions. Before, the
+  first symptom was a 500.
+- `dompurify` raised to `^3.4.16` (GHSA-p98j-92pf-mc4p).
+
+### Upgrade and deployment notes
+
+- **Schema patches 0009–0014** run in the deploy step:
+  - 0009: booking smoking preference
+  - 0010: `online_inventory:manage`
+  - 0011: `default_locale` plus `system_settings.default_value`
+  - 0012 and 0014: the new-reservations clock and its 07:00 default
+  - 0013: the staff-notifications table for databases created before it
+
+  Because of the startup guard above, a server that skips the catalog will not
+  start.
+- **`make db-seed` is now a Rust binary** (`cargo run --bin seed`, with named
+  scenarios) instead of `psql -f staging.sql`. It needs a Rust toolchain and
+  refuses production.
+- **PostgreSQL 19 GA is blocked.** 19 Beta 4 (2026-09-24) reverted SQL/PGQ,
+  and the V1 baseline creates a property graph with it. The schema must drop
+  that graph before any move off `19beta3`; see
+  [docs/guides/postgres-engine-upgrade.md](docs/guides/postgres-engine-upgrade.md).
+- nginx sends relative redirects, so `/` no longer bounces through `http`.
+  Deploys prune stale per-SHA release images during the disk pre-check.
+
 ## v0.3.0 — 2026-09-19
 
 Opens the property to a wider market: the product now speaks four languages,

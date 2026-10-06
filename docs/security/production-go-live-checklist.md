@@ -11,7 +11,7 @@ References: [deployment guide](../guides/deployment.md),
 [backup/restore drill](backup-restore.md),
 [production operations](production-operations.md),
 [retention policy draft](data-retention-policy-draft.md),
-[PG19 cutover runbook](../guides/postgres-beta3-cutover.md),
+[PostgreSQL engine upgrade runbook](../guides/postgres-engine-upgrade.md),
 [desktop updater](../../hotel-desktop/UPDATER.md).
 
 ## Operator / host actions
@@ -26,7 +26,7 @@ repository alone.
 | 2 | §11 #3 — least-privilege DB role | `psql "$DATABASE_URL" -f deploy/db-least-privilege.sql`, set the `hotel_app` password out-of-band (`ALTER ROLE hotel_app PASSWORD '…'`), repoint the backend `DATABASE_URL` at `hotel_app`, restart. Keep `hotel_admin` for `apply-patches.sh`/seed only | `SELECT current_user` on a backend connection returns `hotel_app`; patch runbook updated |
 | 3 | §11 #4 — alert consumer | Write `SALIMINN_ALERT_WEBHOOK=<url>` into `/opt/saliminn/backup-alert.env`; add an external uptime probe on `https://<host>/health` | Forced backup failure POSTs once, recovery POSTs once (the script dedupes transitions); probe fires on downtime |
 | 4 | §11 #6 — restore drill | Execute [backup-restore.md](backup-restore.md) end-to-end once | Recorded RTO; explicit RPO target set (≤24 h implied by nightly) |
-| 5 | §11 #1 — PostgreSQL 19 GA | When PG19 GAs (Beta 4 ships 2026-09-24; GA targeted end of Oct 2026): rehearse [postgres-beta3-cutover.md](../guides/postgres-beta3-cutover.md) dump/restore on staging into a **fresh** volume (beta formats have no upgrade path), then prod. Bump compose pins and desktop `CONFIGURED_POSTGRES_BUILD_IDENTITY` in the same release | Staging rehearsal record; prod on the `postgres:19` GA image; desktop pgdata version gate verified against the new build |
+| 5 | §11 #1 — PostgreSQL 19 GA | **Blocked first** on removing the SQL/PGQ `hotel_graph` (Beta 4, 2026-09-24, reverted SQL/PGQ — see the runbook's blocker section). Then, when PG19 GAs (RC expected early Oct 2026, GA possibly Oct 2026): rehearse the [engine upgrade runbook](../guides/postgres-engine-upgrade.md) dump/restore on staging (`STACK=saliminn-staging`) into a **fresh** volume (beta formats have no upgrade path), then prod. Bump compose pins and desktop `CONFIGURED_POSTGRES_BUILD_IDENTITY` in the same release | Staging rehearsal record; prod on the `postgres:19` GA image; desktop pgdata version gate verified against the new build |
 | 6 | §11 #9 — desktop signing | Provision Windows PFX/thumbprint and Apple Developer ID + notarytool credentials per [UPDATER.md](../../hotel-desktop/UPDATER.md) (`TAURI_SIGNING_PRIVATE_KEY` is already set; cert secrets are env-gated) | Signed/notarized build verified end-to-end on macOS, Windows, and Linux |
 
 ## External validations

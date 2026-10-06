@@ -1,7 +1,7 @@
 //! Protobuf ↔ domain-model conversions shared by the gRPC adapters.
 //!
-//! Three contracts from the Phase 1 mapping
-//! (`docs/architecture/grpc-migration/phase-1-contract.md`) are enforced here so
+//! Three contracts from the gRPC contract rules
+//! (`docs/architecture/grpc.md`, "Contract rules") are enforced here so
 //! every service converts identically:
 //!
 //! - **Resource names**: `rooms/42`, `bookings/100`, … — thin strings over

@@ -61,11 +61,15 @@ Oracle references: [Always Free resources](https://docs.oracle.com/en-us/iaas/Co
 
 ## Production Deployment
 
-> **PostgreSQL 19 status:** the repository currently targets PostgreSQL 19
+> **PostgreSQL 19 status:** the repository targets PostgreSQL 19
 > (`postgres:19beta3` on every server/CI/compose surface; the desktop bundle
 > still provisions 19beta2). PostgreSQL identifies version 19 as a development
-> release. Do not use this deployment path for production hotel data until 19
-> reaches general availability and backup/restore plus load tests pass.
+> release. Production nevertheless runs this path with real hotel data, by owner
+> decision (H7, 2026-08-22), as an accepted risk recorded in the
+> [readiness assessment](../security/production-readiness-assessment.md). A new
+> deployment should not repeat that choice lightly. Moving to 19 GA is a dump and
+> restore ([`postgres-engine-upgrade.md`](postgres-engine-upgrade.md)), and it is
+> currently blocked: 19 Beta 4 reverted the SQL/PGQ feature the baseline uses.
 
 ### Prerequisites
 
@@ -105,7 +109,7 @@ separate subdomain.
 > with `VITE_GRPC_CONTEXTS` enabled would 404 in production, so the rollout
 > flags stay off outside development until `/hotel.*` is added at the edge
 > (and to the Nginx example below); REST serves those domains either
-> way. See [../architecture/grpc-migration/](../architecture/grpc-migration/).
+> way. See [../architecture/grpc.md](../architecture/grpc.md).
 
 Prerequisites: a DNS A/AAAA record for your domain, and ports 80+443 reachable from the internet.
 
@@ -387,8 +391,8 @@ is the canonical reference for how it works.
 
 **The catalog was reset, then reopened.** The original 22-patch lineage
 (revisions 1.2–1.23) was folded into the V1 baseline and `manifest.tsv` was
-reset to empty; generation 1 then reopened at version 2 — the catalog
-currently publishes seven converge-style patches, versions 2–8 (the
+reset to empty; generation 1 then reopened at version 2 and has grown one
+converge-style patch at a time since (versions 2–14 on 2026-10-05; the
 `data_transfer:*` permission patch among them widens the `valid_action`
 check constraint, so it must run before any code that checks the new
 permissions; see `patches/manifest.tsv` for the full entry list — it is the

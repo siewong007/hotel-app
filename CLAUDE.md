@@ -2,7 +2,7 @@
 
 Routing index for coding agents. Hard budget: **≤150 lines**, index/routing only — detail goes to
 `.claude/refs/` (on demand), `.claude/rules/` (auto-loaded, keep lean), or `docs/`. Do not add
-here without removing something. Facts verified 2026-09-17 against `origin/master` (`925fff188`).
+here without removing something. Facts verified 2026-10-05 against `origin/master` (`bcb8c4000`).
 **What deploys is `origin/master`, not this tree** — confirm with `git show origin/master:<path>`.
 Line anchors rot; Grep first. This volume path has a trailing space — quote paths in shell.
 
@@ -16,11 +16,12 @@ Line anchors rot; Grep first. This volume path has a trailing space — quote pa
 | Architecture / caller / impact question | [.claude/refs/codegraph.md](.claude/refs/codegraph.md) — CodeGraph before broad searches |
 | Bookings, ledgers, invoicing | [.claude/refs/booking-workflow.md](.claude/refs/booking-workflow.md), [.claude/refs/ledger-workflow.md](.claude/refs/ledger-workflow.md) |
 | Editing `.claude/`, or after any failure | [.claude/refs/maintenance.md](.claude/refs/maintenance.md) (+ append `lessons.md`) |
+| Writing a plan or spec | [docs/working-notes/README.md](docs/working-notes/README.md) — plans live there (never `docs/superpowers/`) and die on merge |
 | UI work / i18n / backup & restore | [docs/design-system.md](docs/design-system.md), [docs/guides/internationalization.md](docs/guides/internationalization.md), [docs/guides/data-transfer.md](docs/guides/data-transfer.md) |
-| Deploy, prod access, incidents | [docs/guides/deployment.md](docs/guides/deployment.md), [docs/guides/vps-access.md](docs/guides/vps-access.md), [docs/security/](docs/security/) |
-| Architecture & decisions (15 ADRs) | [docs/architecture/system-flows.md](docs/architecture/system-flows.md), [docs/architecture/decision-records.md](docs/architecture/decision-records.md) |
+| Deploy, prod access, incidents, engine bumps | [docs/guides/deployment.md](docs/guides/deployment.md), [docs/guides/vps-access.md](docs/guides/vps-access.md), [docs/guides/postgres-engine-upgrade.md](docs/guides/postgres-engine-upgrade.md), [docs/security/](docs/security/) |
+| Architecture & decisions (15 ADRs), gRPC | [docs/architecture/system-flows.md](docs/architecture/system-flows.md), [docs/architecture/decision-records.md](docs/architecture/decision-records.md), [docs/architecture/grpc.md](docs/architecture/grpc.md) |
 | Desktop build / packaging | [docs/guides/desktop-packaging.md](docs/guides/desktop-packaging.md), [hotel-desktop/BUILD_SPEED.md](hotel-desktop/BUILD_SPEED.md), [hotel-desktop/UPDATER.md](hotel-desktop/UPDATER.md) |
-| What exists / what's next | [docs/features.md](docs/features.md), [docs/ongoing-dev.md](docs/ongoing-dev.md) |
+| What exists / what's next | [docs/features.md](docs/features.md), [docs/ongoing-dev.md](docs/ongoing-dev.md); every doc is indexed in [docs/README.md](docs/README.md) |
 
 [AGENTS.md](AGENTS.md) owns naming, refactoring safety, and dependency policy — not repeated here.
 The two must agree: fix both or neither.
@@ -31,12 +32,13 @@ Hotel PMS: bookings, rooms, housekeeping, rates, payments, guest/city ledgers, i
 audit, loyalty, promotions, eKYC, guest portal, analytics. Ships as a web app **and** a desktop app
 bundling its own PostgreSQL. Three projects, no root workspace — run commands from the subdirectory:
 
-- `hotel-app-be/` — Rust 1.95.0 (edition 2024), Axum 0.8, SQLx 0.9, PostgreSQL, JWT + bcrypt.
-- `hotel-web-fe/` — React 19, TypeScript ~6.0, Vite 8, MUI v9, TanStack Query/Router/Table, ky 2, Nivo.
+- `hotel-app-be/` — Rust 1.95.0 (edition 2024), Axum 0.8, SQLx 0.9, tonic 0.14, PostgreSQL, JWT + bcrypt.
+- `hotel-web-fe/` — React 19, TypeScript ~6.0, Vite 8, MUI v9, TanStack Query/Router/Table, ky 2, Nivo. Three
+  documents: `index.html` (staff), `guest.html`, `salim-inn/index.html` (landing; cookie-less `/` 302s there).
 - `hotel-desktop/` — Tauri 2; backend sidecar + embedded PostgreSQL in `src-tauri/pgsql/`.
 
 `bun` is the FE/desktop package manager (`bun.lock`, no package-lock.json). `.codegraph/` is Git-ignored
-and local; `codegraph.json` (tracked) holds its exclude list.
+and local; `codegraph.json` (tracked) holds its exclude list. `proto/` (buf) is the gRPC contract.
 
 ## Commands
 
@@ -45,26 +47,26 @@ and local; `codegraph.json` (tracked) holds its exclude list.
 cargo check --all-features                    # minimum bar before claiming done
 cargo fmt --check && cargo clippy --all-features -- -D warnings  # what CI runs — copy verbatim
 cargo test --all-features                     # set DATABASE_URL or the PG suites silently skip
-cargo run --bin hotel-app-be                  # :3030 (bare `cargo run` errors: multiple bins)
+cargo run --bin hotel-app-be                  # :3030 (bare `cargo run` errors: four bins)
 # hotel-web-fe/  — four independent gates; vitest is weakest (transpiles without type info)
 bun run start                                 # Vite :3000, proxies to 127.0.0.1:3030
-bun run typecheck && bun run lint:strict && bun run test && bun run build
+bun run typecheck && bun run lint:strict && bun run test && bun run build  # typecheck covers salim-inn/
 # hotel-desktop/
-bun run dev | build | build:no-bundle | desktop:prepare:force | sync:resources
+bun run dev | build | build:no-bundle | desktop:prepare:force | sync:resources | test:scripts
 ```
 
-Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lint-all`, `test-all`, `docker-up`, `docs-check`, `db-*`.
+Root `Makefile` wraps the common ones (`make help`): `dev-be`, `check-all`, `lint-all`, `test-all`, `docker-up`, `docs-check`, `db-*`, `sync-proto`.
 
 ## Database — PostgreSQL only
 
-`make db-baseline` (baseline + seed.sql + patches = structure & system bootstrap) initializes an
-empty DB **once**; `make db-seed` runs the `seed` bin demo dataset (optional, never production);
-`make db-patch` converges an existing V1 database; the backend refuses to start until it has (`core/schema_catalog.rs`). **There is no second migration file** — the only
-forward path is `hotel-app-be/database/postgres/patches/`, a checksum-verified catalog driven by
-`manifest.tsv` (generation 1, head version 8 — read the manifest, never a
-remembered range), applied by `apply-patches.sh` and `hotel-desktop/src-tauri/src/postgres/patches.rs`. Lifecycle
-details (deprecated `db-setup` alias, legacy rebuild path): `hotel-app-be/database/README.md`.
+`make db-baseline` (baseline + seed.sql + patches) initializes an empty DB **once**; `make db-seed` runs
+the `seed` bin's demo dataset (`cargo run --bin seed -- --list`; refuses production; never deployed);
+`make db-patch` converges an existing V1 DB, and the backend refuses to start until it has
+(`core/schema_catalog.rs`). **No second migration file** — the only forward path is the checksum-verified
+`database/postgres/patches/` catalog (`manifest.tsv`, generation 1, head version 14 on 2026-10-05 — read
+it, never a remembered range), run by `apply-patches.sh` and `src-tauri/src/postgres/patches.rs`. Details: `hotel-app-be/database/README.md`.
 
+- **PG19 Beta 4 reverted SQL/PGQ** — the baseline's `CREATE PROPERTY GRAPH public.hotel_graph` blocks any move off `19beta3` until it is dropped (`docs/guides/postgres-engine-upgrade.md`).
 - **Nothing discovers loose SQL.** A new `000N_*.sql` is dead until registered in `patches/manifest.tsv`, `deploy/deploy.sh`, `deploy/deploy-staging.sh`, **and both** `.github/workflows/deploy*.yml`. `tests/postgres_patch_catalog.rs` enforces that parity.
 - Additive change → baseline (fresh installs) **and** a new patch (installed DBs). A patch must converge *both* the current baseline and the previous one: guard on exact `pg_get_constraintdef`/`pg_get_functiondef` text like `0002` does, and `RAISE` otherwise.
 - Shipped versions/checksums are **immutable** — add a version, never edit a patch. The V1 baseline checksum in `_begin.sql`/`seed.sql` is a **frozen lineage token, not a file hash**; rotating it aborts every patch on every installed database.
@@ -76,16 +78,16 @@ details (deprecated `db-setup` alias, legacy rebuild path): `hotel-app-be/databa
 
 `modules/<domain>/routes.rs` (RBAC gate) → auth middleware → `handlers.rs` (thin) →
 `service.rs` (where a domain has one) → `repository.rs` → `models.rs`. **All domains live in
-`modules/<domain>/`** — 38 are merged in `routes/mod.rs::create_router`; `consent` is the only
-routeless module — **put new domains there**. The residual flat files are shared globals only:
-`routes/mod.rs` composition, `services/{audit,account_emails,google_identity,invoice_numbers}.rs`,
+`modules/<domain>/` — put new domains there** (39 directories; 38 routers merged in
+`routes/mod.rs::create_router`; `consent` is the only routeless module). The residual flat files are shared
+globals only: `routes/mod.rs` composition, `services/{audit,account_emails,google_identity,invoice_numbers}.rs`,
 `repositories/{audit,invoice_numbers}.rs`, `models/{audit,common,row_mappers}.rs`.
 
-- `routes/mod.rs::create_router` — every router must be `.merge()`d here (38 today) or it is dead. Wires CORS, rate limits, security headers. `src/grpc/` holds tonic service adapters (rooms, housekeeping, maintenance, guests) merged into the same Axum router at `/hotel.*` paths — they reuse the module service/repository layer, not a parallel implementation (ADR 014).
+- `routes/mod.rs::create_router` — every router must be `.merge()`d here or it is dead. Wires CORS, rate limits, security headers. `src/grpc/` holds tonic adapters (rooms, room types, housekeeping, maintenance, guests + health/reflection) merged into the same Axum router at `/hotel.*` paths — they reuse the module service/repository layer, not a parallel implementation (ADR 014). Contract edits go in `proto/`, then `make sync-proto` (the crate compiles a mirror).
 - `core/middleware.rs` — `require_auth(&headers) -> i64`, `check_permission(pool, user_id, "<resource>:<action>")`, `check_any_permission`, `ensure_super_admin`. `<resource>:manage` implies every action of that resource.
 - `core/db.rs` — `hotel_today(executor)`, `decimal_to_db`, `generate_uuid`. Each connection takes its timezone from `system_settings.timezone`, so SQL `CURRENT_DATE` **is** the business day. Never use `chrono::Local`/`Utc` for business dates.
 - `core/sql_compat.rs` — `param!(N)`, `current_timestamp()`, `current_date()`. Never literal `$1`/`NOW()`.
-- `core/i18n.rs` — `SUPPORTED_LOCALES = ["en","ms","zh","zh-TW"]`, `Accept-Language` negotiation, email catalogs in `core/locales/`. Every mutating handler calls `services/audit.rs`; free text goes through `utils/sanitization.rs::Sanitizer`; request models carry `validator` derives.
+- `core/i18n.rs` — `SUPPORTED_LOCALES = ["en","ms","zh","zh-TW"]`; guest mail resolves `language_preference` → `default_locale` setting → `en`; email catalogs in `core/locales/`. Every mutating handler calls `services/audit.rs`; free text goes through `utils/sanitization.rs::Sanitizer`; request models carry `validator` derives.
 - `main.rs` spawns every background loop through `core::leader::spawn_exclusive` (night audit, payment receipts, unpaid-hold release — window `unpaid_hold_release_hours`, 24 default / 0 disables — communications worker + scheduler, rate-limit bucket prune): a `pg_advisory_lock` on a pinned connection makes exactly one replica drive each loop, and `core::cache_bus::spawn_listener` LISTENs for cross-replica cache invalidation + data-change fan-out. Rate limits live in `rate_limit_buckets` (Postgres fixed windows, fail-open on DB error) — `RateLimiters::new(pool)`; `RateLimiter::new(config)` is the memory-only test constructor. Adding/removing **any** route drifts `docs/api/openapi.json` and fails `tests/openapi_drift.rs` — regenerate with `HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift`.
 
 `sqlx` is plain `sqlx::query()`, **not** the checking macros — a type/column mismatch compiles cleanly
@@ -96,56 +98,53 @@ and fails in production; new `FromRow` over date/timestamp/numeric/array columns
 - `src/features/<domain>/` (26); `src/api/*.service.ts`, one per backend domain (24). Server state is TanStack Query; there is no separate client-state store.
 - **All** HTTP through `src/api/client.ts` (ky: in-memory access token, HttpOnly refresh cookie, one refresh-and-retry on 401). Never call `fetch` directly.
 - New pages go in **both** `src/routes/*.tsx` and the lazy registry `src/navigation/routeRegistry.tsx` (not App.tsx). The sidebar reads that registry; `route_access_policies` only drives the RBAC admin panel.
-- Vite proxies only `PROXY_PREFIXES` (`/api`, `/uploads`, `/health`, `/ws`, `/hotel.`). A new `/api/...` route needs no edit; a new **top-level** prefix needs one here *and* in the desktop CORS allow-list (`hotel-desktop/src-tauri/src/commands.rs`). The prod edge matchers (deploy/Caddyfile + deploy{,-staging}.sh) do not route `/hotel.` yet — gRPC flags stay off outside dev.
+- Vite proxies only `PROXY_PREFIXES` (`/api`, `/uploads`, `/health`, `/ws`, `/hotel.`). A new `/api/...` route needs no edit; a new **top-level** prefix needs it there *and* in `ROOT_API_PREFIXES` (`src/desktop/runtimeApi.ts`) — `hotel-desktop/scripts/origin-parity.test.mjs` enforces the parity (and the desktop `ALLOWED_ORIGINS` in `commands.rs`). The prod edge matchers (deploy/Caddyfile + deploy{,-staging}.sh) do not route `/hotel.` yet — gRPC flags stay off outside dev.
 - `lint:strict` (`--max-warnings=0`) is a CI gate. `no-restricted-syntax` bans `toISOString().split/.slice` (use `src/utils/date.ts`), `*.response.json()` (ky 2 already consumed the body — use `readErrorData`), and `replace(/_/g,' ')` enum humanizing (use `formatStatusLabel`).
 - **UI:** one semantic token layer (`src/theme/tokens.ts`) feeds the MUI theme, republished as `--hotel-*` CSS vars. Consume semantic roles, never raw hex; add a missing role rather than a one-off value. Status tones must clear WCAG AA 4.5:1 over the worst surface they sit on. Print/PDF keeps its own literal palette.
-- **i18n:** hand-rolled on `Intl`, **no i18next** (ADR 012). `useTranslation(ns)` → `{ t, tOr, locale, setLocale }`; `t('ns:key')` crosses namespaces, `tOr(key, fallback)` covers un-migrated screens. Bundles: `src/i18n/resources/<locale>/<ns>.json`; a parity test asserts matching keys. Placeholders are `{{name}}`, matching backend email templates.
+- **i18n:** hand-rolled on `Intl`, **no i18next** (ADR 012). `useTranslation(ns)` → `{ t, tOr, locale, setLocale }`; `t('ns:key')` crosses namespaces, `tOr(key, fallback)` covers un-migrated screens. Bundles: `src/i18n/resources/<locale>/<ns>.json` (non-`en` lazy-loaded); a parity test asserts matching keys. Placeholders are `{{name}}`, matching backend email templates. Legal copy (`features/legal/content/`, all four locales required by type), help articles, and `salim-inn/` have their own content models — see the i18n guide.
 
 ## Testing
 
-Backend: 56 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0,
-and each skip counts as a PASS** — a no-DB run reports *more* (`payment_characterization`
-44-in-0.01s vs a real 29 passed / 2 ignored), so run count cannot detect it: judge by wall-clock +
-per-suite counts. Patch/drift suites need `psql`. Fix-gated tests carry `#[ignore]`; CI fails when
-one starts passing. Characterization tests must assert *correct* values — one pinning a bug passes
-forever. Frontend: Vitest + Testing Library (253 files); build ky errors with
-`src/api/testSupport/httpError.ts` (a readable-body fixture lets the bug pass); never run two
-vitest suites concurrently here — they starve each other's timeouts.
+Backend: 59 files in `hotel-app-be/tests/`; PG-backed ones **skip without `DATABASE_URL`, exit 0, and
+each skip counts as a PASS** — `payment_characterization` reports 48 passed in 0.00s with no DB and the
+same 48 in ~3.5s for real (2026-10-05), so judge by wall-clock + per-suite counts. Patch/drift suites
+need `psql`. Fix-gated tests carry `#[ignore]` (one today: ledger-summary reversal netting); CI fails
+when one starts passing. Characterization tests must assert *correct* values. Frontend: Vitest +
+Testing Library (285 files, 7 in `salim-inn/`); build ky errors with `src/api/testSupport/httpError.ts`;
+never run two vitest suites concurrently here — they starve each other's timeouts.
 
 ## CI, deployment, environment
 
-`.github/workflows/ci.yml` (push/PR to master) runs **eight** jobs: secret scan + `cargo audit`;
-**Markdown link check** (`scripts/check-doc-links.py` — a broken relative link in any `.md` fails
-CI); **desktop DB mirror** (`make db-mirror-check`); FE typecheck/lint:strict/test/build; BE
-fmt/check/test/clippy/release + schema/booking smoke; a full PostgreSQL suite with a stale-`#[ignore]`
-check; and a desktop `cargo fmt --check` + `cargo check` against
-placeholder resources — **so a broken `tauri build` is not caught by CI**. Deploy triggers only on a
-successful CI run on master (no `workflow_dispatch` by design). A green "Deploy production" run may
-still have deployed nothing — read the job conclusion. Never hand-provision secrets on the host; CI
-owns them. A rolled-back host is a **mixed** state: read `SELECT version();` and the running compose
-file, not the intent.
+`ci.yml` (push/PR to master) runs **nine** jobs: secrets + `cargo audit`; **Markdown links**
+(`scripts/check-doc-links.py` — a broken relative link fails CI); **proto** (buf format/lint/breaking);
+**mirrors** (desktop DB bundle + backend proto copy); FE typecheck/lint:strict/test/build; BE
+fmt/check/test/clippy/release + PG smokes; a full PostgreSQL suite (patch catalog, dump/restore, seed
+rerun, stale-`#[ignore]`); desktop fmt/check/test on Linux + Windows against placeholder resources —
+**so a broken `tauri build` is not caught**. Production deploys only from a successful CI run on master
+(no `workflow_dispatch` by design); staging deploys the same way or from a manual SHA. A green "Deploy
+production" run may have deployed nothing — read the job conclusion. Never hand-provision secrets on
+the host; CI owns them. A rolled-back host is **mixed**: read `SELECT version();` and the running compose file.
 
-Env: root `.env.example` feeds `docker compose`; `hotel-app-be/.env.example` is the full backend
-reference. Real `.env` files exist here, are Git-ignored, and hold live secrets — **never read one
-into a document, commit, or log**. Required: `DATABASE_URL`, `JWT_SECRET` (≥32 chars),
-`POSTGRES_PASSWORD` for Compose; the latter two are `:?` in every compose file so an unset value
-aborts rather than starting insecurely. Production requires `ENVIRONMENT=production`.
+Env: root `.env.example` feeds `docker compose`; `hotel-app-be/.env.example` is the full backend reference.
+Real `.env` files exist here, are Git-ignored, and hold live secrets — **never read one into a document,
+commit, or log**. Required: `DATABASE_URL`, `JWT_SECRET` (≥32 chars), `POSTGRES_PASSWORD` for Compose (the
+latter two are `:?` in every compose file). `APP_ENV` (wins) or `ENVIRONMENT` picks development/staging/
+production; production rejects wildcard or localhost `ALLOWED_ORIGINS`.
 
-**Desktop mode:** `HOTEL_DESKTOP_MODE` → backend binds 127.0.0.1 on a probed free port from
-`BACKEND_PORT`, learned by the webview over Tauri IPC. The sidecar gets a *specific*
-`ALLOWED_ORIGINS` list, not the wildcard — and since the webview origin differs, `SameSite` refresh
-cookies never reach it, so desktop cannot restore a session after restart (accepted). **Any inline
-`<script>` is dead under the packaged CSP** and nothing flags it when browser-served.
+**Desktop mode:** `HOTEL_DESKTOP_MODE` → backend binds 127.0.0.1 on a probed free port from `BACKEND_PORT`,
+learned by the webview over Tauri IPC. The sidecar gets a *specific* `ALLOWED_ORIGINS` list; the webview
+origin differs, so `SameSite` refresh cookies never reach it and desktop cannot restore a session after
+restart (accepted). **Any inline `<script>` is dead under the packaged CSP** and nothing flags it in a browser.
 
 ## Changing existing behavior
 
-Treat existing behavior as the spec absent a clear bug, security issue, or data-loss risk. Do not
-change route paths, methods, status codes, response fields, permission names, storage keys, or
-column meanings in a refactor. Money, tax, auth, RBAC, passkey, 2FA, eKYC, booking state, ledger,
-and night-audit changes need targeted tests or approval — where the spec is ambiguous there, **ask;
-never guess financial policy**. Before "fixing" a rule that rejects valid-looking input, grep the
-test tree for the invariant behind it. `hotel-backup` v1 JSON carries **business data only** — never
-password hashes, sessions, tokens, or eKYC evidence; it is not a `pg_dump` replacement, and import
-ordering is FK-sensitive (verify with an end-to-end round trip). **Concurrent sessions share this
-tree:** run `git status --short --branch` before editing — an already-dirty path is someone else's
-work, and two sibling worktrees live under `.worktrees/`.
+Treat existing behavior as the spec absent a clear bug, security issue, or data-loss risk. Do not change
+route paths, methods, status codes, response fields, permission names, storage keys, or column meanings
+in a refactor. Money, tax, auth, RBAC, passkey, 2FA, eKYC, booking state, ledger, and night-audit changes
+need targeted tests or approval — where the spec is ambiguous, **ask; never guess financial policy**.
+Before "fixing" a rule that rejects valid-looking input, grep the test tree for the invariant behind it.
+`hotel-backup` v1 standard/full/backup scopes carry **business data only** — never password hashes,
+sessions, tokens, or eKYC evidence (those travel only in the super-admin `system` scope, always
+encrypted); it is not a `pg_dump` replacement, and import ordering is FK-sensitive (verify with a round
+trip). **Concurrent sessions share this tree:** run `git status --short --branch` before editing — an
+already-dirty path is someone else's work, and sibling worktrees live under `.worktrees/`.

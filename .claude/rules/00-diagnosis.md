@@ -5,14 +5,14 @@ Every rule here is executable — no judgment required.
 
 ## Leak #1: Reading large files whole (biggest token leak)
 
-The hot files are huge (measured 2026-09-17, all under `hotel-app-be/src/modules/`
+The hot files are huge (measured 2026-10-05, all under `hotel-app-be/src/modules/`
 since the domain-module migration): the V1 baseline SQL 10.7k lines,
-`modules/bookings/lifecycle.rs` ~3.7k, `modules/payments/service.rs` ~3.1k,
+`modules/bookings/lifecycle.rs` ~3.7k, `modules/payments/service.rs` ~3.2k,
 `modules/analytics/repository.rs` ~2.5k, `modules/payments/repository.rs` ~2.3k,
-`features/invoices/components/CheckoutInvoiceModal.tsx` ~2.2k, `src-tauri/src/postgres.rs` ~2.2k,
+`features/invoices/components/CheckoutInvoiceModal.tsx` ~2.2k, `src-tauri/src/postgres.rs` ~2.8k,
 `features/admin/components/CustomerLedger/CustomerLedgerPage.tsx` ~2.2k,
 `modules/ledgers/repository.rs` ~2.1k, `seed.sql` ~1.7k. Reading one whole can burn 30–60k tokens in a single call. Handlers are
-thin wrappers now — `modules/bookings/handlers.rs` is 268 lines, and `BookingsPage.tsx` was split
+thin wrappers now — `modules/bookings/handlers.rs` is 274 lines, and `BookingsPage.tsx` was split
 down to ~450, so neither is worth avoiding any more.
 
 **Fix (mandatory procedure):**
@@ -23,20 +23,22 @@ down to ~450, so neither is worth avoiding any more.
 3. If the file is >400 lines, NEVER Read it without `offset`/`limit`. Grep for the
    function name first to get a line number, then Read ±80 lines around it.
 4. CLAUDE.md and `.claude/refs/*.md` already list known line anchors
-   (e.g. `create_booking_handler` at modules/bookings/lifecycle.rs:1063 — that name also
+   (e.g. `create_booking_handler` at modules/bookings/lifecycle.rs:1076 — that name also
    exists in `modules/bookings/handlers.rs` and `modules/guest_booking/handlers.rs`, so grep the
    qualified path). Start from those, but always verify — anchors rot as code moves.
 5. If you need a broad sweep ("where is X handled across the repo"), delegate to an
    Explore subagent (see `model-dispatch.md`) instead of reading files yourself.
 
-- ✅ Good: `grep -n "fn create_booking_handler" modules/bookings/lifecycle.rs` → Read offset 1063, limit 160.
+- ✅ Good: `grep -n "fn create_booking_handler" modules/bookings/lifecycle.rs` → Read offset 1076, limit 160.
 - ❌ Bad: `Read modules/bookings/lifecycle.rs` with no limit "to get context" (3.7k lines).
 
-## Leak #2: Dual-database contract violations (most common CI failure)
+## Leak #2: SQL and schema contract violations (silent at compile time)
 
-Postgres-only SQL will pass a plain `cargo check` locally and then fail CI
-(`cargo check --all-features`, clippy `-D warnings`). Worse: SQL that compiles but
-behaves differently (e.g. `NOW()`, `$1` vs `?1`, Decimal handling) ships silently.
+This crate uses plain `sqlx::query()`, not the checking macros, so SQL that compiles
+can still be wrong at runtime — a literal placeholder, a bare `NOW()`, a Decimal or
+date/timestamp type mismatch all ship silently, and a schema change made in only one
+of its two homes passes every local gate. (The title used to say "dual-database":
+the SQLite engine is long gone, but the house helpers below remain the contract.)
 
 **Fix (mandatory checklist for ANY SQL or schema change):**
 1. Placeholders: use `param!(1)`, `param!(2)` — never literal `$1` or `?1`.
@@ -47,7 +49,7 @@ behaves differently (e.g. `NOW()`, `$1` vs `?1`, Decimal handling) ships silentl
    installs) AND a new catalog patch registered in `patches/manifest.tsv` (for
    installed databases). One without the other = incomplete task: a baseline-only
    change skips every live database, a patch-only change skips every fresh install.
-   Then mirror to desktop (item 10 below). ("One engine without the other" here was
+   Then mirror to desktop (item 11 below). ("One engine without the other" here was
    a leftover from the removed SQLite/Postgres dual-engine era — corrected 2026-09-15.)
 5. Before claiming done: `cargo check --all-features` MUST pass. This is the minimum
    bar; `cargo fmt --check` and `cargo clippy --all-features -- -D warnings` are what CI
@@ -63,9 +65,11 @@ symptom is "it compiles but the endpoint 404s in dev" or "lint fails on CI only"
 1. Route merged in `hotel-app-be/src/routes/mod.rs::create_router` (`.merge()`), or it's dead.
 2. Handler guarded: `require_auth(&headers)` + `check_permission(pool, user_id, "<resource>:<action>")`.
 3. Vite dev proxy: `/api/...` endpoints are ALREADY forwarded (`PROXY_PREFIXES` in
-   `hotel-web-fe/vite.config.ts` covers `/api`, `/uploads`, `/health`, `/ws`), so a new
-   endpoint needs no edit. Only a brand-new TOP-LEVEL prefix does — and that one also
-   belongs in the desktop CORS allow-list (`hotel-desktop/src-tauri/src/commands.rs`).
+   `hotel-web-fe/vite.config.ts` covers `/api`, `/uploads`, `/health`, `/ws`, `/hotel.`), so a
+   new endpoint needs no edit. Only a brand-new TOP-LEVEL prefix does — and that one also
+   belongs in `ROOT_API_PREFIXES` (`hotel-web-fe/src/desktop/runtimeApi.ts`; the desktop
+   `scripts/origin-parity.test.mjs` fails on drift) and in the production edge matchers.
+   (`commands.rs` holds the desktop ORIGIN allow-list, not a prefix list.)
 4. Frontend calls go through `src/api/client.ts` (`ky` instance) — never `fetch`.
 5. New page routes added in `src/routes/*.tsx` AND the lazy registry `src/navigation/routeRegistry.tsx` (not App.tsx).
 6. Dates: never `toISOString().split(...)` / `.slice(...)` — ESLint `no-restricted-syntax`

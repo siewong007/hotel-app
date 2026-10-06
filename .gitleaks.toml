@@ -19,6 +19,10 @@
 # pasted secret in a report is still caught.
 #
 # Do NOT widen `paths` to cover source or config directories.
+#
+# The July/September 2026 reports were pruned from the tree on 2026-10-05, but
+# CI scans the full history (`fetch-depth: 0`), where they still exist — keep
+# this allowlist for as long as that history does.
 
 [extend]
 useDefault = true

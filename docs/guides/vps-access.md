@@ -76,12 +76,13 @@ account, this one is already root.
 
 ## What runs on this host
 
-Ten containers across four Compose projects, all published to loopback only,
-with the host Caddy as the sole public path:
+Thirteen containers across five Compose projects, all published to loopback
+only, with the host Caddy as the sole public path:
 
 | Project | Containers | Loopback ports |
 |---|---|---|
 | `saliminn` | `saliminn-{db,backend,frontend}` | 3030, 8081 |
+| `saliminn-staging` | `saliminn-staging-{db,backend,frontend}` | 3031, 8083 |
 | `payroll` | `payroll-{db,backend}` | 8080 |
 | `online-shopping` | `online-shopping-{db,backend,frontend}` | 4000, 8082 |
 | `online-shopping-hitpay-sandbox` | `…-{db,backend}` | 4001 |
@@ -141,7 +142,7 @@ docker exec saliminn-db psql -U hotel_admin -d hotel_management \
   "DELETE FROM public.hotel_schema_revisions WHERE generation = 1 AND version > 1;"
 
 # 4. Re-run the deploy. 5. Re-check the SELECT — expect 1.1 plus every
-#    entry in patches/manifest.tsv (versions 2–8 today).
+#    entry in patches/manifest.tsv (versions 2–14 on 2026-10-05).
 ```
 
 The full runbook — including the post-deploy export smoke test and the desktop

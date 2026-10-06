@@ -43,12 +43,11 @@ make db-patch DATABASE_URL="$DATABASE_URL"
 
 The final `make db-patch` step reads `patches/manifest.tsv` and applies its
 catalog in order. The original V1 convergence catalog (versions 2 through 23)
-was folded into the baseline and the catalog republished from empty; it now
-carries nine converge-style patches (versions 2–10 — `deposit-forfeited`,
-`guest-relations-phase2`, `consent-locale-zh`, `data-transfer-permissions`,
-`channel-pricing`, `consent-locale-zh-tw`, `distributed-state`,
-`booking-smoking-preference`, `online-inventory-manage-permission`), so a
-fresh install records revisions 1 through 10.
+was folded into the baseline and the catalog republished from empty. Since
+then it has grown again, one converge-style patch at a time. A fresh install
+records revision 1 plus one row per manifest entry. The manifest is the only
+list; read it rather than repeating it (`grep -vc '^#' patches/manifest.tsv`
+counts the entries). As of 2026-10-05 it runs from version 2 to 14.
 A database that still records the pre-fold 1.2+ lineage aborts on a
 checksum-mismatch guard; the one-time lineage reset runbook is in
 `docs/guides/deployment.md`. An empty catalog is also valid state: the
@@ -102,7 +101,13 @@ produces (last in the table body) or fresh and patched schemas diverge forever.
 The canonical staging/demo dataset lives in the `seed` binary
 (`src/bin/seed/`): a comprehensive, deterministic, **re-runnable** population
 of every application module on top of a completed V1 lifecycle. It never ships
-to production and is not part of `db-baseline`.
+to production and is not part of `db-baseline`. It replaced the single
+`staging.sql` file in 2026-09: each `sections/*.rs` module holds its fixture SQL
+as `const` raw strings, ported verbatim and proven against the schema's
+triggers. Rust computes only what SQL cannot, such as the encrypted TOTP
+secret. Room and payment states are reached the real way: through booking
+inserts, `update_room_status()`, and `payments` rows, so status triggers and
+history journals fire as they do in production.
 
 ```bash
 make db-baseline DATABASE_URL="$DATABASE_URL"   # once per fresh database
@@ -111,61 +116,112 @@ make db-seed     DATABASE_URL="$DATABASE_URL"   # apply; safe to rerun
 
 Rerun semantics: the binary opens one transaction, takes an advisory lock,
 guards on the recorded V1 revision and the environment (refuses production),
-wipes every staging-owned row (child-first) inside the fixed id band
+wipes every seed-owned row (child-first) inside the fixed id band
 **800000-899999** (plus generated-id children and marker-tagged `job_runs`),
-then inserts the selected sections. A rerun therefore yields identical counts
-— it is a reset of the staging dataset, never an append. It never touches
-bootstrap rows or ids outside the band.
+inserts the selected sections, then resyncs every touched sequence to at
+least 800000. Each run is a reset of the dataset, never an append, and it
+never touches bootstrap rows or ids outside the band. Explicit-id inserts use
+`OVERRIDING SYSTEM VALUE`, and nothing calls `random()`, so the data is
+deterministic.
 
-Scenarios: `cargo run --bin seed -- --list` shows the named subsets
-(`basic`, `availability`, `frontdesk`, `payments`, …). Apply one or more with
-`--scenario NAME`; `--all` (and bare `seed`) applies everything; `--reset`
-wipes seed-owned rows only and is refused outside development/test
-environments.
+One known wrinkle: two housekeeping tasks are created by
+`update_room_status()` itself, not by the seed, and take sequence ids. On the
+very first run against a fresh database those ids fall *below* the band, so
+the printed summary shows 9 housekeeping tasks. Every later run shows 11. The
+rows themselves are equivalent, and they are removed with their rooms.
 
-Reference date: every stay/schedule date derives from the hotel business date
-(`staging_ref`), so the dataset never goes stale. Pin it for reproducible runs:
+Scenarios (`cargo run --bin seed -- --list` prints this registry from
+`registry.rs`). `--scenario` is repeatable and accepts comma lists. Each
+scenario carries the sections it depends on, and sections always run in one
+canonical order, whatever order the flags were given in.
+
+| Scenario | Seeds |
+|---|---|
+| `basic` | Working hotel: staff, inventory, rates, guests, today's front-desk bookings |
+| `availability` | Inventory grid: allocations, room-status spread, sold-out and one-left dates |
+| `booking-lifecycle` | Every booking status, comp stays, anonymous bookings |
+| `frontdesk` | Arrivals, departures, in-house, housekeeping board, maintenance |
+| `payments` | Every payment state, invoices, city ledgers, refund/partial/retry/receipt fixtures |
+| `webhooks` | Pending PayPal payments with deterministic order ids (`PAYID-STGORDER…`) for webhook replay. No webhook store exists, so only the targets are seeded. |
+| `authentication` | Users for every role, locked/inactive/unverified accounts, a 2FA-enabled user, portal sessions |
+| `audit` | Booking and room-status history, audit markers, night-audit runs, job history |
+| `notifications` | Staff notifications with read markers, email delivery states, the suppression list |
+| `edge-cases` | Adjacent, one-night and long stays, max occupancy, aging hold, sold-out date, retry-after-failure, anonymous flows |
+| `operations` | Housekeeping board, maintenance tickets, room events, night-audit history |
+| `marketing` | Promotions in every status, vouchers and redemptions, segments, email campaigns |
+| `loyalty` | Members, tiers, points ledger, reward catalog, redemptions, complimentary credits |
+| `guest-access` | Anonymous bookings with access tokens, guest-portal sessions, user–guest links |
+| `full` | Everything. Bare `seed` and `--all` mean `full`. |
+
+Safety (`guard.rs`): every run refuses when `APP_ENV`/`ENVIRONMENT` resolves to
+production (`APP_ENV` wins, as in the app's own config). `--reset` on its own
+wipes seed-owned rows and inserts nothing. Combined with `--all` or
+`--scenario`, it wipes and then applies. Either way it additionally needs an
+explicit development signal: either the environment is
+`development`/`dev`/`local`/`test`/`testing`/`staging`, or no environment is
+set and `DATABASE_URL` points at a loopback host. There is no override flag.
+Resetting the schema itself is `make db-reset`'s job.
+
+Reference date: every stay/schedule date derives from the hotel business date,
+so the dataset never goes stale. Pin it for reproducible runs:
 
 ```bash
 cargo run --bin seed -- --all --ref-date 2026-01-15
 ```
 
-Auth fixtures: every staging user shares the staging-only password
+Auth fixtures: every seeded user shares the development-only password
 `HotelStaging2026!` (`*.stg` / `*_stg` accounts such as `manager_stg`,
 `frontdesk_amy`, `finance_mei`, `marketing_nadia`, `hk_siti`, plus a
 `guest_portal` portal login, an inactive and a locked account). Never reuse
-these credentials outside staging.
+these credentials outside development or staging. The 2FA-enabled user's
+TOTP secret is the public test vector `JBSWY3DPEHPK3PXP`. It is stored
+encrypted when `TOTP_ENCRYPTION_KEY` is set, and as plaintext otherwise.
 
-Coverage highlights: 50 guests (VIP, corporate, foreign/local for tourism tax,
-blacklisted, duplicate-name, long-name, minimal-profile, bulk filler for
-pagination), 24 rooms across all statuses including maintenance/out-of-order,
-~77 bookings covering every status (in-house, arriving, departing, no-show,
-voided+refunded, comp, partial-comp, 30-night long stay, same-day walk-in,
-aging unpaid holds, adjacent same-room windows), payments/invoices/ledgers in
-every state, housekeeping & maintenance boards, 14 days of night-audit history,
-promotions in every claim state (draft, paused, archived, claim-window-closed,
-claim-limit-reached, private) plus vouchers in every lifecycle (available,
-redeemed, revoked, reversed, expired) with booking-backed redemptions,
-permission-scoped voucher users (`voucher_audit` read-only, `voucher_noperm`),
-campaigns + deliveries + suppressions,
-loyalty members/points/redemptions, portal sessions (incl. one known-token
-session, Bearer `stg-portal-token-a`), staff notifications, and
-an append-only audit trail.
+Coverage: `seed --all` printed this on 2026-10-05: 20 users, 3 room types, 24
+rooms, 11 amenities, 5 rate plans, 53 guests, 3 companies, 92 bookings, 74
+payments, 8 invoices, 5 city-ledger entries, 9 housekeeping tasks (11 on
+reruns, see above), 6 maintenance tickets, 14 night-audit runs, 10
+promotions, 10 vouchers, 9 email deliveries, 6 loyalty members, 5 staff
+notifications, and 10 audit events. Rerun it rather than trusting these
+numbers. The variety is deliberate:
 
-Limitations: there are no payroll/HR tables — only `teams`/`team_members` are
-seeded. The exclusion constraint makes double-booked rooms DB-impossible, so
-overlap rejection is exercised through API tests, not fixtures. `audit_logs`
-is append-only: staging audit rows are id-guarded inserts that survive reruns
-and always attribute the bootstrap admin (the real actor is recorded inside
-`details`).
+- Guests: VIP, corporate, foreign and local (for tourism tax), blacklisted,
+  duplicate-name, long-name, minimal-profile, and bulk filler for pagination.
+- Rooms in every status, including `maintenance`, `out_of_order`, and
+  `reserved_dirty`.
+- Bookings in every status: in-house, arriving, departing, no-show,
+  voided+refunded, comp, partial-comp, a 30-night stay, a same-day walk-in,
+  aging unpaid holds, adjacent same-room windows, and anonymous bookings with
+  `pre_checkin_token`s.
+- Promotions and vouchers in every claim and lifecycle state, plus
+  permission-scoped voucher users (`voucher_audit` read-only,
+  `voucher_noperm`).
+- Portal sessions, including one with the known Bearer token
+  `stg-portal-token-a`.
+
+Deliberately not seeded:
+
+- Payroll/HR tables (none exist; only `teams`/`team_members`).
+- `cancelled`/`expired` booking statuses (the model uses `voided`, and the
+  unpaid-hold scheduler handles expiry).
+- Multi-room reservations (`bookings.room_id` is scalar).
+- Overlapping same-room bookings. The exclusion constraint makes them
+  impossible, so overlap rejection is tested through the API instead.
+- Passkeys, eKYC evidence, and `two_factor_challenges` rows. Credentials
+  cannot be fabricated meaningfully, and fake identity-verification records
+  must not exist.
+
+`audit_logs` is append-only, so seeded audit rows are id-guarded inserts that
+survive reruns. They always attribute the bootstrap admin; the nominal actor
+is recorded inside `details`.
 
 ## Compatible V1 patching
 
 The catalog is live: every V1 convergence patch from the original lineage
 (versions 2–23) was folded into `migrations/0001_v1_baseline.sql` and
-`seed.sql`, and the catalog was republished from empty. It currently ships
-nine patches, versions 2–10 (see `patches/manifest.tsv` — it is the catalog of
-record; do not hardcode its contents elsewhere). Fresh installs get
+`seed.sql`, and the catalog was republished from empty and has grown since.
+`patches/manifest.tsv` is the catalog of record, so do not hardcode its
+contents elsewhere. Fresh installs get
 every patched object from the baseline, so each patch body is a no-op there —
 but the patch still runs and records its revision row, keeping fresh and
 patched-forward databases on the same supported revision. Databases that
@@ -279,6 +335,11 @@ The baseline also defines `public.hotel_graph`, a native SQL/PGQ property
 graph (guests/rooms/staff/companies vertices; bookings `stayed_in` and
 user_guests `manages` edges) for `GRAPH_TABLE` multi-hop queries. It is pure
 query surface over the existing tables — no storage, no application coupling.
+**PostgreSQL 19 Beta 4 reverted SQL/PGQ**, so this graph cannot be created on
+19beta4, the RC, or GA, and a dump that contains it will not restore there.
+Removing it, from the baseline plus a drop patch applied while installed
+databases still run beta3, is a prerequisite for leaving beta3. See
+`docs/guides/postgres-engine-upgrade.md`.
 
 ## PostgreSQL 19 optimization
 
@@ -292,14 +353,33 @@ make db-pg19-benchmark DATABASE_URL="$DATABASE_URL"
 make db-pg19-tune-rollback DATABASE_URL="$DATABASE_URL"
 ```
 
-`make db-pg19-tune` also raises `autovacuum_max_parallel_workers` via
-ALTER SYSTEM (the rollback target resets it) — without that cluster GUC the
-profile's per-table `autovacuum_parallel_workers` settings are inert. For
-online table rebuilds use `make db-repack TABLE=public.bookings` (PostgreSQL
-19 `REPACK CONCURRENTLY`) or `make db-repack-full` in a maintenance window.
+`make db-pg19-tune` also raises `autovacuum_max_parallel_workers` to 4 via
+`ALTER SYSTEM` (the rollback target resets it). Without that cluster GUC, the
+profile's per-table `autovacuum_parallel_workers` settings do nothing.
+
+On the `make docker-up-pg19-tuned` path, `ALTER SYSTEM` loses.
+`docker-compose.pg19-tuned.yml` passes
+`-c autovacuum_max_parallel_workers=${PG19_AUTOVACUUM_PARALLEL_WORKERS:-2}`, and
+a command-line `-c` outranks `postgresql.auto.conf`, so the effective value
+there is 2. On a bare database it is 4. The per-table settings engage either
+way. To get 4 on the compose path, set `PG19_AUTOVACUUM_PARALLEL_WORKERS`.
+
+The profile was re-validated on 19beta3 (2026-09-15) in two scratch
+containers, vanilla versus tuned. It applies cleanly, every setting takes
+effect (the io-concurrency GUCs show in `EXPLAIN` `Settings:` lines), the
+three extended statistics and the per-table reloptions are created, and the
+benchmark queries keep identical plan shapes. This ran on seed-sized data, so
+it is evidence that the profile *engages*, not a latency result. Several
+compose `-c` pins (`io_method=worker`, `io_min_workers=2`, `io_max_workers=8`,
+`jit=off`, `default_toast_compression=lz4`) already match the beta3
+defaults. They are harmless no-ops there.
+
+For online table rebuilds, use `make db-repack TABLE=public.bookings`
+(PostgreSQL 19 `REPACK CONCURRENTLY`), or `make db-repack-full` in a
+maintenance window.
 
 PostgreSQL 19 is prerelease software (`postgres:19beta3` in every compose
-file) — the profiles are for testing, not production.
+file). The profiles are for testing, not production.
 
 ## Docker and desktop
 

@@ -110,10 +110,12 @@ booking state transitions, payments, ledgers, or night audit.
 
 Backend integration tests require `DATABASE_URL`: the PG-backed files in
 `hotel-app-be/tests/` return early without it, the suite still exits 0, and each skip
-counts as a PASS — a no-DB run reports *more* tests (~1,317), not fewer, so run count
-cannot detect it. Judge by wall-clock and per-suite counts, never by exit
-code alone. Patch/schema-drift suites also need `psql` on PATH (macOS: libpq). Fix-gated tests carry `#[ignore]`; CI fails when one
-starts passing, which means the fix landed and the attribute is stale.
+counts as a PASS. Run count therefore cannot detect it: `payment_characterization`
+reports 48 passed in 0.00s with no database and the same 48 in ~3.5s against a real one
+(measured 2026-10-05). Judge by wall-clock and per-suite counts, never by exit code
+alone. Patch/schema-drift suites also need `psql` on PATH (macOS: libpq). Fix-gated
+tests carry `#[ignore]`; CI fails when one starts passing, which means the fix landed
+and the attribute is stale.
 
 The frontend runs Vitest with Testing Library (`bun run test`). `typecheck`, `lint`, and
 `test` are three independent gates — vitest transpiles without type information, so code

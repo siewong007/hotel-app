@@ -1,10 +1,10 @@
 # hotel-app design system — how to build with it
 
-These components are the shared UI primitives from **hotel-app** (a property-management app). They are built on **MUI v7 + Emotion** and are themed through an MUI `ThemeProvider`. Everything below is what you need to compose them correctly and on-brand.
+These components are the shared UI primitives from **hotel-app** (a property-management app). They are built on **MUI v9 + Emotion** and are themed through an MUI `ThemeProvider`. Everything below is what you need to compose them correctly and on-brand.
 
 ## Wrapping & setup (required)
 
-Every component reads its palette, typography, and shape from MUI's theme context. **Wrap your app root once in `AppThemeProvider`** (exported on the bundle as `window.HotelDS.AppThemeProvider`). Without it, MUI components fall back to the default *blue* Material theme instead of the hotel **teal** brand.
+Every component reads its palette, typography, and shape from MUI's theme context. **Wrap your app root once in `AppThemeProvider`** (exported on the bundle as `window.HotelDS.AppThemeProvider`). Without it, MUI components fall back to the default *blue* Material theme instead of the hotel's **bronze** brand palette.
 
 ```jsx
 import { AppThemeProvider, StatCard } from 'hotel-web-fe';
@@ -14,13 +14,13 @@ import { AppThemeProvider, StatCard } from 'hotel-web-fe';
 </AppThemeProvider>
 ```
 
-`AppThemeProvider` mounts the light-mode hotel theme plus `<CssBaseline/>`. (The app itself also supports `dark` and `night` modes, but previews/designs use light.)
+`AppThemeProvider` mounts the light-mode hotel theme plus `<CssBaseline/>`. (The app also has a `dark` mode — its default — but previews/designs use light.)
 
 ## Styling idiom: MUI `sx`, not CSS classes
 
 There is **no utility-class system and no CSS-module vocabulary**. Style with MUI's `sx` prop and theme-token strings — never hand-written class names or raw hex when a token exists:
 
-- **Palette tokens** (pass as strings): `primary.main` (teal `#26a69a`), `primary.dark` (`#00796b`), `secondary.main` (cyan `#00bcd4`), `text.primary`, `text.secondary`, `background.default`, `background.paper`, `divider`, and status colors `success.main` / `info.main` / `warning.main` / `error.main`.
+- **Palette tokens** (pass as strings): `primary.main` (bronze `#8A6A33` in light mode), `primary.dark` (`#654B22`), `secondary.main` (blue `#4A6FA0`), `text.primary`, `text.secondary`, `background.default`, `background.paper`, `divider`, and status colors `success.main` / `info.main` / `warning.main` / `error.main`.
 - **Spacing**: numeric `sx` units are 8px steps — `sx={{ p: 2, gap: 1.5 }}` = 16px padding, 12px gap.
 - **Typography**: use MUI `<Typography variant="h6|subtitle2|body2|caption">`; don't set font-family manually.
 
@@ -43,7 +43,7 @@ The bundle also re-exports the MUI primitives you'll most often need for layout/
 
 ## Where the truth lives
 
-Read each component's `<Name>.d.ts` (the exact prop contract) and `<Name>.prompt.md` (usage) before composing. The theme itself is defined in `src/theme.ts` in the source repo — refer to it for the full palette across all three modes.
+Read each component's `<Name>.d.ts` (the exact prop contract) and `<Name>.prompt.md` (usage) before composing. The theme itself is defined in `src/theme/index.ts` in the source repo, built from the semantic tokens in `src/theme/tokens.ts` — refer to those for the full palette in both modes.
 
 ## One idiomatic example
 

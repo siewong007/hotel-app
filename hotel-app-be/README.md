@@ -10,13 +10,20 @@ responsibilities and conventions are in [AGENTS.md](../AGENTS.md).
 
 ## Quick start
 
+Building needs `protoc` on `PATH` (macOS: `brew install protobuf`), because `build.rs`
+compiles the gRPC contract in `proto/`.
+
 ```bash
 cp .env.example .env          # set DATABASE_URL and a JWT_SECRET of at least 32 chars
 createdb hotel_management
 psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
 psql "$DATABASE_URL" -f database/postgres/seed.sql
+./database/postgres/apply-patches.sh   # the patch catalog; the backend refuses to start without it
 cargo run --bin hotel-app-be  # http://localhost:3030
 ```
+
+From the repository root, `make db-baseline` runs the same three steps. For demo data,
+run `cargo run --bin seed -- --all` (or `make db-seed`); `--list` shows the scenarios.
 
 The bootstrap seed does not install a usable shared password. Set the administrator
 password before the first login:
@@ -37,18 +44,19 @@ curl http://localhost:3030/health
 cargo check --all-features                    # minimum bar
 cargo clippy --all-features -- -D warnings    # exactly what CI runs
 cargo test --all-features                     # see the DATABASE_URL caveat below
-cargo fmt
+cargo fmt --check                             # CI gate; `cargo fmt` to fix
 ```
 
 `cargo check` does not compile the `tests/` targets, so it cannot catch a broken
 integration test after a signature change — run `cargo test`, or at least
 `cargo check --tests`.
 
-49 of the 53 files under `tests/` return early when `DATABASE_URL` is unset, and the
-suite still exits 0 — and each early return counts as a *pass*, so a no-database run
-reports **more** tests (~1,317), not fewer. Do not judge by run count or exit code:
-judge by wall-clock and per-suite counts (e.g. `payment_characterization` is
-44 passed in ~0.01s without a database vs ~29 passed / 2 ignored with one).
+55 of the 59 files under `tests/` read `DATABASE_URL` and return early without it (or,
+for some, when the server is unreachable). The suite still exits 0, and each early
+return counts as a *pass*, so a no-database run reports the same counts as a real
+one. Do not judge by run count or exit code. Judge by wall-clock and per-suite
+counts: on 2026-10-05, `payment_characterization` reported 48 passed in 0.00s without
+a database and the same 48 in ~3.5s with one.
 See [../docs/development.md](../docs/development.md#validate) for the full heuristic.
 The patch-lifecycle
 and schema-drift suites additionally shell out to `psql` — on macOS add libpq to PATH
@@ -70,8 +78,9 @@ src/
   repositories/   Cross-domain persistence only: audit, invoice_numbers
   models/         Cross-domain DTOs only: audit, common, row_mappers
   utils/          Sanitization and small pure helpers
-  bin/            hash_password, fix_password
-database/postgres/  V1 baseline, seed, and PostgreSQL 19 tuning scripts
+  bin/            hash_password, fix_password, seed/ (deterministic demo dataset)
+database/postgres/  V1 baseline, seed.sql, the patches/ catalog, drift + PG19 tuning scripts
+proto/              Mirror of ../proto/hotel (compiled by build.rs; refresh with `make sync-proto`)
 tests/              Integration tests, most requiring DATABASE_URL
 ```
 
@@ -83,9 +92,9 @@ Database lifecycle rules are in [database/README.md](database/README.md).
 `DATABASE_URL` and `JWT_SECRET` are required; everything else has a default. Optional
 variables cover the listen address, CORS origins, proxy trust, passkey relying-party ID,
 Google sign-in, SMTP delivery, desktop mode, and pool/cache tuning. The full annotated
-list is [.env.example](.env.example). Production additionally requires
-`ENVIRONMENT=production`, and startup refuses insecure combinations such as a wildcard
-CORS origin or skipped email verification.
+list is [.env.example](.env.example). `APP_ENV` (which wins) or `ENVIRONMENT` selects
+`development`/`staging`/`production`, and in production startup refuses insecure
+combinations such as a wildcard or localhost CORS origin or skipped email verification.
 
 Never commit a real `.env` file or local credentials.
 

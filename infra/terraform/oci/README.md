@@ -55,9 +55,11 @@ schema-level tuning script before the backend starts. The OCI override repeats
 the complete server command so Compose's command replacement keeps those PG19
 settings while adding the 12 GB VM sizing assumptions.
 
-There is no per-boot database bootstrap service. PostgreSQL's entrypoint applies
-the V1 baseline and `seed.sql` once when it initializes a new empty
-volume. Existing V1 volumes are left unchanged on later boots.
+PostgreSQL's entrypoint applies the V1 baseline and `seed.sql` once, when it
+initializes a new empty volume. On every boot, the root Compose file's one-shot
+`db-patches` service then runs the checksum-verified patch catalog before the
+backend starts. It skips revisions already applied, so a rerun is a no-op, and the
+backend refuses to start on a database that is missing one.
 
 ## Prerequisites
 

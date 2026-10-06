@@ -39,9 +39,10 @@ What happened instead?
 | --- | --- |
 | OS |  |
 | Browser |  |
-| Node.js version |  |
+| Bun version |  |
 | Rust version |  |
-| Database | PostgreSQL |
+| Database | PostgreSQL (image tag, e.g. `postgres:19beta3`) |
+| Commit / release | e.g. `v0.3.0` or a commit SHA |
 | App mode | Web / Desktop |
 
 ## Logs or Screenshots

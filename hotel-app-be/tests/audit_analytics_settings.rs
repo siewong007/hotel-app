@@ -2,11 +2,12 @@
 //! audit, system settings, global search, and booking channels.
 //!
 //! All six domains had zero integration coverage before this file (see
-//! `.claude/reports/be-test-coverage-2026-07-26.md` Part A/E). The analytics
+//! the 2026-07-26 backend coverage audit, Part A/E — retired from the tree;
+//! `git show a004183b6:.claude/reports/be-test-coverage-2026-07-26.md`). The analytics
 //! company-ledger-statement report in particular shipped a runtime decode
-//! panic for four days because nothing ever fetched it end-to-end (lesson
-//! 2026-07-26d in `.claude/rules/lessons.md`, root-caused to
-//! `repositories/analytics.rs` around the `customer_ledgers` /
+//! panic for four days because nothing ever fetched it end-to-end (theme 4 of
+//! `.claude/rules/lessons.md`, root-caused to what is now
+//! `modules/analytics/repository.rs` around the `customer_ledgers` /
 //! `customer_ledger_payments` reads inside `generate_company_ledger_statement`)
 //! -- `analytics_company_ledger_statement_decodes_ledger_and_payment_timestamps`
 //! below is a regression guard for exactly that path.

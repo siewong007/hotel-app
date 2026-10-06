@@ -43,15 +43,15 @@ Key functions (`modules/ledgers/repository.rs`):
 
 **Booking → Ledger integration**: when a company-billed booking transitions to
 `checked_out`/`completed`, `modules/bookings/lifecycle.rs`'s
-**`auto_post_company_ledger`** (lifecycle.rs:608) inserts a `room_charge` row with
+**`auto_post_company_ledger`** (lifecycle.rs:614) inserts a `room_charge` row with
 `folio_type='city_ledger'`, `transaction_type='debit'` — see `booking-workflow.md`
 for the call chain and idempotency mechanism (pre-check `SELECT EXISTS` at
-lifecycle.rs:628 plus a unique-index backstop — the loser of a race hits a 23505
+lifecycle.rs:634 plus a unique-index backstop — the loser of a race hits a 23505
 unique-violation, not application-level locking). Later booking-total edits
-propagate as a *delta* to that ledger row's `amount` (lifecycle.rs:2188),
+propagate as a *delta* to that ledger row's `amount` (lifecycle.rs:2182),
 restricted to `pending`/`partial` `room_charge` rows so user-added extras survive.
 Voiding a booking voids its open **unpaid** ledger rows in the same transaction
-(`void_booking_ledgers_tx`, lifecycle.rs:2805); rows with `paid_amount > 0` stay
+(`void_booking_ledgers_tx`, lifecycle.rs:2818); rows with `paid_amount > 0` stay
 open for reconciliation.
 
 > `customer_ledgers.net_amount` is written by `public.generate_folio_number()`, wired

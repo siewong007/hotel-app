@@ -19,7 +19,8 @@ current tree; "Partial" means implemented with a gap; "Missing" means absent.
 
 The application demonstrates substantial application-layer security and
 deployment engineering. A prior internal security evaluation
-(`.claude/reports/security-eval-2026-07-27/`) found 8 HIGH and 18 MEDIUM/LOW
+(2026-07-27; retired from the tree, recover with
+`git show 30daa4a1e:.claude/reports/security-eval-2026-07-27/security-evaluation.md`) found 8 HIGH and 18 MEDIUM/LOW
 issues; **every verified item from that report has been remediated** in the
 current tree (see §12). The remaining exposure is concentrated in operations:
 the production database runs a pre-release PostgreSQL, backups never leave the
@@ -257,7 +258,7 @@ Gaps and notes:
 
 | # | Sev | Area | Finding | Status | Validation |
 |---|---|---|---|---|---|
-| 1 | P1 | Database | `postgres:19beta3` (pre-release) in prod; no supported upgrade path to GA | Existing — GA targeted end of Oct 2026 (Beta 4 ships 2026-09-24) | `pg_dump`+`pg_restore` rehearsal to 19-GA on staging per `postgres-beta3-cutover.md`, into a fresh volume |
+| 1 | P1 | Database | `postgres:19beta3` (pre-release) in prod; no supported upgrade path to GA | Existing — Beta 4 shipped 2026-09-24 and reverted SQL/PGQ, which the baseline's `hotel_graph` uses, so the schema must drop it before any move off beta3; RC expected early Oct 2026, GA possibly Oct 2026 | `pg_dump`+`pg_restore` rehearsal to 19-GA on staging per `guides/postgres-engine-upgrade.md`, into a fresh volume |
 | 2 | P1 | Backup | No off-site/encrypted copies; host-held dumps only | **Partial** (this session) — env-gated `age`+`rclone copy`+`rclone check` ship now in `database-backup.sh`; destination, recipients file and bucket ACLs remain operator-owned. **2026-09-25: owner chose local-only backups on the AIC host; off-site deliberately not configured (accepted risk)** | set `SALIMINN_OFFSITE_REMOTE`+`SALIMINN_AGE_RECIPIENTS_FILE` on the backup unit, confirm `offsite:true` in `backup-status.json` + a remote restore |
 | 3 | P1 | Database | Runtime uses `hotel_admin` superuser; `hotel_app` role unapplied | Partial | `SELECT current_user` on backend conn + patch-runbook update |
 | 4 | P1 | Observability | Failure signals have no external consumer (backup-health marker, job failures, audit-write failures) | **Partial** (this session) — `check-backup-health.sh` POSTs transition-deduped alerts + recovery to `SALIMINN_ALERT_WEBHOOK` (`/opt/saliminn/backup-alert.env`); job/audit failure alerting still in-app only; no external uptime probe | set the webhook env file, trigger a forced failure, confirm the POST arrives |

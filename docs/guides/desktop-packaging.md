@@ -219,10 +219,17 @@ Packaged-build smoke tests run only when installers are produced:
   reports `19beta2`, launch the installed binary under `xvfb` for 25 s (still
   alive = pass).
 - **Windows**: run the NSIS installer `/S`, assert the installed tree contains
-  `hotel-desktop.exe`, the `hotel-app-be-*.exe` sidecar, and a `pgsql` whose
-  `postgres.exe --version` reports `19beta2`.
+  `hotel-desktop.exe`, the sidecar, and a `pgsql` whose `postgres.exe --version`
+  reports `19beta2`. tauri-bundler **strips** the `-<target-triple>` suffix when it
+  installs an `externalBin`, so the installed sidecar is plain `hotel-app-be.exe`;
+  the check matches `hotel-app-be*.exe` recursively.
 - **macOS**: artifact existence only — GUI launch checks on headless CI are
   flaky, so `.app` verification stays manual.
+
+The first all-green full-bundle run on all three platforms was run
+`35425902135` (2026-09-19): macOS 9m30s, Linux 19m23s (including the deb
+install and `xvfb` launch smoke), Windows 1h0m54s (including the NSIS install).
+The failures that preceded it are the traps listed under Troubleshooting.
 
 `.github/workflows/ci.yml` additionally runs `cargo check` + `cargo test` for
 the desktop crate on Ubuntu **and** Windows on every PR (with placeholder
@@ -255,3 +262,12 @@ the updater endpoint — see [`hotel-desktop/UPDATER.md`](../../hotel-desktop/UP
 - Windows installer opens a console flash or leaves `postgres.exe` running on
   uninstall: `installer-hooks.nsh` is responsible — check its `pg_ctl.exe stop`
   path, not the app.
+- Linux `pgsql/` self-containment check fails on absolute symlinks: `cpSync`
+  with `preserveTimestamps` rewrote relative soname links into absolute
+  source-prefix paths. `provision-pgsql.mjs` copies with `verbatimSymlinks: true`
+  and then `relativizeTreeSymlinks()` normalizes anything left (a link with no
+  in-tree counterpart is fatal).
+- The Linux build step exits `124` with `Bundling *.rpm` as its last line: the
+  known tauri-bundler rpm hang (tauri-apps/tauri#15698) hit the permanent
+  `timeout 3600` guard in `desktop-build.yml`. Re-run the job; the guard stays
+  until upstream ships a fix.

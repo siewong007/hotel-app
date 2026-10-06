@@ -16,16 +16,16 @@
 //! stay clear of that collision. No ID is reused across two test fns in this
 //! file (grepped before use, per `.claude/rules/lessons.md` 2026-07-27).
 //!
-//! KNOWN BUGS (do not enshrine -- see the two `#[ignore]`d tests at the
-//! bottom of this file for the decided-correct behavior instead):
-//! (a) `create_payment` (via `calculate_payment_summary`) charges a room-only
-//!     `base_price * nights` recalculation instead of the booking's
+//! FORMERLY KNOWN BUGS — both fixed; the `#[ignore]` markers that pinned them
+//! were removed by the fixing commits (`5405347fb` for (a), `e905c2b5f` for
+//! (b)):
+//! (a) `create_payment` (via `calculate_payment_summary`) used to charge a
+//!     room-only `base_price * nights` recalculation instead of the booking's
 //!     `billable_total()` (`total_amount + tourism_tax_amount +
-//!     extra_bed_charge`), and `PaymentRequest.amount` is never read at all
-//!     (repositories/payment.rs:229 binds `summary.total_amount`).
-//! (b) `approve_payment` completes a pending payment without re-verifying the
-//!     gateway capture, so it can confirm a payment for which no money was
-//!     ever actually collected.
+//!     extra_bed_charge`).
+//! (b) `approve_payment` used to complete a pending payment without
+//!     re-verifying the gateway capture; PayPal payments now cannot be
+//!     approved manually at all (`modules/payments/service.rs`).
 
 use axum::extract::{Extension, Path, State};
 use hotel_app_be::constants::PaymentMethod;

@@ -1,9 +1,9 @@
 //! Integration tests for the guests, rates, and loyalty domains.
 //!
 //! These three domains had zero prior integration coverage (guests: 15
-//! endpoints, rates: 11, loyalty: 13 -- see
-//! `.claude/reports/be-test-coverage-2026-07-26.md` Part E) despite guest
-//! credits and loyalty points being money-adjacent. Tests call the
+//! endpoints, rates: 11, loyalty: 13 -- see the 2026-07-26 backend coverage
+//! audit, Part E: `git show a004183b6:.claude/reports/be-test-coverage-2026-07-26.md`)
+//! despite guest credits and loyalty points being money-adjacent. Tests call the
 //! service/repository layer directly against PostgreSQL, the same way
 //! `tests/booking_service.rs` and `tests/auth_session.rs` do.
 //!

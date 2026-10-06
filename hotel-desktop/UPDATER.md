@@ -106,10 +106,10 @@ See `docs/guides/desktop-packaging.md` for the provisioning checklist.
 ## Verifying a release end-to-end
 
 ```bash
-# The tag's version must equal `version` in src-tauri/tauri.conf.json (1.0.0
-# today) — the manifest job hard-fails on a mismatch, so a throwaway tag like
-# v0.0.0-test never produces a release. Bump the version or tag what exists.
-git tag v1.0.0 && git push origin v1.0.0   # maintainer only; matches conf version
+# The tag's version must equal `version` in src-tauri/tauri.conf.json (0.3.0
+# as of v0.3.0) — the manifest job hard-fails on a mismatch, so a throwaway tag
+# like v0.0.0-test never produces a release. Bump the version, then tag it.
+git tag vX.Y.Z && git push origin vX.Y.Z   # maintainer only; must match conf version
 gh run watch                                # three builds + release
 curl -sL https://github.com/siewong007/hotel-app/releases/latest/download/latest.json
 ```
@@ -117,3 +117,8 @@ curl -sL https://github.com/siewong007/hotel-app/releases/latest/download/latest
 The last command must return JSON with `platforms.darwin-aarch64`,
 `platforms.windows-x86_64`, and `platforms.linux-x86_64` entries, each with a
 `signature` and a `releases/download/<tag>/...` URL.
+
+**Release record.** The `v0.3.0` tag run (2026-09-19) is the first that published
+through this path. Its `latest.json` (`version` 0.3.0) passes the check above on all
+three platforms (re-checked 2026-10-05). What remains unproven is an installed app
+actually applying an update. That needs the next tagged release, `v0.3.1` or later.

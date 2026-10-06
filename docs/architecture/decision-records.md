@@ -214,7 +214,7 @@ as a normal client, or re-implement `check_permission` at its own boundary.
 
 ## ADR 010: Schema-as-Source for PostgreSQL (No sqlx Migrations)
 
-**Status:** Accepted (2025)
+**Status:** Accepted (2025); amended 2026-08-21 (checksum-verified patch catalog)
 
 **Context:** The PostgreSQL schema was maintained differently from typical sqlx migration patterns, using raw SQL files.
 
@@ -226,8 +226,11 @@ database/postgres/migrations/0001_v1_baseline.sql  →  database/postgres/seed.s
 ```
 
 Docker, server, and desktop deployments all run that same sequence. There is no
-migration runner and no second migration file — every install path hardcodes the
-baseline filename, so a new `000N_*.sql` would never be applied. Additive schema changes
+migration runner and no second migration file. Since 2026-08-21, installed databases
+move forward only through the checksum-verified patch catalog
+(`database/postgres/patches/manifest.tsv`); a `000N_*.sql` that is not registered there
+is never applied, and the backend refuses to start while a compiled-in revision is
+missing. Additive schema changes
 go into the baseline (so fresh installs get them) plus an idempotent patch applied to
 live databases of the same generation. Legacy schemas are exported and rebuilt rather
 than upgraded in place. `seed.sql` is one self-validating transaction that raises on
@@ -244,7 +247,9 @@ baseline that will not install.
 - ✅ Compatible with Docker init scripts
 - ✅ Existing V1 databases avoid accidental seed or backfill rewrites at startup
 - ❌ Different from typical sqlx migration workflow
-- ❌ PostgreSQL 19 (currently `19beta3`) remains a testing target until general availability
+- ❌ PostgreSQL 19 (currently `19beta3`) remains a testing target until general availability.
+  19 Beta 4 reverted SQL/PGQ, which the baseline's `hotel_graph` uses, so the GA move first
+  needs a schema change (`guides/postgres-engine-upgrade.md`)
 
 ---
 
@@ -370,7 +375,7 @@ permissions gate the surface.
 
 ## ADR 014: gRPC-Web for Selected Domains (Strangler Migration)
 
-**Status:** Accepted (2026-09); partial rollout — five services live, ~350 REST
+**Status:** Accepted (2026-09); partial rollout — five services live, 368 REST
 paths remain
 
 **Context:** The REST/JSON contract under `/api` is correct and complete, but
@@ -390,8 +395,8 @@ Rollout is per bounded context via `src/api/grpc/flags.ts`
 (`VITE_GRPC_CONTEXTS` build default, per-browser `grpcContexts` override) —
 a disabled context keeps calling REST, so every context can roll forward or
 back independently. Implemented: `RoomService`, `RoomTypeService`,
-`HousekeepingService`, `MaintenanceService`, `GuestService`. Working record:
-[grpc-migration/](grpc-migration/).
+`HousekeepingService`, `MaintenanceService`, `GuestService`. Current state:
+[grpc.md](grpc.md).
 
 **Consequences:**
 - ✅ Typed contracts end FE/BE model drift in migrated domains

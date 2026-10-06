@@ -24,6 +24,8 @@ workspace, so run commands from each subdirectory.
 
 **Guests**
 
+- A public landing page for the property (Salim Inn), in English, Bahasa Melayu, and
+  Simplified and Traditional Chinese
 - Browse rooms and offers, check availability
 - Book without an account (public, rate-limited endpoints)
 - Manage the booking via a secure access token: guest portal, payments, eKYC document
@@ -70,11 +72,14 @@ sidecar against a bundled PostgreSQL.
 hotel-app-be/               # Rust backend API
   src/modules/<domain>/     # routes → handlers → service → repository → models
   src/core/                 # auth, DB pool, middleware, rate limiting
+  src/grpc/                 # tonic adapters for the gRPC-Web contexts
+  src/bin/seed/             # deterministic demo/staging dataset (`make db-seed`)
   database/postgres/        # 0001_v1_baseline.sql, seed.sql, patches/ catalog
   tests/                    # integration tests (most need DATABASE_URL)
 hotel-web-fe/               # React frontend
   src/features/<domain>/    # pages, components, hooks, api
   src/api/                  # ky-based service layer + shared client
+  salim-inn/                # public landing page (standalone document)
 hotel-desktop/              # Tauri desktop app (sidecar backend + bundled PG)
 proto/                      # gRPC contract of record (buf)
 deploy/                     # prod/staging compose files, Caddyfile, deploy scripts
@@ -85,7 +90,8 @@ Makefile                    # task runner — `make help`
 
 ## Getting started
 
-Prerequisites: Rust 1.95.0 (pinned in `rust-toolchain.toml`), Bun 1.3, Docker.
+Prerequisites: Rust 1.95.0 (pinned in `rust-toolchain.toml`), Bun 1.3 (CI pins 1.3.14), Docker,
+and `protoc` (the backend build compiles the gRPC contract).
 
 **Option A — Docker (full stack):**
 
@@ -109,7 +115,8 @@ cd hotel-app-be && cargo run --bin hotel-app-be        # API on :3030
 cd hotel-web-fe && bun run start                       # Vite on :3000, proxies /api → 127.0.0.1:3030
 ```
 
-Optional demo data: point `DATABASE_URL` at the dev database and run `make db-seed`.
+Optional demo data: point `DATABASE_URL` at the dev database and run `make db-seed`
+(`cd hotel-app-be && cargo run --bin seed -- --list` shows the scenarios).
 
 **Database lifecycle** (no migration runner):
 
@@ -126,7 +133,7 @@ make db-seed       # optional deterministic staging dataset
 | `POSTGRES_PASSWORD` | Docker Compose | DB password; ships blank — compose refuses to start without it |
 | `JWT_SECRET` | Always | JWT signing secret, ≥ 32 chars; rotation invalidates staff tokens |
 | `DATABASE_URL` | Backend outside Docker | e.g. `postgres://hotel_admin:<pw>@127.0.0.1:5432/hotel_management` |
-| `ENVIRONMENT` | Production | `development`/`staging`/`production`; prod refuses insecure combos |
+| `APP_ENV` / `ENVIRONMENT` | Production | `development`/`staging`/`production` (`APP_ENV` wins); prod refuses insecure combos |
 | `ALLOWED_ORIGINS` | Production | Comma-separated CORS origins (HTTPS, non-localhost in prod) |
 | `BACKEND_PORT` | No | API port, default `3030` |
 
@@ -161,11 +168,12 @@ Schema changes go into the V1 baseline **and** a new checksum-verified patch und
 - [Architecture](docs/architecture/overview.md) · [ADRs](docs/architecture/decision-records.md) · [request/data flow](docs/architecture/system-flows.md)
 - [API](docs/api/README.md) · generated [openapi.json](docs/api/openapi.json) (CI-enforced)
 - [Development guide](docs/development.md) — setup, commands, troubleshooting
-- [Database lifecycle](hotel-app-be/database/README.md)
-- [Deployment](docs/guides/deployment.md) · [VPS access](docs/guides/vps-access.md)
+- [Database lifecycle and demo data](hotel-app-be/database/README.md)
+- [Deployment](docs/guides/deployment.md) · [VPS access](docs/guides/vps-access.md) · [PostgreSQL engine upgrade](docs/guides/postgres-engine-upgrade.md)
+- [Internationalization](docs/guides/internationalization.md) · [gRPC-Web transport](docs/architecture/grpc.md)
 - [Security](SECURITY.md) · [production operations](docs/security/production-operations.md)
 - [Desktop packaging](docs/guides/desktop-packaging.md) · [updater](hotel-desktop/UPDATER.md)
-- [Contributing](CONTRIBUTING.md)
+- [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [full documentation index](docs/README.md)
 
 ## Status
 
@@ -174,8 +182,10 @@ Schema changes go into the V1 baseline **and** a new checksum-verified patch und
   portal, loyalty, promotions, communications (email), i18n (en/ms/zh/zh-TW), and the
   desktop app.
 - **In progress:** gRPC-Web migration (rooms, housekeeping, maintenance, guests done;
-  ~350 REST paths remain); desktop OS signing/notarization (wired, awaiting
-  certificates); PostgreSQL 19 GA cutover (currently on `19beta3`).
+  368 REST paths remain in the OpenAPI document); desktop OS signing/notarization
+  (wired, awaiting certificates); the PostgreSQL 19 GA move. Production is on `19beta3`,
+  and leaving it first requires dropping the schema's SQL/PGQ property graph, a feature
+  PostgreSQL 19 Beta 4 reverted.
 - **Planned:** SMS notification channel. PayPal refund/dispute webhooks are verified and
   audit-logged but not auto-applied — manual reconciliation today.
 

@@ -21,7 +21,7 @@ By participating in this project, you agree to abide by the [Code of Conduct](CO
 
 ### Initial Setup
 
-See [README.md](README.md#docker-compose-quick-start) for installation instructions and `hotel-app-be/.env.example` for environment configuration.
+See [README.md](README.md#getting-started) for installation instructions and `hotel-app-be/.env.example` for environment configuration.
 
 ### Development Commands
 
@@ -137,7 +137,7 @@ rules are in [AGENTS.md](AGENTS.md).
   - Or in separate test modules under `tests/`
 - **Integration tests:** Database-backed tests in `hotel-app-be/tests/`
   - Run with `cargo test --all-features` (`postgres` is a default feature — do not pass `--no-default-features`)
-  - **45 of the 50 files return early when `DATABASE_URL` is unset, and the suite still exits 0.** Export `DATABASE_URL` and check the reported run count before treating a green run as evidence.
+  - **55 of the 59 files read `DATABASE_URL` and return early without it, and the suite still exits 0.** Each early return counts as a *pass*, so the run count looks the same with or without a database — it is no evidence. Point `DATABASE_URL` at a scratch database (baseline + `seed.sql` + patches, never one with real data) and judge by per-suite wall-clock: `payment_characterization` takes ~3.5s for real and 0.00s when skipped. See [`docs/development.md`](docs/development.md#validate).
 - **What to test:**
   - Pure business logic and calculations
   - SQL query builders and PostgreSQL helpers

@@ -27,7 +27,7 @@ per-browser `grpcContexts` override); a disabled context keeps calling REST.
 The Vite dev proxy forwards `/hotel.`; the production edge matchers
 (`deploy/Caddyfile`, `deploy/deploy{,-staging}.sh`) do not yet — the flags
 therefore stay off outside development (ADR 014,
-[grpc-migration/](grpc-migration/)).
+[grpc.md](grpc.md)).
 
 ## Desktop flow
 
@@ -164,6 +164,12 @@ sequenceDiagram
   that initial lookup intentionally still relies on booking number + name.
 - `claim_account` upgrades the anonymous guest record into a real portal
   account later, so accounts are never mandatory for the first booking.
+- Room choice within a type is steered by the optional, soft
+  `smoking_preference` (`bookings.smoking_preference`, patch 0009).
+  `allocate_room_tx` prefers rooms whose `rooms.is_smoking` matches, and fills
+  non-smoking rooms first when no preference is given. It never removes rooms
+  from availability or refuses a booking. Before this, portal allocation always
+  took the lowest free room id, which once placed a guest in a smoking room.
 
 ## Payments and PayPal webhooks
 
@@ -202,6 +208,29 @@ flowchart TD
 
     Browser2["Browser 'success' screen"] -.->|cosmetic only — never<br/>writes paid state| Done
 ```
+
+### Bank-transfer claims and staff approval
+
+When a guest submits a bank transfer, `modules/payments/service.rs` creates a
+**pending** payment row. The booking stays unpaid, waiting for confirmation,
+and nothing is recorded as collected. The claim is audited as
+`payment_pending_approval`, not as a created payment. In the same transaction
+it writes a `bank_transfer_pending` staff notification addressed to
+`payments:read`, which reception already holds. The guest gets no email at this
+point.
+
+Staff resolve the claim on `/payment-approvals`:
+
+- `approve_payment` transitions only from `pending`. **PayPal payments cannot be
+  approved by hand**, because their capture has not been verified; they settle
+  through the capture paths above, or staff reject them.
+- A staff reject is refused once staff have already confirmed the booking by
+  hand. The refusal tells them to approve the payment, or to void or refund the
+  booking instead. A reject never moves money.
+- The "Payment confirmed" email goes out only when an approval, or a recorded
+  payment, is what newly confirms the booking.
+
+Recording a payment at the desk is unchanged: it completes immediately.
 
 ## Payment idempotency and deposit refunds
 
@@ -367,6 +396,9 @@ HTTP client honors `Retry-After` on 413/429/503.
 ## Important wiring checks
 
 - Merge every new backend router in `routes/mod.rs`.
-- Add new top-level API prefixes to `hotel-web-fe/vite.config.ts`.
+- Add a new top-level API prefix to both `PROXY_PREFIXES` (`hotel-web-fe/vite.config.ts`)
+  and `ROOT_API_PREFIXES` (`hotel-web-fe/src/desktop/runtimeApi.ts`); the desktop
+  `origin-parity.test.mjs` fails if they drift. The production edge matchers
+  (`deploy/Caddyfile`, `deploy/deploy{,-staging}.sh`) need it too.
 - Register new pages in both `src/routes/` and `src/navigation/routeRegistry.tsx`.
 - Keep SQL parameterized and validate it against PostgreSQL.

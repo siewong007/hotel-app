@@ -16,7 +16,7 @@ coverage audit lives in
 | Locale registry (codes, `Intl` tags, native names, direction) | `hotel-web-fe/src/i18n/locales.ts` |
 | Translation engine (lookup, plurals, interpolation) | `hotel-web-fe/src/i18n/translator.ts` |
 | Active locale, persistence, precedence | `hotel-web-fe/src/i18n/localeStore.ts` |
-| Web bundles | `hotel-web-fe/src/i18n/resources/<locale>/<namespace>.json` |
+| Web bundles | `hotel-web-fe/src/i18n/resources/<locale>/<namespace>.json` — `en` is bundled; `ms`/`zh`/`zh-TW` are one lazy chunk each (`ensureLocaleLoaded` in `resources/index.ts`) |
 | `Intl` formatters (number, percent, relative time) | `hotel-web-fe/src/i18n/format.ts` |
 | Language switcher | `hotel-web-fe/src/components/common/LanguageSwitcher.tsx` |
 | Server locale type + negotiation | `hotel-app-be/src/core/i18n.rs` |
@@ -83,9 +83,14 @@ category — legitimately omits `_one`, and the parity test knows that.
    imports in `src/i18n/resources/index.ts`.
 3. Add `hotel-app-be/src/core/locales/<code>.json` and extend
    `SUPPORTED_LOCALES` and `source_for` in `hotel-app-be/src/core/i18n.rs`.
-4. Check the consent locale constraint (`consent_records.locale`) accepts the
-   new code — a language offered in the switcher but rejected on write would
-   fail a guest's consent submission.
+4. Widen the consent locale constraint (`consent_records.locale`) with a new
+   catalog patch, as patches 0004 (`zh`) and 0007 (`zh-TW`) did — a language
+   offered in the switcher but rejected on write would fail a guest's consent
+   submission.
+5. Add the code to `LocalizedText` in `src/features/legal/content/types.ts`;
+   `typecheck` then lists every legal string to translate.
+6. Add a help article set, and a landing-page `Copy` file plus its `lang.ts`
+   entry (see [Surfaces outside the bundle system](#surfaces-outside-the-bundle-system)).
 
 Run `bun run test src/i18n` and `cargo test --lib core::i18n`; both parity
 suites will name anything you missed.
@@ -96,21 +101,24 @@ directional margins rather than logical properties.
 
 ## How the language is chosen
 
-**Web**, highest priority first:
+**Web**, highest priority first (`src/i18n/localeStore.ts`):
 
-1. an explicit choice in the switcher (persisted to `localStorage`)
-2. a default applied via `applyDefaultLocale` (e.g. a guest profile preference)
+1. an explicit choice — a `?lang=<code>` link parameter (persisted like a
+   switcher pick, so a shared link wins and survives a refresh), then the
+   switcher choice stored under the `locale` key
+2. the hotel's `default_locale` setting, applied by `applyDefaultLocale` once
+   settings load
 3. `navigator.languages`
 4. `en`
 
 An explicit choice always outranks an inferred one: a guest who picked Bahasa
-Melayu is not flipped back to English by a later profile sync.
+Melayu is not flipped back to English by a later settings sync.
 
 **Server**, for guest email:
 
 1. `guests.language_preference`
-2. the `default_locale` system setting (absent by default; reads fall back to
-   `en`, so a database without the row behaves exactly as one set to `en`)
+2. the `default_locale` system setting — seeded as `en` by patch 0011 and
+   editable on the Settings page; an unrecognised value reads as `en`
 3. `en`
 
 The web client sends `Accept-Language` on every API call
@@ -122,6 +130,38 @@ Chinese tags are matched by script and region, not just the `zh` prefix:
 `zh-TW`, `zh-HK`, `zh-MO`, and any `zh-Hant…` tag resolve to `zh-TW`;
 `zh-CN`, `zh-SG`, `zh-MY`, `zh-Hans…`, and bare `zh` resolve to `zh` —
 the same rule `matchLocale` applies to `navigator.languages` on the web.
+
+## Surfaces outside the bundle system
+
+Four kinds of copy are translated, but not through `resources/<locale>/*.json`.
+Each has its own guarantee:
+
+- **Legal corpus** (`src/features/legal/content/`) — terms, privacy notice,
+  payment terms, eKYC consent, and the consent prompts. Text is
+  `LocalizedText`, and **all four locales are required fields**, so a missing
+  translation is a type error rather than an English fallback. That is
+  deliberate: a consent record names the locale the guest read, and an English
+  fallback under a `zh` record would be false evidence. `en`/`ms` are the PDPA
+  s.7(2) floor; the `zh`/`zh-TW` text is marked `DRAFT — pending native/legal
+  review` in each file. Adding zh/zh-TW did **not** bump any consent version:
+  the en/ms wording that existing records pin is unchanged. Changing published
+  wording later is a content edit plus a version bump.
+- **Help articles** (`src/features/help/content/articles.<locale>.ts`) — one
+  article set per locale, resolved through `ARTICLE_SETS`.
+- **PDF exports** — jsPDF's built-in font is Latin-1 only, so a `zh`/`zh-TW`
+  export embeds Noto Sans CJK SC through `src/utils/pdfFont.ts`. The ~16 MB
+  font is fetched lazily, only for a Chinese export.
+- **Salim Inn landing page** (`hotel-web-fe/salim-inn/`) — a standalone
+  document outside the React app, with its own content model:
+  `src/content/en.ts` defines the `Copy` type, and `ms.ts`, `zh.ts` and
+  `zhTW.ts` must satisfy it, so a missing key fails `typecheck`.
+  `src/content/lang.ts` resolves `?lang=` → the shared `locale` storage key →
+  `navigator.languages` → `en`, using the same Chinese script/region rule as
+  the app. A choice made on the landing page therefore carries into the guest
+  portal. `index.html` keeps English as the no-JS/SEO baseline, and every
+  translatable element carries `data-i18n="<path>"`. `src/i18n.test.ts` fails
+  if any such path is missing from any locale. A new English string added to
+  `index.html` without a `data-i18n` key stays English in every language.
 
 ## Formatting
 

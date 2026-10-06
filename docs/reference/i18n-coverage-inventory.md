@@ -15,7 +15,7 @@ history has it); usage guide:
   and bare `zh` resolve to `zh`)
 - Namespaces: **30** bundles per locale under
   `hotel-web-fe/src/i18n/resources/<locale>/`
-- Flattened leaf keys: **en 7,755 · ms 7,699 · zh 7,684 · zh-TW 7,632** —
+- Flattened leaf keys (recounted 2026-10-05): **en 7,797 · ms 7,741 · zh 7,726 · zh-TW 7,674** —
   ms/zh/zh-TW counts are lower *by design*: `Intl.PluralRules` gives Malay
   and both Chinese locales only the `other` category, so `_one`/`_zero`
   variants legitimately do not exist there. The parity suite accounts for
@@ -169,6 +169,7 @@ in review (`communications:campaigns.new/newTitle`, ms
 | Legal corpus | `features/legal/content/*` is fully four-locale: en/ms satisfy PDPA s.7(2); zh/zh-TW are authored drafts flagged `DRAFT — pending native/legal review` in each content file. `LegalLocale` = `LocaleCode`; the corpus toggle lists all four and consent records the actual locale read. |
 | Help corpus | `features/help/content/*` authored en/ms/zh/zh-TW — each locale resolves its own article set (`ARTICLE_SETS` in `features/help/content/index.ts`); zh-TW was machine-converted (OpenCC `s2twp`) from the zh set then terminology-adjusted, so it still merits a native-speaker pass. |
 | PDF bodies | Night-audit and audit-log jsPDF exports follow the active locale. zh/zh-TW documents embed Noto Sans CJK SC (TrueType, `src/assets/fonts/`, SIL OFL) via `utils/pdfFont.ts` — fetched lazily per session, registered per document; en/ms stay on `helvetica` with no font download. Action/resource enum labels still humanize via `formatStatusLabel` (English) — server values, not UI copy. CSV exports are translated. |
+| Salim Inn landing | `hotel-web-fe/salim-inn/` sits outside `src/` and the bundle system. Its `Copy` type (`src/content/en.ts`) is satisfied by `ms.ts`/`zh.ts`/`zhTW.ts`, so a missing key fails `typecheck`. `index.html` stays English as the no-JS baseline, with `data-i18n` paths, and `salim-inn/src/i18n.test.ts` checks every path in every locale. Locale comes from `?lang=`, then the shared `locale` key, then the browser. |
 | DB/server content | Guest names, room names, rate descriptions, remarks, email bodies — backend email copy is covered by `hotel-app-be/src/core/locales/{en,ms,zh,zh-TW}.json`. |
 | `paymentRecovery` in `guestPortal` ns | Public guest-facing route `/booking/recover-payment/$token` shares the portal chrome; documented deviation from the domain→namespace map. |
 | zh guestPortal residual English | **Resolved 2026-10-01** — 697 values translated; 2 remain byte-identical to en *correctly* (`checkin.account.nameSuffix` = ` · {{name}}`, `dashboard.devices.ip` = `IP {{address}}` — non-prose fragments). Translation is a machine-draft pass: a native review remains advisable but nothing user-facing reads English anymore. |

@@ -19,6 +19,7 @@ lockfile dump. Last reviewed during the 2026-09-13 modernization pass.
 | date-fns | Dates | Business-day math belongs to the backend (`hotel_today`) |
 | @nivo/{bar,line,pie,core} | Charts | Dashboard/reports; wrapped by `src/components/charts/` — never imported directly |
 | jspdf + jspdf-autotable | PDF export | Receipts/reports |
+| three | 3D scenes on the public landing page | Imported only by `salim-inn/` (the flythrough film and interiors). The React app in `src/` never loads it. |
 | @paypal/react-paypal-js | PayPal buttons | Guest + staff payment surfaces |
 | qrcode.react | QR rendering | 2FA enrollment, share links |
 | web-vitals 6 | RUM metrics | `onINP` (FID removed in v6) |
@@ -77,7 +78,7 @@ rejects requests without a User-Agent and returns nothing useful).
 | simplelog + log | Logging | |
 | dirs 7 | Data dirs | |
 | qrcode + image | TOTP QR images | |
-| clap 4 | Helper binaries | `hash_password`, `fix_password` |
+| clap 4 | Helper binaries | `hash_password`, `fix_password`, and the `seed` demo-dataset binary |
 
 Deliberately absent: an ORM (repositories hold explicit SQL), a dedicated
 rate-limit store (shared `rate_limit_buckets` table in the existing database —

@@ -39,8 +39,11 @@ Browser (React / MUI / TanStack Router and Query)
 In production the edge is two hops, not one: **Caddy** terminates TLS and applies
 the security headers, then splits by path — `/api/*`, `/uploads/*`, `/health`,
 `/ws*` go to `backend:3030`, and everything else to `frontend:80`, an
-**nginx:1.28-alpine** container serving the built SPA (`hotel-web-fe/Dockerfile`,
-`hotel-web-fe/nginx.conf`). Caddy's `@backend` matcher is meant to stay in sync
+**nginx:1.31-alpine** container serving the three built documents
+(`hotel-web-fe/Dockerfile`, `hotel-web-fe/nginx.conf`): the staff SPA, the guest
+portal (`guest.html`), and the public landing page (`salim-inn/index.html`).
+nginx answers a cookie-less request for `/` with a 302 to the landing page. That
+is what crawlers and link previewers see, not the SPA's `index.html`. Caddy's `@backend` matcher is meant to stay in sync
 with `PROXY_PREFIXES` in `hotel-web-fe/vite.config.ts` — the proxy list now
 includes `/hotel.` (gRPC-Web), which neither this Caddyfile nor the generated
 matchers in `deploy/deploy{,-staging}.sh` route yet, so the gRPC rollout flags
@@ -54,8 +57,8 @@ Three transports share the one Axum process:
   root-level paths (`/hotel.<package>.<Service>/<Method>` plus health and
   reflection). Implemented for rooms, room types, housekeeping, maintenance,
   and guests; the browser opts in per context at runtime and falls back to
-  REST everywhere else (ADR 014, working record in
-  [grpc-migration/](grpc-migration/)).
+  REST everywhere else (ADR 014, details in
+  [grpc.md](grpc.md)).
 - **WebSocket** — staff data-change notifications and the availability,
   loyalty, and support sockets (ADR 015). There is no SSE endpoint.
 
@@ -82,6 +85,9 @@ than the wildcard. Embedded PostgreSQL is initialized through the same baseline
 > beta on-disk formats have no supported in-place upgrade, which is why the
 > build-identity gate refuses a mismatched `pgdata`. Tracked in
 > [`../ongoing-dev.md`](../ongoing-dev.md) under the PostgreSQL 19 GA item.
+> Neither surface can move past `19beta3` yet: 19 Beta 4 reverted the SQL/PGQ
+> feature the baseline's `hotel_graph` uses
+> ([`../guides/postgres-engine-upgrade.md`](../guides/postgres-engine-upgrade.md)).
 
 ## Repository structure
 
@@ -90,7 +96,9 @@ hotel-app-be/      Rust 1.95 backend (Axum 0.8, SQLx 0.9, PostgreSQL 19)
 hotel-web-fe/      React 19 + TypeScript 6 frontend (Vite 8, MUI 9)
 hotel-desktop/     Tauri 2 wrapper (Rust sidecar + embedded PostgreSQL)
 docs/              Project documentation
-deploy/            Production deployment scripts
+proto/             gRPC contract of record (buf v2 module)
+deploy/            Production + staging compose files, Caddyfile, deploy scripts
+scripts/           Repo gates: doc links, desktop DB mirror, proto mirror
 .github/workflows/ CI and deploy pipelines
 ```
 
@@ -115,6 +123,8 @@ repositories/     Cross-domain persistence only: audit, invoice_numbers
 models/           Cross-domain DTOs only: audit, common, row_mappers
 core/             Auth, DB pool, errors, middleware, rate limiting, RBAC/settings caches
 utils/            Small pure helpers (sanitization, dates)
+bin/              seed/ (deterministic demo dataset, `make db-seed`),
+                  hash_password, fix_password; the server is main.rs
 database/postgres/  Baseline, seed, and the checksum-verified patch catalog
 ```
 
@@ -178,9 +188,13 @@ utils/              date.ts, errorMessage, pagination, sanitization, …
   `HotelPieChart`, and `HotelSparkline` — the last has no `Chart` suffix);
   PDFs via jsPDF (+autotable); forms use controlled MUI inputs with
   `validator`-equivalent checks server-side.
-- i18n: `useTranslation(ns)` → `{ t }`, i18next-shaped but implemented on
-  `Intl` (ADR 012). Staff language is a browser preference; guest language is
-  persisted server-side.
+- i18n: `useTranslation(ns)` → `{ t, tOr, locale, setLocale }`, i18next-shaped
+  but implemented on `Intl` (ADR 012). The interface language resolves in this
+  order: a `?lang=` link, the switcher choice, the hotel's `default_locale`
+  setting, the browser. A guest's language is also persisted server-side
+  (`guests.language_preference`) for email. Legal, help, and landing-page copy
+  have their own content models
+  ([`../guides/internationalization.md`](../guides/internationalization.md)).
 
 ## Database architecture
 
@@ -196,9 +210,13 @@ database/postgres/migrations/0001_v1_baseline.sql   (V1 baseline, fresh installs
 - Every additive schema change lands in the baseline **and** a new catalog
   patch; nothing discovers loose SQL files. Published patch checksums are
   immutable.
-- Backend startup validates the schema; it never applies patches. Patch
-  executors: `make db-patch` / `apply-patches.sh` (server), deploy script
-  (production), `src-tauri/src/postgres/patches.rs` (desktop).
+- Backend startup never applies patches. It refuses to start while any
+  revision in its compiled-in `manifest.tsv` is missing or has a different
+  checksum (`core/schema_catalog.rs`). Patch executors: `make db-patch` /
+  `apply-patches.sh` (server), the deploy script (production),
+  `src-tauri/src/postgres/patches.rs` (desktop).
+- Demo data is the `seed` binary (`make db-seed`), which writes only the
+  800000-899999 id band and refuses production. Deploys never run it.
 - The hotel business day comes from `system_settings.timezone`, applied to
   every pooled connection — SQL `CURRENT_DATE` is the hotel day. Rust business
   logic uses `hotel_today(executor)`, never `chrono::Local`.
@@ -264,7 +282,10 @@ flowchart LR
 - Staff login: username/password → JWT access token (in memory on the client)
   + HttpOnly refresh cookie. Refresh tokens are server-side rows and revocable
   (logout, password change, passkey reset all revoke). Optional TOTP 2FA with
-  recovery codes; passkeys supported. TOTP secrets are encrypted at rest under
+  recovery codes. A passkey satisfies 2FA on its own, so a passkey login skips
+  the TOTP step by design, and registering a passkey is a step-up operation that
+  needs the password or a TOTP code (`modules/passkey/service.rs`). The account
+  lockout applies to passkey logins too. TOTP secrets are encrypted at rest under
   `TOTP_ENCRYPTION_KEY` (`enc1:` prefix). The `require_two_factor_roles` +
   `require_two_factor_grace_days` settings can make enrolment mandatory for
   named roles with a grace window — empty by default, so mandatory 2FA is an
@@ -302,6 +323,7 @@ See [../features.md](../features.md) for the status registry. Delivered domains:
 | gRPC-Web (partial) | `src/grpc/` adapters — RoomService, RoomTypeService, HousekeepingService, MaintenanceService, GuestService | `api/grpc/` + `gen/` Connect-ES clients behind `grpcEnabled(context)` flags |
 | Guest portal | `modules/{guest_portal,guest_booking,consent}` | `guest/` entry + `features/guestPortal` |
 | Legal & misc public pages | — (static content) | `features/legal`, `/offers`, `/unsubscribe/$token` |
+| Public landing page | — (static; hands off to the guest booking flow) | `hotel-web-fe/salim-inn/` (standalone document, own content model) |
 | Search | `modules/search` | shared search |
 
 ## Notable invariants
