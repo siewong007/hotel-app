@@ -110,11 +110,16 @@ fn postgres_schema_uses_identity_columns_not_serial_sequences() {
 }
 
 #[test]
-fn postgres_schema_defines_the_hotel_property_graph() {
-    assert!(
-        POSTGRES_SCHEMA.contains("CREATE PROPERTY GRAPH public.hotel_graph"),
-        "baseline must define the SQL/PGQ hotel_graph property graph"
-    );
+fn postgres_schema_omits_the_reverted_sql_pgq_property_graph() {
+    // PostgreSQL 19 Beta 4 reverted SQL/PGQ, and the revert carries into the
+    // release candidate and GA: a baseline using it cannot install there.
+    // Patch 0015 drops the graph from databases installed earlier.
+    for pgq in ["PROPERTY GRAPH", "GRAPH_TABLE"] {
+        assert!(
+            !POSTGRES_SCHEMA.contains(pgq),
+            "baseline must not use SQL/PGQ ({pgq}); PostgreSQL 19 Beta 4 and later reject it"
+        );
+    }
 }
 
 #[test]

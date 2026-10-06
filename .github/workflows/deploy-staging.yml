@@ -207,6 +207,8 @@ jobs:
             "$bundle_dir/database/patches/0013_staff_notifications.sql"
           cp hotel-app-be/database/postgres/patches/0014_new_reservation_visible_time_default.sql \
             "$bundle_dir/database/patches/0014_new_reservation_visible_time_default.sql"
+          cp hotel-app-be/database/postgres/patches/0015_drop_hotel_property_graph.sql \
+            "$bundle_dir/database/patches/0015_drop_hotel_property_graph.sql"
 
           (
             cd "$bundle_dir"
@@ -236,6 +238,7 @@ jobs:
               database/patches/0012_new_reservation_visible_time.sql \
               database/patches/0013_staff_notifications.sql \
               database/patches/0014_new_reservation_visible_time_default.sql \
+              database/patches/0015_drop_hotel_property_graph.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

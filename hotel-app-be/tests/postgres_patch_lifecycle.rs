@@ -748,6 +748,82 @@ async fn postgres_v1_patches_apply_record_and_skip_idempotently() {
     databases.cleanup().await;
 }
 
+/// The SQL/PGQ graph every V1 database installed before patch 0015 carries,
+/// exactly as the previous baseline created it.
+const PRE_0015_HOTEL_GRAPH: &str = r#"
+CREATE PROPERTY GRAPH public.hotel_graph
+    VERTEX TABLES (
+        public.companies KEY (id) LABEL company PROPERTIES (company_name, id),
+        public.guests KEY (id) LABEL guest PROPERTIES (email, id, nick_name),
+        public.rooms KEY (id) LABEL room PROPERTIES (id, room_number),
+        public.users KEY (id) LABEL staff PROPERTIES (id, username)
+    )
+    EDGE TABLES (
+        public.bookings KEY (id) SOURCE KEY (guest_id) REFERENCES guests (id) DESTINATION KEY (room_id) REFERENCES rooms (id) LABEL stayed_in PROPERTIES (check_in_date, check_out_date, id, status),
+        public.user_guests KEY (id) SOURCE KEY (user_id) REFERENCES users (id) DESTINATION KEY (guest_id) REFERENCES guests (id) LABEL manages PROPERTIES (id, relationship_type)
+    );
+"#;
+
+async fn property_graph_count(pool: &PgPool) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM pg_catalog.pg_class WHERE relkind = 'g'")
+        .fetch_one(pool)
+        .await
+        .expect("count property graphs")
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_drops_the_reverted_hotel_property_graph() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let database = databases.create("graph").await;
+    let pool = install_v1(&database).await;
+
+    // Rebuild a database installed from the previous baseline. Only a server
+    // that still ships SQL/PGQ (19beta3 and earlier) can hold the graph; from
+    // 19beta4 on the statement does not parse, and this test then proves that
+    // patch 0015 still applies on a server without SQL/PGQ.
+    let server_has_pgq: bool =
+        sqlx::query_scalar("SELECT to_regclass('pg_catalog.pg_propgraph_element') IS NOT NULL")
+            .fetch_one(&pool)
+            .await
+            .expect("probe for the SQL/PGQ catalogs");
+    if server_has_pgq {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(PRE_0015_HOTEL_GRAPH))
+            .execute(&pool)
+            .await
+            .expect("recreate the pre-0015 property graph");
+        assert_eq!(property_graph_count(&pool).await, 1);
+    } else {
+        eprintln!("server has no SQL/PGQ; checking that patch 0015 applies without it");
+    }
+
+    let first_run = run_patches(&database, None).await;
+    assert_runner_succeeded(&first_run);
+    // A 19beta3 pg_dump replays CREATE PROPERTY GRAPH, which 19beta4 and later
+    // reject, so a converged database must not hold any graph at all.
+    assert_eq!(
+        property_graph_count(&pool).await,
+        0,
+        "the patch catalog must leave no property graph behind"
+    );
+    let revisions = revision_snapshot(&pool).await;
+    assert!(
+        revisions
+            .iter()
+            .any(|(version, name, _, _)| *version == 15 && name == "drop-hotel-property-graph"),
+        "patch 0015 must record its revision: {revisions:?}"
+    );
+
+    let second_run = run_patches(&database, None).await;
+    assert_runner_succeeded(&second_run);
+    assert_eq!(revision_snapshot(&pool).await, revisions);
+
+    pool.close().await;
+    databases.cleanup().await;
+}
+
 #[tokio::test]
 async fn schema_drift_report_is_read_only() {
     let Some(database_url) = database_url_or_skip() else {

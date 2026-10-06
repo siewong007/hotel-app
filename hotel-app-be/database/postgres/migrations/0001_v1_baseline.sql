@@ -10600,23 +10600,6 @@ ALTER TABLE ONLY public.vouchers
     ADD CONSTRAINT vouchers_revoked_by_fkey FOREIGN KEY (revoked_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
---
--- Name: hotel_graph; Type: PROPERTY GRAPH; Schema: public; Owner: -
---
-
-CREATE PROPERTY GRAPH public.hotel_graph
-    VERTEX TABLES (
-        public.companies KEY (id) LABEL company PROPERTIES (company_name, id),
-        public.guests KEY (id) LABEL guest PROPERTIES (email, id, nick_name),
-        public.rooms KEY (id) LABEL room PROPERTIES (id, room_number),
-        public.users KEY (id) LABEL staff PROPERTIES (id, username)
-    )
-    EDGE TABLES (
-        public.bookings KEY (id) SOURCE KEY (guest_id) REFERENCES guests (id) DESTINATION KEY (room_id) REFERENCES rooms (id) LABEL stayed_in PROPERTIES (check_in_date, check_out_date, id, status),
-        public.user_guests KEY (id) SOURCE KEY (user_id) REFERENCES users (id) DESTINATION KEY (guest_id) REFERENCES guests (id) LABEL manages PROPERTIES (id, relationship_type)
-    );
-
-
 -- The partition function is defined above. Pre-create this month plus the next 11.
 DO $$
 DECLARE

@@ -25,13 +25,28 @@ coverage, and the GitHub Action SHA-pinning sweep.
   copies of `uploads/ekyc/*` still need separate handling — the git history is
   clean but deployed artifacts were not part of it.
 - H7 DECIDED 2026-08-22: stay on the PostgreSQL 19 beta track per owner call (images
-  at `postgres:19beta3`). WHEN 19 GOES GA (Beta 4 ships 2026-09-24; GA targeted
-  end of Oct 2026): bump images again and
+  at `postgres:19beta3`). WHEN 19 GOES GA (Beta 4 shipped 2026-09-24; RC planned
+  early Oct 2026, GA possibly Oct): bump images again and
   migrate data via pg_dump/pg_restore into a FRESH volume — beta on-disk formats
   have no supported upgrade path to GA, so the restore drill is mandatory either
-  way. Desktop bundles ship their own postgres binaries: bump those resources in
-  the same desktop release and rely on the existing pgdata version gate to refuse
-  mismatched data dirs.
+  way. Deploy patch 0015 (drops the SQL/PGQ `hotel_graph`; Beta 4 reverted SQL/PGQ)
+  while still on 19beta3 and before taking the dump: a beta3 dump that still holds
+  the graph fails to restore on beta4+, and a pre-0015 backup restores only with
+  the graph's TOC entry filtered out (`pg_restore -l` piped through
+  `grep -v 'PROPERTY GRAPH'`, then `pg_restore -L`). Desktop bundles ship their own
+  postgres binaries: bump those resources in the same desktop release and rely on
+  the existing pgdata version gate to refuse mismatched data dirs.
+- GA BLOCKER (found 2026-10-05): Beta 4 also reverted `ALTER TABLE … SPLIT/MERGE
+  PARTITION`, which `ensure_audit_logs_partition` (V1 baseline) runs when a month's
+  partition is created after that month's rows landed in `audit_logs_default`. On
+  beta4+ that call fails with a syntax error, and because the daily maintenance
+  (`AuditRepository::ensure_upcoming_partitions`) covers three months in one
+  statement, it then creates none of them and retries every tick. Install and
+  restore are unaffected, but the CI schema smoke
+  (`postgres_v1_lifecycle_builds_the_final_schema`) exercises the split and fails
+  on beta4. The fix needs a design call — moving rows out of the default partition
+  collides with the append-only `prevent_audit_log_mutation` trigger — plus its own
+  function-replacing patch.
 - Security-eval still OPEN (decisions/design): M10 least-privilege DB role
   rollout; L14 desktop signing certs; H5 import semaphore.
 

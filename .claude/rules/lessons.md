@@ -103,13 +103,15 @@ could fail:
   looked complete and passed every test, but the fresh-vs-patched dump differed twice:
   PostgreSQL 19 keeps the GENERATED NOT NULL constraint's old name
   (`guests_full_name_not_null` vs a fresh install's `guests_nick_name_not_null`, renamable
-  with `ALTER TABLE … RENAME CONSTRAINT`), and a SQL/PGQ `PROPERTY GRAPH` stores the exposed
-  PROPERTY NAME, so it silently re-rendered as `nick_name AS full_name` — there is no ALTER
-  for a property rename, so the graph must be dropped and recreated. Views are the exception:
-  they track by attnum and re-render themselves. pg_dump also SORTS graph properties by
-  property name, so write the baseline in that order.
+  with `ALTER TABLE … RENAME CONSTRAINT`), and the SQL/PGQ `PROPERTY GRAPH` the baseline
+  then carried stored the exposed PROPERTY NAME, so it silently re-rendered as `nick_name AS
+  full_name` — no ALTER renames a property, so the graph had to be dropped and recreated.
+  Views are the exception: they track by attnum and re-render themselves. (The graph itself
+  is gone since patch 0015, because 19beta4 reverted SQL/PGQ; if one is ever re-added,
+  pg_dump sorts its properties by name.)
 - **A preflight RAISE takes the whole app down, not just the patch.** Desktop startup treats patch failure as fatal, so the sidecar never launches and the app is fully offline until the catalog completes. Budget for that before restarting a live machine, and expect one restart per drifted object: each run surfaces only the next failure.
 - **The desktop mirror is a manual copy, and nothing in CI notices when it rots.** Found 2026-09-15: `hotel-desktop/src-tauri/database/postgres/` was still frozen at `77001d419` ("fold patch catalog into baseline; reset manifest to empty") — a baseline predating `deposit_forfeited`, an EMPTY `manifest.tsv`, and **zero patch files** — while the backend had since shipped patches 0002 and 0003. A desktop install therefore applied no patches at all and silently lacked both changes. The first read of this was wrong in the reassuring direction: "patch 0002 accepts the older definition, so it converges" is only true if the patch file is in the bundle, and it wasn't. The desktop `cargo check` CI job builds against *placeholder* resources, so nothing anywhere compares the two trees. **Rule:** after any change under `hotel-app-be/database/postgres/`, run `bun run sync:resources` from `hotel-desktop/` and verify with an md5 loop over baseline, `seed.sql`, `manifest.tsv`, `_begin/_end.sql`, and every manifest-listed patch — plus a shasum check that each patch matches its manifest checksum. Never conclude "the patch converges it" without first confirming the patch file exists on that side.
+- **A prerelease engine can take features back.** PostgreSQL 19 Beta 4 (2026-09-24) reverted SQL/PGQ, `SPLIT/MERGE PARTITION`, `FOR PORTION OF` and `pg_get_{role,tablespace,database}_ddl()`. The report that reached us (2026-10-05) named only SQL/PGQ, which broke fresh installs at `CREATE PROPERTY GRAPH`; the baseline also used `SPLIT PARTITION`, but behind `EXECUTE` in `ensure_audit_logs_partition`, so it still installs and fails only at runtime. beta3 and beta4 both report `server_version_num` 190000, so no version check tells them apart. **Rule:** on every beta/RC/GA image bump, read the release notes' revert list, grep the baseline, patches and `src/` for each item, and run baseline + seed + catalog on the new image before trusting it. A patch that must stay parseable where a feature is missing needs a catalog probe plus `EXECUTE`: PL/pgSQL syntax-checks static statements when a DO block compiles, even in a branch that never runs (patch 0015).
 
 ## 4. sqlx type mismatches are runtime-only, and they travel in packs
 

@@ -287,10 +287,13 @@ must say `OVERRIDING SYSTEM VALUE`.
 The backend validates schema-critical columns and tables at startup. It refuses
 legacy layouts rather than mutating them automatically.
 
-The baseline also defines `public.hotel_graph`, a native SQL/PGQ property
-graph (guests/rooms/staff/companies vertices; bookings `stayed_in` and
-user_guests `manages` edges) for `GRAPH_TABLE` multi-hop queries. It is pure
-query surface over the existing tables — no storage, no application coupling.
+The baseline defines no SQL/PGQ property graph. It used to create
+`public.hotel_graph` as pure query surface that no application code read, but
+PostgreSQL 19 Beta 4 reverted SQL/PGQ, and the release candidate and GA follow:
+they reject every `PROPERTY GRAPH` statement as a syntax error. Patch
+`0015_drop_hotel_property_graph.sql` drops the graph from databases installed
+earlier. Apply it while a database is still on 19beta3: a beta3 `pg_dump` of a
+database that still holds the graph fails to restore onto beta4 or later.
 
 ## PostgreSQL 19 optimization
 
