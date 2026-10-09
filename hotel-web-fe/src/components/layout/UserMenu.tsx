@@ -27,8 +27,9 @@ interface UserMenuProps {
 }
 
 /**
- * Account menu: profile and hotel settings (staff only). Sign Out stays in the
- * topbar's dedicated icon button so there is exactly one logout control.
+ * Account menu: profile and hotel settings (staff only). Sign Out is not here:
+ * it is the topbar's dedicated icon button, shown at every width (phones
+ * included), so there is exactly one logout control.
  * Extracted from the old top-navigation user pill — the trigger is a real <button>
  * so it is keyboard-focusable, which the div-onClick original was not.
  */
