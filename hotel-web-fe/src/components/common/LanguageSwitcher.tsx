@@ -2,9 +2,9 @@
  * The language control, in two shapes.
  *
  * `variant="icon"` is a globe button that opens a menu — for dense chrome like
- * the staff app bar and the guest portal header. `variant="list"` renders the
- * same options inline, for settings pages and the mobile navigation drawer
- * where a hidden menu would be a second tap for no reason.
+ * the staff app bar (at every width, phones included) and the guest portal
+ * header. `variant="list"` renders the same options inline, for settings-style
+ * surfaces where a hidden menu would be a second tap for no reason.
  *
  * Options are read from the locale registry, so a new language appears here
  * with no edit to this file. Each option is labelled in its own language —
