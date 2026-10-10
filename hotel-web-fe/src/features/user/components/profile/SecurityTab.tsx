@@ -66,11 +66,16 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
 
   return (
     <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
+      <CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
+        <Typography
+          variant="h6"
+          component="h3"
+          sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}
+        >
+          <LockIcon aria-hidden />
           {t('security.changePassword')}
         </Typography>
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 2, sm: 3 }}>
           <Grid size={12}>
             <TextField
               fullWidth
@@ -81,6 +86,7 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
                 setPasswordData({ ...passwordData, current_password: e.target.value })
               }
               disabled={showNewPasswordFields}
+              autoComplete="current-password"
               helperText={
                 !showNewPasswordFields ? t('security.currentPasswordHint') : ''
               }
@@ -94,6 +100,7 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
                   variant="contained"
                   onClick={handleCurrentPasswordSubmit}
                   disabled={!passwordData.current_password}
+                  sx={{ width: { xs: '100%', sm: 'auto' } }}
                 >
                   {t('common:actions.continue')}
                 </Button>
@@ -103,10 +110,11 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
 
           {showNewPasswordFields && (
             <>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   type="password"
+                  autoComplete="new-password"
                   label={t('security.newPassword')}
                   value={passwordData.new_password}
                   onChange={e =>
@@ -115,10 +123,11 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
                   helperText={t('security.passwordRequirements', { min: PASSWORD_MIN_LENGTH })}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   type="password"
+                  autoComplete="new-password"
                   label={t('security.confirmNewPassword')}
                   value={passwordData.confirm_password}
                   onChange={e =>
@@ -131,7 +140,17 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ onUpdatePassword, notify }) =
         </Grid>
 
         {showNewPasswordFields && (
-          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+          // Phones: full-width buttons, primary on top where the thumb is.
+          <Box
+            sx={{
+              mt: 3,
+              display: 'flex',
+              flexDirection: { xs: 'column-reverse', sm: 'row' },
+              justifyContent: 'flex-end',
+              gap: { xs: 1, sm: 2 },
+              '& > .MuiButton-root': { width: { xs: '100%', sm: 'auto' } },
+            }}
+          >
             <Button variant="outlined" onClick={reset}>
               {t('common:actions.cancel')}
             </Button>
