@@ -35,6 +35,7 @@ import {
 import { errorMessage } from '../../../utils/errorMessage';
 import { useTranslation } from '../../../i18n';
 import { statusLabel } from '../../../i18n/statusLabel';
+import { useIsPhone } from '../../../hooks/useIsPhone';
 
 interface TwoFactorSetupProps {
   onSetupComplete?: () => void;
@@ -42,6 +43,9 @@ interface TwoFactorSetupProps {
 
 const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
   const { t } = useTranslation('auth');
+  // Phones get full-screen dialogs: the QR code, setup key and code field
+  // otherwise squeeze into a scrolling modal with the keyboard up.
+  const fullScreen = useIsPhone();
   const { data: twoFactorStatus } = useTwoFactorStatus();
   const setupMutation = useSetupTwoFactor();
   const enableMutation = useEnableTwoFactor();
@@ -163,10 +167,10 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
   return (
     <Box>
       <Card>
-        <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1.5, mb: { xs: 2, sm: 3 } }}>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6" component="h3" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <SecurityIcon />
                 {t('twoFactor.title')}
               </Typography>
@@ -180,16 +184,18 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
               label={statusLabel(t, 'generic', twoFactorStatus.enabled ? 'enabled' : 'disabled')}
               color={twoFactorStatus.enabled ? 'success' : 'default'}
               variant={twoFactorStatus.enabled ? 'filled' : 'outlined'}
+              sx={{ flexShrink: 0 }}
             />
           </Box>
 
-          <Divider sx={{ mb: 3 }} />
+          <Divider sx={{ mb: { xs: 2, sm: 3 } }} />
 
           {!twoFactorStatus.enabled ? (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <SecurityIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-              <Typography variant="h6" gutterBottom sx={{
-                color: "text.secondary"
+            <Box sx={{ textAlign: 'center', py: { xs: 1, sm: 4 } }}>
+              <SecurityIcon sx={{ fontSize: { xs: 48, sm: 64 }, color: 'text.secondary', mb: { xs: 1, sm: 2 } }} />
+              <Typography variant="subtitle1" gutterBottom sx={{
+                color: "text.secondary",
+                fontWeight: 600
               }}>
                 {t('twoFactorSetup.notEnabled')}
               </Typography>
@@ -206,6 +212,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 onClick={handleSetup2FA}
                 disabled={loading}
                 startIcon={<QrCodeIcon />}
+                sx={{ width: { xs: '100%', sm: 'auto' } }}
               >
                 {loading ? t('twoFactorSetup.settingUp') : t('twoFactorSetup.setup')}
               </Button>
@@ -219,8 +226,8 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 </Typography>
               </Alert>
 
-              <Grid container spacing={3}>
-                <Grid size={{ xs: 12, md: 6 }}>
+              <Grid container spacing={{ xs: 2, sm: 3 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                       {t('twoFactorSetup.backupCodesTitle')}
@@ -238,12 +245,13 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                       size="small"
                       startIcon={<RefreshIcon />}
                       onClick={() => setShowRegenerateDialog(true)}
+                      sx={{ width: { xs: '100%', sm: 'auto' } }}
                     >
                       {t('twoFactorSetup.generateNewCodes')}
                     </Button>
                   </Paper>
                 </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                       {t('twoFactorSetup.disableTitle')}
@@ -261,6 +269,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                       size="small"
                       color="error"
                       onClick={() => setShowDisableDialog(true)}
+                      sx={{ width: { xs: '100%', sm: 'auto' } }}
                     >
                       {t('twoFactorSetup.disableTitle')}
                     </Button>
@@ -272,7 +281,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
         </CardContent>
       </Card>
       {/* Setup 2FA Dialog */}
-      <Dialog open={showSetupDialog} onClose={() => setShowSetupDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog open={showSetupDialog} onClose={() => setShowSetupDialog(false)} maxWidth="sm" fullWidth fullScreen={fullScreen}>
         <DialogTitle>{t('twoFactorEnrollment.title')}</DialogTitle>
         <DialogContent>
           {setupData && (
@@ -296,7 +305,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
               </Typography>
               <Paper sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)', mb: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', flexGrow: 1 }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
                     {setupData.secret}
                   </Typography>
                   <IconButton size="small" onClick={() => copyToClipboard(setupData.secret)} aria-label={t('twoFactorSetup.copySetupKey')}>
@@ -315,7 +324,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 sx={{ mb: 1 }}
                 slotProps={{
-                  htmlInput: { maxLength: 6 }
+                  htmlInput: { maxLength: 6, inputMode: 'numeric', autoComplete: 'one-time-code' }
                 }}
               />
               <Typography variant="body2" sx={{
@@ -338,7 +347,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
         </DialogActions>
       </Dialog>
       {/* Backup Codes Dialog — shown exactly once, right after 2FA is enabled */}
-      <Dialog open={enableBackupCodes.length > 0} maxWidth="sm" fullWidth>
+      <Dialog open={enableBackupCodes.length > 0} maxWidth="sm" fullWidth fullScreen={fullScreen}>
         <DialogTitle>{t('twoFactorSetup.backupCodesDialogTitle')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
@@ -381,7 +390,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
         </DialogActions>
       </Dialog>
       {/* Disable 2FA Dialog */}
-      <Dialog open={showDisableDialog} onClose={() => setShowDisableDialog(false)}>
+      <Dialog open={showDisableDialog} onClose={() => setShowDisableDialog(false)} fullWidth fullScreen={fullScreen}>
         <DialogTitle>{t('twoFactorSetup.disableDialogTitle')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
@@ -413,7 +422,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
         </DialogActions>
       </Dialog>
       {/* Regenerate Backup Codes Dialog */}
-      <Dialog open={showRegenerateDialog} onClose={() => setShowRegenerateDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog open={showRegenerateDialog} onClose={() => setShowRegenerateDialog(false)} maxWidth="sm" fullWidth fullScreen={fullScreen}>
         <DialogTitle>{t('twoFactorSetup.regenerateDialogTitle')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>

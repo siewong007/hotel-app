@@ -7,10 +7,6 @@ import {
   CardContent,
   Chip,
   IconButton,
-  List,
-  ListItem,
-  ListItemSecondaryAction,
-  ListItemText,
   TextField,
   Typography,
 } from '@mui/material';
@@ -71,189 +67,173 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
 
   return (
     <Card>
-      <CardContent>
+      <CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
+        {/* Title over the button on phones: side by side, the subtitle wrapped
+            to four lines and squeezed "Add Passkey" onto two. */}
         <Box
-          sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between',
+            alignItems: { xs: 'stretch', sm: 'flex-start' },
+            gap: 2,
+            mb: 2,
+          }}
         >
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              variant="h6"
+              component="h3"
+              sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}
+            >
+              <FingerprintIcon aria-hidden />
               {t('passkeys.title', { count: passkeys.length, max: MAX_PASSKEYS })}
             </Typography>
-            <Typography variant="body2" sx={{
-              color: "text.secondary"
-            }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {t('passkeys.subtitle')}
             </Typography>
           </Box>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={onAdd} disabled={atLimit}>
-            {t('passkeys.add')}
-          </Button>
+          {passkeys.length > 0 && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={onAdd}
+              disabled={atLimit}
+              sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+            >
+              {t('passkeys.add')}
+            </Button>
+          )}
         </Box>
 
         {passkeys.length === 0 ? (
           <Box
             sx={{
               textAlign: 'center',
-              py: 6,
+              py: { xs: 4, sm: 6 },
+              px: 2,
               backgroundColor: 'background.default',
               borderRadius: 2,
             }}
           >
-            <FingerprintIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" gutterBottom sx={{
-              color: "text.secondary"
-            }}>
+            <FingerprintIcon sx={{ fontSize: { xs: 48, sm: 64 }, color: 'text.secondary', mb: 1.5 }} />
+            <Typography variant="subtitle1" gutterBottom sx={{ color: 'text.secondary', fontWeight: 600 }}>
               {t('passkeys.empty')}
             </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                color: "text.secondary",
-                mb: 3
-              }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
               {t('passkeys.emptyHint')}
             </Typography>
-            <Button variant="outlined" startIcon={<AddIcon />} onClick={onAdd}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={onAdd}
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
+            >
               {t('passkeys.registerFirst')}
             </Button>
           </Box>
         ) : (
-          <List>
+          <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
             {passkeys.map((passkey, index) => {
               const deviceConfig = detectDeviceType(passkey.device_name || '');
               const isEditing = editingPasskey === passkey.id;
               return (
-                <ListItem
+                <Box
+                  component="li"
                   key={passkey.id}
-                  divider={index < passkeys.length - 1}
                   sx={{
-                    py: 2.5,
-                    px: 2,
-                    borderRadius: 2,
-                    mb: 1,
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      backgroundColor: 'action.hover',
-                      transform: 'translateX(4px)',
-                      boxShadow: 'var(--hotel-shadow-sm)',
-                    },
+                    py: 1.5,
+                    borderTop: index === 0 ? 'none' : '1px solid',
+                    borderColor: 'divider',
                   }}
                 >
-                  <Box sx={{ mr: 2 }}>
-                    <DeviceIcon deviceName={passkey.device_name || ''} size={48} />
-                  </Box>
-                  {isEditing ? (
-                    <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <TextField
-                        size="small"
-                        value={passkeyName}
-                        onChange={e => setPasskeyName(e.target.value)}
-                        placeholder={t('passkeys.namePlaceholder')}
-                        autoFocus
-                        sx={{ flexGrow: 1 }}
-                      />
-                      <IconButton color="primary" onClick={() => saveName(passkey.id)} title={t('common:actions.save')}>
-                        <CheckIcon />
-                      </IconButton>
-                      <IconButton onClick={cancelEditing} title={t('common:actions.cancel')}>
-                        <CancelIcon />
-                      </IconButton>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                    <Box sx={{ flexShrink: 0 }}>
+                      <DeviceIcon deviceName={passkey.device_name || ''} size={32} />
                     </Box>
-                  ) : (
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                            {passkey.device_name || t('passkeys.unnamed')}
-                          </Typography>
-                          <Chip
-                            label={deviceConfig.label}
-                            size="small"
-                            sx={{
-                              background: deviceConfig.gradient,
-                              color: deviceConfig.color,
-                              fontWeight: 500,
-                              fontSize: '0.7rem',
-                              height: 20,
-                            }}
-                          />
+                    {isEditing ? (
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          value={passkeyName}
+                          onChange={e => setPasskeyName(e.target.value)}
+                          placeholder={t('passkeys.namePlaceholder')}
+                          autoFocus
+                        />
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 1 }}>
+                          <IconButton onClick={cancelEditing} title={t('common:actions.cancel')}>
+                            <CancelIcon />
+                          </IconButton>
+                          <IconButton
+                            color="primary"
+                            onClick={() => saveName(passkey.id)}
+                            title={t('common:actions.save')}
+                          >
+                            <CheckIcon />
+                          </IconButton>
                         </Box>
-                      }
-                      secondary={
-                        <Box sx={{ mt: 0.5 }}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color: "text.secondary",
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5
-                            }}>
+                      </Box>
+                    ) : (
+                      <>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Box
+                            sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1, rowGap: 0.5 }}
+                          >
+                            <Typography
+                              variant="subtitle1"
+                              component="span"
+                              sx={{ fontWeight: 600, overflowWrap: 'anywhere', lineHeight: 1.3 }}
+                            >
+                              {passkey.device_name || t('passkeys.unnamed')}
+                            </Typography>
+                            <Chip
+                              label={deviceConfig.label}
+                              size="small"
+                              sx={{
+                                background: deviceConfig.gradient,
+                                color: deviceConfig.color,
+                                fontWeight: 500,
+                                fontSize: '0.7rem',
+                                height: 20,
+                              }}
+                            />
+                          </Box>
+                          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
                             <strong>{t('passkeys.addedAt')}</strong> {formatHotelDate(passkey.created_at)}
                           </Typography>
                           {passkey.last_used_at ? (
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                color: "text.secondary",
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 0.5
-                              }}>
+                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                               {t('passkeys.lastUsed', { at: formatHotelDateTime(passkey.last_used_at) })}
                             </Typography>
                           ) : (
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                color: "text.secondary",
-                                fontStyle: 'italic'
-                              }}>
+                            <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
                               {t('passkeys.neverUsed')}
                             </Typography>
                           )}
                         </Box>
-                      }
-                    />
-                  )}
-                  <ListItemSecondaryAction>
-                    {!isEditing && (
-                      <>
-                        <IconButton
-                          edge="end"
-                          onClick={() => startEditing(passkey.id, passkey.device_name || '')}
-                          title={t('passkeys.editName')}
-                          sx={{
-                            mr: 1,
-                            '&:hover': {
-                              backgroundColor: 'primary.light',
-                              color: 'primary.contrastText',
-                            },
-                          }}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton
-                          edge="end"
-                          color="error"
-                          onClick={() => onDelete(passkey.id)}
-                          title={t('passkeys.delete')}
-                          sx={{
-                            '&:hover': {
-                              backgroundColor: 'error.light',
-                              color: 'error.contrastText',
-                            },
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
+                        <Box sx={{ display: 'flex', flexShrink: 0, mt: -0.5 }}>
+                          <IconButton
+                            onClick={() => startEditing(passkey.id, passkey.device_name || '')}
+                            title={t('passkeys.editName')}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton
+                            color="error"
+                            onClick={() => onDelete(passkey.id)}
+                            title={t('passkeys.delete')}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Box>
                       </>
                     )}
-                  </ListItemSecondaryAction>
-                </ListItem>
+                  </Box>
+                </Box>
               );
             })}
-          </List>
+          </Box>
         )}
 
         {atLimit && (
