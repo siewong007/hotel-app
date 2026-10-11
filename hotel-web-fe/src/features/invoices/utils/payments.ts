@@ -20,3 +20,13 @@ export const settledPaymentsTotal = (payments: CheckoutPaymentRecord[]): number 
       .filter((p) => p.payment_status === 'completed' && !isDepositLikePayment(p))
       .map((p) => p.total_amount),
   );
+
+/**
+ * Shortest staff reason the backend accepts for a void, refund note,
+ * refund revert or deposit restore (`required_staff_reason`, trimmed).
+ */
+export const MIN_STAFF_REASON_LENGTH = 3;
+
+/** Whether a typed staff reason is long enough to submit. */
+export const isValidStaffReason = (reason: string): boolean =>
+  reason.trim().length >= MIN_STAFF_REASON_LENGTH;

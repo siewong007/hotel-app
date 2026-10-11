@@ -872,6 +872,9 @@
       "DELETE": {},
       "PATCH": {}
     },
+    "/api/payments/{payment_id}/void": {
+      "POST": {}
+    },
     "/api/profile": {
       "GET": {},
       "PATCH": {}

@@ -9,6 +9,7 @@ use crate::core::middleware::require_permission_helper;
 use crate::models;
 use axum::{
     Router,
+    body::Bytes,
     extract::{Extension, Path, Query, State},
     http::HeaderMap,
     response::Json,
@@ -60,6 +61,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/payments/booking/{booking_id}", get(get_payment))
         .route("/payments/{payment_id}", patch(update_payment))
         .route("/payments/{payment_id}", delete(delete_payment))
+        .route("/payments/{payment_id}/void", post(void_payment))
         .route("/payments", post(create_payment))
         // Guest-payment claim review queue (staff)
         .route("/admin/payments/pending", get(list_pending_payments))
@@ -164,25 +166,42 @@ async fn forfeit_deposit(
     handlers::forfeit_deposit_handler(State(pool), Extension(user_id), path, Json(body)).await
 }
 
+/// Parse an optional `{ "reason": "..." }` body. A missing or empty body is
+/// not a transport error — the service answers it with a readable "reason is
+/// required" instead of axum's bare 4xx — but malformed JSON is.
+fn reason_body(body: &Bytes) -> Result<models::PaymentReasonRequest, ApiError> {
+    if body.iter().all(u8::is_ascii_whitespace) {
+        return Ok(models::PaymentReasonRequest::default());
+    }
+    serde_json::from_slice(body).map_err(|_| {
+        ApiError::BadRequest("Request body must be JSON: {\"reason\": \"...\"}".to_string())
+    })
+}
+
 async fn revert_deposit_refund(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
+    body: Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_MANAGE).await?;
-    handlers::revert_deposit_refund_handler(State(pool), Extension(user_id), path).await
+    let body = reason_body(&body)?;
+    handlers::revert_deposit_refund_handler(State(pool), Extension(user_id), path, body).await
 }
 
-// Cancelling a deposit is desk work on payments:delete (collateral, not
-// settled revenue), so reverting the cancellation rides the same gate —
-// not the payments:manage gate revert-deposit-refund uses.
+// Reverting a deposit cancellation rides the same payments:delete gate as
+// the cancellation itself. Front-desk roles no longer hold payments:delete
+// (patch 0019), so in practice this is manager/admin work via
+// payments:manage.
 async fn revert_deposit_void(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
+    body: Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
-    handlers::revert_deposit_void_handler(State(pool), Extension(user_id), path).await
+    let body = reason_body(&body)?;
+    handlers::revert_deposit_void_handler(State(pool), Extension(user_id), path, body).await
 }
 
 async fn get_invoice_preview(
@@ -221,13 +240,28 @@ async fn update_payment(
     handlers::update_payment_handler(State(pool), Extension(user_id), path, Json(input)).await
 }
 
+// DELETE is kept for compatibility and behaves exactly like POST .../void:
+// both void the row (never a hard delete) and both need `{ "reason": ... }`.
 async fn delete_payment(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
+    body: Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
-    handlers::delete_payment_handler(State(pool), Extension(user_id), path).await
+    let body = reason_body(&body)?;
+    handlers::delete_payment_handler(State(pool), Extension(user_id), path, body).await
+}
+
+async fn void_payment(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    body: Bytes,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
+    let body = reason_body(&body)?;
+    handlers::delete_payment_handler(State(pool), Extension(user_id), path, body).await
 }
 
 async fn list_pending_payments(

@@ -21,15 +21,20 @@
         "messageUncollected": "将押金标记为未收取——实际未收到款项，预订的押金标记将被清除。",
         "title": "取消押金"
       },
-      "deletePayment": {
-        "confirmText": "删除付款",
-        "message": "此操作将从账单中移除该笔付款并恢复未付余额，且无法撤销。",
-        "title": "删除付款记录"
+      "voidPayment": {
+        "title": "作废付款",
+        "message": "作废这笔 {{amount}} 的付款。记录仍保留在账单中，显示为已作废，并附上您的原因、姓名和时间，且不再计入余额。如果夜审已关闭该日，该日数据不变，冲销分录将记在下一个未关闭的营业日（通常为今天）。",
+        "confirmText": "作废付款"
       },
       "revertRefund": {
         "confirmText": "撤销退款",
-        "message": "此操作将移除退款记录，以便重新退还押金。",
+        "message": "作废退款记录（保留并显示为已作废，附您的原因），押金将重新计为已持有并可再次退款。如果夜审已关闭退款当日，冲销分录将记在下一个未关闭的营业日（通常为今天）。",
         "title": "撤销押金退款"
+      },
+      "restoreDeposit": {
+        "title": "恢复押金",
+        "message": "恢复已取消的押金，使其重新计为已持有。若取消已位于夜审关闭的日期则无法恢复——请改为登记新押金。",
+        "confirmText": "恢复押金"
       }
     },
     "depositLine": "押金{{state}}",
@@ -38,7 +43,7 @@
     "earlyCheckoutTag": "（提前退房）",
     "editRates": "编辑房价",
     "errors": {
-      "deletePayment": "删除付款失败",
+      "voidPayment": "作废付款失败",
       "processCheckout": "办理退房失败",
       "recordPayment": "记录付款失败",
       "saveDailyRates": "保存每日房价失败",
@@ -98,7 +103,16 @@
     "totalRefund": "应退总额",
     "tourismTax": "旅游税",
     "tourismTaxDay": "旅游税 — {{date}}",
-    "saveRates": "保存房价"
+    "saveRates": "保存房价",
+    "voidPayment": "作废付款",
+    "voided": {
+      "heading": "已作废付款",
+      "chip": "已作废",
+      "reason": "原因：{{reason}}",
+      "noReason": "未记录原因",
+      "by": "由 {{name}} 作废 · {{at}}",
+      "reversal": "冲销分录记于 {{date}}"
+    }
   },
   "deposit": {
     "cancel": {
@@ -192,7 +206,7 @@
     "refund": {
       "fixedNote": "退款金额——固定为全部在押余额：",
       "method": "退款方式",
-      "noteOptional": "备注（可选）",
+      "note": "备注（必填）",
       "submit": "退款 {{amount}}"
     },
     "refundLine": "押金退款（{{method}}）",
@@ -623,5 +637,10 @@
     },
     "companiesCount_other": "{{count}} 个账户"
   },
-  "title": "财务"
+  "title": "财务",
+  "reason": {
+    "label": "原因",
+    "helper": "必填。将随记录保存并写入审计日志。",
+    "tooShort": "请至少输入 {{min}} 个字符。"
+  }
 }

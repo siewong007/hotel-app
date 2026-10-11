@@ -4152,6 +4152,10 @@ CREATE TABLE public.payments (
     processed_by bigint,
     idempotency_key character varying(160),
     idempotency_fingerprint character varying(64),
+    void_reason text,
+    voided_at timestamp with time zone,
+    voided_by bigint,
+    void_reversal_date date,
     CONSTRAINT payments_payment_type_check CHECK (((payment_type)::text = ANY ((ARRAY['booking'::character varying, 'deposit'::character varying, 'service'::character varying, 'damage'::character varying, 'refund'::character varying, 'deposit_forfeited'::character varying])::text[]))),
     CONSTRAINT payments_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying, 'failed'::character varying, 'refunded'::character varying, 'void'::character varying])::text[])))
 );
@@ -4205,6 +4209,13 @@ COMMENT ON TABLE public.payment_receipt_requests IS 'Guest receipt upload reques
 --
 
 COMMENT ON COLUMN public.payments.payment_gateway IS 'Payment gateway used (stripe, paypal, etc.)';
+
+
+--
+-- Name: COLUMN payments.void_reversal_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payments.void_reversal_date IS 'Business date a reversing journal line posts on when a payment is voided after night audit closed its own day; NULL when the void simply removed it from an open day';
 
 
 --
@@ -7966,6 +7977,13 @@ CREATE INDEX idx_payments_transaction ON public.payments USING btree (transactio
 
 
 --
+-- Name: idx_payments_void_reversal_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payments_void_reversal_date ON public.payments USING btree (void_reversal_date) WHERE (void_reversal_date IS NOT NULL);
+
+
+--
 -- Name: idx_points_transactions_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10019,6 +10037,14 @@ ALTER TABLE ONLY public.payments
 
 ALTER TABLE ONLY public.payments
     ADD CONSTRAINT payments_processed_by_fkey FOREIGN KEY (processed_by) REFERENCES public.users(id);
+
+
+--
+-- Name: payments payments_voided_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payments
+    ADD CONSTRAINT payments_voided_by_fkey FOREIGN KEY (voided_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --

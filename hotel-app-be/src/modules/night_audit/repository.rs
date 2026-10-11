@@ -1083,7 +1083,10 @@ pub async fn generate_journal_sections(
         }
     }
 
-    // Payments made on the audit date
+    // Payments made on the audit date. A payment voided after the night
+    // audit closed its day keeps its line here (`void_reversal_date` is set)
+    // so the closed day's figures never move; the reversal posts on
+    // `void_reversal_date` below. A void inside an open day just drops it.
     let payment_query = r#"
         SELECT
             b.booking_number,
@@ -1097,7 +1100,10 @@ pub async fn generate_journal_sections(
         FROM payments p
         JOIN bookings b ON p.booking_id = b.id
         JOIN rooms r ON b.room_id = r.id
-        WHERE p.status = 'completed'
+        WHERE (
+            p.status = 'completed'
+            OR (p.status = 'void' AND p.void_reversal_date IS NOT NULL)
+        )
         AND COALESCE(LOWER(TRIM(p.payment_type)), '') != 'refund'
         AND b.status != 'voided'
         AND (p.created_at AT TIME ZONE $2)::date = $1
@@ -1178,7 +1184,7 @@ pub async fn generate_journal_sections(
             COALESCE(LOWER(TRIM(p.payment_type)), '') = 'refund'
             OR COALESCE(LOWER(TRIM(p.status)), '') = 'refunded'
         )
-        AND p.status <> 'void'
+        AND (p.status <> 'void' OR p.void_reversal_date IS NOT NULL)
         AND b.status != 'voided'
         AND (p.created_at AT TIME ZONE $2)::date = $1
         ORDER BY r.room_number
@@ -1213,6 +1219,59 @@ pub async fn generate_journal_sections(
         }
         Err(e) => {
             log::error!("Failed to fetch deposit refunds for {}: {}", audit_date, e);
+        }
+    }
+
+    // Reversing lines: payments (and deposit refunds) voided on a later day
+    // than the one the night audit already closed for them. Each posts the
+    // opposite side of its original line, in the same account, on the
+    // business date the void landed on — the original day stays as closed.
+    let reversal_query = r#"
+        SELECT
+            b.booking_number,
+            r.room_number,
+            p.amount,
+            COALESCE(p.payment_method, '') as payment_method,
+            COALESCE(p.payment_type, '') as payment_type,
+            COALESCE(p.void_reason, '') as void_reason,
+            ((p.created_at AT TIME ZONE $2)::date)::text as original_day
+        FROM payments p
+        JOIN bookings b ON p.booking_id = b.id
+        JOIN rooms r ON b.room_id = r.id
+        WHERE p.status = 'void'
+        AND p.void_reversal_date = $1
+        AND b.status != 'voided'
+        ORDER BY r.room_number, p.id
+    "#;
+
+    match sqlx::query(reversal_query)
+        .bind(audit_date)
+        .bind(&hotel_timezone)
+        .fetch_all(pool)
+        .await
+    {
+        Ok(reversal_rows) => {
+            for row in &reversal_rows {
+                let booking_number: String = row.get("booking_number");
+                let room_number: String = row.get("room_number");
+                let amount = row_mappers::get_decimal(row, "amount");
+                let payment_method: String = row.get("payment_method");
+                let payment_type: String = row.get("payment_type");
+                let void_reason: String = row.get("void_reason");
+                let original_day: String = row.get("original_day");
+                entries.push(void_reversal_entry(
+                    booking_number,
+                    room_number,
+                    amount,
+                    &payment_type,
+                    &payment_method,
+                    &original_day,
+                    &void_reason,
+                ));
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to fetch void reversals for {}: {}", audit_date, e);
         }
     }
 
@@ -1350,4 +1409,45 @@ pub async fn generate_journal_sections(
     }
 
     sections
+}
+
+/// The reversing journal line for a payment voided after its own day was
+/// closed: the opposite side of the original line, in the same account, so
+/// the account nets to zero across the two days.
+pub(crate) fn void_reversal_entry(
+    booking_number: String,
+    room_number: String,
+    amount: Decimal,
+    payment_type: &str,
+    payment_method: &str,
+    original_day: &str,
+    void_reason: &str,
+) -> JournalEntry {
+    let reason = void_reason.trim();
+    let description = if reason.is_empty() {
+        format!("Void of {original_day} entry")
+    } else {
+        format!("Void of {original_day} entry: {reason}")
+    };
+    if payment_type.trim().eq_ignore_ascii_case("refund") {
+        // A refund posted as a credit to deposit_refund; reversing it debits.
+        JournalEntry {
+            booking_number,
+            room_number,
+            entry_type: "deposit_refund".to_string(),
+            debit: amount,
+            credit: Decimal::ZERO,
+            description: Some(description),
+        }
+    } else {
+        let account_name = payment_journal_account_label(Some(payment_type), Some(payment_method));
+        JournalEntry {
+            booking_number,
+            room_number,
+            entry_type: format!("payment_{}", account_name),
+            debit: Decimal::ZERO,
+            credit: amount,
+            description: Some(description),
+        }
+    }
 }

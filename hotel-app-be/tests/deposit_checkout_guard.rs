@@ -1054,17 +1054,27 @@ async fn revert_deposit_refund_matches_type_and_status() {
     .await
     .expect("refunding with a custom note should succeed");
 
-    let voided_id = PaymentRepository::revert_deposit_refund(&pool, f.booking_id)
-        .await
-        .expect("revert must find the noted refund row");
+    let mut tx = pool.begin().await.unwrap();
+    let (voided_id, _reversal_date) = PaymentRepository::revert_deposit_refund_tx(
+        &mut tx,
+        f.booking_id,
+        f.actor_id,
+        "refund keyed in error",
+    )
+    .await
+    .expect("revert must find the noted refund row");
+    tx.commit().await.unwrap();
     assert_eq!(voided_id, row.id);
 
-    let status: String = sqlx::query_scalar("SELECT status FROM payments WHERE id = $1")
-        .bind(row.id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let (status, void_reason, voided_by): (String, Option<String>, Option<i64>) =
+        sqlx::query_as("SELECT status, void_reason, voided_by FROM payments WHERE id = $1")
+            .bind(row.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(status, "void", "the revert must void the refund row");
+    assert_eq!(void_reason.as_deref(), Some("refund keyed in error"));
+    assert_eq!(voided_by, Some(f.actor_id));
 
     cleanup_fixture(&pool, &f).await;
 }

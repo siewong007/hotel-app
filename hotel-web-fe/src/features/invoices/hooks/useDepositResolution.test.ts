@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   updateBooking: vi.fn(),
   refundDeposit: vi.fn(),
   forfeitDeposit: vi.fn(),
-  deletePayment: vi.fn(),
+  voidPayment: vi.fn(),
   revertDepositRefund: vi.fn(),
   revertDepositVoid: vi.fn(),
 }));
@@ -26,7 +26,7 @@ vi.mock('../../../api/invoices.service', () => ({
   InvoicesService: {
     refundDeposit: (...args: unknown[]) => mocks.refundDeposit(...args),
     forfeitDeposit: (...args: unknown[]) => mocks.forfeitDeposit(...args),
-    deletePayment: (...args: unknown[]) => mocks.deletePayment(...args),
+    voidPayment: (...args: unknown[]) => mocks.voidPayment(...args),
     revertDepositRefund: (...args: unknown[]) => mocks.revertDepositRefund(...args),
     revertDepositVoid: (...args: unknown[]) => mocks.revertDepositVoid(...args),
   },
@@ -94,7 +94,7 @@ describe('useDepositResolution', () => {
     mocks.updateBooking.mockReset().mockResolvedValue({});
     mocks.refundDeposit.mockReset().mockResolvedValue({ id: 9, payment_status: 'refunded', payment_type: 'refund' });
     mocks.forfeitDeposit.mockReset().mockResolvedValue({ id: 10, payment_status: 'completed', payment_type: 'deposit_forfeited' });
-    mocks.deletePayment.mockReset().mockResolvedValue({});
+    mocks.voidPayment.mockReset().mockResolvedValue({});
     mocks.revertDepositRefund.mockReset().mockResolvedValue({});
     mocks.revertDepositVoid.mockReset().mockResolvedValue({});
   });
@@ -365,7 +365,7 @@ describe('useDepositResolution', () => {
       });
 
       await act(async () => {
-        await result.current.refund({ method: 'cash' });
+        await result.current.refund({ method: 'cash', note: 'guest checked out' });
       });
 
       expect(mocks.updateBooking).toHaveBeenCalledWith('42', {
@@ -378,7 +378,7 @@ describe('useDepositResolution', () => {
         .toBeLessThan(mocks.refundDeposit.mock.invocationCallOrder[0]);
       expect(mocks.refundDeposit).toHaveBeenCalledWith('42', 'cash', 50, {
         transaction_reference: undefined,
-        note: undefined,
+        note: 'guest checked out',
       });
     });
 
@@ -390,7 +390,7 @@ describe('useDepositResolution', () => {
 
       let ok = true;
       await act(async () => {
-        ok = await result.current.refund({ method: 'cash' });
+        ok = await result.current.refund({ method: 'cash', note: 'guest checked out' });
       });
 
       expect(ok).toBe(false);
@@ -401,7 +401,7 @@ describe('useDepositResolution', () => {
     it('is a no-op when nothing is refundable', async () => {
       const { result } = renderResolution();
       await act(async () => {
-        expect(await result.current.refund({ method: 'cash' })).toBe(false);
+        expect(await result.current.refund({ method: 'cash', note: 'guest checked out' })).toBe(false);
       });
       expect(mocks.refundDeposit).not.toHaveBeenCalled();
     });
@@ -468,7 +468,7 @@ describe('useDepositResolution', () => {
         deposit_amount: 0,
         payment_note: 'Guest VIP | Deposit waived: recorded in error',
       });
-      expect(mocks.deletePayment).not.toHaveBeenCalled();
+      expect(mocks.voidPayment).not.toHaveBeenCalled();
       expect(invalidateInvoiceState).toHaveBeenCalledTimes(1);
     });
 
@@ -504,9 +504,9 @@ describe('useDepositResolution', () => {
       });
 
       expect(ok).toBe(true);
-      expect(mocks.deletePayment).toHaveBeenCalledTimes(2);
-      expect(mocks.deletePayment).toHaveBeenNthCalledWith(1, 1);
-      expect(mocks.deletePayment).toHaveBeenNthCalledWith(2, 2);
+      expect(mocks.voidPayment).toHaveBeenCalledTimes(2);
+      expect(mocks.voidPayment).toHaveBeenNthCalledWith(1, 1, 'never collected');
+      expect(mocks.voidPayment).toHaveBeenNthCalledWith(2, 2, 'never collected');
       expect(mocks.updateBooking).not.toHaveBeenCalled();
       expect(reloadPayments).toHaveBeenCalledTimes(1);
     });
@@ -523,11 +523,11 @@ describe('useDepositResolution', () => {
 
       let ok = false;
       await act(async () => {
-        ok = await result.current.revertRefund();
+        ok = await result.current.revertRefund('  refunded the wrong guest ');
       });
 
       expect(ok).toBe(true);
-      expect(mocks.revertDepositRefund).toHaveBeenCalledWith('42');
+      expect(mocks.revertDepositRefund).toHaveBeenCalledWith('42', 'refunded the wrong guest');
       expect(reloadPayments).toHaveBeenCalledTimes(1);
     });
 
@@ -538,11 +538,11 @@ describe('useDepositResolution', () => {
 
       let ok = false;
       await act(async () => {
-        ok = await result.current.restoreDeposit();
+        ok = await result.current.restoreDeposit('deposit was collected');
       });
 
       expect(ok).toBe(true);
-      expect(mocks.revertDepositVoid).toHaveBeenCalledWith('42');
+      expect(mocks.revertDepositVoid).toHaveBeenCalledWith('42', 'deposit was collected');
       expect(reloadPayments).toHaveBeenCalledTimes(1);
     });
   });
@@ -552,19 +552,41 @@ describe('useDepositResolution', () => {
       const { result } = renderResolution({ booking: null });
 
       await act(async () => {
-        expect(await result.current.refund({ method: 'cash' })).toBe(false);
+        expect(await result.current.refund({ method: 'cash', note: 'guest checked out' })).toBe(false);
         expect(await result.current.forfeit({ amount: 10, reason: 'x' })).toBe(false);
         expect(await result.current.cancelUncollected('x')).toBe(false);
-        expect(await result.current.revertRefund()).toBe(false);
-        expect(await result.current.restoreDeposit()).toBe(false);
+        expect(await result.current.revertRefund('wrong guest')).toBe(false);
+        expect(await result.current.restoreDeposit('collected')).toBe(false);
       });
 
       expect(mocks.refundDeposit).not.toHaveBeenCalled();
       expect(mocks.forfeitDeposit).not.toHaveBeenCalled();
-      expect(mocks.deletePayment).not.toHaveBeenCalled();
+      expect(mocks.voidPayment).not.toHaveBeenCalled();
       expect(mocks.updateBooking).not.toHaveBeenCalled();
       expect(mocks.revertDepositRefund).not.toHaveBeenCalled();
       expect(mocks.revertDepositVoid).not.toHaveBeenCalled();
+    });
+
+    it('refuses a refund, revert, restore or void without a real reason', async () => {
+      const { result } = renderResolution({
+        payments: [
+          buildPayment({ id: 1 }),
+          buildPayment({ id: 2, payment_type: 'refund', payment_status: 'refunded' }),
+          buildPayment({ id: 3, payment_status: 'void' }),
+        ],
+      });
+
+      await act(async () => {
+        expect(await result.current.refund({ method: 'cash', note: '  ' })).toBe(false);
+        expect(await result.current.revertRefund('no')).toBe(false);
+        expect(await result.current.restoreDeposit('')).toBe(false);
+        expect(await result.current.cancelUncollected(' x ')).toBe(false);
+      });
+
+      expect(mocks.refundDeposit).not.toHaveBeenCalled();
+      expect(mocks.revertDepositRefund).not.toHaveBeenCalled();
+      expect(mocks.revertDepositVoid).not.toHaveBeenCalled();
+      expect(mocks.voidPayment).not.toHaveBeenCalled();
     });
 
     it('tracks the busy flag for the duration of the action', async () => {
@@ -576,7 +598,7 @@ describe('useDepositResolution', () => {
 
       let pending: Promise<boolean> | undefined;
       act(() => {
-        pending = result.current.refund({ method: 'cash' });
+        pending = result.current.refund({ method: 'cash', note: 'guest checked out' });
       });
       expect(result.current.refunding).toBe(true);
 

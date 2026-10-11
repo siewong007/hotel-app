@@ -16,6 +16,55 @@ use std::fmt::Write;
 
 pub struct PaymentRepository;
 
+/// Business dates (hotel timezone, the night-audit journal's bucketing)
+/// around one payment row.
+const PAYMENT_BUSINESS_DAYS_SQL: &str = r#"
+    WITH tz AS (
+        SELECT COALESCE(
+            NULLIF(TRIM((SELECT value FROM system_settings WHERE key = 'timezone')), ''),
+            'UTC'
+        ) AS zone
+    )
+    SELECT (p.created_at AT TIME ZONE tz.zone)::date AS payment_day,
+           (CURRENT_TIMESTAMP AT TIME ZONE tz.zone)::date AS today,
+           (SELECT MAX(n.audit_date) FROM night_audit_runs n WHERE n.status = 'completed') AS last_closed,
+           p.void_reversal_date
+    FROM payments p CROSS JOIN tz
+    WHERE p.id = $1
+"#;
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PaymentBusinessDays {
+    pub payment_day: chrono::NaiveDate,
+    pub today: chrono::NaiveDate,
+    pub last_closed: Option<chrono::NaiveDate>,
+    pub void_reversal_date: Option<chrono::NaiveDate>,
+}
+
+impl PaymentBusinessDays {
+    fn is_closed(&self, day: chrono::NaiveDate) -> bool {
+        self.last_closed.is_some_and(|closed| day <= closed)
+    }
+
+    /// See [`PaymentRepository::void_reversal_date_tx`].
+    pub fn reversal_date(&self) -> Option<chrono::NaiveDate> {
+        let closed = self.last_closed?;
+        if self.payment_day > closed {
+            return None;
+        }
+        let first_open = closed.succ_opt().unwrap_or(closed);
+        Some(self.today.max(first_open))
+    }
+
+    /// Whether un-voiding this row would change a closed day's journal.
+    pub fn restore_touches_closed_day(&self) -> bool {
+        match self.void_reversal_date {
+            Some(reversal) => self.is_closed(reversal),
+            None => self.is_closed(self.payment_day),
+        }
+    }
+}
+
 #[derive(sqlx::FromRow)]
 struct GeneratedInvoiceBookingDetailsRow {
     booking_id: i64,
@@ -782,12 +831,17 @@ impl PaymentRepository {
         booking_id: i64,
     ) -> Result<Vec<PaymentEntryRow>, ApiError> {
         let list_sql = r#"
-            SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type,
-                   status AS payment_status, transaction_id AS transaction_reference, notes,
-                   created_at::date::text AS payment_date, created_at
-            FROM payments
-            WHERE booking_id = $1
-            ORDER BY created_at ASC
+            SELECT p.id, p.booking_id, p.amount::text AS total_amount, p.payment_method,
+                   p.payment_type, p.status AS payment_status,
+                   p.transaction_id AS transaction_reference, p.notes,
+                   p.created_at::date::text AS payment_date, p.created_at,
+                   p.void_reason, p.voided_at,
+                   COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS voided_by_name,
+                   p.void_reversal_date
+            FROM payments p
+            LEFT JOIN users u ON u.id = p.voided_by
+            WHERE p.booking_id = $1
+            ORDER BY p.created_at ASC
             "#;
 
         sqlx::query_as::<_, PaymentEntryRow>(list_sql)
@@ -1500,39 +1554,34 @@ impl PaymentRepository {
     /// marker rows — so a mistakenly-entered refund can be corrected and the
     /// deposit refunded again. Returns the id of the voided refund payment.
     /// Errors if no active refund exists.
-    pub async fn revert_deposit_refund(pool: &DbPool, booking_id: i64) -> Result<i64, ApiError> {
-        let mut tx = pool.begin().await.map_err(ApiError::from)?;
-
+    pub async fn revert_deposit_refund_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+        user_id: i64,
+        reason: &str,
+    ) -> Result<(i64, Option<chrono::NaiveDate>), ApiError> {
         // Match on payment_type + status, not the notes text: `refund_deposit`
         // is the sole writer of 'refund' rows and its marker note may now
         // carry appended staff notes, so keying on the literal text would
         // miss them.
-        let select_sql = "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND status = 'refunded' ORDER BY id DESC LIMIT 1";
+        let select_sql = "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND status = 'refunded' ORDER BY id DESC LIMIT 1 FOR UPDATE";
 
         let refund_id: Option<i64> = sqlx::query_scalar(select_sql)
             .bind(booking_id)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await
             .map_err(ApiError::from)?;
 
-        let refund_id = match refund_id {
-            Some(id) => id,
-            None => {
-                return Err(ApiError::BadRequest(
-                    "No deposit refund to revert".to_string(),
-                ));
-            }
+        let Some(refund_id) = refund_id else {
+            return Err(ApiError::BadRequest(
+                "No deposit refund to revert".to_string(),
+            ));
         };
 
-        sqlx::query("UPDATE payments SET status = 'void' WHERE id = $1")
-            .bind(refund_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(ApiError::from)?;
+        let reversal_date = Self::void_reversal_date_tx(tx, refund_id).await?;
+        Self::mark_void_tx(tx, refund_id, user_id, reason, reversal_date).await?;
 
-        tx.commit().await.map_err(ApiError::from)?;
-
-        Ok(refund_id)
+        Ok((refund_id, reversal_date))
     }
 
     /// Revert a voided (cancelled) keycard deposit for a booking.
@@ -1545,38 +1594,110 @@ impl PaymentRepository {
     /// row is never resurrected by accident. Works on any booking status
     /// (restoring a deposit on a checked-out stay is a legitimate correction).
     /// Returns the id of the restored payment.
-    pub async fn revert_deposit_void(pool: &DbPool, booking_id: i64) -> Result<i64, ApiError> {
-        let mut tx = pool.begin().await.map_err(ApiError::from)?;
-
+    ///
+    /// A restore must not rewrite a day the night audit already closed: a
+    /// void that removed the deposit from its own (then open) day leaves that
+    /// day's closed journal without it, and a void posted as a reversing line
+    /// leaves the reversal on its own day. Restoring either would silently
+    /// change a closed day, so it is refused and the desk records a new
+    /// deposit instead.
+    pub async fn revert_deposit_void_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+    ) -> Result<i64, ApiError> {
         let deposit_id: Option<i64> = sqlx::query_scalar(
             "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'deposit' \
              AND status = 'void' ORDER BY id DESC LIMIT 1 FOR UPDATE",
         )
         .bind(booking_id)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await
         .map_err(ApiError::from)?;
 
-        let deposit_id = match deposit_id {
-            Some(id) => id,
-            None => {
-                return Err(ApiError::BadRequest(
-                    "No voided deposit to revert".to_string(),
-                ));
-            }
+        let Some(deposit_id) = deposit_id else {
+            return Err(ApiError::BadRequest(
+                "No voided deposit to revert".to_string(),
+            ));
         };
 
-        sqlx::query("UPDATE payments SET status = 'completed' WHERE id = $1")
-            .bind(deposit_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(ApiError::from)?;
+        let days = Self::payment_business_days_tx(tx, deposit_id).await?;
+        if days.restore_touches_closed_day() {
+            return Err(ApiError::BadRequest(
+                "This deposit was voided in a day the night audit has already closed — \
+                 record a new deposit instead of restoring it"
+                    .to_string(),
+            ));
+        }
 
-        Self::sync_booking_deposit_mirror_tx(&mut tx, booking_id).await?;
+        sqlx::query(
+            "UPDATE payments SET status = 'completed', void_reason = NULL, voided_at = NULL, \
+             voided_by = NULL, void_reversal_date = NULL WHERE id = $1",
+        )
+        .bind(deposit_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
 
-        tx.commit().await.map_err(ApiError::from)?;
+        Self::sync_booking_deposit_mirror_tx(tx, booking_id).await?;
 
         Ok(deposit_id)
+    }
+
+    /// The business dates a void decision needs, all in the hotel timezone
+    /// the night-audit journal buckets payments by.
+    pub(crate) async fn payment_business_days_tx(
+        tx: &mut DbTransaction<'_>,
+        payment_id: i64,
+    ) -> Result<PaymentBusinessDays, ApiError> {
+        let row = sqlx::query(PAYMENT_BUSINESS_DAYS_SQL)
+            .bind(payment_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(ApiError::from)?
+            .ok_or_else(|| ApiError::NotFound("Payment not found".to_string()))?;
+        Ok(PaymentBusinessDays {
+            payment_day: row.get("payment_day"),
+            today: row.get("today"),
+            last_closed: row.get("last_closed"),
+            void_reversal_date: row.get("void_reversal_date"),
+        })
+    }
+
+    /// Where a void of this payment posts. `None` while the payment's own
+    /// business day is still open — the void simply drops it from that day.
+    /// Once the night audit has closed that day, the original line stays on
+    /// it and a reversing line posts on the first open business date: today,
+    /// or the day after the last closed audit if that is later.
+    pub(crate) async fn void_reversal_date_tx(
+        tx: &mut DbTransaction<'_>,
+        payment_id: i64,
+    ) -> Result<Option<chrono::NaiveDate>, ApiError> {
+        Ok(Self::payment_business_days_tx(tx, payment_id)
+            .await?
+            .reversal_date())
+    }
+
+    /// Flip a row to 'void' with its reason, actor, time and reversal date.
+    async fn mark_void_tx(
+        tx: &mut DbTransaction<'_>,
+        payment_id: i64,
+        user_id: i64,
+        reason: &str,
+        reversal_date: Option<chrono::NaiveDate>,
+    ) -> Result<(), ApiError> {
+        sqlx::query(
+            "UPDATE payments SET status = 'void', processed_at = CURRENT_TIMESTAMP, \
+             processed_by = $1, voided_at = CURRENT_TIMESTAMP, voided_by = $1, \
+             void_reason = $2, void_reversal_date = $3 WHERE id = $4",
+        )
+        .bind(user_id)
+        .bind(reason)
+        .bind(reversal_date)
+        .bind(payment_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(())
     }
 
     /// Find payment by booking ID
@@ -2128,7 +2249,8 @@ impl PaymentRepository {
         payment_id: i64,
         user_id: i64,
         allow_completed: bool,
-    ) -> Result<PaymentEntryRow, ApiError> {
+        reason: &str,
+    ) -> Result<(PaymentEntryRow, Option<chrono::NaiveDate>), ApiError> {
         let existing = sqlx::query_as::<_, PaymentEntryRow>(
             "SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type, \
                     status AS payment_status, transaction_id AS transaction_reference, notes, \
@@ -2186,15 +2308,8 @@ impl PaymentRepository {
             ));
         }
 
-        sqlx::query(
-            "UPDATE payments SET status = 'void', processed_at = CURRENT_TIMESTAMP, processed_by = $1 \
-             WHERE id = $2",
-        )
-        .bind(user_id)
-        .bind(payment_id)
-        .execute(&mut **tx)
-        .await
-        .map_err(ApiError::from)?;
+        let reversal_date = Self::void_reversal_date_tx(tx, payment_id).await?;
+        Self::mark_void_tx(tx, payment_id, user_id, reason, reversal_date).await?;
 
         // Voiding a deposit or deposit-forfeit row changes the still-held
         // deposit total — resync the booking mirror so it can't overstate
@@ -2206,7 +2321,7 @@ impl PaymentRepository {
             Self::sync_booking_deposit_mirror_tx(tx, booking_id).await?;
         }
 
-        Ok(existing)
+        Ok((existing, reversal_date))
     }
 
     /// Keep `bookings.deposit_*` in step with the payments ledger. The columns

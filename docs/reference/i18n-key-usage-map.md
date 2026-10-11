@@ -2382,17 +2382,21 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:checkout.confirm.cancelDeposit.messageVoid` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.confirm.cancelDeposit.messageWaive` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.confirm.cancelDeposit.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
-- `finance:checkout.confirm.deletePayment.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
-- `finance:checkout.confirm.deletePayment.message` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
-- `finance:checkout.confirm.deletePayment.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.restoreDeposit.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.restoreDeposit.message` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.restoreDeposit.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.confirm.revertRefund.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.confirm.revertRefund.message` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.confirm.revertRefund.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.voidPayment.confirmText` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.voidPayment.message` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.confirm.voidPayment.title` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.contactLine` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
 - `finance:checkout.errors.processCheckout` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/hooks/useCheckoutFlow.ts`
 - `finance:checkout.errors.saveRates` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.errors.settleBalanceFirst` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.errors.updatePayment` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.errors.voidPayment` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.field.duration` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
 - `finance:checkout.field.guestName` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.field.idIc` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
@@ -2455,6 +2459,13 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:checkout.total.collect` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.total.refund` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`, `src/features/invoices/components/CheckoutInvoicePrintView.tsx`
 - `finance:checkout.total.refundTo` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voidPayment` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.by` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.chip` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.heading` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.noReason` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.reason` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.voided.reversal` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:deposit.ariaLabel` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.cancel.hint` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.cancel.noRefundWarning` — `src/features/invoices/components/DepositSection.tsx`
@@ -2511,7 +2522,7 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:deposit.prompt` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.fixedNote` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.method` — `src/features/invoices/components/DepositSection.tsx`
-- `finance:deposit.refund.noteOptional` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.refund.note` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.referenceOptional` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.submit` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.strip.cancelled` — `src/features/invoices/components/DepositSection.tsx`
@@ -2860,6 +2871,9 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:ledger.voidDialog.voidEntry` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
 - `finance:ledger.voidDialog.voiding` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
 - `finance:ledger.voidDialog.warning` — `src/features/admin/components/CustomerLedger/components/VoidLedgerDialog.tsx`
+- `finance:reason.helper` — `src/features/invoices/components/ReasonDialog.tsx`
+- `finance:reason.label` — `src/features/invoices/components/ReasonDialog.tsx`
+- `finance:reason.tooShort` — `src/features/invoices/components/ReasonDialog.tsx`
 - `finance:title` — *(dynamic or unreferenced)*
 
 ### `guestPortal`

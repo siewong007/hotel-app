@@ -35,6 +35,31 @@ pub(crate) fn normalized_idempotency_key(value: &str) -> Result<&str, ApiError> 
     Ok(key)
 }
 
+/// Shortest staff reason accepted for a void, refund or reversal.
+pub const MIN_STAFF_REASON_CHARS: usize = 3;
+/// Longest staff reason kept (the audit trail is not a document store).
+pub const MAX_STAFF_REASON_CHARS: usize = 500;
+
+/// A mandatory staff reason: sanitized like every other notes field,
+/// trimmed, and at least [`MIN_STAFF_REASON_CHARS`] characters.
+pub fn required_staff_reason(raw: Option<&str>, label: &str) -> Result<String, ApiError> {
+    let reason = raw
+        .map(|value| Sanitizer::sanitize_notes(value).trim().to_string())
+        .unwrap_or_default();
+    let length = reason.chars().count();
+    if length < MIN_STAFF_REASON_CHARS {
+        return Err(ApiError::BadRequest(format!(
+            "{label} is required (at least {MIN_STAFF_REASON_CHARS} characters)"
+        )));
+    }
+    if length > MAX_STAFF_REASON_CHARS {
+        return Err(ApiError::BadRequest(format!(
+            "{label} must be at most {MAX_STAFF_REASON_CHARS} characters"
+        )));
+    }
+    Ok(reason)
+}
+
 /// Returns whether this booking is covered by the room-assignment
 /// notification — i.e. whether the guest is being told, by this mail, that
 /// their payment is confirmed. Callers that would otherwise send their own
@@ -597,11 +622,12 @@ pub async fn refund_deposit(
         .and_then(|v| v.as_str())
         .map(|value| Sanitizer::sanitize_text(value).trim().to_string())
         .filter(|value| !value.is_empty());
-    let note = body
-        .get("note")
-        .and_then(|v| v.as_str())
-        .map(|value| Sanitizer::sanitize_notes(value).trim().to_string())
-        .filter(|value| !value.is_empty());
+    // A refund moves money out of the till, so the desk must say why — the
+    // note lands on the refund row (and its journal line) and in the audit.
+    let note = Some(required_staff_reason(
+        body.get("note").and_then(|v| v.as_str()),
+        "A refund note",
+    )?);
 
     let row = PaymentRepository::refund_deposit(
         pool,
@@ -746,13 +772,16 @@ pub async fn revert_deposit_refund(
     pool: &DbPool,
     user_id: i64,
     booking_id: i64,
+    reason: Option<&str>,
 ) -> Result<serde_json::Value, ApiError> {
-    let reverted_payment_id = PaymentRepository::revert_deposit_refund(pool, booking_id).await?;
-
-    recompute_payment_status(pool, booking_id).await?;
-
-    let _ = AuditLog::log_event(
-        pool,
+    let reason = required_staff_reason(reason, "A reason for reverting the refund")?;
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
+    let (reverted_payment_id, reversal_date) =
+        PaymentRepository::revert_deposit_refund_tx(&mut tx, booking_id, user_id, &reason).await?;
+    recompute_payment_status_tx(&mut tx, booking_id).await?;
+    AuditLog::log_event_tx(
+        &mut tx,
         AuditEvent {
             user_id: Some(user_id),
             action: "payment_refund_reverted",
@@ -760,32 +789,40 @@ pub async fn revert_deposit_refund(
             resource_id: Some(reverted_payment_id),
             details: Some(serde_json::json!({
                 "booking_id": booking_id,
+                "reason": reason,
+                "void_reversal_date": reversal_date,
             })),
             ..Default::default()
         },
     )
-    .await;
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(serde_json::json!({
         "booking_id": booking_id,
         "reverted_payment_id": reverted_payment_id,
         "deposit_refunded": false,
+        "void_reversal_date": reversal_date,
     }))
 }
 
 /// Revert a voided (cancelled) deposit — the row flips back to `completed`
-/// and the booking mirror shows the deposit held again.
+/// and the booking mirror shows the deposit held again. Refused when the
+/// void already sits in a day the night audit closed.
 pub async fn revert_deposit_void(
     pool: &DbPool,
     user_id: i64,
     booking_id: i64,
+    reason: Option<&str>,
 ) -> Result<serde_json::Value, ApiError> {
-    let reverted_payment_id = PaymentRepository::revert_deposit_void(pool, booking_id).await?;
-
-    recompute_payment_status(pool, booking_id).await?;
-
-    let _ = AuditLog::log_event(
-        pool,
+    let reason = required_staff_reason(reason, "A reason for restoring the deposit")?;
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
+    let reverted_payment_id =
+        PaymentRepository::revert_deposit_void_tx(&mut tx, booking_id).await?;
+    recompute_payment_status_tx(&mut tx, booking_id).await?;
+    AuditLog::log_event_tx(
+        &mut tx,
         AuditEvent {
             user_id: Some(user_id),
             action: "deposit_void_reverted",
@@ -793,11 +830,13 @@ pub async fn revert_deposit_void(
             resource_id: Some(reverted_payment_id),
             details: Some(serde_json::json!({
                 "booking_id": booking_id,
+                "reason": reason,
             })),
             ..Default::default()
         },
     )
-    .await;
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(serde_json::json!({
         "booking_id": booking_id,
@@ -943,14 +982,21 @@ pub async fn update_payment(
 /// A payment row is a posted financial record: deleting it would erase the
 /// money trail (collect cash → delete → the recompute hides it). The row is
 /// kept with status 'void' so it drops out of every aggregate while staying
-/// auditable, and the full pre-void snapshot is written to the audit log.
-/// Voiding a `completed` payment additionally requires `payments:manage` —
-/// pending/failed rows stay on the route's `payments:delete` gate.
+/// auditable. A staff reason is mandatory; it is stored on the row with the
+/// actor and time, and the audit row (with the full pre-void snapshot) is
+/// written in the same transaction, so a void without its audit trail
+/// cannot commit. Voiding a `completed` payment additionally requires
+/// `payments:manage` — pending/failed rows stay on the route's
+/// `payments:delete` gate. When the night audit has already closed the
+/// payment's own day, that day keeps its line and the void posts as a
+/// reversing line on the first open business date (`void_reversal_date`).
 pub async fn delete_payment(
     pool: &DbPool,
     user_id: i64,
     payment_id: i64,
+    reason: Option<&str>,
 ) -> Result<serde_json::Value, ApiError> {
+    let reason = required_staff_reason(reason, "A void reason")?;
     let booking_id = PaymentRepository::payment_booking_id(pool, payment_id).await?;
     let can_void_completed =
         crate::core::auth::AuthService::check_permission(pool, user_id, "payments:manage")
@@ -959,19 +1005,18 @@ pub async fn delete_payment(
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
-    let voided = PaymentRepository::void_payment_tx(
+    let (voided, reversal_date) = PaymentRepository::void_payment_tx(
         &mut tx,
         booking_id,
         payment_id,
         user_id,
         can_void_completed,
+        &reason,
     )
     .await?;
     recompute_payment_status_tx(&mut tx, booking_id).await?;
-    tx.commit().await.map_err(ApiError::from)?;
-
-    let _ = AuditLog::log_event(
-        pool,
+    AuditLog::log_event_tx(
+        &mut tx,
         AuditEvent {
             user_id: Some(user_id),
             action: "payment_voided",
@@ -979,6 +1024,8 @@ pub async fn delete_payment(
             resource_id: Some(payment_id),
             details: Some(serde_json::json!({
                 "booking_id": booking_id,
+                "reason": reason,
+                "void_reversal_date": reversal_date,
                 "voided_payment": {
                     "amount": voided.total_amount,
                     "payment_method": voided.payment_method,
@@ -992,13 +1039,15 @@ pub async fn delete_payment(
             ..Default::default()
         },
     )
-    .await;
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(serde_json::json!({
         "success": true,
         "message": "Payment voided",
         "deleted_id": payment_id,
-        "voided_id": payment_id
+        "voided_id": payment_id,
+        "void_reversal_date": reversal_date,
     }))
 }
 
