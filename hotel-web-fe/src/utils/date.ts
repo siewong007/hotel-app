@@ -107,6 +107,27 @@ export const toHotelDateString = (value: BusinessDateValue): string => {
   return instantToHotelDateString(value);
 };
 
+const hotelClockFormatters = new Map<string, Intl.DateTimeFormat>();
+
+// Minutes since hotel-local midnight for an instant (0..1439).
+export const hotelMinutesOfDay = (date: Date = new Date()): number => {
+  const timeZone = getHotelTimeZone();
+  let formatter = hotelClockFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+    hotelClockFormatters.set(timeZone, formatter);
+  }
+  const parts = formatter.formatToParts(date);
+  const hour = Number(parts.find(p => p.type === 'hour')?.value ?? 0) % 24;
+  const minute = Number(parts.find(p => p.type === 'minute')?.value ?? 0);
+  return hour * 60 + minute;
+};
+
 // Calendar date in the hotel timezone rendered like 'Jul 26, 2026'.
 export const formatHotelDate = (value: BusinessDateValue, fallback = '-'): string => {
   const match = DATE_ONLY_RE.exec(toHotelDateString(value));

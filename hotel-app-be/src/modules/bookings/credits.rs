@@ -250,12 +250,8 @@ pub async fn book_with_credits_handler(
         ApiError::Database(e.to_string())
     })?;
 
-    sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
-        .bind("reserved")
-        .bind(input.room_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    // The stay holds its room from its arrival day only.
+    crate::modules::rooms::queries::reconcile_room_holds(&mut *tx, Some(input.room_id)).await?;
 
     tx.commit().await.map_err(ApiError::from)?;
 

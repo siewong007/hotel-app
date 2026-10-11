@@ -798,7 +798,9 @@ mod postgres_tests {
         assert_eq!(booking.get::<String, _>("payment_status"), "partial");
         assert!(booking.get::<bool, _>("no_cancelled_at"));
         assert!(booking.get::<bool, _>("no_cancelled_by"));
-        assert_eq!(room_status, "reserved");
+        // The fixture stay is in 2031, so the room was never held; the rolled
+        // back void leaves it as it was.
+        assert_eq!(room_status, "available");
         assert_eq!(payment_status, "completed");
         assert_eq!(count_pg_rows(&pool, "booking_history", booking_id).await, 0);
         assert_eq!(
@@ -1116,7 +1118,9 @@ mod postgres_tests {
         // history/modification writes all roll back together.
         assert_eq!(row.get::<String, _>("status"), "confirmed");
         assert!(row.get::<bool, _>("no_actual"));
-        assert_eq!(room_status, "reserved");
+        // The fixture stay is in 2031, so the room is not held before the
+        // check-in (which rolled back).
+        assert_eq!(room_status, "available");
         assert_eq!(count_pg_rows(&pool, "payments", booking_id).await, 0);
         assert_eq!(count_pg_rows(&pool, "booking_history", booking_id).await, 0);
         assert_eq!(
@@ -1456,7 +1460,9 @@ mod postgres_reactivation_tests {
             .fetch_one(&pool)
             .await
             .unwrap();
-        assert_eq!(room_status, "reserved");
+        // The stay starts in 30 days: reactivating it must not hold the room
+        // before its arrival day.
+        assert_eq!(room_status, "available");
 
         let history_count: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = $1")

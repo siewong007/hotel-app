@@ -553,6 +553,7 @@ candidates — see `i18n-coverage-inventory.md`.
 - `admin:system.jobs.names.night_audit` — *(dynamic or unreferenced)*
 - `admin:system.jobs.names.payment_receipts` — *(dynamic or unreferenced)*
 - `admin:system.jobs.names.pre_arrival_reminders` — *(dynamic or unreferenced)*
+- `admin:system.jobs.names.room_arrival_holds` — *(dynamic or unreferenced)*
 - `admin:system.jobs.names.session_retention` — *(dynamic or unreferenced)*
 - `admin:system.jobs.names.unpaid_hold_release` — *(dynamic or unreferenced)*
 - `admin:system.jobs.noFailures` — `src/features/admin/system/JobsPage.tsx`

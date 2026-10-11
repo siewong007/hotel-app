@@ -4,7 +4,7 @@ mod checkin_advisory;
 mod complimentary;
 mod credits;
 mod lifecycle;
-mod new_reservations;
+pub(crate) mod new_reservations;
 mod summary;
 
 pub mod auto_checkin;

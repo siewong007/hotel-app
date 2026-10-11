@@ -1378,7 +1378,7 @@ pub async fn create(
         .await?;
     }
 
-    Repository::mark_room_reserved_tx(&mut tx, room_id, &booking_number).await?;
+    Repository::mark_room_reserved_tx(&mut tx, room_id).await?;
     crate::modules::bookings::record_booking_history_tx(
         &mut tx,
         booking_id,
@@ -1647,7 +1647,7 @@ pub async fn create_anonymous(
     let booking_id = Repository::insert_booking_tx(&mut tx, &insert).await?;
     Repository::issue_access_token_tx(&mut tx, booking_id, &access_token, access_token_expires_at)
         .await?;
-    Repository::mark_room_reserved_tx(&mut tx, room_id, &booking_number).await?;
+    Repository::mark_room_reserved_tx(&mut tx, room_id).await?;
     crate::modules::bookings::record_booking_history_tx(
         &mut tx,
         booking_id,
