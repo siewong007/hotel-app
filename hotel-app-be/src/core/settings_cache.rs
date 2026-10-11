@@ -58,7 +58,8 @@ impl SettingsCache {
     }
 }
 
-async fn get_optional_string(pool: &DbPool, key: &str) -> Option<String> {
+/// Raw stored value, `None` when the row is absent or NULL.
+pub async fn get_optional_string(pool: &DbPool, key: &str) -> Option<String> {
     if let Some(cached) = CACHE.get(key) {
         return cached;
     }

@@ -34,7 +34,9 @@ pub const LOCK_RECEIPTS: i64 = 820_002;
 pub const LOCK_UNPAID_HOLD: i64 = 820_003;
 pub const LOCK_COMMS_WORKER: i64 = 820_004;
 pub const LOCK_COMMS_SCHED: i64 = 820_005;
-pub const LOCK_RATE_LIMIT_PRUNE: i64 = 820_006;
+/// Housekeeping loop: rate-limit bucket prune (every 10 min) and the hourly
+/// session retention sweep. Shares one lock and one pinned connection.
+pub const LOCK_MAINTENANCE: i64 = 820_006;
 
 /// Release every session-level advisory lock the connection holds, then let
 /// it go back to the pool. sqlx does not clear session state on release, so

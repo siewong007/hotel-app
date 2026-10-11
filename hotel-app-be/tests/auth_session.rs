@@ -424,6 +424,8 @@ mod postgres_tests {
             RefreshTokenRequest {
                 refresh_token: refresh_token.clone(),
             },
+            Some("203.0.113.9"),
+            Some("auth-session-test"),
         )
         .await
         .expect("logout should revoke the refresh token");
@@ -442,6 +444,14 @@ mod postgres_tests {
             row.get::<Option<DateTime<Utc>>, _>("revoked_at").is_some(),
             "logout must stamp revoked_at"
         );
+        let logout_audit_rows: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_logs WHERE action = 'logout' AND user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(logout_audit_rows, 1, "logout must write one audit row");
 
         assert!(
             !AuthService::is_session_active(&pool, user_id, &session_id)

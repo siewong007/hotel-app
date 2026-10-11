@@ -1,7 +1,9 @@
 import React from 'react';
 import { Box } from '@mui/material';
 import { t } from '../../../../i18n';
+import { parseUserAgent } from './userAgent';
 import {
+  Code as CodeIcon,
   Computer as ComputerIcon,
   Fingerprint as FingerprintIcon,
   Laptop as LaptopIcon,
@@ -11,7 +13,14 @@ import {
   Tablet as TabletIcon,
 } from '@mui/icons-material';
 
-export type DeviceType = 'laptop' | 'desktop' | 'mobile' | 'tablet' | 'security-key' | 'unknown';
+export type DeviceType =
+  | 'laptop'
+  | 'desktop'
+  | 'mobile'
+  | 'tablet'
+  | 'security-key'
+  | 'automated'
+  | 'unknown';
 
 export interface DeviceConfig {
   type: DeviceType;
@@ -91,13 +100,53 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
   };
 };
 
+/**
+ * Classify a signed-in session from its raw user agent: "Chrome on Windows",
+ * "Safari on iOS", or "Automated / API client" for scripts and headless
+ * browsers. Unlike {@link detectDeviceType} (which reads free-text passkey
+ * names), this understands real browser user-agent strings.
+ */
+export const describeSessionDevice = (userAgent: string | null | undefined): DeviceConfig => {
+  const parsed = parseUserAgent(userAgent);
+  if (parsed.automated) {
+    return {
+      type: 'automated',
+      icon: <CodeIcon />,
+      color: 'var(--hotel-neutral)',
+      label: t('devices.type.automated', undefined, 'auth'),
+      gradient: 'color-mix(in srgb, var(--hotel-neutral) 20%, transparent)',
+    };
+  }
+
+  const base =
+    parsed.formFactor === 'mobile'
+      ? detectDeviceType(parsed.os === 'iOS' ? 'iphone' : 'mobile')
+      : parsed.formFactor === 'tablet'
+        ? detectDeviceType('tablet')
+        : parsed.formFactor === 'desktop'
+          ? detectDeviceType('desktop')
+          : detectDeviceType('');
+
+  let label = base.label;
+  if (parsed.browser && parsed.os) {
+    label = t('devices.browserOnOs', { browser: parsed.browser, os: parsed.os }, 'auth');
+  } else if (parsed.browser) {
+    label = parsed.browser;
+  } else if (parsed.os) {
+    label = t('devices.osDevice', { os: parsed.os }, 'auth');
+  }
+  return { ...base, label };
+};
+
 interface DeviceIconProps {
   deviceName: string;
   size?: number;
+  /** Pre-computed classification; overrides `deviceName` keyword matching. */
+  config?: DeviceConfig;
 }
 
-export const DeviceIcon: React.FC<DeviceIconProps> = ({ deviceName, size = 48 }) => {
-  const config = detectDeviceType(deviceName);
+export const DeviceIcon: React.FC<DeviceIconProps> = ({ deviceName, size = 48, config: provided }) => {
+  const config = provided ?? detectDeviceType(deviceName);
 
   return (
     <Box

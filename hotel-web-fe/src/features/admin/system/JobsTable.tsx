@@ -35,6 +35,7 @@ const JOB_LABEL_KEYS: Record<string, string> = {
   email_campaigns: 'admin:jobs.names.email_campaigns',
   birthday_vouchers: 'admin:jobs.names.birthday_vouchers',
   pre_arrival_reminders: 'admin:jobs.names.pre_arrival_reminders',
+  session_retention: 'admin:jobs.names.session_retention',
 };
 
 export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => {

@@ -553,6 +553,7 @@ candidates — see `i18n-coverage-inventory.md`.
 - `admin:system.jobs.names.night_audit` — *(dynamic or unreferenced)*
 - `admin:system.jobs.names.payment_receipts` — *(dynamic or unreferenced)*
 - `admin:system.jobs.names.pre_arrival_reminders` — *(dynamic or unreferenced)*
+- `admin:system.jobs.names.session_retention` — *(dynamic or unreferenced)*
 - `admin:system.jobs.names.unpaid_hold_release` — *(dynamic or unreferenced)*
 - `admin:system.jobs.noFailures` — `src/features/admin/system/JobsPage.tsx`
 - `admin:system.jobs.noRuns` — `src/features/admin/system/SystemHealthPage.tsx`
@@ -602,10 +603,12 @@ candidates — see `i18n-coverage-inventory.md`.
 - `auth:deactivation.reasonPlaceholder` — `src/features/user/components/AccountDeactivation.tsx`
 - `auth:deactivation.reasonPrompt` — `src/features/user/components/AccountDeactivation.tsx`
 - `auth:deactivation.title` — `src/features/user/components/AccountDeactivation.tsx`
+- `auth:devices.browserOnOs` — `src/features/user/components/profile/deviceIcons.tsx`
 - `auth:devices.current` — `src/features/user/components/profile/DevicesTab.tsx`
 - `auth:devices.empty` — `src/features/user/components/profile/DevicesTab.tsx`
 - `auth:devices.lastActive` — `src/features/user/components/profile/sessionLocation.ts`
 - `auth:devices.lastActiveAt` — `src/features/user/components/profile/sessionLocation.ts`
+- `auth:devices.osDevice` — `src/features/user/components/profile/deviceIcons.tsx`
 - `auth:devices.revoke` — `src/features/user/components/UserProfilePage.tsx`, `src/features/user/components/profile/DevicesTab.tsx`
 - `auth:devices.revokeFailed` — `src/features/user/components/UserProfilePage.tsx`
 - `auth:devices.revokeMessage` — `src/features/user/components/UserProfilePage.tsx`
@@ -613,6 +616,7 @@ candidates — see `i18n-coverage-inventory.md`.
 - `auth:devices.revoked` — `src/features/user/components/UserProfilePage.tsx`
 - `auth:devices.subtitle` — `src/features/user/components/profile/DevicesTab.tsx`
 - `auth:devices.title` — `src/features/user/components/profile/DevicesTab.tsx`
+- `auth:devices.type.automated` — `src/features/user/components/profile/deviceIcons.tsx`
 - `auth:devices.type.desktop` — `src/features/user/components/profile/deviceIcons.tsx`
 - `auth:devices.type.laptop` — `src/features/user/components/profile/deviceIcons.tsx`
 - `auth:devices.type.mobile` — `src/features/user/components/profile/deviceIcons.tsx`
