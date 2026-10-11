@@ -271,6 +271,11 @@ $_$;
 --
 -- Name: ensure_audit_logs_partition(date); Type: FUNCTION; Schema: public; Owner: -
 --
+-- Deliberately patch 0016's definition and comment, not the current one:
+-- patches run on fresh installs as well, and 0016 refuses any body but its
+-- own and the pre-0016 one. Patch 0021 then replaces both with the
+-- move-only-the-late-month definition on every database, fresh or upgraded.
+--
 
 CREATE FUNCTION public.ensure_audit_logs_partition(p_month date) RETURNS void
     LANGUAGE plpgsql
