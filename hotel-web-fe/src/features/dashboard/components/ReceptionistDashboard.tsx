@@ -54,14 +54,15 @@ import { useCurrency } from '../../../hooks/useCurrency';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { Link } from '../../../router';
 import { NewReservationsStrip } from './NewReservationsStrip';
-import { getHotelSettings } from '../../../utils/hotelSettings';
+import { getHotelSetting, getHotelSettings } from '../../../utils/hotelSettings';
 import { getBookingChannelInfo } from '../../bookings/utils/bookingChannel';
 import RoomEventDialog from '../../rooms/components/RoomEventDialog';
 import { LogoLoader } from '../../../components';
 import CollapsibleSection from '../../../components/common/CollapsibleSection';
 import StatusChip from '../../../components/common/StatusChip';
-import { formatHoldRange, selectSoonestHoldingBooking } from '../../rooms/utils/roomManagementUtils';
-import { parseLocalDate, toHotelDateString } from '../../../utils/date';
+import { formatHoldRange, isArrivalHoldVisible, selectSoonestHoldingBooking } from '../../rooms/utils/roomManagementUtils';
+import { hotelMinutesOfDay, parseLocalDate, toHotelDateString } from '../../../utils/date';
+import { isRoomHoldingReservationStatus } from '../../../constants/booking.constants';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { useTranslation } from '../../../i18n/useTranslation';
 
@@ -181,7 +182,13 @@ const ReceptionistDashboard: React.FC = () => {
 
       // "Today" is the hotel business day, not the browser's — booking dates
       // arrive as YYYY-MM-DD so plain string comparison orders them correctly.
-      const todayStr = toHotelDateString(new Date());
+      const now = new Date();
+      const todayStr = toHotelDateString(now);
+      // A reservation holds its room from its arrival day only, and on that
+      // day only once the hotel's new-reservation time has passed — the same
+      // rule as the room grid and the New reservations strip.
+      const minutesNow = hotelMinutesOfDay(now);
+      const visibleFrom = getHotelSetting('new_reservation_visible_time');
 
       const bookingsWithDays: BookingWithDay[] = bookingsData.map((booking) => ({
         ...booking,
@@ -225,23 +232,15 @@ const ReceptionistDashboard: React.FC = () => {
           );
         });
 
-        // Find today's arrival (not yet checked in)
-        const todayArrival = roomBookings.find((booking) => {
-          // Reserved if status is pending/confirmed AND check-in is today
-          return (
-            (booking.status === 'pending' || booking.status === 'confirmed') &&
-            booking.checkInDay === todayStr
-          );
-        });
-
-        // Find future reservation
-        const futureReservation = roomBookings.find((booking) => {
-          // Reserved if status is pending/confirmed AND check-in is in the future
-          return (
-            (booking.status === 'pending' || booking.status === 'confirmed') &&
-            booking.checkInDay > todayStr
-          );
-        });
+        // Arrival due now (not yet checked in): a room-holding reservation
+        // whose stay covers today and whose arrival hold is visible. Stays
+        // that start on a later day never mark the room reserved; they show
+        // as the next check-in and on the timeline.
+        const todayArrival = roomBookings.find((booking) => (
+          isRoomHoldingReservationStatus(booking.status) &&
+          booking.checkOutDay >= todayStr &&
+          isArrivalHoldVisible(booking.checkInDay, todayStr, minutesNow, visibleFrom)
+        ));
 
         // Find next reservation
         let nextBooking: BookingWithDay | undefined;
@@ -259,9 +258,10 @@ const ReceptionistDashboard: React.FC = () => {
         let nextCheckIn: string | undefined;
         let bookingId: string | undefined;
 
-        // First, check if room has an explicit status from the backend
-        // The backend status is authoritative - trust it for all status types
-        if (room.status && ['maintenance', 'cleaning', 'reserved', 'reserved_dirty', 'occupied', 'dirty'].includes(room.status)) {
+        // Housekeeping / occupancy states from the backend are authoritative.
+        // A stored `reserved` / `reserved_dirty` is only a hold while an
+        // arrival is due: without one it reads available / dirty.
+        if (room.status && ['maintenance', 'cleaning', 'out_of_order', 'occupied', 'dirty'].includes(room.status)) {
           status = room.status as RoomStatus['status'];
           // If occupied, also get the guest details from current booking
           if (room.status === 'occupied' && currentOccupancy) {
@@ -271,6 +271,9 @@ const ReceptionistDashboard: React.FC = () => {
             bookingId = String(currentOccupancy.id);
           }
         }
+        else if (room.status === 'reserved_dirty') {
+          status = todayArrival ? 'reserved_dirty' : 'dirty';
+        }
         // Check current occupancy (checked-in guest)
         else if (currentOccupancy) {
           status = 'occupied';
@@ -279,7 +282,7 @@ const ReceptionistDashboard: React.FC = () => {
           checkOutDate = currentOccupancy.check_out_date;
           bookingId = String(currentOccupancy.id);
         }
-        // Check today's arrival (awaiting check-in)
+        // Arrival due (awaiting check-in)
         else if (todayArrival) {
           status = 'reserved';
           currentGuest = todayArrival.guest_name;
@@ -287,16 +290,10 @@ const ReceptionistDashboard: React.FC = () => {
           checkOutDate = todayArrival.check_out_date;
           bookingId = String(todayArrival.id);
         }
-        // Check future reservation
-        else if (futureReservation) {
-          status = 'reserved';
-          currentGuest = futureReservation.guest_name;
-          checkInDate = futureReservation.check_in_date;
-          checkOutDate = futureReservation.check_out_date;
-          bookingId = String(futureReservation.id);
-        }
-        // Fallback: if not available and no explicit status, assume maintenance
-        else if (room.available === false) {
+        // Fallback: unavailable with no status at all — assume maintenance.
+        // (`available === false` alone also means "has a future booking", so
+        // it must not turn a room with a later stay into maintenance.)
+        else if (room.available === false && !room.status) {
           status = 'maintenance';
         }
 
@@ -304,11 +301,11 @@ const ReceptionistDashboard: React.FC = () => {
           nextCheckIn = nextBooking.check_in_date;
         }
 
-        // Backend `reserved` / `reserved_dirty` is authoritative, but it does
-        // not carry the stay. Attach the soonest active hold already loaded
-        // with the dashboard bookings — don't invent dates when there is none.
+        // Attach the arriving stay to a reserved / reserved_dirty tile from the
+        // bookings already loaded — don't invent dates when there is none.
         if (status === 'reserved' || status === 'reserved_dirty') {
-          const holding = selectSoonestHoldingBooking(roomBookings, room.id, parseLocalDate(todayStr));
+          const holding = todayArrival
+            ?? selectSoonestHoldingBooking(roomBookings, room.id, parseLocalDate(todayStr));
           if (holding?.check_in_date && holding.check_out_date) {
             checkInDate = checkInDate || holding.check_in_date;
             checkOutDate = checkOutDate || holding.check_out_date;

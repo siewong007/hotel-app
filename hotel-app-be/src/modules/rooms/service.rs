@@ -188,38 +188,25 @@ pub async fn complete_housekeeping_cleaning_tx(
         )));
     }
 
-    let mut target_status = if current_status == "reserved_dirty" {
-        "reserved".to_string()
-    } else {
-        "available".to_string()
-    };
-    let mut auto_reserved_dates: Option<(NaiveDate, NaiveDate)> = None;
-
-    if target_status == "available" {
-        let active_booking = rq::has_active_booking(&mut **tx, room_id).await?;
-
-        if active_booking {
-            return Err(ApiError::BadRequest(
-                "Cannot mark room available while there is an active booking.".to_string(),
-            ));
-        }
-
-        let check_in_time = rq::check_in_time_setting_tx(tx).await?;
-
-        let reservation =
-            rq::reservation_arriving_today(&mut **tx, room_id, &check_in_time).await?;
-
-        if let Some((_booking_id, check_in, check_out)) = reservation {
-            target_status = "reserved".to_string();
-            auto_reserved_dates = Some((check_in, check_out));
-        }
-    } else {
-        let reservation = rq::next_reservation(&mut **tx, room_id).await?;
-
-        if let Some((_booking_id, check_in, check_out)) = reservation {
-            auto_reserved_dates = Some((check_in, check_out));
-        }
-    }
+    // A clean room is held for a guest arriving today (or an arrival that is
+    // already due); otherwise it is available. A future stay does not hold the
+    // room yet, even when the room was reserved_dirty for it.
+    let reservation = rq::arrival_hold(&mut **tx, room_id).await?;
+    let (target_status, auto_reserved_dates): (String, Option<(NaiveDate, NaiveDate)>) =
+        match reservation {
+            Some((_booking_id, check_in, check_out)) => {
+                ("reserved".to_string(), Some((check_in, check_out)))
+            }
+            None => {
+                let active_booking = rq::has_active_booking(&mut **tx, room_id).await?;
+                if active_booking {
+                    return Err(ApiError::BadRequest(
+                        "Cannot mark room available while there is an active booking.".to_string(),
+                    ));
+                }
+                ("available".to_string(), None)
+            }
+        };
 
     let (reserved_start, reserved_end) = match auto_reserved_dates {
         Some((check_in, check_out)) => (date_to_utc(check_in), date_to_utc(check_out)),
@@ -792,8 +779,11 @@ pub async fn update_room_status_handler(
     // reservation so we can stamp the room's reservation window.
     let mut auto_reserved_dates: Option<(NaiveDate, NaiveDate)> = None;
 
+    // A reservation holds its room from its arrival day only. A dirty room
+    // with a guest arriving today reads reserved_dirty; a future stay leaves
+    // it plain dirty (it stays on the timeline until its arrival day).
     if target_status == "dirty" {
-        let reservation = rq::next_reservation(&pool, room_id).await?;
+        let reservation = rq::arrival_hold(&pool, room_id).await?;
 
         if let Some((_booking_id, check_in, check_out)) = reservation {
             target_status = "reserved_dirty".to_string();
@@ -810,34 +800,13 @@ pub async fn update_room_status_handler(
             ));
         }
 
-        // A reserved_dirty room is clean only after housekeeping clears it, but
-        // any active reservation must remain visible instead of releasing the
-        // room to available.
-        if current_status.as_deref() == Some("reserved_dirty") {
-            let reservation = rq::next_reservation(&pool, room_id).await?;
+        // A guest arriving today keeps the room held instead of releasing it
+        // to available — whether it was reserved_dirty or plain available.
+        let reservation = rq::arrival_hold(&pool, room_id).await?;
 
-            if let Some((_booking_id, check_in, check_out)) = reservation {
-                target_status = "reserved".to_string();
-                auto_reserved_dates = Some((check_in, check_out));
-            }
-        }
-
-        // If a reservation arrives today and the configured check-in time has
-        // passed, the room isn't truly free — flip it to "reserved" so its
-        // stored status matches the imminent arrival instead of "available".
-        if target_status == "available" {
-            let check_in_time =
-                crate::modules::settings::service::get_setting_value(&pool, "check_in_time")
-                    .await
-                    .unwrap_or_else(|_| "15:00:00".to_string());
-
-            let reservation =
-                rq::reservation_arriving_today(&pool, room_id, &check_in_time).await?;
-
-            if let Some((_booking_id, check_in, check_out)) = reservation {
-                target_status = "reserved".to_string();
-                auto_reserved_dates = Some((check_in, check_out));
-            }
+        if let Some((_booking_id, check_in, check_out)) = reservation {
+            target_status = "reserved".to_string();
+            auto_reserved_dates = Some((check_in, check_out));
         }
     }
 

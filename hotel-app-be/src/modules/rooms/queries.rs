@@ -149,6 +149,15 @@ SELECT
     NULL::BIGINT as review_count,
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN 'occupied'
+        -- A room is held from its guest's arrival day only; a reserved_dirty
+        -- room whose next stay is still in the future reads dirty.
+        WHEN r.status = 'reserved_dirty' AND NOT EXISTS (
+            SELECT 1 FROM bookings hold
+            WHERE hold.room_id = r.id
+              AND hold.status IN ('pending', 'pending_payment', 'pending_confirmation', 'confirmed')
+              AND hold.check_in_date <= CURRENT_DATE
+              AND hold.check_out_date >= CURRENT_DATE
+        ) THEN 'dirty'
         WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN r.status
         WHEN cb.booking_status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation') AND cb.check_in_date <= CURRENT_DATE THEN 'reserved'
         ELSE 'available'
@@ -801,57 +810,64 @@ where
 // (`pending_confirmation`) website booking holds its room too, and leaving
 // those out let housekeeping release a held room to `available`. The unit
 // tests at the bottom of this file pin each query to that list.
-const CHECK_NEXT_RESERVATION: &str = r#"
+/// The reservation that holds this room today: a room-holding booking whose
+/// stay has reached its arrival day (`check_in_date <= CURRENT_DATE <=
+/// check_out_date`). A future stay does not hold the room yet; it lives on the
+/// timeline until its arrival day, when `reconcile_room_holds` (and the
+/// arrival-day sweep at `new_reservation_visible_time`) marks the room.
+const CHECK_ARRIVAL_HOLD: &str = r#"
 SELECT id, check_in_date, check_out_date
 FROM bookings
 WHERE room_id = $1
   AND status IN ('pending', 'pending_payment', 'pending_confirmation', 'confirmed')
+  AND check_in_date <= CURRENT_DATE
   AND check_out_date >= CURRENT_DATE
-ORDER BY check_in_date ASC
+ORDER BY check_in_date ASC, id ASC
 LIMIT 1
 "#;
 
-pub async fn next_reservation<'e, E>(
+pub async fn arrival_hold<'e, E>(
     executor: E,
     room_id: i64,
 ) -> Result<Option<(i64, NaiveDate, NaiveDate)>, ApiError>
 where
     E: sqlx::Executor<'e, Database = DbDatabase>,
 {
-    sqlx::query_as(CHECK_NEXT_RESERVATION)
+    sqlx::query_as(CHECK_ARRIVAL_HOLD)
         .bind(room_id)
         .fetch_optional(executor)
         .await
         .map_err(db_err)
 }
 
-/// Check for a reservation arriving today, once the configured check-in time
-/// has passed (used to auto-flip a room to `reserved` when staff mark it
-/// available). `check_in_time` is e.g. '15:00:00'.
-const CHECK_RESERVATION_TODAY: &str = r#"
-SELECT id, check_in_date, check_out_date FROM bookings
-WHERE room_id = $1
-AND status IN ('pending', 'pending_payment', 'pending_confirmation', 'confirmed')
-AND check_in_date = CURRENT_DATE
-AND CURRENT_TIME >= $2::TIME
-ORDER BY check_in_date ASC
-LIMIT 1
-"#;
+/// One room whose hold `reconcile_room_holds` changed.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct RoomHoldChange {
+    pub room_id: i64,
+    pub room_number: String,
+    pub old_status: String,
+    pub new_status: String,
+}
 
-pub async fn reservation_arriving_today<'e, E>(
+/// Recompute the reservation hold of one room, or of every active room when
+/// `room_id` is `None`, through the `reconcile_room_holds()` SQL function: a
+/// room reads `reserved`/`reserved_dirty` only on the arrival day of a
+/// room-holding booking and `available`/`dirty` otherwise. Occupied, cleaning,
+/// maintenance and out-of-order rooms are left alone. Idempotent.
+pub async fn reconcile_room_holds<'e, E>(
     executor: E,
-    room_id: i64,
-    check_in_time: &str,
-) -> Result<Option<(i64, NaiveDate, NaiveDate)>, ApiError>
+    room_id: Option<i64>,
+) -> Result<Vec<RoomHoldChange>, ApiError>
 where
     E: sqlx::Executor<'e, Database = DbDatabase>,
 {
-    sqlx::query_as(CHECK_RESERVATION_TODAY)
-        .bind(room_id)
-        .bind(check_in_time)
-        .fetch_optional(executor)
-        .await
-        .map_err(db_err)
+    sqlx::query_as::<_, RoomHoldChange>(
+        "SELECT room_id, room_number::text AS room_number, old_status::text AS old_status, new_status::text AS new_status FROM reconcile_room_holds($1)",
+    )
+    .bind(room_id)
+    .fetch_all(executor)
+    .await
+    .map_err(db_err)
 }
 
 const CHECK_BOOKING_VALID_FOR_RESERVATION: &str = "SELECT id FROM bookings WHERE id = $1 AND room_id = $2 AND status IN ('pending', 'pending_payment', 'pending_confirmation', 'confirmed')";
@@ -1145,16 +1161,6 @@ pub async fn room_number(pool: &DbPool, room_id: i64) -> Result<String, ApiError
 
 // ==================== complete_housekeeping_cleaning_tx support ====================
 
-pub async fn check_in_time_setting_tx(tx: &mut DbTransaction<'_>) -> Result<String, ApiError> {
-    let value: Option<String> =
-        sqlx::query_scalar("SELECT value FROM system_settings WHERE key = $1")
-            .bind("check_in_time")
-            .fetch_optional(&mut **tx)
-            .await
-            .map_err(db_err)?;
-    Ok(value.unwrap_or_else(|| "15:00:00".to_string()))
-}
-
 pub async fn touch_last_cleaned_at_tx(
     tx: &mut DbTransaction<'_>,
     room_id: i64,
@@ -1245,6 +1251,7 @@ SELECT
             SELECT 1 FROM bookings
             WHERE room_id = $1
             AND status IN ('pending', 'pending_payment', 'pending_confirmation', 'confirmed')
+            AND check_in_date <= CURRENT_DATE
             AND check_out_date >= CURRENT_DATE
         ) THEN 'reserved'
         ELSE 'available'
@@ -1414,6 +1421,9 @@ pub async fn execute_room_change_tx(
         .execute(&mut **tx)
         .await
         .map_err(db_err)?;
+    // A guest arriving today in the vacated room keeps it held while it is
+    // cleaned (dirty -> reserved_dirty).
+    reconcile_room_holds(&mut **tx, Some(room_id)).await?;
 
     sqlx::query(
         "UPDATE rooms SET status = 'occupied', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
@@ -2071,8 +2081,7 @@ mod tests {
     fn room_hold_queries_use_every_room_holding_status() {
         let hold = format!("status IN ({ROOM_HOLDING_RESERVATION_STATUSES_SQL})");
         for (name, sql) in [
-            ("CHECK_NEXT_RESERVATION", CHECK_NEXT_RESERVATION),
-            ("CHECK_RESERVATION_TODAY", CHECK_RESERVATION_TODAY),
+            ("CHECK_ARRIVAL_HOLD", CHECK_ARRIVAL_HOLD),
             (
                 "CHECK_BOOKING_VALID_FOR_RESERVATION",
                 CHECK_BOOKING_VALID_FOR_RESERVATION,

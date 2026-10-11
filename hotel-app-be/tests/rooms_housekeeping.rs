@@ -718,6 +718,165 @@ mod postgres_tests {
         cleanup_actor(&pool, actor_id).await;
     }
 
+    /// A reservation holds its room from its arrival day only. A stay that
+    /// starts later leaves the room `available` (or `dirty` after a checkout),
+    /// today's arrival reserves it, a booking never displaces an in-house
+    /// guest, and moving the stay to today promotes the room in one step.
+    #[tokio::test]
+    async fn postgres_room_holds_start_on_the_arrival_day() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 980_060;
+        let guest_id = 980_260;
+        let room_type_id = 980_460;
+        let future_room = 980_360;
+        let arrival_room = 980_361;
+        let occupied_room = 980_362;
+        let checkout_room = 980_363;
+        let rooms_under_test = [future_room, arrival_room, occupied_room, checkout_room];
+        let bookings_under_test = [980_160, 980_161, 980_162, 980_163, 980_164, 980_165];
+
+        for booking_id in bookings_under_test {
+            cleanup_booking(&pool, booking_id).await;
+        }
+        for room_id in rooms_under_test {
+            cleanup_room(&pool, room_id).await;
+        }
+        cleanup_guest(&pool, guest_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+
+        let today: NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let day = |offset: i64| today + Duration::days(offset);
+
+        seed_actor(&pool, actor_id).await;
+        seed_room_type(&pool, room_type_id).await;
+        seed_room(&pool, future_room, room_type_id, "available").await;
+        seed_room(&pool, arrival_room, room_type_id, "available").await;
+        seed_room(&pool, occupied_room, room_type_id, "occupied").await;
+        seed_room(&pool, checkout_room, room_type_id, "occupied").await;
+        seed_guest(&pool, guest_id).await;
+        let booking = |booking_id, room_id, status, check_in, check_out| BookingFixture {
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            status,
+            check_in,
+            check_out,
+        };
+
+        // A stay that starts in five days does not hold the room today.
+        seed_booking(
+            &pool,
+            booking(980_160, future_room, "confirmed", day(5), day(7)),
+        )
+        .await;
+        assert_eq!(room_status_of(&pool, future_room).await, "available");
+        // An unpaid website hold arriving today does.
+        seed_booking(
+            &pool,
+            booking(980_161, arrival_room, "pending_payment", today, day(2)),
+        )
+        .await;
+        assert_eq!(room_status_of(&pool, arrival_room).await, "reserved");
+
+        // Today's arrival on a room whose in-house guest leaves today keeps
+        // the room occupied until that guest checks out.
+        seed_booking(
+            &pool,
+            booking(980_162, occupied_room, "checked_in", day(-2), today),
+        )
+        .await;
+        seed_booking(
+            &pool,
+            booking(980_163, occupied_room, "confirmed", today, day(1)),
+        )
+        .await;
+        assert_eq!(room_status_of(&pool, occupied_room).await, "occupied");
+
+        // Checking out a room whose next stay is in three days leaves it dirty.
+        seed_booking(
+            &pool,
+            booking(980_164, checkout_room, "checked_in", day(-2), today),
+        )
+        .await;
+        seed_booking(
+            &pool,
+            booking(980_165, checkout_room, "confirmed", day(3), day(4)),
+        )
+        .await;
+        assert_eq!(room_status_of(&pool, checkout_room).await, "occupied");
+        sqlx::query("UPDATE bookings SET status = 'checked_out' WHERE id = $1")
+            .bind(980_164_i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(room_status_of(&pool, checkout_room).await, "dirty");
+
+        // Nothing is out of date, so a sweep of these rooms changes nothing.
+        for room_id in rooms_under_test {
+            let changes = rq::reconcile_room_holds(&pool, Some(room_id))
+                .await
+                .unwrap();
+            assert!(changes.is_empty(), "room {room_id} drifted: {changes:?}");
+        }
+
+        // Moving the next stay to today promotes the dirty room to
+        // reserved_dirty, and moving it back releases the hold again.
+        sqlx::query("UPDATE bookings SET check_in_date = $2 WHERE id = $1")
+            .bind(980_165_i64)
+            .bind(today)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(room_status_of(&pool, checkout_room).await, "reserved_dirty");
+        sqlx::query("UPDATE bookings SET check_in_date = $2 WHERE id = $1")
+            .bind(980_165_i64)
+            .bind(day(3))
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(room_status_of(&pool, checkout_room).await, "dirty");
+
+        // A stale hold left behind (as before the fix) is released by the
+        // arrival-day sweep, which reports exactly what it changed.
+        sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = $1")
+            .bind(future_room)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let changes = rq::reconcile_room_holds(&pool, Some(future_room))
+            .await
+            .unwrap();
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].room_id, future_room);
+        assert_eq!(changes[0].old_status, "reserved");
+        assert_eq!(changes[0].new_status, "available");
+        assert_eq!(room_status_of(&pool, future_room).await, "available");
+        assert!(
+            rq::reconcile_room_holds(&pool, Some(future_room))
+                .await
+                .unwrap()
+                .is_empty(),
+            "the sweep must be idempotent"
+        );
+
+        for booking_id in bookings_under_test {
+            cleanup_booking(&pool, booking_id).await;
+        }
+        for room_id in rooms_under_test {
+            cleanup_room(&pool, room_id).await;
+        }
+        cleanup_guest(&pool, guest_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+    }
+
     // ===================================================================
     // Scenario 3: manual room-status-update service (`update_room_status_handler`)
     // -- validates a real caller (JWT + `rooms:update` permission) and

@@ -349,6 +349,9 @@ async fn main() {
 
     // Releases stale unpaid ONLINE holds after `unpaid_hold_release_hours`
     // (ships at 24; 0 switches it off). Front-desk holds are never touched.
+    // The same loop holds rooms for today's arrivals once a day at
+    // `new_reservation_visible_time` (`rooms::arrival_holds`), so it pins no
+    // extra pooled connection.
     core::leader::spawn_exclusive(
         "unpaid_hold",
         core::leader::LOCK_UNPAID_HOLD,

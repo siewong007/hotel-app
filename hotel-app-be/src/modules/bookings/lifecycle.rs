@@ -226,7 +226,8 @@ async fn reconcile_room_status_after_booking_release(
                 SELECT 1 FROM bookings
                 WHERE room_id = $1 AND id != $2
                   AND status IN ('reserved', 'confirmed', 'pending', 'pending_payment', 'pending_confirmation')
-                  AND check_out_date > CURRENT_DATE
+                  AND check_in_date <= CURRENT_DATE
+                  AND check_out_date >= CURRENT_DATE
             ) THEN 'reserved'
             ELSE 'available'
         END
@@ -1397,32 +1398,13 @@ pub async fn create_booking_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?
     };
 
-    // A confirmed booking reserves the room. If housekeeping still needs to
-    // clean it, keep that requirement visible and block check-in until cleared.
-    let reserved_status = if matches!(room_status, "dirty" | "cleaning" | "reserved_dirty") {
-        "reserved_dirty"
-    } else {
-        "reserved"
-    };
-    let update_room_query = "UPDATE rooms SET status = $1, status_notes = $2 WHERE id = $3";
-
-    sqlx::query(update_room_query)
-        .bind(reserved_status)
-        .bind(format!(
-            "Booking #{} - {}",
-            booking.booking_number,
-            if reserved_status == "reserved_dirty" {
-                "Reservation created, room needs cleaning before check-in"
-            } else if check_in == today {
-                "Reservation arriving today"
-            } else {
-                "Future reservation"
-            }
-        ))
-        .bind(input.room_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    // A reservation holds its room from its arrival day only. A booking that
+    // arrives today marks the room reserved (reserved_dirty while it still
+    // needs cleaning); a future stay leaves the room alone — it shows on the
+    // timeline and the arrival-day sweep holds the room on the day. An
+    // occupied room is never overwritten. The booking trigger already ran
+    // this; repeating it inside the transaction keeps the rule explicit.
+    crate::modules::rooms::queries::reconcile_room_holds(&mut *tx, Some(input.room_id)).await?;
 
     // Record a deposit payment as part of the same transaction as the booking.
     // `record_checkin_payment_tx` handles the database schema despite its
@@ -2315,20 +2297,17 @@ pub async fn update_booking_handler(
             );
         }
 
-        if updated_status == "confirmed" || updated_status == "pending" {
-            let reserved_status = if matches!(
-                new_room_status.as_str(),
-                "dirty" | "cleaning" | "reserved_dirty"
-            ) {
-                "reserved_dirty"
-            } else {
-                "reserved"
-            };
-            let _ = sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
-                .bind(reserved_status)
-                .bind(new_room_id)
-                .execute(&pool)
-                .await;
+        // The new room is held only from the stay's arrival day, and an
+        // occupied room is never overwritten.
+        if let Err(e) =
+            crate::modules::rooms::queries::reconcile_room_holds(&pool, Some(new_room_id)).await
+        {
+            log::warn!(
+                "Failed to reconcile new room {} after moving booking {}: {}",
+                new_room_id,
+                booking_id,
+                e
+            );
         }
     }
 
@@ -2368,10 +2347,13 @@ pub async fn update_booking_handler(
                         SELECT 1 FROM bookings
                         WHERE room_id = $1 AND id != $2
                           AND status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
+                          AND check_in_date <= CURRENT_DATE
                           AND check_out_date >= CURRENT_DATE
                     )
                 "#;
 
+                // Only a guest arriving today holds the room while it is
+                // cleaned; a future stay leaves it plain dirty.
                 let has_upcoming_reservation =
                     sqlx::query_scalar::<_, bool>(upcoming_reservation_query)
                         .bind(new_room_id)
@@ -2618,14 +2600,8 @@ pub async fn reactivate_booking_handler(
         ));
     }
 
-    let update_room_query = "UPDATE rooms SET status = $1 WHERE id = $2";
-
-    sqlx::query(update_room_query)
-        .bind("reserved")
-        .bind(room_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    // The reactivated stay holds its room from its arrival day only.
+    crate::modules::rooms::queries::reconcile_room_holds(&mut *tx, Some(room_id)).await?;
 
     AuditLog::log_event_tx(
         &mut tx,
@@ -2769,14 +2745,26 @@ pub async fn booking_night_audit_dates(
         .map_err(|e| ApiError::Database(e.to_string()))
 }
 
+/// Release the hold a cancelled or voided booking had on its room. Only a
+/// held room is released (reserved -> available, reserved_dirty -> dirty);
+/// an occupied, dirty or out-of-service room keeps its state. Another guest
+/// arriving today keeps the room held.
 pub async fn release_room_tx(tx: &mut DbTransaction<'_>, room_id: i64) -> Result<(), ApiError> {
-    let update_room_query = "UPDATE rooms SET status = 'available' WHERE id = $1";
+    let update_room_query = r#"
+        UPDATE rooms
+        SET status = CASE WHEN status = 'reserved_dirty' THEN 'dirty' ELSE 'available' END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+          AND status IN ('reserved', 'reserved_dirty')
+    "#;
 
     sqlx::query(update_room_query)
         .bind(room_id)
         .execute(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    crate::modules::rooms::queries::reconcile_room_holds(&mut **tx, Some(room_id)).await?;
 
     Ok(())
 }
@@ -3687,14 +3675,8 @@ pub async fn confirm_reactivated_booking_and_reserve_room(
         ));
     }
 
-    let update_room_query = "UPDATE rooms SET status = $1 WHERE id = $2";
-
-    sqlx::query(update_room_query)
-        .bind("reserved")
-        .bind(room_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    // The reactivated stay holds its room from its arrival day only.
+    crate::modules::rooms::queries::reconcile_room_holds(&mut *tx, Some(room_id)).await?;
 
     let select_booking_query = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, \
         room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, \

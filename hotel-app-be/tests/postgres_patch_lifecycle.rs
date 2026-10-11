@@ -694,7 +694,7 @@ fn assert_expected_objects(objects: &ObjectSnapshot) {
                         "IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')",
                     )
                     .count()
-                    == 2
+                    == 1
         }),
         "the room-sync trigger must treat both pending statuses as room-holding"
     );
@@ -985,6 +985,284 @@ async fn postgres_v1_catalog_refuses_a_drifted_audit_partition_function() {
     .await
     .expect("read patch 0016 revision");
     assert!(!recorded, "a refused patch must not record its revision");
+
+    pool.close().await;
+    databases.cleanup().await;
+}
+
+/// `sync_room_status_with_booking()` exactly as every V1 database installed
+/// before patch 0018 defines it: pg_get_functiondef output. It reserved a room
+/// for any holding booking, whatever its check-in date.
+const PRE_0018_ROOM_SYNC_TRIGGER: &str = r#"CREATE OR REPLACE FUNCTION public.sync_room_status_with_booking()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_current_room_status VARCHAR(20);
+    v_next_status VARCHAR(20);
+    v_has_other_current_stay BOOLEAN;
+BEGIN
+    -- Skip room status changes for back-dated stays that have already ended.
+    IF NEW.check_out_date < CURRENT_DATE
+       AND NEW.status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed') THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT status INTO v_current_room_status FROM rooms WHERE id = NEW.room_id;
+
+    SELECT EXISTS (
+        SELECT 1 FROM bookings
+        WHERE room_id = NEW.room_id
+          AND id != NEW.id
+          AND status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+          AND check_in_date <= CURRENT_DATE
+          AND check_out_date >= CURRENT_DATE
+    ) INTO v_has_other_current_stay;
+
+    IF NEW.status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+       AND v_current_room_status != 'occupied' THEN
+        PERFORM update_room_status(NEW.room_id, 'occupied',
+            'Guest checked in - Booking #' || NEW.id, NULL,
+            NEW.check_in_date, NEW.check_out_date);
+
+    ELSIF NEW.status IN ('checked_out', 'completed')
+          AND v_current_room_status = 'occupied' THEN
+        PERFORM update_room_status(NEW.room_id, 'dirty',
+            'Guest checked out - Needs cleaning - Booking #' || NEW.id,
+            NULL, CURRENT_TIMESTAMP, NULL);
+
+    ELSIF NEW.status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
+          AND NOT v_has_other_current_stay
+          AND v_current_room_status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN
+        PERFORM update_room_status(NEW.room_id, 'reserved',
+            CASE
+                WHEN NEW.check_in_date::date = CURRENT_DATE
+                    THEN 'Same-day reservation - Booking #' || NEW.id
+                ELSE 'Future reservation - Booking #' || NEW.id
+            END,
+            NULL, NEW.check_in_date, NEW.check_out_date);
+
+    ELSIF NEW.status IN ('no_show', 'voided')
+          AND v_current_room_status IN ('occupied', 'reserved') THEN
+        SELECT CASE
+            WHEN EXISTS (
+                SELECT 1 FROM bookings
+                WHERE room_id = NEW.room_id
+                  AND id != NEW.id
+                  AND status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+                  AND check_in_date <= CURRENT_DATE
+                  AND check_out_date >= CURRENT_DATE
+            ) THEN 'occupied'
+            WHEN EXISTS (
+                SELECT 1 FROM bookings
+                WHERE room_id = NEW.room_id
+                  AND id != NEW.id
+                  AND status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
+                  AND check_out_date > CURRENT_DATE
+            ) THEN 'reserved'
+            ELSE 'available'
+        END INTO v_next_status;
+
+        PERFORM update_room_status(NEW.room_id, v_next_status,
+            'Booking no-show/voided - Booking #' || NEW.id, NULL, NULL, NULL);
+    END IF;
+
+    RETURN NEW;
+END;
+$function$
+
+"#;
+
+/// `sync_all_room_statuses(bigint)` before patch 0018: it treated any holding
+/// booking that had not checked out yet as a reservation for today.
+const PRE_0018_SYNC_ALL_ROOM_STATUSES: &str = r#"CREATE OR REPLACE FUNCTION public.sync_all_room_statuses(p_user_id bigint DEFAULT NULL::bigint)
+ RETURNS TABLE(room_id bigint, room_number character varying, old_status character varying, new_status character varying)
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_room RECORD;
+    v_desired VARCHAR(20);
+    v_res_start DATE;
+    v_res_end DATE;
+BEGIN
+    -- Bulk reconciliation of rooms.status against bookings. Mirrors the policy
+    -- of the sync_room_status_with_booking() trigger: housekeeping and
+    -- maintenance states (dirty, cleaning, reserved_dirty, maintenance,
+    -- out_of_order) are never overridden; only the booking-derived states
+    -- (available, occupied, reserved) are recomputed.
+    FOR v_room IN
+        SELECT r.id, r.room_number, r.status
+        FROM rooms r
+        WHERE r.is_active = true
+          AND r.status IN ('available', 'occupied', 'reserved')
+        ORDER BY r.id
+    LOOP
+        v_res_start := NULL;
+        v_res_end := NULL;
+
+        IF EXISTS (
+            SELECT 1 FROM bookings b
+            WHERE b.room_id = v_room.id
+              AND b.status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+              AND b.check_in_date <= CURRENT_DATE
+              AND b.check_out_date >= CURRENT_DATE
+        ) THEN
+            v_desired := 'occupied';
+        ELSE
+            SELECT b.check_in_date, b.check_out_date
+              INTO v_res_start, v_res_end
+              FROM bookings b
+             WHERE b.room_id = v_room.id
+               AND b.status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
+               AND b.check_out_date > CURRENT_DATE
+             ORDER BY b.check_in_date
+             LIMIT 1;
+            IF FOUND THEN
+                v_desired := 'reserved';
+            ELSE
+                v_desired := 'available';
+            END IF;
+        END IF;
+
+        IF v_desired <> v_room.status THEN
+            PERFORM update_room_status(v_room.id, v_desired,
+                'Bulk status sync from bookings', p_user_id, v_res_start, v_res_end);
+            room_id := v_room.id;
+            room_number := v_room.room_number;
+            old_status := v_room.status;
+            new_status := v_desired;
+            RETURN NEXT;
+        END IF;
+    END LOOP;
+END;
+$function$
+
+"#;
+
+async fn room_hold_functions(pool: &PgPool) -> Vec<(String, String, Option<String>)> {
+    sqlx::query_as(
+        r#"
+        SELECT routine_row.oid::regprocedure::text,
+               pg_get_functiondef(routine_row.oid),
+               obj_description(routine_row.oid, 'pg_proc')
+        FROM pg_proc AS routine_row
+        WHERE routine_row.oid IN (
+            to_regprocedure('public.reconcile_room_holds(bigint)'),
+            to_regprocedure('public.sync_room_status_with_booking()'),
+            to_regprocedure('public.sync_all_room_statuses(bigint)')
+        )
+        ORDER BY 1
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .expect("read the room-hold functions")
+}
+
+async fn restore_pre_0018_room_hold_functions(pool: &PgPool) {
+    for statement in [
+        "DROP FUNCTION public.reconcile_room_holds(bigint)",
+        PRE_0018_ROOM_SYNC_TRIGGER,
+        PRE_0018_SYNC_ALL_ROOM_STATUSES,
+    ] {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(statement))
+            .execute(pool)
+            .await
+            .expect("restore the pre-0018 room-hold functions");
+    }
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_moves_room_holds_to_the_arrival_day() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let database = databases.create("room_hold").await;
+    let pool = install_v1(&database).await;
+    let baseline = room_hold_functions(&pool).await;
+    assert_eq!(
+        baseline.len(),
+        3,
+        "the baseline must define all room-hold functions"
+    );
+
+    // Rebuild a database installed before patch 0018.
+    restore_pre_0018_room_hold_functions(&pool).await;
+    let old = room_hold_functions(&pool).await;
+    assert_eq!(old.len(), 2);
+    assert!(
+        old.iter()
+            .all(|(_, definition, _)| !definition.contains("reconcile_room_holds"))
+    );
+
+    let first_run = run_patches(&database, None).await;
+    assert_runner_succeeded(&first_run);
+    assert_eq!(
+        room_hold_functions(&pool).await,
+        baseline,
+        "patch 0018 must converge onto the baseline definitions and comment"
+    );
+    let revisions = revision_snapshot(&pool).await;
+    assert!(
+        revisions
+            .iter()
+            .any(|(version, name, _, _)| *version == 18 && name == "room-hold-arrival-day"),
+        "patch 0018 must record its revision: {revisions:?}"
+    );
+
+    let second_run = run_patches(&database, None).await;
+    assert_runner_succeeded(&second_run);
+    assert_eq!(room_hold_functions(&pool).await, baseline);
+    assert_eq!(revision_snapshot(&pool).await, revisions);
+
+    pool.close().await;
+    databases.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_refuses_a_drifted_room_sync_trigger() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let database = databases.create("room_hold_drift").await;
+    let pool = install_v1(&database).await;
+
+    restore_pre_0018_room_hold_functions(&pool).await;
+    sqlx::raw_sql(
+        r#"
+        CREATE OR REPLACE FUNCTION public.sync_room_status_with_booking()
+        RETURNS trigger LANGUAGE plpgsql SET search_path TO 'pg_catalog', 'public'
+        AS $$ BEGIN RETURN NEW; END; $$
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("install a drifted room-sync trigger function");
+
+    let output = run_patches(&database, None).await;
+    assert_runner_failed_with(
+        &output,
+        "sync_room_status_with_booking() has incompatible definition",
+    );
+    let recorded: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM hotel_schema_revisions WHERE generation = 1 AND version = 18)",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read patch 0018 revision");
+    assert!(!recorded, "a refused patch must not record its revision");
+    let reconcile_exists: bool = sqlx::query_scalar(
+        "SELECT to_regprocedure('public.reconcile_room_holds(bigint)') IS NOT NULL",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("probe reconcile_room_holds");
+    assert!(
+        !reconcile_exists,
+        "a refused patch must roll back completely"
+    );
 
     pool.close().await;
     databases.cleanup().await;

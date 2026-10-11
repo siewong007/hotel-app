@@ -936,25 +936,14 @@ impl GuestBookingRepository {
         Ok(())
     }
 
+    /// Hold the room for a website booking — from its arrival day only. A
+    /// future stay leaves the room alone (it shows on the staff timeline), and
+    /// an occupied room is never overwritten.
     pub async fn mark_room_reserved_tx(
         tx: &mut DbTransaction<'_>,
         room_id: i64,
-        booking_number: &str,
     ) -> Result<(), ApiError> {
-        sqlx::query(
-            r#"
-                UPDATE rooms SET
-                    status = CASE WHEN status IN ('dirty', 'cleaning', 'reserved_dirty')
-                                  THEN 'reserved_dirty' ELSE 'reserved' END,
-                    status_notes = $1
-                WHERE id = $2
-            "#,
-        )
-        .bind(format!("Website booking #{booking_number}"))
-        .bind(room_id)
-        .execute(&mut **tx)
-        .await
-        .map_err(ApiError::from)?;
+        crate::modules::rooms::queries::reconcile_room_holds(&mut **tx, Some(room_id)).await?;
         Ok(())
     }
 

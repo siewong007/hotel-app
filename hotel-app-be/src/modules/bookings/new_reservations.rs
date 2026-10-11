@@ -85,7 +85,9 @@ pub fn visible_on_new_reservations_strip(
     created_local >= gate || now_local >= gate
 }
 
-fn appearance_time(raw: &str) -> NaiveTime {
+/// The configured `new_reservation_visible_time` as a clock time, falling back
+/// to the 07:00 default when the stored value is malformed.
+pub(crate) fn appearance_time(raw: &str) -> NaiveTime {
     let normalized = normalize_clock_time(raw)
         .unwrap_or_else(|_| DEFAULT_NEW_RESERVATION_VISIBLE_TIME.to_string());
     NaiveTime::parse_from_str(&normalized, "%H:%M")

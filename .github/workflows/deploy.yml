@@ -195,6 +195,8 @@ jobs:
             "$bundle_dir/database/patches/0016_audit_partition_without_split.sql"
           cp hotel-app-be/database/postgres/patches/0017_session_retention.sql \
             "$bundle_dir/database/patches/0017_session_retention.sql"
+          cp hotel-app-be/database/postgres/patches/0018_room_hold_arrival_day.sql \
+            "$bundle_dir/database/patches/0018_room_hold_arrival_day.sql"
 
           (
             cd "$bundle_dir"
@@ -227,6 +229,7 @@ jobs:
               database/patches/0015_drop_hotel_property_graph.sql \
               database/patches/0016_audit_partition_without_split.sql \
               database/patches/0017_session_retention.sql \
+              database/patches/0018_room_hold_arrival_day.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .
