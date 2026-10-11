@@ -1315,6 +1315,446 @@ async fn postgres_v1_catalog_refuses_an_unexpected_audit_partition_function_befo
     databases.cleanup().await;
 }
 
+/// `prevent_audit_log_mutation()` exactly as the baseline defined it from
+/// 2026-09-13 until patch 0022: pg_get_functiondef output, returning NULL for
+/// rows. Every database installed from the baseline in that window has it.
+const PRE_0022_AUDIT_GUARD_FUNCTION: &str = r#"CREATE OR REPLACE FUNCTION public.prevent_audit_log_mutation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+BEGIN
+    -- Escape hatch for fixture cleanup only: integration tests set this GUC
+    -- per pooled connection so they can purge rows they wrote. Nothing in the
+    -- application sets it. A principal that can run SET could equally drop the
+    -- trigger, so the GUC widens nothing -- the trigger exists to stop
+    -- accidental and application-level mutation, not the database owner.
+    IF current_setting('app.allow_audit_mutation', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'audit_logs is append-only: UPDATE and DELETE are forbidden';
+    END IF;
+    RETURN NULL;
+END;
+$function$
+"#;
+
+/// The function comment those databases carry.
+const PRE_0022_AUDIT_GUARD_COMMENT: &str = "COMMENT ON FUNCTION public.prevent_audit_log_mutation() IS 'Row-trigger body that makes audit_logs append-only even for the table owner. REVOKE cannot help here because the application connects as the owner, and owners bypass privilege checks; a BEFORE trigger is the only enforcement that applies.'";
+
+/// Removes what patch 0022 adds on top of the earlier baseline: the row
+/// trigger, the partitions' TRUNCATE guards, and the guard helper.
+const PRE_0022_TEARDOWN: &str = r#"
+DROP TRIGGER trg_audit_logs_append_only_row ON public.audit_logs;
+DO $$
+DECLARE
+    partition_row record;
+BEGIN
+    FOR partition_row IN
+        SELECT inhrelid::regclass AS partition_name
+        FROM pg_inherits
+        WHERE inhparent = 'public.audit_logs'::regclass
+    LOOP
+        EXECUTE format(
+            'DROP TRIGGER IF EXISTS trg_audit_logs_no_truncate ON %s',
+            partition_row.partition_name
+        );
+    END LOOP;
+END;
+$$;
+DROP FUNCTION public.ensure_audit_logs_truncate_guards();
+"#;
+
+/// What production and staging look like before patch 0022: installed before
+/// the baseline had any guard, so no guard function and no trigger at all.
+const LIVE_PRE_0022_TEARDOWN: &str = r#"
+DROP TRIGGER trg_audit_logs_append_only ON public.audit_logs;
+DROP FUNCTION public.prevent_audit_log_mutation();
+"#;
+
+/// Everything patch 0022 converges: the guard function and the helper with
+/// their comments, and every user trigger on audit_logs and its partitions.
+async fn audit_guard_snapshot(pool: &PgPool) -> Vec<(String, String)> {
+    sqlx::query_as(
+        r#"
+        SELECT 'function ' || routine_row.oid::regprocedure::text,
+               pg_get_functiondef(routine_row.oid) || '-- '
+                   || coalesce(obj_description(routine_row.oid, 'pg_proc'), '<no comment>')
+        FROM pg_proc AS routine_row
+        WHERE routine_row.oid IN (
+            to_regprocedure('public.prevent_audit_log_mutation()'),
+            to_regprocedure('public.ensure_audit_logs_truncate_guards()')
+        )
+        UNION ALL
+        SELECT 'trigger ' || trigger_row.tgrelid::regclass::text || '.' || trigger_row.tgname,
+               pg_get_triggerdef(trigger_row.oid)
+                   || ' enabled=' || trigger_row.tgenabled::text
+                   || ' cloned=' || (trigger_row.tgparentid <> 0)::text
+        FROM pg_trigger AS trigger_row
+        WHERE NOT trigger_row.tgisinternal
+          AND (
+              trigger_row.tgrelid = 'public.audit_logs'::regclass
+              OR trigger_row.tgrelid IN (
+                  SELECT inhrelid FROM pg_inherits
+                  WHERE inhparent = 'public.audit_logs'::regclass
+              )
+          )
+        ORDER BY 1
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .expect("read the audit guard snapshot")
+}
+
+/// Runs `statement` in a transaction that is always rolled back and returns
+/// its error text, or `Ok` when the guard let it through.
+async fn audit_mutation_probe(pool: &PgPool, statement: &str) -> Result<(), String> {
+    let mut probe = pool.begin().await.expect("begin the audit mutation probe");
+    let result = sqlx::query(sqlx::AssertSqlSafe(statement))
+        .execute(&mut *probe)
+        .await;
+    probe
+        .rollback()
+        .await
+        .expect("roll back the audit mutation probe");
+    result.map(|_| ()).map_err(|error| error.to_string())
+}
+
+async fn audit_guard_revision_recorded(pool: &PgPool) -> bool {
+    sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM hotel_schema_revisions WHERE generation = 1 AND version = 22)",
+    )
+    .fetch_one(pool)
+    .await
+    .expect("read patch 0022 revision")
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_guards_every_audit_partition() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let fresh = databases.create("guard_fresh").await;
+    let fresh_pool = install_v1(&fresh).await;
+    let baseline = audit_guard_snapshot(&fresh_pool).await;
+    assert!(
+        baseline
+            .iter()
+            .any(|(name, _)| name == "trigger audit_logs_default.trg_audit_logs_no_truncate"),
+        "the baseline must guard its DEFAULT partition: {baseline:#?}"
+    );
+    assert_runner_succeeded(&run_patches(&fresh, None).await);
+    assert_eq!(
+        audit_guard_snapshot(&fresh_pool).await,
+        baseline,
+        "patch 0022 must be a no-op on a fresh install"
+    );
+    let fresh_inventory = schema_inventory(&fresh).await;
+
+    // Three starting points, each recorded through revision 21: production and
+    // staging (no guard at all), and a baseline install from the 2026-09-13
+    // window (statement trigger only), stored with LF or with CRLF bodies.
+    for (label, live, line_ending) in [
+        ("guard_live", true, "\n"),
+        ("guard_lf", false, "\n"),
+        ("guard_crlf", false, "\r\n"),
+    ] {
+        let database = databases.create(label).await;
+        let pool = install_v1(&database).await;
+        let through_21 = TemporaryCatalog::truncated_at(21);
+        assert_runner_succeeded(&run_patches(&database, Some(&through_21.path)).await);
+        sqlx::raw_sql(PRE_0022_TEARDOWN)
+            .execute(&pool)
+            .await
+            .expect("remove the patch 0022 guards");
+        if live {
+            sqlx::raw_sql(LIVE_PRE_0022_TEARDOWN)
+                .execute(&pool)
+                .await
+                .expect("remove the guard entirely, as on production");
+            assert_eq!(
+                audit_mutation_probe(&pool, "DELETE FROM public.audit_logs").await,
+                Ok(()),
+                "a live pre-0022 database lets DELETE on audit_logs through"
+            );
+        } else {
+            let old_function = PRE_0022_AUDIT_GUARD_FUNCTION.replace('\n', line_ending);
+            for statement in [old_function.as_str(), PRE_0022_AUDIT_GUARD_COMMENT] {
+                sqlx::raw_sql(sqlx::AssertSqlSafe(statement))
+                    .execute(&pool)
+                    .await
+                    .expect("restore the pre-0022 guard function");
+            }
+        }
+        assert_eq!(
+            audit_mutation_probe(&pool, "TRUNCATE public.audit_logs_default").await,
+            Ok(()),
+            "a pre-0022 database lets a statement that names a partition skip the guard"
+        );
+        assert!(!audit_guard_revision_recorded(&pool).await);
+
+        assert_runner_succeeded(&run_patches(&database, None).await);
+        assert_eq!(
+            audit_guard_snapshot(&pool).await,
+            baseline,
+            "patch 0022 must converge onto the baseline guards ({label})"
+        );
+        assert_eq!(
+            schema_inventory(&database).await,
+            fresh_inventory,
+            "an upgraded database must match a fresh install ({label})"
+        );
+        let revisions = revision_snapshot(&pool).await;
+        assert!(
+            revisions
+                .iter()
+                .any(|(version, name, _, _)| *version == 22
+                    && name == "audit-logs-append-only-guards"),
+            "patch 0022 must record its revision: {revisions:?}"
+        );
+        // A row in the DEFAULT partition, so the row trigger has work to refuse.
+        sqlx::query(
+            "INSERT INTO audit_logs (action, resource_type, created_at) \
+             VALUES ('guarded', 'patch_0022', '2098-01-01T00:00:00Z')",
+        )
+        .execute(&pool)
+        .await
+        .expect("append an audit row; the guard must not block INSERT");
+        for statement in [
+            "DELETE FROM public.audit_logs",
+            "UPDATE public.audit_logs SET action = action",
+            "TRUNCATE public.audit_logs",
+            "DELETE FROM public.audit_logs_default",
+            "TRUNCATE public.audit_logs_default",
+        ] {
+            let refused = audit_mutation_probe(&pool, statement)
+                .await
+                .expect_err("a patched database must refuse audit mutation");
+            assert!(
+                refused.contains("audit_logs is append-only"),
+                "{label}: {statement}: {refused}"
+            );
+        }
+
+        // Re-running is a no-op, through the runner and the patch body alike.
+        assert_runner_succeeded(&run_patches(&database, None).await);
+        assert_eq!(revision_snapshot(&pool).await, revisions);
+        sqlx::raw_sql(sqlx::AssertSqlSafe(&*psql_script_for_sqlx(PATCH_0022)))
+            .execute(&pool)
+            .await
+            .expect("re-running patch 0022's body must be a no-op");
+        assert_eq!(audit_guard_snapshot(&pool).await, baseline);
+
+        pool.close().await;
+        drop(through_21);
+    }
+    fresh_pool.close().await;
+    databases.cleanup().await;
+}
+
+const PATCH_0022: &str =
+    include_str!("../database/postgres/patches/0022_audit_logs_append_only_guards.sql");
+
+#[tokio::test]
+async fn postgres_v1_catalog_refuses_a_drifted_audit_guard_and_rolls_back() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+
+    // An unknown guard body is refused before anything changes.
+    let drifted_body = databases.create("guard_drift").await;
+    let pool = install_v1(&drifted_body).await;
+    let through_21 = TemporaryCatalog::truncated_at(21);
+    assert_runner_succeeded(&run_patches(&drifted_body, Some(&through_21.path)).await);
+    sqlx::raw_sql(PRE_0022_TEARDOWN)
+        .execute(&pool)
+        .await
+        .expect("remove the patch 0022 guards");
+    sqlx::raw_sql(
+        r#"
+        CREATE OR REPLACE FUNCTION public.prevent_audit_log_mutation()
+        RETURNS trigger LANGUAGE plpgsql SET search_path TO 'pg_catalog', 'public'
+        AS $$ BEGIN RETURN NULL; END; $$
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("install a drifted audit guard function");
+    let before = audit_guard_snapshot(&pool).await;
+    assert_runner_failed_with(
+        &run_patches(&drifted_body, None).await,
+        "prevent_audit_log_mutation() has incompatible definition",
+    );
+    assert!(!audit_guard_revision_recorded(&pool).await);
+    assert_eq!(audit_guard_snapshot(&pool).await, before);
+    pool.close().await;
+
+    // A disabled parent trigger is refused after the function was already
+    // replaced, and the whole patch rolls back, function included.
+    let disabled = databases.create("guard_disabled").await;
+    let pool = install_v1(&disabled).await;
+    assert_runner_succeeded(&run_patches(&disabled, Some(&through_21.path)).await);
+    sqlx::raw_sql(PRE_0022_TEARDOWN)
+        .execute(&pool)
+        .await
+        .expect("remove the patch 0022 guards");
+    for statement in [
+        PRE_0022_AUDIT_GUARD_FUNCTION,
+        PRE_0022_AUDIT_GUARD_COMMENT,
+        "ALTER TABLE public.audit_logs DISABLE TRIGGER trg_audit_logs_append_only",
+    ] {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(statement))
+            .execute(&pool)
+            .await
+            .expect("rebuild a pre-0022 database with a disabled guard");
+    }
+    let before = audit_guard_snapshot(&pool).await;
+    assert_runner_failed_with(
+        &run_patches(&disabled, None).await,
+        "trg_audit_logs_append_only has incompatible definition",
+    );
+    assert!(!audit_guard_revision_recorded(&pool).await);
+    assert_eq!(
+        audit_guard_snapshot(&pool).await,
+        before,
+        "a refused patch 0022 must roll back completely"
+    );
+    pool.close().await;
+
+    drop(through_21);
+    databases.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_v1_late_audit_month_moves_under_the_partition_guards() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    // Production's path: revision 21, no guard, then patch 0022.
+    let database = databases.create("guard_late_month").await;
+    let pool = install_v1(&database).await;
+    let through_21 = TemporaryCatalog::truncated_at(21);
+    assert_runner_succeeded(&run_patches(&database, Some(&through_21.path)).await);
+    for teardown in [PRE_0022_TEARDOWN, LIVE_PRE_0022_TEARDOWN] {
+        sqlx::raw_sql(teardown)
+            .execute(&pool)
+            .await
+            .expect("rebuild a live pre-0022 database");
+    }
+    assert_runner_succeeded(&run_patches(&database, None).await);
+
+    sqlx::query(
+        r#"
+        INSERT INTO audit_logs (action, resource_type, created_at)
+        VALUES ('late_month', 'patch_0022', '2097-03-03T00:00:00Z'),
+               ('other_month', 'patch_0022', '2097-04-04T00:00:00Z')
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("append audit rows; the guard must not block INSERT");
+
+    // Patch 0021's move deletes from the detached default. DETACH drops the
+    // cloned row trigger there, so the move needs no escape hatch.
+    let mut transaction = pool.begin().await.expect("begin");
+    sqlx::query("SELECT public.ensure_audit_logs_partition(DATE '2097-03-01')")
+        .execute(&mut *transaction)
+        .await
+        .expect("a late month must still move under the guards");
+    let escape_hatch: Option<String> =
+        sqlx::query_scalar("SELECT current_setting('app.allow_audit_mutation', true)")
+            .fetch_one(&mut *transaction)
+            .await
+            .expect("read the escape hatch");
+    assert_ne!(escape_hatch.as_deref(), Some("on"));
+    transaction.commit().await.expect("commit the move");
+    // Partition upkeep runs this right after ensure_audit_logs_partition().
+    let added: i32 = sqlx::query_scalar("SELECT public.ensure_audit_logs_truncate_guards()")
+        .fetch_one(&pool)
+        .await
+        .expect("guard the new partition");
+    assert_eq!(added, 1, "only the new month lacks a TRUNCATE guard");
+
+    let placement: Vec<(String, String)> = sqlx::query_as(
+        "SELECT action::text, tableoid::regclass::text FROM audit_logs \
+         WHERE resource_type = 'patch_0022' ORDER BY action",
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("read audit row placement");
+    assert_eq!(
+        placement,
+        [
+            ("late_month", "audit_logs_2097_03"),
+            ("other_month", "audit_logs_default"),
+        ]
+        .map(|(action, table)| (action.to_owned(), table.to_owned()))
+        .to_vec()
+    );
+    let guards: Vec<(String, String)> = sqlx::query_as(
+        r#"
+        SELECT tgrelid::regclass::text, tgname::text
+        FROM pg_trigger
+        WHERE tgrelid IN ('audit_logs_2097_03'::regclass, 'audit_logs_default'::regclass)
+          AND NOT tgisinternal
+        ORDER BY 1, 2
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("read partition guards");
+    assert_eq!(
+        guards,
+        [
+            ("audit_logs_2097_03", "trg_audit_logs_append_only_row"),
+            ("audit_logs_2097_03", "trg_audit_logs_no_truncate"),
+            ("audit_logs_default", "trg_audit_logs_append_only_row"),
+            ("audit_logs_default", "trg_audit_logs_no_truncate"),
+        ]
+        .map(|(table, trigger)| (table.to_owned(), trigger.to_owned()))
+        .to_vec()
+    );
+
+    // Every route to change audit history is refused: the parent and each
+    // partition, UPDATE, DELETE and TRUNCATE.
+    for table in ["audit_logs", "audit_logs_2097_03", "audit_logs_default"] {
+        for statement in [
+            format!(
+                "UPDATE public.{table} SET action = 'tampered' WHERE resource_type = 'patch_0022'"
+            ),
+            format!("DELETE FROM public.{table} WHERE resource_type = 'patch_0022'"),
+            format!("TRUNCATE public.{table}"),
+        ] {
+            let refused = audit_mutation_probe(&pool, &statement)
+                .await
+                .expect_err("audit history must be append-only");
+            assert!(
+                refused.contains("audit_logs is append-only"),
+                "{statement}: {refused}"
+            );
+        }
+    }
+    // The escape hatch, for one transaction, still changes rows.
+    let mut transaction = pool.begin().await.expect("begin");
+    sqlx::query("SET LOCAL app.allow_audit_mutation = 'on'")
+        .execute(&mut *transaction)
+        .await
+        .expect("open the escape hatch");
+    let deleted = sqlx::query("DELETE FROM public.audit_logs WHERE resource_type = 'patch_0022'")
+        .execute(&mut *transaction)
+        .await
+        .expect("the escape hatch must allow DELETE")
+        .rows_affected();
+    assert_eq!(deleted, 2);
+    transaction.rollback().await.expect("roll back");
+
+    pool.close().await;
+    drop(through_21);
+    databases.cleanup().await;
+}
+
 /// `sync_room_status_with_booking()` exactly as every V1 database installed
 /// before patch 0018 defines it: pg_get_functiondef output. It reserved a room
 /// for any holding booking, whatever its check-in date.

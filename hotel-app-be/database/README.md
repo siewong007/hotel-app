@@ -47,7 +47,7 @@ was folded into the baseline and the catalog republished from empty. Since
 then it has grown again, one converge-style patch at a time. A fresh install
 records revision 1 plus one row per manifest entry. The manifest is the only
 list; read it rather than repeating it (`grep -vc '^#' patches/manifest.tsv`
-counts the entries). As of 2026-10-12 it runs from version 2 to 21.
+counts the entries). As of 2026-10-12 it runs from version 2 to 22.
 A database that still records the pre-fold 1.2+ lineage aborts on a
 checksum-mismatch guard; the one-time lineage reset runbook is in
 `docs/guides/deployment.md`. An empty catalog is also valid state: the
@@ -351,6 +351,40 @@ they reject every `PROPERTY GRAPH` statement as a syntax error. Patch
 `0015_drop_hotel_property_graph.sql` drops the graph from databases installed
 earlier. Apply it while a database is still on 19beta3: a beta3 `pg_dump` of a
 database that still holds the graph fails to restore onto beta4 or later.
+
+`audit_logs` is append-only in the database, not just by convention. A
+statement fires only the triggers of the table it names, so the guard has three
+parts, all running `prevent_audit_log_mutation()`:
+
+- a statement trigger on `audit_logs` (UPDATE, DELETE, TRUNCATE);
+- a row trigger on `audit_logs` that PostgreSQL clones onto every partition, so
+  an UPDATE or DELETE fails whether it names the parent or a partition;
+- a statement-level `BEFORE TRUNCATE` trigger on each partition. TRUNCATE
+  triggers cannot be row-level and are never cloned, so
+  `ensure_audit_logs_truncate_guards()` adds them. Partition upkeep
+  (`AuditRepository::ensure_upcoming_partitions`), the seed bin and the
+  install-time loop call it right after `ensure_audit_logs_partition()`, and
+  patch `0022_audit_logs_append_only_guards.sql` ran it once on installed
+  databases. It sits next to that function rather than inside it because
+  patches 0016 and 0021 accept only their own definitions of
+  `ensure_audit_logs_partition()`. A partition created any other way refuses
+  UPDATE and DELETE at once, and TRUNCATE from the next upkeep run.
+
+Integration tests and the seed bin open the guard with
+`SET app.allow_audit_mutation = 'on'`, which the users → `audit_logs`
+`ON DELETE SET NULL` key also needs: deleting any user runs an UPDATE on
+`audit_logs`. A data-transfer restore uses `ALTER TABLE … DISABLE TRIGGER USER`
+instead, which also switches off the cloned row triggers. DDL (`DETACH`, `DROP`,
+`DISABLE TRIGGER`) is out of scope: the guard stops accidental and
+application-level mutation, not the database owner.
+
+Production and staging ran without any of this until patch 0022 (2026-10-12):
+their databases predate the baseline's guard (added 2026-09-13 without a
+patch), so `prevent_audit_log_mutation()` and the parent trigger were missing
+there. Patch 0022 creates whatever is missing and converges the rest. The
+late-month move in `ensure_audit_logs_partition()` (patch 0021) needs no escape
+hatch: `DETACH PARTITION` drops the cloned row trigger from the detached
+default, so its `DELETE` runs unguarded, and `ATTACH` clones it back.
 
 ## PostgreSQL 19 optimization
 

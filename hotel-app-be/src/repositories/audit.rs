@@ -369,9 +369,10 @@ impl AuditRepository {
     }
 
     /// Pre-create the `audit_logs` partitions for the current month and the
-    /// next two, via the schema's own `ensure_audit_logs_partition`. Idempotent;
-    /// intended to be called on a daily cadence by a background loop so writes
-    /// never fall back into `audit_logs_default` after the install-time window.
+    /// next two, via the schema's own `ensure_audit_logs_partition`, then give
+    /// every partition that lacks one its TRUNCATE guard. Idempotent; intended
+    /// to be called on a daily cadence by a background loop so writes never
+    /// fall back into `audit_logs_default` after the install-time window.
     pub async fn ensure_upcoming_partitions(pool: &DbPool) -> Result<(), ApiError> {
         sqlx::query(
             "SELECT public.ensure_audit_logs_partition(month_start::date) \
@@ -396,6 +397,14 @@ impl AuditRepository {
             }
         })
         .map_err(|e| ApiError::Database(e.to_string()))?;
+        // PostgreSQL clones row triggers to new partitions but not statement
+        // triggers, and TRUNCATE triggers are statement-only, so each new month
+        // (and a DEFAULT partition the late-month path rebuilt) needs its own
+        // TRUNCATE guard. Partitions made outside this upkeep get one here too.
+        sqlx::query("SELECT public.ensure_audit_logs_truncate_guards()")
+            .execute(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
         Ok(())
     }
 
