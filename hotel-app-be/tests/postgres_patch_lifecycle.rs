@@ -1396,7 +1396,7 @@ async fn postgres_v1_catalog_returns_void_payments_to_the_front_desk() {
         DELETE FROM public.role_permissions rp
         USING public.roles r, public.permissions p
         WHERE rp.role_id = r.id AND rp.permission_id = p.id
-          AND r.name = 'receptionist' AND p.name = 'payments:delete';
+          AND r.name = 'receptionist' AND p.name IN ('payments:delete', 'payments:approve');
         UPDATE public.permissions SET description = 'Delete payment records'
         WHERE name = 'payments:delete';
         "#,
@@ -1415,14 +1415,23 @@ async fn postgres_v1_catalog_returns_void_payments_to_the_front_desk() {
     let manage: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM role_permissions rp \
          JOIN roles r ON r.id = rp.role_id JOIN permissions p ON p.id = rp.permission_id \
-         WHERE r.name = 'receptionist' AND p.name IN ('payments:manage', 'payments:approve'))",
+         WHERE r.name = 'receptionist' AND p.name = 'payments:manage')",
     )
     .fetch_one(&pool)
     .await
     .expect("read receptionist manage/approve grants");
+    assert!(!manage, "the front desk must not gain payments:manage");
+    let approve: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM role_permissions rp \
+         JOIN roles r ON r.id = rp.role_id JOIN permissions p ON p.id = rp.permission_id \
+         WHERE r.name = 'receptionist' AND p.name = 'payments:approve')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read receptionist approve grant");
     assert!(
-        !manage,
-        "the front desk must not gain payments:manage or approve"
+        approve,
+        "patch 0020 must grant receptionists payments:approve"
     );
     let label: String =
         sqlx::query_scalar("SELECT description FROM permissions WHERE name = 'payments:delete'")

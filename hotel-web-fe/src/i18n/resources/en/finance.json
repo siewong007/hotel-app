@@ -106,6 +106,7 @@
     "tourismTax": "Tourism Tax",
     "tourismTaxDay": "Tourism Tax — {{date}}",
     "saveRates": "Save Rates",
+    "approvedBy": "Approved by {{name}} · {{at}}",
     "voidPayment": "Void payment",
     "voided": {
       "heading": "Voided payments",

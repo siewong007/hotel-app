@@ -837,9 +837,24 @@ impl PaymentRepository {
                    p.created_at::date::text AS payment_date, p.created_at,
                    p.void_reason, p.voided_at,
                    COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS voided_by_name,
-                   p.void_reversal_date
+                   p.void_reversal_date,
+                   COALESCE(NULLIF(TRIM(approver.full_name), ''), approver.username) AS approved_by_name,
+                   approval.created_at AS approved_at
             FROM payments p
             LEFT JOIN users u ON u.id = p.voided_by
+            -- Who approved a guest payment claim: the in-transaction
+            -- `payment_approved` audit row (payments.processed_by is reused
+            -- by voids, so it can't say "approved" on its own).
+            LEFT JOIN LATERAL (
+                SELECT al.user_id, al.created_at
+                FROM audit_logs al
+                WHERE al.resource_type = 'payment'
+                  AND al.resource_id = p.id
+                  AND al.action = 'payment_approved'
+                ORDER BY al.id DESC
+                LIMIT 1
+            ) approval ON true
+            LEFT JOIN users approver ON approver.id = approval.user_id
             WHERE p.booking_id = $1
             ORDER BY p.created_at ASC
             "#;

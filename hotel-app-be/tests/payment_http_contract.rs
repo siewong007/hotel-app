@@ -609,12 +609,12 @@ async fn malformed_non_key_json_keeps_axum_extractor_status() {
 }
 
 /// Since patch 0020 the front desk voids payments under `payments:delete`
-/// ("Void payments") — the route lets a receptionist through to business
+/// ("Void payments") and approves bank-transfer claims under
+/// `payments:approve` — the routes let a receptionist through to business
 /// logic (a missing reason is a 400, an absent payment a 404) — while the
-/// refund revert and the bank-transfer approval stay on `payments:manage` /
-/// `payments:approve`, which reception does not hold.
+/// refund revert stays on `payments:manage`, which reception does not hold.
 #[tokio::test]
-async fn receptionist_can_void_but_not_revert_refunds_or_approve() {
+async fn receptionist_can_void_and_approve_but_not_revert_refunds() {
     let Some(fixture) = HttpFixture::new().await else {
         return;
     };
@@ -681,5 +681,9 @@ async fn receptionist_can_void_but_not_revert_refunds_or_approve() {
         "restore passes the gate and asks for a reason: {restore_body}"
     );
     assert_eq!(revert_status, StatusCode::FORBIDDEN, "{revert_body}");
-    assert_eq!(approve_status, StatusCode::FORBIDDEN, "{approve_body}");
+    assert_eq!(
+        approve_status,
+        StatusCode::NOT_FOUND,
+        "approve passes the payments:approve gate: {approve_body}"
+    );
 }

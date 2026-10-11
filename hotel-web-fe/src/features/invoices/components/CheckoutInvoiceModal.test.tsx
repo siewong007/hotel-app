@@ -1074,6 +1074,22 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     expect(rowEditIcons).toHaveLength(1);
   });
 
+  it('shows who approved a guest payment claim on its folio row', async () => {
+    mocks.payments = [
+      {
+        ...billPayment,
+        payment_method: 'Bank Transfer',
+        approved_by_name: 'Siow Receptionist',
+        approved_at: '2026-10-11T13:20:00Z',
+      },
+    ];
+    renderModal(false, { deposit_paid: false });
+    const dialog = await screen.findByRole('dialog');
+
+    const stamp = await within(dialog).findByTestId('payment-approved-by');
+    expect(stamp.textContent).toMatch(/^Approved by Siow Receptionist · /);
+  });
+
   it('lists voided payments with their reason, who voided them and when', async () => {
     mocks.payments = [
       billPayment,

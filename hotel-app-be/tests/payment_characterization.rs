@@ -5960,3 +5960,72 @@ async fn void_on_a_closed_night_audit_day_posts_a_reversal_instead() {
         "a refused restore leaves the row void"
     );
 }
+
+/// A receptionist (payments:approve since patch 0020, no payments:manage)
+/// approves a guest's bank-transfer claim: the payment is stamped with the
+/// approver and time, the payment_approved audit row names them, and the
+/// booking folio lists "approved by" with the approver's full name.
+#[tokio::test]
+async fn receptionist_approval_is_stamped_and_listed_on_the_folio() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (941_930, 941_931, 941_932, 941_933, 941_934);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    grant_role(&pool, actor_id, "receptionist").await;
+    let payment_id = insert_pending_payment(
+        &pool,
+        booking_id,
+        "bank_transfer",
+        "booking",
+        d("300.00"),
+        actor_id,
+    )
+    .await;
+
+    let approved = payments::approve_payment(&pool, actor_id, payment_id).await;
+    let stamp: (String, Option<i64>, bool) = sqlx::query_as(
+        "SELECT status, processed_by, processed_at IS NOT NULL FROM payments WHERE id = $1",
+    )
+    .bind(payment_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let audit_actor: Option<i64> = sqlx::query_scalar(
+        "SELECT user_id FROM audit_logs WHERE action = 'payment_approved' \
+         AND resource_type = 'payment' AND resource_id = $1 ORDER BY id DESC LIMIT 1",
+    )
+    .bind(payment_id)
+    .fetch_optional(&pool)
+    .await
+    .unwrap()
+    .flatten();
+    let listed = PaymentRepository::list_payment_entries(&pool, booking_id)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.id == payment_id);
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert!(
+        approved.is_ok(),
+        "a receptionist approval must succeed: {approved:?}"
+    );
+    assert_eq!(stamp.0, "completed");
+    assert_eq!(stamp.1, Some(actor_id), "processed_by names the approver");
+    assert!(stamp.2, "processed_at is stamped");
+    assert_eq!(
+        audit_actor,
+        Some(actor_id),
+        "the audit row names the approver"
+    );
+    let listed = listed.expect("the approved payment is on the folio");
+    assert_eq!(
+        listed.approved_by_name.as_deref(),
+        Some("Payment Test Actor")
+    );
+    assert!(listed.approved_at.is_some());
+}

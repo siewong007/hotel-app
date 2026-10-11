@@ -1470,6 +1470,18 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             }}>
                               {formatPaymentDateTime(p)}
                             </Typography>
+                            {p.approved_by_name && (
+                              <Typography
+                                variant="caption"
+                                data-testid="payment-approved-by"
+                                sx={{ color: "text.secondary", display: 'block' }}
+                              >
+                                {t('checkout.approvedBy', {
+                                  name: p.approved_by_name,
+                                  at: p.approved_at ? formatHotelDateTime(p.approved_at) : '—',
+                                })}
+                              </Typography>
+                            )}
                           </Grid>
                           <Grid size={3}>
                             <Typography variant="caption" sx={{
