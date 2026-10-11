@@ -21,15 +21,20 @@
         "messageUncollected": "將押金標記為未收取 — 未收到任何款項。預訂的押金旗標會被清除。",
         "title": "取消押金"
       },
-      "deletePayment": {
-        "confirmText": "刪除付款",
-        "message": "這會從帳單移除該付款並恢復未結餘額。此操作無法復原。",
-        "title": "刪除付款紀錄"
+      "voidPayment": {
+        "title": "作廢付款",
+        "message": "作廢這筆 {{amount}} 的付款。紀錄仍保留在帳單中，顯示為已作廢，並附上您的原因、姓名與時間，且不再計入餘額。若夜審已關閉該日，該日數據不變，沖銷分錄將記在下一個未關閉的營業日（通常為今天）。",
+        "confirmText": "作廢付款"
       },
       "revertRefund": {
-        "confirmText": "復原退款",
-        "message": "這會移除退款紀錄，押金之後可再次退款。",
-        "title": "復原押金退款"
+        "confirmText": "撤回退款",
+        "message": "作廢退款紀錄（保留並顯示為已作廢，附您的原因），訂金將重新計為已持有並可再次退款。若夜審已關閉退款當日，沖銷分錄將記在下一個未關閉的營業日（通常為今天）。",
+        "title": "撤回訂金退款"
+      },
+      "restoreDeposit": {
+        "title": "恢復訂金",
+        "message": "恢復已取消的訂金，使其重新計為已持有。若取消已位於夜審關閉的日期則無法恢復——請改為登記新訂金。",
+        "confirmText": "恢復訂金"
       }
     },
     "depositLine": "押金{{state}}",
@@ -38,7 +43,7 @@
     "earlyCheckoutTag": "（提早退房）",
     "editRates": "編輯房價",
     "errors": {
-      "deletePayment": "刪除付款失敗",
+      "voidPayment": "作廢付款失敗",
       "processCheckout": "處理退房失敗",
       "recordPayment": "記錄付款失敗",
       "saveDailyRates": "儲存每日房價失敗",
@@ -98,7 +103,16 @@
     "totalRefund": "應退總額",
     "tourismTax": "旅遊稅",
     "tourismTaxDay": "旅遊稅 — {{date}}",
-    "saveRates": "儲存房價"
+    "saveRates": "儲存房價",
+    "voidPayment": "作廢付款",
+    "voided": {
+      "heading": "已作廢付款",
+      "chip": "已作廢",
+      "reason": "原因：{{reason}}",
+      "noReason": "未記錄原因",
+      "by": "由 {{name}} 作廢 · {{at}}",
+      "reversal": "沖銷分錄記於 {{date}}"
+    }
   },
   "deposit": {
     "cancel": {
@@ -192,7 +206,7 @@
     "refund": {
       "fixedNote": "退款金額 — 固定為持有餘額全額：",
       "method": "退款方式",
-      "noteOptional": "備註（選填）",
+      "note": "備註（必填）",
       "submit": "退款 {{amount}}"
     },
     "refundLine": "押金退款（{{method}}）",
@@ -623,5 +637,10 @@
     },
     "companiesCount_other": "{{count}} 個帳戶"
   },
-  "title": "財務"
+  "title": "財務",
+  "reason": {
+    "label": "原因",
+    "helper": "必填。將隨紀錄儲存並寫入稽核日誌。",
+    "tooShort": "請至少輸入 {{min}} 個字元。"
+  }
 }

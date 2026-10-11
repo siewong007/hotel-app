@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   recordPayment: vi.fn(),
   createLedgerPayment: vi.fn(),
   updatePayment: vi.fn(),
-  deletePayment: vi.fn(),
+  voidPayment: vi.fn(),
   revertDepositRefund: vi.fn(),
   revertDepositVoid: vi.fn(),
   hasPermission: vi.fn(),
@@ -43,7 +43,7 @@ vi.mock('../../../api/invoices.service', () => ({
   InvoicesService: {
     recordPayment: (...args: unknown[]) => mocks.recordPayment(...args),
     updatePayment: (...args: unknown[]) => mocks.updatePayment(...args),
-    deletePayment: (...args: unknown[]) => mocks.deletePayment(...args),
+    voidPayment: (...args: unknown[]) => mocks.voidPayment(...args),
     refundDeposit: (...args: unknown[]) => mocks.refundDeposit(...args),
     forfeitDeposit: (...args: unknown[]) => mocks.forfeitDeposit(...args),
     revertDepositRefund: (...args: unknown[]) => mocks.revertDepositRefund(...args),
@@ -160,6 +160,28 @@ async function paymentDialog() {
 // Guided deposit resolution: the pending card offers three radio-style
 // options (refund / forfeit / cancel uncollected) and mounts only the
 // selected option's form.
+// The refund note is mandatory — fill it inside the deposit resolution area
+// (the record-payment form's own Notes field stays mounted in its Collapse).
+function fillRefundNote(dialog: HTMLElement, note = 'returned at checkout') {
+  const depositArea = within(dialog).getByRole('radiogroup').parentElement as HTMLElement;
+  fireEvent.change(within(depositArea).getByLabelText(/^Note \(required\)/i), {
+    target: { value: note },
+  });
+}
+
+// Reason dialogs (void / revert refund / restore deposit) refuse to submit
+// until a reason of at least three characters is typed.
+async function submitReasonDialog(name: string, confirmText: string, reason: string) {
+  const reasonDialog = await screen.findByRole('dialog', { name });
+  const confirmButton = within(reasonDialog).getByRole('button', { name: confirmText }) as HTMLButtonElement;
+  expect(confirmButton.disabled).toBe(true);
+  fireEvent.change(within(reasonDialog).getByTestId('reason-dialog-input'), { target: { value: 'no' } });
+  expect(confirmButton.disabled).toBe(true);
+  fireEvent.change(within(reasonDialog).getByTestId('reason-dialog-input'), { target: { value: reason } });
+  expect(confirmButton.disabled).toBe(false);
+  fireEvent.click(confirmButton);
+}
+
 function selectResolutionOption(dialog: HTMLElement, name: RegExp) {
   fireEvent.click(within(dialog).getByRole('radio', { name }));
 }
@@ -314,7 +336,7 @@ describe('CheckoutInvoiceModal legacy deposit handling', () => {
   beforeEach(() => {
     mocks.updateBooking.mockReset().mockResolvedValue({});
     mocks.refundDeposit.mockReset().mockResolvedValue({ id: 9, payment_status: 'refunded' });
-    mocks.deletePayment.mockReset().mockResolvedValue({});
+    mocks.voidPayment.mockReset().mockResolvedValue({});
     mocks.revertDepositRefund.mockReset().mockResolvedValue({});
     mocks.revertDepositVoid.mockReset().mockResolvedValue({});
     mocks.setPayments.mockReset();
@@ -333,12 +355,13 @@ describe('CheckoutInvoiceModal legacy deposit handling', () => {
     const dialog = await screen.findByRole('dialog');
 
     selectResolutionOption(dialog, /Refund deposit/i);
+    fillRefundNote(dialog);
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Refund RM50.00' }));
 
     await waitFor(() =>
       expect(mocks.refundDeposit).toHaveBeenCalledWith('42', 'Cash', 50, {
         transaction_reference: undefined,
-        note: undefined,
+        note: 'returned at checkout',
       }),
     );
     expect(mocks.updateBooking).toHaveBeenCalledWith('42', {
@@ -364,13 +387,14 @@ describe('CheckoutInvoiceModal legacy deposit handling', () => {
     const dialog = await screen.findByRole('dialog');
 
     selectResolutionOption(dialog, /Refund deposit/i);
+    fillRefundNote(dialog);
     // The CTA already shows the post-mint amount the refund will draw.
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Refund RM50.00' }));
 
     await waitFor(() =>
       expect(mocks.refundDeposit).toHaveBeenCalledWith('42', 'Cash', 50, {
         transaction_reference: undefined,
-        note: undefined,
+        note: 'returned at checkout',
       }),
     );
     expect(mocks.updateBooking).toHaveBeenCalledWith('42', {
@@ -389,12 +413,13 @@ describe('CheckoutInvoiceModal legacy deposit handling', () => {
     const dialog = await screen.findByRole('dialog');
 
     selectResolutionOption(dialog, /Refund deposit/i);
+    fillRefundNote(dialog);
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Refund RM50.00' }));
 
     await waitFor(() =>
       expect(mocks.refundDeposit).toHaveBeenCalledWith('42', 'Cash', 50, {
         transaction_reference: undefined,
-        note: undefined,
+        note: 'returned at checkout',
       }),
     );
     expect(mocks.updateBooking).not.toHaveBeenCalled();
@@ -427,7 +452,7 @@ describe('CheckoutInvoiceModal legacy deposit handling', () => {
         payment_note: 'Deposit waived: Lost keycard',
       }),
     );
-    expect(mocks.deletePayment).not.toHaveBeenCalled();
+    expect(mocks.voidPayment).not.toHaveBeenCalled();
     await waitFor(() =>
       expect((within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled).toBe(false),
     );
@@ -470,7 +495,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
   beforeEach(() => {
     mocks.forfeitDeposit.mockReset().mockResolvedValue({ id: 3, payment_status: 'completed', payment_type: 'deposit_forfeited', total_amount: 50 });
     mocks.updatePayment.mockReset().mockResolvedValue({ ...depositRow, payment_method: 'bank_transfer' });
-    mocks.deletePayment.mockReset().mockResolvedValue({});
+    mocks.voidPayment.mockReset().mockResolvedValue({});
     mocks.revertDepositRefund.mockReset().mockResolvedValue({});
     mocks.revertDepositVoid.mockReset().mockResolvedValue({});
     mocks.updateBooking.mockReset().mockResolvedValue({});
@@ -492,9 +517,10 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     expect(within(dialog).queryByText('Overpayment')).toBeNull();
     // The held deposit renders labeled, outside the bill-payments rows…
     expect(within(dialog).getByText('Deposit held')).toBeDefined();
-    // …and carries no delete control — the only delete button in the folio
+    // …and carries no void control — the only void button in the folio
     // belongs to the real bill payment.
-    expect(within(dialog).getAllByTestId('DeleteIcon')).toHaveLength(1);
+    expect(within(dialog).getAllByTestId('BlockIcon')).toHaveLength(1);
+    expect(within(dialog).queryByTestId('DeleteIcon')).toBeNull();
     // An unresolved deposit still holds the checkout gate — the readiness
     // strip names the blocker.
     expect(
@@ -708,10 +734,10 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     // directly above the rows, so two levels up is the section container.
     const depositsHeader = within(dialog).getByText(/Deposits — collateral/i);
     const depositSection = depositsHeader.parentElement!.parentElement!;
-    // The deposit row gets Edit but never Delete — the folio's only delete
+    // The deposit row gets Edit but never Void — the folio's only void
     // button still belongs to the bill payment.
-    expect(within(depositSection).queryByTestId('DeleteIcon')).toBeNull();
-    expect(within(dialog).getAllByTestId('DeleteIcon')).toHaveLength(1);
+    expect(within(depositSection).queryByTestId('BlockIcon')).toBeNull();
+    expect(within(dialog).getAllByTestId('BlockIcon')).toHaveLength(1);
 
     fireEvent.click(
       within(depositSection).getByRole('button', { name: 'Edit deposit payment method' }),
@@ -736,7 +762,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     expect(Object.keys(mocks.updatePayment.mock.calls[0][1])).toEqual(['payment_method']);
   });
 
-  it('routes Cancel uncollected deposit through deletePayment for each held deposit row', async () => {
+  it('routes Cancel uncollected deposit through voidPayment (with the reason) for each held deposit row', async () => {
     mocks.hasPermission.mockImplementation((p: string) => p === 'payments:delete');
     // After the void, the rows come back voided → the card flips to the
     // cancelled strip and the checkout gate releases.
@@ -762,7 +788,9 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     const confirmDialog = await screen.findByRole('dialog', { name: 'Cancel deposit' });
     fireEvent.click(within(confirmDialog).getByRole('button', { name: 'Cancel deposit' }));
 
-    await waitFor(() => expect(mocks.deletePayment).toHaveBeenCalledWith(depositRow.id));
+    await waitFor(() =>
+      expect(mocks.voidPayment).toHaveBeenCalledWith(depositRow.id, 'Recorded but never collected'),
+    );
     expect(mocks.updateBooking).not.toHaveBeenCalled();
     expect(mocks.reloadPayments).toHaveBeenCalled();
     await waitFor(() =>
@@ -801,11 +829,15 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     const dialog = await screen.findByRole('dialog');
 
     fireEvent.click(within(dialog).getByRole('button', { name: /^Restore deposit$/ }));
-    await waitFor(() => expect(mocks.revertDepositVoid).toHaveBeenCalled());
+    expect(mocks.revertDepositVoid).not.toHaveBeenCalled();
+    await submitReasonDialog('Restore deposit', 'Restore deposit', 'Guest did pay the deposit');
+    await waitFor(() =>
+      expect(mocks.revertDepositVoid).toHaveBeenCalledWith('42', 'Guest did pay the deposit'),
+    );
     expect(mocks.reloadPayments).toHaveBeenCalled();
   });
 
-  it('reverts a deposit refund through the modal confirm dialog under payments:manage', async () => {
+  it('reverts a deposit refund through the reason dialog under payments:manage', async () => {
     mocks.hasPermission.mockImplementation((p: string) => p === 'payments:manage');
     // After the revert the refund row reads void → the deposit re-opens.
     mocks.reloadPayments.mockImplementation(async () => {
@@ -822,10 +854,11 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     const dialog = await screen.findByRole('dialog');
 
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Revert refund' }));
-    const confirmDialog = await screen.findByRole('dialog', { name: 'Revert deposit refund' });
-    fireEvent.click(within(confirmDialog).getByRole('button', { name: 'Revert refund' }));
+    await submitReasonDialog('Revert deposit refund', 'Revert refund', 'Refund keyed on the wrong booking');
 
-    await waitFor(() => expect(mocks.revertDepositRefund).toHaveBeenCalledWith('42'));
+    await waitFor(() =>
+      expect(mocks.revertDepositRefund).toHaveBeenCalledWith('42', 'Refund keyed on the wrong booking'),
+    );
     expect(mocks.reloadPayments).toHaveBeenCalled();
     // The refund row is void → the deposit is pending again and the gate
     // re-locks.
@@ -867,7 +900,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     fireEvent.change(within(depositArea).getByLabelText(/Reference \(optional\)/i), {
       target: { value: 'RF-9001' },
     });
-    fireEvent.change(within(depositArea).getByLabelText(/^Note \(optional\)/i), {
+    fireEvent.change(within(depositArea).getByLabelText(/^Note \(required\)/i), {
       target: { value: 'handed to guest at desk' },
     });
     fireEvent.click(within(depositArea).getByRole('button', { name: 'Refund RM50.00' }));
@@ -937,6 +970,112 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     const dialog = await screen.findByRole('dialog');
 
     await waitFor(() => expect(within(dialog).getByText('No deposit')).toBeDefined());
+  });
+
+  it('keeps the refund button disabled until a refund note is entered', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    selectResolutionOption(dialog, /Refund deposit/i);
+    const refund = within(dialog).getByRole('button', { name: 'Refund RM50.00' }) as HTMLButtonElement;
+    expect(refund.disabled).toBe(true);
+    fillRefundNote(dialog, 'ok');
+    expect(refund.disabled).toBe(true);
+    fillRefundNote(dialog, 'keycard returned');
+    expect(refund.disabled).toBe(false);
+  });
+
+  it('hides the void button on posted payments from users without payments:manage (front desk)', async () => {
+    // A receptionist after patch 0019: create/read/update/refund, no delete,
+    // no manage — the backend would 403 a void of a completed payment.
+    const receptionist = new Set(['payments:create', 'payments:read', 'payments:update', 'payments:refund']);
+    mocks.hasPermission.mockImplementation((p: string) => receptionist.has(p));
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('Deposit held')).toBeDefined());
+    expect(within(dialog).queryByTestId('BlockIcon')).toBeNull();
+    expect(within(dialog).queryByTestId('DeleteIcon')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Void payment' })).toBeNull();
+  });
+
+  it('voids a posted payment only after a reason is given, and reloads the folio', async () => {
+    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:manage');
+    mocks.voidPayment.mockReset().mockResolvedValue({ success: true, voided_id: billPayment.id });
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Void payment' }));
+    const voidDialog = await screen.findByRole('dialog', { name: 'Void payment' });
+    // Accurate text: the record is kept and shown as voided.
+    expect(within(voidDialog).getByText(/The record is kept on the folio, shown as voided/)).toBeDefined();
+    expect(mocks.voidPayment).not.toHaveBeenCalled();
+    await submitReasonDialog('Void payment', 'Void payment', '  Duplicate cash entry  ');
+
+    await waitFor(() =>
+      expect(mocks.voidPayment).toHaveBeenCalledWith(billPayment.id, 'Duplicate cash entry'),
+    );
+    expect(mocks.reloadPayments).toHaveBeenCalled();
+    // The row is not dropped locally — the reload brings it back voided.
+    expect(mocks.setPayments).not.toHaveBeenCalled();
+  });
+
+  it('cancelling the reason dialog voids nothing', async () => {
+    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:manage');
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Void payment' }));
+    const voidDialog = await screen.findByRole('dialog', { name: 'Void payment' });
+    fireEvent.click(within(voidDialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Void payment' })).toBeNull());
+    expect(mocks.voidPayment).not.toHaveBeenCalled();
+  });
+
+  it('renders refund rows without edit or void controls', async () => {
+    mocks.payments = [
+      depositRow,
+      { id: 4, payment_status: 'refunded', payment_type: 'refund', total_amount: 50, payment_method: 'Cash' },
+    ];
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    await within(dialog).findByText('Deposit refunded');
+    expect(within(dialog).queryByTestId('BlockIcon')).toBeNull();
+    expect(within(dialog).queryByTestId('DeleteIcon')).toBeNull();
+    // Payment-row Edit controls: only the deposit row's method correction
+    // (the other EditIcon belongs to the room-rate "Edit rates" button).
+    const rowEditIcons = within(dialog)
+      .getAllByTestId('EditIcon')
+      .filter((icon) => !icon.closest('button')?.textContent?.includes('Edit'));
+    expect(rowEditIcons).toHaveLength(1);
+  });
+
+  it('lists voided payments with their reason, who voided them and when', async () => {
+    mocks.payments = [
+      billPayment,
+      {
+        id: 7,
+        payment_status: 'void',
+        payment_type: 'booking',
+        total_amount: 95,
+        payment_method: 'Cash',
+        void_reason: 'Duplicate cash entry',
+        voided_by_name: 'Admin User',
+        voided_at: '2026-10-11T07:50:30Z',
+        void_reversal_date: '2026-10-11',
+      },
+    ];
+    renderModal(false, { deposit_paid: false });
+    const dialog = await screen.findByRole('dialog');
+
+    const voided = await within(dialog).findByTestId('voided-payments');
+    expect(within(voided).getByText('Voided payments')).toBeDefined();
+    expect(within(voided).getByText('Reason: Duplicate cash entry')).toBeDefined();
+    expect(within(voided).getByText(/^Voided by Admin User · /)).toBeDefined();
+    expect(within(voided).getByText(/^Reversing entry posted on /)).toBeDefined();
+    // Voided money never counts toward the bill.
+    expect(within(dialog).getByText('Bill balance: RM0.00 — Paid')).toBeDefined();
   });
 
   it('suppresses the readiness strip in readOnly — a receipt carries no checkout framing', async () => {

@@ -1268,6 +1268,115 @@ async fn postgres_v1_catalog_refuses_a_drifted_room_sync_trigger() {
     databases.cleanup().await;
 }
 
+/// The schema-inventory lines patch 0019 owns, with the column ordinal
+/// dropped (the rebuild above re-adds columns after dropped slots).
+async fn payment_void_inventory(database: &TestDatabase) -> Vec<String> {
+    use base64::Engine as _;
+    let lines: Vec<String> = schema_inventory(database)
+        .await
+        .lines()
+        .filter(|line| {
+            line.contains("public.payments.void")
+                || line.contains("payments_voided_by_fkey")
+                || line.contains("idx_payments_void_reversal_date")
+        })
+        .map(|line| {
+            let mut fields: Vec<String> = line.split('\t').map(str::to_string).collect();
+            if let Some(last) = fields.last_mut()
+                && let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(last.as_bytes())
+                && let Ok(decoded) = String::from_utf8(bytes)
+            {
+                *last = decoded
+                    .split(';')
+                    .filter(|part| !part.starts_with("ordinal="))
+                    .collect::<Vec<_>>()
+                    .join(";");
+            }
+            fields.join("\t")
+        })
+        .collect();
+    assert!(
+        lines.len() >= 6,
+        "the inventory must list the four void columns, the FK and the index: {lines:?}"
+    );
+    lines
+}
+
+async fn receptionist_has_payments_delete(pool: &PgPool) -> bool {
+    sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM role_permissions rp \
+         JOIN roles r ON r.id = rp.role_id JOIN permissions p ON p.id = rp.permission_id \
+         WHERE r.name = 'receptionist' AND p.name = 'payments:delete')",
+    )
+    .fetch_one(pool)
+    .await
+    .expect("read the receptionist payments:delete grant")
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_adds_payment_void_metadata_and_drops_desk_voids() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let fresh = databases.create("payment_void_fresh").await;
+    let upgraded = databases.create("payment_void_upgraded").await;
+    let fresh_pool = install_v1(&fresh).await;
+    let pool = install_v1(&upgraded).await;
+    assert!(
+        !receptionist_has_payments_delete(&fresh_pool).await,
+        "a fresh install must not grant receptionists payments:delete"
+    );
+
+    // Rebuild a database installed before patch 0019: no void metadata and
+    // the front desk still holding payments:delete.
+    sqlx::raw_sql(
+        r#"
+        DROP INDEX public.idx_payments_void_reversal_date;
+        ALTER TABLE public.payments
+            DROP COLUMN void_reason,
+            DROP COLUMN voided_at,
+            DROP COLUMN voided_by,
+            DROP COLUMN void_reversal_date;
+        INSERT INTO public.role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM public.roles r, public.permissions p
+        WHERE r.name = 'receptionist' AND p.name = 'payments:delete';
+        DELETE FROM public.hotel_schema_revisions WHERE generation = 1 AND version = 19;
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("rebuild a pre-0019 database");
+    assert!(receptionist_has_payments_delete(&pool).await);
+
+    let first_run = run_patches(&upgraded, None).await;
+    assert_runner_succeeded(&first_run);
+    assert!(
+        !receptionist_has_payments_delete(&pool).await,
+        "patch 0019 must revoke payments:delete from the receptionist role"
+    );
+    assert_eq!(
+        payment_void_inventory(&upgraded).await,
+        payment_void_inventory(&fresh).await,
+        "patch 0019 must converge onto the baseline payment void columns, FK, index and comment"
+    );
+    let revisions = revision_snapshot(&pool).await;
+    assert!(
+        revisions
+            .iter()
+            .any(|(version, name, _, _)| *version == 19 && name == "payment-void-reason"),
+        "patch 0019 must record its revision: {revisions:?}"
+    );
+
+    let second_run = run_patches(&upgraded, None).await;
+    assert_runner_succeeded(&second_run);
+    assert_eq!(revision_snapshot(&pool).await, revisions);
+
+    pool.close().await;
+    fresh_pool.close().await;
+    databases.cleanup().await;
+}
+
 #[tokio::test]
 async fn schema_drift_report_is_read_only() {
     let Some(database_url) = database_url_or_skip() else {

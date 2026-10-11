@@ -640,7 +640,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'receptio
     'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'navigation_housekeeping:read',
     'support:read', 'support:write', 'support:assign', 'support:escalate', 'navigation_support:read',
     'guests:create', 'guests:read', 'guests:update', 'guests:manage', 'payments:create', 'payments:read',
-    'payments:update', 'payments:delete', 'payments:refund',
+    'payments:update', 'payments:refund',
     'ledgers:read', 'ledgers:create', 'companies:read', 'companies:create',
     'services:read', 'services:create', 'reviews:read', 'settings:read',
     'analytics:read', 'reports:execute', 'teams:read'

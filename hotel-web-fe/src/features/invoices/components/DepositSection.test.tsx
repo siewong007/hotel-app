@@ -180,7 +180,7 @@ describe('DepositSection — guided deposit resolution', () => {
     expect(screen.queryByRole('button', { name: 'Review forfeiture' })).toBeNull();
   });
 
-  it('runs the refund with the chosen method plus optional reference and note', async () => {
+  it('runs the refund with the chosen method, optional reference and the required note', async () => {
     renderSection();
     fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
 
@@ -199,12 +199,20 @@ describe('DepositSection — guided deposit resolution', () => {
     });
   });
 
-  it('omits blank reference/note from the refund input and defaults to the first configured method', () => {
+  it('requires a refund note, omits a blank reference and defaults to the first configured method', () => {
     renderSection();
     fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Refund RM50.00' }));
+    const refundButton = screen.getByRole('button', { name: 'Refund RM50.00' }) as HTMLButtonElement;
+    // No note yet → the refund cannot be submitted.
+    expect(refundButton.disabled).toBe(true);
+    fireEvent.click(refundButton);
+    expect(mocks.onRefund).not.toHaveBeenCalled();
 
-    expect(mocks.onRefund).toHaveBeenCalledWith({ method: 'Cash', reference: undefined, note: undefined });
+    fireEvent.change(screen.getByLabelText(/^Note \(required\)/i), { target: { value: '  key back  ' } });
+    expect(refundButton.disabled).toBe(false);
+    fireEvent.click(refundButton);
+
+    expect(mocks.onRefund).toHaveBeenCalledWith({ method: 'Cash', reference: undefined, note: 'key back' });
   });
 
   it('walks the forfeit flow: reason required, review split, then destructive submit', async () => {

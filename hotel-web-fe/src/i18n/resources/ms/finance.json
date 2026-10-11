@@ -21,15 +21,20 @@
         "messageUncollected": "Menandakan deposit sebagai tidak dikutip — tiada wang diterima. Bendera deposit tempahan dikosongkan.",
         "title": "Batal deposit"
       },
-      "deletePayment": {
-        "confirmText": "Padam bayaran",
-        "message": "Ini membuang bayaran daripada folio dan mengembalikan baki tertunggak. Tindakan ini tidak boleh diundur.",
-        "title": "Padam rekod bayaran"
+      "voidPayment": {
+        "title": "Batalkan bayaran",
+        "message": "Membatalkan bayaran {{amount}} ini. Rekod kekal dalam folio, ditunjukkan sebagai dibatalkan bersama sebab, nama dan masa anda, dan tidak lagi dikira dalam baki. Jika audit malam telah menutup hari tersebut, hari itu tidak berubah dan catatan pembalikan dicatat pada hari perniagaan terbuka berikutnya (biasanya hari ini).",
+        "confirmText": "Batalkan bayaran"
       },
       "revertRefund": {
-        "confirmText": "Balikkan bayaran balik",
-        "message": "Ini membuang rekod bayaran balik supaya deposit boleh dibayar balik semula.",
-        "title": "Balikkan bayaran balik deposit"
+        "confirmText": "Batalkan bayaran balik",
+        "message": "Membatalkan rekod bayaran balik (disimpan, ditunjukkan sebagai dibatalkan bersama sebab anda) supaya deposit dikira sebagai dipegang dan boleh dibayar balik semula. Jika audit malam telah menutup hari bayaran balik itu, catatan pembalikan dicatat pada hari perniagaan terbuka berikutnya (biasanya hari ini).",
+        "title": "Batalkan bayaran balik deposit"
+      },
+      "restoreDeposit": {
+        "title": "Pulihkan deposit",
+        "message": "Memulihkan deposit yang dibatalkan supaya ia dikira sebagai dipegang semula. Tidak boleh dilakukan jika pembatalan berada dalam hari yang telah ditutup oleh audit malam — rekod deposit baharu.",
+        "confirmText": "Pulihkan deposit"
       }
     },
     "depositLine": "Deposit {{state}}",
@@ -38,7 +43,7 @@
     "earlyCheckoutTag": " (Daftar Keluar Awal)",
     "editRates": "Edit Kadar",
     "errors": {
-      "deletePayment": "Gagal memadam bayaran",
+      "voidPayment": "Gagal membatalkan bayaran",
       "processCheckout": "Gagal memproses daftar keluar",
       "recordPayment": "Gagal merekodkan bayaran",
       "saveDailyRates": "Gagal menyimpan kadar harian",
@@ -98,7 +103,16 @@
     "totalRefund": "Jumlah untuk Dibayar Balik",
     "tourismTax": "Cukai Pelancongan",
     "tourismTaxDay": "Cukai Pelancongan — {{date}}",
-    "saveRates": "Simpan Kadar"
+    "saveRates": "Simpan Kadar",
+    "voidPayment": "Batalkan bayaran",
+    "voided": {
+      "heading": "Bayaran dibatalkan",
+      "chip": "Dibatalkan",
+      "reason": "Sebab: {{reason}}",
+      "noReason": "Tiada sebab direkodkan",
+      "by": "Dibatalkan oleh {{name}} · {{at}}",
+      "reversal": "Catatan pembalikan dicatat pada {{date}}"
+    }
   },
   "deposit": {
     "cancel": {
@@ -192,7 +206,7 @@
     "refund": {
       "fixedNote": "Jumlah bayaran balik — ditetapkan kepada baki penuh dipegang:",
       "method": "Kaedah bayaran balik",
-      "noteOptional": "Nota (pilihan)",
+      "note": "Nota (wajib)",
       "submit": "Bayar balik {{amount}}"
     },
     "refundLine": "Bayaran Balik Deposit ({{method}})",
@@ -623,5 +637,10 @@
     },
     "companiesCount_other": "{{count}} akaun"
   },
-  "title": "Kewangan"
+  "title": "Kewangan",
+  "reason": {
+    "label": "Sebab",
+    "helper": "Wajib. Disimpan bersama rekod dan dalam log audit.",
+    "tooShort": "Masukkan sekurang-kurangnya {{min}} aksara."
+  }
 }

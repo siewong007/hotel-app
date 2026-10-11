@@ -10,4 +10,13 @@ export interface CheckoutPaymentRecord {
   notes?: string | null;
   payment_date?: string | null;
   created_at?: string | null;
+  /** Set on voided rows: the staff reason, when, and who voided it. */
+  void_reason?: string | null;
+  voided_at?: string | null;
+  voided_by_name?: string | null;
+  /**
+   * Business date the reversing night-audit line posts on when the void
+   * landed after the payment's own day was closed; null otherwise.
+   */
+  void_reversal_date?: string | null;
 }

@@ -60,21 +60,20 @@ export class InvoicesService {
 
   static async refundDeposit(
     bookingId: string | number,
-    paymentMethod: string = 'cash',
-    amount?: number,
-    extras?: { transaction_reference?: string; note?: string },
+    paymentMethod: string,
+    amount: number,
+    extras: { transaction_reference?: string; note: string },
   ): Promise<any> {
     try {
       // Ensure amount is a valid number
       const numericAmount = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
       const json: Record<string, unknown> = { payment_method: paymentMethod, amount: numericAmount };
-      // Optional staff-supplied metadata — the backend stores the reference
-      // on the refund row's transaction_id and appends the note to the
-      // refund row notes. Only sent when non-empty after trim.
-      const transactionReference = extras?.transaction_reference?.trim();
+      // The reference is optional (stored on the refund row's
+      // transaction_id); the note is mandatory — the backend rejects a
+      // refund without one and appends it to the refund row notes.
+      const transactionReference = extras.transaction_reference?.trim();
       if (transactionReference) json.transaction_reference = transactionReference;
-      const note = extras?.note?.trim();
-      if (note) json.note = note;
+      json.note = extras.note.trim();
       return await api.post(`payments/refund-deposit/${bookingId}`, { json }).json<any>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
@@ -96,17 +95,17 @@ export class InvoicesService {
     }
   }
 
-  static async revertDepositRefund(bookingId: string | number): Promise<any> {
+  static async revertDepositRefund(bookingId: string | number, reason: string): Promise<any> {
     try {
-      return await api.post(`payments/revert-deposit-refund/${bookingId}`).json<any>();
+      return await api.post(`payments/revert-deposit-refund/${bookingId}`, { json: { reason } }).json<any>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
     }
   }
 
-  static async revertDepositVoid(bookingId: string | number): Promise<any> {
+  static async revertDepositVoid(bookingId: string | number, reason: string): Promise<any> {
     try {
-      return await api.post(`payments/revert-deposit-void/${bookingId}`).json<any>();
+      return await api.post(`payments/revert-deposit-void/${bookingId}`, { json: { reason } }).json<any>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
     }
@@ -143,9 +142,13 @@ export class InvoicesService {
     }
   }
 
-  static async deletePayment(paymentId: number): Promise<any> {
+  /**
+   * Void a payment. The row is kept with status 'void' (never deleted) and
+   * the backend requires a staff reason; it records who voided it and when.
+   */
+  static async voidPayment(paymentId: number, reason: string): Promise<any> {
     try {
-      return await api.delete(`payments/${paymentId}`).json<any>();
+      return await api.post(`payments/${paymentId}/void`, { json: { reason } }).json<any>();
     } catch (error) {
       throw toApiError(error, t('generic', undefined, 'errors'));
     }

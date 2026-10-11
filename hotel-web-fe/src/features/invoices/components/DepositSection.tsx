@@ -30,11 +30,13 @@ import { formatHotelDateTime } from '../../../utils/date';
 import type { HotelSettings } from '../../../utils/hotelSettings';
 import { isGreaterMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../utils/money';
 import type { DepositResolution, DepositResolutionStatus } from '../hooks/useDepositResolution';
+import { isValidStaffReason, MIN_STAFF_REASON_LENGTH } from '../utils/payments';
 
 export interface DepositRefundInput {
   method: string;
   reference?: string;
-  note?: string;
+  /** Mandatory staff note explaining the refund. */
+  note: string;
 }
 
 export interface DepositForfeitInput {
@@ -219,9 +221,12 @@ const RefundPanel: React.FC<PanelProps & {
           <TextField
             size="small"
             fullWidth
-            label={t('deposit.refund.noteOptional')}
+            required
+            label={t('deposit.refund.note')}
             value={note}
             onChange={(e) => setNote(e.target.value)}
+            helperText={note && !isValidStaffReason(note) ? t('reason.tooShort', { min: MIN_STAFF_REASON_LENGTH }) : undefined}
+            error={Boolean(note) && !isValidStaffReason(note)}
           />
         </Grid>
       </Grid>
@@ -230,13 +235,13 @@ const RefundPanel: React.FC<PanelProps & {
           size="small"
           variant="contained"
           color="success"
-          disabled={busy}
+          disabled={busy || !isValidStaffReason(note)}
           startIcon={busy ? <CircularProgress size={14} /> : undefined}
           onClick={() =>
             onSubmit({
               method,
               reference: reference.trim() || undefined,
-              note: note.trim() || undefined,
+              note: note.trim(),
             })
           }
           sx={{ fontSize: '0.75rem', py: 0.5 }}
@@ -430,7 +435,7 @@ const CancelPanel: React.FC<PanelProps & {
           size="small"
           variant="contained"
           color="warning"
-          disabled={!reason.trim() || busy}
+          disabled={!isValidStaffReason(reason) || busy}
           startIcon={busy ? <CircularProgress size={14} /> : undefined}
           onClick={() => onSubmit(reason.trim())}
           sx={{ fontSize: '0.75rem', py: 0.5 }}
