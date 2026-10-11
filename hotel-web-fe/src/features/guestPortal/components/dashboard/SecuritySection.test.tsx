@@ -100,15 +100,15 @@ describe('SecuritySection', () => {
     // passkeys card is independent of it.
     expect(await screen.findByRole('region', { name: 'Passkeys' })).toBeTruthy();
     expect(await screen.findByRole('region', { name: 'Authenticator app' })).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Recovery codes' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Backup codes' })).toBeTruthy();
   });
 
   // Recovery codes are minted by the 2FA enable call and reissued only against
   // a live TOTP code, so offering the button with 2FA off would be a dead end.
-  it('does not offer to generate recovery codes before the authenticator app is set up', async () => {
+  it('does not offer to generate backup codes before the authenticator app is set up', async () => {
     renderSection();
 
-    expect(await screen.findByText(/recovery codes when you set up an authenticator app/i)).toBeTruthy();
+    expect(await screen.findByText(/backup codes when you set up an authenticator app/i)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Generate new codes' })).toBeNull();
   });
 
@@ -117,7 +117,7 @@ describe('SecuritySection', () => {
 
     renderSection();
 
-    expect(await screen.findByText(/Only 1 recovery code left/)).toBeTruthy();
+    expect(await screen.findByText(/Only 1 backup code left/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Generate new codes' })).toBeTruthy();
   });
 
@@ -156,7 +156,7 @@ describe('SecuritySection', () => {
 
     renderSection();
 
-    expect(await screen.findByText(/used every recovery code/i)).toBeTruthy();
+    expect(await screen.findByText(/used every backup code/i)).toBeTruthy();
   });
 
   it('lists saved passkeys', async () => {

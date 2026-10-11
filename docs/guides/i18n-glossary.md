@@ -149,7 +149,7 @@ bundle that committed the term.
 | identity (eKYC tab) | 身份认证 | identiti | `guestPortal.nav` |
 | escalation | 上报 | eskalasi | `help` — status.ekyc.escalated uses 已升级, §7 |
 | two-factor authentication | 双重身份验证 | pengesahan dua faktor | `auth`, `errors` |
-| passkey / recovery code | 通行密钥 / 恢复码 | kunci laluan / kod pemulihan | `auth` |
+| passkey / backup code | 通行密钥 / 备用码 | kunci laluan / kod sandaran | `auth`, `guestPortal` (zh-TW: 密碼金鑰 / 備援碼; never "recovery code") |
 | authenticator app / verification code | 验证器应用 / 验证码 | aplikasi pengesah / kod | `auth` — `6 位验证码` |
 | sign in / log in | 登录 | log masuk | `auth`, `guestPortal` — both en verbs map to 登录 |
 | sign out / log out | 退出登录 | log keluar | `nav`, `guestPortal` |

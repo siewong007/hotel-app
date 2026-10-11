@@ -60,6 +60,24 @@ pub enum ApiError {
     /// period already expired. Stable `code` so the sign-in page can route to
     /// enrolment without matching English text.
     TwoFactorEnrollmentRequired,
+    /// The password was right and the account carries a second factor. The
+    /// body adds `mfa_token` — a short-lived, single-use proof that this user
+    /// just passed the password check, which the passkey second-factor
+    /// endpoints accept — and `available_methods` (`totp`, `passkey`,
+    /// `backup_code`) so the sign-in page offers only what the account can use.
+    /// The message keeps the historical "2FA required" text so a cached
+    /// client that still matches it keeps working.
+    TwoFactorRequired {
+        mfa_token: String,
+        available_methods: Vec<String>,
+    },
+    /// The submitted second factor (authenticator or backup code) was wrong.
+    /// It counted toward the account lockout; `attempts_remaining` is what is
+    /// left before the account locks.
+    TwoFactorInvalid { attempts_remaining: i32 },
+    /// The `mfa_token` a second-factor step presented is unknown, expired or
+    /// already spent. The client returns the user to the password step.
+    TwoFactorExpired,
     /// Anonymous booking nickname collides with `idx_guests_nick_name_unique`
     /// (or the pre-rename `idx_guests_full_name_unique`). Stable `code` so the
     /// public form can highlight the nickname without matching English text.
@@ -98,6 +116,12 @@ impl std::fmt::Display for ApiError {
                 write!(f, "Profile incomplete: missing {}", fields.join(", "))
             }
             ApiError::GuestNameTaken => write!(f, "Conflict: nickname taken"),
+            ApiError::TwoFactorRequired { .. } => write!(f, "Unauthorized: 2FA required"),
+            ApiError::TwoFactorInvalid { attempts_remaining } => write!(
+                f,
+                "Unauthorized: invalid 2FA code ({attempts_remaining} attempt(s) remaining)"
+            ),
+            ApiError::TwoFactorExpired => write!(f, "Unauthorized: 2FA challenge expired"),
             ApiError::TwoFactorEnrollmentRequired => {
                 write!(f, "Forbidden: two-factor enrolment required")
             }
@@ -230,6 +254,23 @@ impl IntoResponse for ApiError {
                     .to_string(),
                 "two_factor_enrollment_required",
             ),
+            ApiError::TwoFactorRequired { .. } => (
+                StatusCode::UNAUTHORIZED,
+                "2FA required. Please provide a TOTP code or recovery code.".to_string(),
+                "two_factor_required",
+            ),
+            ApiError::TwoFactorInvalid { attempts_remaining } => (
+                StatusCode::UNAUTHORIZED,
+                format!(
+                    "Invalid 2FA code. {attempts_remaining} attempt(s) remaining before account lockout."
+                ),
+                "two_factor_invalid",
+            ),
+            ApiError::TwoFactorExpired => (
+                StatusCode::UNAUTHORIZED,
+                "Your sign-in took too long. Enter your password again.".to_string(),
+                "two_factor_expired",
+            ),
             ApiError::GuestNameTaken => (
                 StatusCode::CONFLICT,
                 polish_message(
@@ -267,6 +308,17 @@ impl IntoResponse for ApiError {
         }
         if let ApiError::StaleWrite { conflicts, .. } = &self {
             body["conflicts"] = conflicts.clone();
+        }
+        if let ApiError::TwoFactorRequired {
+            mfa_token,
+            available_methods,
+        } = &self
+        {
+            body["mfa_token"] = serde_json::json!(mfa_token);
+            body["available_methods"] = serde_json::json!(available_methods);
+        }
+        if let ApiError::TwoFactorInvalid { attempts_remaining } = &self {
+            body["attempts_remaining"] = serde_json::json!(attempts_remaining);
         }
 
         let body = with_request_id(Json(body));
@@ -386,6 +438,26 @@ mod tests {
                 "two_factor_enrollment_required",
             ),
             (
+                ApiError::TwoFactorRequired {
+                    mfa_token: "token".into(),
+                    available_methods: vec!["totp".into()],
+                },
+                StatusCode::UNAUTHORIZED,
+                "two_factor_required",
+            ),
+            (
+                ApiError::TwoFactorInvalid {
+                    attempts_remaining: 3,
+                },
+                StatusCode::UNAUTHORIZED,
+                "two_factor_invalid",
+            ),
+            (
+                ApiError::TwoFactorExpired,
+                StatusCode::UNAUTHORIZED,
+                "two_factor_expired",
+            ),
+            (
                 ApiError::GuestNameTaken,
                 StatusCode::CONFLICT,
                 "guest_name_taken",
@@ -425,6 +497,37 @@ mod tests {
                 "{label}: code {code} must be snake_case"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn two_factor_required_carries_token_and_methods() {
+        let response = ApiError::TwoFactorRequired {
+            mfa_token: "opaque".into(),
+            available_methods: vec!["totp".into(), "passkey".into()],
+        }
+        .into_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], "two_factor_required");
+        assert_eq!(json["mfa_token"], "opaque");
+        assert_eq!(
+            json["available_methods"],
+            serde_json::json!(["totp", "passkey"])
+        );
+        // A cached client still matches on this text.
+        assert!(json["error"].as_str().unwrap().contains("2FA required"));
+    }
+
+    #[tokio::test]
+    async fn two_factor_invalid_carries_attempts_remaining() {
+        let response = ApiError::TwoFactorInvalid {
+            attempts_remaining: 2,
+        }
+        .into_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], "two_factor_invalid");
+        assert_eq!(json["attempts_remaining"], 2);
     }
 
     #[tokio::test]

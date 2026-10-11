@@ -138,6 +138,7 @@ export function buildAuthContextValue(fixture: AuthFixture = {}): AuthContextTyp
     getRoutePolicy: (routeId: string) => routePolicyMap.get(routeId),
     registerPasskey: reject('registerPasskey'),
     loginWithPasskey: reject('loginWithPasskey'),
+    completeTwoFactorWithPasskey: reject('completeTwoFactorWithPasskey'),
     dismissPasskeyPrompt: noop,
     checkPasskeys: () => Promise.resolve(false),
   };

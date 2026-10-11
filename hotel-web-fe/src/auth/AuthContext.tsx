@@ -77,6 +77,8 @@ export interface AuthContextType extends AuthState {
   getRoutePolicy: (routeId: string) => RouteAccessPolicy | undefined;
   registerPasskey: (username: string, stepUp?: PasskeyStepUp) => Promise<void>;
   loginWithPasskey: (username: string) => Promise<boolean>;
+  /** Finish a password sign-in with a passkey as its second factor. */
+  completeTwoFactorWithPasskey: (mfaToken: string) => Promise<LoginResult>;
   dismissPasskeyPrompt: () => void;
   checkPasskeys: () => Promise<boolean>;
 }
@@ -123,6 +125,89 @@ async function extractHttpErrorMessage(error: unknown, fallback: string): Promis
 /** DOMException-style name (NotAllowedError, InvalidStateError, ...) for WebAuthn failures. */
 function webAuthnErrorName(error: unknown): string | undefined {
   return error instanceof Error ? error.name : undefined;
+}
+
+/** One allowed credential, as the passkey start endpoints list it. */
+type PasskeyAllowCredential = { id: string; type?: string };
+
+/** Base64url (URL-safe, unpadded) → bytes. */
+function base64urlToBuffer(value: string): ArrayBuffer {
+  let base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function bufferToBase64(buffer: ArrayBuffer): string {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}
+
+/**
+ * Run `navigator.credentials.get` for a challenge minted by a passkey start
+ * endpoint (standard base64) and return the assertion fields the finish
+ * endpoints take. Shared by passkey sign-in and the passkey second factor so
+ * both ceremonies are encoded identically.
+ */
+async function requestPasskeyAssertion(
+  challenge: string,
+  allowCredentials: PasskeyAllowCredential[],
+): Promise<{
+  credential_id: string;
+  authenticator_data: string;
+  client_data_json: string;
+  signature: string;
+}> {
+  const challengeBinary = atob(challenge);
+  const challengeBytes = new Uint8Array(challengeBinary.length);
+  for (let i = 0; i < challengeBinary.length; i++) {
+    challengeBytes[i] = challengeBinary.charCodeAt(i);
+  }
+
+  const assertion = await navigator.credentials.get({
+    publicKey: {
+      challenge: challengeBytes.buffer,
+      allowCredentials: allowCredentials.map((cred) => ({
+        id: base64urlToBuffer(cred.id),
+        type: 'public-key' as const,
+      })),
+      timeout: 60000,
+      // Require user verification (fingerprint, Face ID, PIN, etc.)
+      userVerification: 'required',
+    },
+  }) as PublicKeyCredential | null;
+
+  if (!assertion) {
+    throw new Error(t('errors.passkeyAuthFailed', undefined, 'auth'));
+  }
+
+  const response = assertion.response as AuthenticatorAssertionResponse;
+  return {
+    credential_id: assertion.id,
+    authenticator_data: bufferToBase64(response.authenticatorData),
+    client_data_json: bufferToBase64(response.clientDataJSON),
+    signature: bufferToBase64(response.signature),
+  };
+}
+
+/** The WebAuthn browser failures a sign-in surfaces with their own message. */
+function passkeyBrowserErrorMessage(error: unknown): string | null {
+  const name = webAuthnErrorName(error);
+  if (name === 'NotAllowedError') {
+    return t('errors.passkeyAuthCancelled', undefined, 'auth');
+  }
+  if (name === 'InvalidStateError') {
+    return t('errors.passkeyNotRegistered', undefined, 'auth');
+  }
+  if (name === 'NotSupportedError') {
+    return t('errors.passkeyNotSupported', undefined, 'auth');
+  }
+  return null;
 }
 
 type AuthLoginResponse = {
@@ -637,69 +722,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }).json<{ challenge: string; allowCredentials: { id: string; type?: string }[] }>();
 
       const { challenge, allowCredentials } = startResponse;
-
-      // Helper to decode base64url (URL-safe base64)
-      const base64urlDecode = (str: string): ArrayBuffer => {
-        // Convert base64url to base64
-        let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
-        // Add padding if needed
-        while (base64.length % 4) {
-          base64 += '=';
-        }
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        return bytes.buffer;
-      };
-
-      const challengeBinary = atob(challenge);
-      const challengeBytes = new Uint8Array(challengeBinary.length);
-      for (let i = 0; i < challengeBinary.length; i++) {
-        challengeBytes[i] = challengeBinary.charCodeAt(i);
-      }
-
-      const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
-        challenge: challengeBytes.buffer,
-        allowCredentials: allowCredentials.map((cred) => ({
-          id: base64urlDecode(cred.id),
-          type: 'public-key' as const,
-        })),
-        timeout: 60000,
-        // Require user verification (fingerprint, Face ID, PIN, etc.)
-        userVerification: 'required',
-      };
-
-      const assertion = await navigator.credentials.get({
-        publicKey: publicKeyCredentialRequestOptions,
-      }) as PublicKeyCredential;
-
-      if (!assertion) {
-        throw new Error(t('errors.passkeyAuthFailed', undefined, 'auth'));
-      }
-
-      const response = assertion.response as AuthenticatorAssertionResponse;
-      const assertionJson = {
-        id: assertion.id,
-        rawId: Array.from(new Uint8Array(assertion.rawId)),
-        response: {
-          clientDataJSON: Array.from(new Uint8Array(response.clientDataJSON)),
-          authenticatorData: Array.from(new Uint8Array(response.authenticatorData)),
-          signature: Array.from(new Uint8Array(response.signature)),
-          userHandle: response.userHandle ? Array.from(new Uint8Array(response.userHandle)) : null,
-        },
-        type: assertion.type,
-      };
+      const assertion = await requestPasskeyAssertion(challenge, allowCredentials);
 
       // Finish passkey authentication
       const finishResponse = await api.post('auth/passkey/login/finish', {
         json: {
           username,
-          credential_id: assertion.id,
-          authenticator_data: btoa(String.fromCharCode(...assertionJson.response.authenticatorData)),
-          client_data_json: btoa(String.fromCharCode(...assertionJson.response.clientDataJSON)),
-          signature: btoa(String.fromCharCode(...assertionJson.response.signature)),
+          ...assertion,
           challenge,
         },
         headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
@@ -711,14 +740,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // history survived a passkey sign-in on a shared machine.
       return applyAuthSession(finishResponse).isFirstLogin;
     } catch (error) {
-      const name = webAuthnErrorName(error);
-      // Handle different error types
-      if (name === 'NotAllowedError') {
-        throw new Error(t('errors.passkeyAuthCancelled', undefined, 'auth'));
-      } else if (name === 'InvalidStateError') {
-        throw new Error(t('errors.passkeyNotRegistered', undefined, 'auth'));
-      } else if (name === 'NotSupportedError') {
-        throw new Error(t('errors.passkeyNotSupported', undefined, 'auth'));
+      const browserMessage = passkeyBrowserErrorMessage(error);
+      if (browserMessage) {
+        throw new Error(browserMessage);
       }
 
       const message = await extractHttpErrorMessage(error, t('errors.passkeyAuthFailed', undefined, 'auth'));
@@ -739,6 +763,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [applyAuthSession]);
 
+  const completeTwoFactorWithPasskey = useCallback(async (mfaToken: string): Promise<LoginResult> => {
+    try {
+      await pendingLogoutRef.current;
+
+      // The token from the `two_factor_required` answer binds this ceremony
+      // to the account whose password was just verified.
+      const { challenge, allowCredentials } = await api.post('auth/passkey/2fa/start', {
+        json: { mfa_token: mfaToken },
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+      }).json<{ challenge: string; allowCredentials: PasskeyAllowCredential[] }>();
+
+      const assertion = await requestPasskeyAssertion(challenge, allowCredentials);
+
+      const data = await api.post('auth/passkey/2fa/finish', {
+        json: { mfa_token: mfaToken, ...assertion, challenge },
+        headers: { [SKIP_API_NOTIFICATION_HEADER]: 'true' },
+      }).json<AuthLoginResponse>();
+
+      return applyAuthSession(data);
+    } catch (error) {
+      const browserMessage = passkeyBrowserErrorMessage(error);
+      if (browserMessage) {
+        throw new Error(browserMessage);
+      }
+      // Keep the status and body: the sign-in page routes on the stable
+      // `two_factor_expired` code.
+      const message = await extractHttpErrorMessage(error, t('errors.passkeyAuthFailed', undefined, 'auth'));
+      if (error instanceof HTTPError) {
+        throw new APIError(message, error.response?.status, readErrorData(error));
+      }
+      throw new Error(message);
+    }
+  }, [applyAuthSession]);
+
   const authContextValue = useMemo<AuthContextType>(() => ({
     ...authState,
     login,
@@ -751,6 +809,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     getRoutePolicy,
     registerPasskey,
     loginWithPasskey,
+    completeTwoFactorWithPasskey,
     dismissPasskeyPrompt,
     checkPasskeys,
   }), [
@@ -765,6 +824,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     getRoutePolicy,
     registerPasskey,
     loginWithPasskey,
+    completeTwoFactorWithPasskey,
     dismissPasskeyPrompt,
     checkPasskeys,
   ]);

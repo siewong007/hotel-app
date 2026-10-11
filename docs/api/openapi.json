@@ -250,6 +250,12 @@
     "/api/auth/logout": {
       "POST": {}
     },
+    "/api/auth/passkey/2fa/finish": {
+      "POST": {}
+    },
+    "/api/auth/passkey/2fa/start": {
+      "POST": {}
+    },
     "/api/auth/passkey/login/finish": {
       "POST": {}
     },

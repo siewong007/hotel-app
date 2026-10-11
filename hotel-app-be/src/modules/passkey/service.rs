@@ -1,6 +1,7 @@
 //! Passkey/WebAuthn business workflows.
 
 use super::repository::PasskeyRepository;
+use crate::core::auth::AuthService;
 use crate::core::config;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -8,8 +9,10 @@ use crate::core::settings_cache;
 use crate::models::AuditEvent;
 use crate::models::{
     AuthResponse, PasskeyInfo, PasskeyLoginFinish, PasskeyLoginStart, PasskeyRegistrationFinish,
-    PasskeyRegistrationStart, PasskeyUpdateInput,
+    PasskeyRegistrationStart, PasskeySecondFactorFinish, PasskeySecondFactorStart,
+    PasskeyUpdateInput, User,
 };
+use crate::modules::auth::repository::AuthRepository;
 use crate::services::audit::AuditLog;
 use base64::Engine;
 use base64::engine::general_purpose;
@@ -222,7 +225,18 @@ pub async fn login_start(
         .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
-    let passkeys = PasskeyRepository::active_passkeys(pool, user.id).await?;
+    issue_assertion_challenge(pool, user.id).await
+}
+
+/// Mint a single-use authentication challenge for `user_id` and the
+/// `allowCredentials` list of their active passkeys — the request options for
+/// `navigator.credentials.get`. Shared by passkey sign-in and the passkey
+/// second factor so both ceremonies are built the same way.
+async fn issue_assertion_challenge(
+    pool: &DbPool,
+    user_id: i64,
+) -> Result<serde_json::Value, ApiError> {
+    let passkeys = PasskeyRepository::active_passkeys(pool, user_id).await?;
     if passkeys.is_empty() {
         return Err(ApiError::NotFound(
             "No passkeys found for this user".to_string(),
@@ -234,7 +248,7 @@ pub async fn login_start(
 
     PasskeyRepository::insert_challenge(
         pool,
-        user.id,
+        user_id,
         &challenge_bytes,
         "authentication",
         chrono::Utc::now() + chrono::Duration::minutes(5),
@@ -257,39 +271,36 @@ pub async fn login_start(
     }))
 }
 
-/// Completes a passkey login. Like the password `login`, returns the
-/// `AuthResponse` plus the refresh token as a separate `String` so the route
-/// handler can set it on an `HttpOnly` cookie instead of the JSON body.
-pub async fn login_finish(
+/// The browser's answer to an authentication challenge.
+struct AssertionResponse<'a> {
+    credential_id: &'a str,
+    authenticator_data: &'a str,
+    client_data_json: &'a str,
+    signature: &'a str,
+    challenge: &'a str,
+}
+
+/// Verify a WebAuthn assertion for `user_id`: spends the user's pending
+/// authentication challenge (single-use, so a replay or race fails), checks the
+/// credential belongs to this user, the client data, RP id, sign counter and
+/// signature, and records the new counter. `username` is only the audit label.
+async fn verify_assertion(
     pool: &DbPool,
-    req: PasskeyLoginFinish,
+    user_id: i64,
+    username: &str,
+    assertion: AssertionResponse<'_>,
     ip_address: Option<&str>,
     user_agent: Option<&str>,
-    client_timezone: Option<&str>,
-) -> Result<(AuthResponse, String), ApiError> {
-    let user = PasskeyRepository::find_active_user_by_username(pool, &req.username)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-    // Account lockout applies to every login door, not just the password one.
-    crate::modules::auth::service::ensure_not_locked(
-        pool,
-        user.id,
-        &req.username,
-        ip_address,
-        user_agent,
-    )
-    .await?;
-
-    let expected_challenge = decode_standard_b64(&req.challenge, "challenge")?;
+) -> Result<(), ApiError> {
+    let expected_challenge = decode_standard_b64(assertion.challenge, "challenge")?;
     // Single-use, consumed atomically — a replayed or raced assertion finds
     // the row already spent. A rejected attempt burns the challenge.
-    if !PasskeyRepository::consume_challenge(pool, user.id, &expected_challenge, "authentication")
+    if !PasskeyRepository::consume_challenge(pool, user_id, &expected_challenge, "authentication")
         .await?
     {
         let _ = AuditLog::log_login_failure(
             pool,
-            &req.username,
+            username,
             "Invalid or expired passkey challenge",
             ip_address.map(str::to_string),
             user_agent.map(str::to_string),
@@ -300,12 +311,12 @@ pub async fn login_finish(
         ));
     }
 
-    let credential_id_bytes = decode_base64url(&req.credential_id)
+    let credential_id_bytes = decode_base64url(assertion.credential_id)
         .map_err(|e| ApiError::BadRequest(format!("Invalid credential ID format: {}", e)))?;
 
     let passkey = match PasskeyRepository::find_active_passkey_by_credential(
         pool,
-        user.id,
+        user_id,
         &credential_id_bytes,
     )
     .await?
@@ -314,7 +325,7 @@ pub async fn login_finish(
         None => {
             let _ = AuditLog::log_login_failure(
                 pool,
-                &req.username,
+                username,
                 "Unknown passkey credential",
                 ip_address.map(str::to_string),
                 user_agent.map(str::to_string),
@@ -324,9 +335,10 @@ pub async fn login_finish(
         }
     };
 
-    let client_data_json = decode_standard_b64(&req.client_data_json, "clientDataJSON")?;
-    let authenticator_data = decode_standard_b64(&req.authenticator_data, "authenticatorData")?;
-    let signature_bytes = decode_standard_b64(&req.signature, "signature")?;
+    let client_data_json = decode_standard_b64(assertion.client_data_json, "clientDataJSON")?;
+    let authenticator_data =
+        decode_standard_b64(assertion.authenticator_data, "authenticatorData")?;
+    let signature_bytes = decode_standard_b64(assertion.signature, "signature")?;
     let rp_id = rp_id();
     let client_data_hash = verify_client_data(
         &client_data_json,
@@ -357,10 +369,52 @@ pub async fn login_finish(
         log::warn!(
             "Failed to record sign counter for passkey {} (user {}): {}",
             passkey.id,
-            user.id,
+            user_id,
             e
         );
     }
+    Ok(())
+}
+
+/// Completes a passkey login. Like the password `login`, returns the
+/// `AuthResponse` plus the refresh token as a separate `String` so the route
+/// handler can set it on an `HttpOnly` cookie instead of the JSON body.
+pub async fn login_finish(
+    pool: &DbPool,
+    req: PasskeyLoginFinish,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+    client_timezone: Option<&str>,
+) -> Result<(AuthResponse, String), ApiError> {
+    let user = PasskeyRepository::find_active_user_by_username(pool, &req.username)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+
+    // Account lockout applies to every login door, not just the password one.
+    crate::modules::auth::service::ensure_not_locked(
+        pool,
+        user.id,
+        &req.username,
+        ip_address,
+        user_agent,
+    )
+    .await?;
+
+    verify_assertion(
+        pool,
+        user.id,
+        &req.username,
+        AssertionResponse {
+            credential_id: &req.credential_id,
+            authenticator_data: &req.authenticator_data,
+            client_data_json: &req.client_data_json,
+            signature: &req.signature,
+            challenge: &req.challenge,
+        },
+        ip_address,
+        user_agent,
+    )
+    .await?;
 
     // Passkey logins were completely invisible (no audit row on success or
     // failure), unlike password logins. Mirror the password path.
@@ -375,6 +429,96 @@ pub async fn login_finish(
 
     // The session-minting sequence is shared with the password and Google
     // doors so all three stay in step; see `services::auth`.
+    crate::modules::auth::service::issue_authenticated_response(
+        pool,
+        &user,
+        ip_address,
+        user_agent,
+        client_timezone,
+    )
+    .await
+}
+
+/// Resolve a sign-in second-factor token to the active user it was issued to.
+/// Unknown, expired, spent, or belonging to an account that has since been
+/// deactivated all read the same: start the sign-in again.
+async fn second_factor_user(pool: &DbPool, mfa_token: &str) -> Result<User, ApiError> {
+    let token_hash = AuthService::hash_refresh_token(mfa_token);
+    let user_id = AuthRepository::find_login_mfa_user(pool, &token_hash)
+        .await?
+        .ok_or(ApiError::TwoFactorExpired)?;
+    AuthRepository::find_user_by_id(pool, user_id)
+        .await?
+        .filter(|user| user.is_active)
+        .ok_or(ApiError::TwoFactorExpired)
+}
+
+/// Begin a passkey ceremony as the second factor of a password sign-in. The
+/// token proves which user passed the password check; the challenge is minted
+/// for that user only, so a passkey of any other account cannot answer it.
+/// Starting does not spend the token — a cancelled browser prompt can be
+/// retried until the token expires.
+pub async fn second_factor_start(
+    pool: &DbPool,
+    req: PasskeySecondFactorStart,
+) -> Result<serde_json::Value, ApiError> {
+    let user = second_factor_user(pool, &req.mfa_token).await?;
+    issue_assertion_challenge(pool, user.id).await
+}
+
+/// Finish a password sign-in with a passkey as its second factor. The
+/// assertion must verify for the token's user, and the token is then spent
+/// atomically — so a token completes at most one sign-in, and two racing
+/// finishes cannot both mint a session.
+pub async fn second_factor_finish(
+    pool: &DbPool,
+    req: PasskeySecondFactorFinish,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+    client_timezone: Option<&str>,
+) -> Result<(AuthResponse, String), ApiError> {
+    let user = second_factor_user(pool, &req.mfa_token).await?;
+
+    crate::modules::auth::service::ensure_not_locked(
+        pool,
+        user.id,
+        &user.username,
+        ip_address,
+        user_agent,
+    )
+    .await?;
+
+    verify_assertion(
+        pool,
+        user.id,
+        &user.username,
+        AssertionResponse {
+            credential_id: &req.credential_id,
+            authenticator_data: &req.authenticator_data,
+            client_data_json: &req.client_data_json,
+            signature: &req.signature,
+            challenge: &req.challenge,
+        },
+        ip_address,
+        user_agent,
+    )
+    .await?;
+
+    let token_hash = AuthService::hash_refresh_token(&req.mfa_token);
+    if !AuthRepository::consume_login_mfa_challenge(pool, user.id, &token_hash).await? {
+        return Err(ApiError::TwoFactorExpired);
+    }
+
+    let _ = AuthRepository::reset_login_attempts(pool, user.id).await;
+    let _ = AuditLog::log_login_success(
+        pool,
+        user.id,
+        "password+passkey",
+        ip_address.map(str::to_string),
+        user_agent.map(str::to_string),
+    )
+    .await;
+
     crate::modules::auth::service::issue_authenticated_response(
         pool,
         &user,

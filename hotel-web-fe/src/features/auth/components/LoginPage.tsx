@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from '../../../router';
 import { returnFromAuthPage, safeGuestRedirect, safeStaffRedirect } from '../guestRedirect';
 import {
   Box,
-  ButtonBase,
   Container,
   Paper,
   TextField,
@@ -20,9 +19,6 @@ import {
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
-  ChevronRight as ChevronRightIcon,
-  PhonelinkLock as PhonelinkLockIcon,
-  VpnKey as VpnKeyIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
@@ -37,15 +33,17 @@ import { ConsentNotice } from '../../legal/components/ConsentNotice';
 import { REGISTRATION_NOTICE } from '../../legal/content';
 import { buildNoticeConsentPayload } from '../../legal/noticeConsent';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
+import { notifyBackupCodeUsed } from '../utils/twoFactorCode';
 import {
-  isCompleteTwoFactorCode,
-  notifyRecoveryCodeUsed,
-  sanitizeTwoFactorCode,
-  TOTP_CODE_LENGTH,
-  type TwoFactorMethod,
-} from '../utils/twoFactorCode';
+  isTwoFactorExpired,
+  isTwoFactorInvalid,
+  readTwoFactorAttemptsRemaining,
+  readTwoFactorChallenge,
+  type TwoFactorChallenge as SecondFactorChallenge,
+} from '../twoFactorChallenge';
+import type { TwoFactorView } from './twoFactor/TwoFactorChallenge';
 import { AuthService } from '../../../api';
-import { errorMessage } from '../../../utils/errorMessage';
+import type { LoginResult } from '../../../auth/AuthContext';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import {
   isTwoFactorEnrollmentRequired,
@@ -57,20 +55,25 @@ import { useTurnstile } from '../turnstile/useTurnstile';
 import { turnstileErrorMessage } from '../turnstile/turnstileError';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 
-/** The ways a second factor can be satisfied at sign-in. Both end up in the
- *  same request field — the backend tries TOTP first and falls back to the
- *  recovery codes — but a user holding one of them should not have to work out
- *  that a single box accepts both shapes. */
-const TWO_FACTOR_METHODS: ReadonlyArray<{
-  method: TwoFactorMethod;
-  Icon: typeof PhonelinkLockIcon;
-}> = [
-  { method: 'totp', Icon: PhonelinkLockIcon },
-  { method: 'recovery', Icon: VpnKeyIcon },
-];
+/** The second-factor step is only ever seen by accounts that have one, so it
+ *  ships as its own chunk; `preloadTwoFactorStep` warms it while the password
+ *  request is in flight. */
+const loadTwoFactorStep = () => import('./twoFactor/TwoFactorChallenge');
+const TwoFactorChallenge = lazy(loadTwoFactorStep);
+const preloadTwoFactorStep = () => {
+  void loadTwoFactorStep().catch(() => {
+    // The lazy() render retries the import and surfaces a real failure.
+  });
+};
+
+/** `?two_factor=backup` is the backup-code page of the second-factor step: it
+ *  has its own history entry, so the browser Back button returns to the
+ *  sign-in options instead of leaving the sign-in altogether. */
+const TWO_FACTOR_PARAM = 'two_factor';
+const BACKUP_VIEW = 'backup';
 
 const LoginPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Where the reader was headed before auth interrupted them — drives the
   // "sign in to continue" notice and the post-login restore.
   const interruptedDestination =
@@ -82,11 +85,13 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showFirstLoginPrompt, setShowFirstLoginPrompt] = useState(false);
-  const [show2FAPrompt, setShow2FAPrompt] = useState(false);
-  // null while the user is still choosing how to complete the second factor.
-  const [twoFactorMethod, setTwoFactorMethod] = useState<TwoFactorMethod | null>(null);
-  const [totpCode, setTotpCode] = useState('');
-  const { login, loginWithGoogle } = useAuth();
+  // Set once the password was accepted and the account still owes a second
+  // factor: which methods it has, and the token binding a passkey to it.
+  const [challenge, setChallenge] = useState<SecondFactorChallenge | null>(null);
+  const [twoFactorView, setTwoFactorView] = useState<TwoFactorView>('methods');
+  // Bumped after a rejected code so the step clears and refocuses its input.
+  const [codeResetKey, setCodeResetKey] = useState(0);
+  const { login, loginWithGoogle, completeTwoFactorWithPasskey } = useAuth();
   const { t } = useTranslation('auth');
   const { locale: legalLocale } = useLegalLocale();
   const turnstile = useTurnstile();
@@ -100,6 +105,45 @@ const LoginPage: React.FC = () => {
   // Shared by the sign-in and 2FA renders — they are mutually exclusive, so the
   // ref always lands on whichever alert is mounted.
   const errorRef = useAutoFocusError(error);
+
+  const twoFactorParam = searchParams.get(TWO_FACTOR_PARAM);
+  const previousTwoFactorParam = useRef(twoFactorParam);
+  useEffect(() => {
+    const previous = previousTwoFactorParam.current;
+    previousTwoFactorParam.current = twoFactorParam;
+    // Browser Back from the backup-code page: the param went away.
+    if (previous === BACKUP_VIEW && twoFactorParam !== BACKUP_VIEW) {
+      setTwoFactorView('methods');
+      setError('');
+    }
+    // Forward again onto the backup page while the challenge is still live.
+    if (previous !== BACKUP_VIEW && twoFactorParam === BACKUP_VIEW && challenge) {
+      setTwoFactorView('backup');
+    }
+  }, [twoFactorParam, challenge]);
+
+  /** Write (or drop) the backup-page marker, keeping `?redirect=` and the rest. */
+  const writeTwoFactorParam = useCallback(
+    (value: string | null, replace: boolean) => {
+      const next = new URLSearchParams(searchParams);
+      if (value) {
+        next.set(TWO_FACTOR_PARAM, value);
+      } else {
+        next.delete(TWO_FACTOR_PARAM);
+      }
+      previousTwoFactorParam.current = value;
+      setSearchParams(next, { replace });
+    },
+    [searchParams, setSearchParams]
+  );
+
+  // A reload or shared link onto the backup page has no password-verified
+  // challenge behind it: drop the marker and show the plain sign-in.
+  useEffect(() => {
+    if (!challenge && twoFactorParam) {
+      writeTwoFactorParam(null, true);
+    }
+  }, [challenge, twoFactorParam, writeTwoFactorParam]);
 
   const completeSignIn = () => {
     // Route by the authenticated account's actual type. Guest and staff share
@@ -167,37 +211,15 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const {
-        isFirstLogin,
-        recoveryCodesRemaining,
-        twoFactorEnrollmentRequired,
-        twoFactorEnrollmentDeadline,
-      } = await login(identifier, password, code || undefined, turnstile.token);
+      if (!code) {
+        preloadTwoFactorStep();
+      }
+      const result = await login(identifier, password, code || undefined, turnstile.token);
       // The token was spent the moment that request went out. Re-solve now so a
       // 2FA leg, or a retry after a wrong password, never replays it --
       // Cloudflare rejects a replay as timeout-or-duplicate.
       turnstile.reset();
-      if (recoveryCodesRemaining !== undefined) {
-        notifyRecoveryCodeUsed(recoveryCodesRemaining);
-      }
-      // The session is valid, but this account's role requires a second factor
-      // and the grace window is running. Enrolment comes before the workspace;
-      // once that window closes the backend refuses the sign-in outright.
-      if (twoFactorEnrollmentRequired) {
-        navigate(
-          twoFactorEnrollmentDeadline
-            ? `${TWO_FACTOR_ENROLLMENT_PATH}?deadline=${encodeURIComponent(twoFactorEnrollmentDeadline)}`
-            : TWO_FACTOR_ENROLLMENT_PATH,
-          { replace: true }
-        );
-        return;
-      }
-      if (isFirstLogin) {
-        setShowFirstLoginPrompt(true);
-        setLoading(false);
-      } else {
-        completeSignIn();
-      }
+      finishSignIn(result);
     } catch (err) {
       // Spent on the way out regardless of the outcome.
       turnstile.reset();
@@ -211,23 +233,75 @@ const LoginPage: React.FC = () => {
         return;
       }
 
-      // The password was right and this account carries a second factor. Ask
-      // how the user wants to satisfy it rather than assuming an authenticator
-      // app they may no longer have. Sniff the raw error — the display message
-      // is guest-safe (a transport failure collapses to the fallback), while
-      // the server's "2FA required" text lives on the error itself either way.
-      const serverMessage = errorMessage(err, '');
-      if (serverMessage.includes('2FA required') || serverMessage.includes('TOTP code')) {
-        setShow2FAPrompt(true);
-        setTwoFactorMethod(null);
-        setTotpCode('');
+      // The password was right and this account carries a second factor.
+      const nextChallenge = readTwoFactorChallenge(err);
+      if (nextChallenge) {
+        setChallenge(nextChallenge);
+        if (!code) {
+          setTwoFactorView('methods');
+        }
         setError('');
         setLoading(false);
         return;
       }
 
+      // A wrong authenticator or backup code. It cost a sign-in attempt, so
+      // say how many are left before the account locks.
+      if (isTwoFactorInvalid(err)) {
+        const remaining = readTwoFactorAttemptsRemaining(err);
+        setError(
+          remaining === null
+            ? t('twoFactor.invalidCodeGeneric')
+            : t('twoFactor.invalidCode', { count: remaining })
+        );
+        setCodeResetKey((key) => key + 1);
+        setLoading(false);
+        return;
+      }
+
+      // Anything else on the code leg (most often the lockout itself) ends the
+      // second-factor step; the reason shows on the sign-in form.
+      if (code) {
+        leaveTwoFactor();
+      }
       setError(guestErrorMessage(err, t('login.failed')));
       setLoading(false);
+    }
+  };
+
+  /** A signed-in result, from the password leg, a code, or a passkey. */
+  const finishSignIn = (result: LoginResult) => {
+    const {
+      isFirstLogin,
+      recoveryCodesRemaining,
+      twoFactorEnrollmentRequired,
+      twoFactorEnrollmentDeadline,
+    } = result;
+    if (recoveryCodesRemaining !== undefined) {
+      const account = storage.getItem<{ user_type?: 'admin' | 'guest' }>('user')?.user_type;
+      notifyBackupCodeUsed(recoveryCodesRemaining, account === 'guest');
+    }
+    // The session is valid, but this account's role requires a second factor
+    // and the grace window is running. Enrolment comes before the workspace;
+    // once that window closes the backend refuses the sign-in outright.
+    if (twoFactorEnrollmentRequired) {
+      navigate(
+        twoFactorEnrollmentDeadline
+          ? `${TWO_FACTOR_ENROLLMENT_PATH}?deadline=${encodeURIComponent(twoFactorEnrollmentDeadline)}`
+          : TWO_FACTOR_ENROLLMENT_PATH,
+        { replace: true }
+      );
+      return;
+    }
+    if (isFirstLogin) {
+      // The prompt stays on this URL; the backup-page marker must not.
+      if (twoFactorParam) {
+        writeTwoFactorParam(null, true);
+      }
+      setShowFirstLoginPrompt(true);
+      setLoading(false);
+    } else {
+      completeSignIn();
     }
   };
 
@@ -271,30 +345,59 @@ const LoginPage: React.FC = () => {
     await submitCredentials(identifier);
   };
 
-  const handle2FASubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!twoFactorMethod) {
-      return;
-    }
-    if (!isCompleteTwoFactorCode(totpCode, twoFactorMethod)) {
-      setError(t(`twoFactor.${twoFactorMethod}Incomplete`));
-      return;
-    }
-    await submitCredentials(username.trim(), totpCode);
+  // Authenticator codes auto-submit from the step (backup codes never do);
+  // both legs resend the password with the code, as the backend expects.
+  const handleSubmitCode = (code: string) => {
+    setError('');
+    void submitCredentials(username.trim(), code);
   };
 
-  const handleChooseTwoFactorMethod = (method: TwoFactorMethod) => {
-    setTwoFactorMethod(method);
-    setTotpCode('');
+  const handleUsePasskey = async () => {
+    if (!challenge?.mfaToken) {
+      setError(t('twoFactor.expired'));
+      leaveTwoFactor();
+      return;
+    }
     setError('');
+    setLoading(true);
+    try {
+      finishSignIn(await completeTwoFactorWithPasskey(challenge.mfaToken));
+    } catch (err) {
+      if (isTwoFactorExpired(err)) {
+        // The five-minute window closed (or the token was spent): back to
+        // the password, which mints a fresh one.
+        leaveTwoFactor();
+        setError(t('twoFactor.expired'));
+      } else {
+        setError(guestErrorMessage(err, t('errors.passkeyAuthFailed')));
+      }
+      setLoading(false);
+    }
   };
 
-  const handleCancelTwoFactor = () => {
-    setShow2FAPrompt(false);
-    setTwoFactorMethod(null);
-    setTotpCode('');
+  const handleShowBackup = () => {
     setError('');
+    setTwoFactorView('backup');
+    writeTwoFactorParam(BACKUP_VIEW, false);
   };
+
+  const handleShowMethods = () => {
+    setError('');
+    setTwoFactorView('methods');
+    if (twoFactorParam === BACKUP_VIEW) {
+      writeTwoFactorParam(null, true);
+    }
+  };
+
+  /** Back to the password form (Back, an expired token, or a lockout). */
+  function leaveTwoFactor() {
+    setChallenge(null);
+    setTwoFactorView('methods');
+    setError('');
+    if (twoFactorParam) {
+      writeTwoFactorParam(null, true);
+    }
+  }
 
   const handleGoogleCredential = async (credential: string) => {
     setError('');
@@ -359,152 +462,33 @@ const LoginPage: React.FC = () => {
     </Box>
   );
 
-  if (show2FAPrompt) {
-    const isRecovery = twoFactorMethod === 'recovery';
-
+  if (challenge) {
     return (
-      <Box className="auth-page auth-page--2fa">
-        <Container className="auth-container" maxWidth="sm">
-          <Fade in timeout={300}>
-            <Paper className="auth-card" sx={{ p: { xs: 4, sm: 6 }, width: '100%' }}>
-              <Box className="auth-heading" sx={{ mb: { xs: 2.5, sm: 4 } }}>
-                <Typography variant="h1" sx={{ fontSize: { xs: '2rem', sm: '2.5rem' } }}>
-                  {t('twoFactor.title')}
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 1, color: 'var(--hotel-text-secondary)' }}>
-                  {twoFactorMethod
-                    ? t(`twoFactor.${twoFactorMethod}Subtitle`)
-                    : t('twoFactor.chooseSubtitle')}
-                </Typography>
-              </Box>
-
-              <Collapse in={!!error}>
-                <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} sx={{ mb: 2 }} onClose={() => setError('')}>
-                  {error}
-                </Alert>
-              </Collapse>
-
-              {/* Step 1: pick the second factor. A user who lost their phone
-                  needs the recovery path offered, not hidden behind a hint
-                  under a box labelled for an authenticator code. */}
-              {!twoFactorMethod && (
-                <Box>
-                  {TWO_FACTOR_METHODS.map(({ method, Icon }, index) => (
-                    <React.Fragment key={method}>
-                      {index > 0 && <Divider />}
-                      <ButtonBase
-                        onClick={() => handleChooseTwoFactorMethod(method)}
-                        sx={{
-                          width: '100%',
-                          px: 1,
-                          py: 2,
-                          gap: 2,
-                          justifyContent: 'flex-start',
-                          textAlign: 'left',
-                          borderRadius: 2,
-                        }}
-                      >
-                        <Icon sx={{ fontSize: 24, color: 'var(--hotel-primary)' }} />
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography sx={{ fontSize: '1rem', fontWeight: 500 }}>
-                            {t(`twoFactor.${method}Method`)}
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            sx={{ color: 'var(--hotel-text-secondary)' }}
-                          >
-                            {t(`twoFactor.${method}MethodDescription`)}
-                          </Typography>
-                        </Box>
-                        <ChevronRightIcon
-                          sx={{ fontSize: 20, color: 'var(--hotel-text-secondary)' }}
-                        />
-                      </ButtonBase>
-                    </React.Fragment>
-                  ))}
-
-                  <Button
-                    fullWidth
-                    variant="text"
-                    sx={{ mt: 3 }}
-                    onClick={handleCancelTwoFactor}
-                  >
-                    {t('twoFactor.cancel')}
-                  </Button>
-                </Box>
-              )}
-
-              {/* Step 2: enter the code for the method that was picked. */}
-              {twoFactorMethod && (
-                <form onSubmit={handle2FASubmit}>
-                  <TextField
-                    fullWidth
-                    label={t(`twoFactor.${twoFactorMethod}Label`)}
-                    value={totpCode}
-                    onChange={(e) =>
-                      setTotpCode(sanitizeTwoFactorCode(e.target.value, twoFactorMethod))
-                    }
-                    placeholder={isRecovery ? 'XXXXX-XXXXX-XXXXX-XXXXX' : '000000'}
-                    helperText={t(`twoFactor.${twoFactorMethod}Help`)}
-                    sx={{ mb: 3 }}
-                    autoFocus
-                    slotProps={{
-                      htmlInput: {
-                        maxLength: isRecovery ? 23 : TOTP_CODE_LENGTH,
-                        inputMode: isRecovery ? 'text' : 'numeric',
-                        // Recovery codes are nearly four times as long as a TOTP
-                        // code, so the wide-tracked display used for six digits
-                        // overflows.
-                        style: isRecovery
-                          ? { textAlign: 'center', fontSize: '18px', letterSpacing: '2px' }
-                          : { textAlign: 'center', fontSize: '24px', letterSpacing: '8px' },
-                      },
-                    }}
-                  />
-
-                  <Button
-                    fullWidth
-                    type="submit"
-                    variant="contained"
-                    size="large"
-                    disabled={
-                      loading ||
-                      awaitingTurnstile ||
-                      !isCompleteTwoFactorCode(totpCode, twoFactorMethod)
-                    }
-                    sx={{ mb: 1.5, py: 1.5 }}
-                  >
-                    {loading ? <CircularProgress size={20} color="inherit" /> : t('twoFactor.verify')}
-                  </Button>
-
-                  {turnstile.enabled && (
-                    <Box
-                      ref={turnstile.setContainer}
-                      sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, minHeight: 65 }}
-                    />
-                  )}
-
-                  <Button
-                    fullWidth
-                    variant="text"
-                    onClick={() => {
-                      setTwoFactorMethod(null);
-                      setTotpCode('');
-                      setError('');
-                    }}
-                  >
-                    {t('twoFactor.chooseAnother')}
-                  </Button>
-
-                  <Button fullWidth variant="text" onClick={handleCancelTwoFactor}>
-                    {t('twoFactor.cancel')}
-                  </Button>
-                </form>
-              )}
-            </Paper>
-          </Fade>
-        </Container>
-      </Box>
+      <Suspense
+        fallback={
+          <Box className="auth-page auth-page--2fa" sx={{ alignItems: 'center', justifyContent: 'center' }}>
+            <CircularProgress aria-label={t('twoFactor.title')} />
+          </Box>
+        }
+      >
+        <TwoFactorChallenge
+          methods={challenge.mfaToken ? challenge.methods : challenge.methods.filter((m) => m !== 'passkey')}
+          view={twoFactorView}
+          loading={loading}
+          awaitingTurnstile={awaitingTurnstile}
+          turnstileEnabled={turnstile.enabled}
+          turnstileRef={turnstile.setContainer}
+          error={error}
+          errorRef={errorRef}
+          onDismissError={() => setError('')}
+          resetKey={codeResetKey}
+          onSubmitCode={handleSubmitCode}
+          onUsePasskey={() => void handleUsePasskey()}
+          onShowBackup={handleShowBackup}
+          onShowMethods={handleShowMethods}
+          onCancel={leaveTwoFactor}
+        />
+      </Suspense>
     );
   }
 

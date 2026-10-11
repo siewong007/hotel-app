@@ -452,6 +452,26 @@ pub struct PasskeyLoginFinish {
     pub challenge: String,
 }
 
+/// Start a passkey ceremony as the second factor of a password sign-in.
+/// `mfa_token` is the token the `two_factor_required` answer carried; it binds
+/// the ceremony to the user who just passed the password check. No `Debug`
+/// derive, so the token cannot reach a log line through `{:?}`.
+#[derive(Deserialize)]
+pub struct PasskeySecondFactorStart {
+    pub mfa_token: String,
+}
+
+/// Finish a passkey ceremony as the second factor of a password sign-in.
+#[derive(Deserialize)]
+pub struct PasskeySecondFactorFinish {
+    pub mfa_token: String,
+    pub credential_id: String,
+    pub authenticator_data: String,
+    pub client_data_json: String,
+    pub signature: String,
+    pub challenge: String,
+}
+
 /// Stored passkey credential
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Passkey {
