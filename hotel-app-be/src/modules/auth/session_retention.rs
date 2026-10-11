@@ -313,7 +313,7 @@ pub async fn apply_cap_after_sign_in(
             .await;
         }
         Err(error) => {
-            log::warn!("Failed to enforce the session cap for user {user_id}: {error}");
+            log::warn!("Failed to enforce the live-session cap after a sign-in: {error}");
         }
     }
 }
