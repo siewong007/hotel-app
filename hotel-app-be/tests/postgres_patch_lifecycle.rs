@@ -204,6 +204,29 @@ impl TemporaryCatalog {
         catalog
     }
 
+    /// The committed catalog cut back to versions up to `max_version`, as a
+    /// database deployed before a later patch existed would have run it.
+    fn truncated_at(max_version: i32) -> Self {
+        let catalog = Self::copy_committed();
+        let manifest = std::fs::read_to_string(postgres_dir().join("patches/manifest.tsv"))
+            .expect("committed manifest must be readable");
+        let kept: String = manifest
+            .lines()
+            .filter(|line| {
+                line.starts_with('#')
+                    || line.trim().is_empty()
+                    || line
+                        .split('\t')
+                        .nth(1)
+                        .and_then(|version| version.parse::<i32>().ok())
+                        .is_some_and(|version| version <= max_version)
+            })
+            .map(|line| format!("{line}\n"))
+            .collect();
+        std::fs::write(catalog.path.join("manifest.tsv"), kept).expect("write truncated manifest");
+        catalog
+    }
+
     /// A synthetic catalog whose first patch sleeps inside the advisory-lock
     /// transaction, so a second runner can be observed waiting on the lock.
     fn with_sleeping_patch() -> Self {
@@ -891,7 +914,13 @@ async fn postgres_v1_catalog_rebuilds_the_audit_partition_function_without_split
     let mut databases = DisposableDatabases::connect(&database_url).await;
     let database = databases.create("split").await;
     let pool = install_v1(&database).await;
-    let baseline = audit_partition_function(&pool).await;
+    // Patch 0021 replaces 0016's definition on every database, so the catalog
+    // head, not the baseline, is what a pre-0016 database must converge onto.
+    let fresh = databases.create("split_fresh").await;
+    let fresh_pool = install_v1(&fresh).await;
+    assert_runner_succeeded(&run_patches(&fresh, None).await);
+    let catalog_head = audit_partition_function(&fresh_pool).await;
+    fresh_pool.close().await;
 
     // Rebuild a database installed before patch 0016.
     for statement in [
@@ -910,8 +939,8 @@ async fn postgres_v1_catalog_rebuilds_the_audit_partition_function_without_split
     assert_runner_succeeded(&output);
     assert_eq!(
         audit_partition_function(&pool).await,
-        baseline,
-        "patch 0016 must converge onto the baseline definition and comment"
+        catalog_head,
+        "patches 0016 and 0021 must converge onto the fresh-install definition and comment"
     );
 
     // The converged function moves a late month's rows on every 19 build,
@@ -987,6 +1016,302 @@ async fn postgres_v1_catalog_refuses_a_drifted_audit_partition_function() {
     assert!(!recorded, "a refused patch must not record its revision");
 
     pool.close().await;
+    databases.cleanup().await;
+}
+
+const PATCH_0021: &str =
+    include_str!("../database/postgres/patches/0021_audit_partition_move_rows.sql");
+
+/// `sql` with every `--` comment stripped, so prose that mentions a statement
+/// cannot satisfy or fail a check on the executable SQL.
+fn sql_code(sql: &str) -> String {
+    sql.lines()
+        .map(|line| line.split("--").next().unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn patch_0021_moves_late_audit_months_without_split_or_the_escape_hatch() {
+    let code = sql_code(PATCH_0021);
+    for reverted in ["SPLIT PARTITION", "MERGE PARTITIONS"] {
+        assert!(
+            !code.contains(reverted),
+            "patch 0021 must not run {reverted}; PostgreSQL 19 Beta 4 and later reject it"
+        );
+    }
+    // A late month detaches the default, creates the month, moves only its
+    // rows and reattaches the default. Every target stays in public because
+    // the function pins pg_catalog first on its search_path.
+    for statement in [
+        "ALTER TABLE public.audit_logs DETACH PARTITION public.audit_logs_default",
+        "CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)",
+        "DELETE FROM public.audit_logs_default",
+        "INSERT INTO public.audit_logs OVERRIDING SYSTEM VALUE",
+        "ALTER TABLE public.audit_logs ATTACH PARTITION public.audit_logs_default DEFAULT",
+    ] {
+        assert!(
+            code.contains(statement),
+            "patch 0021 must run {statement:?}"
+        );
+    }
+    // The append-only escape hatch exists for test-fixture cleanup only; the
+    // new function body must not open it (the COMMENT may name it).
+    let move_start = PATCH_0021
+        .find("$fn_move$")
+        .expect("patch 0021 must carry the new definition")
+        + "$fn_move$".len();
+    let move_end = PATCH_0021[move_start..]
+        .find("$fn_move$")
+        .expect("the new definition must close")
+        + move_start;
+    assert!(
+        !sql_code(&PATCH_0021[move_start..move_end]).contains("allow_audit_mutation"),
+        "ensure_audit_logs_partition must not touch app.allow_audit_mutation"
+    );
+    // The guard expects exactly the definition 0016 installed (and the
+    // baseline still carries), so the two must not drift apart.
+    let rebuild_start = PATCH_0021
+        .find("$fn_rebuild$")
+        .expect("patch 0021 must carry 0016's definition")
+        + "$fn_rebuild$".len();
+    let rebuild_end = PATCH_0021[rebuild_start..]
+        .find("$fn_rebuild$")
+        .expect("0016's definition must close")
+        + rebuild_start;
+    let patch_0016 = std::fs::read_to_string(
+        postgres_dir().join("patches/0016_audit_partition_without_split.sql"),
+    )
+    .expect("read patch 0016");
+    assert!(
+        patch_0016.contains(&format!(
+            "$fn_current${}$fn_current$",
+            &PATCH_0021[rebuild_start..rebuild_end]
+        )),
+        "patch 0021 must guard on exactly the definition patch 0016 installs"
+    );
+}
+
+async fn audit_partition_revision_recorded(pool: &PgPool) -> bool {
+    sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM hotel_schema_revisions WHERE generation = 1 AND version = 21)",
+    )
+    .fetch_one(pool)
+    .await
+    .expect("read patch 0021 revision")
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_moves_late_audit_months_without_rebuilding_the_default() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let fresh = databases.create("audit_move_fresh").await;
+    let fresh_pool = install_v1(&fresh).await;
+    let baseline = audit_partition_function(&fresh_pool).await;
+    assert_runner_succeeded(&run_patches(&fresh, None).await);
+    let catalog_head = audit_partition_function(&fresh_pool).await;
+    assert_ne!(
+        catalog_head, baseline,
+        "patch 0021 must replace the baseline (0016) definition on a fresh install"
+    );
+    assert!(audit_partition_revision_recorded(&fresh_pool).await);
+
+    // A database deployed through patch 0020: 0016's rebuild definition.
+    let database = databases.create("audit_move").await;
+    let pool = install_v1(&database).await;
+    let deployed = TemporaryCatalog::truncated_at(20);
+    assert_runner_succeeded(&run_patches(&database, Some(&deployed.path)).await);
+    assert_eq!(audit_partition_function(&pool).await, baseline);
+    assert!(!audit_partition_revision_recorded(&pool).await);
+
+    let first_run = run_patches(&database, None).await;
+    assert_runner_succeeded(&first_run);
+    assert_eq!(
+        audit_partition_function(&pool).await,
+        catalog_head,
+        "patch 0021 must converge a deployed database onto the fresh-install definition"
+    );
+    assert_eq!(
+        schema_inventory(&database).await,
+        schema_inventory(&fresh).await,
+        "an upgraded database must match a fresh install of the new catalog"
+    );
+    let revisions = revision_snapshot(&pool).await;
+    assert!(
+        revisions
+            .iter()
+            .any(|(version, name, _, _)| *version == 21 && name == "audit-partition-move-rows"),
+        "patch 0021 must record its revision: {revisions:?}"
+    );
+
+    // Re-runs are no-ops: the runner skips the recorded revision, and the
+    // patch body itself accepts its own definition.
+    assert_runner_succeeded(&run_patches(&database, None).await);
+    assert_eq!(revision_snapshot(&pool).await, revisions);
+    sqlx::raw_sql(sqlx::AssertSqlSafe(PATCH_0021))
+        .execute(&pool)
+        .await
+        .expect("re-running patch 0021's body must be a no-op");
+    assert_eq!(audit_partition_function(&pool).await, catalog_head);
+
+    // Rows for months without a partition land in the DEFAULT one. Creating
+    // March late must move the March row only and keep the default table.
+    sqlx::query(
+        r#"
+        INSERT INTO audit_logs (action, resource_type, details, created_at)
+        VALUES ('late_month', 'patch_0021', '{"n":1}', '2098-03-03T00:00:00Z'),
+               ('late_month_end', 'patch_0021', '{"n":2}', '2098-03-31T23:59:59Z'),
+               ('other_month', 'patch_0021', '{"n":3}', '2098-04-01T00:00:00Z')
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("insert audit rows into the DEFAULT partition");
+    let audit_rows = r#"
+        SELECT action::text, tableoid::regclass::text, audit_logs::text
+        FROM audit_logs
+        WHERE resource_type = 'patch_0021'
+        ORDER BY action
+    "#;
+    let default_oid = "SELECT 'public.audit_logs_default'::regclass::oid::bigint";
+    let before: Vec<(String, String, String)> = sqlx::query_as(audit_rows)
+        .fetch_all(&pool)
+        .await
+        .expect("read audit rows before the move");
+    let default_before: i64 = sqlx::query_scalar(default_oid)
+        .fetch_one(&pool)
+        .await
+        .expect("read the DEFAULT partition oid");
+
+    let mut transaction = pool.begin().await.expect("begin");
+    sqlx::query("SELECT public.ensure_audit_logs_partition(DATE '2098-03-01')")
+        .execute(&mut *transaction)
+        .await
+        .expect("create a late audit partition");
+    let escape_hatch: Option<String> =
+        sqlx::query_scalar("SELECT current_setting('app.allow_audit_mutation', true)")
+            .fetch_one(&mut *transaction)
+            .await
+            .expect("read the escape hatch");
+    assert_ne!(
+        escape_hatch.as_deref(),
+        Some("on"),
+        "moving late audit rows must not enable app.allow_audit_mutation"
+    );
+    transaction.commit().await.expect("commit the move");
+    // Idempotent once the month exists and the default is attached again.
+    sqlx::query("SELECT public.ensure_audit_logs_partition(DATE '2098-03-01')")
+        .execute(&pool)
+        .await
+        .expect("re-run for an existing month");
+
+    let after: Vec<(String, String, String)> = sqlx::query_as(audit_rows)
+        .fetch_all(&pool)
+        .await
+        .expect("read audit rows after the move");
+    assert_eq!(
+        after
+            .iter()
+            .map(|(action, partition, _)| (action.as_str(), partition.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            ("late_month", "audit_logs_2098_03"),
+            ("late_month_end", "audit_logs_2098_03"),
+            ("other_month", "audit_logs_default"),
+        ]
+    );
+    // Every column value, id and created_at included, survives the move.
+    assert_eq!(
+        after.iter().map(|(_, _, row)| row).collect::<Vec<_>>(),
+        before.iter().map(|(_, _, row)| row).collect::<Vec<_>>()
+    );
+    // The default is detached and reattached, not dropped and rebuilt (0016).
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(default_oid)
+            .fetch_one(&pool)
+            .await
+            .expect("read the DEFAULT partition oid"),
+        default_before
+    );
+    let default_bound: String = sqlx::query_scalar(
+        "SELECT pg_get_expr(relpartbound, oid) FROM pg_class \
+         WHERE oid = 'public.audit_logs_default'::regclass AND relispartition",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the DEFAULT partition must be attached again");
+    assert_eq!(default_bound, "DEFAULT");
+
+    // audit_logs stays append-only after the move.
+    for statement in [
+        "UPDATE audit_logs SET action = 'tampered' WHERE resource_type = 'patch_0021'",
+        "DELETE FROM audit_logs WHERE resource_type = 'patch_0021'",
+    ] {
+        let error = sqlx::query(statement)
+            .execute(&pool)
+            .await
+            .expect_err("audit_logs must refuse UPDATE and DELETE after the move");
+        assert!(
+            error.to_string().contains("append-only"),
+            "unexpected error for {statement}: {error}"
+        );
+    }
+    let moved_rows: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM audit_logs WHERE resource_type = 'patch_0021'")
+            .fetch_one(&pool)
+            .await
+            .expect("count audit rows");
+    assert_eq!(moved_rows, 3);
+
+    pool.close().await;
+    fresh_pool.close().await;
+    drop(deployed);
+    databases.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_refuses_an_unexpected_audit_partition_function_before_0021() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let database = databases.create("audit_move_drift").await;
+    let pool = install_v1(&database).await;
+    let deployed = TemporaryCatalog::truncated_at(20);
+    assert_runner_succeeded(&run_patches(&database, Some(&deployed.path)).await);
+
+    sqlx::raw_sql(
+        r#"
+        CREATE OR REPLACE FUNCTION public.ensure_audit_logs_partition(p_month date)
+        RETURNS void LANGUAGE plpgsql SET search_path TO 'pg_catalog', 'public'
+        AS $$ BEGIN NULL; END; $$;
+        COMMENT ON FUNCTION public.ensure_audit_logs_partition(date) IS 'drifted';
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("install a drifted audit partition function");
+    let drifted = audit_partition_function(&pool).await;
+
+    let output = run_patches(&database, None).await;
+    assert_runner_failed_with(
+        &output,
+        "ensure_audit_logs_partition(date) has incompatible definition",
+    );
+    assert!(
+        !audit_partition_revision_recorded(&pool).await,
+        "a refused patch 0021 must not record its revision"
+    );
+    assert_eq!(
+        audit_partition_function(&pool).await,
+        drifted,
+        "a refused patch 0021 must roll back completely, comment included"
+    );
+
+    pool.close().await;
+    drop(deployed);
     databases.cleanup().await;
 }
 

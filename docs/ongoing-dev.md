@@ -30,7 +30,8 @@ notes are in `git log -- docs/ongoing-dev.md`.
     SQL/PGQ and `ALTER TABLE … SPLIT/MERGE PARTITION`, and the RC (planned
     early October 2026) and GA (possibly October 2026) follow. Two patches
     remove both dependencies: 0015 drops the `hotel_graph` property graph, and
-    0016 rebuilds late audit partitions without `SPLIT PARTITION`.
+    0016 rebuilds late audit partitions without `SPLIT PARTITION` (0021, 2026-10-12,
+    now moves only the late month's rows instead of rebuilding the default).
   - **Before the dump:** both patches must be applied **while a database is
     still on 19beta3**. Done for production and staging: the 2026-10-06 deploys
     (runs 37440989198 and 37440989404) found 1.15 already recorded and applied

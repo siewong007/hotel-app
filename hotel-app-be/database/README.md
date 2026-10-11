@@ -47,7 +47,7 @@ was folded into the baseline and the catalog republished from empty. Since
 then it has grown again, one converge-style patch at a time. A fresh install
 records revision 1 plus one row per manifest entry. The manifest is the only
 list; read it rather than repeating it (`grep -vc '^#' patches/manifest.tsv`
-counts the entries). As of 2026-10-06 it runs from version 2 to 16.
+counts the entries). As of 2026-10-12 it runs from version 2 to 21.
 A database that still records the pre-fold 1.2+ lineage aborts on a
 checksum-mismatch guard; the one-time lineage reset runbook is in
 `docs/guides/deployment.md`. An empty catalog is also valid state: the
@@ -82,6 +82,13 @@ additive change (new nullable column, new index, new bootstrap row) needs a
 second home: **the baseline for fresh installs, and a catalog patch for installed
 databases.** Both, every time — a baseline-only change silently skips every live
 database, and a patch-only change silently skips every fresh install.
+
+One exception: an object that an earlier, already-deployed patch guards by exact
+definition. Patches run on fresh installs too, so the baseline must keep that
+patch's definition or the patch refuses every new install; the newer definition
+then ships only as a later guarded patch, which converges fresh and installed
+databases alike. `ensure_audit_logs_partition` is the case today: the baseline
+keeps patch 0016's body and patch 0021 replaces it everywhere.
 
 `tests/status_vocabulary.rs::postgres_initialization_has_baseline_seed_and_ordered_patches`
 pins the install set to baseline, seed and `patches/`; there is no `upgrade/` or
