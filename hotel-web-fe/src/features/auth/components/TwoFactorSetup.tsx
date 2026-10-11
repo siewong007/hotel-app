@@ -33,6 +33,12 @@ import {
   useRegenerateBackupCodes,
 } from '../hooks/useTwoFactorQueries';
 import { errorMessage } from '../../../utils/errorMessage';
+import {
+  BACKUP_CODE_LENGTH,
+  isCompleteTotpCode,
+  sanitizeTotpCode,
+  TOTP_CODE_LENGTH,
+} from '../utils/twoFactorCode';
 import { useTranslation } from '../../../i18n';
 import { statusLabel } from '../../../i18n/statusLabel';
 import { useIsPhone } from '../../../hooks/useIsPhone';
@@ -400,8 +406,31 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
             fullWidth
             label={t('twoFactorSetup.disableCodeLabel')}
             value={disableCode}
-            onChange={(e) => setDisableCode(e.target.value)}
+            // An authenticator code or a backup code: digits, hex letters and
+            // hyphens only, uppercased the way the codes are printed.
+            onChange={(e) =>
+              setDisableCode(e.target.value.toUpperCase().replace(/[^0-9A-F-]/g, '').slice(0, BACKUP_CODE_LENGTH))
+            }
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && disableCode.trim() && !loading) {
+                e.preventDefault();
+                void handleDisable2FA();
+              }
+            }}
+            autoFocus
             sx={{ mb: 1 }}
+            slotProps={{
+              htmlInput: {
+                name: 'one-time-code',
+                autoComplete: 'one-time-code',
+                inputMode: 'text',
+                autoCapitalize: 'characters',
+                autoCorrect: 'off',
+                spellCheck: false,
+                maxLength: BACKUP_CODE_LENGTH,
+                style: { fontSize: '16px', letterSpacing: '1px', fontVariantNumeric: 'tabular-nums' },
+              },
+            }}
           />
           <Typography variant="body2" sx={{
             color: "text.secondary"
@@ -432,8 +461,28 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
             fullWidth
             label={t('twoFactorSetup.regenerateCodeLabel')}
             value={regenerateCode}
-            onChange={(e) => setRegenerateCode(e.target.value)}
+            // Regenerating takes an authenticator code only (a backup code
+            // could be the last one), so this is the numeric keypad.
+            onChange={(e) => setRegenerateCode(sanitizeTotpCode(e.target.value))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && isCompleteTotpCode(regenerateCode) && !loading) {
+                e.preventDefault();
+                void handleRegenerateCodes();
+              }
+            }}
+            autoFocus
+            placeholder="000000"
             sx={{ mb: 2 }}
+            slotProps={{
+              htmlInput: {
+                name: 'one-time-code',
+                autoComplete: 'one-time-code',
+                inputMode: 'numeric',
+                pattern: '[0-9]*',
+                maxLength: TOTP_CODE_LENGTH,
+                style: { fontSize: '20px', letterSpacing: '6px', fontVariantNumeric: 'tabular-nums' },
+              },
+            }}
           />
 
           {newBackupCodes.length > 0 && (
@@ -474,7 +523,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
           <Button
             onClick={handleRegenerateCodes}
             variant="contained"
-            disabled={!regenerateCode.trim() || loading}
+            disabled={!isCompleteTotpCode(regenerateCode) || loading}
           >
             {newBackupCodes.length > 0 ? t('common:actions.close') : t('twoFactorSetup.generateNewCodes')}
           </Button>

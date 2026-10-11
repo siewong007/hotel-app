@@ -15,6 +15,10 @@ use chrono::{DateTime, Utc};
 
 pub struct AuthRepository;
 
+/// `two_factor_challenges.purpose` for the token that carries a verified
+/// password into the sign-in second-factor step.
+pub const LOGIN_MFA_PURPOSE: &str = "login_mfa";
+
 /// Consent evidence required to insert a new Google guest account.
 pub struct NewGoogleAccountConsent<'a> {
     pub consents: &'a [ConsentAcceptance],
@@ -218,6 +222,83 @@ impl AuthRepository {
             .bind(user_id)
             .fetch_one(pool)
             .await
+            .map_err(ApiError::from)
+    }
+
+    /// Store the hash of a sign-in second-factor token. One live token per
+    /// user (the table's `(user_id, purpose)` key): asking for a new one
+    /// replaces the previous, so a user can hold at most one at a time.
+    pub async fn upsert_login_mfa_challenge(
+        pool: &DbPool,
+        user_id: i64,
+        token_hash: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), ApiError> {
+        sqlx::query(
+            "INSERT INTO two_factor_challenges (user_id, challenge_code, purpose, expires_at) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (user_id, purpose) DO UPDATE SET \
+                 challenge_code = EXCLUDED.challenge_code, \
+                 expires_at = EXCLUDED.expires_at, \
+                 created_at = CURRENT_TIMESTAMP",
+        )
+        .bind(user_id)
+        .bind(token_hash)
+        .bind(LOGIN_MFA_PURPOSE)
+        .bind(expires_at)
+        .execute(pool)
+        .await
+        .map(|_| ())
+        .map_err(ApiError::from)
+    }
+
+    /// The user a live (unexpired, unspent) sign-in second-factor token was
+    /// issued to. Read-only: starting a passkey ceremony does not spend it.
+    pub async fn find_login_mfa_user(
+        pool: &DbPool,
+        token_hash: &str,
+    ) -> Result<Option<i64>, ApiError> {
+        sqlx::query_scalar(
+            "SELECT user_id FROM two_factor_challenges \
+             WHERE purpose = $1 AND challenge_code = $2 AND expires_at > CURRENT_TIMESTAMP",
+        )
+        .bind(LOGIN_MFA_PURPOSE)
+        .bind(token_hash)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)
+    }
+
+    /// Spend a sign-in second-factor token. One conditional DELETE, so of two
+    /// racing finishes exactly one sees `true`.
+    pub async fn consume_login_mfa_challenge(
+        pool: &DbPool,
+        user_id: i64,
+        token_hash: &str,
+    ) -> Result<bool, ApiError> {
+        sqlx::query(
+            "DELETE FROM two_factor_challenges \
+             WHERE user_id = $1 AND purpose = $2 AND challenge_code = $3 \
+               AND expires_at > CURRENT_TIMESTAMP",
+        )
+        .bind(user_id)
+        .bind(LOGIN_MFA_PURPOSE)
+        .bind(token_hash)
+        .execute(pool)
+        .await
+        .map(|result| result.rows_affected() == 1)
+        .map_err(ApiError::from)
+    }
+
+    /// Drop any outstanding sign-in second-factor token for a user — called
+    /// once a sign-in completes by another route (authenticator or backup code).
+    pub async fn clear_login_mfa_challenge(pool: &DbPool, user_id: i64) -> Result<(), ApiError> {
+        sqlx::query("DELETE FROM two_factor_challenges WHERE user_id = $1 AND purpose = $2")
+            .bind(user_id)
+            .bind(LOGIN_MFA_PURPOSE)
+            .execute(pool)
+            .await
+            .map(|_| ())
             .map_err(ApiError::from)
     }
 

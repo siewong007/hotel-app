@@ -125,6 +125,58 @@ html, body, #root {
   .auth-heading h1 { font-size: 2.75rem !important; }
 }
 
+/* Sign-in second factor (features/auth/components/twoFactor). Desktop: a
+   focused ~440px card. Phones: the card is the screen, edge to edge inside the
+   safe areas, with the primary action in a footer that rides above the
+   on-screen keyboard (--keyboard-inset comes from useKeyboardInset). */
+.auth-page--2fa .auth-container { max-width: 440px !important; }
+.two-factor-card { padding: 40px !important; }
+.two-factor-card .auth-heading h1 { font-size: 2.25rem; line-height: 1.15; overflow-wrap: anywhere; }
+.two-factor__actions { margin-top: 24px; }
+.auth-card .otp-code input:focus-visible { outline: none; }
+
+@media (max-width: 600px) {
+  .auth-page--2fa {
+    padding: 0;
+    align-items: stretch;
+  }
+  .auth-page--2fa .auth-container {
+    max-width: none !important;
+    padding: 0 !important;
+    display: flex;
+    flex-direction: column;
+  }
+  .auth-page--2fa .two-factor-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    border-radius: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding:
+      max(16px, env(safe-area-inset-top))
+      max(20px, env(safe-area-inset-right))
+      0
+      max(20px, env(safe-area-inset-left)) !important;
+  }
+  @supports (min-height: 100dvh) {
+    .auth-page--2fa .two-factor-card { min-height: 100dvh; }
+  }
+  .auth-page--2fa .auth-heading h1 { font-size: 1.625rem !important; letter-spacing: -.02em !important; }
+  .two-factor__form { flex: 1; display: flex; flex-direction: column; }
+  .two-factor__body { flex: 1; }
+  .two-factor__actions {
+    position: sticky;
+    bottom: var(--keyboard-inset, 0px);
+    z-index: 1;
+    margin: 16px -20px 0;
+    padding: 12px 20px max(16px, var(--sab, env(safe-area-inset-bottom)));
+    background: var(--hotel-surface-overlay, #1C222C);
+    border-top: 1px solid var(--hotel-border-subtle, #202733);
+  }
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
