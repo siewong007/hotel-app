@@ -17,6 +17,8 @@ const SQL: &str = r#"
 -- audit_logs is partitioned by month — ensure partitions exist first.
 SELECT public.ensure_audit_logs_partition(date_trunc('month', (SELECT today FROM staging_ref))::date);
 SELECT public.ensure_audit_logs_partition(date_trunc('month', (SELECT today FROM staging_ref) - interval '1 month')::date);
+-- Statement triggers are not cloned to partitions: give any new one its TRUNCATE guard.
+SELECT public.ensure_audit_logs_truncate_guards();
 
 INSERT INTO public.audit_logs (id, user_id, action, resource_type, resource_id, details, ip_address, user_agent, created_at)
 OVERRIDING SYSTEM VALUE
