@@ -19,4 +19,7 @@ export interface CheckoutPaymentRecord {
    * landed after the payment's own day was closed; null otherwise.
    */
   void_reversal_date?: string | null;
+  /** Staff who approved this guest payment claim, and when. */
+  approved_by_name?: string | null;
+  approved_at?: string | null;
 }

@@ -2359,6 +2359,7 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:checkout.actions.printInvoice` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.actions.printPreview` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.actions.proceed` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
+- `finance:checkout.approvedBy` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.billBalance.line` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.billBalance.outstanding` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`
 - `finance:checkout.billBalance.paid` — `src/features/invoices/components/CheckoutInvoiceModal.tsx`

@@ -283,6 +283,12 @@ pub struct PaymentEntryRow {
     /// landed after the night audit closed the payment's own day.
     #[sqlx(default)]
     pub void_reversal_date: Option<chrono::NaiveDate>,
+    /// Staff who approved this payment claim (bank transfer / receipt
+    /// review) and when — from the `payment_approved` audit row.
+    #[sqlx(default)]
+    pub approved_by_name: Option<String>,
+    #[sqlx(default)]
+    pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl PaymentEntryRow {
@@ -302,6 +308,8 @@ impl PaymentEntryRow {
             "voided_at": self.voided_at,
             "voided_by_name": self.voided_by_name,
             "void_reversal_date": self.void_reversal_date,
+            "approved_by_name": self.approved_by_name,
+            "approved_at": self.approved_at,
         })
     }
 }

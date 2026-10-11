@@ -104,6 +104,7 @@
     "tourismTax": "旅游税",
     "tourismTaxDay": "旅游税 — {{date}}",
     "saveRates": "保存房价",
+    "approvedBy": "由 {{name}} 批准 · {{at}}",
     "voidPayment": "作废付款",
     "voided": {
       "heading": "已作废付款",

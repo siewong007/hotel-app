@@ -104,6 +104,7 @@
     "tourismTax": "Cukai Pelancongan",
     "tourismTaxDay": "Cukai Pelancongan — {{date}}",
     "saveRates": "Simpan Kadar",
+    "approvedBy": "Diluluskan oleh {{name}} · {{at}}",
     "voidPayment": "Batalkan bayaran",
     "voided": {
       "heading": "Bayaran dibatalkan",

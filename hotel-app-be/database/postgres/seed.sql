@@ -528,7 +528,7 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('payments:create', 'payments', 'create', 'Process payments', true),
 ('payments:read', 'payments', 'read', 'View payment information', true),
 ('payments:update', 'payments', 'update', 'Update payments', true),
-('payments:delete', 'payments', 'delete', 'Delete payment records', true),
+('payments:delete', 'payments', 'delete', 'Void payments (reason required; the record is kept and audited)', true),
 ('payments:refund', 'payments', 'refund', 'Refund and revert deposit payments', true),
 ('payments:manage', 'payments', 'manage', 'Full payment management', true),
 ('ledgers:read', 'ledgers', 'read', 'View customer ledger entries and payments', true),
@@ -640,7 +640,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'receptio
     'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'navigation_housekeeping:read',
     'support:read', 'support:write', 'support:assign', 'support:escalate', 'navigation_support:read',
     'guests:create', 'guests:read', 'guests:update', 'guests:manage', 'payments:create', 'payments:read',
-    'payments:update', 'payments:refund',
+    'payments:update', 'payments:refund', 'payments:delete', 'payments:approve',
     'ledgers:read', 'ledgers:create', 'companies:read', 'companies:create',
     'services:read', 'services:create', 'reviews:read', 'settings:read',
     'analytics:read', 'reports:execute', 'teams:read'

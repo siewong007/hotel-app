@@ -985,9 +985,9 @@ pub async fn update_payment(
 /// auditable. A staff reason is mandatory; it is stored on the row with the
 /// actor and time, and the audit row (with the full pre-void snapshot) is
 /// written in the same transaction, so a void without its audit trail
-/// cannot commit. Voiding a `completed` payment additionally requires
-/// `payments:manage` — pending/failed rows stay on the route's
-/// `payments:delete` gate. When the night audit has already closed the
+/// cannot commit. Every void — posted payments included — is gated by the
+/// route's `payments:delete` ("Void payments"); only un-forfeiting a
+/// `deposit_forfeited` row additionally needs `payments:manage`. When the night audit has already closed the
 /// payment's own day, that day keeps its line and the void posts as a
 /// reversing line on the first open business date (`void_reversal_date`).
 pub async fn delete_payment(
@@ -998,7 +998,7 @@ pub async fn delete_payment(
 ) -> Result<serde_json::Value, ApiError> {
     let reason = required_staff_reason(reason, "A void reason")?;
     let booking_id = PaymentRepository::payment_booking_id(pool, payment_id).await?;
-    let can_void_completed =
+    let can_unforfeit =
         crate::core::auth::AuthService::check_permission(pool, user_id, "payments:manage")
             .await
             .unwrap_or(false);
@@ -1010,7 +1010,7 @@ pub async fn delete_payment(
         booking_id,
         payment_id,
         user_id,
-        can_void_completed,
+        can_unforfeit,
         &reason,
     )
     .await?;
