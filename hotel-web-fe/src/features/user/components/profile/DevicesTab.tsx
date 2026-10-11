@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Card, CardContent, Chip, IconButton, Typography } from '@mui/material';
 import { Devices as DevicesIcon, Logout as LogoutIcon } from '@mui/icons-material';
 import type { UserSessionInfo } from '../../../../types';
-import { DeviceIcon, detectDeviceType } from './deviceIcons';
+import { DeviceIcon, describeSessionDevice } from './deviceIcons';
 import { sessionActivityLine } from './sessionLocation';
 import { useTranslation } from '../../../../i18n';
 
@@ -50,14 +50,18 @@ const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => {
                 }}
               >
                 <Box sx={{ flexShrink: 0 }}>
-                  <DeviceIcon deviceName={session.user_agent || ''} size={32} />
+                  <DeviceIcon
+                    deviceName={session.user_agent || ''}
+                    config={describeSessionDevice(session.user_agent)}
+                    size={32}
+                  />
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Box
                     sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1, rowGap: 0.5 }}
                   >
                     <Typography component="span" sx={{ fontWeight: 600 }}>
-                      {detectDeviceType(session.user_agent || '').label}
+                      {describeSessionDevice(session.user_agent).label}
                     </Typography>
                     {session.is_current && (
                       <Chip label={t('devices.current')} size="small" color="success" />

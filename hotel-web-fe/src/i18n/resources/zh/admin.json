@@ -590,7 +590,8 @@
       "email_delivery_worker": "邮件投递工作进程",
       "email_campaigns": "邮件活动",
       "birthday_vouchers": "生日券",
-      "pre_arrival_reminders": "到店前提醒"
+      "pre_arrival_reminders": "到店前提醒",
+      "session_retention": "会话清理"
     },
     "col": {
       "job": "任务",
@@ -922,7 +923,8 @@
         "email_delivery_worker": "邮件投递任务",
         "email_campaigns": "邮件营销",
         "birthday_vouchers": "生日代金券",
-        "pre_arrival_reminders": "到店前提醒"
+        "pre_arrival_reminders": "到店前提醒",
+        "session_retention": "会话清理"
       }
     },
     "health": {

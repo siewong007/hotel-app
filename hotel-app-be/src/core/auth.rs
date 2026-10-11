@@ -509,22 +509,34 @@ impl AuthService {
             == 1)
     }
 
-    /// Revokes a refresh token
-    pub async fn revoke_refresh_token(pool: &DbPool, token: &str) -> Result<(), sqlx::Error> {
+    /// Revokes a refresh token. Returns `(user_id, session_id)` when this call
+    /// ended a live session, `None` when the token was unknown or already
+    /// revoked — an already-revoked row keeps its original `revoked_at`, so a
+    /// replayed sign-out cannot restart its retention clock.
+    pub async fn revoke_refresh_token(
+        pool: &DbPool,
+        token: &str,
+    ) -> Result<Option<(i64, String)>, sqlx::Error> {
         let token_hash = Self::hash_refresh_token(token);
 
-        sqlx::query(
+        let row = sqlx::query(
             r#"
             UPDATE refresh_tokens
             SET is_revoked = true, revoked_at = CURRENT_TIMESTAMP
-            WHERE token_hash = $1
+            WHERE token_hash = $1 AND revoked_at IS NULL AND is_revoked = false
+            RETURNING user_id, id::text AS session_id
             "#,
         )
         .bind(token_hash)
-        .execute(pool)
+        .fetch_optional(pool)
         .await?;
 
-        Ok(())
+        Ok(row.map(|row| {
+            (
+                sqlx::Row::try_get::<i64, _>(&row, "user_id").unwrap_or_default(),
+                sqlx::Row::try_get::<String, _>(&row, "session_id").unwrap_or_default(),
+            )
+        }))
     }
 
     /// Revokes all refresh tokens for a user

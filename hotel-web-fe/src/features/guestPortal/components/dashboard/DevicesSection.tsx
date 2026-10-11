@@ -21,7 +21,7 @@ import {
   useRevokeSessionMutation,
   useSessionsQuery,
 } from '../../../user/hooks/useProfileQueries';
-import { DeviceIcon, detectDeviceType } from '../../../user/components/profile/deviceIcons';
+import { DeviceIcon, describeSessionDevice } from '../../../user/components/profile/deviceIcons';
 import { sessionActivityLine } from '../../../user/components/profile/sessionLocation';
 import { ErrorState } from './PortalDashboardSections';
 
@@ -40,7 +40,7 @@ function DeviceRow({
   revoking: boolean;
 }) {
   const { t } = useTranslation('guestPortal');
-  const device = detectDeviceType(session.user_agent || '');
+  const device = describeSessionDevice(session.user_agent);
   return (
     <Box
       component="li"
@@ -53,7 +53,7 @@ function DeviceRow({
         flexWrap: { xs: 'wrap', sm: 'nowrap' },
       }}
     >
-      <DeviceIcon deviceName={session.user_agent || ''} size={42} />
+      <DeviceIcon deviceName={session.user_agent || ''} config={device} size={42} />
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Typography sx={{ color: 'var(--hotel-text)', fontWeight: 600 }}>{device.label}</Typography>

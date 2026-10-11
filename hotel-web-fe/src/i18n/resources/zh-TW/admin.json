@@ -590,7 +590,8 @@
       "email_delivery_worker": "郵件投遞工作器",
       "email_campaigns": "郵件行銷活動",
       "birthday_vouchers": "生日優惠券",
-      "pre_arrival_reminders": "抵達前提醒"
+      "pre_arrival_reminders": "抵達前提醒",
+      "session_retention": "工作階段清理"
     },
     "col": {
       "job": "工作",
@@ -923,7 +924,8 @@
         "email_delivery_worker": "郵件投遞工作器",
         "email_campaigns": "郵件行銷活動",
         "birthday_vouchers": "生日優惠券",
-        "pre_arrival_reminders": "抵達前提醒"
+        "pre_arrival_reminders": "抵達前提醒",
+        "session_retention": "工作階段清理"
       }
     },
     "health": {

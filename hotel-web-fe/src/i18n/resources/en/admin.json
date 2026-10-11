@@ -596,7 +596,8 @@
       "email_delivery_worker": "Email Delivery Worker",
       "email_campaigns": "Email Campaigns",
       "birthday_vouchers": "Birthday Vouchers",
-      "pre_arrival_reminders": "Pre-arrival Reminders"
+      "pre_arrival_reminders": "Pre-arrival Reminders",
+      "session_retention": "Session Cleanup"
     },
     "col": {
       "job": "Job",
@@ -943,7 +944,8 @@
         "email_delivery_worker": "Email Delivery Worker",
         "email_campaigns": "Email Campaigns",
         "birthday_vouchers": "Birthday Vouchers",
-        "pre_arrival_reminders": "Pre-arrival Reminders"
+        "pre_arrival_reminders": "Pre-arrival Reminders",
+        "session_retention": "Session Cleanup"
       }
     },
     "health": {

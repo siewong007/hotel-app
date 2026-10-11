@@ -559,6 +559,16 @@ pub(crate) async fn issue_authenticated_response(
     )
     .await
     .map_err(|error| ApiError::Database(format!("Failed to store refresh token: {error}")))?;
+    // Keep the account under its live-session cap: scripts and test runs that
+    // sign in without signing out otherwise pile up hundreds of sessions.
+    super::session_retention::apply_cap_after_sign_in(
+        pool,
+        user.id,
+        &session_id,
+        ip_address,
+        user_agent,
+    )
+    .await;
     let access_token = AuthService::generate_session_jwt(
         user.id,
         user.username.clone(),
@@ -693,13 +703,38 @@ pub async fn refresh_token(
     })
 }
 
-pub async fn logout(pool: &DbPool, req: RefreshTokenRequest) -> Result<(), ApiError> {
+pub async fn logout(
+    pool: &DbPool,
+    req: RefreshTokenRequest,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+) -> Result<(), ApiError> {
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
-    AuthService::revoke_refresh_token(pool, &req.refresh_token)
+    let revoked = AuthService::revoke_refresh_token(pool, &req.refresh_token)
         .await
-        .map_err(|e| ApiError::Database(format!("Failed to revoke token: {}", e)))
+        .map_err(|e| ApiError::Database(format!("Failed to revoke token: {}", e)))?;
+
+    // Sign-outs were the one half of the session lifecycle with no audit row.
+    // Only a sign-out that actually ended a live session is recorded, so a
+    // replayed or stale cookie does not write a misleading entry.
+    if let Some((user_id, session_id)) = revoked {
+        let _ = AuditLog::log_event(
+            pool,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "logout",
+                resource_type: "user",
+                resource_id: Some(user_id),
+                details: Some(json!({ "session_id": session_id })),
+                ip_address: ip_address.map(str::to_string),
+                user_agent: user_agent.map(str::to_string),
+            },
+        )
+        .await;
+    }
+    Ok(())
 }
 
 pub async fn register(

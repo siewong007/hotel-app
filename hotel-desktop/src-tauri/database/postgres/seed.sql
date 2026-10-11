@@ -231,6 +231,10 @@ VALUES
     ('require_two_factor_roles'),
     ('service_tax_rate'),
     ('session_timeout'),
+    ('session_idle_days'),
+    ('session_max_active_per_user'),
+    ('session_purge_expired_days'),
+    ('session_purge_revoked_days'),
     ('support_categories'),
     ('support_enabled'),
     ('support_first_response_high_minutes'),
@@ -908,6 +912,13 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('default_payment_terms_days', '30', 'number', 'ledger', 'Default ledger due-date offset in days when a company has no payment terms', false),
 ('max_login_attempts', '5', 'number', 'security', 'Maximum failed login attempts before lockout', false),
 ('session_timeout', '3600', 'number', 'security', 'Session timeout in seconds', false),
+-- Session retention (patch 0017): the hourly sweep deletes sessions expired or
+-- revoked longer ago than these, and sign-in trims an account to the cap.
+-- 0 switches a policy off.
+('session_purge_expired_days', '7', 'number', 'security', 'Days an expired sign-in session is kept before it is deleted automatically. 0 keeps expired sessions forever.', false),
+('session_purge_revoked_days', '7', 'number', 'security', 'Days a signed-out or revoked session is kept before it is deleted automatically. 0 keeps them forever.', false),
+('session_max_active_per_user', '10', 'number', 'security', 'Most signed-in devices one account may have. Signing in on another device signs out the least recently used one. 0 means no limit.', false),
+('session_idle_days', '0', 'number', 'security', 'Days without activity after which a signed-in device is signed out automatically. 0 turns this off (sessions still expire 30 days after their last use).', false),
 ('enable_2fa', 'false', 'boolean', 'security', 'Enable two-factor authentication', false),
 ('enable_email_verification', 'true', 'boolean', 'security', 'Require email verification', false),
 -- Both ship EMPTY, which means "use hotel_name". They used to ship the product

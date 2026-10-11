@@ -374,14 +374,20 @@ async fn main() {
         |p| async move { modules::communications::scheduler::run(p).await },
     );
 
-    // Prune stale rate-limit buckets. Fixed windows leave one row per bucket
-    // per window; two hours of retention covers the longest configured window
-    // (15 min) with headroom.
+    // Housekeeping loop, one lock and one pinned connection for both jobs:
+    // * prune stale rate-limit buckets every 10 minutes. Fixed windows leave
+    //   one row per bucket per window; two hours of retention covers the
+    //   longest configured window (15 min) with headroom.
+    // * hourly session retention: hard-delete signed-in sessions that expired
+    //   or were revoked more than `session_purge_*_days` ago, and revoke idle
+    //   ones when `session_idle_days` is set (see `session_retention`).
     core::leader::spawn_exclusive(
-        "rate_limit_prune",
-        core::leader::LOCK_RATE_LIMIT_PRUNE,
+        "maintenance",
+        core::leader::LOCK_MAINTENANCE,
         pool.clone(),
         |p| async move {
+            const PRUNE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(600);
+            let mut last_session_sweep: Option<std::time::Instant> = None;
             loop {
                 if let Err(e) = sqlx::query(
                     "DELETE FROM rate_limit_buckets WHERE window_start < CURRENT_TIMESTAMP - interval '2 hours'",
@@ -391,7 +397,13 @@ async fn main() {
                 {
                     log::warn!("rate-limit bucket prune failed: {e}");
                 }
-                tokio::time::sleep(std::time::Duration::from_secs(600)).await;
+                if last_session_sweep.is_none_or(|at| {
+                    at.elapsed() >= modules::auth::session_retention::PURGE_INTERVAL
+                }) {
+                    modules::auth::session_retention::run_once(&p).await;
+                    last_session_sweep = Some(std::time::Instant::now());
+                }
+                tokio::time::sleep(PRUNE_INTERVAL).await;
             }
         },
     );

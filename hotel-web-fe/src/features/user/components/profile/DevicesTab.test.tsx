@@ -33,6 +33,26 @@ describe('DevicesTab', () => {
     expect(onRevoke).toHaveBeenCalledWith(other);
   });
 
+  it('names each session by browser and operating system', () => {
+    render(
+      <DevicesTab
+        sessions={[
+          session({
+            id: 's-win',
+            user_agent:
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+          }),
+          session({ id: 's-curl', user_agent: 'curl/8.14.1' }),
+        ]}
+        onRevoke={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Chrome on Windows')).toBeTruthy();
+    expect(screen.getByText('Automated / API client')).toBeTruthy();
+    expect(screen.queryByText('Device')).toBeNull();
+  });
+
   it('shows the empty message when there are no sessions', () => {
     render(<DevicesTab sessions={[]} onRevoke={vi.fn()} />);
     expect(screen.getByText('No active sessions found.')).toBeTruthy();

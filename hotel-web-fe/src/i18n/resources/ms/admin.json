@@ -590,7 +590,8 @@
       "email_delivery_worker": "Pekerja Penghantaran E-mel",
       "email_campaigns": "Kempen E-mel",
       "birthday_vouchers": "Baucar Hari Lahir",
-      "pre_arrival_reminders": "Peringatan Pra-ketibaan"
+      "pre_arrival_reminders": "Peringatan Pra-ketibaan",
+      "session_retention": "Pembersihan Sesi"
     },
     "col": {
       "job": "Tugasan",
@@ -922,7 +923,8 @@
         "email_delivery_worker": "Pekerja Penghantaran E-mel",
         "email_campaigns": "Kempen E-mel",
         "birthday_vouchers": "Baucar Hari Lahir",
-        "pre_arrival_reminders": "Peringatan Pra-ketibaan"
+        "pre_arrival_reminders": "Peringatan Pra-ketibaan",
+        "session_retention": "Pembersihan Sesi"
       }
     },
     "health": {
