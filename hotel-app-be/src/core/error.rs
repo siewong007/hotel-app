@@ -7,6 +7,40 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 
+/// A bearer secret carried on an error (the sign-in `mfa_token`). `Debug`
+/// prints `[redacted]`, so `{:?}` on an `ApiError` (tracing, panics, test
+/// failures) never writes the token to a log; only the response body has it.
+#[derive(Clone, PartialEq, Eq)]
+pub struct SecretToken(String);
+
+impl SecretToken {
+    pub fn new(token: impl Into<String>) -> Self {
+        Self(token.into())
+    }
+
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<String> for SecretToken {
+    fn from(token: String) -> Self {
+        Self(token)
+    }
+}
+
+impl From<&str> for SecretToken {
+    fn from(token: &str) -> Self {
+        Self(token.to_owned())
+    }
+}
+
+impl std::fmt::Debug for SecretToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[redacted]")
+    }
+}
+
 tokio::task_local! {
     /// Correlation id of the in-flight request, set by the outermost
     /// application middleware (`record_request_metrics` in `routes/mod.rs`).
@@ -68,7 +102,7 @@ pub enum ApiError {
     /// The message keeps the historical "2FA required" text so a cached
     /// client that still matches it keeps working.
     TwoFactorRequired {
-        mfa_token: String,
+        mfa_token: SecretToken,
         available_methods: Vec<String>,
     },
     /// The submitted second factor (authenticator or backup code) was wrong.
@@ -314,7 +348,7 @@ impl IntoResponse for ApiError {
             available_methods,
         } = &self
         {
-            body["mfa_token"] = serde_json::json!(mfa_token);
+            body["mfa_token"] = serde_json::json!(mfa_token.expose());
             body["available_methods"] = serde_json::json!(available_methods);
         }
         if let ApiError::TwoFactorInvalid { attempts_remaining } = &self {
@@ -516,6 +550,17 @@ mod tests {
         );
         // A cached client still matches on this text.
         assert!(json["error"].as_str().unwrap().contains("2FA required"));
+    }
+
+    #[test]
+    fn two_factor_required_debug_never_prints_the_token() {
+        let error = ApiError::TwoFactorRequired {
+            mfa_token: "opaque-secret".into(),
+            available_methods: vec!["totp".into()],
+        };
+        let debug = format!("{error:?}");
+        assert!(!debug.contains("opaque-secret"), "{debug}");
+        assert!(debug.contains("[redacted]"), "{debug}");
     }
 
     #[tokio::test]

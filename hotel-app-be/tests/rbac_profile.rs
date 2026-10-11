@@ -1359,11 +1359,24 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
     // advertise the recovery-code option.
     let missing = auth_service::login(&pool, login_req(None), None, None, None).await;
     match missing {
-        Err(ApiError::Unauthorized(message)) => assert!(
-            message.contains("recovery code"),
-            "the 2FA-required error must mention recovery codes, got {message:?}"
-        ),
-        other => panic!("login without a 2FA code must be Unauthorized, got {other:?}"),
+        Err(
+            ref error @ ApiError::TwoFactorRequired {
+                ref available_methods,
+                ..
+            },
+        ) => {
+            assert!(
+                available_methods
+                    .iter()
+                    .any(|method| method == "backup_code"),
+                "the 2FA-required answer must offer backup codes, got {available_methods:?}"
+            );
+            assert!(
+                error.to_string().contains("2FA required"),
+                "the 2FA-required error must keep its stable wording, got {error}"
+            );
+        }
+        other => panic!("login without a 2FA code must be TwoFactorRequired, got {other:?}"),
     }
 
     // (b) A well-formed but unknown recovery code: rejected. 'Z' is outside
@@ -1378,7 +1391,7 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
     )
     .await;
     assert!(
-        matches!(wrong, Err(ApiError::Unauthorized(_))),
+        matches!(wrong, Err(ApiError::TwoFactorInvalid { .. })),
         "an unknown recovery code must be rejected, got {wrong:?}"
     );
     let (stored_after_reject,): (Option<Vec<String>>,) =
@@ -1469,7 +1482,7 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
     // (e) Replaying the SAME recovery code must fail -- it was consumed.
     let replay = auth_service::login(&pool, login_req(Some(used_code)), None, None, None).await;
     assert!(
-        matches!(replay, Err(ApiError::Unauthorized(_))),
+        matches!(replay, Err(ApiError::TwoFactorInvalid { .. })),
         "a consumed recovery code must be rejected on reuse, got {replay:?}"
     );
 

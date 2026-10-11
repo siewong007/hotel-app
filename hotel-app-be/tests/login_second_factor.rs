@@ -175,7 +175,7 @@ async fn password_step(pool: &PgPool, user_id: i64) -> (String, Vec<String>) {
         Err(ApiError::TwoFactorRequired {
             mfa_token,
             available_methods,
-        }) => (mfa_token, available_methods),
+        }) => (mfa_token.expose().to_owned(), available_methods),
         other => panic!("expected two_factor_required, got {:?}", other.map(|_| ())),
     }
 }

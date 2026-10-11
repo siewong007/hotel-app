@@ -178,7 +178,7 @@ async fn two_factor_required(
         .as_ref()
         .map_or(0, |codes| codes.len());
     Ok(ApiError::TwoFactorRequired {
-        mfa_token: token,
+        mfa_token: token.into(),
         available_methods: available_second_factor_methods(
             has_totp,
             has_passkey,
