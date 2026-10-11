@@ -189,10 +189,9 @@ async fn revert_deposit_refund(
     handlers::revert_deposit_refund_handler(State(pool), Extension(user_id), path, body).await
 }
 
-// Reverting a deposit cancellation rides the same payments:delete gate as
-// the cancellation itself. Front-desk roles no longer hold payments:delete
-// (patch 0019), so in practice this is manager/admin work via
-// payments:manage.
+// Reverting a deposit cancellation rides the same payments:delete ("Void
+// payments") gate as the cancellation itself — reception holds it again
+// since patch 0020; a reason is required and audited.
 async fn revert_deposit_void(
     State(pool): State<DbPool>,
     headers: HeaderMap,

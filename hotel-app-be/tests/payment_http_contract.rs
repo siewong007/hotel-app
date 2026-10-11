@@ -607,3 +607,79 @@ async fn malformed_non_key_json_keeps_axum_extractor_status() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "body: {body}");
     assert_ne!(body, json!({ "error": IDEMPOTENCY_ERROR }).to_string());
 }
+
+/// Since patch 0020 the front desk voids payments under `payments:delete`
+/// ("Void payments") — the route lets a receptionist through to business
+/// logic (a missing reason is a 400, an absent payment a 404) — while the
+/// refund revert and the bank-transfer approval stay on `payments:manage` /
+/// `payments:approve`, which reception does not hold.
+#[tokio::test]
+async fn receptionist_can_void_but_not_revert_refunds_or_approve() {
+    let Some(fixture) = HttpFixture::new().await else {
+        return;
+    };
+    const ABSENT_PAYMENT_ID: i64 = 987_654_321;
+
+    let send = |method: &'static str, uri: String, payload: Value| {
+        let app = fixture.app.clone();
+        let authorization = fixture.authorization.clone();
+        async move {
+            let request = Request::builder()
+                .method(method)
+                .uri(uri)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, authorization)
+                .body(Body::from(payload.to_string()))
+                .expect("HTTP request must build");
+            let response = app.oneshot(request).await.expect("router response");
+            let status = response.status();
+            let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            (status, String::from_utf8_lossy(&body).to_string())
+        }
+    };
+
+    let void_uri = format!("/api/payments/{ABSENT_PAYMENT_ID}/void");
+    let (void_no_reason, void_no_reason_body) = send("POST", void_uri.clone(), json!({})).await;
+    let (void_status, void_body) = send("POST", void_uri, json!({ "reason": "Keyed twice" })).await;
+    let (delete_status, delete_body) = send(
+        "DELETE",
+        format!("/api/payments/{ABSENT_PAYMENT_ID}"),
+        json!({ "reason": "Keyed twice" }),
+    )
+    .await;
+    let (restore_status, restore_body) = send(
+        "POST",
+        format!("/api/payments/revert-deposit-void/{ABSENT_BOOKING_ID}"),
+        json!({}),
+    )
+    .await;
+    let (revert_status, revert_body) = send(
+        "POST",
+        format!("/api/payments/revert-deposit-refund/{ABSENT_BOOKING_ID}"),
+        json!({ "reason": "Refund keyed in error" }),
+    )
+    .await;
+    let (approve_status, approve_body) = send(
+        "PUT",
+        format!("/api/admin/payments/{ABSENT_PAYMENT_ID}/approve"),
+        json!({}),
+    )
+    .await;
+
+    fixture.cleanup().await;
+
+    assert_eq!(
+        void_no_reason,
+        StatusCode::BAD_REQUEST,
+        "{void_no_reason_body}"
+    );
+    assert_eq!(void_status, StatusCode::NOT_FOUND, "{void_body}");
+    assert_eq!(delete_status, StatusCode::NOT_FOUND, "{delete_body}");
+    assert_eq!(
+        restore_status,
+        StatusCode::BAD_REQUEST,
+        "restore passes the gate and asks for a reason: {restore_body}"
+    );
+    assert_eq!(revert_status, StatusCode::FORBIDDEN, "{revert_body}");
+    assert_eq!(approve_status, StatusCode::FORBIDDEN, "{approve_body}");
+}

@@ -4472,12 +4472,13 @@ async fn record_payment_rejects_refund_type_and_nonpositive_amounts() {
     );
 }
 
-/// Deleting a payment voids it — the row survives with status 'void', is
-/// excluded from payment totals, and a posted (`completed`) payment requires
-/// `payments:manage`. Refund markers and terminal rows can never be voided
-/// through this path.
+/// Deleting a payment voids it — the row survives with status 'void' and is
+/// excluded from payment totals. Since patch 0020 a posted (`completed`)
+/// payment is voidable under the route's `payments:delete` ("Void payments")
+/// gate alone — a receptionist, who holds no `payments:manage`, can void it.
+/// Refund markers and terminal rows can never be voided through this path.
 #[tokio::test]
-async fn delete_payment_voids_and_requires_manage_for_completed_rows() {
+async fn delete_payment_voids_completed_rows_for_the_front_desk() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;
     };
@@ -4494,22 +4495,28 @@ async fn delete_payment_voids_and_requires_manage_for_completed_rows() {
     .unwrap();
     let payment_id = original["id"].as_i64().unwrap();
 
-    // The recording actor holds no role, so voiding a posted payment must be
-    // refused — the route gate is payments:delete but the ledger gate is
-    // payments:manage.
-    let unauthorized =
-        payments::delete_payment(&pool, actor_id, payment_id, Some("keyed in error")).await;
+    grant_role(&pool, actor_id, "receptionist").await;
+    let holds_manage =
+        hotel_app_be::core::auth::AuthService::check_permission(&pool, actor_id, "payments:manage")
+            .await
+            .unwrap_or(false);
+    let holds_void =
+        hotel_app_be::core::auth::AuthService::check_permission(&pool, actor_id, "payments:delete")
+            .await
+            .unwrap_or(false);
     assert!(
-        matches!(unauthorized, Err(ApiError::Forbidden(_))),
-        "voiding a posted payment without payments:manage must be refused: {unauthorized:?}"
+        !holds_manage,
+        "the receptionist role must not hold payments:manage"
     );
-
-    grant_role(&pool, actor_id, "manager").await;
+    assert!(
+        holds_void,
+        "the receptionist role holds payments:delete (Void payments)"
+    );
     let voided =
         payments::delete_payment(&pool, actor_id, payment_id, Some("keyed in error")).await;
     assert!(
         voided.is_ok(),
-        "a manager must be able to void a posted payment: {voided:?}"
+        "a receptionist must be able to void a posted payment: {voided:?}"
     );
 
     let (status, processed_by): (String, Option<i64>) =
@@ -4665,16 +4672,23 @@ async fn delete_completed_deposit_voidable_in_house_refused_after_checkout() {
         );
     }
 
-    // Un-forfeit stays a manage-gated void.
+    // Un-forfeit stays a manage-gated void — the front desk is refused.
     sqlx::query("UPDATE bookings SET status = 'checked_in' WHERE id = $1")
         .bind(booking_id)
         .execute(&pool)
         .await
         .unwrap();
-    grant_role(&pool, actor_id, "manager").await;
     let forfeit_id =
         insert_completed_payment(&pool, booking_id, "deposit_forfeited", d("25.00"), actor_id)
             .await;
+    grant_role(&pool, actor_id, "receptionist").await;
+    let desk_unforfeit =
+        payments::delete_payment(&pool, actor_id, forfeit_id, Some("keyed in error")).await;
+    assert!(
+        matches!(desk_unforfeit, Err(ApiError::Forbidden(_))),
+        "un-forfeiting without payments:manage must be refused: {desk_unforfeit:?}"
+    );
+    grant_role(&pool, actor_id, "manager").await;
     let unforfeit =
         payments::delete_payment(&pool, actor_id, forfeit_id, Some("keyed in error")).await;
     assert!(

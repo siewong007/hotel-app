@@ -1314,7 +1314,7 @@ async fn receptionist_has_payments_delete(pool: &PgPool) -> bool {
 }
 
 #[tokio::test]
-async fn postgres_v1_catalog_adds_payment_void_metadata_and_drops_desk_voids() {
+async fn postgres_v1_catalog_adds_payment_void_metadata() {
     let Some(database_url) = database_url_or_skip() else {
         return;
     };
@@ -1323,9 +1323,10 @@ async fn postgres_v1_catalog_adds_payment_void_metadata_and_drops_desk_voids() {
     let upgraded = databases.create("payment_void_upgraded").await;
     let fresh_pool = install_v1(&fresh).await;
     let pool = install_v1(&upgraded).await;
+    // Patch 0020 handed "Void payments" back to the front desk.
     assert!(
-        !receptionist_has_payments_delete(&fresh_pool).await,
-        "a fresh install must not grant receptionists payments:delete"
+        receptionist_has_payments_delete(&fresh_pool).await,
+        "a fresh install grants receptionists payments:delete (Void payments)"
     );
 
     // Rebuild a database installed before patch 0019: no void metadata and
@@ -1340,7 +1341,8 @@ async fn postgres_v1_catalog_adds_payment_void_metadata_and_drops_desk_voids() {
             DROP COLUMN void_reversal_date;
         INSERT INTO public.role_permissions (role_id, permission_id)
         SELECT r.id, p.id FROM public.roles r, public.permissions p
-        WHERE r.name = 'receptionist' AND p.name = 'payments:delete';
+        WHERE r.name = 'receptionist' AND p.name = 'payments:delete'
+        ON CONFLICT DO NOTHING;
         DELETE FROM public.hotel_schema_revisions WHERE generation = 1 AND version = 19;
         "#,
     )
@@ -1351,9 +1353,11 @@ async fn postgres_v1_catalog_adds_payment_void_metadata_and_drops_desk_voids() {
 
     let first_run = run_patches(&upgraded, None).await;
     assert_runner_succeeded(&first_run);
+    // 0019 revokes the desk grant and 0020 restores it, so a database
+    // upgraded across both ends up where a fresh install starts.
     assert!(
-        !receptionist_has_payments_delete(&pool).await,
-        "patch 0019 must revoke payments:delete from the receptionist role"
+        receptionist_has_payments_delete(&pool).await,
+        "patches 0019 + 0020 must leave the receptionist role with payments:delete"
     );
     assert_eq!(
         payment_void_inventory(&upgraded).await,
@@ -1374,6 +1378,71 @@ async fn postgres_v1_catalog_adds_payment_void_metadata_and_drops_desk_voids() {
 
     pool.close().await;
     fresh_pool.close().await;
+    databases.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_v1_catalog_returns_void_payments_to_the_front_desk() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let database = databases.create("reception_void").await;
+    let pool = install_v1(&database).await;
+
+    // A database that ran 0019 before 0020 existed: no desk grant, old label.
+    sqlx::raw_sql(
+        r#"
+        DELETE FROM public.role_permissions rp
+        USING public.roles r, public.permissions p
+        WHERE rp.role_id = r.id AND rp.permission_id = p.id
+          AND r.name = 'receptionist' AND p.name = 'payments:delete';
+        UPDATE public.permissions SET description = 'Delete payment records'
+        WHERE name = 'payments:delete';
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("rebuild a pre-0020 database");
+    assert!(!receptionist_has_payments_delete(&pool).await);
+
+    let first_run = run_patches(&database, None).await;
+    assert_runner_succeeded(&first_run);
+    assert!(
+        receptionist_has_payments_delete(&pool).await,
+        "patch 0020 must grant receptionists payments:delete"
+    );
+    let manage: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM role_permissions rp \
+         JOIN roles r ON r.id = rp.role_id JOIN permissions p ON p.id = rp.permission_id \
+         WHERE r.name = 'receptionist' AND p.name IN ('payments:manage', 'payments:approve'))",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read receptionist manage/approve grants");
+    assert!(
+        !manage,
+        "the front desk must not gain payments:manage or approve"
+    );
+    let label: String =
+        sqlx::query_scalar("SELECT description FROM permissions WHERE name = 'payments:delete'")
+            .fetch_one(&pool)
+            .await
+            .expect("read the payments:delete label");
+    assert!(label.starts_with("Void payments"), "relabelled: {label}");
+    let revisions = revision_snapshot(&pool).await;
+    assert!(
+        revisions
+            .iter()
+            .any(|(version, name, _, _)| *version == 20 && name == "reception-payment-void"),
+        "patch 0020 must record its revision: {revisions:?}"
+    );
+
+    let second_run = run_patches(&database, None).await;
+    assert_runner_succeeded(&second_run);
+    assert_eq!(revision_snapshot(&pool).await, revisions);
+
+    pool.close().await;
     databases.cleanup().await;
 }
 

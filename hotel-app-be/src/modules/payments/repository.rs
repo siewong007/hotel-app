@@ -2238,9 +2238,13 @@ impl PaymentRepository {
     /// money disappear, so it must leave through `refund_deposit` /
     /// `forfeit_deposit` instead. `deposit_forfeited` rows stay voidable: that
     /// is the deliberate un-forfeit hatch (the checkout guard re-blocks the
-    /// booking afterwards). `allow_completed` is the service's verdict that
-    /// the caller holds `payments:manage` — required to void a posted payment;
-    /// pending and failed rows stay on the route's `payments:delete` gate.
+    /// booking afterwards). Voiding any other row — posted (`completed`)
+    /// payments included — rides the route's `payments:delete` ("Void
+    /// payments") gate: the mandatory reason, the audit row and the closed-day
+    /// reversing entry are what keep it safe, not a heavier permission.
+    /// `allow_unforfeit` is the service's verdict that the caller holds
+    /// `payments:manage`, still required to void a completed
+    /// `deposit_forfeited` row (un-forfeiting is a revenue correction).
     ///
     /// Returns the PRE-void row so the caller can audit the original values.
     pub async fn void_payment_tx(
@@ -2248,7 +2252,7 @@ impl PaymentRepository {
         booking_id: i64,
         payment_id: i64,
         user_id: i64,
-        allow_completed: bool,
+        allow_unforfeit: bool,
         reason: &str,
     ) -> Result<(PaymentEntryRow, Option<chrono::NaiveDate>), ApiError> {
         let existing = sqlx::query_as::<_, PaymentEntryRow>(
@@ -2296,15 +2300,13 @@ impl PaymentRepository {
                     .to_string(),
             ));
         }
-        // Deposit rows ride the route's payments:delete gate even when
-        // completed — cancelling collateral is desk work, unlike voiding
-        // settled revenue. deposit_forfeited rows keep the manage gate.
+        // Un-forfeiting kept deposit income stays a manager correction.
         if existing.payment_status.as_deref() == Some("completed")
-            && !allow_completed
-            && existing.payment_type.as_deref() != Some("deposit")
+            && existing.payment_type.as_deref() == Some("deposit_forfeited")
+            && !allow_unforfeit
         {
             return Err(ApiError::Forbidden(
-                "Voiding a posted payment requires the payments:manage permission".to_string(),
+                "Voiding a forfeited deposit requires the payments:manage permission".to_string(),
             ));
         }
 

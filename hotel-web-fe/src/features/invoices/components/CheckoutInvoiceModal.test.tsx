@@ -837,6 +837,26 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     expect(mocks.reloadPayments).toHaveBeenCalled();
   });
 
+  it('does not offer the refund revert to the front desk (no payments:manage)', async () => {
+    const receptionist = new Set([
+      'payments:create', 'payments:read', 'payments:update', 'payments:refund', 'payments:delete',
+    ]);
+    mocks.hasPermission.mockImplementation((p: string) => receptionist.has(p));
+    mocks.payments = [
+      depositRow,
+      { id: 4, payment_status: 'refunded', payment_type: 'refund', total_amount: 50, payment_method: 'Cash' },
+      billPayment,
+    ];
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    await within(dialog).findByText('Deposit refunded');
+    const revert = within(dialog).queryByRole('button', { name: 'Revert refund' }) as HTMLButtonElement | null;
+    expect(revert === null || revert.disabled).toBe(true);
+    // …while the posted bill payment is still voidable.
+    expect(within(dialog).getAllByRole('button', { name: 'Void payment' })).toHaveLength(1);
+  });
+
   it('reverts a deposit refund through the reason dialog under payments:manage', async () => {
     mocks.hasPermission.mockImplementation((p: string) => p === 'payments:manage');
     // After the revert the refund row reads void → the deposit re-opens.
@@ -985,11 +1005,10 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     expect(refund.disabled).toBe(false);
   });
 
-  it('hides the void button on posted payments from users without payments:manage (front desk)', async () => {
-    // A receptionist after patch 0019: create/read/update/refund, no delete,
-    // no manage — the backend would 403 a void of a completed payment.
-    const receptionist = new Set(['payments:create', 'payments:read', 'payments:update', 'payments:refund']);
-    mocks.hasPermission.mockImplementation((p: string) => receptionist.has(p));
+  it('hides the void button from users without payments:delete (Void payments)', async () => {
+    // create/read/update/refund but no delete — the backend would 403 a void.
+    const noVoid = new Set(['payments:create', 'payments:read', 'payments:update', 'payments:refund']);
+    mocks.hasPermission.mockImplementation((p: string) => noVoid.has(p));
     renderModal(false, { deposit_paid: true, deposit_amount: 50 });
     const dialog = await screen.findByRole('dialog');
 
@@ -999,8 +1018,12 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     expect(within(dialog).queryByRole('button', { name: 'Void payment' })).toBeNull();
   });
 
-  it('voids a posted payment only after a reason is given, and reloads the folio', async () => {
-    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:manage');
+  it('lets the front desk (payments:delete, no payments:manage) void a posted payment only after a reason is given', async () => {
+    // Receptionist since patch 0020: Void payments without payments:manage.
+    const receptionist = new Set([
+      'payments:create', 'payments:read', 'payments:update', 'payments:refund', 'payments:delete',
+    ]);
+    mocks.hasPermission.mockImplementation((p: string) => receptionist.has(p));
     mocks.voidPayment.mockReset().mockResolvedValue({ success: true, voided_id: billPayment.id });
     renderModal(false, { deposit_paid: true, deposit_amount: 50 });
     const dialog = await screen.findByRole('dialog');
@@ -1021,7 +1044,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
   });
 
   it('cancelling the reason dialog voids nothing', async () => {
-    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:manage');
+    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:delete');
     renderModal(false, { deposit_paid: true, deposit_amount: 50 });
     const dialog = await screen.findByRole('dialog');
 

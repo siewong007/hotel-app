@@ -199,6 +199,8 @@ jobs:
             "$bundle_dir/database/patches/0018_room_hold_arrival_day.sql"
           cp hotel-app-be/database/postgres/patches/0019_payment_void_reason.sql \
             "$bundle_dir/database/patches/0019_payment_void_reason.sql"
+          cp hotel-app-be/database/postgres/patches/0020_reception_payment_void.sql \
+            "$bundle_dir/database/patches/0020_reception_payment_void.sql"
 
           (
             cd "$bundle_dir"
@@ -233,6 +235,7 @@ jobs:
               database/patches/0017_session_retention.sql \
               database/patches/0018_room_hold_arrival_day.sql \
               database/patches/0019_payment_void_reason.sql \
+              database/patches/0020_reception_payment_void.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

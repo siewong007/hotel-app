@@ -304,15 +304,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     : hasPermission('bookings:update');
   const canRevertDepositRefund = hasPermission('payments:manage');
   const canRestoreDeposit = hasPermission('payments:delete');
-  // Voiding a posted (completed) payment needs payments:manage on the
-  // backend; pending/failed rows only payments:delete. City-ledger payments
+  // Every void — posted payments included — rides payments:delete ("Void
+  // payments", held by reception); only un-forfeiting a completed
+  // deposit_forfeited row still needs payments:manage. City-ledger payments
   // are deleted on the ledger under ledgers:manage. The button only renders
   // for users the backend would allow.
   const canVoidPayment = (payment: CheckoutPaymentRecord): boolean => {
     if (isLedgerView) return hasPermission('ledgers:manage');
-    return payment.payment_status === 'completed'
-      ? hasPermission('payments:manage')
-      : hasPermission('payments:delete');
+    if (payment.payment_status === 'completed' && payment.payment_type === 'deposit_forfeited') {
+      return hasPermission('payments:manage');
+    }
+    return hasPermission('payments:delete');
   };
 
   const handleRecordPayment = async () => {
