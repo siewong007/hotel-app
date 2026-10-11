@@ -366,10 +366,10 @@ async fn verify_assertion(
     // must not fail the login, but silent drops weaken clone detection.
     if let Err(e) = PasskeyRepository::update_last_used(pool, passkey.id, i64::from(counter)).await
     {
+        // The passkey row id identifies the account; no user identifiers here.
         log::warn!(
-            "Failed to record sign counter for passkey {} (user {}): {}",
+            "Failed to record sign counter for passkey {}: {}",
             passkey.id,
-            user_id,
             e
         );
     }
