@@ -26,6 +26,7 @@ import { toMoneyNumber } from '../../../../utils/money';
 import type { Booking, BookingUpdateRequest, BookingWithDetails, Guest } from '../../../../types';
 import type { CompanyOption, ValidationErrors } from './checkInTypes';
 import { useTranslation } from '../../../../i18n';
+import RoomPaymentMethodSelect from '../payment/RoomPaymentMethodSelect';
 
 export interface PaymentInfoTabProps {
   amountPaid: number;
@@ -162,21 +163,16 @@ export function PaymentInfoTab({
         {paymentChoice === 'pay_now' && (
           <>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth>
-                <InputLabel>{t('checkIn.paymentMethod')}</InputLabel>
-                <Select
-                  value={paymentType}
-                  onChange={(e) => {
-                    setPaymentType(e.target.value);
-                    handleBookingChange('payment_method', e.target.value);
-                  }}
-                  label={t('checkIn.paymentMethod')}
-                >
-                  {paymentMethods.map(method => (
-                    <MenuItem key={method} value={method}>{method}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <RoomPaymentMethodSelect
+                booking={booking}
+                paymentMethods={paymentMethods}
+                value={paymentType}
+                onChange={(method) => {
+                  setPaymentType(method);
+                  handleBookingChange('payment_method', method);
+                }}
+                label={t('checkIn.paymentMethod')}
+              />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField

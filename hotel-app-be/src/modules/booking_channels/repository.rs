@@ -31,7 +31,7 @@ const VALID_INTEGRATION_MODES: &[&str] = &["manual", "channel_manager", "api"];
 
 const CHANNEL_COLUMNS: &str = "id, name, channel_type, default_commission_type,
         default_commission_value, default_commission_scope, is_active,
-        abbreviation, code, integration_mode, created_at, updated_at";
+        abbreviation, code, integration_mode, settlement_payment_methods, created_at, updated_at";
 
 const RULE_COLUMNS: &str = "id, channel_id, room_type_id, rate_plan_id, rule_type,
         value, effective_from, effective_to, min_price, max_price, priority,
@@ -173,6 +173,11 @@ fn row_to_channel(row: &DbRow) -> BookingChannel {
         is_active: row_mappers::get_bool(row, "is_active"),
         abbreviation: row.try_get("abbreviation").ok().flatten(),
         code: row.try_get("code").ok().flatten(),
+        settlement_payment_methods: row
+            .try_get::<Option<Vec<String>>, _>("settlement_payment_methods")
+            .ok()
+            .flatten()
+            .unwrap_or_default(),
         integration_mode: row
             .try_get("integration_mode")
             .unwrap_or_else(|_| "manual".to_string()),

@@ -171,7 +171,7 @@ export const ARTICLES_MS: HelpArticle[] = [
     keywords: ['ketibaan', 'checkin', 'daftar masuk', 'kaunter hadapan', 'check in awal'],
     routePath: '/bookings',
     requiredPermissions: ['bookings:update'],
-    lastReviewed: '2026-10-05',
+    lastReviewed: '2026-10-12',
     relatedSlugs: ['check-out-a-guest', 'find-a-reservation', 'housekeeping-maintenance'],
     blocks: [
       { type: 'paragraph', text: 'Tempahan boleh didaftar masuk apabila statusnya Disahkan atau Menunggu dan tarikh ketibaan telah tiba. Tindakan Daftar masuk berada pada tempahan itu sendiri.' },
@@ -186,6 +186,7 @@ export const ARTICLES_MS: HelpArticle[] = [
       },
       { type: 'callout', tone: 'info', title: 'Daftar masuk awal', body: 'Tiba sebelum waktu daftar masuk yang dikonfigurasi (Tetapan Hotel → Masa Daftar Masuk, lalai 15:00) memaparkan gesaan daftar masuk awal dan bukannya sekatan keras.' },
       { type: 'callout', tone: 'warning', body: 'Butang Daftar masuk tidak akan muncul sebelum tarikh ketibaan — ini disengajakan. Jika tetamu tiba sehari awal, edit tarikh tempahan dahulu.' },
+      { type: 'callout', tone: 'important', title: 'Tempahan dalam talian diselesaikan dalam talian', body: 'Caj bilik tempahan dalam talian (Booking.com, Agoda, Traveloka, Expedia) hanya boleh direkod melalui kaedah platform tersebut, dan tempahan Laman Web Langsung hanya melalui Pindahan Bank atau PayPal — kaedah ditetapkan dan dikunci, bertanda ‘Diselesaikan melalui …’. Deposit keselamatan tunai tidak terjejas. Tempahan dalam talian tanpa saluran tempahan tidak boleh menerima bayaran bilik sehingga saluran ditetapkan.' },
     ],
   },
   {
@@ -432,7 +433,7 @@ export const ARTICLES_MS: HelpArticle[] = [
     keywords: ['bayaran balik', 'deposit', 'pulangan wang', 'refund', 'batal refund', 'rampas'],
     routePath: '/bookings',
     requiredPermissions: ['payments:refund'],
-    lastReviewed: '2026-10-05',
+    lastReviewed: '2026-10-12',
     featured: true,
     relatedSlugs: ['check-out-a-guest', 'review-payment-approvals', 'payment-problems'],
     blocks: [
@@ -447,6 +448,7 @@ export const ARTICLES_MS: HelpArticle[] = [
       },
       { type: 'callout', tone: 'important', title: 'Membatalkan bayaran balik adalah terhad', body: 'Mengembalikan semula bayaran balik deposit membuka semula deposit untuk dibayar balik dan memerlukan payments:manage — penyambut tetamu tidak boleh kitar refund/revert sendiri. Semak dua kali sebelum mengesahkan.' },
       { type: 'callout', tone: 'tip', body: 'Jika butang bayaran balik hilang, anda tiada payments:refund — minta pengurus dan bukannya mengatasi dengan pelarasan manual.' },
+      { type: 'callout', tone: 'important', title: 'Tempahan dalam talian dipulangkan ke kaedah asal', body: 'Kaedah bayaran balik ditetapkan kepada kaedah deposit dikutip. Bagi tempahan dalam talian ia dikunci pada kaedah itu — deposit tidak boleh dipulangkan melalui kaedah pembayaran lain.' },
     ],
   },
   {

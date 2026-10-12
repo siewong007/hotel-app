@@ -209,7 +209,8 @@
       "defaultNote": "Bayaran balik deposit biasa - tiada kerosakan atau caj",
       "method": "Kaedah bayaran balik",
       "note": "Nota (wajib)",
-      "submit": "Bayar balik {{amount}}"
+      "submit": "Bayar balik {{amount}}",
+      "lockedToOriginal": "Tempahan dalam talian — deposit hanya boleh dipulangkan melalui kaedah asal ({{method}})."
     },
     "refundLine": "Bayaran Balik Deposit ({{method}})",
     "resolveGroup": "Penyelesaian deposit",

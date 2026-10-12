@@ -67,6 +67,7 @@ function renderSection({ resolution, ...props }: RenderOptions = {}) {
       readOnly={props.readOnly ?? false}
       noDepositLabel={props.noDepositLabel}
       hotelSettings={props.hotelSettings ?? { payment_methods: ['Cash', 'Bank Transfer', 'E-Wallet', 'Other'] }}
+      refundMethodLocked={props.refundMethodLocked}
       onRefund={props.onRefund ?? mocks.onRefund}
       onForfeit={props.onForfeit ?? mocks.onForfeit}
       onCancel={props.onCancel ?? mocks.onCancel}
@@ -197,6 +198,23 @@ describe('DepositSection — guided deposit resolution', () => {
       reference: 'RF-9001',
       note: 'handed to guest at desk',
     });
+  });
+
+  it('presets the refund method to the tender the deposit was collected with', () => {
+    renderSection({ resolution: { method: 'bank_transfer' } });
+    fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refund RM50.00' }));
+    expect(mocks.onRefund).toHaveBeenCalledWith(expect.objectContaining({ method: 'Bank Transfer' }));
+  });
+
+  it('locks the refund to the original tender on an online booking', () => {
+    renderSection({ refundMethodLocked: true, resolution: { method: 'Cash' } });
+    fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
+    const combobox = screen.getByRole('combobox', { name: /refund method/i });
+    expect(combobox.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByText(/can only be refunded to its original method \(Cash\)/)).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Refund RM50.00' }));
+    expect(mocks.onRefund).toHaveBeenCalledWith(expect.objectContaining({ method: 'Cash' }));
   });
 
   it('pre-fills a default note so a normal refund submits without typing', () => {

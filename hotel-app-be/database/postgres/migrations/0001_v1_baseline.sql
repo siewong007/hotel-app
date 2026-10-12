@@ -1391,6 +1391,7 @@ CREATE TABLE public.booking_channels (
     abbreviation character varying(8),
     code character varying(40),
     integration_mode character varying(20) DEFAULT 'manual'::character varying NOT NULL,
+    settlement_payment_methods text[],
     CONSTRAINT booking_channels_channel_type_check CHECK (((channel_type)::text = ANY ((ARRAY['direct'::character varying, 'ota'::character varying, 'corporate'::character varying, 'walk_in'::character varying, 'phone'::character varying, 'website'::character varying, 'channel_manager'::character varying, 'other'::character varying])::text[]))),
     CONSTRAINT booking_channels_integration_mode_check CHECK (((integration_mode)::text = ANY ((ARRAY['manual'::character varying, 'channel_manager'::character varying, 'api'::character varying])::text[]))),
     CONSTRAINT booking_channels_default_commission_scope_check CHECK (((default_commission_scope)::text = ANY ((ARRAY['per_booking'::character varying, 'per_night'::character varying])::text[]))),
@@ -1398,6 +1399,13 @@ CREATE TABLE public.booking_channels (
     CONSTRAINT booking_channels_default_commission_value_check CHECK ((default_commission_value >= (0)::numeric)),
     CONSTRAINT booking_channels_percentage_range CHECK ((((default_commission_type)::text <> 'percentage'::text) OR ((default_commission_value >= (0)::numeric) AND (default_commission_value <= (100)::numeric))))
 );
+
+
+--
+-- Name: COLUMN booking_channels.settlement_payment_methods; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.booking_channels.settlement_payment_methods IS 'Payment-method labels the room charge (payment_type booking) of a booking on this channel may be recorded with; NULL/empty = not an online-settled channel';
 
 
 --

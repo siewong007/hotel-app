@@ -3449,6 +3449,16 @@ pub async fn record_checkin_payment_tx(
         ));
     }
 
+    // Settlement lock: an online booking's room charge only takes its
+    // channel's tender; deposits and extras stay open.
+    crate::modules::payments::settlement_lock::enforce_payment(
+        &mut **tx,
+        booking_id,
+        pay_type,
+        &payment.payment_method,
+    )
+    .await?;
+
     // The two schemas diverge: PostgreSQL keys payments by `uuid` + `created_by`
     // and `description`. The bind order is identical — only the column list differs.
     let insert_query = r#"
@@ -3496,10 +3506,42 @@ pub async fn record_online_checkin_payment_tx(
 ) -> Result<bool, ApiError> {
     // Mirror the explicit check-in payment: fall back to a generic online
     // method when the reservation didn't carry one.
-    let payment_method = booking
-        .payment_method
-        .clone()
-        .unwrap_or_else(|| "online_banking".to_string());
+    //
+    // Settlement lock: a booking settled by an OTA / the direct website posts
+    // under its channel's tender even when the booking row carries a desk
+    // tender such as "Cash"; an online booking with no channel is refused.
+    let lock = crate::modules::payments::settlement_lock::load_lock(&mut **tx, booking.id)
+        .await?
+        .unwrap_or(crate::modules::payments::settlement_lock::SettlementLock::Unlocked);
+    let payment_method = if lock.is_locked() {
+        match lock.settlement_method_for(booking.payment_method.as_deref()) {
+            Some(method) => method,
+            None => {
+                // Nothing to settle → nothing to refuse.
+                let owes: bool = sqlx::query_scalar(
+                    "SELECT EXISTS (SELECT 1 FROM bookings b WHERE b.id = $1 \
+                       AND b.total_amount + COALESCE(b.tourism_tax_amount, 0) + COALESCE(b.extra_bed_charge, 0) \
+                         - COALESCE((SELECT SUM(p.amount) FROM payments p \
+                            WHERE p.booking_id = b.id AND p.status = 'completed' \
+                              AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0) > 0)",
+                )
+                .bind(booking.id)
+                .fetch_one(&mut **tx)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+                if !owes {
+                    return Ok(false);
+                }
+                // A lock with no settlement tender always refuses here.
+                return lock.check_room_charge("").map(|()| false);
+            }
+        }
+    } else {
+        booking
+            .payment_method
+            .clone()
+            .unwrap_or_else(|| "online_banking".to_string())
+    };
     let notes = "Auto-recorded at check-in for online reservation";
 
     // The settled SUM (completed, non-refund, non-deposit, non-forfeited) and the `> 0` guard

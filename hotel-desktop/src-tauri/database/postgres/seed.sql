@@ -972,20 +972,20 @@ WHERE system_settings.value_type IS DISTINCT FROM EXCLUDED.value_type
 -- ============================================================================
 
 INSERT INTO booking_channels
-    (name, channel_type, default_commission_type, default_commission_value, default_commission_scope, is_active, abbreviation, code)
+    (name, channel_type, default_commission_type, default_commission_value, default_commission_scope, is_active, abbreviation, code, settlement_payment_methods)
 VALUES
-    ('Direct', 'direct', 'none', 0, 'per_booking', true, NULL, 'direct'),
-    ('Walk-in', 'walk_in', 'none', 0, 'per_booking', true, NULL, 'walk_in'),
-    ('Phone', 'phone', 'none', 0, 'per_booking', true, NULL, 'phone'),
-    ('Direct Website', 'website', 'none', 0, 'per_booking', true, 'DW', 'direct_website'),
-    ('Booking.com', 'ota', 'none', 0, 'per_booking', true, 'B.C', 'booking_com'),
-    ('Agoda', 'ota', 'none', 0, 'per_booking', true, 'A.C', 'agoda'),
-    ('Traveloka', 'ota', 'none', 0, 'per_booking', true, 'T.C', 'traveloka'),
-    ('Expedia', 'ota', 'none', 0, 'per_booking', true, 'E.C', 'expedia'),
-    ('Hotels.com', 'ota', 'none', 0, 'per_booking', true, 'H.C', 'hotels_com'),
-    ('Airbnb', 'ota', 'none', 0, 'per_booking', true, 'AB', 'airbnb'),
-    ('Trip.com', 'ota', 'none', 0, 'per_booking', true, 'TR', 'trip_com'),
-    ('Other OTA', 'ota', 'none', 0, 'per_booking', true, 'OT', 'other_ota')
+    ('Direct', 'direct', 'none', 0, 'per_booking', true, NULL, 'direct', NULL),
+    ('Walk-in', 'walk_in', 'none', 0, 'per_booking', true, NULL, 'walk_in', NULL),
+    ('Phone', 'phone', 'none', 0, 'per_booking', true, NULL, 'phone', NULL),
+    ('Direct Website', 'website', 'none', 0, 'per_booking', true, 'DW', 'direct_website', ARRAY['Bank Transfer', 'PayPal']),
+    ('Booking.com', 'ota', 'none', 0, 'per_booking', true, 'B.C', 'booking_com', ARRAY['Booking.com']),
+    ('Agoda', 'ota', 'none', 0, 'per_booking', true, 'A.C', 'agoda', ARRAY['Agoda.com']),
+    ('Traveloka', 'ota', 'none', 0, 'per_booking', true, 'T.C', 'traveloka', ARRAY['Traveloka']),
+    ('Expedia', 'ota', 'none', 0, 'per_booking', true, 'E.C', 'expedia', ARRAY['Expedia.com']),
+    ('Hotels.com', 'ota', 'none', 0, 'per_booking', true, 'H.C', 'hotels_com', NULL),
+    ('Airbnb', 'ota', 'none', 0, 'per_booking', true, 'AB', 'airbnb', NULL),
+    ('Trip.com', 'ota', 'none', 0, 'per_booking', true, 'TR', 'trip_com', NULL),
+    ('Other OTA', 'ota', 'none', 0, 'per_booking', true, 'OT', 'other_ota', NULL)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================

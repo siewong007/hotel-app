@@ -75,6 +75,9 @@ export interface Booking {
   // display. Absent on bookings created before the link was written.
   booking_channel_name?: string | null;
   booking_channel_type?: string | null;
+  // booking_channels.settlement_payment_methods for the linked channel: the
+  // only tenders the room charge may be recorded with (settlement lock).
+  booking_channel_settlement_methods?: string[] | null;
   ota_reference?: string | null;
   daily_rates?: Record<string, number>;
   // Guest daily-cleaning preference (true = wants it, false = declined, null/undefined = not set)

@@ -246,6 +246,13 @@ pub async fn create_payment(
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, request.booking_id).await?;
+    super::settlement_lock::enforce_payment(
+        &mut *tx,
+        request.booking_id,
+        "booking",
+        &request.payment_method.to_string(),
+    )
+    .await?;
     let completed_payment = PaymentRepository::create_completed_payment_tx(
         &mut tx,
         user_id,
@@ -385,6 +392,16 @@ pub async fn record_payment(
     // claim or captured PayPal payment would. Without this, a guest who elects
     // to pay in person instead of online would be stuck: the booking never
     // leaves `pending` and check-in now requires `confirmed`.
+    // Settlement lock: an online booking's room charge may only be recorded
+    // under the tender its channel settles with (see settlement_lock).
+    super::settlement_lock::enforce_payment(
+        &mut *tx,
+        request.booking_id,
+        payment_type,
+        &request.payment_method,
+    )
+    .await?;
+
     let mut settles_balance_in_full = false;
 
     // A booking room-charge payment can never exceed the outstanding balance.
@@ -1405,6 +1422,13 @@ async fn create_bank_transfer_claim_inner(
     let status = PaymentRepository::booking_status_for_payment_tx(&mut tx, booking.id).await?;
     ensure_booking_awaiting_payment(&status)?;
     ensure_no_active_booking_payment_tx(&mut tx, booking.id).await?;
+    super::settlement_lock::enforce_payment(
+        &mut *tx,
+        booking.id,
+        "booking",
+        &PaymentMethod::BankTransfer.to_string(),
+    )
+    .await?;
 
     let payment_id = PaymentRepository::insert_pending_payment_tx(
         &mut tx,
@@ -1543,6 +1567,13 @@ async fn create_paypal_order_inner(
     let status = PaymentRepository::booking_status_for_payment_tx(&mut tx, booking.id).await?;
     ensure_booking_awaiting_payment(&status)?;
     ensure_no_active_booking_payment_tx(&mut tx, booking.id).await?;
+    super::settlement_lock::enforce_payment(
+        &mut *tx,
+        booking.id,
+        "booking",
+        &PaymentMethod::Paypal.to_string(),
+    )
+    .await?;
 
     let payment_id = PaymentRepository::insert_pending_payment_tx(
         &mut tx,

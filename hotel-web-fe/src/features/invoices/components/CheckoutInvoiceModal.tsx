@@ -48,6 +48,7 @@ import { isDepositLikePayment, settledPaymentsTotal } from '../utils/payments';
 import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
 import DepositSection, { DEPOSIT_STATUS_CHIP } from './DepositSection';
+import { getSettlementLock, isSettlementLocked } from '../../bookings/utils/settlementLock';
 import ReasonDialog from './ReasonDialog';
 import type { DepositForfeitInput, DepositRefundInput } from './DepositSection';
 import { formatHotelDate, formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
@@ -1326,6 +1327,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 readOnly={readOnly}
                 noDepositLabel={booking?.company_id ? t('deposit.cityLedgerNa') : undefined}
                 hotelSettings={hotelSettings}
+                refundMethodLocked={isSettlementLocked(getSettlementLock(booking))}
                 onRefund={handleRefundDeposit}
                 onForfeit={handleForfeitDeposit}
                 onCancel={handleCancelDeposit}

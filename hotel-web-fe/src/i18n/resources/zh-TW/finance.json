@@ -209,7 +209,8 @@
       "defaultNote": "正常退還押金 - 無損壞或額外費用",
       "method": "退款方式",
       "note": "備註（必填）",
-      "submit": "退款 {{amount}}"
+      "submit": "退款 {{amount}}",
+      "lockedToOriginal": "線上預訂——押金只能退回原付款方式（{{method}}）。"
     },
     "refundLine": "押金退款（{{method}}）",
     "resolveGroup": "押金處理",
