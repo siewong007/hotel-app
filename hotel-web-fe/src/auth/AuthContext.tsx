@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, refreshAccessToken, APIError, readErrorData } from '../api/client';
+import { api, refreshAccessToken, trackPendingLogout, APIError, readErrorData } from '../api/client';
 import { SKIP_API_NOTIFICATION_HEADER } from '../utils/apiNotifications';
 import { HTTPError } from 'ky';
 import { errorMessage } from '../utils';
 import { AuthService } from '../api/auth.service';
 import { UsersService } from '../api/users.service';
 import { storage } from '../utils/storage';
+import { replaceDocumentLocation } from '../utils/documentLocation';
 import { disableGoogleAutoSelect } from '../features/auth/components/GoogleSignInButton';
 import { setAccessToken, clearAccessToken } from './tokenStore';
 import type { RouteAccessPolicy, UserProfile } from '../types';
@@ -71,7 +72,11 @@ export interface AuthContextType extends AuthState {
   // state+storage write-through pattern this mirrors.
   applyProfileUpdate: (profile: UserProfile) => void;
   register: (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string; consents: ConsentAcceptance[]; marketing_opt_in: boolean }, turnstileToken?: string) => Promise<void>;
-  logout: () => void;
+  /**
+   * End the session. With `redirectTo` the page then leaves for that URL —
+   * see LogoutOptions. Resolves once the sign-out has done what it will do.
+   */
+  logout: (options?: LogoutOptions) => Promise<void>;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
   getRoutePolicy: (routeId: string) => RouteAccessPolicy | undefined;
@@ -82,6 +87,21 @@ export interface AuthContextType extends AuthState {
   dismissPasskeyPrompt: () => void;
   checkPasskeys: () => Promise<boolean>;
 }
+
+export interface LogoutOptions {
+  /**
+   * Leave the page for this URL once the server has ended the session. Until
+   * then the signed-in state stays as it is, so the route guards and the 401
+   * handler cannot race this navigation with their own redirect to /login.
+   */
+  redirectTo?: string;
+}
+
+/**
+ * How long a sign-out that leaves the page waits for the server before it
+ * navigates anyway. The request is `keepalive`, so it still completes after.
+ */
+const LOGOUT_SETTLE_TIMEOUT_MS = 3000;
 
 // Exported for tests: src/test/renderPage.tsx provides a fixture value through
 // AuthContext.Provider so page tests exercise the real useAuth() hook instead
@@ -249,6 +269,8 @@ const normalizeAccessValue = (value: string) => value.trim().toLowerCase();
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const queryClient = useQueryClient();
   const pendingLogoutRef = React.useRef<Promise<void>>(Promise.resolve());
+  // Set once a sign-out is leaving the page; never cleared, the page is going.
+  const leavingSignOutRef = React.useRef<Promise<void> | null>(null);
   const [authState, setAuthState] = useState<AuthState>({
     ...EMPTY_AUTH_STATE,
   });
@@ -326,6 +348,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Listen for unauthorized events from API interceptor
   useEffect(() => {
     const handleUnauthorized = () => {
+      // Fallout of our own sign-out: that is already taking the page elsewhere.
+      if (leavingSignOutRef.current) {
+        return;
+      }
       clearStoredAuth();
       queryClient.clear();
       resetAuthState();
@@ -542,22 +568,49 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     });
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((options?: LogoutOptions): Promise<void> => {
+    // A second tap while the first sign-out is still on its way out.
+    if (leavingSignOutRef.current) {
+      return leavingSignOutRef.current;
+    }
+
     // Best-effort server-side revoke + cookie clear. The refresh token rides the
     // HttpOnly cookie (sent via `credentials: 'include'`), so no body is needed.
-    // We don't await it: local state is cleared immediately regardless of result.
-    pendingLogoutRef.current = api.post('auth/logout')
+    // `keepalive` lets the request outlive this page: Safari cancels a page's
+    // in-flight requests as soon as a navigation starts, so a sign-out followed
+    // by a redirect often never reached the server — the cookie stayed valid and
+    // the next page's silent refresh signed the user straight back in.
+    const request = api.post('auth/logout', { keepalive: true })
       .then(() => undefined)
       .catch(() => {
         // Ignore network/401 errors; the local session is being torn down anyway.
       });
+    pendingLogoutRef.current = request;
+    trackPendingLogout(request);
     // Google keeps its own account association independently of our session.
     // Without this the next person to open the sign-in or registration page is
     // greeted by the previous guest's name and email in the Google button.
     disableGoogleAutoSelect();
+
+    const redirectTo = options?.redirectTo;
+    if (redirectTo) {
+      // Wait (bounded) for the revoke so the next page cannot restore the
+      // session, then clear everything and go.
+      const timedOut = new Promise<void>(resolve => {
+        window.setTimeout(resolve, LOGOUT_SETTLE_TIMEOUT_MS);
+      });
+      leavingSignOutRef.current = Promise.race([request, timedOut]).then(() => {
+        clearStoredAuth();
+        queryClient.clear();
+        replaceDocumentLocation(redirectTo);
+      });
+      return leavingSignOutRef.current;
+    }
+
     resetAuthState();
     clearStoredAuth();
     queryClient.clear();
+    return request;
   }, [clearStoredAuth, queryClient, resetAuthState]);
 
   const dismissPasskeyPrompt = useCallback(() => {

@@ -1,4 +1,5 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
+import { isLeavingDocument } from '../utils/documentLocation';
 
 const MODULE_RELOAD_KEY = 'hotelModuleReload';
 const MODULE_RELOAD_GUARD_MS = 15_000;
@@ -45,9 +46,13 @@ export function lazyRoute<T extends ComponentType<any>>(
     try {
       return await loader();
     } catch (error) {
-      if (isModuleImportError(error) && reloadOnceForModuleError()) {
-        // Keep Suspense active during the navigation that is being replaced by
-        // the reload; surfacing the rejected promise would cache the failure.
+      // Safari aborts a page's module loads as soon as a navigation away
+      // starts. That is not a stale chunk, and reloading would cancel the
+      // navigation — after sign-out, landing the user on /login instead.
+      if (isModuleImportError(error) && (isLeavingDocument() || reloadOnceForModuleError())) {
+        // Keep Suspense active while the page is replaced (by the reload or by
+        // the navigation already under way); surfacing the rejected promise
+        // would cache the failure.
         return await new Promise<{ default: T }>(() => undefined);
       }
       throw error;

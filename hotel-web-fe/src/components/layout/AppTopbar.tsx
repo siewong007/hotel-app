@@ -2,8 +2,8 @@ import React from 'react';
 import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SearchIcon from '@mui/icons-material/Search';
-import { useNavigate } from '../../router';
 import { useAuth } from '../../auth/AuthContext';
+import { LANDING_PAGE_PATH } from '../../guest/guestDocumentPaths';
 import { useTranslation } from '../../i18n';
 import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { Breadcrumbs, CurrentPageTitle } from './Breadcrumbs';
@@ -25,15 +25,13 @@ import { UserMenu } from './UserMenu';
 export const AppTopbar: React.FC = () => {
   const { open: openPalette } = useCommandPalette();
   const { logout } = useAuth();
-  const navigate = useNavigate();
   const { t: tNav } = useTranslation('nav');
 
   // The one logout control: end the session, then leave the staff document for
-  // the login page. `logout` settles any in-flight attempt itself, so a double
-  // tap cannot wedge the session.
+  // the public landing page. `logout` waits for the server before navigating
+  // and ignores a second tap while it does.
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    void logout({ redirectTo: LANDING_PAGE_PATH });
   };
   const logoutLabel = tNav('userMenu.logout');
 

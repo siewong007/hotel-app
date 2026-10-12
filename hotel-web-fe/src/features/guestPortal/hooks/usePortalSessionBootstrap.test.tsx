@@ -10,17 +10,12 @@ const mocks = vi.hoisted(() => ({
   },
   createSession: vi.fn(),
   logoutPortal: vi.fn(),
-  navigate: vi.fn(),
   portalToken: null as string | null,
   setPortalToken: vi.fn(),
 }));
 
 vi.mock('../../../auth/AuthContext', () => ({
   useAuth: () => mocks.auth,
-}));
-
-vi.mock('../../../router', () => ({
-  useNavigate: () => mocks.navigate,
 }));
 
 vi.mock('../api/guestPortalDashboard.service', () => ({
@@ -51,7 +46,6 @@ describe('usePortalSessionBootstrap', () => {
     mocks.auth.logout.mockReset();
     mocks.createSession.mockReset();
     mocks.logoutPortal.mockReset();
-    mocks.navigate.mockReset();
     mocks.portalToken = null;
     mocks.setPortalToken.mockReset();
   });
@@ -99,7 +93,7 @@ describe('usePortalSessionBootstrap', () => {
     expect(mocks.createSession).not.toHaveBeenCalled();
   });
 
-  it('leaves the guest portal before clearing the account session on sign out', () => {
+  it('ends the portal token, then the account session, which leaves for the landing page', () => {
     mocks.createSession.mockResolvedValue({
       token: 'portal-token',
       expires_at: '2999-01-01T00:00:00Z',
@@ -111,6 +105,7 @@ describe('usePortalSessionBootstrap', () => {
     expect(mocks.logoutPortal).toHaveBeenCalledBefore(mocks.auth.logout);
     expect(mocks.logoutPortal).toHaveBeenCalledTimes(1);
     expect(mocks.auth.logout).toHaveBeenCalledTimes(1);
+    expect(mocks.auth.logout).toHaveBeenCalledWith({ redirectTo: '/salim-inn/index.html' });
   });
 
   it('offers a retry after the portal session exchange fails', async () => {
@@ -151,8 +146,6 @@ describe('usePortalSessionBootstrap', () => {
 
     expect(mocks.auth.logout).toHaveBeenCalledTimes(1);
     expect(mocks.logoutPortal).toHaveBeenCalledTimes(1);
-    expect(mocks.navigate).toHaveBeenCalledWith('/login', {
-      replace: true,
-    });
+    expect(mocks.auth.logout).toHaveBeenCalledWith({ redirectTo: '/login' });
   });
 });

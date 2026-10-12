@@ -73,6 +73,11 @@ type RefreshTokenResponse = {
 };
 
 let refreshPromise: Promise<RefreshTokenResponse | null> | null = null;
+// A sign-out whose request has not settled yet. A refresh sent meanwhile
+// presents the same cookie the sign-out is revoking; if it reaches the server
+// first it rotates the session, the revoke matches nothing, and the browser
+// keeps a fresh, valid cookie — the user is signed straight back in.
+let pendingLogout: Promise<void> | null = null;
 // The initial auth check gates the entire application shell. Keep its failure
 // bounded so an unreachable local API or a stale Safari connection cannot
 // leave the page on its loading screen for the normal request timeout.
@@ -205,11 +210,13 @@ function clearStoredAuth(): void {
  */
 export async function refreshAccessToken(): Promise<RefreshTokenResponse | null> {
   if (!refreshPromise) {
-    refreshPromise = ky.post(apiUrl('auth/refresh'), {
+    const requestRefresh = () => ky.post(apiUrl('auth/refresh'), {
       credentials: 'include',
       timeout: REFRESH_TIMEOUT_MS,
     })
-      .json<RefreshTokenResponse>()
+      .json<RefreshTokenResponse>();
+    // Never race a sign-out: refresh only once its revoke has landed.
+    refreshPromise = (pendingLogout ? pendingLogout.then(requestRefresh) : requestRefresh())
       .then(tokens => {
         setAccessToken(tokens.access_token);
         window.dispatchEvent(new CustomEvent('auth:tokens-refreshed', {
@@ -227,6 +234,19 @@ export async function refreshAccessToken(): Promise<RefreshTokenResponse | null>
   }
 
   return refreshPromise;
+}
+
+/**
+ * Hold every silent refresh until this sign-out request settles. The promise
+ * must not reject — AuthContext.logout swallows the request's errors.
+ */
+export function trackPendingLogout(logout: Promise<void>): void {
+  pendingLogout = logout;
+  void logout.finally(() => {
+    if (pendingLogout === logout) {
+      pendingLogout = null;
+    }
+  });
 }
 
 async function retryWithFreshAccessToken(

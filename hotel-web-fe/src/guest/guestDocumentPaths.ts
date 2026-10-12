@@ -5,6 +5,9 @@
  * already is — these are path-only.
  */
 
+/** The public Salim Inn landing page, where a signed-out visitor belongs. */
+export const LANDING_PAGE_PATH = '/salim-inn/index.html';
+
 const GUEST_EXACT_PATHS = new Set([
   '/login',
   '/register',

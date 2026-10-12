@@ -1,16 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { queryKeys } from '../../../api/queryKeys';
 import { portalSessionScope } from '../../promotions/utils';
 import { getPortalToken, setPortalToken } from './portalTokenStore';
-
-const navigate = vi.fn();
-
-vi.mock('../../../router', () => ({
-  useNavigate: () => navigate,
-}));
 
 import { usePortalSession } from './usePortalSession';
 
@@ -30,7 +24,6 @@ function createQueryClientWrapper(queryClient: QueryClient) {
 
 describe('usePortalSession', () => {
   beforeEach(() => {
-    navigate.mockReset();
     window.sessionStorage.clear();
   });
 
@@ -59,7 +52,7 @@ describe('usePortalSession', () => {
     expect(getPortalToken()).toBeNull();
   });
 
-  it('clears the guest token and returns to the Salim Inn model on logout', () => {
+  it('clears the guest token and its cached portal data on logout', () => {
     setPortalToken('guest-token', '2999-01-01T00:00:00Z');
     const queryClient = createQueryClient();
     const sessionScope = portalSessionScope('guest-token');
@@ -83,6 +76,5 @@ describe('usePortalSession', () => {
     expect(getPortalToken()).toBeNull();
     expect(queryClient.getQueryData(portalCatalogKey)).toBeUndefined();
     expect(queryClient.getQueryData(portalVoucherKey)).toBeUndefined();
-    expect(navigate).toHaveBeenCalledWith('/', { replace: true });
   });
 });
