@@ -388,21 +388,88 @@ export function monsteraTexture(): THREE.Texture {
   });
 }
 
-/** A loose abstract canvas in blue, yellow and orange (stair landing). */
-export function abstractTexture(): THREE.Texture {
-  return cached('abstract', () => {
-    const W = 256, H = 512;
+/** A lavender field running to a lone tree under a lilac sky (the lobby's back
+ *  wall, over the cabinet; owner's video, 2026-10-12). */
+export function lavenderTexture(): THREE.Texture {
+  return cached('lavender', () => {
+    const W = 512, H = 288;
     const [c, g] = canvas(W, H);
-    const r = rng(331);
-    g.fillStyle = '#e9e4d6';
-    g.fillRect(0, 0, W, H);
-    const cols = ['#2b5c9e', '#3f7fc4', '#e6b52f', '#e07a2a', '#f4f1ea', '#1d3a66'];
-    for (let k = 0; k < 40; k++) {
-      g.fillStyle = cols[Math.floor(r() * cols.length)];
-      g.globalAlpha = 0.55 + r() * 0.4;
-      g.fillRect(r() * W - 40, r() * H - 40, 30 + r() * 140, 16 + r() * 110);
+    const horizon = H * 0.46;
+    const sky = g.createLinearGradient(0, 0, 0, horizon);
+    sky.addColorStop(0, '#6d5a8f');
+    sky.addColorStop(1, '#c9a9cf');
+    g.fillStyle = sky;
+    g.fillRect(0, 0, W, horizon);
+    const field = g.createLinearGradient(0, horizon, 0, H);
+    field.addColorStop(0, '#7d5c9e');
+    field.addColorStop(1, '#4e2f72');
+    g.fillStyle = field;
+    g.fillRect(0, horizon, W, H - horizon);
+    // rows running to a vanishing point on the horizon
+    g.strokeStyle = 'rgba(160, 120, 200, 0.55)';
+    for (let i = -14; i <= 14; i++) {
+      g.lineWidth = 1 + Math.abs(i) * 0.5;
+      g.beginPath(); g.moveTo(W / 2, horizon); g.lineTo(W / 2 + i * 46, H); g.stroke();
     }
-    g.globalAlpha = 1;
+    // the tree
+    g.fillStyle = '#2c2433';
+    g.fillRect(W / 2 - 3, horizon - 26, 6, 26);
+    g.beginPath(); g.ellipse(W / 2, horizon - 34, 26, 17, 0, 0, Math.PI * 2); g.fill();
+    return finish(c, true, false);
+  });
+}
+
+/** The red coir mat at the stair door, WELCOME on it. */
+export function welcomeMatTexture(): THREE.Texture {
+  return cached('welcomeMat', () => {
+    const W = 512, H = 320;
+    const [c, g] = canvas(W, H);
+    const r = rng(19);
+    g.fillStyle = '#9e1c24';
+    g.fillRect(0, 0, W, H);
+    for (let k = 0; k < 2400; k++) {
+      g.fillStyle = r() > 0.5 ? 'rgba(0,0,0,0.12)' : 'rgba(255,170,160,0.08)';
+      g.fillRect(r() * W, r() * H, 2, 2);
+    }
+    g.strokeStyle = '#6e1016';
+    g.lineWidth = 14;
+    g.strokeRect(14, 14, W - 28, H - 28);
+    g.fillStyle = '#e7c9a4';
+    g.font = `italic 600 78px Georgia, "Times New Roman", serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('WELCOME', W / 2, H / 2);
+    return finish(c, true, false);
+  });
+}
+
+/** A trailing succulent in a round grey pot, drawn on white canvas (the
+ *  stair, owner's video 2026-10-12). */
+export function succulentTexture(): THREE.Texture {
+  return cached('succulent', () => {
+    const W = 384, H = 512;
+    const [c, g] = canvas(W, H);
+    const r = rng(83);
+    g.fillStyle = '#f6f5f1';
+    g.fillRect(0, 0, W, H);
+    // strands falling from the pot, beaded with small leaves
+    for (let k = 0; k < 15; k++) {
+      let x = W / 2 + (r() - 0.5) * 120, y = 150;
+      const drift = (r() - 0.5) * 1.6, len = 140 + r() * 210;
+      for (let s = 0; s < len; s += 9) {
+        x += drift + (r() - 0.5) * 2;
+        y += 9;
+        g.fillStyle = r() > 0.4 ? '#6f8f78' : '#9bb3a0';
+        g.beginPath(); g.ellipse(x, y, 7, 5, r(), 0, Math.PI * 2); g.fill();
+      }
+    }
+    g.fillStyle = '#5d6266';
+    g.beginPath(); g.ellipse(W / 2, 128, 74, 52, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#7b8085';
+    g.fillRect(W / 2 - 78, 96, 156, 18);
+    g.strokeStyle = '#9a9488';
+    g.lineWidth = 2;
+    g.beginPath(); g.moveTo(W / 2, 96); g.lineTo(W / 2, 20); g.stroke();
     return finish(c, true, false);
   });
 }

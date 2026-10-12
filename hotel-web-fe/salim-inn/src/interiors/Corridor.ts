@@ -1,25 +1,30 @@
-// Stair core and the level-1 corridor (brief §4.5), from the owner's photos
-// of the stair and the level-1 and level-2 corridors (2026-10-02):
-//   · a dog-leg stair at the back of the lobby, opposite the reception:
-//     burgundy loop-pile carpet over treads and risers with aluminium
-//     nosings, cream walls, stainless wall handrails on brackets and a
-//     stainless post-and-rail balustrade round the well; a monstera print and
-//     a dried-flower wreath up the first flight, an abstract canvas on the
-//     landing, a fire extinguisher at the foot and KELUAR exit signs;
+// The stair and the level-1 corridor (brief §4.5), from the owner's photos of
+// the stair and the level-1 and level-2 corridors (2026-10-02) and the
+// owner's walk-through video (2026-10-12):
+//   · the stair (PLAN.stair): through the brown door in the lobby's back wall,
+//     three steps up to a landing, a right turn, and one long straight flight
+//     behind the cafe's lot to level 1 — burgundy loop-pile carpet over treads
+//     and risers with aluminium nosings, cream walls, a stainless post-and-
+//     rail with ball finials beside the three steps and a wall handrail up
+//     the flight on the right; on its left-hand wall a trailing-succulent
+//     canvas, dried-flower wreaths and a monstera print, a white cabinet high
+//     on the landing's wall, a fire extinguisher and KELUAR exit signs. The
+//     video stops at the top of the flight: the level-1 landing and its short
+//     passage to the corridor are inferred;
 //   · the corridor: the same carpet, cream walls, dark brown doors with red
 //     numbers on clear acrylic plates and stainless card locks, red
-//     wayfinding plates at the stair landing, a Wi-Fi sign, hexagonal and
+//     wayfinding plates facing the passage, a Wi-Fi sign, hexagonal and
 //     blossom canvases, downlights and dome cameras.
 // The numbering is a placeholder sequence — odd numbers on the facade side,
 // even behind, rising from the corner end; the showcase room is 103. The
-// landing's plates list whichever rooms lie each way.
+// plates list whichever rooms lie each way.
 // Built in the Salim block frame; the corridor runs along x at level 1.
 import * as THREE from 'three';
 import { PLAN } from '../world/SalimInnBuilding';
 import { FLOOR_Y } from '../config/dimensions';
 import { SALIM_WIDTH } from '../world/layout';
-import { batchPlain, boxAt, mergeAll, mergeStatic, metricUV, wallWithOpenings } from '../world/geom';
-import { abstractTexture, acrylicNumberTexture, blossomTexture, exitTexture, hexArtTexture, monsteraTexture, noSmokingTexture, PublicMats, wayfindingTexture, wifiTexture } from './lobbyMaterials';
+import { batchPlain, boxAt, mergeAll, mergeStatic, metricUV, tube, wallWithOpenings } from '../world/geom';
+import { acrylicNumberTexture, blossomTexture, exitTexture, hexArtTexture, monsteraTexture, noSmokingTexture, PublicMats, succulentTexture, wayfindingTexture, wifiTexture } from './lobbyMaterials';
 
 const Y1 = FLOOR_Y.level1;
 const CEIL = 2.7; // corridor ceiling above the level-1 floor
@@ -28,7 +33,7 @@ const DOOR_H = 2.08;
 /** Door centres along the corridor: [x, number]. Front doors are fixed clear
  *  of the configurator room's widest footprint, bar its own (103). */
 export const FRONT_DOORS: [number, number][] = [[1.05, 101], [(PLAN.showcaseDoor.x0 + PLAN.showcaseDoor.x1) / 2, 103], [11.0, 105], [13.45, 107], [15.9, 109], [18.35, 111], [20.8, 113]];
-export const BACK_DOORS: [number, number][] = [[1.3, 102], [4.3, 104], [7.3, 106], [13.9, 108], [16.5, 110], [19.1, 112], [21.55, 114]];
+export const BACK_DOORS: [number, number][] = [[1.3, 102], [4.3, 104], [7.3, 106], [10.6, 108], [13.9, 110], [19.1, 112], [21.55, 114]];
 export const SHOWCASE_NUMBER = 103;
 
 function mesh(g: THREE.BufferGeometry, m: THREE.Material, name = '', shadow = true): THREE.Mesh {
@@ -54,25 +59,17 @@ export function roomRanges(nums: number[]): string {
   return out.join(', ');
 }
 
-/** The level-1 landing's two wayfinding plates: the rooms to either hand,
- *  seen from the top of the stair facing the corridor (the +x rooms are on
- *  the left). */
+/** Where the passage from the stair meets the corridor (its centre line). */
+export const PASSAGE_X = (PLAN.stair.passage.x0 + PLAN.stair.passage.x1) / 2;
+
+/** The wayfinding plates facing the passage: the rooms to either hand, seen
+ *  coming out of it into the corridor (the +x rooms are on the left). */
 export function landingPlates(): { left: string; right: string } {
-  const midX = (PLAN.stair.x0 + PLAN.stair.x1) / 2;
   const all = [...FRONT_DOORS, ...BACK_DOORS];
   return {
-    left: roomRanges(all.filter(([x]) => x > midX).map(([, num]) => num)),
-    right: roomRanges(all.filter(([x]) => x < midX).map(([, num]) => num)),
+    left: roomRanges(all.filter(([x]) => x > PASSAGE_X).map(([, num]) => num)),
+    right: roomRanges(all.filter(([x]) => x < PASSAGE_X).map(([, num]) => num)),
   };
-}
-
-/** A round tube from a to b (rails, posts). */
-function tube(a: THREE.Vector3, b: THREE.Vector3, r: number): THREE.BufferGeometry {
-  const len = a.distanceTo(b);
-  const g = new THREE.CylinderGeometry(r, r, len, 10, 1, true);
-  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize()));
-  g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-  return g;
 }
 
 export class Corridor {
@@ -85,7 +82,7 @@ export class Corridor {
   private lit: { m: THREE.MeshBasicMaterial; base: THREE.Color }[] = [];
 
   constructor() {
-    const s = PLAN.stair;
+    const st = PLAN.stair, sw = st.well, sd = st.door, R = st.rise;
     const W = SALIM_WIDTH;
     const cz0 = PLAN.corridor.z0, cz1 = PLAN.corridor.z1; // back, front faces
     const x0 = 0.2, x1 = W - 0.2;
@@ -95,88 +92,90 @@ export class Corridor {
     const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
     // ------------------------------------------------------------ stair
-    const n = 12, rise = Y1 / (2 * n), run = 0.27, fw = 1.0;
-    const steps: THREE.BufferGeometry[] = []; // carpeted treads and risers
+    const gy = PLAN.floor;
+    const zDoor = PLAN.lobby.z0 - 0.2; // the lobby back wall's rear face: the first riser
+    const ne = st.entry.risers, er = st.entry.run;
+    const landY = gy + ne * R;
+    const fx0 = st.flight.x0, run = st.flight.run, nf = st.flight.risers;
+    const topX = fx0 + (nf - 1) * run; // the top riser; the level-1 landing beyond
+    const px0 = st.passage.x0, px1 = st.passage.x1, tx1 = st.top.x1;
+    const top = Y1 + CEIL; // level 1's ceiling
+    const skin = 0.012; // cream skins stand this far proud of the building's walls
+    const steps: THREE.BufferGeometry[] = []; // carpeted treads and risers, solid to the ground
     const nosings: THREE.BufferGeometry[] = [];
-    const bodies: THREE.BufferGeometry[] = [];
-    const z1Start = s.z1 - 0.3; // flight 1 climbs from here towards −z
-    const z2Start = z1Start - n * run - 1.0; // flight 2 climbs back towards +z
-    const plate = 0.16;
-    for (let i = 0; i < n; i++) {
-      // flight 1: party-wall side; its risers face +z
-      {
-        const za = z1Start - (i + 1) * run, zb = z1Start - i * run, y = (i + 1) * rise;
-        steps.push(boxAt(s.x1 - fw, y - rise, za, s.x1, y, zb));
-        bodies.push(boxAt(s.x1 - fw, Math.max(0, y - rise - plate), za, s.x1, y - rise, zb));
-        nosings.push(boxAt(s.x1 - fw + 0.02, y - 0.003, zb - 0.05, s.x1 - 0.02, y + 0.004, zb + 0.004), boxAt(s.x1 - fw + 0.02, y - 0.03, zb, s.x1 - 0.02, y, zb + 0.004));
-      }
-      // flight 2: lobby side, back towards the corridor; its risers face −z
-      {
-        const za = z2Start + i * run, zb = z2Start + (i + 1) * run, y = Y1 / 2 + (i + 1) * rise;
-        steps.push(boxAt(s.x0, y - rise, za, s.x0 + fw, y, zb));
-        bodies.push(boxAt(s.x0, y - rise - plate, za, s.x0 + fw, y - rise, zb));
-        nosings.push(boxAt(s.x0 + 0.02, y - 0.003, za - 0.004, s.x0 + fw - 0.02, y + 0.004, za + 0.05), boxAt(s.x0 + 0.02, y - 0.03, za - 0.004, s.x0 + fw - 0.02, y, za));
-      }
+    // the threshold through the wall, the three steps (risers facing +z) and the landing
+    steps.push(boxAt(sd.x0, 0, zDoor, sd.x1, gy + 0.014, PLAN.lobby.z0));
+    for (let k = 1; k < ne; k++) {
+      const za = zDoor - k * er, zb = zDoor - (k - 1) * er, y = gy + k * R;
+      steps.push(boxAt(sw.x0, 0, za, fx0, y, zb));
+      nosings.push(boxAt(sw.x0 + 0.02, y - 0.003, zb - 0.05, fx0 - 0.02, y + 0.004, zb + 0.004), boxAt(sw.x0 + 0.02, y - 0.03, zb, fx0 - 0.02, y, zb + 0.004));
     }
-    // mid landing and the level-1 landing over the void
-    const midZ = z1Start - n * run;
-    steps.push(boxAt(s.x0, Y1 / 2 - 0.03, s.z0 + 0.2, s.x1, Y1 / 2, midZ));
-    bodies.push(boxAt(s.x0, Y1 / 2 - plate - 0.03, s.z0 + 0.2, s.x1, Y1 / 2 - 0.03, midZ));
-    const topZ = z2Start + n * run; // where flight 2 arrives
-    steps.push(boxAt(s.x0, Y1 - 0.03, topZ, s.x1, Y1 + 0.012, s.z1));
-    bodies.push(boxAt(s.x0, Y1 - 0.25, topZ, s.x1, Y1 - 0.03, s.z1));
+    steps.push(boxAt(sw.x0, 0, sw.z0, fx0, landY, sw.z1));
+    nosings.push(boxAt(sw.x0 + 0.02, landY - 0.003, sw.z1 - 0.05, fx0 - 0.02, landY + 0.004, sw.z1 + 0.004), boxAt(sw.x0 + 0.02, landY - 0.03, sw.z1, fx0 - 0.02, landY, sw.z1 + 0.004));
+    // the long flight (risers facing −x), up to the level-1 landing
+    for (let k = 1; k < nf; k++) {
+      const xa = fx0 + (k - 1) * run, xb = xa + run, y = landY + k * R;
+      steps.push(boxAt(xa, 0, sw.z0, xb, y, sw.z1));
+      nosings.push(boxAt(xa - 0.004, y - 0.003, sw.z0 + 0.02, xa + 0.05, y + 0.004, sw.z1 - 0.02), boxAt(xa - 0.004, y - 0.03, sw.z0 + 0.02, xa, y, sw.z1 - 0.02));
+    }
+    // the top riser in front of the slab's edge, then the level-1 landing and the passage
+    steps.push(boxAt(topX - 0.012, landY + (nf - 1) * R, sw.z0, topX, Y1 + 0.012, sw.z1));
+    nosings.push(boxAt(topX - 0.016, Y1 + 0.009, sw.z0 + 0.02, topX + 0.05, Y1 + 0.016, sw.z1 - 0.02));
+    steps.push(boxAt(topX, Y1 - 0.01, sw.z0, tx1, Y1 + 0.012, sw.z1), boxAt(px0, Y1 - 0.01, sw.z1, px1, Y1 + 0.012, cz0));
     this.group.add(mesh(metricUV(merged(steps)), carpet, 'stair-steps'));
     this.group.add(mesh(merged(nosings), PublicMats.brushed(), 'stair-nosings', false));
-    this.group.add(mesh(merged(bodies), wallMat, 'stair'));
 
-    // stainless balustrade round the well: posts, a top rail and two mid rails
+    // stainless rails: a post-and-rail with ball finials beside the three
+    // steps, and a handrail on brackets up the flight's right-hand wall,
+    // 0.9 m above the pitch line
     const rails: THREE.BufferGeometry[] = [];
-    const railH = 0.92;
-    const run2 = (a: THREE.Vector3, b: THREE.Vector3) => {
-      const k = Math.max(1, Math.round(a.distanceTo(b) / 1.0));
-      for (let j = 0; j <= k; j++) {
-        const p = a.clone().lerp(b, j / k);
-        rails.push(tube(p, p.clone().setY(p.y + railH), 0.02));
-      }
-      for (const h of [railH, 0.62, 0.32]) rails.push(tube(a.clone().setY(a.y + h), b.clone().setY(b.y + h), h === railH ? 0.024 : 0.011));
-    };
-    const wellL = s.x0 + fw, wellR = s.x1 - fw;
-    run2(v(wellR, rise, z1Start - run), v(wellR, Y1 / 2, midZ)); // flight 1, well side
-    run2(v(wellL, Y1 / 2 + rise, z2Start + 0.15), v(wellL, Y1, topZ)); // flight 2, well side
-    run2(v(wellL, Y1 / 2, midZ), v(wellR, Y1 / 2, midZ)); // the well's end at the mid landing
-    run2(v(wellL, Y1, topZ), v(s.x1, Y1, topZ)); // the level-1 landing's edge over flight 1
-    // wall handrails on brackets, 0.9 m above the pitch line
-    const wallRail = (x: number, za: number, ya: number, zb: number, yb: number) => {
-      rails.push(tube(v(x, ya + 0.9, za), v(x, yb + 0.9, zb), 0.022));
-      const k = Math.max(1, Math.round(Math.abs(zb - za) / 1.2));
-      const wx = x + (x > (s.x0 + s.x1) / 2 ? 0.06 : -0.06);
-      for (let j = 0; j <= k; j++) {
-        const t = j / k, z = za + (zb - za) * t, y = ya + (yb - ya) * t + 0.9;
-        rails.push(tube(v(x, y - 0.06, z), v(wx, y - 0.06, z), 0.008));
-      }
-    };
-    wallRail(s.x1 - 0.06, z1Start, 0, midZ, Y1 / 2); // flight 1, on the party wall
-    wallRail(s.x0 + 0.06, z2Start, Y1 / 2, topZ, Y1); // flight 2, on the core wall
-    this.group.add(mesh(merged(rails), steel, 'stair-rails'));
+    const balls: THREE.BufferGeometry[] = [];
+    // the pitch lines run through the nosings
+    const pitch = (z: number) => gy + R * THREE.MathUtils.clamp(1 + (zDoor - z) / er, 1, ne);
+    const treadAt = (z: number) => gy + R * Math.min(ne, Math.floor((zDoor - z) / er) + 1);
+    const flightPitch = (x: number) => landY + R * THREE.MathUtils.clamp(1 + (x - fx0) / run, 1, nf);
+    const rx = fx0 - 0.09, za = zDoor - 0.12, zt = sw.z1 - 0.1;
+    for (const z of [za, zt]) {
+      rails.push(tube(v(rx, treadAt(z), z), v(rx, pitch(z) + 0.98, z), 0.024));
+      balls.push(new THREE.SphereGeometry(0.04, 14, 8).translate(rx, pitch(z) + 1.0, z));
+    }
+    for (const h of [0.9, 0.6, 0.3]) rails.push(tube(v(rx, pitch(za) + h, za), v(rx, pitch(zt) + h, zt), h === 0.9 ? 0.022 : 0.011));
+    const zr = sw.z1 - 0.06; // the flight's handrail, on its right-hand wall
+    rails.push(tube(v(fx0, flightPitch(fx0) + 0.9, zr), v(topX, Y1 + 0.9, zr), 0.022), tube(v(topX, Y1 + 0.9, zr), v(px0 - 0.06, Y1 + 0.9, zr), 0.022));
+    for (let j = 0; j <= 4; j++) {
+      const x = fx0 + 0.2 + ((topX - fx0 - 0.4) * j) / 4, y = flightPitch(x) + 0.84;
+      rails.push(tube(v(x, y, zr), v(x, y, sw.z1 - skin), 0.008));
+    }
+    this.group.add(mesh(merged([...rails, ...balls]), steel, 'stair-rails'));
 
-    // cream skins over the building's own core walls on the ground floor
+    // cream skins over the building's walls on the ground floor, and the
+    // walls, ceiling and skins of the well, the landing and the passage at level 1
     this.group.add(mesh(merged([
-      boxAt(s.x1 - 0.012, 0, s.z0, s.x1, Y1, s.z1),
-      boxAt(s.x0, 0, s.z0, s.x0 + 0.012, Y1, s.z1),
-      boxAt(s.x0, 0, s.z0, s.x1, Y1, s.z0 + 0.012),
-    ]), wallMat, 'core-skin-ground'));
-    // stair core walls at level 1 (the ground floor ones belong to the building),
-    // and a ceiling over the core and the landing
-    this.group.add(
-      mesh(boxAt(s.x0 - 0.2, Y1, s.z1, s.x0, Y1 + CEIL, cz0 - 0.2), wallMat, 'core-wall-left'),
-      mesh(boxAt(s.x0, Y1, s.z0, s.x0 + 0.01, Y1 + CEIL, s.z1), wallMat, 'core-skin-left'),
-      mesh(boxAt(s.x0, Y1, s.z0, s.x1, Y1 + CEIL, s.z0 + 0.01), wallMat, 'core-skin-back'),
-      mesh(boxAt(s.x1, Y1, s.z1, s.x1 + 0.2, Y1 + CEIL, cz0 - 0.2), wallMat, 'core-wall-right'),
-      mesh(boxAt(s.x1 - 0.01, Y1, s.z0, s.x1, Y1 + CEIL, s.z1), wallMat, 'core-skin-right'),
-      mesh(boxAt(s.x0 - 0.2, Y1 + CEIL, s.z0, s.x1 + 0.2, Y1 + CEIL + 0.04, cz0), PublicMats.ceiling(), 'core-ceiling', false),
-    );
+      boxAt(sw.x0, 0, sw.z0, sw.x0 + skin, Y1, zDoor), // beside the steps and the landing
+      boxAt(sw.x0, 0, sw.z0, tx1, top, sw.z0 + skin), // behind the flight
+      boxAt(fx0, 0, sw.z1 - skin, px0, top, sw.z1), // in front of the flight, up to the passage
+      boxAt(fx0 - skin, 0, sw.z1, fx0, Y1, zDoor), // beside the steps, right
+      boxAt(tx1 - skin, Y1, sw.z0, tx1, top, cz0), // the far end, and the passage's right
+      boxAt(px0, Y1, sw.z1, px0 + skin, top, cz0), // the passage's left
+      // the back wall's rear face, round the door
+      boxAt(sw.x0, 0, zDoor - skin, sd.x0, Y1, zDoor),
+      boxAt(sd.x1, 0, zDoor - skin, fx0, Y1, zDoor),
+      boxAt(sd.x0, gy + sd.h, zDoor - skin, sd.x1, Y1, zDoor),
+    ]), wallMat, 'stair-walls'));
+    this.group.add(mesh(merged([
+      boxAt(fx0 - 0.2, Y1, sw.z0, fx0, top, sw.z1 + 0.2), // the well's near end at level 1
+      boxAt(fx0 - 0.2, Y1, sw.z1, px0 - 0.2, top, sw.z1 + 0.2), // the well's front at level 1
+      boxAt(px0 - 0.2, Y1, sw.z1, px0, top, cz0 - 0.2), // the passage's left wall
+      boxAt(tx1, Y1, sw.z0 - 0.2, tx1 + 0.2, top, cz0 - 0.2), // the far end and the passage's right wall
+      boxAt(fx0 - 0.2, Y1, sw.z0 - 0.2, tx1 + 0.2, top, sw.z0), // the well's back at level 1
+    ]), wallMat, 'stair-walls-l1'));
+    this.group.add(mesh(merged([
+      boxAt(fx0 - 0.2, top, sw.z0 - 0.2, tx1 + 0.2, top + 0.04, sw.z1 + 0.2),
+      boxAt(px0 - 0.2, top, sw.z1, tx1 + 0.2, top + 0.04, cz0),
+    ]), PublicMats.ceiling(), 'stair-ceiling', false));
 
-    // art up the first flight (party wall) and on the landing's back wall
+    // art up the flight's left-hand wall, rising with it, and the landing's
+    // cabinet; the extinguisher on the landing
     const art = (tex: THREE.Texture, key: string, w: number, h: number, pos: THREE.Vector3, rotY: number, depth = 0.025) => {
       const g = new THREE.Group();
       g.add(mesh(boxAt(-w / 2, -h / 2, -depth, w / 2, h / 2, 0), PublicMats.white(), 'canvas-edge', false));
@@ -189,12 +188,23 @@ export class Corridor {
       this.group.add(g);
       return g;
     };
-    art(monsteraTexture(), 'monstera', 0.42, 0.56, v(s.x1 - 0.026, 2.05, z1Start - 1.9), -Math.PI / 2);
-    this.group.add(wreath().translateX(s.x1 - 0.06).translateY(1.75).translateZ(z1Start - 0.9));
-    art(abstractTexture(), 'abstract', 0.5, 1.0, v((s.x0 + s.x1) / 2, Y1 / 2 + 1.55, s.z0 + 0.04), 0);
-    // fire extinguisher at the foot of the stair, on the core wall
-    this.group.add(extinguisher().translateX(s.x0 + 0.02).translateZ(z1Start - 0.4));
-    // KELUAR over the core's opening, seen coming down (the lobby side has its own)
+    const onWall = sw.z0 + skin + 0.025; // the left-hand wall's face, plus a canvas's depth
+    const pitchY = (x: number) => landY + THREE.MathUtils.clamp((x - fx0) / run, 0, nf) * R;
+    const wreathAt = (x: number, y: number) => {
+      const g = wreath();
+      g.rotation.y = Math.PI / 2; // its face towards +z, off the left-hand wall
+      g.position.set(x, y, sw.z0 + skin + 0.06);
+      this.group.add(g);
+    };
+    art(succulentTexture(), 'succulent', 0.45, 0.6, v(fx0 + 0.75, pitchY(fx0 + 0.75) + 1.6, onWall), 0);
+    wreathAt(fx0 + 1.6, pitchY(fx0 + 1.6) + 1.55);
+    art(monsteraTexture(), 'monstera', 0.42, 0.56, v(fx0 + 2.6, pitchY(fx0 + 2.6) + 1.65, onWall), 0);
+    wreathAt(fx0 + 3.45, pitchY(fx0 + 3.45) + 1.5);
+    // one more at the top, on the level-1 landing's end wall, ahead of the climb
+    this.group.add(wreath().translateX(tx1 - skin - 0.06).translateY(Y1 + 1.55).translateZ((sw.z0 + sw.z1) / 2));
+    this.group.add(mesh(boxAt(sw.x0 + 0.2, landY + 1.95, sw.z0 + skin, sw.x0 + 0.8, landY + 2.42, sw.z0 + 0.2), PublicMats.white(), 'landing-cabinet'));
+    this.group.add(extinguisher().translateX(sw.x0 + skin).translateY(landY).translateZ(sw.z0 + 0.45));
+    // KELUAR over the door, seen coming down
     const exitMat = new THREE.MeshBasicMaterial({ map: exitTexture(), color: new THREE.Color(1.5, 1.5, 1.5), toneMapped: false });
     const exitBox = (pos: THREE.Vector3, rotY: number) => {
       const e = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.113, 0.03), [PublicMats.white(), PublicMats.white(), PublicMats.white(), PublicMats.white(), exitMat, PublicMats.white()]);
@@ -203,26 +213,24 @@ export class Corridor {
       e.name = 'keluar';
       this.group.add(e);
     };
-    exitBox(v((s.x0 + s.x1) / 2, 2.62, s.z1 - 0.03), Math.PI);
-    // one lamp for both flights: over the well, between the floors, so the
-    // ground-floor flight is lit and not just the landing above it
-    this.stairLight = new THREE.PointLight(0xffe0bc, 0, 10, 1.7);
-    this.stairLight.position.set((wellL + wellR) / 2, Y1 * 0.78, midZ + 0.6);
+    exitBox(v((sd.x0 + sd.x1) / 2, gy + sd.h + 0.28, zDoor - skin - 0.016), Math.PI);
+    // one lamp for the whole stair, in the well just under level 1's floor:
+    // above the lobby's ceiling and below the corridor's carpet, so neither
+    // takes its light through the slab. The well is 1.24 m wide, so the lamp
+    // is never more than 0.62 m from a wall: a gentle falloff keeps that
+    // from a hot spot (which bloomed) and still reaches both ends
+    this.stairLight = new THREE.PointLight(0xffe0bc, 0, 10, 0.9);
+    this.stairLight.position.set(fx0 + 1.0, Y1 - 0.15, (sw.z0 + sw.z1) / 2); // (x past the lobby's side wall, which would take it)
     this.group.add(this.stairLight);
 
     // ------------------------------------------------------------ corridor shell
-    // carpet (corridor + the landing in front of the stair)
+    this.group.add(mesh(metricUV(boxAt(x0, Y1 - 0.01, cz0, x1, Y1 + 0.012, cz1)), carpet, 'corridor-carpet', false));
+    this.group.add(mesh(boxAt(x0, top, cz0, x1, top + 0.04, cz1), PublicMats.ceiling(), 'corridor-ceiling', false));
+    // back wall with the passage's opening
     this.group.add(
-      mesh(metricUV(boxAt(x0, Y1 - 0.01, cz0, x1, Y1 + 0.012, cz1)), carpet, 'corridor-carpet', false),
-      mesh(metricUV(boxAt(s.x0, Y1 - 0.01, s.z1, s.x1, Y1 + 0.012, cz0)), carpet, 'landing-carpet', false),
-    );
-    // ceiling
-    this.group.add(mesh(boxAt(x0, Y1 + CEIL, cz0, x1, Y1 + CEIL + 0.04, cz1), PublicMats.ceiling(), 'corridor-ceiling', false));
-    // back wall with the opening onto the stair landing
-    this.group.add(
-      mesh(boxAt(x0, Y1, cz0 - 0.2, s.x0 - 0.2, Y1 + CEIL, cz0), wallMat, 'corridor-wall-back'),
-      mesh(boxAt(s.x1 + 0.2, Y1, cz0 - 0.2, x1, Y1 + CEIL, cz0), wallMat, 'corridor-wall-back'),
-      mesh(boxAt(s.x0 - 0.2, Y1 + 2.3, cz0 - 0.2, s.x1 + 0.2, Y1 + CEIL, cz0), wallMat, 'corridor-bulkhead'),
+      mesh(boxAt(x0, Y1, cz0 - 0.2, px0, top, cz0), wallMat, 'corridor-wall-back'),
+      mesh(boxAt(px1, Y1, cz0 - 0.2, x1, top, cz0), wallMat, 'corridor-wall-back'),
+      mesh(boxAt(px0, Y1 + 2.3, cz0 - 0.2, px1, top, cz0), wallMat, 'corridor-bulkhead'),
     );
     // front face: a skin on the rooms' corridor wall, open at the showcase door
     const showcase = PLAN.showcaseDoor;
@@ -237,7 +245,7 @@ export class Corridor {
     const endN = wallWithOpenings(cz1 - cz0, CEIL, 0.02, [{ u0: -8.5 - cz0, u1: cz1 - cz0 + 0.001, v0: PLAN.windowSill, v1: PLAN.windowHead }]);
     this.group.add(
       mesh(endN.rotateY(-Math.PI / 2).translate(x0, Y1, cz0), wallMat, 'corridor-end-n'),
-      mesh(boxAt(x1 - 0.02, Y1, cz0, x1, Y1 + CEIL, cz1), wallMat, 'corridor-end-s'),
+      mesh(boxAt(x1 - 0.02, Y1, cz0, x1, top, cz1), wallMat, 'corridor-end-s'),
     );
 
     // ------------------------------------------------------------ doors and their plates
@@ -279,20 +287,22 @@ export class Corridor {
     addMerged(frontFrames, frameMat, 'door-frames', this.frontWall);
     addMerged(frontMetal, steel, 'door-hardware', this.frontWall);
 
-    // ------------------------------------------------------------ the landing's plates, signs and art
-    const midX = (s.x0 + s.x1) / 2;
+    // ------------------------------------------------------------ the plates, signs and art at the passage
     const { left, right } = landingPlates();
-    const signPlate = (tex: THREE.Texture, key: string, x: number, w: number, h: number, transparent = false) => {
+    const signPlate = (tex: THREE.Texture, key: string, x: number, y: number, w: number, h: number, transparent = false) => {
       const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), PublicMats.print(tex, key, transparent));
-      p.rotation.y = Math.PI; // facing −z, towards the landing
-      p.position.set(x, Y1 + 2.0, cz1 - 0.024);
+      p.rotation.y = Math.PI; // facing −z, towards the passage
+      p.position.set(x, Y1 + y, cz1 - 0.024);
       p.name = `sign-${key}`;
       this.frontWall.add(p);
     };
-    const doorAhead = FRONT_DOORS.find(([x]) => Math.abs(x - midX) < 0.8)?.[0] ?? midX;
-    signPlate(wayfindingTexture(left, 'left'), `way-l`, doorAhead + DOOR_W / 2 + 0.42, 0.46, 0.115);
-    signPlate(wayfindingTexture(right, 'right'), `way-r`, doorAhead - DOOR_W / 2 - 0.42, 0.46, 0.115);
-    signPlate(wifiTexture(), 'wifi', doorAhead + DOOR_W / 2 + 0.88, 0.16, 0.16, true);
+    // on the stretch of the room wall facing the passage, between its two doors
+    const lo = Math.max(...FRONT_DOORS.map(([x]) => x).filter((x) => x < PASSAGE_X)) + DOOR_W / 2 + 0.05;
+    const hi = Math.min(...FRONT_DOORS.map(([x]) => x).filter((x) => x > PASSAGE_X)) - DOOR_W / 2 - 0.05;
+    const mid = (lo + hi) / 2;
+    signPlate(wayfindingTexture(left, 'left'), 'way-l', mid + 0.26, 2.0, 0.46, 0.115);
+    signPlate(wayfindingTexture(right, 'right'), 'way-r', mid - 0.26, 2.0, 0.46, 0.115);
+    signPlate(wifiTexture(), 'wifi', mid, 1.6, 0.16, 0.16, true);
     // on the back wall beside the opening: two hexagonal canvases, the
     // no-smoking notice and, further along, the long blossom canvas
     const hexArt = (kind: 'navy' | 'green', x: number, y: number) => {
@@ -306,10 +316,10 @@ export class Corridor {
       g.name = `art-hex-${kind}`;
       this.group.add(g);
     };
-    hexArt('navy', s.x0 - 0.75, Y1 + 1.85);
-    hexArt('green', s.x0 - 0.42, Y1 + 1.5);
+    hexArt('navy', px0 - 0.75, Y1 + 1.85);
+    hexArt('green', px0 - 0.42, Y1 + 1.5);
     const ns = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.25), PublicMats.print(noSmokingTexture(), 'no-smoking'));
-    ns.position.set(s.x1 + 0.55, Y1 + 1.55, cz0 + 0.004);
+    ns.position.set(px1 + 0.55, Y1 + 1.55, cz0 + 0.004);
     ns.name = 'sign-no-smoking';
     this.group.add(ns);
     const longArt = new THREE.Group();
@@ -317,42 +327,42 @@ export class Corridor {
     const blossom = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), PublicMats.print(blossomTexture(), 'blossom'));
     blossom.position.z = 0.001;
     longArt.add(blossom);
-    longArt.position.set(15.2, Y1 + 1.65, cz0 + 0.026);
+    longArt.position.set((BACK_DOORS[2][0] + BACK_DOORS[3][0]) / 2, Y1 + 1.65, cz0 + 0.026);
     longArt.name = 'art-blossom';
     this.group.add(longArt);
     // KELUAR over the opening, pointing the corridor to the stair
-    exitBox(v(midX, Y1 + 2.48, cz0 + 0.03), 0);
+    exitBox(v(PASSAGE_X, Y1 + 2.48, cz0 + 0.03), 0);
 
     // ------------------------------------------------------------ downlights, cameras
     const disc = new THREE.CircleGeometry(0.055, 20).rotateX(Math.PI / 2);
     const discMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffe4c2).multiplyScalar(3), toneMapped: false });
     this.lit.push({ m: discMat, base: discMat.color.clone() });
-    for (let x = x0 + 1.1; x < x1 - 0.5; x += 2.2) {
+    const downlight = (x: number, z: number) => {
       const d = new THREE.Mesh(disc, discMat);
-      d.position.set(x, Y1 + CEIL - 0.002, (cz0 + cz1) / 2);
+      d.position.set(x, top - 0.002, z);
       this.group.add(d);
-    }
-    for (const z of [cz0 - 1.1, s.z1 - 0.7]) {
-      const d = new THREE.Mesh(disc, discMat);
-      d.position.set(midX - 0.9, Y1 + CEIL - 0.002, z);
-      this.group.add(d);
-    }
+    };
+    for (let x = x0 + 1.1; x < x1 - 0.5; x += 2.2) downlight(x, (cz0 + cz1) / 2);
+    // the passage, the level-1 landing and the well
+    for (const z of [cz0 - 1.0, sw.z1 - 0.1]) downlight(PASSAGE_X, z);
+    for (const x of [fx0 + 1.1, fx0 + 3.0]) downlight(x, (sw.z0 + sw.z1) / 2);
     const domeMat = new THREE.MeshPhysicalMaterial({ color: 0x1a1c1f, roughness: 0.08, clearcoat: 1 });
-    for (const x of [midX + 0.6, 4.2, 18.6]) {
+    for (const x of [PASSAGE_X + 0.6, 4.2, 18.6]) {
       const g = new THREE.Group();
       g.add(mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.02, 24).translate(0, -0.01, 0), PublicMats.white(), 'cctv-base', false));
       g.add(mesh(new THREE.SphereGeometry(0.055, 20, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2).translate(0, -0.02, 0), domeMat, 'cctv-dome', false));
-      g.position.set(x, Y1 + CEIL, (cz0 + cz1) / 2 + 0.25);
+      g.position.set(x, top, (cz0 + cz1) / 2 + 0.25);
       g.name = 'cctv';
       this.group.add(g);
     }
     // the exit sign over the south end
     exitBox(v(x1 - 0.04, Y1 + 2.45, (cz0 + cz1) / 2), -Math.PI / 2);
 
-    // over the open landing: in the 1.6 m corridor itself a point light sits
-    // 0.8 m from both walls and hot-spots them (the spot then blooms)
-    this.light = new THREE.PointLight(0xffd8a8, 0, 11, 1.6);
-    this.light.position.set(midX, Y1 + 2.1, cz0 - 1.0);
+    // in the passage, where it meets the landing, lighting the corridor down
+    // it: 0.65 m from the passage's walls, so with the same gentle falloff
+    // (a steep one hot-spots them, and the spot blooms)
+    this.light = new THREE.PointLight(0xffd8a8, 0, 11, 0.9);
+    this.light.position.set(PASSAGE_X, Y1 + 2.2, sw.z1 + 0.4);
     this.group.add(this.light, this.frontWall);
     this.group.name = 'corridor';
     // one draw per material; the front wall merges on its own (the cutaway hides it)
@@ -362,13 +372,13 @@ export class Corridor {
   }
 
   setLights(v: number): void {
-    this.light.intensity = 5 * v;
-    this.stairLight.intensity = 6 * v;
+    this.light.intensity = 2.2 * v;
+    this.stairLight.intensity = 2.7 * v;
     for (const { m, base } of this.lit) m.color.copy(base).multiplyScalar(v);
   }
 }
 
-/** A dried-flower wreath with a hanging charm (the stair's first flight). */
+/** A dried-flower wreath with a hanging charm (up the flight). */
 function wreath(): THREE.Group {
   const g = new THREE.Group();
   g.add(mesh(new THREE.TorusGeometry(0.15, 0.035, 8, 28).rotateY(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 0.9 }), 'wreath', false));

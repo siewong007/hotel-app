@@ -9,13 +9,13 @@ import hotel from './data/hotel.json';
 import { BATH, DOOR, ROOM_DEPTH, ROOM_HEIGHT, ROOM_ORDER, Z_CORRIDOR, Z_FACADE, roomLayouts, type LayoutItem } from './interiors/roomLayouts';
 import { floorFootprint } from './interiors/roomProps';
 import { ROOM_VIEWS } from './interiors/roomViews';
-import { BACK_DOORS, DOOR_W, FRONT_DOORS, SHOWCASE_NUMBER, landingPlates, roomRanges } from './interiors/Corridor';
+import { BACK_DOORS, DOOR_W, FRONT_DOORS, PASSAGE_X, SHOWCASE_NUMBER, landingPlates, roomRanges } from './interiors/Corridor';
 import { PLAN } from './world/SalimInnBuilding';
 import { FLOOR_Y } from './config/dimensions';
 import { FRONT_DESK_FACTS, SITE } from './config/site';
 import { en } from './content/en';
 import { PATH } from './experience/cameraPath';
-import { salimFrame } from './world/layout';
+import { salimFrame, SALIM_WIDTH } from './world/layout';
 
 interface Rect { x0: number; x1: number; z0: number; z1: number; name: string }
 
@@ -136,15 +136,16 @@ describe('level-1 corridor (brief §4.5)', () => {
     }
   });
 
-  it('keeps the back doors off the opening onto the stair landing', () => {
+  it('keeps the back doors off the passage from the stair', () => {
+    const { passage } = PLAN.stair;
     for (const [x, n] of BACK_DOORS) {
-      const clear = x + DOOR_W / 2 < PLAN.stair.x0 - 0.2 || x - DOOR_W / 2 > PLAN.stair.x1 + 0.2;
+      const clear = x + DOOR_W / 2 < passage.x0 - 0.2 || x - DOOR_W / 2 > passage.x1 + 0.2;
       expect(clear, `door ${n}`).toBe(true);
     }
   });
 });
 
-describe('reception and stair (the owner’s photos, 2 Oct 2026)', () => {
+describe('reception and stair (the owner’s photos, 2 Oct 2026, and walk-through video, 12 Oct 2026)', () => {
   it('sets the reception against the frontage beside the entrance, its counter facing into the lobby', () => {
     const { lobby, door, reception: r, counter: c } = PLAN;
     expect(r.z0).toBe(lobby.z1); // the frontage's inner face
@@ -158,11 +159,38 @@ describe('reception and stair (the owner’s photos, 2 Oct 2026)', () => {
     expect(Math.cos(c.rotY)).toBeCloseTo(-1, 9);
   });
 
-  it('puts the stair opposite the counter, across the lobby', () => {
-    const { lobby, reception: r, stair: s } = PLAN;
-    expect(s.z1).toBe(lobby.z0); // it opens off the lobby's back wall …
-    const overlap = Math.min(r.x1, s.x1) - Math.max(r.x0, s.x0);
-    expect(overlap / (r.x1 - r.x0)).toBeGreaterThan(0.9); // … facing the counter
+  it('puts the stair door in the back wall, opposite the counter', () => {
+    const { lobby, reception: r, stair } = PLAN;
+    const d = stair.door;
+    expect(d.x0).toBeGreaterThanOrEqual(r.x0); // across the lobby from the counter …
+    expect(d.x1).toBeLessThanOrEqual(r.x1);
+    expect(d.x0).toBeGreaterThan(stair.well.x0); // … opening onto the three steps
+    expect(d.x1).toBeLessThan(stair.flight.x0);
+    expect(d.x1).toBeLessThanOrEqual(lobby.x1);
+    expect(d.h).toBeGreaterThanOrEqual(2.0);
+  });
+
+  it('climbs from the lobby floor to level 1 in equal, comfortable risers', () => {
+    const { stair, lobby, corridor, floor } = PLAN;
+    const risers = stair.entry.risers + stair.flight.risers;
+    expect(risers * stair.rise).toBeCloseTo(FLOOR_Y.level1 - floor, 9);
+    expect(stair.rise).toBeGreaterThan(0.15);
+    expect(stair.rise).toBeLessThan(0.18);
+    for (const run of [stair.entry.run, stair.flight.run]) expect(2 * stair.rise + run).toBeGreaterThan(0.55); // the 2R + G rule
+    // the three steps fill the space from the back wall to the landing …
+    expect(lobby.z0 - 0.2 - (stair.entry.risers - 1) * stair.entry.run).toBeCloseTo(stair.well.z1, 9);
+    // … the long flight ends on the level-1 landing, inside the block …
+    const topRiser = stair.flight.x0 + (stair.flight.risers - 1) * stair.flight.run;
+    expect(topRiser).toBeLessThan(stair.passage.x0);
+    expect(stair.top.x1).toBeLessThan(SALIM_WIDTH - 0.2);
+    // … whose passage reaches the corridor, crossing nothing on the way
+    expect(stair.passage.x1).toBeLessThanOrEqual(stair.top.x1);
+    expect(stair.well.z1).toBeLessThan(corridor.z0);
+  });
+
+  it('leaves a door height between the raised five-foot way and the entrance head', () => {
+    expect(PLAN.door.h - PLAN.floor).toBeGreaterThanOrEqual(2.05);
+    expect(PLAN.floor + PLAN.lobbyCeiling).toBeLessThan(FLOOR_Y.level1 - 0.25); // under the level-1 slab
   });
 });
 
@@ -172,13 +200,13 @@ describe('level-1 landing plates', () => {
     expect(roomRanges([113])).toBe('113');
   });
 
-  it('lists every door once, on the hand it lies to from the top of the stair', () => {
+  it('lists every door once, on the hand it lies to coming out of the passage', () => {
     const expand = (t: string) => t.split(', ').flatMap((r) => {
       const [a, b = a] = r.split('–').map(Number);
       return Array.from({ length: b - a + 1 }, (_, i) => a + i);
     });
     const { left, right } = landingPlates();
-    const midX = (PLAN.stair.x0 + PLAN.stair.x1) / 2;
+    const midX = PASSAGE_X;
     const xOf = new Map([...FRONT_DOORS, ...BACK_DOORS].map(([x, n]) => [n, x]));
     expect([...expand(left), ...expand(right)].sort((a, b) => a - b)).toEqual(Array.from({ length: 14 }, (_, i) => 101 + i));
     for (const n of expand(left)) expect(xOf.get(n)!, `${n}`).toBeGreaterThan(midX);
