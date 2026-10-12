@@ -208,6 +208,7 @@
     "recordedOnBooking": "Recorded on the booking{{at}}",
     "refund": {
       "fixedNote": "Refund amount — fixed to the full held balance:",
+      "defaultNote": "Normal deposit refund - no damages or charges",
       "method": "Refund method",
       "note": "Note (required)",
       "submit": "Refund {{amount}}"

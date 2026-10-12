@@ -445,7 +445,7 @@ export const ARTICLES_EN: HelpArticle[] = [
         type: 'steps',
         steps: [
           { title: 'Open the booking’s Invoice', body: 'Find the stay and open its Invoice — the deposit section shows what was collected and what is still held.' },
-          { title: 'Choose Refund deposit', body: 'The refund is always the full remaining held balance — staff do not pick an amount. Choose the refund method and add an optional note.' },
+          { title: 'Choose Refund deposit', body: 'The refund is always the full remaining held balance — staff do not pick an amount. Choose the refund method. The note is pre-filled with \'Normal deposit refund - no damages or charges\' — keep it for a normal refund or edit it to explain anything unusual.' },
           { title: 'Or forfeit instead', body: 'Forfeit deposit is separate. Keep part or all of the held balance and pick a reason — room damage, a missing item, an outstanding charge, or other. Whatever you do not keep stays refundable.' },
         ],
       },

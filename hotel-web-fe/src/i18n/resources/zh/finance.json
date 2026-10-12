@@ -206,6 +206,7 @@
     "recordedOnBooking": "已记录在预订中{{at}}",
     "refund": {
       "fixedNote": "退款金额——固定为全部在押余额：",
+      "defaultNote": "正常退还押金 - 无损坏或额外费用",
       "method": "退款方式",
       "note": "备注（必填）",
       "submit": "退款 {{amount}}"

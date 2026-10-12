@@ -178,7 +178,9 @@ const RefundPanel: React.FC<PanelProps & {
   const { t } = useTranslation('finance');
   const [method, setMethod] = useState(methods[0] ?? 'Cash');
   const [reference, setReference] = useState('');
-  const [note, setNote] = useState('');
+  // Pre-filled so a normal refund needs no typing; staff can edit or replace
+  // it, and clearing it brings back the required-note validation.
+  const [note, setNote] = useState(() => t('deposit.refund.defaultNote'));
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -227,6 +229,8 @@ const RefundPanel: React.FC<PanelProps & {
             onChange={(e) => setNote(e.target.value)}
             helperText={note && !isValidStaffReason(note) ? t('reason.tooShort', { min: MIN_STAFF_REASON_LENGTH }) : undefined}
             error={Boolean(note) && !isValidStaffReason(note)}
+            multiline
+            maxRows={3}
           />
         </Grid>
       </Grid>
