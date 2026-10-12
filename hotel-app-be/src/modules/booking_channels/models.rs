@@ -16,6 +16,10 @@ pub struct BookingChannel {
     pub abbreviation: Option<String>,
     pub code: Option<String>,
     pub integration_mode: String,
+    /// Tenders this channel settles a booking's room charge with (patch
+    /// 0023). Empty for desk channels; see `payments::settlement_lock`.
+    #[serde(default)]
+    pub settlement_payment_methods: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

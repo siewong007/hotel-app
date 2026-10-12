@@ -31,6 +31,7 @@ import type { HotelSettings } from '../../../utils/hotelSettings';
 import { isGreaterMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../utils/money';
 import type { DepositResolution, DepositResolutionStatus } from '../hooks/useDepositResolution';
 import { isValidStaffReason, MIN_STAFF_REASON_LENGTH } from '../utils/payments';
+import { paymentMethodsMatch } from '../../bookings/utils/settlementLock';
 
 export interface DepositRefundInput {
   method: string;
@@ -74,6 +75,11 @@ export interface DepositResolutionSectionProps {
    */
   noDepositLabel?: string;
   hotelSettings: Pick<HotelSettings, 'payment_methods'>;
+  /**
+   * Settlement lock (online booking): the deposit can only go back through
+   * the tender it was collected with — the method picker is fixed to it.
+   */
+  refundMethodLocked?: boolean;
   onRefund: (input: DepositRefundInput) => void;
   onForfeit: (input: DepositForfeitInput) => void;
   onCancel: (reason: string) => void;
@@ -172,11 +178,21 @@ interface PanelProps {
 const RefundPanel: React.FC<PanelProps & {
   amount: number;
   methods: string[];
+  /** Tender the deposit was collected with — preset as the refund method. */
+  originalMethod?: string | null;
+  /** Settlement lock: refund only to `originalMethod`. */
+  locked?: boolean;
   busy: boolean;
   onSubmit: (input: DepositRefundInput) => void;
-}> = ({ amount, methods, busy, formatMoney, onSubmit }) => {
+}> = ({ amount, methods, originalMethod, locked = false, busy, formatMoney, onSubmit }) => {
   const { t } = useTranslation('finance');
-  const [method, setMethod] = useState(methods[0] ?? 'Cash');
+  const original = originalMethod
+    ? (methods.find((m) => paymentMethodsMatch(m, originalMethod)) ?? originalMethod)
+    : null;
+  const options = original
+    ? (locked ? [original] : (methods.includes(original) ? methods : [original, ...methods]))
+    : methods;
+  const [method, setMethod] = useState(original ?? methods[0] ?? 'Cash');
   const [reference, setReference] = useState('');
   // Pre-filled so a normal refund needs no typing; staff can edit or replace
   // it, and clearing it brings back the required-note validation.
@@ -194,7 +210,7 @@ const RefundPanel: React.FC<PanelProps & {
       </Box>
       <Grid container spacing={1}>
         <Grid size={{ xs: 12, sm: 4 }}>
-          <FormControl size="small" fullWidth>
+          <FormControl size="small" fullWidth disabled={locked && options.length <= 1}>
             <InputLabel id="deposit-refund-method-label">{t('deposit.refund.method')}</InputLabel>
             <Select
               labelId="deposit-refund-method-label"
@@ -202,13 +218,18 @@ const RefundPanel: React.FC<PanelProps & {
               value={method}
               onChange={(e) => setMethod(e.target.value)}
             >
-              {methods.map((m) => (
+              {options.map((m) => (
                 <MenuItem key={m} value={m}>
                   {m}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
+          {locked && original ? (
+            <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
+              {t('deposit.refund.lockedToOriginal', { method: original })}
+            </Typography>
+          ) : null}
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
@@ -465,6 +486,7 @@ const DepositSection: React.FC<DepositResolutionSectionProps> = ({
   readOnly,
   noDepositLabel,
   hotelSettings,
+  refundMethodLocked = false,
   onRefund,
   onForfeit,
   onCancel,
@@ -824,6 +846,8 @@ const DepositSection: React.FC<DepositResolutionSectionProps> = ({
                 <RefundPanel
                   amount={held}
                   methods={methods}
+                  originalMethod={resolution.method}
+                  locked={refundMethodLocked}
                   busy={busy.refunding}
                   formatMoney={formatMoney}
                   onSubmit={onRefund}

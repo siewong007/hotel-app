@@ -211,7 +211,8 @@
       "defaultNote": "Normal deposit refund - no damages or charges",
       "method": "Refund method",
       "note": "Note (required)",
-      "submit": "Refund {{amount}}"
+      "submit": "Refund {{amount}}",
+      "lockedToOriginal": "Online booking — the deposit can only be refunded to its original method ({{method}})."
     },
     "refundLine": "Deposit Refund ({{method}})",
     "resolveGroup": "Deposit resolution",

@@ -83,6 +83,7 @@ required_payload=(
   database/patches/0020_reception_payment_void.sql
   database/patches/0021_audit_partition_move_rows.sql
   database/patches/0022_audit_logs_append_only_guards.sql
+  database/patches/0023_channel_settlement_methods.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -331,6 +332,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/0020_reception_payment_void.sql" "$APP_DIR/database/patches/0020_reception_payment_void.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0021_audit_partition_move_rows.sql" "$APP_DIR/database/patches/0021_audit_partition_move_rows.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0022_audit_logs_append_only_guards.sql" "$APP_DIR/database/patches/0022_audit_logs_append_only_guards.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0023_channel_settlement_methods.sql" "$APP_DIR/database/patches/0023_channel_settlement_methods.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.

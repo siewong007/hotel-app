@@ -1406,6 +1406,31 @@ impl PaymentRepository {
             )));
         }
 
+        // Settlement lock: on an online booking the deposit goes back through
+        // the tender it was collected with — never into another method.
+        if let Some(lock) = super::settlement_lock::load_lock(&mut *tx, booking_id).await?
+            && lock.is_locked()
+        {
+            let deposit_methods: Vec<String> = sqlx::query_scalar(
+                "SELECT DISTINCT payment_method FROM payments \
+                 WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed' \
+                   AND payment_method IS NOT NULL",
+            )
+            .bind(booking_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
+            if !deposit_methods
+                .iter()
+                .any(|m| super::settlement_lock::methods_match(m, payment_method))
+            {
+                return Err(ApiError::BadRequest(format!(
+                    "This online booking's deposit must be refunded to its original payment method ({}).",
+                    deposit_methods.join(" or ")
+                )));
+            }
+        }
+
         let row = sqlx::query_as::<_, PaymentEntryRow>(
             r#"
             INSERT INTO payments (
@@ -2053,6 +2078,15 @@ impl PaymentRepository {
             return Err(ApiError::BadRequest(
                 "payment_method must not be blank".to_string(),
             ));
+        }
+        // Settlement lock: an online booking's room-charge row can never be
+        // re-tendered to a method its channel does not settle with.
+        if existing_type == "booking"
+            && let Some(new_method) = request.payment_method.as_deref()
+            && !super::settlement_lock::methods_match(new_method, &existing.payment_method)
+        {
+            super::settlement_lock::enforce_payment(&mut **tx, booking_id, "booking", new_method)
+                .await?;
         }
 
         let mut updates = Vec::new();

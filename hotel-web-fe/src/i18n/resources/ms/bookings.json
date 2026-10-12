@@ -593,5 +593,10 @@
     "checkOutDate": "Tarikh Daftar Keluar",
     "remarks": "Ulasan",
     "saveChanges": "Simpan perubahan"
+  },
+  "settlementLock": {
+    "settledVia": "Diselesaikan melalui {{platform}}",
+    "missingChannel": "Tempahan dalam talian ini tiada saluran tempahan. Tetapkan saluran tempahan (cth. Booking.com, Agoda) sebelum merekod bayaran bilik.",
+    "unconfigured": "Saluran tempahan {{platform}} tiada kaedah pembayaran penyelesaian, jadi bayaran bilik tidak boleh direkod."
   }
 }

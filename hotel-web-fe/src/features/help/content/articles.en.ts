@@ -175,7 +175,7 @@ export const ARTICLES_EN: HelpArticle[] = [
     keywords: ['arrival', 'checkin', 'front desk', 'early check in', 'guest arrives'],
     routePath: '/bookings',
     requiredPermissions: ['bookings:update'],
-    lastReviewed: '2026-10-04',
+    lastReviewed: '2026-10-12',
     relatedSlugs: ['check-out-a-guest', 'find-a-reservation', 'housekeeping-maintenance'],
     blocks: [
       { type: 'paragraph', text: 'A booking can be checked in once its status is confirmed or pending and the arrival date has been reached. The Check in action lives on the booking itself.' },
@@ -190,6 +190,7 @@ export const ARTICLES_EN: HelpArticle[] = [
       },
       { type: 'callout', tone: 'info', title: 'Early check-in', body: 'Arriving before the configured check-in time (Hotel Settings → check-in time, default 15:00) surfaces an early check-in prompt rather than a hard stop.' },
       { type: 'callout', tone: 'warning', body: 'The Check in button will not appear before the arrival date — this is deliberate. If a guest arrives a day early, edit the booking dates first.' },
+      { type: 'callout', tone: 'important', title: 'Online bookings are settled online', body: 'The room charge of an online booking (Booking.com, Agoda, Traveloka, Expedia) can only be recorded under that platform’s method, and a Direct Website booking only by Bank Transfer or PayPal — the method is preset and locked, marked ‘Settled via …’. The cash security deposit is not affected. An online booking with no booking channel cannot take a room payment until the channel is set.' },
     ],
   },
   {
@@ -436,7 +437,7 @@ export const ARTICLES_EN: HelpArticle[] = [
     keywords: ['refund', 'deposit', 'money back', 'return deposit', 'revert refund'],
     routePath: '/bookings',
     requiredPermissions: ['payments:refund'],
-    lastReviewed: '2026-10-05',
+    lastReviewed: '2026-10-12',
     featured: true,
     relatedSlugs: ['check-out-a-guest', 'review-payment-approvals', 'payment-problems'],
     blocks: [
@@ -451,6 +452,7 @@ export const ARTICLES_EN: HelpArticle[] = [
       },
       { type: 'callout', tone: 'important', title: 'Undoing a refund is restricted', body: 'Reverting a deposit refund re-opens the deposit for refunding and requires payments:manage — receptionists cannot cycle refund/revert on their own. Double-check before confirming.' },
       { type: 'callout', tone: 'tip', body: 'If the refund button is missing, you lack payments:refund — ask a manager rather than working around it with a manual adjustment.' },
+      { type: 'callout', tone: 'important', title: 'Online bookings refund to the original method', body: 'The refund method is preset to the method the deposit was collected with. On an online booking it is locked to that method — the deposit cannot be refunded through any other payment method.' },
     ],
   },
   {

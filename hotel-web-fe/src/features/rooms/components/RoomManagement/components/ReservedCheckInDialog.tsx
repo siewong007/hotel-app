@@ -29,6 +29,7 @@ import {
 import { BookingWithDetails } from '../../../../../types';
 import { toMoneyNumber } from '../../../../../utils/money';
 import { getBookingChannelInfo } from '../../../../bookings/utils/bookingChannel';
+import RoomPaymentMethodSelect from '../../../../bookings/components/payment/RoomPaymentMethodSelect';
 import { useTranslation } from '../../../../../i18n/useTranslation';
 import { intlTag } from '../../../../../i18n/format';
 import { parseLocalDate } from '../../../../../utils/date';
@@ -258,18 +259,14 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
             {paymentChoice === 'pay_now' && (
               <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
                 <Grid size={6}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>{t('bookings:checkIn.paymentMethod')}</InputLabel>
-                    <Select
-                      value={paymentMethod}
-                      onChange={(e) => onPaymentMethodChange(e.target.value)}
-                      label={t('bookings:checkIn.paymentMethod')}
-                    >
-                      {paymentMethods.map(method => (
-                        <MenuItem key={method} value={method}>{method}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <RoomPaymentMethodSelect
+                    booking={booking}
+                    paymentMethods={paymentMethods}
+                    value={paymentMethod}
+                    onChange={onPaymentMethodChange}
+                    label={t('bookings:checkIn.paymentMethod')}
+                    size="small"
+                  />
                 </Grid>
                 <Grid size={6}>
                   <TextField

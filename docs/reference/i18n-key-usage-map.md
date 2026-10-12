@@ -1297,6 +1297,9 @@ candidates — see `i18n-coverage-inventory.md`.
 - `bookings:release.successAudit` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
 - `bookings:release.title` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
 - `bookings:release.warning` — `src/features/bookings/components/Bookings/dialogs/ReleaseDialog.tsx`
+- `bookings:settlementLock.missingChannel` — `src/features/bookings/components/payment/RoomPaymentMethodSelect.tsx`
+- `bookings:settlementLock.settledVia` — `src/features/bookings/components/payment/RoomPaymentMethodSelect.tsx`
+- `bookings:settlementLock.unconfigured` — `src/features/bookings/components/payment/RoomPaymentMethodSelect.tsx`
 - `bookings:summary.arrivals` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
 - `bookings:summary.arrivalsDetail` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
 - `bookings:summary.arrivalsShort` — `src/features/bookings/components/Bookings/BookingSummarySection.tsx`
@@ -2522,6 +2525,7 @@ candidates — see `i18n-coverage-inventory.md`.
 - `finance:deposit.options.requiresPermission` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.prompt` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.fixedNote` — `src/features/invoices/components/DepositSection.tsx`
+- `finance:deposit.refund.lockedToOriginal` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.method` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.note` — `src/features/invoices/components/DepositSection.tsx`
 - `finance:deposit.refund.referenceOptional` — `src/features/invoices/components/DepositSection.tsx`
