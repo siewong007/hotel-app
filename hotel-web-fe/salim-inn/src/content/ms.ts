@@ -83,7 +83,7 @@ export const ms: Copy = {
   brand: {
     name: 'SALIM INN',
     place: 'Farley, Sibu',
-    backToStart: 'Salim Inn — kembali ke permulaan',
+    backToStart: '— kembali ke permulaan',
     logoAlt: 'Salim Inn — Keselesaan yang Selesa, Bersih dan Berpatutan',
   },
   nav: {
