@@ -1648,18 +1648,27 @@ pub async fn get_ledger_payments(
 
 /// Get summary statistics for ledgers (PostgreSQL version)
 pub async fn get_ledger_summary(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
+    // Charges carry the debit/credit sign. Reversal rows are self-settled
+    // (paid_amount = amount) without collecting cash; retain the original's
+    // real collections so reversing a paid charge leaves a credit balance.
     let row = sqlx::query(
         r#"
+        WITH summary_entries AS (
+            SELECT status,
+                CASE WHEN transaction_type = 'credit' THEN -amount ELSE amount END AS signed_amount,
+                CASE WHEN is_reversal THEN 0 ELSE paid_amount END AS collected_amount
+            FROM customer_ledgers
+            WHERE status NOT IN ('void')
+        )
         SELECT
             COUNT(*) as total_entries,
-            COALESCE(SUM(amount), 0) as total_amount,
-            COALESCE(SUM(paid_amount), 0) as total_paid,
-            COALESCE(SUM(balance_due), 0) as total_outstanding,
+            COALESCE(SUM(signed_amount), 0) as total_amount,
+            COALESCE(SUM(collected_amount), 0) as total_paid,
+            COALESCE(SUM(signed_amount - collected_amount), 0) as total_outstanding,
             COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
             COUNT(*) FILTER (WHERE status = 'partial') as partial_count,
             COUNT(*) FILTER (WHERE status = 'overdue') as overdue_count
-        FROM customer_ledgers
-        WHERE status NOT IN ('void')
+        FROM summary_entries
         "#,
     )
     .fetch_one(pool)

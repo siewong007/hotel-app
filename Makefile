@@ -14,7 +14,7 @@ export TARGET_DATABASE_URL
         build-be build-fe build-desktop \
         check-be check-fe check-desktop check-all \
         lint-be lint-fe lint-desktop lint-all \
-        test-be test-fe \
+        test-be test-be-pg test-be-unit test-fe test-all \
         docker-up docker-up-pg19-tuned docker-down docker-build \
         db-baseline db-seed db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
         db-schema-drift require-schema-drift-urls \
@@ -82,7 +82,7 @@ lint-be: ## Lint backend
 	cd hotel-app-be && cargo clippy --all-features -- -D warnings
 
 lint-fe: ## Lint frontend
-	cd hotel-web-fe && $(BUN) run lint
+	cd hotel-web-fe && $(BUN) run lint:strict
 
 lint-desktop: ## Lint desktop
 	cd hotel-desktop/src-tauri && cargo clippy -- -D warnings
@@ -111,20 +111,19 @@ fmt: fmt-all ## Alias for fmt-all
 
 # ─── Testing ──────────────────────────────────────────────────────────────────
 
-test-be: ## Run all backend tests
+test-be: require-database-url ## Run all backend tests (requires scratch DATABASE_URL)
 	cd hotel-app-be && cargo test --all-features
 
-# Identical command to test-be; the difference is the enforced precondition.
-# Without DATABASE_URL the PG-backed suites early-return and libtest counts
-# each skip as a PASS, so the run goes GREEN having tested nothing. Failing
-# fast here makes that silent-skip trap impossible via this target.
-test-be-pg: require-database-url ## Run backend PostgreSQL tests (requires DATABASE_URL)
-	cd hotel-app-be && cargo test --all-features
+test-be-pg: test-be ## Alias for the full backend suite (requires scratch DATABASE_URL)
+
+test-be-unit: ## Run database-free backend library tests only
+	cd hotel-app-be && env -u DATABASE_URL cargo test --all-features --lib
 
 test-fe: ## Run frontend tests
 	cd hotel-web-fe && $(BUN) run test -- --run
 
-test-all: test-be test-fe ## Test all projects
+test-all: require-database-url ## Run backend and frontend tests (requires scratch DATABASE_URL)
+	$(MAKE) test-be test-fe
 
 # ─── Docker ───────────────────────────────────────────────────────────────────
 

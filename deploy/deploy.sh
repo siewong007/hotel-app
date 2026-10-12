@@ -77,6 +77,8 @@ required_payload=(
   database/patches/0014_new_reservation_visible_time_default.sql
   database/patches/0015_drop_hotel_property_graph.sql
   database/patches/0016_audit_partition_without_split.sql
+  database/patches/0017_runtime_capabilities.sql
+  database/db-least-privilege.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -220,6 +222,11 @@ ensure_secrets() {
       log "Initialized ${key} with a default value"
     fi
   }
+  ensure_secret_default HOTEL_APP_PASSWORD "$(openssl rand -hex 32)"
+  HOTEL_APP_PASSWORD=$(grep -E '^HOTEL_APP_PASSWORD=' "$SECRETS_FILE" | tail -n1 | cut -d= -f2-)
+  [[ "$HOTEL_APP_PASSWORD" =~ ^[A-Za-z0-9._~-]{32,}$ ]] \
+    || die "HOTEL_APP_PASSWORD must be at least 32 URL-safe characters"
+  export HOTEL_APP_PASSWORD
   ensure_secret_default HOTEL_BANK_NAME "Maybank"
   ensure_secret_default HOTEL_BANK_ACCOUNT_NAME "Salim Inn"
   ensure_secret_default HOTEL_BANK_ACCOUNT_NUMBER "511270052595"
@@ -364,6 +371,8 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/0014_new_reservation_visible_time_default.sql" "$APP_DIR/database/patches/0014_new_reservation_visible_time_default.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0015_drop_hotel_property_graph.sql" "$APP_DIR/database/patches/0015_drop_hotel_property_graph.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0016_audit_partition_without_split.sql" "$APP_DIR/database/patches/0016_audit_partition_without_split.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0017_runtime_capabilities.sql" "$APP_DIR/database/patches/0017_runtime_capabilities.sql"
+  install -m 0644 "$RELEASE_DIR/database/db-least-privilege.sql" "$APP_DIR/database/db-least-privilege.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.
@@ -544,6 +553,15 @@ apply_database_patches_for_release() {
     --container saliminn-db \
     --user hotel_admin \
     --database hotel_management
+}
+
+provision_runtime_database_role() {
+  # Password travels only over stdin. psql hashes it before sending SQL, so the
+  # cleartext never appears in argv, SQL text, or server statement logs.
+  {
+    cat "$APP_DIR/database/db-least-privilege.sql"
+    printf '\\password hotel_app\n%s\n%s\n' "$HOTEL_APP_PASSWORD" "$HOTEL_APP_PASSWORD"
+  } | docker exec -i saliminn-db psql -X -v ON_ERROR_STOP=1 -U hotel_admin -d hotel_management >/dev/null
 }
 
 deploy_tag() {
@@ -789,6 +807,7 @@ load_release_images
 start_database_for_release "$TAG"
 backup_existing_database
 apply_database_patches_for_release
+provision_runtime_database_role
 
 log "Starting release $TAG"
 if deploy_tag "$TAG" && ensure_initial_admin_password && configure_caddy; then

@@ -81,8 +81,17 @@ Two registries matter operationally:
   every new upload; a finished job deletes its own file.
 - **Import jobs** — the in-memory registry above. It is *not* durable: a
   backend restart loses every running and finished job (the staged file is
-  left for the sweep; the database itself is untouched mid-job only if the
-  transaction had already committed — see [Import semantics](#import-semantics)).
+  left for the sweep). An uncommitted import rolls back when its database
+  connection closes; an already committed import remains applied. A panic or
+  task cancellation may leave an in-memory entry showing `running` until restart.
+
+Only one import can execute per database, including across backend replicas.
+A PostgreSQL advisory lock is acquired before file-dependent permission checks
+and parsing; a competing execute returns `409 Conflict` without queuing. The
+same connection owns the import transaction, so losing it rolls back pending
+writes and releases admission. Normal success/failure closes it before publishing
+the terminal job status, allowing an immediate retry. Uploads and previews are
+not serialized by this lock. Job status remains process-local as described above.
 
 ## Permissions and step-up authentication
 

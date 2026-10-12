@@ -2167,3 +2167,109 @@ async fn import_endpoints_require_authentication_and_data_transfer_import() {
 
     AuthFixture::cleanup(&fixture.pool).await;
 }
+
+/// Distinct uploads on independent pools must share one admission slot.
+#[tokio::test]
+async fn distinct_imports_conflict_until_failed_job_releases_admission() {
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::models::{BackupImportMode, ConflictPolicy, ImportExecuteRequest};
+    use hotel_app_be::modules::data_transfer::jobs;
+    let _fixture = FIXTURE_LOCK.lock().await;
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    let other = setup_pg_pool().await.unwrap();
+    let first = jobs::stage_backup_upload(Body::from("{broken"))
+        .await
+        .unwrap();
+    let second = jobs::stage_backup_upload(Body::from("{broken"))
+        .await
+        .unwrap();
+    let request = |upload_id| ImportExecuteRequest {
+        upload_id,
+        mode: BackupImportMode::Merge,
+        on_conflict: Some(ConflictPolicy::Skip),
+        tables: vec![],
+        confirm: true,
+        passphrase: None,
+    };
+    // Hold the first job at its initial audit write, without timing sleeps.
+    let mut blocker = other.begin().await.unwrap();
+    sqlx::query("LOCK TABLE audit_logs IN ACCESS EXCLUSIVE MODE")
+        .execute(&mut *blocker)
+        .await
+        .unwrap();
+    let first_job = jobs::start_import_job(&pool, 1, request(first.upload_id))
+        .await
+        .unwrap();
+    let competing = jobs::start_import_job(&other, 1, request(second.upload_id)).await;
+    blocker.rollback().await.unwrap();
+    let status = wait_for_job(first_job.job_id).await;
+    // Clean up on the unfixed implementation too, before the assertion.
+    if let Ok(job) = &competing {
+        wait_for_job(job.job_id).await;
+    }
+    assert!(
+        matches!(competing, Err(ApiError::Conflict(_))),
+        "distinct upload accepted concurrently: {competing:?}"
+    );
+    assert_eq!(status.status, hotel_app_be::models::ImportJobState::Failed);
+    let retry = jobs::start_import_job(&other, 1, request(second.upload_id))
+        .await
+        .unwrap();
+    assert_eq!(
+        wait_for_job(retry.job_id).await.status,
+        hotel_app_be::models::ImportJobState::Failed
+    );
+}
+
+#[tokio::test]
+async fn cancelled_import_admission_releases_slot_and_rolls_back_its_writes() {
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::modules::data_transfer::repository::DataTransferRepository;
+    use sqlx::Connection;
+    let _fixture = FIXTURE_LOCK.lock().await;
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    let other = setup_pg_pool().await.unwrap();
+    let (ready, entered) = tokio::sync::oneshot::channel();
+    let worker = tokio::spawn(async move {
+        let mut connection = DataTransferRepository::try_import_connection(&pool)
+            .await
+            .unwrap();
+        let mut tx = connection.begin().await.unwrap();
+        sqlx::query("CREATE TABLE public._cancelled_import_admission (id bigint)")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        ready.send(()).unwrap();
+        std::future::pending::<()>().await;
+    });
+    entered.await.unwrap();
+    assert!(matches!(
+        DataTransferRepository::try_import_connection(&other).await,
+        Err(ApiError::Conflict(_))
+    ));
+    worker.abort();
+    assert!(worker.await.unwrap_err().is_cancelled());
+    // Session close is asynchronous at the server; bound retry instead of sleeping blindly.
+    let retry = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            match DataTransferRepository::try_import_connection(&other).await {
+                Ok(connection) => break connection,
+                Err(ApiError::Conflict(_)) => tokio::task::yield_now().await,
+                Err(error) => panic!("unexpected admission error: {error}"),
+            }
+        }
+    })
+    .await
+    .expect("cancelled admission must release its session lock");
+    let exists: bool =
+        sqlx::query_scalar("SELECT to_regclass('public._cancelled_import_admission') IS NOT NULL")
+            .fetch_one(&other)
+            .await
+            .unwrap();
+    retry.close().await.unwrap();
+    assert!(!exists, "cancelled import transaction must roll back");
+}

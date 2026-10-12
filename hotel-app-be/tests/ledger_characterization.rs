@@ -22,17 +22,8 @@
 //! prior run of THIS file are removed by the same company-scoped cleanup
 //! that runs at the start of every test (proving idempotency on rerun).
 //!
-//! KNOWN BUG (do not enshrine — see `.claude/rules/lessons.md`). The scenario
-//! below asserts the decided-correct behavior and is marked `#[ignore]`
-//! because the current code does the opposite:
-//! - `get_ledger_summary` (repositories/ledger.rs:896-908) sums
-//!   `amount`/`paid_amount`/`balance_due` over every non-void row with NO
-//!   `transaction_type` sign handling (`transaction_type` never appears in
-//!   that query). Reversing a debit inserts a credit sibling with its own
-//!   `paid_amount == amount`/`status = 'paid'`, so the pair DOUBLES reported
-//!   `total_amount` and INVENTS collected cash instead of netting the charge
-//!   to zero. Correct: a fully reversed charge must leave
-//!   `total_amount`/`total_paid`/`total_outstanding` unchanged.
+//! Summary regressions distinguish signed charges from collected payments:
+//! reversal rows carry synthetic paid amounts, not additional cash receipts.
 
 fn pg_serial_lock() -> std::sync::Arc<tokio::sync::Mutex<()>> {
     static LOCK: std::sync::OnceLock<std::sync::Arc<tokio::sync::Mutex<()>>> =
@@ -588,16 +579,7 @@ mod postgres_tests {
             format!("REVERSAL: {}", original.description)
         );
         assert_eq!(reversal.amount, original.amount);
-        // NOT an endorsement of correctness -- this is only the current
-        // literal shape of the inserted row (repositories/ledger.rs:1029-1030
-        // hardcodes `paid_amount = amount`, `status = 'paid'` for every
-        // reversal). Combined with `get_ledger_summary` summing every
-        // non-void row with no `transaction_type` sign handling, this shape
-        // is exactly what makes a reversal DOUBLE reported `total_amount`
-        // and INVENT collected cash instead of netting the original charge
-        // to zero -- see the ignored
-        // `postgres_create_ledger_reversal_nets_to_zero_in_summary` test
-        // below for the decided-correct aggregate behavior.
+        // Reversal settlement is synthetic and must not count as collected cash.
         assert_eq!(reversal.paid_amount, original.amount);
         assert_eq!(reversal.status, "paid");
         assert_eq!(
@@ -638,20 +620,10 @@ mod postgres_tests {
     }
 
     // -----------------------------------------------------------------
-    // DECIDED-CORRECT, NOT YET IMPLEMENTED: get_ledger_summary must NET a
-    // reversal against its original entry rather than double-count it.
-    // repositories/ledger.rs:896-908 sums amount/paid_amount/balance_due
-    // over every non-void row with NO transaction_type sign handling
-    // (confirmed: `transaction_type` never appears in that query), so today
-    // reversing a 400.00 debit DOUBLES reported total_amount to 800.00 and
-    // INVENTS 400.00 of collected cash instead of cancelling the charge --
-    // do not assert that as correct. Compares deltas against a baseline
-    // summary call rather than absolute totals because get_ledger_summary
-    // aggregates the whole (shared, persistent) customer_ledgers table, not
-    // just this fixture's rows.
+    // Reversing an unpaid charge cancels it without inventing collected cash.
+    // Compare deltas because the summary covers the entire database.
     // -----------------------------------------------------------------
     #[tokio::test]
-    #[ignore = "get_ledger_summary sums amount/paid_amount/balance_due over all non-void rows with no transaction_type sign handling, so a reversal doubles total_amount and invents collected cash instead of netting to zero — pending fix: make get_ledger_summary sign-aware for reversal pairs"]
     async fn postgres_create_ledger_reversal_nets_to_zero_in_summary() {
         let Some((pool, _guard)) = setup_pg_pool().await else {
             return;
@@ -700,10 +672,7 @@ mod postgres_tests {
         let after_outstanding =
             Decimal::from_str(after["total_outstanding"].as_str().unwrap()).unwrap();
 
-        // Clean up BEFORE asserting: this test is expected to fail (that is
-        // the point of `#[ignore]`ing a known bug), and an assertion panic
-        // must not skip teardown and leak fixture rows on a persistent,
-        // shared database.
+        // Tear down before assertions so a failure does not leak fixture rows.
         cleanup_ledger_fixture(&pool, company_name).await;
         cleanup_actor(&pool, actor_id).await;
 
@@ -719,6 +688,72 @@ mod postgres_tests {
             after_outstanding, baseline_outstanding,
             "a fully reversed charge must leave outstanding balance unchanged: baseline {baseline_outstanding}, got {after_outstanding}"
         );
+    }
+
+    #[tokio::test]
+    async fn postgres_summary_distinguishes_signed_charges_and_real_collections() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_120;
+        let company_name = "Lgr940 SignedSummary Co";
+        cleanup_ledger_fixture(&pool, company_name).await;
+        ensure_test_actor(&pool, actor_id).await;
+        // Each independent 400-unit charge uses hand-derived expected totals.
+        for (index, (transaction_type, payment, reverse, expected)) in [
+            ("debit", 150.0, false, [400, 150, 250]),
+            ("debit", 150.0, true, [0, 150, -150]),
+            ("debit", 400.0, true, [0, 400, -400]),
+            ("credit", 0.0, false, [-400, 0, -400]),
+            ("credit", 0.0, true, [0, 0, 0]),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let baseline = ledgers::get_ledger_summary(&pool).await.unwrap();
+            let mut request = standalone_ledger_request(company_name, "Summary charge", 400.0);
+            request.transaction_type = Some(transaction_type.into());
+            let ledger = ledgers::create_customer_ledger(&pool, actor_id, request)
+                .await
+                .unwrap();
+            if payment > 0.0 {
+                ledgers::create_ledger_payment(
+                    &pool,
+                    ledger.id,
+                    actor_id,
+                    payment_request(payment, &format!("LGR940-RCT-SIGNED-SUMMARY-{index}")),
+                )
+                .await
+                .unwrap();
+            }
+            if reverse {
+                ledgers::create_ledger_reversal(
+                    &pool,
+                    ledger.id,
+                    actor_id,
+                    LedgerReversalRequest {
+                        reason: "Cancel charge, retain actual receipt".into(),
+                        notes: None,
+                    },
+                )
+                .await
+                .unwrap();
+            }
+            let after = ledgers::get_ledger_summary(&pool).await.unwrap();
+            cleanup_ledger_fixture(&pool, company_name).await;
+            for (field, delta) in ["total_amount", "total_paid", "total_outstanding"]
+                .into_iter()
+                .zip(expected)
+            {
+                assert_eq!(
+                    Decimal::from_str(after[field].as_str().unwrap()).unwrap()
+                        - Decimal::from_str(baseline[field].as_str().unwrap()).unwrap(),
+                    Decimal::from(delta),
+                    "case {index}: {field}"
+                );
+            }
+        }
+        cleanup_actor(&pool, actor_id).await;
     }
 
     // -----------------------------------------------------------------

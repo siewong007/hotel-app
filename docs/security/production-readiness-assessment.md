@@ -24,7 +24,8 @@ deployment engineering. A prior internal security evaluation
 issues; **every verified item from that report has been remediated** in the
 current tree (see §12). The remaining exposure is concentrated in operations:
 the production database runs a pre-release PostgreSQL, backups never leave the
-VPS, the app still connects as a superuser pending a documented role cutover,
+VPS, the running app still connects as a superuser pending the next release's
+automatic runtime-role cutover,
 nothing external consumes the failure signals the system already produces, and
 no retention enforcement or restore evidence exists.
 
@@ -189,8 +190,9 @@ Gaps and notes:
   tests exist. Booking status transitions and night-audit idempotency covered
   by PG-backed tests.
 - **`postgres:19beta3` in production** — pre-release engine (P1, §11).
-- Runtime role is still the `hotel_admin` superuser; `deploy/db-least-privilege.sql`
-  (DML-only `hotel_app` role) exists but is an unapplied operator step (P1).
+- Runtime role remains `hotel_admin` until the next production release; deploy
+  scripts now apply patch 0017 and switch the backend to restricted `hotel_app`
+  automatically (P1, pending release).
 
 ## 7. Reliability and observability
 
@@ -260,7 +262,7 @@ Gaps and notes:
 |---|---|---|---|---|---|
 | 1 | P1 | Database | `postgres:19beta3` (pre-release) in prod; no supported upgrade path to GA | Existing — Beta 4 shipped 2026-09-24 and reverted SQL/PGQ and `SPLIT/MERGE PARTITION`; patches 0015/0016 (2026-10-06) removed the schema's uses and must run on beta3 before the move; RC expected early Oct 2026, GA possibly Oct 2026 | `pg_dump`+`pg_restore` rehearsal to 19-GA on staging per `guides/postgres-engine-upgrade.md`, into a fresh volume |
 | 2 | P1 | Backup | No off-site/encrypted copies; host-held dumps only | **Partial** (this session) — env-gated `age`+`rclone copy`+`rclone check` ship now in `database-backup.sh`; destination, recipients file and bucket ACLs remain operator-owned. **2026-09-25: owner chose local-only backups on the AIC host; off-site deliberately not configured (accepted risk)** | set `SALIMINN_OFFSITE_REMOTE`+`SALIMINN_AGE_RECIPIENTS_FILE` on the backup unit, confirm `offsite:true` in `backup-status.json` + a remote restore |
-| 3 | P1 | Database | Runtime uses `hotel_admin` superuser; `hotel_app` role unapplied | Partial | `SELECT current_user` on backend conn + patch-runbook update |
+| 3 | P1 | Database | Running deployment uses `hotel_admin` superuser until the next release | **Implemented; pending release** — deploy scripts apply patch 0017 and provision `hotel_app` before restarting the backend | `SELECT current_user` on backend conn returns `hotel_app`; disposable runtime privilege runner passes |
 | 4 | P1 | Observability | Failure signals have no external consumer (backup-health marker, job failures, audit-write failures) | **Partial** (this session) — `check-backup-health.sh` POSTs transition-deduped alerts + recovery to `SALIMINN_ALERT_WEBHOOK` (`/opt/saliminn/backup-alert.env`); job/audit failure alerting still in-app only; no external uptime probe | set the webhook env file, trigger a forced failure, confirm the POST arrives |
 | 5 | P1 | Compliance | No retention schedule/enforcement for audit logs, eKYC images, sessions, exports, logs | **Partial** (this session) | `docs/security/data-retention-policy-draft.md` proposes schedules — legal sign-off required, then purge jobs; `audit_logs` is monthly-partitioned so its purge is a partition drop; not enforced yet |
 | 6 | P1 | DR | No restore has ever been demonstrated | Missing | quarterly drill record per `backup-restore.md` |
@@ -332,8 +334,8 @@ Execution order, commands, and the evidence that closes each item live in
 
 1. **Off-site backup destination** — needs a hotel-owned bucket + access list,
    then wire rclone/age and flip `offsite:true` in the health contract.
-2. **Least-privilege cutover** — run `deploy/db-least-privilege.sql`, repoint
-   `DATABASE_URL`, keep `hotel_admin` for `apply-patches.sh`/seed only.
+2. **Least-privilege cutover** — included in the next production release; verify
+   `SELECT current_user` returns `hotel_app` after deployment.
 3. **PG19 GA migration** — plan dump/restore to GA (or PG18) once released;
    rehearse on staging first.
 4. **Alert consumer** — `check-backup-health.sh` now supports

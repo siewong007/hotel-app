@@ -98,7 +98,7 @@ services:
     ports:
       - "127.0.0.1:3030:3030"
     environment:
-      DATABASE_URL: "postgres://hotel_admin:${POSTGRES_PASSWORD}@postgres:5432/hotel_management"
+      DATABASE_URL: "postgres://hotel_app:${HOTEL_APP_PASSWORD:?HOTEL_APP_PASSWORD is required}@postgres:5432/hotel_management"
       # Seven slots are pinned for life by the leader-locked schedulers and the
       # cache-bus listener, so the floor is 10 — 12 keeps the pre-distributed-state
       # request capacity (5) while leaving server slots for pg_dump and patch psql.

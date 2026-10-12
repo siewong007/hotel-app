@@ -18,10 +18,12 @@ refuses the insecure combinations above. Staff API tokens are session-bound;
 password resets, password changes, lockouts, deactivation, and deletion revoke
 their sessions.
 
-The backend's `DATABASE_URL` role must not be a superuser. The shipped
-`hotel_admin` role is one; run `deploy/db-least-privilege.sql` once to create
-the DML-only `hotel_app` runtime role, then point the backend at it. Keep
-`hotel_admin` for `apply-patches.sh` and `seed.sql` only.
+The backend's `DATABASE_URL` role must not be a superuser. Production and
+staging deploy scripts apply the schema patches, provision the restricted
+`hotel_app` role, then restart the backend with its persisted
+`HOTEL_APP_PASSWORD`. The scripts keep the cleartext password out of SQL text
+and logs. Keep `hotel_admin` for patching, seed/bootstrap, backup, and database
+maintenance; do not use it for backend requests.
 
 Protect the GitHub `production` environment with required reviewers and limit
 deployment-secret access to the release maintainers. Rotate the AIC VPS SSH

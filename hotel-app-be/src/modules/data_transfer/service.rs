@@ -945,6 +945,35 @@ mod tests {
     }
 
     #[test]
+    fn ddl_capability_allowlist_matches_transfer_tables() {
+        let sql = include_str!("../../../database/postgres/patches/0017_runtime_capabilities.sql");
+        let allowlist = sql
+            .split_once("p_schema || '.' || p_table = ANY(ARRAY[")
+            .expect("DDL capability table allowlist must be present")
+            .1
+            .split_once("])) THEN")
+            .expect("DDL capability table allowlist must be closed")
+            .0
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.starts_with('\''))
+            .map(|line| line.trim_end_matches(',').trim_matches('\'').to_owned())
+            .collect::<HashSet<_>>();
+
+        let mut expected = TABLE_INSERT_ORDER
+            .iter()
+            .map(|name| format!("public.{name}"))
+            .collect::<HashSet<_>>();
+        expected.extend(PROTECTED_TABLE_ORDER.iter().filter_map(|name| match *name {
+            "hotel_schema_revisions" => None,
+            "invalid_data_quarantine" => Some(format!("app.{name}")),
+            _ => Some(format!("public.{name}")),
+        }));
+
+        assert_eq!(allowlist, expected, "SQL capability allowlist drifted");
+    }
+
+    #[test]
     fn excluded_tables_are_qualified_unique_and_reasoned() {
         let mut names = HashSet::new();
         for (name, reason) in EXCLUDED_TABLES {

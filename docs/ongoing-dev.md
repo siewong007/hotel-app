@@ -15,15 +15,6 @@ notes are in `git log -- docs/ongoing-dev.md`.
 
 ## P0 — broken or security-relevant
 
-- **Ledger summary does not net credit notes.** `get_ledger_summary`
-  (`hotel-app-be/src/modules/ledgers/repository.rs`) sums `amount`/`paid_amount`/
-  `balance_due` over every non-void row with no sign handling. A reversal
-  therefore doubles the billed total and invents collected cash instead of
-  netting to zero. The fix-gated test
-  `tests/ledger_characterization.rs::postgres_create_ledger_reversal_nets_to_zero_in_summary`
-  is `#[ignore]`d, and CI's stale-ignore check flags it once it starts passing.
-  This is the last open money blocker from the July 2026 booking/payment/ledger
-  audit (its B6).
 - **PostgreSQL 19 track (H7, owner decision 2026-08-22: stay on the beta
   track).** Production, staging, CI and compose run `postgres:19beta3`.
   - **Schema blockers resolved 2026-10-06.** 19 Beta 4 (2026-09-24) reverted
@@ -47,12 +38,11 @@ notes are in `git log -- docs/ongoing-dev.md`.
   copies of `uploads/ekyc/*` still need separate handling. Git history is
   clean, but deployed artifacts were not part of that rewrite.
 - Security-eval items still open:
-  - **M10 least-privilege DB role.** The backend still connects as
-    `hotel_admin` (`deploy/docker-compose.prod.yml`). The role script
-    `deploy/db-least-privilege.sql` exists but has not been rolled out.
+  - **M10 least-privilege DB role rollout.** Release scripts now provision the
+    restricted runtime role after patch 0017 and use separate runtime credentials.
+    Staging and production rollout still need verification; no live deployment
+    was performed by the repository reliability work.
   - **L14 desktop signing certificates.**
-  - **H5 data-transfer import concurrency.** Nothing in
-    `modules/data_transfer/` bounds concurrent imports.
 
 ## P1 — decided, not yet executed
 

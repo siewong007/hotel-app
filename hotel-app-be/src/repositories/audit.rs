@@ -374,7 +374,7 @@ impl AuditRepository {
     /// never fall back into `audit_logs_default` after the install-time window.
     pub async fn ensure_upcoming_partitions(pool: &DbPool) -> Result<(), ApiError> {
         sqlx::query(
-            "SELECT public.ensure_audit_logs_partition(month_start::date) \
+            "SELECT public.maintain_audit_partition(month_start::date) \
              FROM generate_series( \
                  date_trunc('month', CURRENT_DATE)::date, \
                  (date_trunc('month', CURRENT_DATE) + interval '2 months')::date, \

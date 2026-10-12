@@ -38,7 +38,7 @@ make dev-fe
 # Typecheck all projects
 make check-all
 
-# Run all tests
+# Run backend and frontend tests (DATABASE_URL must point to a scratch database)
 make test-all
 
 # Lint all projects
@@ -74,7 +74,7 @@ make docker-up
    # Frontend
    cd hotel-web-fe
    bun run typecheck
-   bun run lint
+   bun run lint:strict
    bun run test -- --run
    bun run build
    ```
@@ -158,12 +158,13 @@ rules are in [AGENTS.md](AGENTS.md).
 ### Running Tests
 
 ```bash
-# All tests
+# Backend and frontend tests (requires scratch DATABASE_URL)
 make test-all
 
 # Backend
-make test-be
-make test-be-pg     # Requires PostgreSQL
+make test-be         # Requires scratch DATABASE_URL; includes PostgreSQL tests
+make test-be-pg      # Alias for test-be
+make test-be-unit    # Database-free library tests only; not the full suite
 
 # Frontend
 make test-fe

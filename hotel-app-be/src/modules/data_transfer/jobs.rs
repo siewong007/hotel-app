@@ -22,6 +22,7 @@ use axum::body::Body;
 use futures_core::Stream;
 use serde_json::value::RawValue;
 use serde_json::{Map, Value};
+use sqlx::Connection;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
@@ -1532,6 +1533,16 @@ pub async fn start_import_job(
     import_user_id: i64,
     request: ImportExecuteRequest,
 ) -> Result<ImportExecuteResponse, ApiError> {
+    let connection = DataTransferRepository::try_import_connection(pool).await?;
+    start_import_job_with_connection(pool, import_user_id, request, connection).await
+}
+
+pub(super) async fn start_import_job_with_connection(
+    pool: &DbPool,
+    import_user_id: i64,
+    request: ImportExecuteRequest,
+    connection: sqlx::PgConnection,
+) -> Result<ImportExecuteResponse, ApiError> {
     if !request.confirm {
         return Err(ApiError::BadRequest(
             "confirm must be true to run an import — the operation is destructive".to_string(),
@@ -1576,6 +1587,7 @@ pub async fn start_import_job(
     tokio::spawn(async move {
         run_import_job(
             job_pool,
+            connection,
             job_id,
             job_path,
             job_request,
@@ -1593,6 +1605,7 @@ pub async fn start_import_job(
 /// job.
 async fn run_import_job(
     pool: DbPool,
+    mut connection: sqlx::PgConnection,
     job_id: Uuid,
     path: PathBuf,
     request: ImportExecuteRequest,
@@ -1602,22 +1615,30 @@ async fn run_import_job(
     let started = Instant::now();
     audit_import_event(&pool, import_user_id, job_id, &request, "start", None, None).await;
 
-    let outcome = execute_staged_import(&pool, job_id, &path, &request, import_user_id, tier).await;
+    let outcome = execute_staged_import(
+        &pool,
+        &mut connection,
+        job_id,
+        &path,
+        &request,
+        import_user_id,
+        tier,
+    )
+    .await;
 
     if let Err(error) = tokio::fs::remove_file(&path).await {
         log::warn!("import job {job_id}: could not remove staged file: {error}");
     }
 
-    match outcome {
+    match &outcome {
         Ok(result) => {
-            finish_job(job_id, result.clone());
             audit_import_event(
                 &pool,
                 import_user_id,
                 job_id,
                 &request,
                 "completed",
-                Some(&result),
+                Some(result),
                 None,
             )
             .await;
@@ -1638,9 +1659,8 @@ async fn run_import_job(
             log::info!("import job {job_id} completed: {result:?}");
         }
         Err(error) => {
-            let message = job_error_message(&error);
+            let message = job_error_message(error);
             log::error!("import job {job_id} failed: {error}");
-            fail_job(job_id, message.clone());
             audit_import_event(
                 &pool,
                 import_user_id,
@@ -1660,6 +1680,15 @@ async fn run_import_job(
             )
             .await;
         }
+    }
+    // Close before publishing a terminal status, so polling clients can retry
+    // immediately. Cancellation/panic also closes the detached connection.
+    if let Err(error) = connection.close().await {
+        log::warn!("import job {job_id}: could not close admission connection: {error}");
+    }
+    match outcome {
+        Ok(result) => finish_job(job_id, result),
+        Err(error) => fail_job(job_id, job_error_message(&error)),
     }
 }
 
@@ -1720,6 +1749,7 @@ async fn audit_import_event(
 /// mode and conflict policy.
 async fn execute_staged_import(
     pool: &DbPool,
+    connection: &mut sqlx::PgConnection,
     job_id: Uuid,
     path: &Path,
     request: &ImportExecuteRequest,
@@ -1752,7 +1782,16 @@ async fn execute_staged_import(
             file.kind
         )));
     }
-    import_structured_backup(pool, job_id, import_user_id, tier, request, file.tables).await
+    import_structured_backup(
+        pool,
+        connection,
+        job_id,
+        import_user_id,
+        tier,
+        request,
+        file.tables,
+    )
+    .await
 }
 
 /// The import engine: clear (restore) then insert every selected entity in
@@ -1760,6 +1799,7 @@ async fn execute_staged_import(
 /// policy and the missing-reference policy applied per row.
 async fn import_structured_backup(
     pool: &DbPool,
+    connection: &mut sqlx::PgConnection,
     job_id: Uuid,
     import_user_id: i64,
     tier: TransferTier,
@@ -1850,7 +1890,7 @@ async fn import_structured_backup(
         .sum();
     set_job_progress(job_id, None, 0, total_rows);
 
-    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let mut tx = connection.begin().await.map_err(ApiError::from)?;
 
     // The clear and the insert both walk a foreign-key cycle (`users` <->
     // `guests`), which no ordering can satisfy while the constraints are

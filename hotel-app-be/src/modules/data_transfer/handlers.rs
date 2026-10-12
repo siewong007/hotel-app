@@ -146,8 +146,12 @@ pub async fn execute_import_handler(
     headers: HeaderMap,
     Json(request): Json<ImportExecuteRequest>,
 ) -> Result<Response, ApiError> {
+    let connection =
+        super::repository::DataTransferRepository::try_import_connection(&pool).await?;
     data_transfer_jobs::enforce_import_permissions(&pool, user_id, &headers, &request).await?;
-    let response = data_transfer_jobs::start_import_job(&pool, user_id, request).await?;
+    let response =
+        data_transfer_jobs::start_import_job_with_connection(&pool, user_id, request, connection)
+            .await?;
     Ok((StatusCode::ACCEPTED, Json(response)).into_response())
 }
 

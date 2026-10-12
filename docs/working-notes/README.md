@@ -23,7 +23,8 @@ When a plan merges:
 
 ## Active
 
-(none)
+- [Repository reliability](plans/2026-10-10-repo-reliability.md) — ledger summaries,
+  import admission, database privileges, and local validation gates.
 
 ## Removal record
 

@@ -211,6 +211,9 @@ jobs:
             "$bundle_dir/database/patches/0015_drop_hotel_property_graph.sql"
           cp hotel-app-be/database/postgres/patches/0016_audit_partition_without_split.sql \
             "$bundle_dir/database/patches/0016_audit_partition_without_split.sql"
+          cp hotel-app-be/database/postgres/patches/0017_runtime_capabilities.sql \
+            "$bundle_dir/database/patches/0017_runtime_capabilities.sql"
+          cp deploy/db-least-privilege.sql "$bundle_dir/database/db-least-privilege.sql"
 
           (
             cd "$bundle_dir"
@@ -242,6 +245,8 @@ jobs:
               database/patches/0014_new_reservation_visible_time_default.sql \
               database/patches/0015_drop_hotel_property_graph.sql \
               database/patches/0016_audit_partition_without_split.sql \
+              database/patches/0017_runtime_capabilities.sql \
+              database/db-least-privilege.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

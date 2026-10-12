@@ -16,6 +16,8 @@ use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use std::collections::{HashMap, HashSet};
 
+static FIXTURE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 async fn setup_pg_pool() -> Option<PgPool> {
     let database_url = match std::env::var("DATABASE_URL") {
         Ok(url) => url,
@@ -40,6 +42,7 @@ async fn setup_pg_pool() -> Option<PgPool> {
 /// foreign-key dependency".
 #[tokio::test]
 async fn every_transferable_table_can_be_ordered_despite_the_users_guests_cycle() {
+    let _fixture = FIXTURE_LOCK.lock().await;
     let Some(pool) = setup_pg_pool().await else {
         return;
     };
@@ -96,6 +99,7 @@ async fn every_transferable_table_can_be_ordered_despite_the_users_guests_cycle(
 /// alone can never solve.
 #[tokio::test]
 async fn relaxed_foreign_keys_allow_cyclic_rows_and_are_restored_afterwards() {
+    let _fixture = FIXTURE_LOCK.lock().await;
     let Some(pool) = setup_pg_pool().await else {
         return;
     };
@@ -195,6 +199,7 @@ async fn relaxed_foreign_keys_allow_cyclic_rows_and_are_restored_afterwards() {
 /// table in the `tables` selection is rejected outright.
 #[tokio::test]
 async fn staged_import_never_writes_credential_tables() {
+    let _fixture = FIXTURE_LOCK.lock().await;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::{BackupImportMode, ImportExecuteRequest, ImportJobState};
     use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
@@ -342,6 +347,7 @@ async fn staged_import_never_writes_credential_tables() {
 /// the check; it must not lose it.
 #[tokio::test]
 async fn deferred_foreign_keys_still_reject_a_dangling_reference() {
+    let _fixture = FIXTURE_LOCK.lock().await;
     let Some(pool) = setup_pg_pool().await else {
         return;
     };
@@ -468,6 +474,7 @@ async fn wait_for_job(job_id: uuid::Uuid) -> hotel_app_be::models::ImportJobStat
 /// staged file is consumed.
 #[tokio::test]
 async fn staged_v1_upload_previews_executes_and_cleans_up() {
+    let _fixture = FIXTURE_LOCK.lock().await;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
@@ -547,6 +554,38 @@ async fn staged_v1_upload_previews_executes_and_cleans_up() {
         .expect("the report must list the imported entity");
     assert_eq!(outcome.inserted, 2);
 
+    // A completed import releases the database-wide admission slot before
+    // publishing its terminal status, so a retry through another pool works.
+    let other = setup_pg_pool().await.expect("second pool must connect");
+    let retry_upload =
+        data_transfer_jobs::stage_backup_upload(axum::body::Body::from(v1_document(
+            "public.amenities",
+            serde_json::json!([
+                {"id": 920_999_001_i64, "name": "transfer-test-amenity-a", "category": "test"},
+                {"id": 920_999_002_i64, "name": "transfer-test-amenity-b", "category": "test"}
+            ]),
+        )))
+        .await
+        .expect("retry upload must stage");
+    let retry = data_transfer_jobs::start_import_job(
+        &other,
+        1,
+        ImportExecuteRequest {
+            upload_id: retry_upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: Some(ConflictPolicy::Skip),
+            tables: vec![],
+            confirm: true,
+            passphrase: None,
+        },
+    )
+    .await
+    .expect("a succeeded import must release admission for another pool");
+    assert_eq!(
+        wait_for_job(retry.job_id).await.status,
+        ImportJobState::Succeeded
+    );
+
     // The job deletes its staged file — a second preview/preview-by-id must 404.
     let gone = data_transfer_jobs::preview_import(&pool, upload.upload_id, None).await;
     assert!(
@@ -565,6 +604,7 @@ async fn staged_v1_upload_previews_executes_and_cleans_up() {
 /// aborts the job on the same file.
 #[tokio::test]
 async fn staged_v1_merge_update_and_fail_conflict_policies() {
+    let _fixture = FIXTURE_LOCK.lock().await;
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };
@@ -703,6 +743,7 @@ async fn staged_v1_merge_update_and_fail_conflict_policies() {
 /// carry ever reaches a table.
 #[tokio::test]
 async fn retired_backup_formats_are_rejected() {
+    let _fixture = FIXTURE_LOCK.lock().await;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
@@ -802,6 +843,7 @@ async fn retired_backup_formats_are_rejected() {
 /// unconfirmed execute is refused, and a deleted upload cannot be previewed.
 #[tokio::test]
 async fn staged_upload_guardrails() {
+    let _fixture = FIXTURE_LOCK.lock().await;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::{BackupImportMode, ImportExecuteRequest};
     use hotel_app_be::modules::data_transfer::jobs as data_transfer_jobs;
@@ -870,6 +912,7 @@ async fn staged_upload_guardrails() {
 /// synthetic descriptor pointing at `amenities.name`.
 #[tokio::test]
 async fn text_key_columns_bind_text_even_for_numeric_keys() {
+    let _fixture = FIXTURE_LOCK.lock().await;
     use hotel_app_be::modules::data_transfer::repository::{
         DataTransferRepository, PkLookup, QualifiedTable, TransferTable,
     };
@@ -936,6 +979,7 @@ async fn text_key_columns_bind_text_even_for_numeric_keys() {
 /// showing an all-new diff, and the job must still fail and roll back.
 #[tokio::test]
 async fn preview_flags_transferable_parent_keys_absent_from_file_and_database() {
+    let _fixture = FIXTURE_LOCK.lock().await;
     use hotel_app_be::models::{
         BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
     };

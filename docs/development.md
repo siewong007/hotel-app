@@ -143,7 +143,7 @@ Frontend (`hotel-web-fe/`):
 
 ```bash
 bun run typecheck    # tsc --noEmit (strict)
-bun run lint         # eslint --quiet; lint:strict = --max-warnings=0 (CI gate)
+bun run lint:strict  # eslint --max-warnings=0 (CI gate)
 bun run test         # vitest run
 bun run build        # vite build
 ```
@@ -162,6 +162,13 @@ CI): `docs/guides/desktop-packaging.md`.
 
 Root Makefile: `make check-all`, `make test-all`, `make lint-all`,
 `make help`.
+
+`make test-be` (also `make test-be-pg`) and `make test-all` reject a missing or
+blank `DATABASE_URL` before launching tests, including parallel Make runs.
+Use a scratch database initialized as described above. `make test-be-unit`
+runs only database-free library tests with `DATABASE_URL` unset; it is not a
+replacement for the PostgreSQL suites. Direct `cargo test` still permits the
+skips described above. `make lint-fe` and `make lint-all` use `lint:strict`.
 
 ## Production build
 

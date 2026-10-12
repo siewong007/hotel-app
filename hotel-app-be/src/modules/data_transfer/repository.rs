@@ -231,6 +231,30 @@ pub(crate) const NEVER_TRANSFERRED_COLUMNS: &[(&str, &str)] = &[
 ];
 
 impl DataTransferRepository {
+    /// Reserve the database-wide import slot before inspecting a staged file.
+    /// Detach so the long-lived job does not exhaust small pools; dropping the
+    /// raw connection closes its session instead of leaking a lock into the pool.
+    /// The import transaction also runs on this connection, so losing the lock
+    /// connection aborts its writes as well.
+    pub async fn try_import_connection(pool: &DbPool) -> Result<sqlx::PgConnection, ApiError> {
+        let mut connection = pool.acquire().await?.detach();
+        // ponytail: one import per database; introduce admission slots only if
+        // measured restore throughput requires concurrent imports.
+        let acquired: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT pg_try_advisory_lock({})",
+            crate::param!(1)
+        )))
+        .bind(820_007_i64)
+        .fetch_one(&mut connection)
+        .await?;
+        if !acquired {
+            return Err(ApiError::Conflict(
+                "another import job is already running".to_string(),
+            ));
+        }
+        Ok(connection)
+    }
+
     pub async fn transfer_tables(pool: &DbPool) -> Result<Vec<TransferTable>, ApiError> {
         let table_rows: Vec<(String, String, String)> = sqlx::query_as(
             r#"
@@ -618,15 +642,25 @@ impl DataTransferRepository {
         tables: &[TransferTable],
         enabled: bool,
     ) -> Result<(), ApiError> {
-        let action = if enabled { "ENABLE" } else { "DISABLE" };
+        let action = if enabled {
+            "triggers_on"
+        } else {
+            "triggers_off"
+        };
         for table in tables {
-            sqlx::query(sqlx::AssertSqlSafe(format!(
-                "ALTER TABLE {} {action} TRIGGER USER",
-                table.table.quoted()
-            )))
-            .execute(&mut **tx)
-            .await
-            .map_err(ApiError::from)?;
+            let query = format!(
+                "SELECT public.transfer_import_ddl({}, {}, {}, NULL)",
+                crate::param!(1),
+                crate::param!(2),
+                crate::param!(3),
+            );
+            sqlx::query(sqlx::AssertSqlSafe(query))
+                .bind(&table.table.schema)
+                .bind(&table.table.name)
+                .bind(action)
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
         }
         Ok(())
     }
@@ -675,14 +709,19 @@ impl DataTransferRepository {
             .collect();
 
         for key in &relaxed {
-            sqlx::query(sqlx::AssertSqlSafe(format!(
-                "ALTER TABLE {} ALTER CONSTRAINT {} DEFERRABLE INITIALLY DEFERRED",
-                key.table.quoted(),
-                quote_identifier(&key.constraint)
-            )))
-            .execute(&mut **tx)
-            .await
-            .map_err(ApiError::from)?;
+            let query = format!(
+                "SELECT public.transfer_import_ddl({}, {}, 'fk_defer', {})",
+                crate::param!(1),
+                crate::param!(2),
+                crate::param!(3),
+            );
+            sqlx::query(sqlx::AssertSqlSafe(query))
+                .bind(&key.table.schema)
+                .bind(&key.table.name)
+                .bind(&key.constraint)
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
         }
         Ok(relaxed)
     }
@@ -698,14 +737,19 @@ impl DataTransferRepository {
         relaxed: &[RelaxedForeignKey],
     ) -> Result<(), ApiError> {
         for key in relaxed {
-            sqlx::query(sqlx::AssertSqlSafe(format!(
-                "ALTER TABLE {} ALTER CONSTRAINT {} NOT DEFERRABLE INITIALLY IMMEDIATE",
-                key.table.quoted(),
-                quote_identifier(&key.constraint)
-            )))
-            .execute(&mut **tx)
-            .await
-            .map_err(ApiError::from)?;
+            let query = format!(
+                "SELECT public.transfer_import_ddl({}, {}, 'fk_immediate', {})",
+                crate::param!(1),
+                crate::param!(2),
+                crate::param!(3),
+            );
+            sqlx::query(sqlx::AssertSqlSafe(query))
+                .bind(&key.table.schema)
+                .bind(&key.table.name)
+                .bind(&key.constraint)
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
         }
         Ok(())
     }

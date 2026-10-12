@@ -141,13 +141,44 @@ sudo -u postgres psql -c "CREATE DATABASE hotel_management OWNER hotel_admin;"
 Then run the V1 init sequence from [Database Setup](#database-setup) below
 (baseline → data → seed, once only), prefixing each with
 `PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f`.
+Apply the catalog patches before starting the backend. The production and
+staging deploy scripts then provision the restricted `hotel_app` role before
+recreating the backend. For a manual deployment, run
+`deploy/db-least-privilege.sql` as `hotel_admin`, set the role password with
+the interactive `psql` command `\password hotel_app`, and configure the
+backend `DATABASE_URL` with that credential. Keep `hotel_admin` for schema
+patches, seed/bootstrap, and database maintenance.
+
+To verify the runtime role against PostgreSQL, use an administrative
+`DATABASE_URL` for a disposable test server:
+
+```bash
+HOTEL_PRIVILEGE_TEST=1 \
+DATABASE_URL=postgresql://hotel_admin@127.0.0.1:55439/postgres \
+  deploy/tests/run-runtime-privileges.sh
+```
+
+The runner creates and drops a uniquely named database on that server, applies
+the baseline, seed, and patches, then runs SQL privilege checks and the real
+import suites as `hotel_app`. Its administrative account needs permission to
+create and drop databases. PostgreSQL roles are cluster-wide, so the runner
+also creates or updates the `hotel_app` role and its temporary password on the
+server. Use a disposable cluster only; never point it at production or another
+server with data or credentials to keep. The backup suite skips two tests that
+create permanent scratch tables; those remain covered by the normal
+administrative integration suite.
+
+The managed production and staging deploy scripts persist `HOTEL_APP_PASSWORD`
+in their protected `secrets.env` file and use it for the backend connection.
+`POSTGRES_PASSWORD` remains the administrator credential for the PostgreSQL
+container and maintenance operations.
 
 #### 2. Backend Deployment
 
 ```bash
 cd hotel-app-be
 cargo build --release
-DATABASE_URL=postgres://hotel_admin:strong_password@localhost:5432/hotel_management \
+DATABASE_URL=postgres://hotel_app:<runtime-password>@localhost:5432/hotel_management \
   JWT_SECRET="your-32-char-min-secret" \
   BACKEND_PORT=3030 \
   ALLOWED_ORIGINS=https://your-frontend-domain.com \
