@@ -265,7 +265,7 @@ export const en: Copy = {
   brand: {
     name: 'SALIM INN',
     place: 'Farley, Sibu',
-    backToStart: 'Salim Inn — back to the start',
+    backToStart: '— back to the start',
     logoAlt: 'Salim Inn — Cozy, Clean, Affordable Comfort',
   },
   nav: {

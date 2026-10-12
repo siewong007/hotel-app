@@ -83,7 +83,7 @@ export const zhTW: Copy = {
   brand: {
     name: 'SALIM INN',
     place: 'Farley · 詩巫',
-    backToStart: 'Salim Inn——返回首頁',
+    backToStart: '——返回首頁',
     logoAlt: 'Salim Inn——舒適潔淨，實惠安心',
   },
   nav: {
