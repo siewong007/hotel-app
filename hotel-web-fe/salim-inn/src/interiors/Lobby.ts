@@ -8,17 +8,21 @@
 //     the entrance — white laminate pillars, a laminate bulkhead between white
 //     bands, the painted mural of Malaysia on its back wall and the black
 //     granite-topped counter across its mouth (ReservationCounter);
-//   · a three-seat stainless bench along the right-hand wall, artificial
-//     cherry blossom by the entrance glass, plain notices on the pillars
-//     (the photos' third-party badges and stickers are not reproduced);
-//   · the stair core at the back, opposite the counter, under a KELUAR sign.
+//   · three-seat stainless benches along the right-hand wall and the back,
+//     a wire magazine rack, artificial cherry blossom by the entrance glass,
+//     plain notices on the pillars (the photos' third-party badges and
+//     stickers are not reproduced);
+//   · from the owner's walk-through video (2026-10-12): the back wall's cream
+//     right half with the stair door opposite the counter — a dark brown
+//     leaf standing open, a red WELCOME mat before it — the white glass
+//     cabinet beside it under a lavender canvas, and the no-smoking notice.
 // Lighting is two real lights (a spot on the counter, a soft fill); the
 // downlights and their wall scallops are emissive surfaces and additive washes.
 import * as THREE from 'three';
 import { PLAN } from '../world/SalimInnBuilding';
-import { batchPlain, boxAt, mergeAll, mergeStatic, metricUV } from '../world/geom';
+import { batchPlain, boxAt, mergeAll, mergeStatic, metricUV, paint, tube } from '../world/geom';
 import { ReservationCounter } from './ReservationCounter';
-import { exitTexture, noticeTexture, PublicMats, scallopWash } from './lobbyMaterials';
+import { lavenderTexture, noSmokingTexture, noticeTexture, PublicMats, scallopWash, welcomeMatTexture } from './lobbyMaterials';
 
 const LIGHT = 0xffe2bd; // ≈ 3,500 K: the photos' neutral-warm downlights
 const PANEL = 1.2; // laminate panel width between the white strips
@@ -52,10 +56,12 @@ export class Lobby {
   /** `counter` may be built first (World builds the interior in slices). */
   constructor(counter: ReservationCounter = new ReservationCounter(), merge = true) {
     this.counter = counter;
+    // Built on the lobby floor: World stands the group at PLAN.floor.
     const L = PLAN.lobby;
     const R = PLAN.reception;
-    const s = PLAN.stair;
+    const sd = PLAN.stair.door;
     const H = PLAN.lobbyCeiling;
+    const doorH = PLAN.door.h - PLAN.floor; // the entrance's head
     const zBack = L.z0; // face of the back wall
     const laminate = PublicMats.laminate();
     const white = PublicMats.laminateWhite();
@@ -63,8 +69,6 @@ export class Lobby {
     // ------------------------------------------------------------ floors
     // the finish sits 12 mm proud of the slab (coplanar faces z-fight)
     this.group.add(mesh(metricUV(boxAt(L.x0, -0.02, L.z0, L.x1, 0.012, L.z1)), PublicMats.porcelain(), 'lobby-floor', false));
-    // the stair core's ground floor: the corridors' carpet starts at the stair
-    this.group.add(mesh(metricUV(boxAt(s.x0, -0.02, s.z0, s.x1, 0.014, s.z1)), PublicMats.carpet(), 'stair-floor', false));
 
     // ------------------------------------------------------------ panelled walls
     const lam: THREE.BufferGeometry[] = [], strips: THREE.BufferGeometry[] = [];
@@ -88,7 +92,7 @@ export class Lobby {
     };
     wallZ(L.x0, 1, zBack, L.z1 - 0.02, H); // left (stair-core side of the entrance)
     wallZ(L.x1, -1, zBack, R.z1, H); // right, behind the reception pillar
-    wallX(zBack, 1, L.x0, s.x0 - 0.2, H); // back, beside the stair core
+    wallX(zBack, 1, L.x0, sd.x0 - 0.25, H); // back, up to the cream around the stair door
     // the right-hand wall's door (back office): a laminate leaf with a narrow
     // frosted strip and a steel pull, in a white frame
     const dz0 = R.z1 - 0.25, dz1 = dz0 - 0.92;
@@ -105,8 +109,8 @@ export class Lobby {
 
     // the frontage's inner face left of and above the entrance door
     this.group.add(mesh(merged([
-      boxAt(L.x0, 0, L.z1 - 0.012, PLAN.door.x0 - 0.06, H, L.z1),
-      boxAt(PLAN.door.x0 - 0.06, PLAN.door.h + 0.06, L.z1 - 0.012, R.x0 - 0.34, H, L.z1),
+      boxAt(L.x0, 0, L.z1 - 0.012, PLAN.door.x0, H, L.z1),
+      boxAt(PLAN.door.x0, doorH + 0.05, L.z1 - 0.012, R.x0 - 0.34, H, L.z1),
     ]), PublicMats.plaster(), 'lobby-front-inner', false));
 
     // ------------------------------------------------------------ reception alcove
@@ -183,21 +187,88 @@ export class Lobby {
     }
     this.group.add(cctvBullet().translateX(L.x1 - 0.12).translateY(H - 0.02).translateZ(R.z1 - 0.35));
 
-    // ------------------------------------------------------------ the stair core opening, KELUAR
-    lam.push(boxAt(s.x0, 2.35, zBack - 0.01, s.x1, H, zBack + 0.012)); // lintel over the opening
-    const arch: THREE.BufferGeometry[] = [
-      boxAt(s.x0 - 0.06, 0, zBack, s.x0, 2.35, zBack + 0.03),
-      boxAt(s.x0 - 0.06, 2.35, zBack, s.x1, 2.41, zBack + 0.03),
+    // ------------------------------------------------------------ the stair door
+    // The back wall's right half is painted cream round the door (the stair's
+    // own walls continue it), over a white kick; the door stands open, its
+    // dark brown leaf swung out into the lobby on the left-hand jamb.
+    const cream = PublicMats.corridorWall();
+    const cx0 = sd.x0 - 0.25, fw = 0.06; // where the laminate stops; the casing's width
+    this.group.add(mesh(merged([
+      boxAt(cx0, 0, zBack, sd.x0 - fw, H, zBack + 0.012),
+      boxAt(sd.x1 + fw, 0, zBack, L.x1, H, zBack + 0.012),
+      boxAt(sd.x0 - fw, sd.h + fw, zBack, sd.x1 + fw, H, zBack + 0.012),
+    ]), cream, 'lobby-back-cream', false));
+    strips.push(boxAt(cx0, 0, zBack + 0.012, sd.x0 - fw, 0.08, zBack + 0.022), boxAt(sd.x1 + fw, 0, zBack + 0.012, L.x1, 0.08, zBack + 0.022));
+    const casing: THREE.BufferGeometry[] = [
+      boxAt(sd.x0 - fw, 0, zBack, sd.x0, sd.h + fw, zBack + 0.025),
+      boxAt(sd.x1, 0, zBack, sd.x1 + fw, sd.h + fw, zBack + 0.025),
+      boxAt(sd.x0, sd.h, zBack, sd.x1, sd.h + fw, zBack + 0.025),
+      // the jamb linings through the wall
+      boxAt(sd.x0, 0, zBack - 0.2, sd.x0 + 0.02, sd.h, zBack),
+      boxAt(sd.x1 - 0.02, 0, zBack - 0.2, sd.x1, sd.h, zBack),
+      boxAt(sd.x0, sd.h - 0.02, zBack - 0.2, sd.x1, sd.h, zBack),
     ];
-    this.group.add(mesh(merged(arch), white, 'stair-architrave'));
-    const exitMat = new THREE.MeshBasicMaterial({ map: exitTexture(), color: new THREE.Color(1.5, 1.5, 1.5), toneMapped: false });
-    const exit = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.113, 0.03), [PublicMats.white(), PublicMats.white(), PublicMats.white(), PublicMats.white(), exitMat, PublicMats.white()]);
-    exit.position.set((s.x0 + s.x1) / 2, 2.62, zBack + 0.03);
-    exit.name = 'keluar';
-    this.group.add(exit);
+    this.group.add(mesh(merged(casing), PublicMats.frame(), 'stair-door-casing'));
+    const leafW = sd.x1 - sd.x0 - 0.04;
+    const leaf = new THREE.Group();
+    leaf.add(mesh(boxAt(0, 0.025, -0.04, leafW, sd.h - 0.01, 0), PublicMats.door(), 'stair-door-leaf'));
+    // a lever handle on each face, near the free edge
+    leaf.add(mesh(merged([
+      boxAt(leafW - 0.09, 0.98, -0.1, leafW - 0.07, 1.0, 0.06),
+      boxAt(leafW - 0.2, 0.975, 0.04, leafW - 0.07, 0.995, 0.06),
+      boxAt(leafW - 0.2, 0.975, -0.1, leafW - 0.07, 0.995, -0.08),
+    ]), PublicMats.stainless(), 'stair-door-lever', false));
+    leaf.position.set(sd.x0 + 0.02, 0, zBack + 0.025);
+    leaf.rotation.y = -0.58 * Math.PI; // open, past square to the wall
+    leaf.name = 'stair-door';
+    this.group.add(leaf);
+    // the red WELCOME mat before it
+    const mx = (sd.x0 + sd.x1) / 2;
+    const mat = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6).rotateX(-Math.PI / 2), PublicMats.print(welcomeMatTexture(), 'welcome-mat'));
+    mat.position.set(mx, 0.02, zBack + 0.42);
+    mat.name = 'welcome-mat';
+    this.group.add(mat, mesh(boxAt(mx - 0.45, 0.012, zBack + 0.12, mx + 0.45, 0.019, zBack + 0.72), PublicMats.black(), 'welcome-mat-edge', false));
+    // the no-smoking notice over the door's right-hand half
+    const ns = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.25), PublicMats.print(noSmokingTexture(), 'no-smoking'));
+    ns.position.set(sd.x1 - 0.2, sd.h + 0.32, zBack + 0.014);
+    ns.name = 'sign-no-smoking';
+    this.group.add(ns);
 
-    // ------------------------------------------------------------ bench, blossom
-    this.group.add(steelBench().translateX(L.x1 - 0.06).translateZ(-7.4));
+    // ------------------------------------------------------------ cabinet and canvas
+    // the white display cabinet in the back corner, its two glass doors
+    // closed on four shelves; the lavender canvas over it
+    const kx0 = sd.x1 + 0.2, kx1 = L.x1 - 0.1, kz0 = zBack + 0.012, kz1 = zBack + 0.4, kh = 1.85;
+    const body: THREE.BufferGeometry[] = [
+      boxAt(kx0, 0, kz0, kx0 + 0.03, kh, kz1), boxAt(kx1 - 0.03, 0, kz0, kx1, kh, kz1),
+      boxAt(kx0, kh - 0.04, kz0, kx1, kh, kz1), boxAt(kx0, 0, kz0, kx1, 0.1, kz1),
+      boxAt(kx0, 0, kz0, kx1, kh, kz0 + 0.01),
+      // the doors' frames and their meeting stiles
+      boxAt(kx0, 0.1, kz1 - 0.02, kx1, 0.15, kz1), boxAt(kx0, kh - 0.09, kz1 - 0.02, kx1, kh - 0.04, kz1),
+      boxAt((kx0 + kx1) / 2 - 0.03, 0.1, kz1 - 0.02, (kx0 + kx1) / 2 + 0.03, kh - 0.04, kz1),
+    ];
+    for (let k = 1; k <= 4; k++) body.push(boxAt(kx0 + 0.03, 0.1 + k * 0.33, kz0 + 0.01, kx1 - 0.03, 0.12 + k * 0.33, kz1 - 0.03));
+    this.group.add(mesh(merged(body), PublicMats.white(), 'cabinet'));
+    this.group.add(mesh(boxAt(kx0 + 0.03, 0.15, kz1 - 0.012, kx1 - 0.03, kh - 0.09, kz1 - 0.008), PublicMats.acrylic(), 'cabinet-glass', false));
+    const canvasW = kx1 - kx0 + 0.05;
+    const art = new THREE.Group();
+    art.add(mesh(boxAt(-canvasW / 2, -0.24, -0.025, canvasW / 2, 0.24, 0), PublicMats.white(), 'canvas-edge', false));
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(canvasW, 0.48), PublicMats.print(lavenderTexture(), 'lavender'));
+    face.position.z = 0.001;
+    art.add(face);
+    art.position.set((kx0 + kx1) / 2, kh + 0.52, zBack + 0.037);
+    art.name = 'art-lavender';
+    this.group.add(art);
+
+    // ------------------------------------------------------------ benches, rack, blossom
+    // along the right-hand wall, a magazine rack between them; one more on
+    // the back wall left of the stair door
+    this.group.add(steelBench().translateX(L.x1 - 0.06).translateZ(-6.2));
+    this.group.add(steelBench().translateX(L.x1 - 0.06).translateZ(-9.1));
+    const backBench = steelBench();
+    backBench.rotation.y = Math.PI / 2;
+    backBench.position.set(sd.x0 - 1.25, 0, zBack + 0.06);
+    this.group.add(backBench);
+    this.group.add(magazineRack().translateX(L.x1 - 0.03).translateZ(-7.65));
     this.group.add(blossom().translateX(R.x0 - 0.62).translateZ(R.z0 - 0.45));
 
     this.group.add(mesh(merged(lam), laminate, 'lobby-laminate'));
@@ -213,7 +284,7 @@ export class Lobby {
     accent.position.set((R.x0 + R.x1) / 2, H - 0.004, R.z1 - 1.1);
     this.group.add(accent);
     this.fill = new THREE.PointLight(0xffe6c8, 0, 13, 1.6);
-    this.fill.position.set((L.x0 + L.x1) / 2, 2.0, -7.0);
+    this.fill.position.set((L.x0 + L.x1) / 2, 1.6, -7.0); // 1.35 m under the ceiling: nearer, it hot-spots it
     this.lights.push(this.spot, this.fill);
     this.group.add(this.spot, this.spot.target, this.fill, this.counter.group);
     this.group.name = 'lobby';
@@ -298,6 +369,33 @@ function steelBench(): THREE.Group {
   }
   g.add(mesh(merged(parts), steel, 'bench'));
   g.name = 'bench';
+  return g;
+}
+
+/** A floor-standing wire magazine rack against the wall (the wall at x = 0,
+ *  the rack facing −x like the benches): four tiers, narrowing upwards, of
+ *  magazines leaning back. */
+function magazineRack(): THREE.Group {
+  const g = new THREE.Group();
+  const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const w = 0.22; // half its width along the wall
+  const wire: THREE.BufferGeometry[] = [];
+  const mags: THREE.BufferGeometry[] = [];
+  for (const z of [-w, w]) wire.push(tube(v(-0.02, 0, z), v(-0.02, 1.3, z), 0.01), tube(v(-0.36, 0, z), v(-0.12, 1.3, z), 0.01));
+  const covers = [0xf3f1ea, 0xd23b2f, 0x2f6fb5, 0xf2c230, 0x3c8f5a, 0xe9e4da, 0x8c2f5f];
+  for (let k = 0, ci = 0; k < 4; k++) {
+    const y = 0.16 + k * 0.3, xf = -0.33 + k * 0.055;
+    wire.push(tube(v(xf, y, -w), v(xf, y, w), 0.006), tube(v(xf, y + 0.07, -w), v(xf, y + 0.07, w), 0.006));
+    for (const z of [-w, w]) wire.push(tube(v(xf, y, z), v(-0.02, y + 0.05, z), 0.006));
+    for (let j = 0; j < 3; j++) {
+      const m = boxAt(-0.005, 0, -0.07, 0.005, 0.27, 0.07).rotateZ(-0.27);
+      m.translate(xf + 0.03, y + 0.005, -0.145 + j * 0.145);
+      mags.push(paint(m, covers[ci++ % covers.length]));
+    }
+  }
+  g.add(mesh(merged(wire), PublicMats.stainless(), 'rack', false));
+  g.add(mesh(mergeAll(mags, ['position', 'normal', 'color']), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45 }), 'magazines', false));
+  g.name = 'magazine-rack';
   return g;
 }
 

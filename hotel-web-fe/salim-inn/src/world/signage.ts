@@ -32,3 +32,33 @@ export function wordmarkTexture(opts: { text?: string; sub?: string; bg?: string
   t.anisotropy = 4;
   return t;
 }
+
+/** The hotel's Chinese name over the red wall letters (owner's video,
+ *  2026-10-12): brushed-steel characters, set in the system's CJK sans, shaded
+ *  top to bottom with a dark edge for their depth. Alpha carries the shapes. */
+export function chineseNameTexture(text = '砂林酒店', w = 1024, h = 256): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const g = c.getContext('2d')!;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.font = `700 ${h * 0.82}px "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif`;
+  const sx = Math.min(1, (w * 0.98) / g.measureText(text).width);
+  g.translate(w / 2, h / 2);
+  g.scale(sx, 1);
+  g.lineJoin = 'round';
+  g.lineWidth = h * 0.05;
+  g.strokeStyle = '#3a3d40';
+  g.strokeText(text, 0, 0);
+  const steel = g.createLinearGradient(0, -h / 2, 0, h / 2);
+  steel.addColorStop(0, '#f4f5f6');
+  steel.addColorStop(0.5, '#a9aeb2');
+  steel.addColorStop(1, '#d9dcde');
+  g.fillStyle = steel;
+  g.fillText(text, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}

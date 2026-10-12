@@ -3,7 +3,7 @@
 // them is most of the interior's cost, and the parts' constructors, which
 // reach for them, then find them cached. Every room type's variants are
 // here too, so a configurator switch only builds geometry.
-import { PublicMats, abstractTexture, blossomTexture, exitTexture, glowTexture, hexArtTexture, monsteraTexture, muralTexture, noSmokingTexture, scallopWash, wifiTexture } from './lobbyMaterials';
+import { PublicMats, blossomTexture, exitTexture, glowTexture, hexArtTexture, lavenderTexture, monsteraTexture, muralTexture, noSmokingTexture, scallopWash, succulentTexture, welcomeMatTexture, wifiTexture } from './lobbyMaterials';
 import { RoomMats, chevronTextures, damaskTextures, laminateTextures, weaveNormal, woodLaminate, wrinkleNormal, type HeadStyle } from './roomMaterials';
 
 const HEADS: HeadStyle[] = ['tufted', 'goldPiping', 'whiteStripes', 'thinStripes', 'channel'];
@@ -15,7 +15,8 @@ export function interiorMaterials(): (() => unknown)[] {
     PublicMats.mural, muralTexture, PublicMats.door, PublicMats.frame, PublicMats.brushed, PublicMats.stainless,
     PublicMats.acrylic, PublicMats.plaster, PublicMats.corridorWall, PublicMats.ceiling, PublicMats.darkMetal,
     PublicMats.black, PublicMats.white, PublicMats.red, PublicMats.paper, PublicMats.brass, glowTexture, scallopWash,
-    exitTexture, wifiTexture, noSmokingTexture, monsteraTexture, abstractTexture, blossomTexture,
+    exitTexture, wifiTexture, noSmokingTexture, monsteraTexture, blossomTexture,
+    lavenderTexture, welcomeMatTexture, succulentTexture,
     () => hexArtTexture('navy'), () => hexArtTexture('green'),
     // rooms
     laminateTextures, damaskTextures, weaveNormal, wrinkleNormal, chevronTextures, woodLaminate,
