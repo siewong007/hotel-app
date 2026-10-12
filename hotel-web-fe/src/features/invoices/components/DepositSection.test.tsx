@@ -199,11 +199,27 @@ describe('DepositSection — guided deposit resolution', () => {
     });
   });
 
+  it('pre-fills a default note so a normal refund submits without typing', () => {
+    renderSection();
+    fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
+    const note = screen.getByLabelText(/^Note \(required\)/i) as HTMLTextAreaElement;
+    expect(note.value).toBe('Normal deposit refund - no damages or charges');
+    const refundButton = screen.getByRole('button', { name: 'Refund RM50.00' }) as HTMLButtonElement;
+    expect(refundButton.disabled).toBe(false);
+    fireEvent.click(refundButton);
+    expect(mocks.onRefund).toHaveBeenCalledWith({
+      method: 'Cash',
+      reference: undefined,
+      note: 'Normal deposit refund - no damages or charges',
+    });
+  });
+
   it('requires a refund note, omits a blank reference and defaults to the first configured method', () => {
     renderSection();
     fireEvent.click(screen.getByRole('radio', { name: /Refund deposit/ }));
     const refundButton = screen.getByRole('button', { name: 'Refund RM50.00' }) as HTMLButtonElement;
-    // No note yet → the refund cannot be submitted.
+    // Cleared note → the refund cannot be submitted.
+    fireEvent.change(screen.getByLabelText(/^Note \(required\)/i), { target: { value: '' } });
     expect(refundButton.disabled).toBe(true);
     fireEvent.click(refundButton);
     expect(mocks.onRefund).not.toHaveBeenCalled();

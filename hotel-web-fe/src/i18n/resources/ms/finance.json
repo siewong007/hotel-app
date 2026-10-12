@@ -206,6 +206,7 @@
     "recordedOnBooking": "Direkodkan pada tempahan{{at}}",
     "refund": {
       "fixedNote": "Jumlah bayaran balik — ditetapkan kepada baki penuh dipegang:",
+      "defaultNote": "Bayaran balik deposit biasa - tiada kerosakan atau caj",
       "method": "Kaedah bayaran balik",
       "note": "Nota (wajib)",
       "submit": "Bayar balik {{amount}}"

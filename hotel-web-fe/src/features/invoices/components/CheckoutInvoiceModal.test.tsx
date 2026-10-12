@@ -992,12 +992,14 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     await waitFor(() => expect(within(dialog).getByText('No deposit')).toBeDefined());
   });
 
-  it('keeps the refund button disabled until a refund note is entered', async () => {
+  it('pre-fills a default refund note and requires one again if it is cleared', async () => {
     renderModal(false, { deposit_paid: true, deposit_amount: 50 });
     const dialog = await screen.findByRole('dialog');
 
     selectResolutionOption(dialog, /Refund deposit/i);
     const refund = within(dialog).getByRole('button', { name: 'Refund RM50.00' }) as HTMLButtonElement;
+    expect(refund.disabled).toBe(false);
+    fillRefundNote(dialog, '');
     expect(refund.disabled).toBe(true);
     fillRefundNote(dialog, 'ok');
     expect(refund.disabled).toBe(true);
