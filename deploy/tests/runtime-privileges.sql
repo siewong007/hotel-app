@@ -113,7 +113,7 @@ DO $$ BEGIN
     BEGIN
         EXECUTE 'TRUNCATE TABLE public.audit_logs_2098_02';
         RAISE EXCEPTION 'runtime role truncated a guarded audit partition';
-    EXCEPTION WHEN raise_exception THEN
+    EXCEPTION WHEN raise_exception OR insufficient_privilege THEN
         IF SQLERRM = 'runtime role truncated a guarded audit partition' THEN
             RAISE;
         END IF;

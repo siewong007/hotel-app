@@ -15,7 +15,7 @@ BEGIN
         INTO function_body_hash, function_owner, function_is_definer, function_config
         FROM pg_proc
         WHERE oid = 'public.transfer_import_ddl(text,text,text,text)'::regprocedure;
-        IF function_body_hash <> '562266b3b2accba8763a64804f2edf58'
+        IF function_body_hash <> '95a60fa200b86b990d989cddde138290'
            OR function_owner <> expected_owner
            OR NOT function_is_definer
            OR function_config IS DISTINCT FROM ARRAY['search_path=pg_catalog, public, pg_temp']::text[] THEN
