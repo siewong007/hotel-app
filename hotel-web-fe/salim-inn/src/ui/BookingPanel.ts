@@ -3,7 +3,8 @@
 // — the guest portal opens (new tab on desktop, same tab on phones) and the
 // choice stays on screen as a copyable summary, because the portal does not
 // read pre-fill parameters yet (see booking.ts). WhatsApp and a call are the
-// secondary actions; the trust row carries times, cancellation and payment.
+// secondary actions. The times are in the card at its head; the trust row
+// below carries cancellation and payment.
 // No names, emails or payment details are collected here.
 import { ROOM_ORDER, roomLayouts } from '../interiors/roomLayouts';
 import { SHOW_PRICES, SITE, WEB_RATES, type RoomCode } from '../config/site';
@@ -67,7 +68,6 @@ export class BookingPanel {
           </div>
         </div>
         <ul class="bk-trust">
-          <li>${copy.frontDesk.checkIn} · ${copy.frontDesk.checkOut}</li>
           <li>${c.cancellation}</li>
           <li>${fill(c.payLine, { methods: c.paymentMethods.join(c.listSep) })}</li>
           ${SHOW_PRICES ? `<li>${c.webRate}</li>` : ''}

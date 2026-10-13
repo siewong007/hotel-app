@@ -48,6 +48,11 @@ export function startFallback(chapters: Chapters, onPick: (code: RoomCode) => vo
     for (const e of entries) if (e.isIntersecting) chapters.setActive(Number((e.target as HTMLElement).dataset.chapter));
   }, { rootMargin: '-45% 0px -45% 0px' });
   chapters.sections.forEach((s) => io.observe(s));
+  // the chapters scroll under the top bar from the first one: it takes the
+  // backing the film gives it past its end (sections.css) once anything does
+  const scrolled = () => root.classList.toggle('still-scrolled', window.scrollY > 4);
+  window.addEventListener('scroll', scrolled, { passive: true });
+  scrolled();
 
   // chapter 6: the owner's photos stand in for the 3D rooms
   const host = document.getElementById('configurator');

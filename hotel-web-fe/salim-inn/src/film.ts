@@ -368,6 +368,10 @@ async function boot(): Promise<void> {
     const reading = chapterAt(pScroll); // the copy always follows the scroll
     chapters.setActive(reading.id);
     if (document.documentElement.dataset.chapter !== String(reading.id)) document.documentElement.dataset.chapter = String(reading.id);
+    // the look's brightness for the copy's scrims (main.css: a grey or daylit
+    // sky rises behind chapter 1's copy)
+    const look = world.look.day > 0.5 ? 'day' : world.look.night > 0.5 ? 'night' : world.look.cloud > 0.5 ? 'grey' : 'dusk';
+    if (document.documentElement.dataset.look !== look) document.documentElement.dataset.look = look;
     // phones: the booking bar from the first screen until chapter 8's own panel
     document.getElementById('mobile-cta')?.classList.toggle('is-visible', pScroll < 0.95);
     // chapter 8: the booking panel slides in over a dimmed scene

@@ -83,6 +83,12 @@ export class Configurator {
       tablist.appendChild(b);
       this.tabs.push(b);
     }
+    // phones scroll the tabs sideways (main.css): a fade at the edge while
+    // more lie beyond it
+    const more = () => tablist.classList.toggle('has-more', tablist.scrollLeft + tablist.clientWidth < tablist.scrollWidth - 4);
+    tablist.addEventListener('scroll', more, { passive: true });
+    window.addEventListener('resize', more);
+    requestAnimationFrame(more);
     this.panel = document.createElement('div');
     this.panel.className = 'cfg-panel';
     this.panel.id = 'cfg-panel';
