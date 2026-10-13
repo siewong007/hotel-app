@@ -235,6 +235,18 @@ export const PAGE_MANIFEST: PageManifestEntry[] = [
     notes: 'Thin wrapper over LegalDocumentPage(documentId="privacy_policy").',
   },
   {
+    id: 'legal-cookies',
+    routePaths: ['/legal/cookies'],
+    routeFiles: ['legal/cookies.tsx'],
+    kind: 'page',
+    visibility: 'public',
+    component: 'features/legal/pages/CookieUsagePage.tsx',
+    smokeTests: ['features/legal/pages/CookieUsagePage.test.tsx'],
+    axeTests: ['features/legal/pages/CookieUsagePage.test.tsx'],
+    workflowTests: ['features/legal/pages/CookieUsagePage.test.tsx'],
+    notes: 'Informational cookie copy; not a consentable document.',
+  },
+  {
     id: 'legal-payment-terms',
     routePaths: ['/legal/payment-terms'],
     routeFiles: ['legal/payment-terms.tsx'],

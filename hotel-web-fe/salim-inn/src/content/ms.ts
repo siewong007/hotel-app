@@ -219,7 +219,7 @@ export const ms: Copy = {
       { alt: 'Bilik air Salim Inn dengan tuala bersih di rak krom di atas tandas', title: 'Bilik air peribadi', caption: 'Tuala bersih, sedia semasa ketibaan' },
       { alt: 'Bilik air Salim Inn dengan singki pedestal dan tingkap kabur', title: 'Bilik air en suite', caption: 'Cerah, bersih dan praktikal' },
       { alt: 'Bilik air Salim Inn dengan langsir mandian, singki pedestal dan bidet', title: 'Pancuran air panas', caption: 'Pancuran, WC dan bidet' },
-      { alt: 'Bahagian luar Farley Commercial Centre berhampiran Salim Inn', title: 'Farley di depan pintu anda', caption: 'Kedai dan makanan berdekatan' },
+      { alt: 'Bangunan hijau Farley Commercial Centre berhampiran Salim Inn', title: 'Farley di depan pintu anda', caption: 'Kedai dan makanan berdekatan' },
       { alt: 'Fasad menghadap jalan Salim Inn dan cafe.cafe dengan kereta diparkir di luar', title: 'Wajah hadapan Salim Inn', caption: 'Mudah dikenali dari jalan' },
     ],
     maps: 'Buka dalam Google Maps',
@@ -301,15 +301,6 @@ export const ms: Copy = {
     aboutUs: 'Tentang Kami',
     privacyPolicy: 'Dasar Privasi',
     cookieUsage: 'Penggunaan Kuki',
-  },
-  cookieUsage: {
-    title: 'Penggunaan Kuki',
-    paragraphs: [
-      'Kami menyimpan pilihan bahasa dan paparan anda dalam pelayar ini. Jika anda telah log masuk, maklumat akaun tersimpan membantu kami memaparkan pautan akaun anda.',
-      'Kuki log masuk dan storan pelayar sementara membantu akaun dan sesi tempahan tetamu anda berfungsi.',
-      'Halaman ini tidak menghantar isyarat penggunaan kepada penyedia analitik pada masa ini.',
-      'Anda boleh menyekat atau memadam kuki dan storan laman melalui tetapan pelayar. Tindakan itu boleh menetapkan semula bahasa atau pilihan paparan dan melog keluar anda.',
-    ],
   },
   mobileCta: {
     rate: SHOW_PRICES ? 'dari <strong>RM{{min}}</strong> / malam' : 'Tempah terus',

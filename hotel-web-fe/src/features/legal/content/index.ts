@@ -1,5 +1,6 @@
 export * from './types';
 export * from './hotelIdentity';
+export { cookieUsage } from './cookieUsage';
 export * from './consentPrompts';
 export * from './consentNotice';
 export { buildTermsOfService, TERMS_OF_SERVICE_VERSION } from './termsOfService';

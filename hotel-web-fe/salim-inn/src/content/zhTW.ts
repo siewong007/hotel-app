@@ -218,7 +218,7 @@ export const zhTW: Copy = {
       { alt: 'Salim Inn浴室，馬桶上方的鍍鉻毛巾架放著乾淨毛巾', title: '獨立浴室', caption: '乾淨毛巾，到店即備' },
       { alt: 'Salim Inn浴室，配有立柱式洗手盆與磨砂窗', title: '套房衛浴', caption: '明亮、乾淨、實用' },
       { alt: 'Salim Inn浴室，配有浴簾、立柱洗手盆與潔身噴頭', title: '熱水淋浴', caption: '淋浴、馬桶與潔身噴頭' },
-      { alt: 'Salim Inn附近的Farley商業中心外觀', title: 'Farley就在門口', caption: '購物餐飲近在咫尺' },
+      { alt: 'Salim Inn附近的綠色Farley商業中心建築', title: 'Farley就在門口', caption: '購物餐飲近在咫尺' },
       { alt: 'Salim Inn與cafe.cafe臨街外觀，門前有車輛停放', title: 'Salim Inn臨街門臉', caption: '在路邊一眼可辨' },
     ],
     maps: '在 Google 地圖中開啟',
@@ -300,15 +300,6 @@ export const zhTW: Copy = {
     aboutUs: '關於我們',
     privacyPolicy: '隱私權政策',
     cookieUsage: 'Cookie 使用說明',
-  },
-  cookieUsage: {
-    title: 'Cookie 使用說明',
-    paragraphs: [
-      '我們會在此瀏覽器中保存您的語言和顯示偏好。如果您已登入，保存的帳戶資料會協助我們顯示您的帳戶連結。',
-      '登入 Cookie 和暫存瀏覽器儲存會協助您的帳戶和賓客預訂工作階段正常運作。',
-      '本落地頁目前不會向分析服務商傳送使用事件。',
-      '您可以在瀏覽器設定中封鎖或清除 Cookie 和網站儲存。這可能會重設語言或顯示偏好，並使您登出。',
-    ],
   },
   mobileCta: {
     rate: SHOW_PRICES ? '每晚 <strong>RM{{min}}</strong> 起' : '直接預訂',

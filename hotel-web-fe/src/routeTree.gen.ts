@@ -64,6 +64,7 @@ import { Route as GuestCheckinVerifyRouteImport } from './routes/guest-checkin/v
 import { Route as GuestRelationsIndexRouteImport } from './routes/guest-relations/index'
 import { Route as GuestRelationsFollowUpsRouteImport } from './routes/guest-relations/follow-ups'
 import { Route as HelpSlugRouteImport } from './routes/help.$slug'
+import { Route as LegalCookiesRouteImport } from './routes/legal/cookies'
 import { Route as LegalIdentityVerificationRouteImport } from './routes/legal/identity-verification'
 import { Route as LegalPaymentTermsRouteImport } from './routes/legal/payment-terms'
 import { Route as LegalPrivacyRouteImport } from './routes/legal/privacy'
@@ -350,6 +351,11 @@ const HelpSlugRoute = HelpSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => HelpRoute,
 } as any)
+const LegalCookiesRoute = LegalCookiesRouteImport.update({
+  id: '/legal/cookies',
+  path: '/legal/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LegalIdentityVerificationRoute =
   LegalIdentityVerificationRouteImport.update({
     id: '/legal/identity-verification',
@@ -459,6 +465,7 @@ export interface FileRoutesByFullPath {
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
   '/guest-relations/follow-ups': typeof GuestRelationsFollowUpsRoute
   '/help/$slug': typeof HelpSlugRoute
+  '/legal/cookies': typeof LegalCookiesRoute
   '/legal/identity-verification': typeof LegalIdentityVerificationRoute
   '/legal/payment-terms': typeof LegalPaymentTermsRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -526,6 +533,7 @@ export interface FileRoutesByTo {
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
   '/guest-relations/follow-ups': typeof GuestRelationsFollowUpsRoute
   '/help/$slug': typeof HelpSlugRoute
+  '/legal/cookies': typeof LegalCookiesRoute
   '/legal/identity-verification': typeof LegalIdentityVerificationRoute
   '/legal/payment-terms': typeof LegalPaymentTermsRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -594,6 +602,7 @@ export interface FileRoutesById {
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
   '/guest-relations/follow-ups': typeof GuestRelationsFollowUpsRoute
   '/help/$slug': typeof HelpSlugRoute
+  '/legal/cookies': typeof LegalCookiesRoute
   '/legal/identity-verification': typeof LegalIdentityVerificationRoute
   '/legal/payment-terms': typeof LegalPaymentTermsRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -663,6 +672,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/verify'
     | '/guest-relations/follow-ups'
     | '/help/$slug'
+    | '/legal/cookies'
     | '/legal/identity-verification'
     | '/legal/payment-terms'
     | '/legal/privacy'
@@ -730,6 +740,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/verify'
     | '/guest-relations/follow-ups'
     | '/help/$slug'
+    | '/legal/cookies'
     | '/legal/identity-verification'
     | '/legal/payment-terms'
     | '/legal/privacy'
@@ -797,6 +808,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/verify'
     | '/guest-relations/follow-ups'
     | '/help/$slug'
+    | '/legal/cookies'
     | '/legal/identity-verification'
     | '/legal/payment-terms'
     | '/legal/privacy'
@@ -862,6 +874,7 @@ export interface RootRouteChildren {
   GuestCheckinFormRoute: typeof GuestCheckinFormRoute
   GuestCheckinVerifyRoute: typeof GuestCheckinVerifyRoute
   GuestRelationsFollowUpsRoute: typeof GuestRelationsFollowUpsRoute
+  LegalCookiesRoute: typeof LegalCookiesRoute
   LegalIdentityVerificationRoute: typeof LegalIdentityVerificationRoute
   LegalPaymentTermsRoute: typeof LegalPaymentTermsRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
@@ -1263,6 +1276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HelpSlugRouteImport
       parentRoute: typeof HelpRoute
     }
+    '/legal/cookies': {
+      id: '/legal/cookies'
+      path: '/legal/cookies'
+      fullPath: '/legal/cookies'
+      preLoaderRoute: typeof LegalCookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/legal/identity-verification': {
       id: '/legal/identity-verification'
       path: '/legal/identity-verification'
@@ -1421,6 +1441,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuestCheckinFormRoute: GuestCheckinFormRoute,
   GuestCheckinVerifyRoute: GuestCheckinVerifyRoute,
   GuestRelationsFollowUpsRoute: GuestRelationsFollowUpsRoute,
+  LegalCookiesRoute: LegalCookiesRoute,
   LegalIdentityVerificationRoute: LegalIdentityVerificationRoute,
   LegalPaymentTermsRoute: LegalPaymentTermsRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,

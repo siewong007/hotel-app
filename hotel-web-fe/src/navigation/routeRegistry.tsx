@@ -119,6 +119,7 @@ const SegmentsPage = lazyRoute(() => import('../features/segments/pages/Segments
 const ChannelsPage = lazyRoute(() => import('../features/channels/pages/ChannelsPage'));
 const LegalTermsPage = lazyRoute(() => import('../features/legal/pages/TermsPage'));
 const LegalPrivacyPage = lazyRoute(() => import('../features/legal/pages/PrivacyPage'));
+const LegalCookieUsagePage = lazyRoute(() => import('../features/legal/pages/CookieUsagePage'));
 const LegalPaymentTermsPage = lazyRoute(() => import('../features/legal/pages/PaymentTermsPage'));
 const LegalIdentityVerificationPage = lazyRoute(() => import('../features/legal/pages/IdentityVerificationPage'));
 
@@ -138,6 +139,7 @@ const routeDefinitions: AppRouteDefinition[] = [
   { id: 'offers', path: '/offers', component: OffersPage, animationType: 'fade', visibility: 'public' },
   { id: 'legal-terms', path: '/legal/terms', component: LegalTermsPage, animationType: 'fade', visibility: 'public' },
   { id: 'legal-privacy', path: '/legal/privacy', component: LegalPrivacyPage, animationType: 'fade', visibility: 'public' },
+  { id: 'legal-cookies', path: '/legal/cookies', component: LegalCookieUsagePage, animationType: 'fade', visibility: 'public' },
   { id: 'legal-payment-terms', path: '/legal/payment-terms', component: LegalPaymentTermsPage, animationType: 'fade', visibility: 'public' },
   { id: 'legal-identity-verification', path: '/legal/identity-verification', component: LegalIdentityVerificationPage, animationType: 'fade', visibility: 'public' },
   // ── overview ────────────────────────────────────────────────────────────

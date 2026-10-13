@@ -117,6 +117,7 @@ const routeTree = rootRoute.addChildren([
   page('offers', () => import('../features/promotions/pages/OffersPage')),
   page('legal/terms', () => import('../features/legal/pages/TermsPage')),
   page('legal/privacy', () => import('../features/legal/pages/PrivacyPage')),
+  page('legal/cookies', () => import('../features/legal/pages/CookieUsagePage')),
   page('legal/payment-terms', () => import('../features/legal/pages/PaymentTermsPage')),
   page('legal/identity-verification', () => import('../features/legal/pages/IdentityVerificationPage')),
   createRoute({

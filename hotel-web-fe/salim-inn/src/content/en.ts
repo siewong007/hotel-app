@@ -80,7 +80,6 @@ export interface Copy {
   };
   faq: { eyebrow: string; title: string; blurb: string; items: { q: string; a: string }[] };
   cta: { title: string; book: string; call: string };
-  cookieUsage: { title: string; paragraphs: string[] };
   footer: { osm: string; rights: string; linksLabel: string; aboutUs: string; privacyPolicy: string; cookieUsage: string };
   /** `rate` takes `{{min}}` and may contain <strong>. */
   mobileCta: { rate: string };
@@ -402,7 +401,7 @@ export const en: Copy = {
       { alt: 'Salim Inn bathroom with fresh towels on a chrome rack above the toilet', title: 'Private bathroom', caption: 'Fresh towels, ready on arrival' },
       { alt: 'Salim Inn bathroom with pedestal sink and frosted window', title: 'Ensuite bathroom', caption: 'Bright, clean and practical' },
       { alt: 'Salim Inn bathroom with shower curtain, pedestal sink and bidet sprayer', title: 'Hot shower', caption: 'Shower, WC and bidet sprayer' },
-      { alt: 'Farley Commercial Centre exterior near Salim Inn', title: 'Farley at your doorstep', caption: 'Shops and food close by' },
+      { alt: 'Green Farley Commercial Centre building near Salim Inn', title: 'Farley at your doorstep', caption: 'Shops and food close by' },
       { alt: 'Current street-facing facade of Salim Inn and cafe.cafe with cars parked outside', title: 'The Salim Inn frontage', caption: 'Easy to recognise from the road' },
     ],
     maps: 'Open in Google Maps',
@@ -484,15 +483,6 @@ export const en: Copy = {
     aboutUs: 'About Us',
     privacyPolicy: 'Privacy Policy',
     cookieUsage: 'Cookie Usage',
-  },
-  cookieUsage: {
-    title: 'Cookie Usage',
-    paragraphs: [
-      'We save your language and display preferences in this browser. If you have signed in, saved account information helps us show your account link.',
-      'Sign-in cookies and temporary browser storage keep your account and guest booking session working.',
-      'This landing page does not currently send usage events to an analytics provider.',
-      'You can block or clear cookies and site storage in your browser settings. Doing so can reset your language or display preferences and sign you out.',
-    ],
   },
   mobileCta: {
     rate: SHOW_PRICES ? 'from <strong>RM{{min}}</strong> / night' : 'Book direct',

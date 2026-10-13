@@ -22,6 +22,7 @@ describe('isGuestDocumentPath', () => {
     expect(isGuestDocumentPath('/offers')).toBe(true);
     expect(isGuestDocumentPath('/offers/weekend')).toBe(true);
     expect(isGuestDocumentPath('/legal/terms')).toBe(true);
+    expect(isGuestDocumentPath('/legal/cookies')).toBe(true);
     expect(isGuestDocumentPath('/unsubscribe/abc')).toBe(true);
   });
 
@@ -48,6 +49,7 @@ describe('isPublicGuestPath', () => {
     expect(isPublicGuestPath('/offers', '')).toBe(true);
     expect(isPublicGuestPath('/login', '')).toBe(true);
     expect(isPublicGuestPath('/legal/privacy', '')).toBe(true);
+    expect(isPublicGuestPath('/legal/cookies', '')).toBe(true);
   });
 
   it('requires a session for the signed-in guest portal dashboard', () => {
