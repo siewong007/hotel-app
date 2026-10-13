@@ -75,6 +75,21 @@ describe('copy bundles', () => {
     }
   });
 
+  it('links the footer to translated About Us and Cookie Usage sections and the public privacy notice', () => {
+    const doc = new DOMParser().parseFromString(indexHtml, 'text/html');
+    const footer = doc.querySelector('.site-footer');
+    expect(footer?.querySelector('a[href="#about-us"]')?.textContent).toBe('About Us');
+    expect(footer?.querySelector('a[href="/legal/privacy"]')?.textContent).toBe('Privacy Policy');
+    expect(footer?.querySelector('a[href="#cookie-usage"]')?.textContent).toBe('Cookie Usage');
+    expect(doc.querySelector('#about-us h2')?.textContent).toBe('A welcoming base in Sibu');
+    expect(doc.querySelector('#cookie-usage')).toBeTruthy();
+    expect(doc.querySelector('#about-us')?.closest('#story')).toBeNull();
+    expect(doc.querySelector('#cookie-usage')?.closest('#story')).toBeNull();
+    expect(en.welcome.title).toBe('A welcoming base in Sibu');
+    expect(en.welcome.intro).toBe('Salim Inn sits in Farley Commercial Centre, close to the everyday rhythm of Sibu. Whether you’re visiting family, travelling for work, or exploring Sarawak, we offer a comfortable place to rest, with air-conditioned rooms, private bathrooms, Wi-Fi, and a reception team available around the clock.');
+    expect(en.cookieUsage.paragraphs).toHaveLength(4);
+  });
+
   it('keeps placeholders the runtime fills', () => {
     for (const code of LANG_CODES) {
       expect(BUNDLES[code].chapterNav.aria).toContain('{{id}}');

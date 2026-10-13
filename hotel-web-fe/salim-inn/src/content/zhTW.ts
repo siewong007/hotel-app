@@ -178,17 +178,16 @@ export const zhTW: Copy = {
     call: '致電 {{phone}}',
   },
   welcome: {
-    eyebrow: '歡迎來到SALIM INN',
-    title: '現代舒適。<br><em>實在價格。</em>',
-    intro:
-      '自2012年起，Salim Inn一直接待尋求詩巫實用舒適住宿的旅客。酒店坐落於Farley商業中心，購物與餐飲近在咫尺，貼心團隊全天候為您服務。',
+    eyebrow: '關於我們',
+    title: '詩巫溫馨舒適的落腳處',
+    intro: 'Salim Inn坐落於Farley商業中心，貼近日常的詩巫生活。無論您是探親、出差或探索砂拉越，這裡都為您提供舒適的休息空間，客房配有空調、獨立浴室和Wi-Fi，櫃檯團隊全天候為您服務。',
   },
   trust: {
     aria: '酒店亮點',
     items: [
       { strong: '24小時', span: '前台與閉路電視' },
       { strong: '5分鐘', span: '步行至Farley超市' },
-      { strong: '自2012年', span: '在詩巫迎接賓客' },
+      { strong: 'Wi-Fi', span: '每間客房均提供' },
     ],
   },
   rooms: {
@@ -297,6 +296,19 @@ export const zhTW: Copy = {
   footer: {
     osm: '地圖資料 © OpenStreetMap 貢獻者',
     rights: `© ${new Date().getFullYear()} Salim Inn, Sibu`,
+    linksLabel: '網站資訊',
+    aboutUs: '關於我們',
+    privacyPolicy: '隱私權政策',
+    cookieUsage: 'Cookie 使用說明',
+  },
+  cookieUsage: {
+    title: 'Cookie 使用說明',
+    paragraphs: [
+      '我們會在此瀏覽器中保存您的語言和顯示偏好。如果您已登入，保存的帳戶資料會協助我們顯示您的帳戶連結。',
+      '登入 Cookie 和暫存瀏覽器儲存會協助您的帳戶和賓客預訂工作階段正常運作。',
+      '本落地頁目前不會向分析服務商傳送使用事件。',
+      '您可以在瀏覽器設定中封鎖或清除 Cookie 和網站儲存。這可能會重設語言或顯示偏好，並使您登出。',
+    ],
   },
   mobileCta: {
     rate: SHOW_PRICES ? '每晚 <strong>RM{{min}}</strong> 起' : '直接預訂',

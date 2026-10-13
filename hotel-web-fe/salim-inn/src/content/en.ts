@@ -80,7 +80,8 @@ export interface Copy {
   };
   faq: { eyebrow: string; title: string; blurb: string; items: { q: string; a: string }[] };
   cta: { title: string; book: string; call: string };
-  footer: { osm: string; rights: string };
+  cookieUsage: { title: string; paragraphs: string[] };
+  footer: { osm: string; rights: string; linksLabel: string; aboutUs: string; privacyPolicy: string; cookieUsage: string };
   /** `rate` takes `{{min}}` and may contain <strong>. */
   mobileCta: { rate: string };
   /** The front desk's facts: the registration card (chapter 5) and the booking panel. */
@@ -360,17 +361,16 @@ export const en: Copy = {
     call: 'Call {{phone}}',
   },
   welcome: {
-    eyebrow: 'WELCOME TO SALIM INN',
-    title: 'Modern comfort.<br><em>Honest value.</em>',
-    intro:
-      'Since 2012, Salim Inn has welcomed travellers looking for a practical, comfortable stay in Sibu. Set within Farley Commercial Centre, shopping and places to eat are right outside—while a caring team is available around the clock.',
+    eyebrow: 'ABOUT US',
+    title: 'A welcoming base in Sibu',
+    intro: 'Salim Inn sits in Farley Commercial Centre, close to the everyday rhythm of Sibu. Whether you’re visiting family, travelling for work, or exploring Sarawak, we offer a comfortable place to rest, with air-conditioned rooms, private bathrooms, Wi-Fi, and a reception team available around the clock.',
   },
   trust: {
     aria: 'Hotel highlights',
     items: [
       { strong: '24 hours', span: 'Reception and CCTV' },
       { strong: '5 minutes', span: 'Walk to Farley Supermarket' },
-      { strong: 'Since 2012', span: 'Welcoming guests in Sibu' },
+      { strong: 'Wi-Fi', span: 'In every room' },
     ],
   },
   rooms: {
@@ -480,6 +480,19 @@ export const en: Copy = {
   footer: {
     osm: 'Map data © OpenStreetMap contributors',
     rights: `© ${new Date().getFullYear()} Salim Inn, Sibu`,
+    linksLabel: 'Site information',
+    aboutUs: 'About Us',
+    privacyPolicy: 'Privacy Policy',
+    cookieUsage: 'Cookie Usage',
+  },
+  cookieUsage: {
+    title: 'Cookie Usage',
+    paragraphs: [
+      'We save your language and display preferences in this browser. If you have signed in, saved account information helps us show your account link.',
+      'Sign-in cookies and temporary browser storage keep your account and guest booking session working.',
+      'This landing page does not currently send usage events to an analytics provider.',
+      'You can block or clear cookies and site storage in your browser settings. Doing so can reset your language or display preferences and sign you out.',
+    ],
   },
   mobileCta: {
     rate: SHOW_PRICES ? 'from <strong>RM{{min}}</strong> / night' : 'Book direct',

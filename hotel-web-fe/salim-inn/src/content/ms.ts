@@ -178,17 +178,16 @@ export const ms: Copy = {
     call: 'Hubungi {{phone}}',
   },
   welcome: {
-    eyebrow: 'SELAMAT DATANG KE SALIM INN',
-    title: 'Keselesaan moden.<br><em>Nilai jujur.</em>',
-    intro:
-      'Sejak 2012, Salim Inn mengalu-alukan pengembara yang mencari penginapan praktikal dan selesa di Sibu. Terletak di Farley Commercial Centre, kedai-kedai dan tempat makan betul-betul di luar—manakala pasukan kami sedia membantu sepanjang masa.',
+    eyebrow: 'TENTANG KAMI',
+    title: 'Tempat singgah yang mesra di Sibu',
+    intro: 'Salim Inn terletak di Farley Commercial Centre, dekat dengan kehidupan harian di Sibu. Sama ada anda melawat keluarga, datang atas urusan kerja atau menerokai Sarawak, kami menyediakan tempat yang selesa untuk berehat, dengan bilik berhawa dingin, bilik mandi peribadi, Wi-Fi dan pasukan kaunter penyambut tetamu yang bertugas sepanjang masa.',
   },
   trust: {
     aria: 'Ciri-ciri utama hotel',
     items: [
       { strong: '24 jam', span: 'Resepsionis dan CCTV' },
       { strong: '5 minit', span: 'Berjalan kaki ke Pasar Raya Farley' },
-      { strong: 'Sejak 2012', span: 'Mengalu-alukan tetamu di Sibu' },
+      { strong: 'Wi-Fi', span: 'Di setiap bilik' },
     ],
   },
   rooms: {
@@ -298,6 +297,19 @@ export const ms: Copy = {
   footer: {
     osm: 'Data peta © penyumbang OpenStreetMap',
     rights: `© ${new Date().getFullYear()} Salim Inn, Sibu`,
+    linksLabel: 'Maklumat laman',
+    aboutUs: 'Tentang Kami',
+    privacyPolicy: 'Dasar Privasi',
+    cookieUsage: 'Penggunaan Kuki',
+  },
+  cookieUsage: {
+    title: 'Penggunaan Kuki',
+    paragraphs: [
+      'Kami menyimpan pilihan bahasa dan paparan anda dalam pelayar ini. Jika anda telah log masuk, maklumat akaun tersimpan membantu kami memaparkan pautan akaun anda.',
+      'Kuki log masuk dan storan pelayar sementara membantu akaun dan sesi tempahan tetamu anda berfungsi.',
+      'Halaman ini tidak menghantar isyarat penggunaan kepada penyedia analitik pada masa ini.',
+      'Anda boleh menyekat atau memadam kuki dan storan laman melalui tetapan pelayar. Tindakan itu boleh menetapkan semula bahasa atau pilihan paparan dan melog keluar anda.',
+    ],
   },
   mobileCta: {
     rate: SHOW_PRICES ? 'dari <strong>RM{{min}}</strong> / malam' : 'Tempah terus',
