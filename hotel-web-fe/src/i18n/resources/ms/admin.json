@@ -953,5 +953,21 @@
       "uptimeHours": "{{hours}}j {{minutes}}m",
       "uptimeMinutes": "{{minutes}}m"
     }
+  },
+  "urgentTransfer": {
+    "banner": "SEGERA: {{count}} pindahan bank tetamu menunggu pengesahan penerimaan. Semak akaun bank dan luluskan atau tolak sekarang — tuntutan yang tidak dijawab dilepaskan secara automatik sebagai belum dibayar.",
+    "review": "Semak sekarang",
+    "title": "Segera: pindahan bank tetamu menunggu pengesahan ({{count}})",
+    "explain": "Tetamu telah membayar melalui pindahan bank di laman web dan sedang menunggu. Sahkan wang telah masuk ke akaun hotel, kemudian luluskan — atau tolak dengan sebab. Amaran ini kekal di setiap halaman sehingga semua tuntutan diselesaikan.",
+    "submitted": "Dihantar",
+    "waiting": "Menunggu",
+    "waitingMinutes": "{{minutes}} min",
+    "waitingHours": "{{hours}} j {{minutes}} min",
+    "waitingDays": "{{days}} h {{hours}} j",
+    "viewReceipt": "Lihat resit",
+    "noReceipt": "Tiada resit dimuat naik",
+    "confirmApprove": "Sahkan penerimaan & luluskan",
+    "minimise": "Kecilkan",
+    "minimiseHint": "Bar merah kekal sehingga semua tuntutan diselesaikan."
   }
 }

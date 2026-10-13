@@ -109,6 +109,9 @@
     "/api/admin/payments/pending": {
       "GET": {}
     },
+    "/api/admin/payments/urgent-claims": {
+      "GET": {}
+    },
     "/api/admin/payments/{payment_id}/approve": {
       "PUT": {}
     },

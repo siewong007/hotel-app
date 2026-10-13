@@ -1167,6 +1167,57 @@ impl PaymentRepository {
         Ok((items, total))
     }
 
+    /// Guest-submitted bank-transfer claims still awaiting a staff decision,
+    /// oldest first. Feeds reception's non-dismissable urgent alert: a claim
+    /// left unanswered is auto-released as unpaid, so the queue must stay
+    /// loud until every claim is approved or rejected. `created_by IS NULL`
+    /// is what marks a guest (website / guest portal) submission — staff
+    /// never create pending bank-transfer rows.
+    pub async fn list_urgent_bank_transfer_claims(
+        pool: &DbPool,
+        limit: i64,
+    ) -> Result<(Vec<PendingPaymentEntry>, i64), ApiError> {
+        let list_sql = r#"
+                SELECT p.id, p.booking_id, b.booking_number, b.guest_id AS guest_id,
+                       g.nick_name AS guest_name, p.amount::text AS amount,
+                       p.payment_method, p.status,
+                       p.gateway_payment_intent_id AS reference, p.notes AS notes,
+                       p.created_at::text AS created_at,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
+                       p.processed_at::text AS processed_at, NULL::text AS processed_by_name,
+                       p.failure_reason AS decision_reason,
+                       b.check_in_date::text AS check_in_date, b.check_out_date::text AS check_out_date,
+                       rm.room_number AS room_number, b.status AS booking_status
+                FROM payments p
+                JOIN bookings b ON b.id = p.booking_id
+                LEFT JOIN guests g ON g.id = b.guest_id
+                LEFT JOIN rooms rm ON rm.id = b.room_id
+                WHERE p.status = 'pending'
+                  AND p.payment_method = 'bank_transfer'
+                  AND p.created_by IS NULL
+                ORDER BY p.created_at ASC, p.id ASC
+                LIMIT $1
+            "#;
+
+        let items = sqlx::query_as::<_, PendingPaymentEntry>(list_sql)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+
+        let total = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM payments \
+             WHERE status = 'pending' AND payment_method = 'bank_transfer' AND created_by IS NULL",
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
+
+        Ok((items, total))
+    }
+
     /// Completed and rejected guest payment claims, newest decision first.
     pub async fn list_payment_approval_history(
         pool: &DbPool,
