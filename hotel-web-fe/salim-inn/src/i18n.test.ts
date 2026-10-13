@@ -120,3 +120,29 @@ describe('applyCopy', () => {
     expect(STORAGE_KEY).toBe('locale');
   });
 });
+
+describe('the header brand link (WCAG 2.5.3, label in name)', () => {
+  // the words axe's label-content-name-mismatch compares: letters and numbers, in order
+  const words = (s: string) => s.normalize('NFKD').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(/\s+/);
+  const contains = (hay: string[], needle: string[]) => hay.some((_, i) => needle.every((w, j) => hay[i + j] === w));
+  const brand = () => new DOMParser().parseFromString(indexHtml, 'text/html').querySelector('a.brand')!;
+
+  it('takes its name from the logo and the hidden hint, not an aria-label of its own', () => {
+    const a = brand();
+    expect(a.hasAttribute('aria-label')).toBe(false);
+    expect(a.hasAttribute('aria-labelledby')).toBe(false);
+    expect(a.querySelector('svg[role="img"]')!.getAttribute('data-i18n-aria')).toBe('brand.logoAlt');
+    expect(a.querySelector('.visually-hidden')!.getAttribute('data-i18n')).toBe('brand.backToStart');
+  });
+
+  it('names the link with the words it shows, the wordmark first in every language', () => {
+    const shown = [...brand().querySelectorAll('svg text')].map((t) => t.textContent ?? '').join(' ');
+    expect(words(shown)).toEqual(['salim', 'inn', 'cozy', 'clean', 'affordable', 'comfort']);
+    for (const code of LANG_CODES) {
+      const { logoAlt, backToStart } = BUNDLES[code].brand;
+      expect(words(`${logoAlt} ${backToStart}`).slice(0, 2), code).toEqual(['salim', 'inn']);
+    }
+    // the logo's lettering is English on every page; its English label says all of it
+    expect(contains(words(`${en.brand.logoAlt} ${en.brand.backToStart}`), words(shown))).toBe(true);
+  });
+});

@@ -1,7 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { queryKeys } from '../../../api/queryKeys';
-import { useNavigate } from '../../../router';
 import { portalSessionScope } from '../../promotions/utils';
 import { clearPortalToken, getValidPortalToken } from './portalTokenStore';
 import { GuestPortalDashboardService } from './guestPortalDashboard.service';
@@ -13,10 +12,12 @@ import { GuestPortalDashboardService } from './guestPortalDashboard.service';
  * no need for the ceremony of a provider mirroring `AuthContext`.
  */
 export function usePortalSession() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [token] = useState<string | null>(() => getValidPortalToken());
 
+  // Ends the portal token only. Where the page goes next belongs to the account
+  // sign-out that always follows (see useGuestSignOut): navigating here first
+  // would leave before that sign-out reached the server.
   const logout = useCallback(() => {
     if (token) {
       void GuestPortalDashboardService.logout(token).catch(() => {
@@ -27,8 +28,7 @@ export function usePortalSession() {
       });
     }
     clearPortalToken();
-    navigate('/', { replace: true });
-  }, [navigate, queryClient, token]);
+  }, [queryClient, token]);
 
   return { token, isAuthenticated: Boolean(token), logout };
 }

@@ -12,11 +12,19 @@ const mocks = vi.hoisted(() => ({
   loginWithGoogle: vi.fn(),
   register: vi.fn(),
   disableGoogleAutoSelect: vi.fn(),
+  trackPendingLogout: vi.fn(),
+  replaceDocumentLocation: vi.fn(),
 }));
 
 // Google keeps an account association of its own, independent of our session.
 vi.mock('../features/auth/components/GoogleSignInButton', () => ({
   disableGoogleAutoSelect: () => mocks.disableGoogleAutoSelect(),
+}));
+
+// jsdom's location.replace cannot be spied on; AuthContext leaves the page
+// through this seam instead.
+vi.mock('../utils/documentLocation', () => ({
+  replaceDocumentLocation: (href: string) => mocks.replaceDocumentLocation(href),
 }));
 
 // AuthContext talks to the network only through these two modules — mock both
@@ -38,6 +46,7 @@ vi.mock('../api/client', () => {
   return {
     api: { post: (...args: unknown[]) => mocks.apiPost(...args) },
     refreshAccessToken: (...args: unknown[]) => mocks.refreshAccessToken(...args),
+    trackPendingLogout: (...args: unknown[]) => mocks.trackPendingLogout(...args),
     APIError,
     // Faithful replica of the real helper — ky parks the parsed error body on
     // `error.data` after consuming the stream; non-object bodies normalize to
@@ -142,6 +151,8 @@ describe('AuthContext', () => {
     mocks.listPasskeys.mockResolvedValue([]);
     mocks.loginWithGoogle.mockReset();
     mocks.register.mockReset();
+    mocks.trackPendingLogout.mockReset();
+    mocks.replaceDocumentLocation.mockReset();
   });
 
   afterEach(() => {
@@ -606,6 +617,104 @@ describe('AuthContext', () => {
       await waitFor(() =>
         expect(mocks.disableGoogleAutoSelect).toHaveBeenCalledTimes(1)
       );
+    });
+  });
+
+  describe('logout that leaves the page', () => {
+    const LANDING = '/salim-inn/index.html';
+
+    function deferred() {
+      let resolve!: () => void;
+      const promise = new Promise<void>(r => {
+        resolve = r;
+      });
+      return { promise, resolve };
+    }
+
+    it('leaves for the landing page only after the server has ended the session', async () => {
+      // Safari cancels a page's in-flight requests once a navigation starts.
+      // Leaving before the revoke landed kept the refresh cookie valid, and the
+      // next page's silent refresh signed the user straight back in.
+      const { result } = await renderAuthenticated();
+      const server = deferred();
+      mocks.apiPost.mockReturnValue(server.promise);
+
+      let signOut!: Promise<void>;
+      act(() => {
+        signOut = result.current.logout({ redirectTo: LANDING });
+      });
+
+      expect(mocks.apiPost).toHaveBeenCalledWith('auth/logout', { keepalive: true });
+      expect(mocks.trackPendingLogout).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(mocks.replaceDocumentLocation).not.toHaveBeenCalled();
+      // Still signed in while waiting, so no route guard redirects to /login.
+      expect(result.current.isAuthenticated).toBe(true);
+
+      await act(async () => {
+        server.resolve();
+        await signOut;
+      });
+
+      expect(mocks.replaceDocumentLocation).toHaveBeenCalledTimes(1);
+      expect(mocks.replaceDocumentLocation).toHaveBeenCalledWith(LANDING);
+      expect(localStorage.getItem('user')).toBeNull();
+      expect(localStorage.getItem('permissions')).toBeNull();
+    });
+
+    it('ignores the 401 fallout of its own sign-out instead of bouncing to /login', async () => {
+      const { result } = await renderAuthenticated();
+      mocks.apiPost.mockReturnValue(deferred().promise);
+
+      act(() => {
+        void result.current.logout({ redirectTo: LANDING });
+      });
+      act(() => {
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      });
+
+      // The unauthorized handler resets the state before sending the page to
+      // /login; skipping it leaves the session state untouched.
+      expect(result.current.isAuthenticated).toBe(true);
+    });
+
+    it('does not send a second sign-out for a second tap', async () => {
+      const { result } = await renderAuthenticated();
+      mocks.apiPost.mockReturnValue(deferred().promise);
+
+      let first!: Promise<void>;
+      let second!: Promise<void>;
+      act(() => {
+        first = result.current.logout({ redirectTo: LANDING });
+        second = result.current.logout({ redirectTo: LANDING });
+      });
+
+      expect(second).toBe(first);
+      expect(mocks.apiPost).toHaveBeenCalledTimes(1);
+    });
+
+    it('still leaves when the server never answers', async () => {
+      const { result } = await renderAuthenticated();
+      mocks.apiPost.mockReturnValue(new Promise<void>(() => {}));
+      vi.useFakeTimers();
+      try {
+        act(() => {
+          void result.current.logout({ redirectTo: LANDING });
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2999);
+        });
+        expect(mocks.replaceDocumentLocation).not.toHaveBeenCalled();
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1);
+        });
+        expect(mocks.replaceDocumentLocation).toHaveBeenCalledWith(LANDING);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

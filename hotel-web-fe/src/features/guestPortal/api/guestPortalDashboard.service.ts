@@ -83,7 +83,9 @@ export class GuestPortalDashboardService {
   }
 
   static async logout(token?: string): Promise<void> {
-    await api.post('guest-portal/logout', { headers: authHeaders(token) });
+    // `keepalive`: sign-out leaves the page right after, and Safari cancels a
+    // page's in-flight requests once a navigation starts.
+    await api.post('guest-portal/logout', { headers: authHeaders(token), keepalive: true });
   }
 
   static async me(token?: string): Promise<GuestPortalMeResponse> {

@@ -85,6 +85,11 @@ html.film-live .poster { visibility: hidden; }
 }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
 .brand-logo { display: block; width: clamp(170px, 16vw, 236px); height: auto; filter: drop-shadow(0 8px 22px rgba(0, 0, 0, 0.28)); }
+/* read by screen readers, not shown (the brand link's "back to the start") */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
 .top-actions { display: flex; gap: 10px; align-items: center; }
 .pill {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;

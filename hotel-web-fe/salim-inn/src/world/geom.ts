@@ -12,6 +12,14 @@ export function boxAt(x0: number, y0: number, z0: number, x1: number, y1: number
   return g;
 }
 
+/** A round open-ended tube from a to b (rails, posts). */
+export function tube(a: THREE.Vector3, b: THREE.Vector3, r: number): THREE.BufferGeometry {
+  const g = new THREE.CylinderGeometry(r, r, a.distanceTo(b), 10, 1, true);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize()));
+  g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+  return g;
+}
+
 /** Rounded box via ExtrudeGeometry bevel (brief: bevel every hard edge). */
 export function roundedBox(w: number, h: number, d: number, r = 0.02, seg = 1): THREE.BufferGeometry {
   const rr = Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3);

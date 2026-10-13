@@ -6,7 +6,7 @@ import { Atmosphere } from './Sky';
 import { Ground } from './Ground';
 import { Roads } from './Roads';
 import { FarleyBlocks } from './FarleyBlocks';
-import { SalimInnBuilding, acUnitGeometry } from './SalimInnBuilding';
+import { PLAN, SalimInnBuilding, acUnitGeometry } from './SalimInnBuilding';
 import { FarleySupermarket } from './FarleySupermarket';
 import { Parking } from './Parking';
 import { Vegetation, treeTableRows } from './Vegetation';
@@ -46,7 +46,7 @@ export function duskAt(p: number): number {
 export type Step = (label: string, fraction: number) => Promise<void>;
 
 /** Timeline span over which the showcase room's door swings open (ch. 6). */
-export const DOOR_OPEN: [number, number] = [0.79, 0.8];
+export const DOOR_OPEN: [number, number] = [0.7926, 0.803];
 
 /** Where each part can be seen at all — measured, not guessed: perf/probe.ts
  *  `audit` renders the film with and without each part (every zoned part
@@ -59,21 +59,20 @@ export const DOOR_OPEN: [number, number] = [0.79, 0.8];
  *  camera path. Trees and cars cast live shadows, so they stay until the
  *  shadow map freezes indoors (0.6; see film.ts). */
 const SEEN: Record<string, [number, number][]> = {
-  // [0.6375, 0.66]: the street through the entrance glazing as the camera
-  // turns from the lobby to the counter beside it
-  ground: [[0, 0.5725], [0.6375, 0.66], [0.7875, 1]],
-  roads: [[0, 0.5625], [0.6375, 0.66], [0.7875, 1]],
+  ground: [[0, 0.5725], [0.79, 1]],
+  roads: [[0, 0.5625], [0.79, 1]],
   'farley-blocks': [[0, 0.5725], [0.895, 1]],
   mart: [[0, 0.5325], [0.9, 1]],
-  parking: [[0, 0.6], [0.6375, 0.66], [0.8875, 1]],
-  'far-field': [[0, 0.5525], [0.6375, 0.66], [0.79, 1]],
+  parking: [[0, 0.6], [0.8875, 1]],
+  'far-field': [[0, 0.5525], [0.79, 1]],
   // (0.8 … 0.885 for the Family Room's configurator view)
   'street-lights': [[0, 0.5525], [0.8, 1]],
-  trees: [[0, 0.6], [0.6375, 0.66], [0.7875, 1]],
-  lobby: [[0.46, 0.785]],
-  // the stair is the corridor's: seen down the lobby, then climbed
-  corridor: [[0.5375, 0.64], [0.725, 0.8075]],
-  room: [[0.46, 0.56], [0.76, 0.97]],
+  trees: [[0, 0.6], [0.79, 1]],
+  lobby: [[0.46, 0.765]],
+  // the stair is the corridor's: seen across the lobby as the camera comes
+  // in, then climbed
+  corridor: [[0.5125, 0.63], [0.7225, 0.8075]],
+  room: [[0.46, 0.56], [0.78, 0.97]],
 };
 const seenAt = (spans: [number, number][], p: number) => spans.some(([a, b]) => p >= a && p <= b);
 /** Beyond this (metres from the room's centre) the room seen from outside
@@ -278,7 +277,7 @@ export class World {
     const counter = new ReservationCounter();
     await slice();
     const lobby = new Lobby(counter, false);
-    lobby.group.position.y = 0.15; // the lobby is one step up, level with the five-foot way
+    lobby.group.position.y = PLAN.floor; // level with the raised five-foot way
     await slice();
     lobby.merge();
     await slice();
@@ -503,7 +502,7 @@ export class World {
       sc.environment = this.roomEnv;
       // the lobby keeps a little less ambient than the rooms, so its
       // downlights and scallops carry the light
-      sc.environmentIntensity = envIn * THREE.MathUtils.lerp(0.46, 0.55, ramp(p, 0.735, 0.785));
+      sc.environmentIntensity = envIn * THREE.MathUtils.lerp(0.46, 0.55, ramp(p, 0.758, 0.79));
     } else {
       sc.environment = this.atmosphere.envMap;
       sc.environmentIntensity *= Math.min(1, envOut);
@@ -519,7 +518,7 @@ export class World {
     this.lamps.update(ramp(d, 0.18, 0.5));
     this.mart.setDusk(GLOBAL.uLights.value);
 
-    // chapter 4: the glass door slides as we reach it
+    // chapter 4: the middle pair of glass doors swings in as we reach it
     this.salim.setDoor(ramp(p, 0.545, 0.572) * (1 - ramp(p, 0.9, 0.95)));
 
     // Interior lights only while we can see them. Each lit material carries
@@ -533,11 +532,12 @@ export class World {
     const inLight = ramp(p, 0.52, 0.56) * (1 - ramp(p, 0.915, 0.945));
     this.interior.visible = this.interiorReady && p > 0.47 && p < 0.96;
     if (this.lobby && this.corridor && this.room) {
-      // the lobby fades out as the camera climbs the second flight (its lamps
-      // reach the corridor through the slab, so a switch would show there);
+      // the lobby fades out as the camera climbs the long flight (its fill
+      // reaches the stair and the corridor's back wall, so a switch would
+      // show there);
       // the corridor drops out once the camera has left through the room window
       const corridorOn = p < 0.9;
-      this.lobby.setLights(inLight * (1 - ramp(p, 0.772, 0.79)));
+      this.lobby.setLights(inLight * (1 - ramp(p, 0.763, 0.7766)));
       this.lobby.update();
       // chapter 5: the key cards fan out of their sleeve as we reach the counter
       this.lobby.counter.setFan(ramp(p, 0.655, 0.7));
@@ -556,6 +556,8 @@ export class World {
     // culling: each part only where it can be seen, and the far trees'
     // canopy layer off while inside the block
     for (const [o, spans] of this.zoned) o.visible = seenAt(spans, p);
+    // the entrance glass: the real lobby once it is drawn, the lit veil before
+    this.salim.setLobbyShown(this.interior.visible && this.lobbyContent?.visible === true);
     this.visibility.update(p, innerWidth / innerHeight);
     const inside = p > 0.585 && p < 0.892;
     if (inside !== this.inside) {

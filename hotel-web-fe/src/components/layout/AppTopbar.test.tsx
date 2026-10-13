@@ -3,12 +3,10 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getActiveLocale, setActiveLocale } from '../../i18n/localeStore';
 
-vi.mock('../../auth/AuthContext', () => ({
-  useAuth: () => ({ logout: vi.fn() }),
-}));
+const logout = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 
-vi.mock('../../router', () => ({
-  useNavigate: () => vi.fn(),
+vi.mock('../../auth/AuthContext', () => ({
+  useAuth: () => ({ logout }),
 }));
 
 vi.mock('./CommandPalette', () => ({
@@ -97,5 +95,13 @@ describe('AppTopbar language control', () => {
     render(<AppTopbar />);
     expect(screen.getByRole('button', { name: 'Account' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy();
+  });
+
+  it('signs out to the public landing page, not the login page', () => {
+    logout.mockClear();
+    render(<AppTopbar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(logout).toHaveBeenCalledWith({ redirectTo: '/salim-inn/index.html' });
   });
 });

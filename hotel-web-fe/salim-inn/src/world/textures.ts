@@ -153,6 +153,25 @@ export function wallTiles(): THREE.Texture {
   return t;
 }
 
+/** Small mosaic in brick reds, browns and cream (the entrance's right-hand
+ *  reveal, owner's video 2026-10-12); one texture = 8 × 8 chips. */
+export function mosaicTiles(): THREE.Texture {
+  if (cache.has('mosaic')) return cache.get('mosaic')!;
+  const S = 128, n = 8, t = S / n;
+  const [c, g] = canvas(S, S);
+  const r = rng(77);
+  const tones = ['#8e2f23', '#b5452f', '#6d3a2a', '#c98b6a', '#e8dcc8', '#a3664a', '#5a2a20', '#d8c3a5'];
+  g.fillStyle = '#d6cfc1'; // grout
+  g.fillRect(0, 0, S, S);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    g.fillStyle = tones[Math.floor(r() * tones.length)];
+    g.fillRect(i * t + 1, j * t + 1, t - 2, t - 2);
+  }
+  const tex = finish(c, true);
+  cache.set('mosaic', tex);
+  return tex;
+}
+
 /** Linear metal soffit slats (dark, ~110 mm pitch) — map + normal. */
 export function soffitSlats(): { map: THREE.Texture; normalMap: THREE.Texture } {
   if (cache.has('soffit')) return { map: cache.get('soffit')!, normalMap: cache.get('soffitN')! };

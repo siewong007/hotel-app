@@ -75,12 +75,16 @@
 <div class="scrim" aria-hidden="true"></div>
 
 <header class="topbar">
-<a class="brand" href="#top" aria-label="Salim Inn — back to the start" data-i18n-aria="brand.backToStart">
+<a class="brand" href="#top">
 <!-- the logo inline (public/salim-inn/salim-inn-logo.svg, same drawing): one
      request fewer before the first paint. Its lettering keeps the fonts it
      rendered in as an image (an SVG image cannot reach the page's fonts).
      "slice" changes nothing at the drawing's own proportions; it lets narrow
-     phones crop it after the wordmark's rule (main.css, max-width: 480px). -->
+     phones crop it after the wordmark's rule (main.css, max-width: 480px).
+     The link takes its name from its content — the logo's label, which
+     carries the wordmark and the tagline it shows, then the hidden "back to
+     the start" — so the name contains the visible words (WCAG 2.5.3, label in
+     name). An aria-label on the link would replace all of that. -->
 <svg class="brand-logo" viewBox="0 0 440 96" width="440" height="96" preserveAspectRatio="xMinYMid slice" role="img" aria-label="Salim Inn — Cozy, Clean, Affordable Comfort" data-i18n-aria="brand.logoAlt">
 <title>Salim Inn</title>
 <g fill="none" fill-rule="evenodd">
@@ -95,6 +99,7 @@
 <text class="brand-logo__tagline" x="86" y="83" fill="#c9d8d0" font-family="Arial, sans-serif" font-size="11" letter-spacing="2.4">COZY  •  CLEAN  •  AFFORDABLE COMFORT</text>
 </g>
 </svg>
+<span class="visually-hidden" data-i18n="brand.backToStart">— back to the start</span>
 </a>
 <nav class="top-actions" aria-label="Primary navigation" data-i18n-aria="nav.aria">
 <select class="pill lang-picker" id="langPicker" aria-label="Language" data-i18n-aria="lang.aria">

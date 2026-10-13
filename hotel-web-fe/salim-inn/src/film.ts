@@ -476,6 +476,8 @@ async function boot(): Promise<void> {
     for (const code of clip ? ROOM_ORDER : []) {
       room.select(code, true);
       room.setDoor(1);
+      world.salim.setDoor(1); // the entrance's middle pair and its glass, as the camera meets them
+      world.salim.setLobbyShown(true);
       room.openCurtainsForExit(1);
       merge(mod.clipCheck(path.filter((q) => code !== 'FS' || q.p < 0.874), world.solids), code);
       const view = ROOM_VIEWS[code];

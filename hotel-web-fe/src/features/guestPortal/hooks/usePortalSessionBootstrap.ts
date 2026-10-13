@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../auth/AuthContext';
-import { useNavigate } from '../../../router';
+import { LANDING_PAGE_PATH } from '../../../guest/guestDocumentPaths';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { setPortalToken } from '../api/portalTokenStore';
 import { usePortalSession } from '../api/usePortalSession';
@@ -32,7 +32,6 @@ export interface PortalSessionBootstrap {
  * session exchange has one finite, recoverable state machine.
  */
 export function usePortalSessionBootstrap(): PortalSessionBootstrap {
-  const navigate = useNavigate();
   const { token: storedToken, logout: logoutPortal } = usePortalSession();
   const {
     user,
@@ -92,18 +91,18 @@ export function usePortalSessionBootstrap(): PortalSessionBootstrap {
     setBootstrapAttempt((attempt) => attempt + 1);
   }, []);
 
+  // The account sign-out owns the navigation: it keeps the signed-in state
+  // until the server has revoked the session, so RootLayout cannot bounce an
+  // unauthenticated user on /guest-portal to the login page first.
   const signOut = useCallback(() => {
-    // Leave the guarded guest route before clearing the account state. Otherwise
-    // RootLayout sees an unauthenticated user still on /guest-portal and sends
-    // them to the guest login page instead of the public index page.
     logoutPortal();
-    logoutAccount();
+    void logoutAccount({ redirectTo: LANDING_PAGE_PATH });
   }, [logoutAccount, logoutPortal]);
 
   const restartSignIn = useCallback(() => {
-    signOut();
-    navigate('/login', { replace: true });
-  }, [navigate, signOut]);
+    logoutPortal();
+    void logoutAccount({ redirectTo: '/login' });
+  }, [logoutAccount, logoutPortal]);
 
   return useMemo(() => {
     if (token) {

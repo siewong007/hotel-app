@@ -26,16 +26,29 @@ export interface PathChapter {
 const K = EXTERIOR_KEYS;
 const L = (x: number, y: number, z: number) => salimLocal(x, y, z);
 const lobbyCx = (PLAN.door.x0 + PLAN.door.x1) / 2 + 0.2;
+const entryCx = (PLAN.door.x0 + PLAN.door.x1) / 2; // between the middle pair of glass doors
 const winX = SHOWCASE_WINDOW.centre; // the open panes the camera exits through
-const stairCx = (PLAN.stair.x0 + PLAN.stair.x1) / 2;
-// the two flights' centre lines (Corridor.ts: 1.0 m flights against either wall)
-const stair1Cx = PLAN.stair.x1 - 0.5; // first flight, party-wall side, climbing −z
-const stair2Cx = PLAN.stair.x0 + 0.5; // second flight, lobby side, climbing +z
 const doorCx = (PLAN.showcaseDoor.x0 + PLAN.showcaseDoor.x1) / 2;
 const counter = PLAN.counter;
 const y1 = FLOOR_Y.level1;
 const eye = DIM.eyeHeight;
-const eyeW = eye + 0.15; // on the five-foot way / lobby (one step up)
+const fl = PLAN.floor; // the five-foot way and the lobby, 0.6 m above the car park
+const eyeL = fl + eye;
+// the stair (Corridor.ts): four steps up in the lobby to its door in the
+// left-hand wall, the landing behind it, the long flight's centre line and
+// pitch, the door at its top and the passage back to the corridor
+const st = PLAN.stair;
+const wallL = PLAN.lobby.x0;
+const stairDoorCz = (st.door.z0 + st.door.z1) / 2;
+const landY = fl + st.entry.risers * st.rise;
+const stepsX = wallL + st.entry.risers * st.entry.run; // the first riser
+/** Eye height climbing the four steps (along their pitch line). */
+const onSteps = (x: number) => fl + eye + (landY - fl) * THREE.MathUtils.clamp((stepsX - x) / (stepsX - wallL), 0, 1);
+const topDoorCz = (st.top.door.z0 + st.top.door.z1) / 2;
+const flightX = (st.well.x0 + st.well.x1) / 2;
+const flightTop = st.flight.z0 - (st.flight.risers - 1) * st.flight.run;
+const onFlight = (z: number) => landY + st.rise * THREE.MathUtils.clamp(1 + (st.flight.z0 - z) / st.flight.run, 1, st.flight.risers);
+const passageCx = (st.passage.x0 + st.passage.x1) / 2;
 
 // FOV plan: the pack's 58° → 31° run is compressed so no chapter changes FOV
 // by more than 6° (brief §6.4).
@@ -82,8 +95,8 @@ export const PATH: PathChapter[] = [
     points: [kp(6, FILM_FOV_C3[0], 1.5), kp(7, FILM_FOV_C3[1], 3), kp(8, FILM_FOV_C3[2], 2.5), kp(9, FILM_FOV_C3[3], 0)],
   },
   // 4 · Arrival: swing round to face the entrance, come down over the car
-  // park, land at eye height behind the free bay, and dolly across it to the
-  // canopy and the door
+  // park, land at eye height behind the free bay, and dolly across it, up
+  // onto the raised five-foot way, to the doors
   {
     id: 4,
     weight: 'altitude',
@@ -91,47 +104,57 @@ export const PATH: PathChapter[] = [
       { pos: L(lobbyCx + 9, 13, 33), target: L(lobbyCx - 1, 3.6, -2), fov: 46 },
       { pos: L(lobbyCx + 2.2, 3.4, 17.5), target: L(lobbyCx - 0.4, 2.7, -2), fov: 47.5 },
       ARRIVAL,
-      { pos: L(lobbyCx - 0.05, eye, 5.0), target: L(lobbyCx, 1.9, -6), fov: 49 },
-      { pos: L(lobbyCx, eye, 1.2), target: L(lobbyCx, 1.75, -8), fov: 49.5 },
-      { pos: L(lobbyCx, eyeW, -1.4), target: L(lobbyCx, 1.7, -9.5), fov: FOV.c4[1] },
+      { pos: L(entryCx + 0.12, eye + 0.05, 5.0), target: L(entryCx + 0.05, fl + 1.45, -6), fov: 49 },
+      { pos: L(entryCx + 0.06, eye + 0.4, 1.2), target: L(entryCx, fl + 1.4, -8), fov: 49.5 },
+      { pos: L(entryCx, eyeL, -1.4), target: L(entryCx, fl + 1.4, -9.5), fov: FOV.c4[1] },
     ],
   },
-  // 5 · Reception: through the door, turning right and round to the counter
-  // beside the entrance (it faces into the lobby), then in close
+  // 5 · Reception: through the doors and round to the right, to the counter
+  // in the right-hand wall beside the entrance (it faces across the lobby),
+  // then in close
   {
     id: 5,
     weight: 'even',
     points: [
-      { pos: L(lobbyCx + 0.35, eyeW, -4.6), target: L(counter.x + 1.6, 1.55, -6.6), fov: 50.5 },
+      { pos: L(entryCx + 0.05, eyeL, -3.0), target: L(counter.x + 0.3, fl + 1.4, -5.6), fov: 50.5 },
       // the reception: pillars, bulkhead, the mural and the counter
-      { pos: L(counter.x - 1.1, eye, counter.z - 3.2), target: L(counter.x + 0.1, 1.45, counter.z + 0.2), fov: 51.5 },
-      { pos: L(counter.x - 0.3, 1.64, counter.z - 2.1), target: L(counter.x + 0.08, 1.3, counter.z - 0.1), fov: 52.5 },
+      { pos: L(counter.x - 2.95, fl + 1.45, counter.z + 0.02), target: L(counter.x + 0.2, fl + 1.3, counter.z + 0.1), fov: 51.5 },
+      { pos: L(counter.x - 2.1, fl + 1.49, counter.z + 0.3), target: L(counter.x - 0.1, fl + 1.15, counter.z - 0.08), fov: 52.5 },
       // close enough to read the registration card and the key cards
-      { pos: L(counter.x - 0.45, 1.68, counter.z - 1.75), target: L(counter.x + 0.06, 1.18, counter.z - 0.12), fov: FOV.c5[1] },
+      { pos: L(counter.x - 1.75, fl + 1.53, counter.z + 0.45), target: L(counter.x - 0.12, fl + 1.03, counter.z - 0.06), fov: FOV.c5[1] },
     ],
   },
-  // 6 · Rooms: turn to the stair opposite the counter, up its two flights to
-  // the level-1 landing and the corridor, the door swings open, into the room
-  // above the lobby
+  // 6 · Rooms: turn from the counter across the lobby to the stair door in
+  // the left-hand wall, up the four steps and through it, right on the
+  // landing and up the long flight; right through the door at the top and
+  // right again down the passage, left along the corridor, the door swings
+  // open, into the room above the lobby
   {
     id: 6,
     weight: 'even',
     points: [
-      // turning away from the counter (round by the bench wall)
-      { pos: L(counter.x - 0.2, eye, counter.z - 2.0), target: L(counter.x + 2.2, 1.5, counter.z - 3.4), fov: 54.2 },
-      { pos: L(counter.x + 0.1, eye, counter.z - 3.2), target: L(stair1Cx - 0.4, 1.9, -12.5), fov: 54.5 },
-      // the foot of the first flight, looking up it
-      { pos: L(stair1Cx - 0.25, eye, -10.7), target: L(stair1Cx, 2.4, -16), fov: 54.7 },
-      { pos: L(stair1Cx, eye + 0.9, -13.4), target: L(stair1Cx - 0.2, 3.6, -17.5), fov: 54.9 },
-      // the half landing: round to the second flight
-      { pos: L(stair1Cx - 0.1, y1 / 2 + eye, -15.9), target: L(stairCx - 0.15, y1 / 2 + 1.45, -18.3), fov: 55.1 },
-      { pos: L(stairCx, y1 / 2 + eye, -16.9), target: L(stair2Cx, y1 / 2 + 2.4, -13), fov: 55.3 },
-      { pos: L(stair2Cx, y1 / 2 + eye + 1.0, -14.5), target: L(stair2Cx + 0.1, y1 + 1.6, -10.5), fov: 55.5 },
-      // the level-1 landing, facing the wayfinding plates across the corridor
-      { pos: L(stair2Cx, y1 + eye, -12.3), target: L(stairCx - 0.5, y1 + 1.5, -8.4), fov: 55.7 },
-      // into the corridor before turning, clear of the landing's corner
-      { pos: L(stairCx - 0.3, y1 + eye, -8.75), target: L(doorCx, y1 + 1.4, -6), fov: 56 },
-      { pos: L(doorCx + 0.25, y1 + eye, -8.3), target: L(doorCx - 0.2, y1 + 1.2, -4), fov: 56.5 },
+      // turning away from the counter, towards the benches and the stair door
+      { pos: L(counter.x - 2.2, eyeL, counter.z - 0.6), target: L(stepsX + 0.4, fl + 1.35, stairDoorCz + 0.1), fov: 54.2 },
+      { pos: L(stepsX + 1.85, eyeL, stairDoorCz + 0.1), target: L(wallL - 1.4, landY + 1.0, stairDoorCz - 0.05), fov: 54.5 },
+      // up the four steps to the door (its head is 2.1 m over the top one),
+      // through it to the landing and the cabinet on the wall ahead
+      { pos: L(stepsX + 0.45, eyeL, stairDoorCz), target: L(wallL - 3.5, landY + 1.3, stairDoorCz - 0.1), fov: 54.6 },
+      { pos: L(stepsX - 0.5, onSteps(stepsX - 0.5), stairDoorCz), target: L(wallL - 2.8, landY + 1.15, stairDoorCz - 0.3), fov: 54.7 },
+      { pos: L(wallL - 0.1, landY + eye - 0.04, stairDoorCz), target: L(wallL - 2.5, landY + 1.05, stairDoorCz - 0.8), fov: 54.8 },
+      // round to the right on the landing, and up the long flight
+      { pos: L(st.well.x1 - 0.3, landY + eye, stairDoorCz - 0.3), target: L(flightX - 0.2, landY + 1.9, st.flight.z0 - 2.0), fov: 54.9 },
+      { pos: L(flightX, landY + eye, st.flight.z0 + 0.3), target: L(flightX, onFlight(st.flight.z0 - 4) + 1.4, st.flight.z0 - 4), fov: 55.1 },
+      { pos: L(flightX, onFlight(st.flight.z0 - 2.0) + eye, st.flight.z0 - 2.0), target: L(flightX + 0.2, y1 + 1.45, flightTop - 1.0), fov: 55.3 },
+      // the level-1 landing: right, through the door in its right-hand wall,
+      // and right again down the passage back to the corridor
+      { pos: L(flightX + 0.03, y1 + eye, flightTop - 0.35), target: L(st.passage.x1, y1 + 1.45, topDoorCz), fov: 55.4 },
+      { pos: L(st.well.x1 + 0.1, y1 + eye, topDoorCz), target: L(st.passage.x1, y1 + 1.55, topDoorCz + 0.25), fov: 55.5 },
+      { pos: L(passageCx, y1 + eye, flightTop - 0.35), target: L(passageCx + 0.25, y1 + 1.45, -10.0), fov: 55.6 },
+      { pos: L(passageCx, y1 + eye, -11.4), target: L(passageCx + 0.6, y1 + 1.45, -8.2), fov: 55.7 },
+      // into the corridor and left, past the doors to the showcase room's
+      { pos: L(passageCx + 0.15, y1 + eye, -8.45), target: L(doorCx + 1.5, y1 + 1.4, -8.0), fov: 56 },
+      { pos: L(doorCx - 1.4, y1 + eye, -8.45), target: L(doorCx + 0.5, y1 + 1.35, -7.4), fov: 56.2 },
+      { pos: L(doorCx - 0.2, y1 + eye, -8.3), target: L(doorCx + 0.1, y1 + 1.2, -4), fov: 56.5 },
       { pos: L(doorCx - 0.1, y1 + eye, -6.6), target: L(winX, y1 + 1.0, -2.5), fov: 57 },
       // (kept on the door side: in the Standard Queen the ensuite wall is 0.5 m to the left)
       { pos: L(doorCx - 0.1, y1 + eye + 0.05, -5.6), target: L(winX - 0.5, y1 + 0.95, -2.2), fov: FOV.c6[1] },

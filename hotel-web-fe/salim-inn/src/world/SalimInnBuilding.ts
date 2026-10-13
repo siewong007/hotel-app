@@ -14,6 +14,10 @@
 //     stacked-stone panel and glass-block vent; the hotel's glazed entrance and
 //     red SALIM INN wall letters; then the cafe glazing under the "cafe.cafe"
 //     letters (generic lettering — no logo reproduced);
+//   · the five-foot way raised 0.6 m above the car park, with a ramp at the
+//     corner end; four frameless glass leaves at the entrance, green and red
+//     bands across them, 砂林酒店 over the red letters and a plain bench (the
+//     owner's walk-through video, 2026-10-12);
 //   · parapet: a 1.45 m charcoal band carrying the louvred SALIM INN sign
 //     cabinet with raised red letters (lit at dusk).
 // The block is also a real shell (slabs, walls, stair void) so the camera can
@@ -22,10 +26,11 @@ import * as THREE from 'three';
 import { salimFrame, SALIM_WIDTH } from './layout';
 import { DIM, FLOOR_Y } from '../config/dimensions';
 import { BRAND, FACADE } from '../config/materials';
-import { boxAt, mergeAll, metricUV, rbox, rng, wallWithOpenings, type Opening } from './geom';
+import { boxAt, mergeAll, metricUV, paint, rbox, rng, tube, wallWithOpenings, type Opening } from './geom';
 import { buildText } from './letters';
 import { downlightWash, GLOBAL, interiorWindows, plaster, type Wash } from './shaders';
-import { louvres, soffitSlats, stoneCladding, wallTiles } from './textures';
+import { chineseNameTexture } from './signage';
+import { louvres, mosaicTiles, soffitSlats, stoneCladding, wallTiles } from './textures';
 
 const S = DIM.salim;
 const W = SALIM_WIDTH;
@@ -43,7 +48,22 @@ const CAN_TOP = 4.5; // fascia top (the cafe letters stand on it)
 const CAN_OUT = DIM.canopyProjection; // 1.8
 const PIL = 0.45; // pilaster width
 const REVEAL = 0.1;
-const GY = 0.15; // five-foot way floor (one step above the car park)
+// The five-foot way stands 0.6 m above the car park (the owner's walk-through
+// video, 2026-10-12: a ramp at the corner end, nothing in front of the
+// doors). The calibrated 2.69 m door head then leaves a standard 2.1 m door.
+const GY = 0.6;
+/** The neighbouring five-foot way under the drop-off canopy, past the corner end. */
+const DROP_Y = 0.15;
+/** The ramp at the corner end, rising towards the stone panel. */
+const RAMP = { x0: 1.4, x1: 3.2, z0: 0.42, z1: 4.2 };
+/** The entrance's glass line, 14 cm back from the tiled wall's face. */
+const DOOR_Z = -FFW + 0.06;
+/** Each of the entrance's four glass leaves: a quarter of the opening, less a 4 mm joint. */
+const DOOR_LEAF = (S.entrance.x1 - S.entrance.x0) / 4 - 0.004;
+/** How far the middle pair swings in when open (radians). */
+const DOOR_SWING = 0.51 * Math.PI;
+const BAND = { red: 0xc8242b, green: 0x1e9a55 };
+const TIMBER = 0xb9803f;
 const GROUPS = S.windowGroups as unknown as [number, number][];
 /** The four lots along the facade, each with its window groups (lot-relative). */
 const LOTS = (S.bayLines as readonly number[]).slice(0, -1).map((x0, i, a) => ({
@@ -53,11 +73,41 @@ const LOTS = (S.bayLines as readonly number[]).slice(0, -1).map((x0, i, a) => ({
 }));
 const PILASTERS = S.pilasters as readonly number[];
 
+/** The stair (the owner's walk-through video, 2026-10-12, placed by the owner
+ *  on 2026-10-13: the stairs on the left as you come in, the reception on the
+ *  right, chairs at the back): four carpeted steps up from the lobby floor to
+ *  a brown door in the lobby's left-hand wall — the party wall with the
+ *  corner lot — a landing behind it, a right turn, and one long straight
+ *  flight towards the back (−z) to level 1, twenty risers in all; at its top
+ *  a door in the right-hand wall. The video turns back there, so the passage
+ *  from that door to the corridor is inferred. */
+const XP = BW - T / 2; // the party wall's far face, on the corner lot's side
+const FLIGHT = { z0: -9.2, risers: 16, run: 0.27 };
+const TOP_RISER = FLIGHT.z0 - (FLIGHT.risers - 1) * FLIGHT.run;
+const STAIR = {
+  /** In the lobby's left-hand wall: front jamb at z0, back jamb at z1; `h` above its sill (the landing). */
+  door: { z0: -7.9, z1: -8.8, h: 2.1 },
+  rise: (Y1 - GY) / 20,
+  /** Four risers in the lobby, rising towards the door (−x) from its floor
+   *  to the landing's level, across from z0 to z1. */
+  entry: { risers: 4, run: 0.28, z0: -7.65, z1: -8.95 },
+  /** The flight's strip between its side walls; the landing behind the door
+   *  runs from the party wall back to x0, its front edge at z0. */
+  well: { x0: XP - 1.8, x1: XP - 0.56, z0: -7.8 },
+  /** The long flight: its first riser at z0, climbing towards −z. */
+  flight: FLIGHT,
+  /** The level-1 landing at its top runs back to z1, with a door in its
+   *  right-hand wall (front jamb z0, back jamb z1) … */
+  top: { z1: TOP_RISER - 1.4, door: { z0: TOP_RISER - 0.2, z1: TOP_RISER - 1.1 } },
+  /** … into a passage that runs forward beside the well to the corridor. */
+  passage: { x0: XP - 0.36, x1: XP + 0.84 },
+};
+
 /** Interior plan shared with the interior builders and the camera (local frame). */
 export const PLAN = {
   lobby: { x0: BW + T / 2, x1: 2 * BW - T / 2, z0: -11.6, z1: -FFW },
   door: { x0: S.entrance.x0, x1: S.entrance.x1, h: S.entrance.head },
-  stair: { x0: 2 * BW - 2.8, x1: 2 * BW - T / 2, z0: -18.3, z1: -11.6 },
+  stair: STAIR,
   corridor: { z0: -9.2, z1: -7.6 },
   frontRoomDepth: 7.4,
   // The configurator room: level 1, front of the lobby bay, directly above
@@ -66,17 +116,21 @@ export const PLAN = {
   showcaseBay: 1,
   showcaseRight: BW + (GROUPS[0][1] + GROUPS[1][0]) / 2,
   showcaseDoor: { x0: BW + 2.2, x1: BW + 3.2 },
-  // The reception (owner's photos, 2026-10-02): an alcove against the inside
-  // of the tiled frontage beside the entrance — white pillars either side, a
-  // striated laminate bulkhead over it, the painted mural on its back wall
-  // (the frontage's inner face) — with the counter across its mouth, facing
-  // into the lobby. The stair core is opposite it, at the back.
-  reception: { x0: S.entrance.x1 + 0.4, x1: 2 * BW - T / 2 - 0.3, z0: -FFW, z1: -FFW - 1.35, soffit: 2.25 },
-  // across the alcove's mouth, guest side towards −z (rotY π)
-  counter: { x: (S.entrance.x1 + 0.4 + 2 * BW - T / 2 - 0.3) / 2, z: -FFW - 1.35 + 0.325, length: 2 * BW - T / 2 - 0.3 - (S.entrance.x1 + 0.4), depth: 0.65, rotY: Math.PI },
+  // The reception (owner's photos, 2026-10-02, placed by the owner on
+  // 2026-10-13: on the right as you come in): an alcove in the lobby's
+  // right-hand wall near the front — white pillars either side, a striated
+  // laminate bulkhead over it, the painted mural on its back wall (the party
+  // wall) — with the counter across its mouth, facing across the lobby (−x).
+  // x0 is the mouth and x1 the wall; the opening runs from z0 back to z1,
+  // behind a pillar at the front corner.
+  reception: { x0: 2 * BW - T / 2 - 1.35, x1: 2 * BW - T / 2, z0: -FFW - 0.34, z1: -FFW - 0.34 - 2.35, soffit: 2.25 },
+  // across the alcove's mouth, guest side towards −x (rotY −π/2)
+  counter: { x: 2 * BW - T / 2 - 1.35 + 0.325, z: -FFW - 0.34 - 2.35 / 2, length: 2.35, depth: 0.65, rotY: -Math.PI / 2 },
   windowSill: 0.95,
   windowHead: 2.3,
-  lobbyCeiling: 3.45,
+  /** Above the lobby floor; the level-1 slab's underside is 3.65 m up. */
+  lobbyCeiling: 2.95,
+  /** The lobby floor and the five-foot way (the lobby group stands on it). */
   floor: GY,
   canopy: { y: CAN_Y, top: CAN_TOP, out: CAN_OUT },
 };
@@ -135,6 +189,31 @@ function windowUnit(x0: number, x1: number, y0: number, y1: number, seed: number
   }
 }
 
+/** One frameless glass leaf of the entrance, hinged at x = 0 and running
+ *  `dir`-wards along x, centred on z = 0: the glass, its two coloured bands
+ *  (vertex colours), and its steel — patch fittings at the hinge corners and,
+ *  on a door, a long pull on each face. */
+function leafParts(len: number, dir: 1 | -1, pulls: boolean): { glass: THREE.BufferGeometry; film: THREE.BufferGeometry[]; steel: THREE.BufferGeometry[] } {
+  const span = (u0: number, u1: number) => [Math.min(dir * u0, dir * u1), Math.max(dir * u0, dir * u1)] as const;
+  const [a, b] = span(0, len);
+  const y0 = GY + 0.03, y1 = S.entrance.head - 0.004;
+  const glass = boxAt(a, y0, -0.006, b, y1, 0.006);
+  const film = [
+    paint(boxAt(a + 0.004, GY + 0.92, -0.008, b - 0.004, GY + 1.01, 0.008), BAND.red),
+    paint(boxAt(a + 0.004, GY + 1.055, -0.008, b - 0.004, GY + 1.125, 0.008), BAND.green),
+  ];
+  const [fa, fb] = span(0, 0.17);
+  const steel = [boxAt(fa, y0 - 0.01, -0.02, fb, y0 + 0.06, 0.02), boxAt(fa, y1 - 0.06, -0.02, fb, y1 + 0.004, 0.02)];
+  if (pulls) {
+    const px = dir * (len - 0.09);
+    for (const s of [-1, 1]) {
+      steel.push(tube(new THREE.Vector3(px, GY + 0.72, s * 0.06), new THREE.Vector3(px, GY + 1.52, s * 0.06), 0.016));
+      for (const y of [GY + 0.8, GY + 1.44]) steel.push(tube(new THREE.Vector3(px, y, s * 0.006), new THREE.Vector3(px, y, s * 0.06), 0.009));
+    }
+  }
+  return { glass, film, steel };
+}
+
 /** Split AC outdoor unit, vertex-coloured: detailed for the hero block, a
  *  light version (box + 8-sided fan) for the rows around the ring. */
 export function acUnitGeometry(lo: boolean): THREE.BufferGeometry {
@@ -167,7 +246,10 @@ export class SalimInnBuilding {
   readonly cafeLetters: THREE.Mesh;
   readonly windowGlass: THREE.Mesh;
   readonly shopGlass: THREE.Mesh;
-  readonly doorLeaves: THREE.Mesh[] = [];
+  /** The entrance's middle pair: hinge groups, swung by setDoor. */
+  readonly doorLeaves: THREE.Object3D[] = [];
+  /** The lit room behind the entrance glass while the lobby is not drawn. */
+  readonly lobbyVeil: THREE.Mesh;
   readonly downlights: THREE.InstancedMesh;
   readonly acUnits: THREE.InstancedMesh;
   /** Cafe furniture and planter greenery on the five-foot way. */
@@ -196,12 +278,41 @@ export class SalimInnBuilding {
     // ---------------------------------------------------------------- ground floor
     const zf = -FFW; // shopfront inner face; the wall occupies [zf, zf + T]
     const zs = zf + T; // shopfront outer face
-    // the hotel's tiles stand 2 cm above the neighbouring five-foot way they
-    // overlap under the drop-off canopy (both were at GY, and took turns on
-    // screen); whatever stands on them sinks 2 cm into the tiles
-    floorTiles.push(metricUV(boxAt(-S.dropOffCanopy - 0.4, 0, zf - 0.2, W, GY + 0.02, 0.3)));
-    concrete.push(boxAt(-S.dropOffCanopy - 0.4, 0, 0.3, W, GY + 0.02, 0.42)); // step nosing
-    charcoal.push(boxAt(-S.dropOffCanopy - 0.4, 0.0, 0.42, W, 0.035, 0.72)); // drain grating strip
+    // The five-foot way, GY above the car park along the hotel's frontage;
+    // three steps down at the corner end to the neighbouring five-foot way
+    // under the drop-off canopy, and four at the south end to the covered
+    // walkway. The hotel's tiles stand 2 cm above the level they overlap
+    // under the drop-off canopy (both were at one height, and took turns on
+    // screen); whatever stands on them sinks 2 cm into the tiles.
+    const xc = -S.dropOffCanopy - 0.4;
+    /** A stretch of five-foot way (or a step of it) from x0 to x1, its top at y. */
+    const walkway = (x0: number, x1: number, y: number) => {
+      floorTiles.push(metricUV(boxAt(x0, 0, zf - 0.2, x1, y, 0.3)));
+      concrete.push(boxAt(x0, 0, 0.3, x1, y, 0.42)); // the edge
+    };
+    walkway(0, W, GY + 0.02);
+    walkway(xc, -0.6, DROP_Y + 0.02);
+    for (let k = 1; k < 3; k++) walkway(-0.3 * k, -0.3 * (k - 1), DROP_Y + 0.02 + ((GY - DROP_Y) * (3 - k)) / 3);
+    for (let k = 1; k < 4; k++) walkway(W + 0.3 * (k - 1), W + 0.3 * k, ((GY + 0.02) * (4 - k)) / 4);
+    charcoal.push(boxAt(xc, 0.0, 0.42, RAMP.x0, 0.035, 0.72), boxAt(RAMP.x1, 0.0, 0.42, W + 0.9, 0.035, 0.72)); // drain grating strip
+
+    // the ramp at the corner end (owner's video): light anti-slip bands across
+    // it and stainless rails both sides, running on over the walkway
+    const rampY = (z: number) => (GY + 0.02) * THREE.MathUtils.clamp((RAMP.z1 - z) / (RAMP.z1 - RAMP.z0), 0, 1);
+    const onRamp = (g: THREE.BufferGeometry, wedge: boolean) => {
+      const pos = g.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) pos.setY(i, wedge ? pos.getY(i) * rampY(pos.getZ(i)) : pos.getY(i) + rampY(pos.getZ(i)));
+      g.computeVertexNormals();
+      return metricUV(g);
+    };
+    floorTiles.push(onRamp(boxAt(RAMP.x0, 0, RAMP.z0, RAMP.x1, 1, RAMP.z1), true));
+    for (let z = RAMP.z0 + 0.2; z < RAMP.z1 - 0.3; z += 0.45) concrete.push(onRamp(boxAt(RAMP.x0 + 0.08, 0.002, z, RAMP.x1 - 0.08, 0.008, z + 0.24), false));
+    for (const x of [RAMP.x0 + 0.06, RAMP.x1 - 0.06]) {
+      const zLow = RAMP.z1 - 0.3, zTop = RAMP.z0, zEnd = RAMP.z0 - 0.4;
+      const at = (z: number, h: number) => new THREE.Vector3(x, (z > zTop ? rampY(z) : GY + 0.02) + h, z);
+      for (const h of [0.9, 0.45]) greyMetal.push(tube(at(zLow, h), at(zTop, h), h > 0.5 ? 0.022 : 0.014), tube(at(zTop, h), at(zEnd, h), h > 0.5 ? 0.022 : 0.014));
+      for (const z of [zLow, (zLow + zTop) / 2, zEnd]) greyMetal.push(tube(at(z, 0), at(z, 0.92), 0.024));
+    }
 
     // bay 0 — solid tiled frontage: stacked-stone panel, glass-block vent, wall lamp
     tiles.push(metricUV(boxAt(0.2, GY, zf, BW - PIL / 2, CAN_Y, zs)));
@@ -213,16 +324,39 @@ export class SalimInnBuilding {
     for (let k = 1; k < 4; k++) white.push(boxAt(gb.x0 + ((gb.x1 - gb.x0) * k) / 4 - 0.012, gb.y0, zs, gb.x0 + ((gb.x1 - gb.x0) * k) / 4 + 0.012, gb.y1, zs + 0.03));
     charcoal.push(rbox(sp.x1 + 0.25, 2.78, zs, sp.x1 + 0.4, 2.98, zs + 0.12, 0.02)); // wall lamp
 
-    // bay 1 — the hotel entrance: glazed door, tiled walls, red wall letters
+    // bay 1 — the hotel entrance (owner's video, 2026-10-12): four frameless
+    // glass leaves on patch fittings under a white head, set back in the tiled
+    // wall; the middle pair swings in on floor springs, with long steel pulls;
+    // a green band over a red one across the glass; a mosaic-tiled right-hand
+    // reveal; the Chinese name over the red SALIM INN letters and a plain
+    // bench under them (the real one's advertisement is not reproduced)
     const d = PLAN.door;
-    tiles.push(metricUV(boxAt(BW + PIL / 2, GY, zf, d.x0 - 0.06, CAN_Y, zs)));
-    tiles.push(metricUV(boxAt(d.x0 - 0.06, d.h + 0.06, zf, d.x1 + 0.06, CAN_Y, zs)));
-    tiles.push(metricUV(boxAt(d.x1 + 0.06, GY, zf, S.cafeGlazingFrom, CAN_Y, zs)));
-    charcoal.push(boxAt(d.x0 - 0.06, GY, zf, d.x0, d.h + 0.06, zs + 0.02), boxAt(d.x1, GY, zf, d.x1 + 0.06, d.h + 0.06, zs + 0.02), boxAt(d.x0 - 0.06, d.h, zf, d.x1 + 0.06, d.h + 0.06, zs + 0.02));
-    // fixed side lights either side of the sliding leaves
-    const side = 0.32;
-    shopPanes.glass.push(pane(d.x0, d.x0 + side, GY, d.h, zf + T * 0.5, [d.x0, d.x1, 0, CAN_Y], 0.71), pane(d.x1 - side, d.x1, GY, d.h, zf + T * 0.5, [d.x0, d.x1, 0, CAN_Y], 0.71));
-    charcoal.push(boxAt(d.x0 + side, GY, zf + 0.04, d.x0 + side + 0.04, d.h, zs - 0.04), boxAt(d.x1 - side - 0.04, GY, zf + 0.04, d.x1 - side, d.h, zs - 0.04));
+    tiles.push(metricUV(boxAt(BW + PIL / 2, GY, zf, d.x0, CAN_Y, zs)));
+    tiles.push(metricUV(boxAt(d.x0, d.h + 0.05, zf, d.x1, CAN_Y, zs)));
+    tiles.push(metricUV(boxAt(d.x1, GY, zf, S.cafeGlazingFrom, CAN_Y, zs)));
+    white.push(boxAt(d.x0, d.h, zf, d.x1, d.h + 0.05, zs)); // the head
+    const mosaic = metricUV(boxAt(d.x1 - 0.012, GY + 0.02, DOOR_Z + 0.008, d.x1, d.h, zs));
+    const fixedGlass: THREE.BufferGeometry[] = [];
+    const film: THREE.BufferGeometry[] = []; // the glass bands and the bench's timber (vertex colours)
+    for (const i of [0, 3]) {
+      const dir = i === 0 ? 1 : -1, px = i === 0 ? d.x0 : d.x1;
+      const parts = leafParts(DOOR_LEAF, dir, false);
+      const at = (g: THREE.BufferGeometry) => g.translate(px, 0, DOOR_Z);
+      fixedGlass.push(at(parts.glass));
+      film.push(...parts.film.map(at));
+      greyMetal.push(...parts.steel.map(at));
+    }
+    const bx0 = d.x1 + 0.3, bx1 = bx0 + 1.6, bz = zs + 0.02, sy = GY + 0.44;
+    for (const x of [bx0 + 0.1, bx1 - 0.1]) {
+      charcoal.push(
+        boxAt(x - 0.02, GY, bz + 0.38, x + 0.02, sy, bz + 0.42), // front leg
+        boxAt(x - 0.02, GY, bz + 0.03, x + 0.02, sy + 0.44, bz + 0.07), // back leg, up the back
+        boxAt(x - 0.02, GY + 0.12, bz + 0.03, x + 0.02, GY + 0.15, bz + 0.42), // stretcher
+        boxAt(x - 0.02, sy - 0.04, bz + 0.03, x + 0.02, sy, bz + 0.42), // seat rail
+      );
+    }
+    for (let k = 0; k < 4; k++) film.push(paint(boxAt(bx0, sy, bz + 0.05 + k * 0.095, bx1, sy + 0.025, bz + 0.13 + k * 0.095), TIMBER));
+    for (let k = 0; k < 2; k++) film.push(paint(boxAt(bx0, sy + 0.16 + k * 0.13, bz + 0.07, bx1, sy + 0.26 + k * 0.13, bz + 0.095), TIMBER));
 
     // bay 2 — cafe: full-height glazing in ~1 m panels, head band, blind cassette
     const c0 = S.cafeGlazingFrom, c1 = W - 0.25;
@@ -248,24 +382,44 @@ export class SalimInnBuilding {
       white.push(p);
     }
 
-    // shell: end walls, back wall, party walls, lobby back wall, stair core side
+    // shell: end walls, back wall, party walls (the first with the stair door
+    // in it), the lobby's back wall, and the stair's own walls in the corner
+    // lot on the ground floor (Corridor.ts skins them and builds level 1's)
+    const L = PLAN.lobby, stair = PLAN.stair, sw = stair.well, sd = stair.door;
+    const topRiser = stair.flight.z0 - (stair.flight.risers - 1) * stair.flight.run;
+    const head = GY + stair.entry.risers * stair.rise + sd.h; // the stair door's head
     white.push(boxAt(0, 0, -D, T, Y1, zf), boxAt(W - T, 0, -D, W, Y1, zf), boxAt(0, 0, -D, W, Y1, -D + T));
-    for (const x of (S.bayLines as readonly number[]).slice(1, -1)) white.push(boxAt(x - T / 2, 0, -D, x + T / 2, Y1, zf));
-    white.push(boxAt(PLAN.lobby.x0, 0, PLAN.lobby.z0 - T, PLAN.stair.x0, Y1, PLAN.lobby.z0));
-    white.push(boxAt(PLAN.stair.x0 - T, 0, PLAN.stair.z0, PLAN.stair.x0, Y1 * 2, PLAN.lobby.z0));
+    for (const x of (S.bayLines as readonly number[]).slice(1, -1)) {
+      if (x !== BW) {
+        white.push(boxAt(x - T / 2, 0, -D, x + T / 2, Y1, zf));
+        continue;
+      }
+      // round the stair door (Corridor.ts's threshold fills it under the sill)
+      white.push(boxAt(x - T / 2, 0, -D, x + T / 2, Y1, sd.z1), boxAt(x - T / 2, 0, sd.z0, x + T / 2, Y1, zf), boxAt(x - T / 2, head, sd.z1, x + T / 2, Y1, sd.z0));
+    }
+    white.push(
+      boxAt(L.x0, 0, L.z0 - T, L.x1, Y1, L.z0), // the lobby's back wall
+      boxAt(sw.x0 - T, 0, stair.top.z1 - T, sw.x0, Y1, sw.z0 + T), // the stair's outer wall
+      boxAt(sw.x0, 0, sw.z0, XP, Y1, sw.z0 + T), // in front of the landing
+      boxAt(sw.x1, 0, stair.top.z1 - T, sw.x1 + T, Y1, stair.flight.z0), // beside the flight
+      boxAt(sw.x1 + T, 0, stair.flight.z0 - T, XP, Y1, stair.flight.z0), // behind the landing, right of the flight
+      boxAt(sw.x0, 0, stair.top.z1 - T, sw.x1, Y1, stair.top.z1), // under the top landing's end
+    );
 
     // ---------------------------------------------------------------- slabs
-    // slab edges stop 3 cm inside the facade wall (flush faces z-fight)
+    // slab edges stop 3 cm inside the facade wall (flush faces z-fight); level
+    // 1's is open over the long flight, from behind the corridor's back wall
+    // to the top riser
     const zE = -0.03;
-    const slab = (y: number, voidStair: boolean) => {
+    const vz0 = PLAN.corridor.z0 - T - 0.05;
+    const slab = (y: number, open: boolean) => {
       const y0 = y - 0.25;
-      if (!voidStair) return [boxAt(0, y0, -D, W, y, zE)];
-      const st = PLAN.stair;
-      return [boxAt(0, y0, -D, st.x0, y, zE), boxAt(st.x0, y0, st.z1, W, y, zE), boxAt(st.x1, y0, -D, W, y, st.z1)];
+      if (!open) return [boxAt(0, y0, -D, W, y, zE)];
+      return [boxAt(0, y0, -D, sw.x0, y, zE), boxAt(sw.x1, y0, -D, W, y, zE), boxAt(sw.x0, y0, -D, sw.x1, y, topRiser), boxAt(sw.x0, y0, vz0, sw.x1, y, zE)];
     };
-    white.push(...slab(Y1, true), ...slab(Y2, true));
+    white.push(...slab(Y1, true), ...slab(Y2, false));
     concrete.push(...slab(YR, false));
-    white.push(boxAt(PLAN.lobby.x0, PLAN.lobbyCeiling, PLAN.lobby.z0, PLAN.lobby.x1, PLAN.lobbyCeiling + 0.05, PLAN.lobby.z1));
+    white.push(boxAt(L.x0, GY + PLAN.lobbyCeiling, L.z0, L.x1, GY + PLAN.lobbyCeiling + 0.05, L.z1));
 
     // ---------------------------------------------------------------- upper floors
     const openings: Opening[] = [];
@@ -398,10 +552,16 @@ export class SalimInnBuilding {
     cafe.geo.scale((cl.x1 - cl.x0) / cafe.width, 1, 1); // condensed, like the real lettering
     cafe.geo.translate(cl.x0, CAN_TOP + 0.01, CAN_OUT - 0.6);
 
+    // the Chinese name in steel over the red letters (a texture: the letter
+    // font has Latin glyphs only)
+    const hanzi = new THREE.PlaneGeometry(1.4, 0.35);
+    hanzi.translate((wl.x0 + wl.x1) / 2, wl.base + wl.cap + 0.26, zs + 0.02);
+
     // ---------------------------------------------------------------- planters
+    // along the edge, but none before the entrance (owner's video)
     const terracotta: THREE.BufferGeometry[] = [];
     const plantSpots: THREE.Vector3[] = [];
-    for (const x of [BW + 0.9, d.x1 + 0.9, 2 * BW - 1.0, c0 + 1.6, c0 + 4.6, c0 + 7.4, W - 1.2]) {
+    for (const x of [2 * BW - 1.0, c0 + 1.6, c0 + 4.6, c0 + 7.4, W - 1.2]) {
       terracotta.push(rbox(x - 0.62, GY, -0.95, x + 0.62, GY + 0.58, -0.4, 0.03));
       plantSpots.push(new THREE.Vector3(x, GY + 0.52, -0.67));
     }
@@ -419,7 +579,8 @@ export class SalimInnBuilding {
     mk(cream, plaster(new THREE.MeshStandardMaterial({ color: FACADE.salimCream, roughness: 0.86 }), 1.2), 'salim-cream');
     mk(white, new THREE.MeshStandardMaterial({ color: FACADE.windowFrame, roughness: 0.42, metalness: 0.05 }), 'salim-white');
     mk(charcoal, new THREE.MeshStandardMaterial({ color: FACADE.salimCharcoal, roughness: 0.5, metalness: 0.3 }), 'salim-charcoal');
-    mk(greyMetal, new THREE.MeshStandardMaterial({ color: 0xb7bbbd, roughness: 0.4, metalness: 0.6 }), 'salim-blinds');
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0xb7bbbd, roughness: 0.4, metalness: 0.6 });
+    mk(greyMetal, steelMat, 'salim-blinds');
     const st = stoneCladding();
     mk(stone, new THREE.MeshStandardMaterial({ map: st.map, normalMap: st.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.92 }), 'salim-stone');
     const tileMap = wallTiles().clone();
@@ -443,16 +604,38 @@ export class SalimInnBuilding {
     this.windowGlass = mk(panes.glass, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x223036, roughness: 0.13, reflectivity: 0.55, envMapIntensity: 1.5 }), { depth: 3.4, size: [2.5, 1.35], litShare: 0.62, levels }), 'salim-windows', false, ['position', 'normal', 'aWin', 'aSeed', 'aTan']);
     this.shopGlass = mk(shopPanes.glass, interiorWindows(new THREE.MeshPhysicalMaterial({ color: 0x2a3432, roughness: 0.05, reflectivity: 0.5, envMapIntensity: 1.3 }), { depth: 7, size: [6.4, 3.1], litShare: 1.0, warm: 0xffdcb0 }), 'salim-shopfront', false, ['position', 'normal', 'aWin', 'aSeed', 'aTan']);
 
-    // lobby door: two glass leaves that slide apart in chapter 4
+    // Behind the entrance glass, the shopfronts' lit room until the lobby
+    // itself is drawn (setLobbyShown): from the air the doorway glows like
+    // the cafe beside it, not with the empty shell.
+    this.lobbyVeil = new THREE.Mesh(pane(d.x0, d.x1, GY, d.h, zf - 0.08, [d.x0, d.x1, 0, CAN_Y], 0.71), this.shopGlass.material);
+    this.lobbyVeil.name = 'salim-lobby-veil';
+    this.group.add(this.lobbyVeil);
+
+    // the entrance: the fixed outer leaves and the bench's timber merged; the
+    // middle pair swings in as the camera reaches it (setDoor)
     const leafMat = new THREE.MeshPhysicalMaterial({ color: 0x9fb4b8, roughness: 0.04, transparent: true, opacity: 0.32, envMapIntensity: 1.4 });
-    const leafW = (d.x1 - d.x0 - 2 * side) / 2;
-    for (const k of [0, 1]) {
-      const leaf = new THREE.Mesh(boxAt(0, GY, -0.012, leafW, d.h - 0.02, 0.012), leafMat);
-      leaf.position.set(d.x0 + side + k * leafW, 0, zf + T * 0.5 + (k ? -0.03 : 0.03));
-      leaf.userData.x0 = leaf.position.x;
-      leaf.name = `salim-door-${k}`;
-      this.group.add(leaf);
-      this.doorLeaves.push(leaf);
+    const filmMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45 });
+    mk(fixedGlass, leafMat, 'salim-door-fixed', false);
+    mk(film, filmMat, 'salim-door-bands', true, ['position', 'normal', 'color']);
+    const mosaicMap = mosaicTiles().clone();
+    mosaicMap.repeat.set(1 / 0.25, 1 / 0.25);
+    mosaicMap.needsUpdate = true;
+    mk([mosaic], new THREE.MeshStandardMaterial({ map: mosaicMap, roughness: 0.3 }), 'salim-mosaic', false);
+    for (const dir of [1, -1] as const) {
+      const pivot = new THREE.Group();
+      pivot.position.set(dir > 0 ? d.x0 + (d.x1 - d.x0) / 4 : d.x1 - (d.x1 - d.x0) / 4, 0, DOOR_Z);
+      const parts = leafParts(DOOR_LEAF, dir, true);
+      const k = dir > 0 ? 1 : 2;
+      const glass = new THREE.Mesh(parts.glass, leafMat);
+      const bands = new THREE.Mesh(mergeAll(parts.film, ['position', 'normal', 'color']), filmMat);
+      const steel = new THREE.Mesh(mergeAll(parts.steel, ['position', 'normal', 'uv']), steelMat);
+      glass.name = `salim-door-${k}`;
+      bands.name = `salim-door-bands-${k}`;
+      steel.name = `salim-door-steel-${k}`;
+      pivot.add(glass, bands, steel);
+      pivot.name = `salim-door-leaf-${k}`;
+      this.group.add(pivot);
+      this.doorLeaves.push(pivot);
     }
 
     // signage
@@ -461,6 +644,7 @@ export class SalimInnBuilding {
     const redMat = new THREE.MeshStandardMaterial({ color: BRAND.signalRed, roughness: 0.35, metalness: 0.05, emissive: BRAND.signalRed, emissiveIntensity: 0 });
     this.signLetters = mk([signText.geo], redMat, 'salim-sign-letters', true, ['position', 'normal']);
     this.wallLetters = mk([wall.geo], redMat.clone(), 'salim-wall-letters', false, ['position', 'normal']);
+    mk([hanzi], new THREE.MeshStandardMaterial({ map: chineseNameTexture(), alphaTest: 0.5, roughness: 0.38, metalness: 0.3 }), 'salim-wall-hanzi', false);
     this.cafeLetters = mk([cafe.geo], new THREE.MeshStandardMaterial({ color: 0xeef0f0, roughness: 0.55, metalness: 0.02, emissive: 0xfff6e8, emissiveIntensity: 0 }), 'cafe-letters', true, ['position', 'normal']);
     mk(terracotta, new THREE.MeshStandardMaterial({ color: FACADE.planter, roughness: 0.8 }), 'salim-planters');
 
@@ -539,12 +723,16 @@ export class SalimInnBuilding {
     this.group.add(this.downlights);
   }
 
-  /** 0 = closed, 1 = open: the two glass leaves slide apart. */
+  /** 0 = closed, 1 = open: the middle pair swings in on its floor springs. */
   setDoor(open: number): void {
-    const leafW = (PLAN.door.x1 - PLAN.door.x0 - 0.64) / 2;
-    const s = open * open * (3 - 2 * open);
-    this.doorLeaves[0].position.x = this.doorLeaves[0].userData.x0 - s * (leafW - 0.05);
-    this.doorLeaves[1].position.x = this.doorLeaves[1].userData.x0 + s * (leafW - 0.05);
+    const a = DOOR_SWING * open * open * (3 - 2 * open);
+    this.doorLeaves[0].rotation.y = a;
+    this.doorLeaves[1].rotation.y = -a;
+  }
+
+  /** Whether the real lobby is drawn behind the entrance (else the veil is). */
+  setLobbyShown(shown: boolean): void {
+    this.lobbyVeil.visible = !shown;
   }
 
   /** Dusk state: sign/letters glow with `lights`; canopy downlights count up. */
@@ -573,7 +761,7 @@ export class SalimInnBuilding {
       box: new THREE.Vector4(-S.dropOffCanopy - 1, W + 1.5, -FFW - 0.5, 7.5),
       intensity: 20,
     };
-    const names = new Set(['salim-tiles', 'salim-walkway', 'salim-concrete', 'salim-white', 'salim-charcoal', 'salim-stone', 'salim-planters']);
+    const names = new Set(['salim-tiles', 'salim-walkway', 'salim-concrete', 'salim-white', 'salim-charcoal', 'salim-stone', 'salim-planters', 'salim-door-bands', 'salim-mosaic', 'salim-wall-hanzi']);
     const mats = new Set<THREE.MeshStandardMaterial>(extra);
     for (const m of this.meshes) if (names.has(m.name)) mats.add(m.material as THREE.MeshStandardMaterial);
     this.props.traverse((o) => { if ((o as THREE.Mesh).isMesh) mats.add((o as THREE.Mesh).material as THREE.MeshStandardMaterial); });

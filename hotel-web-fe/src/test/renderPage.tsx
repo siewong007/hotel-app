@@ -132,7 +132,7 @@ export function buildAuthContextValue(fixture: AuthFixture = {}): AuthContextTyp
     loginWithGoogle: reject('loginWithGoogle'),
     applyProfileUpdate: noop,
     register: reject('register'),
-    logout: noop,
+    logout: () => Promise.resolve(),
     hasPermission,
     hasRole: (role: string) => roleSet.has(normalizeAccessValue(role)),
     getRoutePolicy: (routeId: string) => routePolicyMap.get(routeId),
