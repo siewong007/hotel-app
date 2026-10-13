@@ -79,7 +79,7 @@ export class Neighbourhood {
     // ---------------------------------------------------------------- chapter 2 copy: chips + card
     hosts.ch2.innerHTML = `
       <div class="nb-chips" role="group" aria-label="${c.chipsLabel}">
-        ${this.groups.map((g) => `<button type="button" class="nb-chip" data-group="${g.key}" aria-expanded="false" aria-controls="nb-card">${esc(g.label)} <span>${count([c.placeOne, c.placeMany], g.places.length)}</span></button>`).join('')}
+        ${this.groups.map((g) => `<button type="button" class="nb-chip" data-group="${g.key}" aria-expanded="false" aria-controls="nb-card">${icon(ICONS[g.key])}${esc(g.label)} <span>${count([c.placeOne, c.placeMany], g.places.length)}</span></button>`).join('')}
       </div>
       <div class="nb-card" id="nb-card" role="region" aria-live="polite" aria-labelledby="nb-card-title" tabindex="0" data-lenis-prevent hidden></div>`;
     this.card = hosts.ch2.querySelector('.nb-card')!;

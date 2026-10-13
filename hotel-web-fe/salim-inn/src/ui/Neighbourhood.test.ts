@@ -48,6 +48,16 @@ describe('the map markers', () => {
     expect(new Set(icons.map((svg) => svg.innerHTML)).size).toBe(markers.length);
   });
 
+  it('gives each chip in the copy its marker’s icon, and leaves its name alone', () => {
+    make();
+    for (const chip of document.querySelectorAll<HTMLElement>('.nb-chip')) {
+      const svg = chip.querySelector('svg')!;
+      expect(svg.getAttribute('aria-hidden')).toBe('true');
+      expect(svg.innerHTML).toBe(marker(chip.dataset.group!).querySelector('svg')!.innerHTML);
+      expect(chip.textContent).toMatch(/^\S.* \d+ places?$/); // the label and its count, as before
+    }
+  });
+
   it('marks the open category selected and steps the others back, and lets go on closing', () => {
     make();
     const layer = document.querySelector('.nb-layer')!;

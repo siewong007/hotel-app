@@ -317,6 +317,8 @@ html.film-live .poster { visibility: hidden; }
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); transition: background 0.35s var(--ease), border-color 0.35s var(--ease);
 }
 .nb-chip span { color: var(--gold); font-weight: 500; }
+.nb-chip svg { flex: none; margin-left: -4px; color: var(--gold); }
+.nb-chip[aria-expanded='true'] svg { color: var(--ink); }
 .nb-chip:hover { border-color: rgba(217, 181, 114, 0.6); }
 .nb-chip[aria-expanded='true'] { background: var(--gold); color: var(--ink); border-color: var(--gold); }
 .nb-chip[aria-expanded='true'] span { color: var(--forest); }
@@ -342,6 +344,7 @@ html.film-live .poster { visibility: hidden; }
 .nb-walk li { font-size: 0.95rem; }
 .nb-walk li span { color: var(--muted); }
 .nb-getting { display: flex; flex-wrap: wrap; gap: 8px; }
+.nb-walk + .nb-sub { margin-top: 18px; }
 .nb-getting li { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: rgba(6, 17, 14, 0.5); font-size: 0.82rem; }
 /* phones: six walking times outgrew the dark lower half of the screen and
    lifted chapter 7's eyebrow over the bright frame (m4 contrast check): a
@@ -414,8 +417,13 @@ html.film-live .poster { visibility: hidden; }
 }
 .reg-card__name { margin: 0 0 8px; font-family: 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif; font-weight: 800; font-size: 1.05rem; letter-spacing: 0.06em; color: #c8242b; }
 .reg-card__facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 0.92rem; font-weight: 600; }
-.reg-card--compact { width: 100%; padding: 10px 14px; box-shadow: none; margin: 0 0 14px; }
-.reg-card--compact .reg-card__facts { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 0.8rem; }
+.reg-card--compact {
+  /* in the booking panel the card is a quiet ticket line over the form: the
+     form and Book direct lead, not the card's paper (brief 2026-10-13, part 12) */
+  width: 100%; padding: 9px 13px; margin: 0 0 14px; border-radius: 10px; box-shadow: none;
+  background: rgba(255, 253, 247, 0.06); color: var(--ivory); border: 1px solid var(--line); border-top: 2px solid var(--gold);
+}
+.reg-card--compact .reg-card__facts { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 0.8rem; font-weight: 500; }
 .reg-card--compact .reg-card__name { display: none; }
 
 /* ---------------------------------------------------------------- booking panel (ch. 8) */
@@ -459,6 +467,13 @@ html[data-chapter='5'] .scrim::before { opacity: 1; }
    unshaded there, lit up to the eyebrow's line */
 html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0.4; }
 @media (max-width: 760px) { html[data-chapter='5'] .scrim::before, html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0; } }
+/* chapter 1 under a grey or daylit sky, and chapter 3 by day: the cloud deck
+   and the sunlit roofs rise behind the copy (the film's look, data-look:
+   film.ts; their eyebrows measured 4.67–4.75:1 without it) */
+@media (min-width: 761px) {
+  html[data-chapter='1']:is([data-look='grey'], [data-look='day']) .scrim::before,
+  html[data-chapter='3'][data-look='day'] .scrim::before { opacity: 0.6; }
+}
 
 /* ---------------------------------------------------------------- preloader */
 .preloader {
@@ -570,6 +585,8 @@ html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0.4; }
   .chapter--rooms .chapter__body { display: none; }
   .configurator { margin-top: 12px; gap: 10px; }
   .cfg-tabs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 2px; scrollbar-width: none; }
+  /* more tabs beyond the edge (Configurator.ts): a fade says so */
+  .cfg-tabs.has-more { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); }
   .cfg-tab { flex: 0 0 auto; min-height: 36px; padding: 0 12px; font-size: 0.72rem; }
   .cfg-panel { padding: 12px 14px; }
   .cfg-facts { gap: 8px 14px; }
@@ -582,7 +599,7 @@ html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0.4; }
   }
   .mobile-cta.is-visible { -webkit-transform: translateZ(0); transform: translateZ(0); }
   .mobile-cta__rate { font-size: 0.86rem; color: var(--muted); }
-  .mobile-cta__rate strong { color: var(--white); font-family: var(--display); font-size: 1.3rem; font-weight: 600; }
+  .mobile-cta__rate strong { color: var(--white); font-family: var(--display); font-size: 1.3rem; font-weight: 600; font-variant-numeric: lining-nums; }
   .mobile-cta .pill { min-height: 46px; padding: 0 22px; }
   .nb { margin-top: 12px; gap: 10px; }
   .nb-chip { min-height: 38px; padding: 0 14px; font-size: 0.76rem; }
@@ -590,12 +607,18 @@ html[data-tier='low'][data-chapter='4'] .scrim::before { opacity: 0.4; }
   .nb-hotel__label { font-size: 0.95rem; }
   .reg-card { padding: 12px 16px 10px; }
   .reg-card__facts { font-size: 0.86rem; }
+  .reg-card--compact { padding: 9px 12px; }
+  .reg-card--compact .reg-card__facts { font-size: 0.8rem; }
   /* the booking panel scrolls inside itself when the phone is short */
   .chapter--book .chapter__copy { justify-content: flex-start; overflow-y: auto; overscroll-behavior: contain; padding-top: calc(var(--topbar) + 8px); }
   .chapter--book h2 { font-size: clamp(1.7rem, 7.6vw, 2.2rem); }
   .booking { padding: 14px; }
   .bk-grid { gap: 8px 10px; }
   .bk-field input, .bk-field select { padding: 0 8px; font-size: 0.88rem; }
+  /* Book direct across the panel, the two quieter ways side by side under it
+     (a third pill used to wrap onto a line of its own) */
+  .bk-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .bk-actions .pill--gold { grid-column: 1 / -1; }
 }
 
 /* Phones up to 480 px. The logo becomes its compact lockup: the tagline
@@ -655,6 +678,23 @@ html.is-fallback .configurator { pointer-events: auto; }
   }
   html.is-fallback .fb-poster img { object-position: center top; }
 }
+
+/* The still version's atmosphere (brief 2026-10-13, part 14: low-power
+   devices get a CSS one). Its posters are the dusk film, so a chosen mode, or
+   Sibu's weather in AUTO, tints them, eased over 2.5 s: night darkens them to
+   emerald, rain and grey skies cool and mute them, a storm darker still,
+   sunset warms them, day freshens them. The copy's own scrim (::after) stays
+   on top, so its contrast never drops below the dusk version's. */
+html.is-fallback .fb-poster img { transition: filter 2.5s var(--ease); }
+html.is-fallback .fb-poster::before { content: ''; position: absolute; inset: 0; opacity: 0; background: transparent; transition: opacity 2.5s var(--ease), background-color 2.5s var(--ease); }
+html.is-fallback[data-atmosphere='night'] .fb-poster img { filter: brightness(0.55) saturate(0.72); }
+html.is-fallback[data-atmosphere='night'] .fb-poster::before { opacity: 1; background-color: rgba(4, 28, 21, 0.4); }
+html.is-fallback[data-atmosphere='sunset'] .fb-poster img { filter: saturate(1.12) sepia(0.12); }
+html.is-fallback[data-atmosphere='day'] .fb-poster img { filter: saturate(0.94) hue-rotate(5deg); }
+html.is-fallback:is([data-atmosphere='rain'], [data-atmosphere='auto']:is([data-sky='overcast'], [data-sky='fog'], [data-sky='lightRain'], [data-sky='rain'], [data-sky='heavyRain'])) .fb-poster img { filter: saturate(0.68) brightness(0.88); }
+html.is-fallback:is([data-atmosphere='rain'], [data-atmosphere='auto']:is([data-sky='overcast'], [data-sky='fog'], [data-sky='lightRain'], [data-sky='rain'], [data-sky='heavyRain'])) .fb-poster::before { opacity: 1; background-color: rgba(44, 60, 64, 0.22); }
+html.is-fallback[data-atmosphere='auto'][data-sky='thunder'] .fb-poster img { filter: saturate(0.58) brightness(0.72); }
+html.is-fallback[data-atmosphere='auto'][data-sky='thunder'] .fb-poster::before { opacity: 1; background-color: rgba(16, 26, 26, 0.34); }
 
 /* calibration renders: canvas only */
 .no-ui .topbar, .no-ui .chapter-nav, .no-ui .scrim, .no-ui .mobile-cta, .no-ui .site-footer, .no-ui .skip-link, .no-ui .nb-layer { display: none !important; }

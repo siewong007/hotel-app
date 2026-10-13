@@ -52,7 +52,7 @@
 .after .room-card small { color: #2b6b56; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
 .after .room-card h3 { font: 500 2rem/1.1 var(--display); margin: 18px 0; }
 .after .price { display: flex; align-items: baseline; gap: 6px; }
-.after .price strong { font: 500 2.6rem/1 var(--display); color: #123a2e; }
+.after .price strong { font: 500 2.6rem/1 var(--display); color: #123a2e; font-variant-numeric: lining-nums; } /* old-style 7s and 9s dropped below "RM" */
 .after .price span { font-size: 0.72rem; color: rgba(11, 24, 20, 0.55); }
 .after .rate-note { margin: 16px 0 0; font-size: 0.7rem; color: rgba(11, 24, 20, 0.52); }
 
@@ -143,7 +143,8 @@ html.film-past .chapter-nav,
 html.film-past .mobile-cta,
 html.film-past .chapter__copy { visibility: hidden !important; }
 .topbar { transition: background 0.5s var(--ease), box-shadow 0.5s var(--ease); }
-html.film-past .topbar {
+html.film-past .topbar,
+html.is-fallback.still-scrolled .topbar {
   background: rgba(6, 17, 14, 0.92); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
 }
