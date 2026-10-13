@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Phone branch: pin useIsPhone (jsdom has no matchMedia).
@@ -80,11 +81,21 @@ const rows = (): OnlineInventoryAllocation[] =>
     },
   ]);
 
+// Zero-length dialog/drawer transitions. A closing MUI dialog keeps the page
+// behind it aria-hidden until its exit timer fires, so role queries for the
+// page waited ~200ms on an animation, and under full-suite load that wait
+// overran findByRole's 1s budget (the stale-save Reload step flaked in CI).
+const instantTransitions = createTheme({
+  transitions: { duration: { enteringScreen: 0, leavingScreen: 0 } },
+});
+
 const renderPage = () =>
   render(
-    <ConfirmProvider>
-      <OnlineInventoryPage />
-    </ConfirmProvider>,
+    <ThemeProvider theme={instantTransitions}>
+      <ConfirmProvider>
+        <OnlineInventoryPage />
+      </ConfirmProvider>
+    </ThemeProvider>,
   );
 
 beforeEach(() => {
@@ -174,12 +185,15 @@ describe('OnlineInventoryPage', () => {
       'Someone else changed these days since you loaded them. Reload to see the latest.',
     );
     expect(screen.getByText('Your changes were not saved')).toBeTruthy();
-    expect(banner.closest('[role="alert"]')?.textContent).toMatch(/Deluxe King ·/);
+    const alert = banner.closest<HTMLElement>('[role="alert"]');
+    expect(alert?.textContent).toMatch(/Deluxe King ·/);
     // Nothing was applied, so the edit is still staged until Reload.
     expect(screen.getByText(/1 cell changed/)).toBeTruthy();
 
     // The review dialog closes so the banner and its Reload are reachable.
-    fireEvent.click(await screen.findByRole('button', { name: 'Reload' }));
+    // Scoped to the banner: a page-wide role query walks every grid cell on
+    // each retry, which is what made this wait slow under suite load.
+    fireEvent.click(await within(alert!).findByRole('button', { name: 'Reload' }));
     await waitFor(() => expect(rangeMock).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(screen.queryByText('Your changes were not saved')).toBeNull(),
