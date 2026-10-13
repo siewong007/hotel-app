@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from '../../../router';
 import { returnFromAuthPage, safeGuestRedirect, safeStaffRedirect } from '../guestRedirect';
+import { isGoogleSignInOnly } from '../googleSignInOnly';
 import {
   Box,
   Container,
@@ -263,6 +264,12 @@ const LoginPage: React.FC = () => {
       // second-factor step; the reason shows on the sign-in form.
       if (code) {
         leaveTwoFactor();
+      }
+      // A Google-created account has no password: point at the Google button.
+      if (isGoogleSignInOnly(err)) {
+        setError(t('login.googleSignInOnly'));
+        setLoading(false);
+        return;
       }
       setError(guestErrorMessage(err, t('login.failed')));
       setLoading(false);

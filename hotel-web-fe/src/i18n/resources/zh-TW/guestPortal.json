@@ -290,6 +290,8 @@
         "missingToken": "無效或遺失的權杖"
       },
       "identityNeedsAccount": "抵達前驗證身分需要帳戶。您仍可在櫃檯辦理入住。",
+      "identityNeedsSignIn": "抵達前驗證身分需要先登入。您已有此訂房的帳戶——請先登入，再返回此連結。您仍可在櫃檯辦理入住。",
+      "signIn": "登入",
       "loading": "載入中…",
       "payment": {
         "notRequiredSubtitle": "此預訂目前不需要付款。",

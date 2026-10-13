@@ -216,6 +216,9 @@ pub struct GuestPortalBookingResponse {
     pub receipt_request_payment_id: Option<i64>,
     pub receipt_request_message: Option<String>,
     pub receipt_uploaded: bool,
+    /// The booking's guest already has a portal login (password or Google),
+    /// so the pre-check-in wizard must offer sign-in, not "create account".
+    pub has_account: bool,
 }
 
 // ============================================================================

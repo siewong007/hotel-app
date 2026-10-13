@@ -435,6 +435,14 @@ mod postgres_tests {
         let (guest_id, room_type_id, room_id, booking_id) = seed_booking(&pool, suffix).await;
         let token = issue_token(&pool, booking_id).await;
 
+        let before = guest_portal_service::get_booking_by_token(&pool, &token)
+            .await
+            .expect("load booking by token");
+        assert!(
+            !before.has_account,
+            "an unclaimed booking guest has no login yet"
+        );
+
         let response = guest_portal_service::claim_booking_account(
             &pool,
             &token,
@@ -443,6 +451,14 @@ mod postgres_tests {
         )
         .await
         .expect("claim must succeed for a valid token and matching booking details");
+
+        let after = guest_portal_service::get_booking_by_token(&pool, &token)
+            .await
+            .expect("reload booking by token");
+        assert!(
+            after.has_account,
+            "once claimed, the wizard must offer sign-in instead of another account"
+        );
 
         assert_eq!(response.username, format!("claim{suffix}"));
         assert!(
